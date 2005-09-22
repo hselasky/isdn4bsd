@@ -1,0 +1,1891 @@
+/*-
+ * Copyright (c) 2000-2005 Hans Petter Selasky. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ *---------------------------------------------------------------------------
+ *
+ *	i4b_ihfc2_drv.c - driver interface
+ *	----------------------------------
+ *
+ *
+ *	NOTE: INTEL CPU's use 8-bit I/O access for the ISA-BUS, so
+ *	      counter registers may be unstable even if
+ *	      bus_space_read_4 is used.
+ *
+ *	Prefixes:
+ *		         Z: Z-counter or unwrapped FIFO transfer length related
+ *			 F: F-counter related
+ *			 f: ihfc_fifo_t related
+ *			sc: ihfc_sc_t related
+ *			s_: ihfc register related
+ *			i_: isac register related
+ *			h_: hscx register related
+ *			w_: winbond register related
+ *			p_: psb register related
+ *---------------------------------------------------------------------------*/
+
+#include <i4b/layer1/ihfc2/i4b_ihfc2.h>
+#include <i4b/layer1/ihfc2/i4b_ihfc2_ext.h>
+
+__FBSDID("$FreeBSD: $");
+
+static void
+ihfc_fifo_program(register ihfc_sc_t *sc);
+
+static void
+ihfc_fifo_program_reset(ihfc_sc_t *sc, ihfc_fifo_t *f);
+
+/*---------------------------------------------------------------------------*
+ * : reg_get_desc - ``provide human readable debugging support''
+ *---------------------------------------------------------------------------*/
+static __inline const u_char *
+reg_get_desc(u_int8_t off)
+{
+    const u_char * desc [] = REGISTERS(REG_MACRO_1);
+
+    if(off >= (sizeof(desc)/sizeof(desc[0])))
+    {
+        return "unknown";
+    }
+    else
+    {
+        return desc[off];
+    }
+}
+
+/*---------------------------------------------------------------------------*
+ * : ihfc_fifos_active() - search for active FIFOs
+ *---------------------------------------------------------------------------*/
+u_int8_t
+ihfc_fifos_active(ihfc_sc_t *sc)
+{
+    ihfc_fifo_t *f;
+
+    /* NOTE: the search below will not be
+     * very lengthy, hence the D-channel 
+     * is usually active, and its FIFO
+     * is checked first!
+     */
+    FIFO_FOREACH(f,sc)
+    {
+        if(f->prot != P_DISABLE)
+	{
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+/*---------------------------------------------------------------------------*
+ * : write config (sc_config)					(ALL CHIPS)
+ *
+ * Which register(s) that will be written to chip, depends on the
+ * second parameter given to this function, called `f':
+ *
+ * `f == &sc->sc_fifo[...]'   :  All register(s) used in `struct sc_fifo' ***
+ * `f == CONFIG_WRITE_RELOAD' :  All register(s) used in `struct sc_config'
+ * `f == CONFIG_WRITE_UPDATE' :  Only changed register(s) ------ || ------
+ *
+ *
+ * *** NOTE: if `f == &sc->sc_fifo[...]' that means:
+ *	- reset f->program 
+ *	- reset f->filter
+ *	- reset fifo hardware
+ *	- re-configure fifo hardware if needed
+ *
+ * 16-bit and 32-bit registers must be added to a custom `c_chip_config_write'.
+ *
+ * This routine is called from fifo_setup(,), fsm_update(,),
+ * chip_reset(,) and fifo_link(,) ...
+ *---------------------------------------------------------------------------*/
+static void
+ihfc_config_write(ihfc_sc_t *sc, ihfc_fifo_t *f)
+{
+#define c (&sc->sc_config)
+
+  if((f == CONFIG_WRITE_UPDATE) ||
+     (f == CONFIG_WRITE_RELOAD))
+  {
+	register_list_t *r;
+
+	/* Update interrupt delay for
+	 * ihfc_poll_interrupt
+	 *
+	 * Enable timers with interval 64ms,
+	 * 50ms,  25ms  or  other  interval,
+	 * when line is activated. Else dis-
+	 * able the timers (sleep mode).
+	 */
+	if(ihfc_fifos_active(sc) &&
+	   (sc->sc_statemachine.state.active ||
+	    sc->sc_statemachine.state.pending))
+	{
+	  /* decrease interrupt delay when
+	   * the line is activated.
+	   * 
+	   * The code below works a bit like
+	   * (a % (1*hz)).  The chip
+	   * specific delay should be less
+	   * than 1*hz.
+	   */
+	  if(sc->sc_default.d_interrupt_delay >= (1*hz))
+	  {
+	    sc->sc_default.d_interrupt_delay -= 1*hz;
+	  }
+
+	  c->s_int_m1   |=  0x80; /* enable t50 */
+	  c->s_ctmt_0   |=  0x04; /* enable t50 */
+	  c->i_mask     &= ~0x08; /* enable TIN */
+	  c->b_mask     &= ~0x08; /* enable AUX */
+	  c->t_dma_oper |=  0x01; /* enable DMA */
+	}
+	else
+	{
+	  /* increase interrupt delay when
+	   * the line is deactivated.
+	   *
+	   * NOTE: this delay must be
+	   * shorter than ``IHFC_T3_DELAY''.
+	   */
+	  if(sc->sc_default.d_interrupt_delay < (1*hz))
+	  {
+	    sc->sc_default.d_interrupt_delay += 1*hz;
+	  }
+
+	  c->s_int_m1   &= ~0x80; /* disable t50 */
+	  c->s_ctmt_0   &= ~0x04; /* disable t50 */
+	  c->i_mask     |=  0x08; /* disable TIN */
+	  c->b_mask     |=  0x08; /* disable AUX */
+	  c->t_dma_oper &= ~0x01; /* disable DMA */
+	}
+
+ 	/*
+	 * configure chip,
+	 * write new configuration
+	 */
+
+	REGISTER_FOREACH(r,sc->sc_default.d_register_list)
+	{
+	  u_int8_t *data  = &OFF2REG(sc->sc_config, r->offset);
+	  u_int8_t *data2 = &OFF2REG(sc->sc_config2, r->offset);
+
+	  if((f == CONFIG_WRITE_RELOAD) || (*data != *data2))
+	  {
+	    IHFC_MSG("0x%02x->%s (0x%02x).\n",
+		     *data, reg_get_desc(r->offset), r->regval);
+	    /*
+	     * Write 8-bit register
+	     */
+
+	    CHIP_WRITE_1(sc, r->regval, data);
+
+	    /*
+	     * Update shadow config
+	     */
+
+	    *data2 = *data;
+	  }
+	}
+  }
+  else
+  {
+	/* configure fifo */
+	/* currently nothing to configure */
+
+    /* XXX */
+
+	/* NOTE: ``ihfc_fifo_program_reset(,)'' will
+	 * setup dummies for f->program and f->filter
+	 *
+	 * forward program to reset and
+	 * do some checking
+	 */
+	ihfc_fifo_program_reset(sc,f);
+  }
+
+  /* NOTE: s_ctmt_0 is written to chip
+   * by``CHIP_CONFIG_WRITE(,)''
+   */
+
+  /* ??
+   * Call chip specific configuration routine
+   * last, hence the ``CHIP_CONFIG_WRITE(,)''
+   * routine can call filter(s), which must be
+   * setup by ``ihfc_fifo_program_reset(,)'':
+   */
+  CHIP_CONFIG_WRITE(sc,f);
+
+  return;
+#undef c
+}
+
+/*---------------------------------------------------------------------------*
+ * : reset chip(s)						(ALL CHIPS)
+ *
+ * NOTE: this routine may be called from a low-priority fifo
+ *
+ * NOTE: reset pins should be connected so that when one chip is
+ * 	 reset, all chips are reset.
+ *
+ *---------------------------------------------------------------------------*/
+void
+ihfc_reset(ihfc_sc_t *sc, u_int8_t *error)
+{
+	ihfc_fifo_t *f;
+
+	/* reset config buffer (used by USB) */
+	BUF_SETUP_WRITELEN(&sc->sc_config_buffer.buf,
+			   (void *)&sc->sc_config_buffer.start[0],
+			   (void *)&sc->sc_config_buffer.end[0]);
+
+ /* step 1 */
+
+	/* reset chip */
+	CHIP_RESET(sc,error);
+
+	if(IHFC_IS_ERR(error))
+	{
+		IHFC_ADD_ERR(error,
+			     "- Reset did not detect chip! "
+			     "(A hard reboot may help)");
+		return;
+	}
+
+	/* reset ``sc_fifo_select_last'' */
+	sc->sc_fifo_select_last = (ihfc_fifo_t *)0;
+
+	/* reload configuration first */
+	ihfc_config_write(sc, CONFIG_WRITE_RELOAD);
+
+ /* step 2 */
+
+	/* reset fifo */
+	FIFO_FOREACH(f,sc)
+	{
+		/* configure and reset fifo */
+		ihfc_config_write(sc,f);
+	}
+
+ /* step 3 */
+
+	/* call interrupt handler to clear any
+	 * early interrupts, to run queued
+	 * FIFOs and to start any timers:
+	 */
+	CHIP_INTERRUPT(sc);
+
+ /* step 4 */
+
+	/* release   statemachine  and
+	 * try to re-activate the line
+	 * if it was already activated.
+	 *
+	 * NOTE: ``fsm_update(,)'' will
+	 * also call ``ihfc_config_write(,)''
+	 */
+	fsm_update(sc, sc->sc_statemachine.state.active != 0);
+
+	/* return success */
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ * : statemachine read hardware					(ALL CHIPS)
+ *---------------------------------------------------------------------------*/
+static __inline fsm_state_t *
+fsm_read(register ihfc_sc_t *sc /*, register ihfc_statemachine_t *st */)
+{
+	u_int8_t state = 0;
+
+	FSM_READ(sc,&state);
+
+	return &(sc->sc_default.d_fsm_table->state[state & 0xf]);
+}
+
+/*---------------------------------------------------------------------------*
+ * : statemachine write hardware				(ALL CHIPS)
+ *---------------------------------------------------------------------------*/
+static __inline fsm_command_t *
+fsm_write(register ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
+{
+#if DO_I4B_DEBUG
+	const u_int8_t * const temp = "unknown";
+#endif
+	fsm_command_t *fsm;
+
+	fsm = &(sc->sc_default.d_fsm_table->cmd[flag & 0x7]);
+
+	/*
+	 * Generate debug output:
+	 */
+
+	IHFC_MSG("%s, cmd[%d]=0x%02x\n",
+		 fsm->description ? fsm->description : temp, 
+		 flag, fsm->value);
+
+	FSM_WRITE(sc,&fsm->value);
+
+	return fsm;
+}
+
+/*---------------------------------------------------------------------------*
+ * : fsm_T3_expire (PH layer)                                   (ALL CHIPS)
+ *---------------------------------------------------------------------------*/
+static void
+fsm_T3_expire(ihfc_sc_t *sc)
+{
+	IHFC_MSG("Timeout.\n");
+
+	IHFC_CRIT_BEG(sc);
+
+	/* timeout command (through fsm_update) */
+	fsm_update(sc,3);
+	
+	IHFC_CRIT_END(sc);
+
+	return;
+}
+
+#define IHFC_T3_DELAY 4*hz /* PH - activation timeout */
+
+/*---------------------------------------------------------------------------*
+ * : state machine handler (PH layer)                            (ALL CHIPS)
+ *
+ *	flag: 0 = Read state and process commands
+ *	      1 = Activate
+ *	      2 = Deactivate
+ *	      3 = Activate timeout
+ *
+ *	NOTE: Before the HFC or ISAC chips start sending any B- or
+ *	      D-channel data to the cable, the statemachine must be
+ *	      properly activated. This can be checked by polling
+ *	      ``sc->sc_statemachine.state.active'' which is set to
+ *	      one when this is true. The driver should call
+ *	      fsm_update(sc,1) when data is waiting and
+ *	      ``sc->sc_statemachine.state.active'' is zero.
+ *
+ *      NOTE: When activated the HFC and ISAC chips transmit data on
+ *            all channels, but only 1's, ``high impedance'', which
+ *            do not disturb other connections.
+ *
+ *	NOTE: The state(4-bit number) of the S0-line is looked up in
+ *	      in a table with ((1<<4) ==) 16 entries, fsm_table, to hide
+ *	      chip differences.  In general it is the chip's job to handle
+ *	      state transitions, with one or two exceptions.
+ *
+ *      NOTE: Test signal can be used to ensure proper synchronization.
+ *
+ *	NOTE: currently only one statemachine is supported per chip (ihfc_sc_t *sc)
+ *---------------------------------------------------------------------------*/
+void
+fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
+{
+	register ihfc_statemachine_t *st = &sc->sc_statemachine;
+	struct fsm_state fsm_state;
+
+	/*
+	 * Get current state (rx/downstream)
+	 */
+
+        fsm_state = *fsm_read(sc);
+
+	/*
+	 * Generate debug output:
+	 */
+
+	if(fsm_state.description)
+	{
+		ihfc_trace_info(sc, fsm_state.description);
+
+		IHFC_MSG("%s. (p%d,a%d,c%d,u%d,d%d,i%d)\n",
+			 fsm_state.description,
+			 fsm_state.pending,
+			 fsm_state.active,
+			 fsm_state.command,
+			 fsm_state.can_up,
+			 fsm_state.can_down,
+			 fsm_state.index);
+	}
+	else
+	{
+		IHFC_ERR("Illegal state: %d!\n", 
+			 fsm_state.index);
+	}
+
+	/*
+	 * command request:
+	 * execute
+	 */
+	if(fsm_state.command)
+	{
+		fsm_write(sc,fsm_state.index);
+	}
+
+	/*
+	 * user activation:
+	 * set trycount
+	 */
+	if(flag == 1)
+	{
+		st->L1_auto_activate_variable = 1;
+	}
+
+	/*
+	 * user deactivation:
+	 * clear trycount
+	 */
+	if(flag == 2)
+	{
+		st->L1_auto_activate_variable = 0;
+	}
+
+	/*
+	 * user activation
+	 * timeout(T3)
+	 */
+	if(flag == 3)
+	{
+	  if(fsm_state.active)
+	  {
+		flag = 0;
+	  }
+	  else
+	  {
+	    if(*(st->L1_auto_activate_ptr) == 0)
+	    {
+		flag = 2;
+	    }
+	  }
+	}
+
+	/*
+	 * Deactivate command:
+	 */
+
+	if((flag == 2) || (flag == 3))
+	{
+		/* index 1 is deactivate
+		 * command in all tables
+		 */
+		if(fsm_state.can_down)
+		{
+			fsm_write(sc,1);
+		}
+	}
+
+	/*
+	 * Activate command:
+	 */
+
+	if((flag == 1) || (flag == 3))
+	{
+		/* index 0 is activate
+		 * command in all tables
+		 */
+		if(fsm_state.can_up)
+		{
+			fsm_write(sc,0);
+		}
+
+		if(!callout_pending(&sc->sc_statemachine.T3callout))
+		{
+			callout_reset(&sc->sc_statemachine.T3callout, IHFC_T3_DELAY,
+				      (void *)(void *)&fsm_T3_expire, sc);
+		}
+	}
+
+	/*
+	 * Update softc + upper layers
+	 */
+
+	if(st->state.active != fsm_state.active)
+	{
+	  *(st->L1_activity_ptr) = fsm_state.active;
+#if 0
+	  /* send an activation signal to L4 */
+	  i4b_l4_l12stat(sc->sc_i4bunit,1,fsm_state.active);
+	  i4b_l4_l12stat(sc->sc_i4bunit,2,fsm_state.active);
+#endif
+	}
+
+	st->state = fsm_state;
+
+	/*
+	 * Update timer
+	 */
+
+	ihfc_config_write(sc,CONFIG_WRITE_UPDATE);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ * : include generic fifo processing programs
+ *---------------------------------------------------------------------------*/
+#include <i4b/layer1/ihfc2/i4b_program.h>
+
+/*---------------------------------------------------------------------------*
+ * : global filter support macros and structure(s)
+ *---------------------------------------------------------------------------*/
+struct filter_info {
+	u_int8_t  unused;
+	u_int8_t  direction;
+	u_int16_t buffersize; /* in bytes */
+	u_int32_t protmask;
+  void (*rxtx_interrupt) RXTX_INTERRUPT_T(,);
+  void (*filter) FIFO_FILTER_T(,);
+};
+
+#define I4B_FILTER_INFO_DECLARE(name)				\
+	static const struct filter_info name			\
+	  __attribute__((__section__("ihfc_filter_info_start"),	\
+			 __aligned__(1),__used__))		\
+/**/
+/*
+ * NOTE: __aligned__(1) is used to make sure that
+ *	 the compiler doesn't put any bytes between
+ *	 the structures!
+ */
+
+#define I4B_FILTER_EXPORT()				\
+	I4B_FILTER_INFO_DECLARE(UNIQUE(ihfc_filter_info))
+
+extern struct filter_info
+  ihfc_filter_info_start[0],
+  ihfc_filter_info_end[0];
+
+#include <i4b/layer1/ihfc2/i4b_count.h>
+#include <i4b/layer1/ihfc2/i4b_filter.h>
+
+/*---------------------------------------------------------------------------*
+ * : setup/unsetup a temporary data buffer
+ *---------------------------------------------------------------------------*/
+static __inline u_int8_t
+ihfc_buffer_setup(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int16_t buffersize)
+{
+	/* free old buffer */
+	if(f->buf.Buf_start)
+	{
+	  free(f->buf.Buf_start, M_CACHE);
+
+	  /* clear counters */
+	  bzero(&f->buf, sizeof(f->buf));
+	}
+
+	/* get new buffer */
+	if(buffersize)
+	{
+		if(!f->buf.Buf_start)
+		{
+			if(!(f->buf.Buf_start = malloc(buffersize,
+						       M_CACHE,
+						       M_NOWAIT|M_ZERO)))
+			{
+				IHFC_ERR("malloc == 0!\n");
+				return 1;
+			}
+
+			/* setup data pointers */
+			f->buf.Dat_start =
+			f->buf.Dat_end   = f->buf.Buf_start;
+			f->buf.Buf_end   = f->buf.Buf_start + buffersize;
+		}
+	}
+  
+	IHFC_MSG("soft buffer(%d bytes) %s.\n", buffersize,
+		 buffersize ? "enabled" : "disabled");
+
+	return 0;
+}
+
+/*---------------------------------------------------------------------------*
+ * : fifo link routine
+ * NOTE: first match wins
+ *---------------------------------------------------------------------------*/
+static __inline void
+ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
+{
+  ihfc_fifo_program_t *program;
+ const struct filter_info  * filt;
+ __typeof(filt->buffersize)  buffersize;
+ __typeof(filt->rxtx_interrupt) *rxtx_interrupt;
+ u_int32_t prot;
+ u_int8_t direction;
+
+ rxtx_interrupt = (FIFO_DIR(f) == transmit) ?
+   &FIFO_TRANSLATOR(sc,f)->L5_TX_INTERRUPT :
+   &FIFO_TRANSLATOR(sc,f)->L5_RX_INTERRUPT ;
+
+ reconfigure:
+
+	if(f->prot == P_HDLC_EMU)
+	{
+	  /* NOTE: transmit channels that doesn't
+	   * repeat the last byte, or are shared,
+	   * should use the D-channel HDLC encoder(!)
+	   */
+	  if((FIFO_NO(f) == d1t) ||
+	     (!sc->sc_default.o_TRANSPARENT_BYTE_REPETITION))
+	  {
+	    f->prot = P_HDLC_EMU_D;
+	  }
+	}
+
+	/* search for program */
+	program = FIFO_GET_PROGRAM(sc,f);
+
+	/* setup masks */
+	prot = M(f->prot);
+	direction = FIFO_DIR(f);
+
+	/* search for filter */
+	for(filt = &ihfc_filter_info_start[0];
+	    filt < &ihfc_filter_info_end[0];
+	    filt++)
+	{
+	  if((filt->protmask & prot) &&
+	     (filt->direction == direction))
+	  {
+		/* first match wins */
+		goto filt_found;
+	  }
+	}
+
+	/* filter not found */ 
+	filt = 0;
+
+ filt_found: 
+
+	if(program && 
+	   filt && filt->filter)
+	{
+		/* set buffersize */
+		buffersize = filt->buffersize;
+
+		/* select program (NOTE: some setup has
+		 * been put in ihfc_config_write(,))!!
+		 */
+		f->program = program;
+
+		/* select filter */
+		f->filter   = filt->filter;
+
+		/* select rxtx_interrupt */
+		if(filt->rxtx_interrupt)
+		{
+		  *rxtx_interrupt = filt->rxtx_interrupt;
+		}
+	}
+	else
+	{
+		/* allow HDLC fallback
+		 * to HDLC_EMU
+		 */
+		if(f->prot == P_HDLC)
+		{
+		   f->prot = P_HDLC_EMU;
+		   goto reconfigure;
+		}
+
+		/* no match for this
+		 * combination
+		 */
+		if(f->prot != P_DISABLE)
+		{
+		error:
+		  IHFC_ERR("fifo(#%d) cannot be configured "
+			   "for protocol %d: %s-%s-%s-%s\n",
+			   FIFO_NO(f), f->prot,
+			   !program ? "no program" : "",
+			   !filt ? "no filter" :  !filt->filter ? "invalid filter" : "",
+			   !prot ? "protocol >= max" : "",
+			   (direction == transmit) ? "(dir=tx)" : "(dir=rx)");
+		}
+
+		/* set defaults */
+
+		buffersize  = 0;
+
+		f->program  = 0;
+		f->filter   = 0;
+		*rxtx_interrupt = 0;
+		f->prot     = P_DISABLE;
+	}
+
+	/* setup buffer [if any] */
+	if(ihfc_buffer_setup(sc,f,buffersize))
+	{
+	  goto error;
+	}
+
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ * : ihfc interrupt routine
+ *---------------------------------------------------------------------------*/
+void
+ihfc_chip_interrupt(ihfc_sc_t *sc)
+{
+	IHFC_CRIT_BEG(sc); /* should be done by caller */
+
+	/* Interrupts are generated by software and hardware,
+	 * so this routine may recurse:
+	 *
+	 * ihfc_chip_interrupt()->ihfc_fifo_program()->
+	 *  ihfc_fifo_setup()->ihfc_fifo_call()->ihfc_chip_interrupt()
+	 *
+	 * When this routine recurses, the second
+	 * call will return immediately.  However,
+	 * new FIFOs queued will be detected by
+	 * ihfc_fifo_program().
+	 */
+
+	/* set ``sc_chip_interrupt_called'' */
+	if(!sc->sc_chip_interrupt_called)
+	{   sc->sc_chip_interrupt_called = 1;
+
+	    /* read status */
+	    CHIP_STATUS_READ(sc);
+
+#if DO_I4B_DEBUG
+	    if(i4b_l1_debug & L1_HFC_DBG)
+	    {
+	      microtime(&sc->sc_stack.tv);
+	      IHFC_MSG("del=%08d ista=0x%04x, exir=0x%04x, "
+		       "h_ista=0x%04x, h_exir=0x%04x, s_int_s1=0x%02x\n",
+		       (u_int32_t)(sc->sc_stack.tv.tv_usec - 
+				   sc->sc_stack.tv2.tv_usec),
+		       sc->sc_config.i_ista, sc->sc_config.i_exir,
+		       sc->sc_config.h_ista, sc->sc_config.h_exir,
+		       sc->sc_config.s_int_s1);
+
+	      sc->sc_stack.tv2 = 
+		sc->sc_stack.tv;
+	    }
+#endif
+
+	    /* check status */
+	    CHIP_STATUS_CHECK(sc);
+
+	    /* do fifo processing, if any */
+	    ihfc_fifo_program(sc);
+
+	    /* unselect chip, write commands ... */
+	    CHIP_UNSELECT(sc);
+
+	    /*
+	     * Check if polling is active
+	     */
+	    if(sc->sc_default.o_POLLED_MODE)
+	    {
+	      if(SC_T125_WAIT(sc))
+	      {
+		if(SC_T125_WAIT_DELAY == 0)
+		{
+		  /* temporarily use ``DELAY()''
+		   * instead of ``callout()''
+		   *
+		   * DELAY(200);
+		   * 
+		   * Danger of infinity
+		   * loops ...
+		   *
+		   * goto status_read;
+		   */
+		}
+
+		/* delay 1 millisecond (command delay) */
+		if(!callout_pending(&sc->sc_pollout_timr_wait))
+		{
+		  callout_reset(&sc->sc_pollout_timr_wait,
+				SC_T125_WAIT_DELAY,
+				(void *)(void *)&ihfc_chip_interrupt, sc);
+		}
+	      }
+
+	      /* delay 50 millisecond (data delay) */
+	      if(!callout_pending(&sc->sc_pollout_timr))
+	      {
+		callout_reset(&sc->sc_pollout_timr,
+			      sc->sc_default.d_interrupt_delay,
+			      (void *)(void *)&ihfc_chip_interrupt, sc);
+	      }
+	    }
+
+	    /* clear ``sc_chip_interrupt_called'' */
+	    sc->sc_chip_interrupt_called = 0;
+	}
+
+	IHFC_CRIT_END(sc);
+
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ * : call a FIFO, for example to start transmission
+ *
+ * NOTE: recursion of this routine is allowed !
+ *
+ * NOTE: a FIFO should not call itself !
+ *
+ *---------------------------------------------------------------------------*/
+void
+ihfc_fifo_call(ihfc_sc_t *sc, ihfc_fifo_t *f)
+{
+	IHFC_CRIT_BEG(sc);
+
+	if(!(f->state &  ST_RUNNING)) {
+	     f->state |= ST_RUNNING;
+
+	    /*------------------------------------------+
+	     | The system is designed to do write after |
+	     | read.             Avoid calling the same |
+	     | FIFO more times than needed.             |
+	     +------------------------------------------*/
+
+	    /* enqueue fifo */
+	    QFIFO(sc,lo,FIFO_NO(f));
+
+	    /* call interrupt */
+	    if(!SC_T125_WAIT(sc))
+	    {
+	      CHIP_INTERRUPT(sc);
+	    }
+	    else
+	    {
+		/*----------------------------+
+		 | FIFO call is handled by    |
+		 | the interrupt handler.     |
+		 +----------------------------*/
+	    }
+
+	    /* this routine cannot sleep, hence
+	     * it will cause ``sleeping with mutex''
+	     * errors
+	     */
+	}
+
+	IHFC_CRIT_END(sc);
+
+	return;
+}
+
+#define c (&sc->sc_config) /* save some code */
+
+/*---------------------------------------------------------------------------*
+ * : setup a fifo channel 					(ALL CHIPS)
+ *
+ * NOTE: The protocol is passed by setting ``f->prot'' before calling
+ *	 this function.     ``f->prot'' may be set to ``disable'' during
+ *	 setup to indicate failure.   This function returns true when
+ *	 ``f->prot == disable''. Else it returns false.
+ *
+ * NOTE: When a channel(tx) is not in use only idle bytes (``0xff'')
+ *	 should be transmitted.
+ *
+ * NOTE: When possible the ISAC chip will be used to generate idle bytes
+ *	 for B-channel(s),       by switching the B-channel(s) an unused
+ *	 IOM2-channel.  Else a bit in the HSCX MODE register is switched
+ *	 with the same purpose instead of changing the TX/RX slot number
+ *	 which may cause noise sent to the ISDN-line,  when the computer
+ *	 is shut down (?)
+ *
+ * NOTE: some manuals use ``transparent mode'' about HDLC mode
+ *	 and ``extended transparent mode'' about what is here
+ *	 called transparent mode (audio).
+ *
+ * NOTE: this function will be called at shutdown and detach,
+ *	 disabling all fifos.
+ *
+ * NOTE: RPF, RME, RFO, XPR, XDU and XCOL interrupts should always
+ *       be enabled. (see ihfc_config_default)
+ *---------------------------------------------------------------------------*/
+static void
+ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
+{
+	u_int8_t aux_data_0_mask= 0;
+
+	u_int8_t a_lmr1_mask    = 0;
+	u_int8_t b_tr_cr_mask   = 0;
+
+	u_int8_t h_mode_mask[2] = { 0, 0 };
+	u_int8_t h_tsar_mask[2] = { 0, 0 };
+	u_int8_t h_tsax_mask[2] = { 0, 0 };
+
+	u_int8_t i_spcr_mask    = 0;
+
+	u_int8_t s_connect_mask = 0;
+	u_int8_t s_con_hdlc_mask= 0;
+	u_int8_t s_ctmt_mask    = 0;
+	u_int8_t s_sctrl_e_mask = 0;
+	u_int8_t s_fifo_en_mask = 0;
+	u_int8_t s_sctrl_mask   = 0;
+
+	u_int8_t w_b1_mode_mask = 0;
+	u_int8_t w_b2_mode_mask = 0;
+	u_int8_t w_cmdr1_mask   = 0;
+	u_int8_t w_cmdr2_mask   = 0;
+
+	/*
+	 * reset last [transmit-] byte
+	 */
+	f->last_byte = 0xff;
+
+	/*
+	 * Setup what bits can be changed:
+	 */
+	if(FIFO_DIR(f) == transmit)
+	{
+	  s_con_hdlc_mask = 0x40;
+	}
+	else
+	{
+	  s_con_hdlc_mask = 0x20;
+	}
+
+	switch(FIFO_NO(f)) {
+	case d1t: /* d1 - Transmit */
+		s_fifo_en_mask  = 0x10; /* chip: D1 channel     */
+		s_sctrl_e_mask  = 0x04; /* chip: D1 channel     */
+		w_cmdr1_mask    = 0xa0; /* chip: D1 channel     */
+		aux_data_0_mask = sc->sc_default.led_masks[d1t/2];
+		break;
+
+	case d1r: /* d1 - Receive */
+		s_fifo_en_mask  = 0x20; /* chip: D1 channel     */
+		w_cmdr1_mask    = 0x50; /* chip: D1 channel     */
+		b_tr_cr_mask    = 0x80; /* chip: D1 channel     */
+		break;
+
+	case b1t: /* b1 - Transmit */
+		h_mode_mask[0]  = 0xff; /* chip: B1 protocol    */
+	        h_tsax_mask[0]  = 0xfc; /* chip: B1 slot        */
+		i_spcr_mask     = 0x0c; /* chip: B1 channel     */
+		s_ctmt_mask     = 0x01; /* chip: B1 protocol    */
+		s_fifo_en_mask  = 0x01; /* chip: B1 channel     */
+		s_connect_mask  = 0x02; /* chip: B1 channel     */
+		s_sctrl_mask    = 0x01; /* chip: B1 channel     */
+		w_cmdr2_mask    = 0xa0; /* chip: B1 channel     */
+		w_b1_mode_mask  = 0x80; /* chip: B1 protocol    */
+		b_tr_cr_mask    = 0x08; /* chip: B1 channel     */
+		a_lmr1_mask     = 0x01; /* chip: B1 channel     */
+		aux_data_0_mask = sc->sc_default.led_masks[b1t/2];
+		break;
+
+	case b1r: /* b1 - Receive */
+		h_mode_mask[0]  = 0xfb; /* chip: B1 protocol    */
+		h_tsar_mask[0]  = 0xfc; /* chip: B1 slot        */
+		s_ctmt_mask     = 0x01; /* chip: B1 protocol    */
+  		s_fifo_en_mask  = 0x02; /* chip: B1 channel     */
+		s_connect_mask  = 0x01; /* chip: B1 channel     */
+		w_cmdr2_mask    = 0x50; /* chip: B1 channel     */
+		w_b1_mode_mask  = 0x80; /* chip: B1 protocol    */
+		b_tr_cr_mask    = 0x20; /* chip: B1 channel     */
+		break;
+
+	case b2t: /* b2 - Transmit */
+		h_mode_mask[1]  = 0xff; /* chip: B2 protocol    */
+		h_tsax_mask[1]  = 0xfc; /* chip: B2 slot        */
+		i_spcr_mask     = 0x03; /* chip: B2 channel     */
+		s_ctmt_mask     = 0x02; /* chip: B2 protocol    */
+  		s_fifo_en_mask  = 0x04; /* chip: B2 channel     */
+    		s_connect_mask  = 0x10; /* chip: B2 channel     */
+		s_sctrl_mask    = 0x02; /* chip: B2 channel     */
+		w_cmdr2_mask    = 0x0a; /* chip: B2 channel     */
+		w_b2_mode_mask  = 0x80; /* chip: B2 protocol    */
+		b_tr_cr_mask    = 0x10; /* chip: B2 channel     */
+		a_lmr1_mask     = 0x02; /* chip: B2 channel     */
+		aux_data_0_mask = sc->sc_default.led_masks[b2t/2];
+		break;
+
+	case b2r: /* b2 - Receive */
+		h_mode_mask[1] = 0xfb; /* chip: B2 protocol    */
+		h_tsar_mask[1] = 0xfc; /* chip: B2 slot        */
+		s_ctmt_mask    = 0x02; /* chip: B2 protocol    */
+  		s_fifo_en_mask = 0x08; /* chip: B2 channel     */
+		s_connect_mask = 0x08; /* chip: B2 channel     */
+		w_cmdr2_mask   = 0x05; /* chip: B2 channel     */
+		w_b2_mode_mask = 0x80; /* chip: B2 protocol    */
+		b_tr_cr_mask   = 0x40; /* chip: B2 channel     */
+		break;
+	}
+
+	if(sc->sc_default.o_LOCAL_LOOP)
+	{
+	  f->s_con_hdlc  |=  0xC0;
+	  c->s_connect   |=  0x36;
+
+	  c->s_b1_ssl     =  0x80;
+	  c->s_b1_rsl     =  0xC0;
+
+	  c->s_b2_ssl     =  0x81;
+	  c->s_b2_rsl     =  0xC1;
+
+	  c->s_a1_ssl     =  0x82;
+	  c->s_a1_rsl     =  0xC2;
+
+	  c->s_a2_ssl     =  0x83;
+	  c->s_a2_rsl     =  0xC3;
+
+	  /* disable changes to connect bits */
+	  s_connect_mask = 0;
+	  s_con_hdlc_mask = 0;	
+	}
+	else
+	{
+	  /* NOTE: you need to restart
+	   * all channels after o_LOCAL_LOOP
+	   * was enabled !!
+	   */
+	  f->s_con_hdlc  &= ~0x80;
+	  c->s_connect   &= ~0x24;
+
+	  /* HFC-NOTE: When an ISDN transmit
+	   * channel is not in use it is connected
+	   * to SLOT-4 of the PCM30's STIO1 input,
+	   * which must be enabled first, and is
+	   * assumed to be unused.  The HFC will
+	   * pull the STIO's high internally. This
+	   * is done to assure that unused ISDN
+	   * transmit channels send 0xFF bytes
+	   * only:
+	   */
+
+	  c->s_b1_ssl     =  0x00;
+	  c->s_b1_rsl     =  0xC4; /* enable B1-PCM-INPUT-SLOT ! */
+
+	  c->s_b2_ssl     =  0x00;
+	  c->s_b2_rsl     =  0xC4; /* enable B2-PCM-INPUT-SLOT ! */
+
+	  c->s_a1_ssl     =  0x00;
+	  c->s_a1_rsl     =  0xC4; /* enable A1-PCM-INPUT-SLOT ! */
+
+	  c->s_a2_ssl     =  0x00;
+	  c->s_a2_rsl     =  0xC4; /* enable A2-PCM-INPUT-SLOT ! */
+	}
+
+	/* disable HFC FIFO space first and then enable */
+	f->Z_min_free = f->fm.h.Zsize;
+
+	/*
+	 * NOTE: If other protocols are added later, please make sure that 
+	 *       your protocol resets its configured registers here:
+	 *
+	 * Reset configuration
+	 */
+
+      	if(PROT_IS_TRANSPARENT(f->prot))
+	{
+		/* Transparent mode */
+		c->s_ctmt_0   |= s_ctmt_mask;	         /* trans enable */
+		c->s_ctmt     |= s_ctmt_mask;	         /* trans enable */
+		c->s_ctmt_pnp |= s_ctmt_mask;	         /* trans enable */
+		c->s_ctmt_pci |= s_ctmt_mask;	         /* trans enable */
+		f->s_con_hdlc |= 0x02;		         /* trans enable */
+
+		c->h_mode[0]  &= ~h_mode_mask[0]; 	 /* */
+		c->h_mode[1]  &= ~h_mode_mask[1]; 	 /* */
+		c->h_mode[0]  |=  h_mode_mask[0] & 0xE4; /* trans enable */
+		c->h_mode[1]  |=  h_mode_mask[1] & 0xE4; /* trans enable */
+
+		c->w_b1_mode  |=  w_b1_mode_mask;
+		c->w_b2_mode  |=  w_b2_mode_mask;
+
+		if((f->prot != P_HDLC_EMU) &&
+		   (f->prot != P_HDLC_EMU_D))
+		{
+		  /* default AUDIO limit == 100ms of data */
+
+		  /* limit fifo usage to 800 bytes(100ms)
+		   * - Assuming that about 400 bytes(50ms)
+		   * is needed for each interrupt:
+		   */
+		  f->Z_min_free -= 800;
+		}
+		else
+		{
+		  /* default CODEC limit == 250ms of data */
+		  f->Z_min_free -= 2000;
+		}
+	}
+
+	if(PROT_IS_HDLC(f->prot))
+	{
+		/* HDLC mode */
+		c->s_ctmt_0   &= ~s_ctmt_mask;	         /* HDLC enable */
+		c->s_ctmt     &= ~s_ctmt_mask;	         /* HDLC enable */
+		c->s_ctmt_pnp &= ~s_ctmt_mask;	         /* HDLC enable */
+		c->s_ctmt_pci &= ~s_ctmt_mask;	         /* HDLC enable */
+		f->s_con_hdlc &= ~0x02;		         /* HDLC enable */ 
+
+		c->h_mode[0]  &= ~h_mode_mask[0];        /* */
+		c->h_mode[1]  &= ~h_mode_mask[1]; 	 /* */
+		c->h_mode[0]  |=  h_mode_mask[0] & 0x8C; /* HDLC enable */
+		c->h_mode[1]  |=  h_mode_mask[1] & 0x8C; /* HDLC enable */
+
+		c->w_b1_mode  &= ~w_b1_mode_mask;
+		c->w_b2_mode  &= ~w_b2_mode_mask;
+
+		f->Z_min_free = (HFC_MAX_FRAMES-1)*(f->Z_min_free/HFC_MAX_FRAMES);
+
+		if(f->Z_min_free < (HFC_MAX_FRAMES-1))
+		{
+		    /* need at least one byte per frame */
+		    f->Z_min_free = (HFC_MAX_FRAMES-1);
+
+		    IHFC_MSG("f->Z_min_free < (HFC_MAX_FRAMES-1)\n");
+		}
+	}
+
+	if(HFC_MAX_FRAMES >= f->fm.h.Fsize)
+	{
+	  IHFC_MSG("HFC_MAX_FRAMES >= f->fm.h.Fsize\n");
+	}
+
+	if(f->Z_min_free & Z_MSB)
+	{
+	   f->Z_min_free = 0;
+	}
+
+	/*
+	 * Example of new protocol:
+	 *
+	 * if(f->prot == switch_only) {
+	 *	f->prot = disable;
+	 * } else {
+	 *  disable switching
+	 * }
+	 *
+	 */
+
+	/* NOTE: D_SEND must be forced to 0xC0 using
+	 * D-reset-bit in register SCTRL_E, when
+	 * fifo[d1t] is disabled !
+	 */
+
+	c->aux_data_0 ^= sc->sc_default.led_inverse_mask;
+
+	if(f->prot != P_DISABLE)
+	{
+		c->aux_data_0    |=  aux_data_0_mask;      /* led  enable */
+		c->a_lmr1        |=  a_lmr1_mask;          /* send enable */
+		c->b_tr_cr       |=  b_tr_cr_mask; /* rec. or send enable */
+		c->w_cmdr1       |=  w_cmdr1_mask;         /* fifo enable */
+		c->w_cmdr2       |=  w_cmdr2_mask;         /* fifo enable */
+		c->h_mode[0]     |=  h_mode_mask[0] & 4;   /* send enable */
+		c->h_mode[1]     |=  h_mode_mask[1] & 4;   /* send enable */
+		c->i_spcr	 |=  i_spcr_mask & 0x0a;   /* send enable */
+		c->s_connect     &= ~s_connect_mask;/*rec. or send enable */
+		c->s_sctrl       |=  s_sctrl_mask;         /* send enable */
+		c->s_fifo_en     |=  s_fifo_en_mask;	   /* mem. enable */
+		c->s_sctrl_e_pci &= ~s_sctrl_e_mask;       /* send enable */
+		f->s_con_hdlc	 |=  0x04;		   /* fifo enable */
+		f->s_con_hdlc    &= ~s_con_hdlc_mask;/*rec.or send enable */
+	}
+	else
+	{
+		c->aux_data_0    &= ~aux_data_0_mask;      /* led  disable */
+		c->a_lmr1        &= ~a_lmr1_mask;          /* send disable */
+		c->b_tr_cr       &= ~b_tr_cr_mask; /* rec. or send disable */
+		c->w_cmdr1       &= ~w_cmdr1_mask;         /* fifo disable */
+		c->w_cmdr2       &= ~w_cmdr2_mask;         /* fifo disable */
+		c->h_mode[0]     &= ~(h_mode_mask[0] & 4); /* send disable */
+		c->h_mode[1]     &= ~(h_mode_mask[1] & 4); /* send disable */
+		c->i_spcr	 &= ~i_spcr_mask;	   /* send disable */
+		c->s_connect     |=  s_connect_mask;/*rec. or send disable */
+		c->s_sctrl       &= ~s_sctrl_mask;         /* send disable */
+		c->s_fifo_en     &= ~s_fifo_en_mask;	   /* mem. disable */
+		c->s_sctrl_e_pci |=  s_sctrl_e_mask;       /* send disable */
+		f->s_con_hdlc	 &= ~0x0E;		   /* fifo disable */
+		f->s_con_hdlc    |=  s_con_hdlc_mask;/*rec.or send disable */
+	}
+
+	c->aux_data_0 ^= sc->sc_default.led_inverse_mask;
+
+	if(1)
+	{
+	  u_int8_t tmp;
+	  ihfc_fifo_t *f_rx;
+	  ihfc_fifo_t *f_tx;
+
+	  /* bits[5..7] must be the same
+	   * in registers ``f_rx->s_con_hdlc''
+	   * and ``f_tx->s_con_hdlc''
+	   */
+	  if(FIFO_DIR(f) == transmit)
+	  {
+	    f_rx = f - transmit + receive;
+	    f_tx = f;
+	  }
+	  else
+	  {
+	    f_rx = f;
+	    f_tx = f - receive + transmit;
+	  }
+
+	  tmp = 
+	    (f_rx->s_con_hdlc & 0x20)|
+	    (f_tx->s_con_hdlc & 0x40);
+
+	  f_rx->s_con_hdlc &= ~(0x20|0x40);
+	  f_tx->s_con_hdlc &= ~(0x20|0x40);
+
+	  /* NOTE: FIFO must be enabled: */
+	  f_rx->s_con_hdlc |= tmp|0x04;
+	  f_tx->s_con_hdlc |= tmp|0x04;
+	}
+ 	return;
+}
+
+u_int8_t
+ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
+{
+  	IHFC_CRIT_BEG(sc);
+
+	IHFC_MSG("fifo(#%d) prot(%d).\n",
+		 FIFO_NO(f), f->prot);
+
+	/*
+	 * Free f->mbuf if nonzero and
+	 * free all mbuf(s) in ifqueue if any.
+	 *
+	 * also see ``ihfc_fifo_link()'' !
+	 */
+ 	I4B_FREEMBUF(f,f->mbuf);
+	I4B_FREEMBUF(f,f->mbuf_dev);
+#if 0
+	I4B_CLEANIFQ(f,&f->ifqueue);
+#else
+	_IF_DRAIN(&f->ifqueue);
+#endif
+
+	/*
+	 * Clear some variables
+	 */
+	f->mbuf     = NULL;
+	f->mbuf_dev = NULL;
+	f->buf_len  = 0;
+	f->buf_size = 0;
+	f->buf_ptr  = NULL;
+ 	f->io_stat  = 0;
+
+#if 0
+	/* it is the program's job to
+	 * manage its ST_'s
+	 */
+	f->state   &= ~ST_PROGRAM_MASK;
+#endif
+
+	f->state  &= ~ST_RUNNING; /* make sure the reset
+				   * program gets called
+				   */
+
+ 	bzero(&f->hdlc,sizeof(f->hdlc));
+
+	/*
+	 * Setup some defaults
+	 */
+	f->ifqueue.ifq_maxlen = IFQ_MAXLEN;
+
+	/*
+	 * Try linking the FIFO first
+	 * (f->prot may be changed!)
+	 */
+	ihfc_fifo_link(sc,f);
+	/* XXX depends on config_write, to reset fifo program XXX */
+
+	ihfc_fifo_setup_soft(sc,f);
+
+	/* reset and configure FIFO first */
+	ihfc_config_write(sc,f);
+
+	/* 
+	 * Setup timer with interval 64ms, 50ms, 25ms
+	 * or other interval and update changed registers
+	 */
+	ihfc_config_write(sc,CONFIG_WRITE_UPDATE);
+
+	/* clear reset bits */
+	c->w_cmdr1    &= ~0xC0;
+	c->w_cmdr2    &= ~0xCC;
+
+	IHFC_CRIT_END(sc);
+
+	/* call fifo program */
+	ihfc_fifo_call(sc,f);
+
+	return (f->prot == P_DISABLE);
+}
+
+/*---------------------------------------------------------------------------*
+ * : default config values (sc_config)
+ *
+ * NOTE: Master-mode register(s) should be loaded last.
+ * NOTE: The default config structure does not setup all registers.
+ *	 Registers which are not listed will get the value zero.
+ *---------------------------------------------------------------------------*/
+static struct sc_config ihfc_config_default =
+{
+	.aux_data_0        = 0x00 | 0x00, /* common aux_data register used
+					   * for leds. This register should
+					   * be setup by the drivers reset routine,
+					   * if it needs any other value than zero.
+ 					   */
+	/* am79c30 write only: */
+	.a_lmr1            = 0x00 | 0x40, /* disable B1/B2 TX, enable Fa+F+S0 */
+	.a_lmr2            = 0x00 | 0x58, /* int. enable F3+F7+F8 */
+	.a_lpr             = 0x00 | 0x00, /* D-ch. high pri. */
+
+	/* hfc (2b) write only: */
+	.s_cirm_0          = 0xc0 | 0x00, /* int. OFF selected */
+	.s_ctmt_0          = 0xe0 | 0x0b, /* t50ms + trans */
+
+	/* hfc (2bds0 ISA) write only: */
+	.s_cirm            = 0x00 | 0x00, /* int. OFF selected */
+	.s_ctmt            = 0x00 | 0x0b, /* t50ms + trans */
+	.s_int_m1          = 0x00 | 0x40, /* C/I int. enable */
+	.s_int_m2          = 0x00 | 0x08, /* int. enable */
+	.s_mst_mode        = 0x00 | 0x01, /* set master mode */
+	.s_clkdel          = 0x00 | 0x00,
+	.s_connect         = 0x00 | 0x10|0x08|0x02|0x01,
+					  /* rec. and send ``disable'' */
+	.s_sctrl           = 0x00 | 0x00, /* disable TX-FIFOs */
+	.s_test            = 0x00 | 0x01, /* awake enable
+					   * (NOTE: other bits _must_
+					   *   be zero!)
+					   */
+	.s_b1_ssl          = 0x00 | 0x00,
+	.s_b1_rsl          = 0x00 | 0x00,
+	.s_b2_ssl          = 0x00 | 0x00,
+	.s_b2_rsl          = 0x00 | 0x00,
+
+	/* hfc (2bds0 PnP) write only: */
+	.s_ctmt_pnp        = 0x00 | 0x17, /* t50ms + trans */
+	.s_sctrl_e         = 0x00 | (0x09^8),
+					  /* when changing ``sctrl_e''
+					   * please check:
+					   *
+					   * HFC-SP (p.45),
+					   * HFC-SPCI (p.35) and
+					   * HFC-SUSB (p.54) manual
+					   *
+					   * awake enable, D_U enable,
+					   * automatic G2->G3 transition
+					   *
+					   * NOTE: D_U is enabled because
+					   * frames are repeated in software.
+					   */
+	.s_sctrl_r         = 0x00 | 0x03, /* enable RX-FIFOs */
+	.s_mst_emod        = 0x00 | 0x00,
+	.s_trm             = 0x00 | 0x00, /* */
+
+	/* hfc (2bds0 PCI) write only: */
+	.s_cirm_pci        = 0x00 | 0x00,
+	.s_ctmt_pci        = 0x00 | 0x17, /* t50ms + trans */
+	.s_int_m2_pci      = 0x00 | 0x08, /* int. enable */
+	.s_fifo_en         = 0x00 | 0x00,
+
+	/* hfc (s2m) write only: */
+	.s_int_ctl         = 0x00 | 0x00,
+	.s_x_acc_en        = 0x00 | 0x00,
+	.s_mst_mode0       = 0x00 | 0x00,
+	.s_mst_mode1       = 0x00 | 0x00,
+	.s_receive0        = 0x00 | 0x00,
+	.s_rec_frame       = 0x00 | 0x00,
+	.s_transm0         = 0x00 | 0x00,
+	.s_transm1         = 0x00 | 0x00,
+	.s_trans_fra0      = 0x00 | 0x00,
+	.s_trans_fra1      = 0x00 | 0x00,
+	.s_trans_fra2      = 0x00 | 0x00,
+	.s_receive_off     = 0x00 | 0x00,
+	.s_trans_off       = 0x00 | 0x00,
+        
+	/* tiger write only: */
+	.t_dma_oper        = 0x00 | 0x00, /* DMA disabled */
+	.t_prct            = 0x00 | 0x20, /* DMA edge trigger + 12CLK I/O */
+        
+	/* psb3186 write only: */
+	.b_cir0		   = 0x00 | 0x0e, /* TIC bus address = 7, reset default */
+	.b_mask            = 0x00 | 0x00, /* enable all interrupts */
+	.b_iom_cr	   = 0x00 | 0x08, /* enable B-clk */
+	.b_maskd	   = 0x00 | 0x00, /* enable all interrupts */
+	.b_msti		   = 0x00 | 0xfe, /* enable STI 1 interrupt */
+	.b_masktr	   = 0x00 | 0xff, /* disable all TRAN interrupts */
+	.b_tr_cr	   = 0x00 | 0x00, /* all channels disabled */
+	.b_timr            = 0x00 | 0x01, /* (one shot mode, 64ms * (1+1) = 128ms) */
+#if 0
+	.b_sqxr		   = 0x00 | 0x4f, /* multiframe enable */
+#else
+	.b_sqxr		   = 0x00 | 0x0f, /* multiframe disable */
+#endif
+
+	/* ipac write only: */
+	.p_acfg            = 0x00 | 0x00, /* reset default */
+	.p_aoe             = 0x00 | 0x3c, /* enable INT0/1 output (aux 6+7) */
+	.p_atx             = 0x00 | 0xff, /* use high level output
+					   * for all aux lines
+					   */
+	.p_mask            = 0x00 | 0xC0, /* reset default */
+	.p_pota2           = 0x00 | 0x00, /* reset default */
+        
+	/*
+	 * NOTE: After  reset  the  ISAC  and  HSCX  chips enable  all
+	 * interrupts,  MASK == 0x00.  Disabling interrupts has little
+	 * effect,  and  rather   cause  IRQ  failure, hence  the ISAC
+	 * generates   interrupts   anyway:      For  example  if  the
+	 * CIRQ-interrupt is disabled when the  CIRQ (statemachine) is
+	 * active,  the ISAC will issue two extra interrupts where the
+	 * CIRQ-state reads deactivated.    Interrupts are disabled by
+	 * not responding to them.   That means: When the ISAC or HSCX
+	 * chips signal  TransmitPoolReady the driver should not issue
+	 * an  XTF-command  unless  there  is data and consequently no
+	 * further  IRQ's  occurr.   On  the other  hand,  if  XTF  is
+	 * executed when no data has been written to the fifo,   a new
+	 * IRQ will be generated some  microseconds  later and the IRQ
+	 * starts looping, using alot of CPU. The same is true for the
+	 * RFIFO. If RME or RPF is not responded by a command no
+	 * further interrupts will occurr.
+	 *
+	 * The exception  is  disabling  non-grounded-input interrupt-
+	 * pins, which are prone to random generation of interrupts.
+	 */
+        
+	/* isac write only: */
+	.i_adf1            = 0x00 | 0x00,
+	.i_adf2            = 0x00 | 0x00,
+	.i_spcr            = 0x00 | 0x00, /* B1/B2 send disable (Test: 0x10) */
+	.i_mask            = 0x00 | 0x00, /* enable all interrupts */
+	.i_timr            = 0x00 | 0x01, /* (one shot mode, 64ms * (1+1) = 128ms) */
+	.i_stcr            = 0x00 | 0x70, /* TIC bus address = 7 */
+	.i_sqxr            = 0x00 | 0x0f, /* master, clock always active */
+	.i_mode            = 0x00 | 0xc9, /* I_MODE:
+					   * bit0 set    : stop/go-bit enabled
+					   * bit1 cleared: IOM2-TIC bus access enabled
+					   * bit2 set    : reserved
+					   * bit3 set    : receiver enabled
+					   * bit4 set    : reserved
+					   * bit5..7     : Transparent mode 0 selected
+					   */
+#if 0
+	.i_star2           = 0x00 | 0x04, /* multiframe enable */
+#else
+	.i_star2           = 0x00 | 0x00, /* multiframe not used */
+#endif
+        
+	/* hscx write only: */
+#define HSCX_CONFIG(a)							   \
+	.h_ccr1[a]         = 0x00 | 0x80, /* power up HSCX */		   \
+	.h_mask[a]         = 0x00 | 0x00, /* enable all IRQ's */	   \
+	.h_mode[a]         = 0x00 | 0xE0, /* trans. mode + send disable */ \
+	.h_xad1[a]         = 0x00 | 0xff, /* */				   \
+	.h_xad2[a]         = 0x00 | 0xff, /* */				   \
+	.h_rah2[a]         = 0x00 | 0xff, /* */				   \
+	.h_ccr2[a]         = 0x00 | 0x30, /* */				   \
+	.h_xccr[a]         = 0x00 | 0x07, /* bits per time slot */	   \
+	.h_rccr[a]         = 0x00 | 0x07, /* bits per time slot */	   \
+	.h_timr[a]         = 0x00 | 0x00, /* non-auto mode */		   \
+	.h_rlcr[a]         = 0x00 | 0x00, /* non-auto mode */		   \
+	.h_xbch[a]         = 0x00 | 0x00, /* */
+        
+	HSCX_CONFIG(0)
+	HSCX_CONFIG(1)
+#undef  HSCX_CONFIG
+
+	/* wib (usb) write only: */
+        .w_imask           = 0x00 | 0x00,  /* enable all interrupts */
+        .w_cmdr1           = 0x00 | 0x00,  /* D-ch(RX+TX) disable */
+        .w_cmdr2           = 0x00 | 0x00,  /* B1/B2-ch(RX+TX) disable */
+        .w_ctl             = 0x00 | 0x00,  /* */
+        .w_gcr             = 0x00 | 0x00,
+        .w_mocr            = 0x00 | 0x00,
+        .w_pie             = 0x00 | 0xf8,  /* enable leds 0..2 */
+        .w_po2             = 0x00 | 0x00,  /* all leds off */
+        .w_l1b1rs          = 0x00 | 0x04,  /* receive from L1 */
+        .w_l1b2rs          = 0x00 | 0x05,  /* receive from L1 */
+        .w_usbb1rs         = 0x00 | 0x02,  /* receive from L1 */
+        .w_usbb2rs         = 0x00 | 0x03,  /* receive from L1 */
+        .w_pcm1rs          = 0x00 | 0x00,  /* receive from PCM1 */
+        .w_pcm2rs          = 0x00 | 0x01,  /* receive from PCM2 */
+
+	/* wib (pci) write only: */
+	.w_imask_pci       = 0x00 | 0x18,  /* enable all interrupts except
+					    * XINT0 and XINT1, which
+					    * sometimes trigger without
+					    * any reason (probably not
+					    * grounded).
+					    */
+	.w_d_exim          = 0x00 | 0x00,  /* enable all interrupts */
+	.w_b1_exim         = 0x00 | 0x00,  /* enable all interrutps */
+	.w_b2_exim         = 0x00 | 0x00,  /* enable all interrutps */
+	.w_b1_adm1         = 0x00 | 0xff,  /* address comparison disabled */
+	.w_b2_adm1         = 0x00 | 0xff,  /* address comparison disabled */
+	.w_b1_adm2         = 0x00 | 0xff,  /* address comparison disabled */
+	.w_b2_adm2         = 0x00 | 0xff,  /* address comparison disabled */
+	.w_d_mode          = 0x00 | 0x44,  /* D-channel (rx/tx) enable, multiframe disable */
+	.w_b1_mode         = 0x00 | 0x80,  /* extended transparent mode, 0xff interframe fill */
+	.w_b2_mode         = 0x00 | 0x80,  /* extended transparent mode, 0xff interframe fill */
+	.w_timr1           = 0x00 | 0x01,  /* timer1 100ms delay (one shot, enabled) */
+	.w_timr2           = 0x00 | 0x00,  /* timer2 disabled */
+	.w_ctl_pci         = 0x00 | 0x00,
+	.w_pctl            = 0x00 | 0x00,  /* all outputs disabled */
+	.w_gcr_pci         = 0x00 | 0x00,  /* reset default */
+	.w_sam             = 0x00 | 0xff,  /* address comparison disabled */
+	.w_tam             = 0x00 | 0xff,  /* address comparison disabled */
+	.w_sqx             = 0x00 | 0x0f,  /* disable S/Q interrupt */
+};
+
+u_int8_t
+ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
+{
+#define   ntmode        ((sc->sc_default.o_NTMODE)        != 0)
+#define   dlp           ((sc->sc_default.o_DLOWPRI)       != 0)
+#define   f8kfifo       ((sc->sc_default.o_8KFIFO)        != 0)
+#define   local_loop    ((sc->sc_default.o_LOCAL_LOOP)    != 0)
+#define   remote_loop   ((sc->sc_default.o_REMOTE_LOOP)   != 0)
+#define   iom_mode2     ((sc->sc_default.o_BUS_TYPE_IOM2) != 0)
+#define   polled        ((sc->sc_default.o_POLLED_MODE)   != 0)
+#define   ipac          ((sc->sc_default.o_IPAC)          != 0)
+#define   isac_nt 0 /* */
+#define   hscx_clock    ((ipac) ? 0x2 : 0x5)
+
+        IHFC_CRIT_BEG(sc);
+
+        if(!(sc->sc_default.o_POST_SETUP)) {
+             sc->sc_default.o_POST_SETUP = 1;
+
+             /*
+              * Load default values
+              */
+
+             sc->sc_config = ihfc_config_default;
+
+             /*
+              * Next time this function
+              * is called, only changes
+              * will be updated
+              */
+
+	     /*
+	      * LEDs
+	      * set power led on
+	      */
+	     c->aux_data_0 =
+	       sc->sc_default.led_inverse_mask ^ 
+	       sc->sc_default.led_p1_mask;
+
+	     {
+	       register ihfc_fifo_t *f;
+
+	       FIFO_FOREACH(f,sc)
+	       {
+		   ihfc_fifo_setup_soft(sc,f);
+	       }
+	     }
+        }
+
+        if(sc->sc_default.stdel_nt == 0) {
+           sc->sc_default.stdel_nt = 0x6c;
+        }
+
+        if(sc->sc_default.stdel_te == 0) {
+           sc->sc_default.stdel_te = 0x0f;
+        }
+
+        /* ===============================
+         * clear configuration to all
+         * sc->sc_default.o_XXX's disabled
+         * ===============================
+         */
+
+        /* am79c30 write only: */
+        c->a_lmr2         &= ~0x03; /* clear loopback */
+        c->a_lpr          &= ~0x0f; /* select D-ch. high pri. */
+
+        /* isac write only: */
+        c->i_adf1         |=  0x04; /* B-ch. at IOM ch. 2 */
+        c->i_adf2         &= ~0x80; /* select IOM mode 1 */
+        c->i_cirq         &= ~0x07; /* select IOM mode 1 + D-ch. high pri. */
+        c->b_cir0         &= ~0x10; /* select D-ch. high pri. */
+
+        if(isac_nt)
+	{
+          /* these features are not changed
+           * unless the ISAC is capable of
+           * NT-mode ...
+           */
+          c->i_spcr       &= ~0x10; /* clear test mode */
+          c->i_stcr       |=  0x70; /* TIC bus address = 7 */
+          c->b_cir0       |=  0x0e; /* TIC bus address = 7 */
+          c->i_mode       &= ~0x02;
+        }
+	else
+	{
+          c->i_spcr       &= ~0x50; /* clear test mode + lineswitch */
+        }
+
+        /* hscx write only: */
+#define HSCX_CONFIG(a)                                                          \
+        c->h_tsax[a]      = 0x00 | 0x07; /* unused (?) */            \
+        c->h_tsar[a]      = 0x00 | 0x07; /* unused (?) */            \
+                                                                                \
+        c->h_ccr1[a]     &= ~0x07;      /* clear clock mode */       \
+        c->h_ccr1[a]     |= hscx_clock; /* set clock mode */
+
+        HSCX_CONFIG(0);
+        HSCX_CONFIG(1);
+#undef  HSCX_CONFIG
+
+        /* hfc(2b/2bds0) write only: */
+        c->s_cirm_0     &= ~0x17; /* 32K fifo mode */
+        c->s_cirm_0     |= (sc->sc_resources.iirq[0] & 0x7);
+        c->s_cirm       &= ~0x17; /* 32K fifo mode + switch to unused intr pin */
+        c->s_cirm       |= (sc->sc_resources.iirq[0] & 0x7);
+        c->s_int_m2     |= 0x08; /* int. output enable (ISA) */
+        c->s_int_m2_pci |= 0x08; /* int. output enable (PCI) */
+
+        c->s_clkdel     &= ~0x7f; /* */
+        c->s_clkdel     |= (sc->sc_default.stdel_te);
+        c->s_sctrl      &= ~0x4C; /* TE-mode + D-ch. high priority */
+
+        /* wibusb write only: */
+        c->w_cmdr1      &= ~0x03;
+        c->w_d_mode     &= ~0x03;
+
+        /* ===========================
+         * enable features requested
+         * by driver or user
+         * ===========================
+         */
+
+        if(iom_mode2)
+	{
+          c->i_adf1         &= ~0x04; /* B-ch. at IOM ch. 0 */
+          c->i_adf2         |=  0x80; /* select IOM mode 2 */
+          c->i_cirq         |=  0x03; /* select IOM mode 2 */
+          c->h_tsax[0]       =  0x2f; /* tx slot 1 */
+          c->h_tsar[0]       =  0x2f; /* rx slot 1 */
+          c->h_tsax[1]       =  0x03; /* tx slot 0 */
+          c->h_tsar[1]       =  0x03; /* rx slot 0 */
+        }
+
+        if(f8kfifo)
+        {
+          c->s_cirm_0       |= 0x10; /* 8K fifo mode */
+          c->s_cirm         |= 0x10; /* 8K fifo mode */
+        }
+
+        if(local_loop)
+        {
+          c->a_lmr2         |= 0x02; /* D-CH */
+          c->i_spcr         |= 0x10;
+          c->w_cmdr1        |= 0x02;
+          c->w_d_mode       |= 0x02;
+        }
+
+        if(remote_loop)
+        {
+          c->a_lmr2         |= 0x01; /* D-CH */
+          c->w_cmdr1        |= 0x01;
+          c->w_d_mode       |= 0x01;
+        }
+
+        /*
+         * The hardware interrupt signal should be
+         * switched to an unused pin, when
+         * enabling o_POLLED_MODE.
+         *
+         * NOTE: in polled mode all interrupt
+         *       masks must remain. Currently
+         *       the ISAC/HSCX chips does not
+         *       support that  the  interrupt
+         *       output may be switched off.
+         *       If you have an ISA card, you
+         *       may have to remove the IRQ
+         *       jumper...
+         *
+         * NOTE: PCI and PnP controllers support
+         *       disabling  of  interrupts    in
+         *       hardware,    but the kernel has
+         *       no routines for this (TODO)
+         */
+
+        if(polled)
+        {
+                c->s_cirm_0     &= ~0x07; /* switch intr. to unused pin */
+                c->s_cirm       &= ~0x07; /* switch intr. to unused pin */
+                c->s_int_m2     &= ~0x08; /* interrupt output disable */
+                c->s_int_m2_pci &= ~0x08; /* interrupt output disable */
+                /* timer is started by a ``CHIP_INTERRUPT()'' call */
+        }
+
+        /*
+         * Select line-mode:
+         *
+         * NOTE: TE-mode connects to NT-mode and
+         *       NT-mode connects to TE-mode.
+         *       (TErminal-mode is default)
+         */
+
+        if(ntmode)
+        {
+                c->s_sctrl         |= 0x44; /* NT+non-cap line mode */
+                c->s_clkdel        &= ~0x7f;
+                c->s_clkdel        |= (sc->sc_default.stdel_nt);
+                
+                if(isac_nt)
+		{
+                  c->i_stcr          &= ~0x70; /* TIC bus address = 0 */
+                  c->b_cir0          &= ~0x0e; /* TIC bus address = 0 */
+                  c->i_mode          |=  0x02; /* ISAC NT-mode(?) */
+                }
+		else
+		{
+		  /* try to switch data-lines */
+                  c->i_spcr          |= 0x40;
+		}
+        }
+
+        /*
+         * Select low D-channel priority:
+         *
+         * All D-channel data sent to the NT, is
+         * echoed back using the Echo-channel.
+         * This allows sharing of the D-channel.
+         *
+         * By default all devices send ``one''
+         * bits to the D-channel. Devices that
+         * detect a ``zero'' bit when a ``one''
+         * bit was sent, must start sending
+         * ``one'' bits until 8 or 10 ``one''
+         * bits, which number is called the
+         * ``priority level'', are detected in the
+         * Echo-channel.
+         *
+         * The ``priority level'' is incremented
+         * following a successfully transmitted
+         * frame and decremented when a higher
+         * count has been satisfied.
+         *
+         * High priority means counting eight 1's
+         * in the echo channel.      Low priority
+         * means counting  ten  1's  in  the echo
+         * channel.
+         *
+         * The D-channel ``bit-echo-back-delay''
+         * limits the maximum length of an ISDN
+         * line.
+         */
+
+        if(dlp)
+        {
+                c->a_lpr        |=  0x01;
+                c->b_cir0       |=  0x10;
+                c->i_cirq       |=  0x04;
+                c->s_sctrl      |=  0x08;
+        }
+
+        /* reset and reload
+         * configuration
+         */
+        ihfc_reset(sc,error);
+
+        IHFC_CRIT_END(sc);
+
+        return IHFC_IS_ERR(error);
+}
+
+/*---------------------------------------------------------------------------*
+ * : shutdown chip, disable sending of data to cable
+ *
+ * NOTE: For Teles 16.3c and AcerISDN P10 the oscillator must _not_ be
+ *       powered down hence this will stop the external PnP-emulator.
+ *       Without the PnP-emulator the boards will not be detected after
+ *       soft-reboot.
+ * NOTE: Disabling ISAC interrupts will automatically cause an CIRQ IRQ,
+ *       so ISAC interrupts are left enabled.
+ * NOTE: ISAC should be left in power-up state because external PnP-chips may
+ *       depend on the oscillator.
+ *---------------------------------------------------------------------------*/
+void
+ihfc_unsetup_softc(register ihfc_sc_t *sc)
+{
+        ihfc_fifo_t *f;
+
+        FIFO_FOREACH(f,sc)
+        {
+          /* disable all channels
+           *
+           * A T125 wait condition may be active
+           * when the CPU gets here, but this will
+           * not block updating the configuration.
+           */
+          f->prot = P_DISABLE;
+          ihfc_fifo_setup(sc,f);
+        }
+
+        IHFC_CRIT_BEG(sc);
+
+        /* hfc (2b) */
+        c->s_cirm_0          &= ~0x07; /* disable interrupts */
+
+        /* hfc (s/sp) */
+        c->s_int_m1          &=  0x00; /* disable interrupts */
+        c->s_int_m2          &= ~0x09; /* disable interrupts */
+        c->s_sctrl           &= ~0x83; /* send 1's only + enable oscillator */
+
+        /* hfc (spci) */
+        c->s_int_m2_pci      &= ~0x09; /* disable interrupts */
+        c->s_fifo_en         &=  0x00; /* disable all fifos */
+
+#if 0
+        /* hfc (susb) */
+        c->s_int_m2_usb      &= ~0x84; /* disable interrupts */
+#endif
+
+        /* isac */
+        c->i_spcr            &= ~0x0f; /* send 1's only */
+
+        /* hscx */
+        c->h_mode[0]         &= ~0x04; /* send disable */
+        c->h_mode[1]         &= ~0x04; /* send disable */
+        c->h_ccr1[0]         &= ~0x80; /* power down   */
+        c->h_ccr1[1]         &= ~0x80; /* power down   */
+
+        /* tiger300 */
+        c->t_prct            |=  0x0F; /* ISAC+TIGER reset */
+
+        /* wibusb */
+        c->w_cmdr1           &= ~0x30; /* D-ch(RX+TX) disable */
+        c->w_cmdr2           &= ~0x33; /* B1/B2-ch(RX+TX) disable */
+
+        /* wibpci */
+        c->w_imask           |=  0xff; /* disable all interrupts */
+        c->w_b1_mode         &= ~0x40; /* 0xff as inter frame fill */
+        c->w_b2_mode         &= ~0x40; /* 0xff as inter frame fill */
+
+        /* write the config (flush all registers) */
+        ihfc_config_write(sc,CONFIG_WRITE_RELOAD);
+
+        IHFC_CRIT_END(sc);
+}
+
