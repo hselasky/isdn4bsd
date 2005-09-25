@@ -1,0 +1,344 @@
+.\" Copyright (c) 2003 Thomas Wintergerst
+.\" Copyright (c) 2005 Hans Petter Selasky
+.\"
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.\" $FreeBSD: $
+.\" $Id: capi20.3,v 1.4.4.1 2005/05/27 16:29:15 thomas Exp $
+.\" Creation date       04.01.2003
+.\"
+.Dd August 5, 2005
+.Dt CAPI20 3
+.Os
+.Sh NAME
+.
+.
+.Nm capi20_register ,
+.Nm capi20_release ,
+.Nm capi20_put_message ,
+.Nm capi20_get_message ,
+.Nm capi20_wait_for_message ,
+.Nm capi20_get_manufacturer ,
+.Nm capi20_get_version ,
+.Nm capi20_get_serial_number ,
+.Nm capi20_get_profile ,
+.Nm capi20_is_installed ,
+.Nm capi20_fileno
+.Nd "CAPI 2.0 access library"
+.
+.
+.Sh LIBRARY
+.
+.
+CAPI 2.0 Access Library (libcapi20, -lcapi20)
+.
+.
+.
+.Sh SYNOPSIS
+.
+.
+.In capi20.h
+.
+.
+.Ft "u_int16_t"
+.Fo "capi20_register"
+.Fa "u_int32_t max_logical_connections"
+.Fa "u_int32_t max_b_data_blocks"
+.Fa "u_int32_t max_b_data_len"
+.Fa "u_int32_t *app_id_ptr"
+.Fc
+.
+.
+.Ft "u_int16_t"
+.Fo "capi20_release"
+.Fa "u_int32_t app_id"
+.Fc
+.
+.
+.Ft "u_int16_t"
+.Fo "capi20_put_message"
+.Fa "u_int32_t app_id"
+.Fa "void *buf_ptr"
+.Fc
+.
+.
+.Ft "u_int16_t "
+.Fo "capi20_get_message"
+.Fa "u_int32_t app_id"
+.Fa "u_int8_t **buf_pp"
+.Fc
+.
+.
+.Ft "u_int16_t"
+.Fo "capi20_wait_for_message"
+.Fa "u_int32_t app_id"
+.Fa "struct timeval *timeval_ptr"
+.Fc
+.
+.
+.Ft "u_int16_t"
+.Fo "capi20_get_manufacturer"
+.Fa "u_int32_t controller"
+.Fa "u_int8_t *buf_ptr"
+.Fa "u_int16_t buf_len"
+.Fc
+.
+.
+.Ft "u_int16_t"
+.Fo "capi20_get_version"
+.Fa "u_int32_t controller"
+.Fa "u_int8_t *buf_ptr"
+.Fa "u_int16_t buf_len"
+.Fc
+.
+.
+.Ft "u_int16_t"
+.Fo "capi20_get_serial_number"
+.Fa "u_int32_t controller"
+.Fa "u_int8_t *buf_ptr"
+.Fa "u_int16_t buf_len"
+.Fc
+.
+.
+.Ft "u_int16_t "
+.Fo "capi20_get_profile"
+.Fa "u_int32_t controller"
+.Fa "void *buf_ptr"
+.Fa "u_int16_t buf_len"
+.Fc
+.
+.
+.Ft "u_int16_t"
+.Fo "capi20_is_installed"
+.Fa "void"
+.Fc
+.
+.
+.Ft "int"
+.Fo "capi20_fileno"
+.Fa "u_int32_t app_id"
+.Fc
+.
+.
+.Sh DESCRIPTION
+.
+.
+The functions described in this manual make up the CAPI implementation
+for user space applications in the BSD operating system
+environment. They are implemented in the shared library
+.Nm libcapi20 .
+The functions are largely compatible with the CAPI specification for
+other operating systems. There are only minor differences.
+.
+.
+.
+.Pp
+.
+.Fn capi20_register
+will create a new CAPI application ID. It returns zero on success. The
+application ID is stored in the 32-bit unusigned integer pointed to by
+.Fa app_id_ptr .
+.
+.
+.
+.Pp
+.
+.Fn capi20_release
+will release the CAPI application identified by
+.Fa app_id
+and all resources and active calls associated with it. It returns zero
+on success.
+.
+.
+.
+.Pp
+.
+.Fn capi20_put_message
+will send a message for the CAPI application identified by
+.Fa app_id .
+.Fa buf_ptr
+is a pointer to the CAPI message that should be sent. If this function
+returns non-zero, the application should release its ID and restart.
+.
+.
+.
+.Pp
+.
+.Fn capi20_get_message
+will receive a message for the CAPI application identified by
+.Fa app_id .
+It returns zero on success. If there are no message and non-blocking
+operation is selected, 0x1104 will be returned. Else there is a critical
+error and the application should release its ID and restart.
+.Fa buf_pp
+is a pointer to a pointer that should be pointed to the start of the
+received CAPI message.
+.
+.
+.
+.Pp
+.
+.Fn capi20_wait_for_message 
+will wait until there is a message for the CAPI application identified by
+.Fa app_id .
+If 
+.Fa timeval_ptr
+is not NULL, it will return after that time has elapsed. Zero is
+returned on success.
+.
+.
+.
+.Pp
+.
+.Fn capi20_get_manufacturer
+will store the manufacturer name as a zero terminated string, for the
+CAPI controller identified by
+.Fa controller,
+in the buffer pointed to by
+.Fa buf_ptr
+which has length
+.Fa buf_len.
+Default length is 64 bytes. Zero is returned on success.
+.
+.
+.
+.Pp
+.
+.Fn capi20_get_version
+will store the CAPI version as a series of bytes, for the CAPI
+application identified by
+.Fa app_id,
+in the buffer pointed to by
+.Fa buf_ptr
+which has length
+.Fa buf_len.
+Zero is returned on success.
+.
+.
+.
+.Pp
+.
+.Fn capi20_get_serial_number
+will store the CAPI serial number as a zero terminated string, for
+the application identified by
+.Fa app_id, 
+in the buffer pointed to by
+.Fa buf_ptr
+which has length
+.Fa buf_len.
+Default length is 4 bytes. Zero is returned on success.
+.
+.
+.
+.Pp
+.
+.Fn capi20_get_profile
+will store the CAPI profile structure, for the application identified
+by
+.Fa app_id, 
+in the buffer pointed to by
+.Fa buf_ptr
+which has length
+.Fa buf_len. 
+Default length is 64 bytes. Note that the CAPI profile structure uses
+little endian byte order. To decode fields use "le16toh()" and
+"le32toh()". Zero is returned on success. Also see CAPI_PROFILE_DATA
+in
+.Pa capi20.h .
+.
+.
+.
+.Pp
+.
+.Fn capi20_fileno
+will return the file number for the CAPI application identified by
+.Fa app_id .
+The file number returned can be used for polling. It is also possible
+to use the ioctl "FIONBIO" to set or clear non-blocking behaviour. An
+integer greater than zero is returned on success.
+.
+.
+.
+.
+.
+.Sh IMPLEMENTATION NOTES
+.
+.
+Definition of CAPI messages and related structures are defined in the header file
+.Pa capi20.h .
+To make implementing CAPI easier, there has been defined as set of
+helper functions that will encode and decode CAPI messages into
+predefined structures. These are for example
+.Fn capi_get_message_decoded
+and
+.Fn capi_put_message_decoded
+ . See also "struct capi_message_decoded". By default all encoded CAPI
+structures use little endian byte order.
+.
+.
+.
+.
+.
+.Sh RETURN VALUES
+.
+.
+Nearly all functions return a 16-bit unsigned integer value as a
+direct function result.
+.Fn capi_get_error_string()
+will return a zero terminated string that describes the return
+value. In general a return value of zero means no error.
+.
+.
+.
+.
+.Sh FILES
+.
+.
+/dev/capi20
+.Sh SEE ALSO
+.Xr i4b 4 ,
+.Xr isdnd 8 ,
+.Rs
+.%Q "CAPI Association e.V."
+.%B "Common ISDN API v2.0 4th Edition"
+.%D "June 2001"
+.%O see http://www.capi.org
+.Re
+.Sh STANDARDS
+The functions described in this manual page largely comply with the
+currently existing CAPI specification. Not all features of the CAPI
+specification have been implemented.
+.
+.
+.
+.Sh AUTHORS
+.
+.
+This
+manual page was initially written by
+.An Thomas Wintergerst Aq twinterg@gmx.de
+and updated by
+.An Hans Petter Selasky Aq hselasky@c2i.net
+.
+.
