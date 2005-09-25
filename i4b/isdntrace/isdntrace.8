@@ -1,0 +1,184 @@
+.\"
+.\" Copyright (c) 1997, 2000 Hellmuth Michaelis. All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.\"	$Id: isdntrace.8,v 1.14 2000/02/13 15:26:52 hm Exp $
+.\"
+.\" $FreeBSD: src/usr.sbin/i4b/isdntrace/isdntrace.8,v 1.19 2002/12/27 12:15:37 schweikh Exp $
+.\"
+.\"	last edit-date: [Wed Nov  1 15:52:28 2000]
+.\"
+.Dd November 1, 2000
+.Dt ISDNTRACE 8
+.Os
+.Sh NAME
+.Nm isdntrace
+.Nd ISDN4BSD ISDN protocol trace utility
+.Sh SYNOPSIS
+.Nm
+.Op Fl a
+.Op Fl R Ar unit
+.Op Fl T Ar unit
+.Op Fl b
+.Op Fl d
+.Op Fl h
+.Op Fl i
+.Op Fl o
+.Op Fl f Ar filename
+.Op Fl u Ar number
+.Op Fl n Ar number
+.Op Fl B
+.Op Fl P
+.Op Fl p Ar filename
+.Op Fl F
+.Sh DESCRIPTION
+The
+.Nm
+utility is part of the ISDN4BSD package and is used to provide the
+user with a hex dump of B- and D-channel activities.
+.Pp
+Together with two passive supported cards and an easy to built cable, it can
+also be used to monitor the complete traffic on a S0 bus, providing S0 bus
+analyzer features.
+.Pp
+The
+.Nm
+utility is only available for supported passive cards.
+.Pp
+.Em Note
+.Pp
+All filenames, user specified and default, get a date and time stamp
+string added in the form -yyyymmdd-hhmmss-rr, which consists of the
+following: hyphen, year, month, day, hyphen, hour, minute, second,
+hyphen, and a reference count which is usually zero. A non-zero
+reference count can indicate race conditions.
+.Pp
+In case the program is sent a USR1 signal, a new user specified or default
+filename with a new date and timestamp is generated and opened.
+.Pp
+The following options can be used:
+.Bl -tag -width Ds
+.It Fl a
+Toggle analyzer mode. Using this option will run the 
+.Nm
+in analyzer mode, using two passive cards and a custom cable which can
+be build as described in the file
+.Em cable.txt
+in the ISDN4BSD source distribution. One card acts as a receiver for the
+transmitting direction on the S0 bus while, and the other card acts as a receiver
+for the receiving direction on the S0 bus. Complete traffic monitoring is
+possible using this setup.
+.It Fl R
+Use
+.Ar unit
+as the receiving interface unit number in analyze mode. Default is "0".
+.It Fl T
+Use
+.Ar unit
+as the transmitting interface unit number in analyze mode. Default is "1".
+.It Fl b
+Toggle B channel tracing. Default is "off".
+.It Fl d
+Toggle D channel tracing. Default is "on".
+.It Fl h
+Toggle printing of message header. Default is "on".
+.It Fl i
+Toggle printing of layer 1 INFO signals. Default is "off".
+.It Fl o
+Toggle writing of output to a file. Default is "on".
+.It Fl f
+Use
+.Ar filename
+as the name for the file into which to write the tracing
+output. Default filename is isdntrace<n>-<XXX> where <n> is the
+controller unit number and <XXX> is a timestamp.
+.It Fl u
+Trace data will be received from controller
+.Ar number
+\&. Default is "0".
+.It Fl n
+Set minumum packet size to
+.Ar number
+bytes. Default is "0".
+.It Fl B
+Toggle writing of binary trace data to a file, for later or remote
+analysis. Default is "off".
+.It Fl P
+Toggle reading of binary trace data from a file, instead of from a
+device. Default is "off".
+.It Fl p
+Use the file specified by
+.Ar filename
+for -B and -P options. Default is isdntracebin<n>-<XXX>, where <n> is
+unit number and <XXX> is a timestamp.
+.Pp
+This option is useful when trace data is accumulated in binary format, to
+save disk space, and a monitoring functionality is desired. 
+.It Fl F
+Wait for more data at end of file, used with -P and -p options. Default is "off".
+.El
+.Pp
+When the USR1 signal is sent to a
+.Nm
+process, the currently used logfiles are reopened, so that logfile
+rotation becomes possible.
+.Pp
+If you need to have the D-channel data decoded use
+.Xr isdndecode 8
+\&. If you need to have the B-channel data decoded, like IP-packets, use
+.Xr ethereal 1
+\&.
+.Sh FILES
+.Bl -tag -width daddeldi -compact
+.It Pa /dev/i4btrc<n>
+The devicefile(s) used to get the trace messages for ISDN card unit <n>, 
+out of the kernel.
+.El
+.Sh EXAMPLES
+.Bd -literal -offset indent
+isdntrace -f /var/tmp/isdn.trace
+isdntrace -u 0 -i -o
+.Ed
+.Sh SEE ALSO
+.Xr isdnd 8
+\&, 
+.Xr isdndecode 8
+\& and 
+.Xr ethereal 1
+.
+.
+.Sh AUTHORS
+.An -nosplit
+The
+.Nm
+utility was initially written by
+.An Gary Jennejohn Aq gj@FreeBSD.org
+and
+.An Hellmuth Michaelis Aq hm@FreeBSD.org
+\&, and later rewritten by
+.An Hans Petter Selasky Aq hselasky@c2i.net
+\&.
+.Pp
+This manual page was written by
+.An Hellmuth Michaelis
+\&.

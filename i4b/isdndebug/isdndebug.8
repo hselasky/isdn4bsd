@@ -1,0 +1,155 @@
+.\"
+.\" Copyright (c) 1997, 2000 Hellmuth Michaelis. All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.\"	$Id: isdndebug.8,v 1.11 2000/05/31 08:15:29 hm Exp $
+.\"
+.\" $FreeBSD: src/usr.sbin/i4b/isdndebug/isdndebug.8,v 1.15 2001/07/15 08:01:55 dd Exp $
+.\"
+.\"	last edit-date: [Wed May 31 10:15:07 2000]
+.\"
+.Dd May 1, 2003
+.Dt ISDNDEBUG 8
+.Os
+.Sh NAME
+.Nm isdndebug
+.Nd display and control isdn4bsd kernel variables and statistics
+.Sh SYNOPSIS
+.Nm
+.Op Fl c
+.Op Fl e
+.Op Fl g
+.Op Fl l Ar layer
+.Op Fl m
+.Op Fl d
+.Op Fl q
+.Op Fl s Ar keyword
+.Op Fl u Ar mux unit
+.Op Fl a
+.Op Fl D
+.Op Fl t
+.Op Fl n
+.Op Fl r
+.Op Fl b Ar channel
+.Op Fl p Ar protocol
+.Op Fl P
+.Op Fl S
+.Op Fl z
+.Op Fl C
+.Op Fl Q
+.Sh DESCRIPTION
+.Bd -filled
+.Nm
+utility is a part of the isdn4bsd package. This utility can be used to
+control the level of debugging output from the isdn4bsd kernel
+part. Every layer of the isdn4bsd kernel uses a debugging mask which
+can be manipulated using this utility.
+.Pp
+A second usage of
+.Nm
+is to display and reset various counters in the isdn4bsd kernel
+part. Please see options
+.Op Fl c C
+and
+.Op Fl q Q
+for more information.  Besides from displaying information
+.Nm
+can also be used to execute a set of layer 1 commands, like chip reset
+and switching of NT-/TE- mode. Please see options
+.Op Fl r n t
+for more information.
+.Pp
+The following options are available:
+.Bl -tag -width Ds
+.It Fl C
+Reset the chipset specific statistics and/or error counters to zero.
+.It Fl D
+Deactivate PH-line.
+.It Fl P
+Set polled mode (if interrupt does not work)
+.It Fl Q
+Reset the Q.921 (D-channel layer 2) frame receive/transmit statistics to zero.
+.It Fl S
+Set standard mode (if interrupt works)
+.
+.
+.
+.It Fl a
+Activate PH-line.
+.It Fl b
+Select channel for -p option. Default is all channels.
+.It Fl c
+Display chipset specific statistics and/or error counters.
+.It Fl d
+Set debugging mask to 
+.Ar compiled in default.
+.It Fl e
+Set debugging mask to display
+.Ar errors only.
+.It Fl g
+Get debugging mask.
+.It Fl l
+Select layer for the following options(s), usually 
+.Op Fl d e s g m z
+; Default is all layers.
+.It Fl m
+Set debugging mask to 
+.Ar maximum output.
+.It Fl n
+Set NT(network)-mode.
+.It Fl p
+Set protocol number.
+.It Fl q
+Display the Q.921 (D-channel layer 2) frame receive/transmit statistics.
+.It Fl r
+Reset device.
+.It Fl s
+Set or clear debugging mask bit(s). "-keyword" will clear bits, and
+"+keyword" will set bits. Use
+.Nm Fl g
+to get a list of valid keywords. For example
+.Nm Fl s-1 s+2 g
+will clear all Layer1 debugging bit(s) and set all Layer2 debugging bit(s).
+.It Fl t
+Set TE(terminal)-mode.
+.It Fl u
+Set mux unit number. Default is mux unit 0.
+.It Fl z
+Set debugging mask to
+.Ar hide all output.
+.El
+.Ed
+.Sh FILES
+/dev/i4bctl
+.Sh EXAMPLES
+The command:
+.Bd -literal -offset indent
+isdndebug -g
+.Ed
+.Pp
+displays the current debugging level for all ISDN layers.
+.Sh AUTHORS
+The
+.Nm
+utility and this manpage were written by
+.An Hellmuth Michaelis Aq hm@kts.org .

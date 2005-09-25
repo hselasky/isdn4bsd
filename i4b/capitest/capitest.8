@@ -1,0 +1,92 @@
+.\"
+.\" Copyright (c) 2005 Hans Petter Selasky. All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.\"
+.\" $FreeBSD: $
+.\"
+.\"
+.Dd August 6, 2005
+.Dt CAPITEST 8
+.Os
+.Sh NAME
+.Nm capitest
+.Nd CAPI debugging and verification tool
+.Sh SYNOPSIS
+.Nm
+.Op Fl u Ar controller
+.Op Fl d Ar level
+.Op Fl i Ar number
+.Op Fl h
+.Op Fl o Ar number
+.Op Fl t Ar number
+.Op Fl n Ar number
+.Op Fl w
+.Sh DESCRIPTION
+The
+.Nm
+utility is part of the isdn4bsd package and may be used as a stimulation tool
+for debugging the CAPI kernel functionality.
+.Pp
+The following options are available:
+.Bl -tag -width Ds
+.It Fl u
+Sets which controller unit that should be used for dailing.
+.It Fl d
+Sets the debugging level
+.It Fl i
+Sets the incoming telephone number.
+.It Fl o
+Sets the outgoing telephone number.
+.It Fl t
+Set number of times the test pattern on the B-channel should be exchanged.
+.It Fl n
+Set number of calls to make. Default is 1.
+.El
+.Pp
+This utility can be used as an example on how to build your own CAPI
+application.
+.Sh EXAMPLES
+The following example assumes a machine with CAPI installed, at least
+one present ISDN controller that is connected to the S0 bus, and a
+valid MSN, Multiple Subscriber Number, of 
+.Em 42.
+.
+.
+Executing:
+.Bd -literal -offset indent
+capitest -i 42 -o 42
+.Ed
+.Pp
+will make the machine connect to itself and disconnect after that some
+testing has been performed. The
+.Nm
+utility must be terminated by pressing control+c.
+.Sh FILES
+.Bl -tag -width indent
+.It Pa /dev/capi20
+.El
+.Sh AUTHORS
+This utility was written by
+.An Hans Petter Selasky Aq hselasky@c2i.net
+ .
