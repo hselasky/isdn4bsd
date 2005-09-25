@@ -168,13 +168,16 @@ static void iprclearqueues(struct ipr_softc *sc);
 static void
 i4biprattach(void *dummy)
 {
-	struct ipr_softc *sc = ipr_softc;
+	struct ipr_softc *sc = &ipr_softc[0];
+	struct ifnet *ifp;
 	u_int32_t i;
 
 #ifdef IPR_VJ
-	printf("i4bipr: %d IP over raw HDLC ISDN device(s) attached (VJ header compression)\n", NI4BIPR);
+	printf("i4bipr: %d IP over raw HDLC ISDN device(s) attached "
+	       "(VJ header compression)\n", NI4BIPR);
 #else
-	printf("i4bipr: %d IP over raw HDLC ISDN device(s) attached\n", NI4BIPR);
+	printf("i4bipr: %d IP over raw HDLC ISDN device(s) "
+	       "attached\n", NI4BIPR);
 #endif
 
 	for(i=0; i < NI4BIPR; sc++, i++)
@@ -183,41 +186,42 @@ i4biprattach(void *dummy)
 
 		sc->sc_unit = i;
 
-		__IF_ALLOC(sc, IFT_ISDNBASIC, &sc->sc_ifp);
-		if(sc->sc_ifp == NULL)
+		__IF_ALLOC(sc, IFT_ISDNBASIC, &ifp);
+		if(ifp == NULL)
 		{
 			panic("%s, %s: cannot if_alloc()", 
 			      __FILE__, __FUNCTION__);
 		}
 
-		sc->sc_ifp->if_softc = sc;
-		if_initname(sc->sc_ifp, "ipr", i);
+		sc->sc_ifp = ifp;
+		ifp->if_softc = sc;
+		if_initname(ifp, "ipr", i);
 
 #ifdef	IPR_VJ
-		sc->sc_ifp->if_flags = IFF_POINTOPOINT | IFF_SIMPLEX | IPR_AUTOCOMP;
+		ifp->if_flags = IFF_POINTOPOINT | IFF_SIMPLEX | IPR_AUTOCOMP;
 #else
-		sc->sc_ifp->if_flags = IFF_POINTOPOINT | IFF_SIMPLEX;
+		ifp->if_flags = IFF_POINTOPOINT | IFF_SIMPLEX;
 #endif
 
-		sc->sc_ifp->if_mtu = I4BIPRMTU;
-		sc->sc_ifp->if_ioctl = i4biprioctl;
-		sc->sc_ifp->if_output = i4biproutput;
-		sc->sc_ifp->if_snd.ifq_maxlen = I4BIPRMAXQLEN; /* not used */
+		ifp->if_mtu = I4BIPRMTU;
+		ifp->if_ioctl = i4biprioctl;
+		ifp->if_output = i4biproutput;
+		ifp->if_snd.ifq_maxlen = I4BIPRMAXQLEN; /* not used */
 
 		sc->sc_sendq.ifq_maxlen = I4BIPRMAXQLEN;
 		sc->sc_fastq.ifq_maxlen = I4BIPRMAXQLEN;
 
-		sc->sc_ifp->if_ipackets = 0;
-		sc->sc_ifp->if_ierrors = 0;
-		sc->sc_ifp->if_opackets = 0;
-		sc->sc_ifp->if_oerrors = 0;
-		sc->sc_ifp->if_collisions = 0;
-		sc->sc_ifp->if_ibytes = 0;
-		sc->sc_ifp->if_obytes = 0;
-		sc->sc_ifp->if_imcasts = 0;
-		sc->sc_ifp->if_omcasts = 0;
-		sc->sc_ifp->if_iqdrops = 0;
-		sc->sc_ifp->if_noproto = 0;
+		ifp->if_ipackets = 0;
+		ifp->if_ierrors = 0;
+		ifp->if_opackets = 0;
+		ifp->if_oerrors = 0;
+		ifp->if_collisions = 0;
+		ifp->if_ibytes = 0;
+		ifp->if_obytes = 0;
+		ifp->if_imcasts = 0;
+		ifp->if_omcasts = 0;
+		ifp->if_iqdrops = 0;
+		ifp->if_noproto = 0;
 
 #if I4B_ACCOUNTING
 		I4B_ACCOUNTING_INIT(&sc->sc_accounting);
@@ -230,9 +234,9 @@ i4biprattach(void *dummy)
 #ifdef IPR_VJ
 		sl_compress_init(&sc->sc_compr, -1);
 #endif
-		if_attach(sc->sc_ifp);
+		if_attach(ifp);
 
-		bpfattach(sc->sc_ifp, DLT_NULL, sizeof(u_int));
+		bpfattach(ifp, DLT_NULL, sizeof(u_int));
 	}
 	return;
 }
@@ -324,8 +328,11 @@ i4biproutput(struct ifnet *ifp, struct mbuf *m, struct sockaddr *dst,
 	    /* not connected */
 	    /* dial if necessary */
 	
-	    NDBGL4(L4_IPRDBG, "ipr%d: send dial request message!", sc->sc_unit);
-	    NDBGL4(L4_DIALST, "ipr%d: setting dial state to ST_DIALING", sc->sc_unit);
+	    NDBGL4(L4_IPRDBG, "ipr%d: send dial request message!", 
+		   sc->sc_unit);
+
+	    NDBGL4(L4_DIALST, "ipr%d: setting dial state to ST_DIALING", 
+		   sc->sc_unit);
 	    i4b_l4_dialout(DRVR_IPR, sc->sc_unit);
 	}
 
@@ -349,53 +356,52 @@ i4biprioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 
 	SC_LOCK(f,sc->sc_fifo_translator);
 
-	switch (cmd)
-	{
-		case SIOCAIFADDR:	/* add interface address */
-		case SIOCSIFADDR:	/* set interface address */
-		case SIOCSIFDSTADDR:	/* set interface destination address */
-			if(ifa->ifa_addr->sa_family != AF_INET)
-				error = EAFNOSUPPORT;
-			else
-				sc->sc_ifp->if_flags |= IFF_UP;
-			break;
+	switch(cmd) {
+	case SIOCAIFADDR:	/* add interface address */
+	case SIOCSIFADDR:	/* set interface address */
+	case SIOCSIFDSTADDR:	/* set interface destination address */
+	    if(ifa->ifa_addr->sa_family != AF_INET)
+	      error = EAFNOSUPPORT;
+	    else
+	      sc->sc_ifp->if_flags |= IFF_UP;
+	    break;
 
-		case SIOCSIFFLAGS:	/* set interface flags */
-			if(!(ifr->ifr_flags & IFF_UP))
-			{
-				if(sc->sc_ifp->if_drv_flags & IFF_DRV_RUNNING)
-				{
-					/* disconnect ISDN line */
-					i4b_l4_drvrdisc(DRVR_IPR, sc->sc_unit);
-					sc->sc_ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
-				}
+	case SIOCSIFFLAGS:	/* set interface flags */
+	    if(!(ifr->ifr_flags & IFF_UP))
+	    {
+	        if(sc->sc_ifp->if_drv_flags & IFF_DRV_RUNNING)
+		{
+		    /* disconnect ISDN line */
+		    i4b_l4_drvrdisc(DRVR_IPR, sc->sc_unit);
+		    sc->sc_ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
+		}
 
-				/* empty queues */
+		/* empty queues */
 
-				iprclearqueues(sc);
-			}
+		iprclearqueues(sc);
+	    }
 
-			if(ifr->ifr_flags & IFF_DEBUG)
-			{
-				/* enable debug messages */
-			}
-			break;
+	    if(ifr->ifr_flags & IFF_DEBUG)
+	    {
+	        /* enable debug messages */
+	    }
+	    break;
 
-		case SIOCSIFMTU:	/* set interface MTU */
-			if((ifr->ifr_mtu > I4BIPRMAXMTU) ||
-			   (ifr->ifr_mtu < I4BIPRMINMTU))
-			{
-				error = EINVAL;
-			}
-			else
-			{
-				ifp->if_mtu = ifr->ifr_mtu;
-			}
-			break;
+	case SIOCSIFMTU:	/* set interface MTU */
+	    if((ifr->ifr_mtu > I4BIPRMAXMTU) ||
+	       (ifr->ifr_mtu < I4BIPRMINMTU))
+	    {
+	        error = EINVAL;
+	    }
+	    else
+	    {
+	        ifp->if_mtu = ifr->ifr_mtu;
+	    }
+	    break;
 
-		default:
-			error = EINVAL;
-			break;
+	default:
+	    error = EINVAL;
+	    break;
 	}
 
 	if(!error)

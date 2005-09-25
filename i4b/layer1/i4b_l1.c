@@ -78,7 +78,8 @@ i4b_controller_setup(void *arg)
   return;
 }
 
-SYSINIT(i4b_controller_setup, SI_SUB_DRIVERS, SI_ORDER_FIRST, i4b_controller_setup, NULL);
+SYSINIT(i4b_controller_setup, SI_SUB_LOCK, SI_ORDER_ANY, 
+	i4b_controller_setup, NULL);
 
 /*---------------------------------------------------------------------------*
  *	i4b_controller_reset

@@ -151,7 +151,7 @@ i4bctlioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 	    if(cntl->N_fifo_translator)
 	    {
 	        /* connected */
-	      error = EPERM;
+	        error = EPERM;
 	    }
 	    else
 	    {
@@ -163,7 +163,7 @@ i4bctlioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 	    if(cntl->N_fifo_translator)
 	    {
 	        /* connected */
-	      error = EPERM;
+	        error = EPERM;
 	    }
 	    else
 	    {
@@ -234,6 +234,7 @@ i4bctlioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 
 	case I4B_CTL_RESET:
 	    cmd = CMR_RESET;
+	    goto l1_command;
 
 	l1_command:
 

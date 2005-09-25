@@ -118,6 +118,8 @@ devfs_mount(struct mount *mp, const char *path, void *data,
 
 	VOP_UNLOCK(rvp, 0);
 
+	fmp->dm_root_vnode = rvp;
+
 	error = set_statfs_info
 	  (path, UIO_USERSPACE, "devfs", UIO_SYSSPACE, mp, td);
 
@@ -147,26 +149,25 @@ devfs_unmount(struct mount *mp, int mntflags,
 	int flags = 0;
 	int error;
 
-	if((mntflags & MNT_FORCE) || 1)
+	if((mntflags & MNT_FORCE))
 	{
 	    flags |= FORCECLOSE;
 	}
 
 	fmp = VFSTODEVFS(mp);
 
-#if 0
+#if 1
 	/* drop extra reference to root vnode */
 
 	if(fmp->dm_root_vnode)
 	{
 	    vrele(fmp->dm_root_vnode);
-	    fmp->dm_root_vnode = NULL;
 	}
 #endif
 
 	/* flush vnodes */
 
-	error = vflush(mp, NULL, flags);
+	error = vflush(mp, fmp->dm_root_vnode, flags);
 	if(error)
 	{
 	    goto done;
@@ -311,7 +312,8 @@ devfs_sysinit(void *arg)
 	return;
 }
 
-SYSINIT(devfs_sysinit, SI_SUB_DRIVERS, SI_ORDER_FIRST, devfs_sysinit, NULL);
+SYSINIT(devfs_sysinit, SI_SUB_DRIVERS, SI_ORDER_FIRST, 
+	devfs_sysinit, NULL);
 
 static void
 devfs_sysuninit(void *arg)
@@ -321,5 +323,6 @@ devfs_sysuninit(void *arg)
 	return;
 }
 
-SYSUNINIT(devfs_sysuninit, SI_SUB_DRIVERS, SI_ORDER_FIRST, devfs_sysuninit, NULL);
+SYSUNINIT(devfs_sysuninit, SI_SUB_DRIVERS, SI_ORDER_FIRST, 
+	  devfs_sysuninit, NULL);
 

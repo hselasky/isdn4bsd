@@ -35,7 +35,7 @@
 #define _I4B_L4_H_
 
 #define i4b_release_drivers_by_appl_interface(args...) \
-  printf("implement i4b_release_drivers_by_appl_interface(" #args ");\n")
+  NDBGL4(L4_MSG, "implement i4b_release_drivers_by_appl_interface(" #args ");")
 
 /* application interface types */
 

@@ -176,6 +176,7 @@ struct devfs_mount {
 	int			dm_inode;
 	struct lock		dm_lock;
 	devfs_rsnum		dm_ruleset;
+	struct vnode *          dm_root_vnode;
 };
 
 /*

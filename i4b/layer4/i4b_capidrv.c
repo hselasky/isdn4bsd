@@ -1630,7 +1630,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(cd->fifo_translator == NULL)
 	      {
-		  NDBGL4(L4_ERR, "cdid=%d: B-channel data sent "
+		  NDBGL4(L4_MSG, "cdid=%d: B-channel data sent "
 			 "when disconnected!", cd->cdid);
 
 		  m2 = capi_make_b3_conf

@@ -7,18 +7,18 @@ int main()
 {
     int error;
 
-/*    error = mkdir("/cdev", 0700);
-    if(error && (error != EEXIST))
+    error = mkdir("/cdev", 0700);
+    if(error && (errno != EEXIST))
     {
         printf("mkdir error: %s!\n", 
-	       strerror(error));
+	       strerror(errno));
     }
-*/
+
     error = mount("devfs", "/cdev", 0, NULL);
     if(error)
     {
         printf("mount error: %s!\n",
-	       strerror(error));
+	       strerror(errno));
     }
 
     return 0;

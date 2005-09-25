@@ -236,6 +236,10 @@ static __inline time_t time_second() { return time.tv_sec; }
 #  define M_CACHE M_TEMP
 # endif
 
+# undef if_attach
+# define if_attach(ifp) \
+  { if_attach(ifp); if_alloc_sadl(ifp); }
+
 void *
 usb_alloc_mem(u_int32_t size, u_int8_t align_power);
 

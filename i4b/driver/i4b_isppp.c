@@ -126,9 +126,11 @@ i4bispppattach(void *dummy)
 	u_int32_t i;
 
 #ifdef SPPP_VJ
-	printf("i4bisppp: %d ISDN SyncPPP device(s) attached (VJ header compression)\n", NI4BISPPP);
+	printf("i4bisppp: %d ISDN SyncPPP device(s) attached "
+	       "(VJ header compression)\n", NI4BISPPP);
 #else
-	printf("i4bisppp: %d ISDN SyncPPP device(s) attached\n", NI4BISPPP);
+	printf("i4bisppp: %d ISDN SyncPPP device(s) attached\n", 
+	       NI4BISPPP);
 #endif
 
 	for(i = 0; i < NI4BISPPP; sc++, i++) {

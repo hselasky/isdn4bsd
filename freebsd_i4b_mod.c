@@ -84,8 +84,8 @@ _pci_pci_probe(struct pci_attach_args *arg)
     dummy_pci_dev.dev_module = &dev_module;
     dev_module.driver = &driver;
     driver.name = "pci";
-    snprintf(&dummy_pci_dev.dev_nameunit[0], sizeof(dummy_pci_dev.dev_nameunit), 
-	     "pci0");
+    snprintf(&dummy_pci_dev.dev_nameunit[0], 
+	     sizeof(dummy_pci_dev.dev_nameunit), "pci0");
 
     /* initialize "dev" structure */
 
@@ -254,7 +254,7 @@ load(struct lkm_table *p, int cmd)
      */
     do_sysinit(&bsd_sys_init_data_start[0], 
 	       &bsd_sys_init_data_end[0],
-	       0, SI_SUB_DRIVERS-1);
+	       0, SI_SUB_DRIVERS);
 
     /*
      * call module loaders
@@ -287,7 +287,7 @@ load(struct lkm_table *p, int cmd)
      */
     do_sysinit(&bsd_sys_init_data_start[0], 
 	       &bsd_sys_init_data_end[0],
-	       SI_SUB_DRIVERS, -1);
+	       SI_SUB_DRIVERS+1, -1);
 
  done:
 

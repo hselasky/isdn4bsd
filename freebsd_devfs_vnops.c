@@ -136,6 +136,9 @@ loop:
 static int
 devfs_fp_check(struct vnode *vp, struct cdev **devp, struct __cdevsw **dswp)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct devfs_dirent *de = vp->v_data;
 
 	if(de == NULL)
@@ -189,6 +192,9 @@ dev2udev(struct cdev *dev)
 static int
 devfs_open(struct vop_open_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_vp;
 	struct proc *td = ap->a_p;
 	struct __cdevsw *dsw;
@@ -264,6 +270,9 @@ devfs_open(struct vop_open_args *ap)
 static int
 devfs_read(struct vop_read_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	int error;
 
 	if(ap->a_vp->v_type == VDIR)
@@ -331,6 +340,9 @@ devfs_read(struct vop_read_args *ap)
 static int
 devfs_write(struct vop_write_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	int error;
 
 	if(ap->a_vp->v_type == VCHR)
@@ -393,6 +405,9 @@ devfs_write(struct vop_write_args *ap)
 static int
 devfs_ioctl(struct vop_ioctl_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	int error;
 
 	if(ap->a_vp->v_type == VCHR)
@@ -480,6 +495,9 @@ devfs_ioctl(struct vop_ioctl_args *ap)
 static int
 devfs_poll(struct vop_poll_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	int error;
 
 	if(ap->a_vp->v_type == VCHR)
@@ -518,6 +536,9 @@ devfs_poll(struct vop_poll_args *ap)
 static int
 devfs_kqfilter(struct vop_kqfilter_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	int error;
 
 	if(ap->a_vp->v_type == VCHR)
@@ -556,6 +577,9 @@ devfs_kqfilter(struct vop_kqfilter_args *ap)
 static int
 devfs_close(struct vop_close_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	int error;
 
 	if(ap->a_vp->v_type == VCHR)
@@ -580,12 +604,13 @@ devfs_close(struct vop_close_args *ap)
 	    {
 	        mtx_unlock(&Giant);
 	    }
-
+#ifdef DEVFS_DEBUG
 	    if(count_dev(dev) > 1)
 	    {
 	        printf("%s: %s: WARNING: device, %s, is still referenced!\n",
 		       __FILE__, __FUNCTION__, devtoname(dev));
 	    }
+#endif
 
 	    dev_relthread(dev);
 	}
@@ -600,6 +625,9 @@ devfs_close(struct vop_close_args *ap)
 static int
 devfs_access(struct vop_access_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_vp;
 	struct devfs_dirent *de;
 	int error;
@@ -652,6 +680,9 @@ fix_time(struct timespec *tv)
 static int
 devfs_getattr(struct vop_getattr_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_vp;
 	struct vattr *vap = ap->a_vap;
 	struct devfs_dirent *de = vp->v_data;
@@ -721,6 +752,9 @@ devfs_getattr(struct vop_getattr_args *ap)
 static int
 devfs_setattr(struct vop_setattr_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct devfs_dirent *de;
 	struct cdev *dev;
 	struct vattr *vap;
@@ -883,6 +917,9 @@ devfs_fqpn(char *buf, int len, struct vnode *dvp, struct componentname *cnp)
 static int
 __devfs_lookup(struct vop_lookup_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct componentname *cnp = ap->a_cnp;
 	struct vnode **vpp = ap->a_vpp;
 	struct vnode *dvp = ap->a_dvp;
@@ -1078,6 +1115,9 @@ notfound:
 static int
 devfs_lookup(struct vop_lookup_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct devfs_mount *dmp;
 	int error;
 
@@ -1091,6 +1131,9 @@ devfs_lookup(struct vop_lookup_args *ap)
 static int
 devfs_mknod(struct vop_mknod_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct componentname *cnp;
 	struct devfs_dirent *dd;
 	struct devfs_dirent *de;
@@ -1156,6 +1199,9 @@ devfs_mknod(struct vop_mknod_args *ap)
 static int
 devfs_pathconf(struct vop_pathconf_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
  	switch (ap->a_name) {
 	case _PC_NAME_MAX:
 		ap->a_retval[0] = NAME_MAX;
@@ -1192,6 +1238,9 @@ devfs_pathconf(struct vop_pathconf_args *ap)
 static int
 devfs_readdir(struct vop_readdir_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct devfs_mount *dmp;
 	struct devfs_dirent *dd;
 	struct devfs_dirent *de;
@@ -1283,6 +1332,9 @@ devfs_readdir(struct vop_readdir_args *ap)
 static int
 devfs_readlink(struct vop_readlink_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct devfs_dirent *de;
 	int error;
 
@@ -1294,6 +1346,9 @@ devfs_readlink(struct vop_readlink_args *ap)
 static int
 devfs_reclaim(struct vop_reclaim_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_vp;
 	struct devfs_dirent *de;
 	struct cdev *dev;
@@ -1333,6 +1388,9 @@ devfs_reclaim(struct vop_reclaim_args *ap)
 static int
 devfs_remove(struct vop_remove_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_vp;
 	struct devfs_dirent *dd;
 	struct devfs_dirent *de;
@@ -1369,11 +1427,15 @@ devfs_remove(struct vop_remove_args *ap)
 static int
 devfs_revoke(struct vop_revoke_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_vp;
 	struct cdev *dev;
 	struct devfs_dirent *de;
 
-	__KASSERT((ap->a_flags & REVOKEALL) != 0, ("%s: not REVOKEALL !", __FUNCTION__));
+	__KASSERT((ap->a_flags & REVOKEALL) != 0,
+		  ("%s: not REVOKEALL !", __FUNCTION__));
 
 	de = vp->v_data;
 	dev = de->de_dev;
@@ -1395,6 +1457,9 @@ devfs_revoke(struct vop_revoke_args *ap)
 static int
 devfs_symlink(struct vop_symlink_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct devfs_dirent *dd;
 	struct devfs_dirent *de;
 	struct devfs_mount *dmp;
@@ -1413,7 +1478,8 @@ devfs_symlink(struct vop_symlink_args *ap)
 	}
 	dmp = VFSTODEVFS(ap->a_dvp->v_mount);
 	dd = ap->a_dvp->v_data;
-	de = devfs_newdirent((u_int8_t *)ap->a_cnp->cn_nameptr, ap->a_cnp->cn_namelen);
+	de = devfs_newdirent((u_int8_t *)ap->a_cnp->cn_nameptr, 
+			     ap->a_cnp->cn_namelen);
 	de->de_uid = 0;
 	de->de_gid = 0;
 	de->de_mode = 0755;
@@ -1449,12 +1515,18 @@ devfs_symlink(struct vop_symlink_args *ap)
 static int
 devfs_fsync(struct vop_fsync_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return 0;
 }
 
 static int
 devfs_print(struct vop_print_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct devfs_dirent *de = ap->a_vp->v_data;
 	struct cdev *dev = de->de_dev;
 	printf("\tdev %s\n", devtoname(dev));
@@ -1464,12 +1536,18 @@ devfs_print(struct vop_print_args *ap)
 static int
 devfs_advlock(struct vop_advlock_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return ((ap->a_flags & F_FLOCK) ? EOPNOTSUPP : EINVAL);
 }
 
 static int
 devfs_lock(struct vop_lock_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_vp;
 	return (lockmgr(&vp->v_lock, ap->a_flags, &vp->v_interlock));
 }
@@ -1477,6 +1555,9 @@ devfs_lock(struct vop_lock_args *ap)
 static int
 devfs_unlock(struct vop_unlock_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_vp;
 	return (lockmgr(&vp->v_lock, ap->a_flags | LK_RELEASE,
 			&vp->v_interlock));
@@ -1485,6 +1566,9 @@ devfs_unlock(struct vop_unlock_args *ap)
 static int
 devfs_islocked(struct vop_islocked_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_vp;
 
 	return (lockstatus(&vp->v_lock));
@@ -1493,6 +1577,9 @@ devfs_islocked(struct vop_islocked_args *ap)
 static int
 devfs_inactive(struct vop_inactive_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_vp;
 	VOP_UNLOCK(vp, 0);
 	vgone(vp);
@@ -1502,6 +1589,9 @@ devfs_inactive(struct vop_inactive_args *ap)
 static int
 _devfs_create(struct vop_create_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	struct vnode *vp = ap->a_dvp;
 
 	VOP_UNLOCK(vp, 0);
@@ -1512,36 +1602,54 @@ _devfs_create(struct vop_create_args *ap)
 static int
 devfs_lease(struct vop_lease_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return EOPNOTSUPP;
 }
 
 static int
 devfs_fcntl(struct vop_fcntl_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return EOPNOTSUPP;
 }
 
 static int
 devfs_mmap(struct vop_mmap_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return EOPNOTSUPP;
 }
 
 static int
 devfs_seek(struct vop_seek_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return (ap->a_newoff < 0) ? EINVAL : 0;
 }
 
 static int
 devfs_link(struct vop_link_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return EOPNOTSUPP;
 }
 
 static int
 devfs_rename(struct vop_rename_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	VOP_UNLOCK(ap->a_tdvp, 0);
 	if(ap->a_tvp)
 	{
@@ -1553,6 +1661,9 @@ devfs_rename(struct vop_rename_args *ap)
 static int
 devfs_mkdir(struct vop_mkdir_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	VOP_UNLOCK(ap->a_dvp, 0);
 	return EOPNOTSUPP;
 }
@@ -1560,6 +1671,9 @@ devfs_mkdir(struct vop_mkdir_args *ap)
 static int
 devfs_rmdir(struct vop_rmdir_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	VOP_UNLOCK(ap->a_dvp, 0);
 	VOP_UNLOCK(ap->a_vp, 0);
 	return EOPNOTSUPP;
@@ -1568,67 +1682,103 @@ devfs_rmdir(struct vop_rmdir_args *ap)
 static int
 devfs_abortop(struct vop_abortop_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return 0;
 }
 
 static int
 devfs_bmap(struct vop_bmap_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return EOPNOTSUPP;
 }
 
 static int
 devfs_strategy(struct vop_strategy_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return EOPNOTSUPP;
 }
 
 static int
 devfs_blkatoff(struct vop_blkatoff_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return EOPNOTSUPP;
 }
 
 static int
 devfs_valloc(struct vop_valloc_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return 0;
 }
 
 static int
 devfs_vfree(struct vop_vfree_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return EOPNOTSUPP;
 }
 
 static int
 devfs_truncate(struct vop_truncate_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return EOPNOTSUPP;
 }
 
 static int
 devfs_update(struct vop_update_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return 0;
 }
 
 static int
 devfs_bwrite(struct vop_bwrite_args *ap)
 {
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
 	return EOPNOTSUPP;
 }
+
+extern int genfs_getpages(void *);
+extern int genfs_putpages(void *);
 
 static int
 devfs_getpages(struct vop_getpages_args *ap)
 {
-	return EOPNOTSUPP;
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
+	return genfs_getpages(ap);
 }
 
 static int
 devfs_putpages(struct vop_putpages_args *ap)
 {
-	return EOPNOTSUPP;
+#ifdef DEVFS_DEBUG
+	printf("%s\n", __FUNCTION__);
+#endif
+	return genfs_putpages(ap);
 }
 
 /*
