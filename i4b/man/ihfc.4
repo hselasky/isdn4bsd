@@ -1,0 +1,570 @@
+.\"
+.\" Copyright (c) 2000 Hellmuth Michaelis. All rights reserved.
+.\" Copyright (c) 2002-2005 Hans Petter Selasky. All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.\" $FreeBSD: src/usr.sbin/i4b/man/ihfc.4,v 1.7 2001/07/15 08:01:59 dd Exp $
+.\"
+.Dd Jun 16, 2005
+.Dt IHFC 4
+.Os
+.Sh NAME
+.Nm ihfc
+.Nd ISDN device driver for ISA-, PnP-, PCI- and USB- devices
+.Sh SYNOPSIS
+.Cd "device ihfc"
+.
+.
+.de device_hint_file
+.Xr /boot/device.hints 5
+..
+.de isa_card
+.Ss \\$2
+.\" (#\\$1)
+.Pp
+Example of configuration lines needed in
+.device_hint_file
+:
+..
+.de ind_start
+.Pp
+.Bd -literal -offset indent -compact
+..
+.de ind_end
+.Ed
+.Pp
+..
+.
+.
+.
+.
+.
+.Sh DESCRIPTION
+.Bd -filled
+The
+.Nm
+driver provides D-channel layer 1 supports as specified 
+in ITU Recommendation I.430 and layer 1 support for the
+B-channels.
+.Ed
+.
+.
+.Sh SUPPORTED CHIPS
+.
+.Bd -literal
+AM79C3X     - AMD (AdvancedMicroDevices)
+HFC-2B      - Colognechip
+HFC-2BDS0   - Colognechip
+HFC-E1      - Colognechip
+HSCX 82525  - Siemens
+IPAC v1.x   - Siemens
+ISAC 2085   - Siemens
+ISAC 2086   - Siemens
+ISAC 2186   - Siemens
+Tiger300    - Tiger Jet Network Inc.
+Tiger320    - Tiger Jet Network Inc.
+W6692x      - Winbond
+W6694x      - Winbond
+.Ed
+.
+.
+.
+.
+.Sh SUPPORTED DEVICES: ISA bus, NON-PnP
+.Bd -filled
+ISA devices must be identified by manually adding `hints' to the
+.device_hint_file
+file. Below are some examples of what the `hints' should look
+like. `hints' are used by the drivers to figure out what resources a
+device requires. Be aware that some drivers might allocate more I/O
+ports than specified. The reason for only having to specify one I/O
+port, is that it makes configuration easier for the users.
+.Ed
+.
+.
+.
+.Ss DESCRIPTION of device flags
+.Bd -filled
+For each hint there is a 32-bit unsigned integer called flag, that the
+.Nm
+driver can check. The bits are used like this:
+.Ed
+.
+.ind_start
+bits[0....7] = 0x10  (card number - see below)
+bits[8...15] = 0x32  (unused)
+bits[16..19] = 0x4   (internal IRQ selection, if set)
+bits[20..31] = 0x765 (internal I/O selection, if set)
+ 
+Using hex these bits become:
+ 
+0x765 4 32 10 = 0x76543210
+ 
+Example:
+ 
+hint.ihfc.8.flags = "0x76543210"
+.ind_end
+.
+.Bd -filled
+Hints with low unit numbers might be overwritten, if PCI devices are
+present. Therefore one should give the hints a higher unit number,
+for example 8.
+.Ed
+.
+.
+.
+.isa_card "0" "TELEINT ISDN SPEED No.1 (HFC-2B)"
+.ind_start
+hint.ihfc.8.at      ="isa"
+hint.ihfc.8.port    ="0x300" # check jumper setting
+hint.ihfc.8.flags   ="0x0A"
+#
+# valid I/O ports: 0x300, 0x330, 0x278 and 0x2e8 
+# (check jumper setting)
+#
+# IRQ is selected automatically by
+# the driver, if not specified.
+#
+# valid IRQ values are: 3, 4, 5, 7, 10 and 11.
+#
+.ind_end
+.
+.
+.
+.isa_card "1" "Custom HFC-2B with ISAC co-chip"
+.ind_start
+hint.ihfc.8.at      ="isa"
+hint.ihfc.8.port    ="0x200" # check jumper setting
+hint.ihfc.8.irq     ="0x3"   # check jumper setting
+hint.ihfc.8.flags   ="0x20030001"
+#
+# NOTE: must specify a valid internal IRQ and
+# internal I/O-base in flags.
+#
+.ind_end
+.
+.
+.
+.isa_card "2" "Custom HFC-2BDS0"
+.ind_start
+hint.ihfc.8.at      ="isa"
+hint.ihfc.8.port    ="0x200" # check jumper setting
+hint.ihfc.8.irq     ="0x3"   # check jumper setting
+hint.ihfc.8.flags   ="0x20030002"
+#
+# NOTE: must specify a valid internal IRQ and
+# internal I/O-base in flags.
+#
+.ind_end
+.
+.
+.
+.isa_card "3" "Teles S0/8, Dr. Neuhaus Niccy 1008, Creatix ISDN-S0/8"
+.ind_start
+hint.ihfc.8.at      ="isa"
+hint.ihfc.8.maddr   ="0xd0000"
+hint.ihfc.8.irq     ="5"
+hint.ihfc.8.flags   ="0x0F"
+#
+# valid memory range is from 0xA0000 to 0xDF000 inclusivly.
+# A region of 4kB of memory will be allocated
+# from the start of the specified address.
+#
+# valid IRQ values are: 2, 3, 4, 5, 6 and 7.
+#
+# NOTE: this card does not require any I/O port
+# to be specified
+.ind_end
+.
+.
+.
+.isa_card "4" "Teles S0/16, Creatix ISDN-S0, Dr. Neuhaus Niccy 1016"
+.ind_start
+hint.ihfc.8.at      ="isa"
+hint.ihfc.8.port    ="0xd80" # check jumper setting
+hint.ihfc.8.maddr   ="0xd0000"
+hint.ihfc.8.irq     ="5"
+hint.ihfc.8.flags   ="0x11"
+#
+# valid I/O ports: 0xd80, 0xe80 and 0xf80.
+# 
+# valid memory start addresses:
+# 0xC0000, 0xC2000, 0xC4000, 0xC6000, 
+# 0xC8000, 0xCA000, 0xCC000, 0xCE000,
+# 0xD0000, 0xD2000, 0xD4000, 0xD6000, 
+# 0xD8000, 0xDA000, 0xDC000, 0xDE000.
+#
+# valid IRQ values are: 2, 3, 4, 5, 10, 11, 12 and 15.
+#
+# NOTE: IRQ and memory base is programmed using
+# the selected I/O port.
+#
+# NOTE: Although the jumpers are labeled 0xd80, 0xe80 and 0xf80,
+# I/O space at addresses 0x180, 0x280 or 0x380 is also required.
+#
+.ind_end
+.
+.
+.
+
+.isa_card "5" "Teles S0/16.3"
+.ind_start
+hint.ihfc.8.at      ="isa"
+hint.ihfc.8.port    ="0xd80" # check jumper setting
+hint.ihfc.8.irq     ="5"
+hint.ihfc.8.flags   ="0x10"
+#
+# valid I/O ports are: 0xd80, 0xe80 or 0xf80.
+#
+# valid IRQ values are: 2, 5, 9, 10, 12 and 15.
+#
+# NOTE: IRQ is programmed using the selected I/O port.
+#
+# NOTE: Although the switch positions are labeled 
+# 0x180, 0x280 and 0x380, the card is to be configured 
+# at 0xd80, 0xe80 or 0xf80 respectively!
+.ind_end
+.
+.
+.
+.isa_card "6" "AVM A1 and AVM Fritz!Card"
+.ind_start
+hint.ihfc.8.at      ="isa"
+hint.ihfc.8.port    ="0x340" # check jumper setting
+hint.ihfc.8.irq     ="5"
+hint.ihfc.8.flags   ="0x0D"
+#
+# valid I/O ports are: 0x200, 0x240, 0x300 and 0x340
+#
+# valid IRQ values are: 3, 4, 5, 6, 7, 10, 11, 12 and 15.
+#
+# NOTE: Older versions of the AVM A1 also require setting 
+# of an IRQ jumper, newer versions of this card and the 
+# Fritz!Card only have an I/O base jumper and the IRQ 
+# selection is programmed by the driver.
+#
+.ind_end
+.
+.
+.
+.isa_card "7" "USRobotics Sportster ISDN TA intern and Stollmann Tina pp"
+.ind_start
+hint.ihfc.8.at      ="isa"
+hint.ihfc.8.port    ="0x268"
+hint.ihfc.8.irq     ="5"
+hint.ihfc.8.flags   ="0x12"
+#
+# valid I/O ports: 0x200, 0x208, 0x210, 0x218,
+#                  0x220, 0x228, 0x230, 0x238, 
+#                  0x240, 0x248, 0x250, 0x258,
+#                  0x260, 0x268, 0x270, 0x278.
+#
+# valid IRQ values: 5, 7, 10, 11, 12, 14, and 15.
+#
+# NOTE: this card has a strange address decoding scheme 
+# resulting in occupying 64 windows of some bytes length
+# over the whole I/O address range.
+#
+.ind_end
+.
+.
+.
+.isa_card "8" "ITK ix1 Micro ( < V.3, non-PnP version )"
+.ind_start
+hint.ihfc.8.at      ="isa"
+hint.ihfc.8.port    ="0x398"
+hint.ihfc.8.irq     ="10"
+hint.ihfc.8.flags   ="0x13"
+#
+# valid I/O ports: unknown
+#
+# valid IRQ values: unknown
+#
+.ind_end
+.
+.
+.
+.isa_card "9" "ELSA MicroLink ISDN/PCC-16 and ELSA PCFpro"
+.ind_start
+hint.ihfc.8.at      ="isa"
+hint.ihfc.8.port    ="0x360"
+hint.ihfc.8.irq     ="10"
+hint.ihfc.8.flags   ="0x0E"
+#
+# valid I/O ports: 0x160, 0x170, 0x260 and 0x360.
+#
+# valid IRQ values: 2, 3, 5, 10, 11 and 15.
+#
+# The LED's are not supported and are off.
+#
+.ind_end
+.
+.
+.
+.Sh SUPPORTED DEVICES: PnP bus, PCI bus and USB
+.Bd -filled
+These devices are identified automatically. See
+.Xr pnpinfo 8 ,
+.Xr pciconf 8
+or
+.Xr usbdevs 8
+for more information.
+.Ed
+.
+.
+.
+.Ss HFC - based devices
+.
+.Bd -literal 
+AcerISDN P10
+Asuscom ISDNLink P-IN100-ST-D2
+Bewan ISDN USB TA
+Bewan Modem RNIS USB
+Billion ISDN tiny USB modem
+Billion USB TA 2
+DrayTec ISDN USB
+DrayTek USB ISDN TA (MiniVigor)
+HFC-2BDS0 ISA/PnP/PCI/USB ISDN
+HFC-E1 PCI ISDN
+Motorola MC145575
+OliTec ISDN USB
+OliTec Modem RNIS USB V2
+Stollmann USB TA
+Teles S0/16.3c PnP
+Telewell
+Trust ISDN
+Twister ISDN TA
+Xplorer 500
+Zoltrix Speedier 128K PCI
+.Ed
+.
+.Ss ISAC - based devices
+.
+.Bd -literal 
+Asuscom ISDNlink 128K ISA
+AVM A1
+AVM Fritz!Card
+AVM Fritz!Card PnP
+AVM Fritz!Card PCI
+Compaq Microcom 610 (Compaq series PSB2222I)
+Creatix ISDN-S0 P&P
+Creatix S0/16 PnP
+Dr.Neuhaus Niccy Go@
+Dynalink IS64PH
+ELSA MicroLink ISDN/PCI
+ELSA QuickStep 1000pro ISA
+ELSA QuickStep 1000pro PCI
+Eicon.Diehl DIVA 2.0 ISA PnP
+Eicon.Diehl DIVA 2.02 ISA PnP
+ITK ix1 Micro V3.0
+MultiTech MT128SA
+Sedlbauer Win Speed
+Siemens I-Surf 2.0 PnP
+Teles S0/16.3 PnP
+.Ed
+.
+.Ss Tiger300/320 - based devices
+.
+.Bd -literal 
+NETjet-S PCI ISDN
+Teles PCI-TJ
+.Ed
+.
+.Ss Winbond - based devices
+.
+.Bd -literal 
+Asuscom ISDNLink P-IN100-ST-D
+Asuscom ISDNLink TA-280-ST-W (USB)
+Dynalink IS64PPH
+Planet PCI ISDN Adapter (IA128P-STDV)
+ 
+ . . . and compatible devices with the supported chips.
+ 
+.Ed
+.
+.Pp
+.
+.
+.
+.Sh PERFORMANCE
+.Bd -filled
+This driver [sometimes] uses HDLC encoding and decoding in software, to
+limit the interrupt rate and to improve data recovery in flooding
+situations.  At the writing moment only one chip has hardware support
+for that, which is the W6694. The support is in the form of holding
+back duplicate `flag bytes' when they occur.
+.Ed
+.
+.
+.
+.Sh TROUBLESHOOTING
+.Bd -filled
+.Pp
+1) Make sure that the ISDN cable is properly connected. Re-plug it one time.
+.Pp
+2) If
+.Xr isdnd 8
+is running try "killall -kill isdnd ; isdnd".
+.Pp
+.\" 2) Try isdndebug -u xxx -r
+.\"
+.Pp
+3) Some times it is necessary to activate the ISDN line in manual.
+This can be done by lifting off a receiver connected to your terminal,
+wait some seconds and then hangup. New devices should be properly
+recognized and activated now.
+.Pp
+4) Some times the KERNEL may assign a shared interrupt to a PnP/ISA
+device or there may be undetected hardware using the assigned IRQ. In
+these cases the IRQ may not work at all or it may just work for a
+while. To work around this the Colognechip based devices can be switched
+to polled mode.  Please see `polled mode` in
+.Xr isdndebug 8
+manual.
+.Pp
+5) If the the Winbond chips have been without power for a long time,
+they will start sending garbage to the S0-bus for around 16 seconds.
+.Ed
+.
+.
+.
+.Sh SOME FACTS ABOUT ISDN
+.Bd -filled
+ISDN is a short for Integrated Services Digital Network.
+.Pp
+The power required to drive an ISDN chip is less than 20-50mA at +5V,
+which is about the power you can receive from a good 30x15cm solar
+cell on a sunny day.
+.Pp
+The distance which ISDN is able to carry a signal, is long. Without
+amplification two devices can be connected at distance 1km, given that
+the total attenuation is less than 6dB at 96 kHz. 6dB means a factor
+of 4.0. If more than two devices should be connected the distance must
+be somewhat shorter. The maximum number of devices that can be
+connected to the same cable is 8, due to the effect of signal
+canceling. (see recommendation V.230)
+.Ed
+.
+.
+.
+.Sh CONNECTING TWO OR MORE BRI ISDN DEVICES
+.Bd -filled
+Building the crossover cable that is needed to connect two or more
+ISDN devices, is simple:
+.Ed
+.
+.ind_start
+You need two RJ45's and a 4-wire, twisted, copper cable.
+The wiring is like this:
+
+ RJ45 -               RJ45 -
+ Network, NT          Terminals, TE's
+ +----+               +----+
+ |---A0               B0---|
+ |---A1               B1---|        R1
+ |---A2-----a  b------B2------------------+         R2
+ |---A3----b    a-----B3--------- -  -  - | -  - -------+
+ |---A4----c    d-----B4--------- -  -  - | [68-100 Ohm]+
+ |---A5-----d  c------B5-----[68-100 Ohm]-+
+ |---A6               B6---|
+ |---A7               B7---|
+ +----+               +----+
+
+pin A2 is connected to pin B3
+pin A3 is connected to pin B2
+pin A4 is connected to pin B5
+pin A5 is connected to pin B4
+
+NOTE: the other pins are not used
+
+A 68-100 Ohm resistor shorts pin B2 and B5
+A 68-100 Ohm resistor shorts pin B3 and B4
+
+.ind_end
+.
+.Bd -filled
+If this cable is to be used outdoors it can be worth adding two 50mA
+fast blow fuses in series with "a" and "b" at each end, in case of
+lightning. For more information about how to set NT-mode please see
+the
+.Xr isdndebug 8
+and
+.Xr isdnd.rc 5
+manuals. NOTE: At the writing moment only HFC-based devices support
+NT-mode.
+.Ed
+.
+.
+.Sh BUYING A NEW ISDN DEVICE
+.Bd -filled
+If you want to buy a new ISDN device the "HFC-2BDS0/E1 ISA/PnP/PCI/USB
+ISDN" based devices are a good choice. These devices are usually somewhat
+cheaper than the others and support connecting two or more ISDN devices
+using the crossover cable described earlier.
+.Ed
+.
+.
+.
+.\" .Sh CAVEATS
+.
+.
+.
+.Sh BUGS
+Some devices might not work properly due to missing hardware 
+documentation from the manufacturer.
+.
+.
+.
+.Sh FILES
+/dev/ihfc
+.
+.
+.
+.Sh STANDARDS
+CCITT Recommendation I.430
+.Sh SEE ALSO
+.Xr i4b 4 ,
+.Xr i4bdss1 4 ,
+.Xr isdndebug 8 ,
+.Xr pciconf 8 ,
+.Xr pnpinfo 8 ,
+.Xr usbdevs 8 ,
+.Xr vmstat 8
+.
+.
+.
+.Sh AUTHORS
+.An -nosplit
+The
+.Nm
+driver was written by
+.An Hans Petter Selasky Aq hselasky@c2i.net .
+.Pp
+Tiger300/320 support was initially written by
+.An Sergio de Souza Prallon Aq prallon@tmp.com.br
+.Pp
+W6692 support was initially written by
+.An Dave Boyce Aq dave@abyss.demon.co.uk
+.Pp
+This manpage was initially written by
+.An Hellmuth Michaelis Aq hm@FreeBSD.org
