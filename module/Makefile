@@ -1,13 +1,16 @@
 #
+# Copyright (c) 2005 Hans Petter Selasky. All rights reserved.
 #
 # .include "../Makefile.inc"
 #
 
 MAINTAINER=hselasky@c2i.net
 
-.PATH:  ${.CURDIR}/i4b/driver ${.CURDIR}/i4b/layer4 \
-	${.CURDIR}/i4b/layer1/ihfc2 ${.CURDIR}/i4b/dss1 \
-	${.CURDIR}/i4b/layer1
+I4B_DIR=${.CURDIR}/../src/sys/i4b
+
+.PATH:  ${I4B_DIR}/driver ${I4B_DIR}/layer4 \
+	${I4B_DIR}/layer1/ihfc2 ${I4B_DIR}/dss1 \
+	${I4B_DIR}/layer1
 
 KMOD=     i4b
 MAN=
