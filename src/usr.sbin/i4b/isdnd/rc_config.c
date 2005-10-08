@@ -210,7 +210,7 @@ static void
 init_controller_protocol(void)
 {
 	int controller;
-	msg_prot_ind_t mpi;
+	msg_prot_ind_t mpi = { /* zero */ };
 
 	for(controller = 0; controller < MAX_CONTROLLERS; controller++)
 	{

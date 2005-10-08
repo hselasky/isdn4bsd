@@ -214,9 +214,35 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	  if(str[0] != 0)
 	  {
 		len = strlen(str);
-		*ptr++ = IEI_CALLINGPN;		/* calling party no */
-		*ptr++ = NUMBER_TYPE_LEN+len;	/* calling party no length */
-		*ptr++ = NUMBER_TYPE_PLAN;	/* type of number, number plan id */
+		*ptr++ = IEI_CALLINGPN;	/* calling party no */
+		ptr[0] = len; /* calling party no length */
+
+		/* type of number, number plan id */
+
+		ptr[1] = 
+		  (cd->src_ton == TON_INTERNAT) ? (NUMBER_TYPE_PLAN | 0x10) :
+		  (cd->src_ton == TON_NATIONAL) ? (NUMBER_TYPE_PLAN | 0x20) :
+		  NUMBER_TYPE_PLAN;
+
+		if(cd->prs_ind != PRS_NONE)
+		{
+		    /* presentation indicator */
+
+		    /* clear extension bit */
+		    ptr[1] &= ~0x80;
+
+		    ptr[2] =
+		      (cd->prs_ind == PRS_RESTRICT) ? 
+		      (0x20|0x80) : (0x80);
+
+		    ptr[0] += 2;
+		    ptr += 3;
+		}
+		else
+		{
+		    ptr[0] += 1;
+		    ptr += 2;
+		}
 
 		bcopy(str, ptr, len);
 		ptr += len;
@@ -311,6 +337,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
     SUBADDR_MAX     +\
                 \
     3               +\
+    1               +\
     TELNO_MAX       +\
                 \
     3               +\

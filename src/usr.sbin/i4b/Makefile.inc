@@ -13,12 +13,9 @@ I4B_EXTERNAL_MONITOR	=	1
 # at all
 #I4B_NOTCPIP_MONITOR	=	1
 
-# XXX comment out this:
-# .include "${.CURDIR}/../../Makefile.inc"
+MKLINT                  =       no
 
-MKLINT=         no
+NOGCCERROR              =
 
-NOGCCERROR=
+.include "${.CURDIR}/../../Makefile.inc"
 
-#
-.include "/usr/src/usr.sbin/Makefile.inc"

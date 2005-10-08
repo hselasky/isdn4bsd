@@ -547,9 +547,9 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 			{
 				ptr = m->m_data + I_HEADER_LEN;
 	
-				*ptr++ = PD_Q931;               /* protocol discriminator */
+				*ptr++ = PD_Q931; /* protocol discriminator */
 				 ptr = make_callreference(pipe,crval,ptr);
-				*ptr++ = RELEASE_COMPLETE;	/* message type */
+				*ptr++ = RELEASE_COMPLETE; /* message type */
 
 				/* update length */
 				m->m_len = ptr - ((u_int8_t *)(m->m_data));
@@ -564,17 +564,17 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 #endif
 		if(cd == NULL)
 		{
-		  NDBGL3(L3_P_MSG, "cannot find calldescriptor for "
-			 "crval=0x%02x", crval);
+		    NDBGL3(L3_P_MSG, "cannot find calldescriptor for "
+			   "crval=0x%02x", crval);
 
-		  /* ignore CR, and let it timeout */
-		  goto done;
+		    /* ignore CR, and let it timeout */
+		    goto done;
 		}
 	}
 
 	if(event == EV_L3_CONNECT)
 	{
-	  cd->datetime[0] = '\0';
+	    cd->datetime[0] = '\0';
 	}
 
 	if(event == EV_L3_SETUP)
@@ -658,7 +658,8 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 #if DO_I4B_DEBUG
 			if(i4b_l2_debug & (L3_P_ERR))
 			{
-			    dss1_dump_buf(__FUNCTION__, msg_tmp, msg_ptr - msg_tmp);
+			    dss1_dump_buf(__FUNCTION__, msg_tmp,
+					  msg_ptr - msg_tmp);
 			}
 #endif
 			break;
@@ -668,6 +669,15 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 		  /* select next codeset */
 		  codeset = codeset_next;
 		}
+	}
+
+	if(NT_MODE(sc) &&
+	   (event == EV_L3_RELEASE) &&
+	   (cd->cause_in != CAUSE_Q850_CALLREJ) &&
+	   (cd->pipe == (void *)&(sc->sc_pipe[0])))
+	{
+	    /* just ignore it */
+	    goto done;
 	}
 
 	cd_update(cd, pipe, event);

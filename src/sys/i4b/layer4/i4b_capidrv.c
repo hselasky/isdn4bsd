@@ -536,34 +536,39 @@ static void
 capi_get_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len, 
 	       u_int8_t *dst, u_int16_t max_length, u_int8_t flag)
 {
+	u_int8_t temp;
+
 	if(flag & 1)
 	{
 		cd->scr_ind = SCR_NONE;
+		cd->src_ton = TON_OTHER;
 		cd->prs_ind = PRS_NONE;
 	}
 
 	if(len)
 	{
-		if((*src != 0x80) && (*src != 0x00))
+		NDBGL4(L4_MSG, "cdid=%d: numbering "
+		       "plan=0x%02x, flag=%d (ignored)",
+		       cd->cdid, src[0], flag);
+
+		if(flag & 1)
 		{
-			NDBGL4(L4_MSG, "cdid=%d: unknown numbering "
-			       "plan=0x%02x, flag=%d (ignored)",
-			       cd->cdid, *src, flag);
+		    temp = (src[0] & 0x70) >> 4;
+
+		    cd->src_ton = 
+		      (temp == 1) ? TON_INTERNAT :
+		      (temp == 2) ? TON_NATIONAL :
+		      TON_OTHER;
 		}
+
 		src++;
 		len--;
 
 		if(len && (flag & 1))
 		{
-		    if(*src == 0x80)
-		    {
-		        cd->prs_ind = PRS_ALLOWED;
-		    }
-		    else
-		    {
-		        cd->prs_ind = PRS_RESTRICT;
-		    }
-		    /* cd->scr_ind = ?? */
+		    cd->prs_ind = 
+		      ((src[0] & 0x60) == 0x20) ? PRS_RESTRICT : PRS_ALLOWED;
+
 		    src++;
 		    len--;
 		}
@@ -603,7 +608,9 @@ capi_put_telno(struct call_desc *cd, u_int8_t *src, u_int8_t *dst,
 	if(flag & 1)
 	{
 	    /* add presentation and screening indicator */
-	    *dst++ = (cd->prs_ind == PRS_RESTRICT) ? 0xA0 : 0x80;
+	    *dst++ = 
+	      (cd->prs_ind == PRS_RESTRICT) ? 0xA0 :
+	      (cd->prs_ind == PRS_NNINTERW) ? 0xC0 : 0x80;
 	}
 
 	while(*src)
@@ -906,7 +913,9 @@ capi_ai_connect_ind(struct call_desc *cd)
 	connect_ind.src_telno.ptr = &src_telno[0];
 	connect_ind.src_telno.len = capi_put_telno
 	  (cd, &cd->src_telno[0], &src_telno[0], 
-	   sizeof(src_telno), 0x00, 1);
+	   sizeof(src_telno), 
+	   (cd->src_ton == TON_INTERNAT) ? 0x10 :
+	   (cd->src_ton == TON_NATIONAL) ? 0x20 : 0x00, 1);
 
 	connect_ind.dst_subaddr.ptr = &dst_subaddr[0];
 	connect_ind.dst_subaddr.len = capi_put_telno
@@ -1424,40 +1433,53 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(ALERT): /* ================================ */
 
-	      m2 = capi_make_conf(&msg, CAPI_CONF(ALERT), 0x0000);
-
-	      if(m2)
+	      if(cd->dir_incoming)
 	      {
-		  CAPI_INIT(CAPI_ALERT_REQ, &alert_req);
+		  m2 = capi_make_conf(&msg, CAPI_CONF(ALERT), 0x0000);
 
-		  capi_decode(&msg.data, msg.head.wLen, &alert_req);
-
-		  CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
-
-		  capi_decode(alert_req.add_info.ptr,
-			      alert_req.add_info.len, &add_info);
-
-		  CAPI_INIT(CAPI_SENDING_COMPLETE, &sending_complete);
-
-		  capi_decode(add_info.sending_complete.ptr,
-			      add_info.sending_complete.len, 
-			      &sending_complete);
-#if 0
-		  if(sending_complete.wMode == 1)
+		  if(m2)
 		  {
-		      send sending complete or call proceeding;
+		      CAPI_INIT(CAPI_ALERT_REQ, &alert_req);
 
-		      N_ALERT_REQUEST will send call proceeding
-		      before alert, in case of overlap sending
-		  }
+		      capi_decode(&msg.data, msg.head.wLen, &alert_req);
+
+		      CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
+
+		      capi_decode(alert_req.add_info.ptr,
+				  alert_req.add_info.len, &add_info);
+
+		      CAPI_INIT(CAPI_SENDING_COMPLETE, &sending_complete);
+
+		      capi_decode(add_info.sending_complete.ptr,
+				  add_info.sending_complete.len, 
+				  &sending_complete);
+#if 0
+		      if(sending_complete.wMode == 1)
+		      {
+			  send sending complete or call proceeding;
+
+			  N_ALERT_REQUEST will send call proceeding;
+			  before alert, in case of overlap sending;
+		      }
 #endif
-		  N_ALERT_REQUEST(cd);
+		      N_ALERT_REQUEST(cd);
+		  }
+	      }
+	      else
+	      {
+		  m2 = capi_make_conf(&msg, CAPI_CONF(ALERT), 0x2001);
 	      }
 	      goto send_confirmation;
 
 	      /* connect request, dial out to remote */
 
 	    case CAPI_P_REQ(CONNECT): /* ============================== */
+
+	      if(cd->dir_incoming)
+	      {
+		  m2 = capi_make_conf(&msg, CAPI_CONF(CONNECT), 0x2001);
+		  goto send_confirmation;
+	      }
 
 	      /* update CID value first */
 
@@ -1628,7 +1650,8 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      /* check that the B-channel is connected */
 
-	      if(cd->fifo_translator == NULL)
+	      if((cd->fifo_translator == NULL) || 
+		 (cd->ai_type == I4B_AI_BROADCAST))
 	      {
 		  NDBGL4(L4_MSG, "cdid=%d: B-channel data sent "
 			 "when disconnected!", cd->cdid);
@@ -1695,6 +1718,19 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(CONNECT_B3): /* =========================== */
 
+	      if(cd->ai_type == I4B_AI_BROADCAST)
+	      {
+		  /* early B3 for incoming calls */
+
+		  /* set application interface */
+		  cd_set_appl_interface(cd,I4B_AI_CAPI,sc);
+
+		  /* send disconnect indication
+		   * to all other application interfaces
+		   */
+		  i4b_l4_disconnect_ind(cd,1);
+	      }
+
 	      /* update CID value first */
 
 	      msg.head.dwCid = CDID2CAPI_ID(cd->cdid)|CAPI_ID_NCCI;
@@ -1742,43 +1778,51 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(INFO): /* ============================== */
 
-	      m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x0000);
-	      if(m2)
+	      if(cd->dir_incoming)
 	      {
-		  u_int8_t *src, *src_end, *dst, *dst_end;
-
-		  CAPI_INIT(CAPI_INFO_REQ, &info_req);
-
-		  capi_decode(&msg.data, msg.head.wLen, &info_req);
-
-		  CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
-
-		  capi_decode(info_req.add_info.ptr,
-			      info_req.add_info.len, &add_info);
-
-		  src = info_req.dst_telno.ptr;
-		  src_end = ADD_BYTES(info_req.dst_telno.ptr, info_req.dst_telno.len);
-		  dst = &cd->dst_telno[0];
-		  dst_end = &cd->dst_telno[TELNO_MAX-1];
-
-		  if(src < src_end)
+		  m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x2001);
+	      }
+	      else
+	      {
+		  m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x0000);
+		  if(m2)
 		  {
-		      /* skip number plan byte */
-		      src++;
-		  }
+		      u_int8_t *src, *src_end, *dst, *dst_end;
+
+		      CAPI_INIT(CAPI_INFO_REQ, &info_req);
+
+		      capi_decode(&msg.data, msg.head.wLen, &info_req);
+
+		      CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
+
+		      capi_decode(info_req.add_info.ptr,
+				  info_req.add_info.len, &add_info);
+
+		      src = info_req.dst_telno.ptr;
+		      src_end = ADD_BYTES(info_req.dst_telno.ptr, 
+					  info_req.dst_telno.len);
+		      dst = &cd->dst_telno[0];
+		      dst_end = &cd->dst_telno[TELNO_MAX-1];
+
+		      if(src < src_end)
+		      {
+			  /* skip number plan byte */
+			  src++;
+		      }
 		  
-		  /* find end */
-		  while((dst < dst_end) && *dst) dst++;
+		      /* find end */
+		      while((dst < dst_end) && *dst) dst++;
 
-		  /* append */
-		  while((src < src_end) && (dst < dst_end) && *src)
-		  {
-		      *dst++ = *src++;
+		      /* append */
+		      while((src < src_end) && (dst < dst_end) && *src)
+		      {
+			  *dst++ = *src++;
+		      }
+
+		      *dst = '\0'; /* zero terminate string ! */
+
+		      N_INFORMATION_REQUEST(cd);
 		  }
-
-		  *dst = '\0'; /* zero terminate string ! */
-
-		  N_INFORMATION_REQUEST(cd);
 	      }
 	      goto send_confirmation;
 
@@ -1861,6 +1905,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(cd->dir_incoming == 0)
 	      {
+		  /* ignore message */
 		  break;
 	      }
 
@@ -1950,15 +1995,18 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		  }
 	      }
 
-	      /* set application interface before 
-	       * disconnect indication
-	       */
-	      cd_set_appl_interface(cd,I4B_AI_CAPI,sc);
+	      if(cd->ai_type == I4B_AI_BROADCAST)
+	      {
+		  /* set application interface before 
+		   * disconnect indication
+		   */
+		  cd_set_appl_interface(cd,I4B_AI_CAPI,sc);
 
-	      /* send disconnect indication
-	       * to all other application interfaces
-	       */
-	      i4b_l4_disconnect_ind(cd,1);
+		  /* send disconnect indication
+		   * to all other application interfaces
+		   */
+		  i4b_l4_disconnect_ind(cd,1);
+	      }
 
 	      cd->driver_type = DRVR_CAPI_B3;
 	      cd->driver_unit = 0;
@@ -1974,7 +2022,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      break;
 
 	    case CAPI_P_RESP(CONNECT_ACTIVE):
-	      if((cd->dir_incoming) && (cd->ai_type == I4B_AI_CAPI))
+	      if(cd->dir_incoming && (cd->ai_type == I4B_AI_CAPI))
 	      {
 		  /* incoming B-channel setup sequence:
 		   *
@@ -1988,13 +2036,16 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		   *      connect b3 active resp --->
 		   */
 
-		  m2 = capi_make_connect_b3_ind(cd);
-		  goto send_confirmation;
+		  if(cd->fifo_translator == NULL)
+		  {
+		      m2 = capi_make_connect_b3_ind(cd);
+		      goto send_confirmation;
+		  }
 	      }
 	      break;
 
 	    case CAPI_P_RESP(CONNECT_B3):
-	      if((cd->dir_incoming) && (cd->ai_type == I4B_AI_CAPI))
+	      if(cd->dir_incoming && (cd->ai_type == I4B_AI_CAPI))
 	      {
 		  CAPI_INIT(CAPI_CONNECT_B3_RESP, &connect_b3_resp);
 
@@ -2020,13 +2071,16 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      break;
 
 	    case CAPI_P_RESP(CONNECT_B3_ACTIVE):
-	      if(i4b_link_bchandrvr(cd, 1))
+	      if(cd->ai_type == I4B_AI_CAPI)
 	      {
-		  /* XXX one could try to detect 
-		   * failure earlier
-		   */
-		  NDBGL4(L4_ERR, "cdid=%d: could not connect "
-			 "B-channel!", cd->cdid);
+		  if(i4b_link_bchandrvr(cd, 1))
+		  {
+		      /* XXX one could try to detect 
+		       * failure earlier
+		       */
+		      NDBGL4(L4_ERR, "cdid=%d: could not connect "
+			     "B-channel!", cd->cdid);
+		  }
 	      }
 	      break;
 

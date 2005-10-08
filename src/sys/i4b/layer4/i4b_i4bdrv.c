@@ -974,15 +974,18 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 				break;
 			}
 
-			/* set application interface before 
-			 * disconnect indication
-			 */
-			cd_set_appl_interface(cd,I4B_AI_I4B,sc);
+			if(cd->ai_type == I4B_AI_BROADCAST)
+			{
+			    /* set application interface before 
+			     * disconnect indication
+			     */
+			    cd_set_appl_interface(cd,I4B_AI_I4B,sc);
 
-			/* send disconnect indication
-			 * to all other application interfaces
-			 */
-			i4b_l4_disconnect_ind(cd,1);
+			    /* send disconnect indication
+			     * to all other application interfaces
+			     */
+			    i4b_l4_disconnect_ind(cd,1);
+			}
 
 			cd->driver_type = mcrsp->driver;
 			cd->driver_unit = mcrsp->driver_unit;
@@ -1004,6 +1007,17 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 		{
 			msg_link_b_channel_driver_req_t *mlr = (void *)data;
 
+			if(cd->ai_type == I4B_AI_BROADCAST)
+			{
+			    /* set application interface */
+			    cd_set_appl_interface(cd,I4B_AI_I4B,sc);
+
+			    /* send disconnect indication
+			     * to all other application interfaces
+			     */
+			    i4b_l4_disconnect_ind(cd,1);
+			}
+
 			if(i4b_link_bchandrvr(cd,mlr->activate))
 			{
 			  if(mlr->activate)
@@ -1012,7 +1026,7 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 				error = ENXIO;
 
 				NDBGL4(L4_MSG,"could not setup B-channel");
-			    }
+			  }
 			}
 			else
 			{
