@@ -14,7 +14,7 @@ I4B_DIR=${.CURDIR}/../src/sys/i4b
 
 KMOD=     i4b
 MAN=
-CFLAGS+=  -Wall
+CFLAGS+=  -Wall -I${.CURDIR}/../src/sys
 OSNAME!=  uname
 
 # FIX:
