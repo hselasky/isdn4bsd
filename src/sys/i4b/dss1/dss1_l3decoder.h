@@ -241,9 +241,9 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 	    break;
 			
 	case IEI_DISPLAY:	/* display */
-	    get_multi_1(src,2,&cd->display[0],sizeof(cd->display[0]));
+	    get_multi_1(src,2,&(cd->display[0]),sizeof(cd->display[0]));
 
-	    NDBGL3(L3_P_MSG, "IEI_DISPLAY = %s", &cd->display[0]);
+	    NDBGL3(L3_P_MSG, "IEI_DISPLAY = %s", &(cd->display[0]));
 	    break;
 			
 	case IEI_DATETIME:	/* date/time */
@@ -253,7 +253,7 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 	    src->start += 2;
 	    while(get_valid(src,0))
 	    {
-	        temp += snprintf(&cd->datetime[temp], DATETIME_MAX-temp, 
+	        temp += snprintf(&(cd->datetime[temp]), DATETIME_MAX-temp, 
 				 "%02d", get_1(src,0));
 
 		if(temp >= DATETIME_MAX)
@@ -262,7 +262,7 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 		}
 		src->start++;
 	    }
-	    NDBGL3(L3_P_MSG, "IEI_DATETIME = %s", &cd->datetime[0]);
+	    NDBGL3(L3_P_MSG, "IEI_DATETIME = %s", &(cd->datetime[0]));
 	    break;
 			
 	case IEI_KEYPAD:	/* keypad facility */
@@ -310,7 +310,7 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 		cd->scr_ind = SCR_NONE;
 		cd->prs_ind = PRS_NONE;				
 
-	        get_multi_1(src,3,&cd->src_telno[0],sizeof(cd->src_telno));
+	        get_multi_1(src,3,&(cd->src_telno[0]),sizeof(cd->src_telno));
 	    }
 	    else
 	    {
@@ -318,9 +318,9 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 		cd->scr_ind = (temp & 0x03) + SCR_USR_NOSC;
 		cd->prs_ind = ((temp >> 5) & 0x03) + PRS_ALLOWED;
 
-	        get_multi_1(src,4,&cd->src_telno[0],sizeof(cd->src_telno));
+	        get_multi_1(src,4,&(cd->src_telno[0]),sizeof(cd->src_telno));
 	    }
-	    NDBGL3(L3_P_MSG, "IEI_CALLINGPN = %s", &cd->src_telno[0]);
+	    NDBGL3(L3_P_MSG, "IEI_CALLINGPN = %s", &(cd->src_telno[0]));
 	    break;
 	
 	case IEI_CALLINGPS:	/* calling party subaddress */
@@ -329,46 +329,48 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 	        /* invalid */
 	        break;
 	    }
-	    get_multi_1(src,3,&cd->src_subaddr[0],sizeof(cd->src_subaddr));
-	    NDBGL3(L3_P_MSG, "IEI_CALLINGPS = %s", &cd->src_subaddr[0]);
+	    get_multi_1(src,3,&(cd->src_subaddr[0]),sizeof(cd->src_subaddr));
+	    NDBGL3(L3_P_MSG, "IEI_CALLINGPS = %s", &(cd->src_subaddr[0]));
 	    break;
 			
 	case IEI_CALLEDPN:	/* called party number */
-	    if(cd->dir_incoming == 0)
+
+	    if(cd->dir_incoming)
 	    {
-	        /* invalid */
-	        break;
+	        /* type of number (destination) */
+	        switch((temp & 0x70) >> 4) {
+		case 1:	
+		    cd->dst_ton = TON_INTERNAT;
+		    break;
+		case 2:
+		    cd->dst_ton = TON_NATIONAL;
+		    break;
+		default:
+		    cd->dst_ton = TON_OTHER;
+		    break;
+		}
+
+		cd->dst_telno_ptr +=
+		  get_multi_1(src,3,cd->dst_telno_ptr,
+			      &(cd->dst_telno[TELNO_MAX])-cd->dst_telno_ptr);
 	    }
 
-	    /* type of number (destination) */
-	    switch((temp & 0x70) >> 4) {
-	    case 1:	
-	        cd->dst_ton = TON_INTERNAT;
-		break;
-	    case 2:
-	        cd->dst_ton = TON_NATIONAL;
-		break;
-	    default:
-	        cd->dst_ton = TON_OTHER;
-		break;
-	    }
+	    get_multi_1(src,3,&(cd->dst_telno_part[0]), 
+			sizeof(cd->dst_telno_part));
 
-	    cd->dst_telno_ptr +=
-	      get_multi_1(src,3,cd->dst_telno_ptr,&(cd->dst_telno[TELNO_MAX])-cd->dst_telno_ptr);
-
-	    NDBGL3(L3_P_MSG, "IEI_CALLED = %s", &cd->dst_telno[0]); 
+	    NDBGL3(L3_P_MSG, "IEI_CALLED = %s", &(cd->dst_telno_part[0])); 
 	    break;
 	
 	case IEI_CALLEDPS:	/* called party subaddress */
 	    if(cd->dir_incoming == 0)
 	    {
 	        /* invalid */
-	      break;
+	        break;
 	    }
 
-	    get_multi_1(src,3,&cd->dst_subaddr[0],sizeof(cd->dst_subaddr));
+	    get_multi_1(src,3,&(cd->dst_subaddr[0]),sizeof(cd->dst_subaddr));
 
-	    NDBGL3(L3_P_MSG, "IEI_CALLEDPS = %s", &cd->dst_subaddr[0]);
+	    NDBGL3(L3_P_MSG, "IEI_CALLEDPS = %s", &(cd->dst_subaddr[0]));
 	    break;
 
 	case IEI_REDIRNO:	/* redirecting number */
@@ -394,8 +396,8 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 	case IEI_USERUSER:	/* user-user */
 	    m = "IEI_USER_USER";
 
-	    get_multi_1(src,2,&cd->sms[0],sizeof(cd->sms));
-	    NDBGL3(L3_P_MSG, "IEI_USERUSER = %s", &cd->sms[0]);
+	    get_multi_1(src,2,&(cd->sms[0]),sizeof(cd->sms));
+	    NDBGL3(L3_P_MSG, "IEI_USERUSER = %s", &(cd->sms[0]));
 	    break;
 			
 	case IEI_ESCAPE:	/* escape for extension */
@@ -579,21 +581,20 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 
 	if(event == EV_L3_SETUP)
 	{
-	  /* reset destination-telephone-number,
-	   * hence it is accumulated
-	   */
-	  cd->dst_telno_ptr =
-		&cd->dst_telno[0];
+	    /* reset the destination
+	     * telephone number, hence
+	     * it is accumulated
+	     */
+	    cd->dst_telno_ptr =
+	      &(cd->dst_telno[0]);
 
-	  /* reset info read pointer
-	   */
-	  cd->dst_telno_info_ptr =
-		&cd->dst_telno[0];
-
-	  /* assuming that the other
-	   * variables are not changed
-	   */
+	    /* assuming that the other
+	     * variables are not changed
+	     */
 	}
+
+	/* reset partial telephone number */
+	cd->dst_telno_part[0] = 0;
 
 	/* process information elements */
 
@@ -713,7 +714,6 @@ dss1_pipe_resend_ind(DSS1_TCP_pipe_t *pipe)
 		  dss1_l3_tx_status_enquiry(cd);
 		}
 	}
-
 	return;
 }
 
@@ -739,7 +739,6 @@ dss1_pipe_reset_ind(DSS1_TCP_pipe_t *pipe)
 		  cd_update(cd, NULL, EV_L3_RELEASE);
 		}
 	}
-
 	return;
 }
 
@@ -750,7 +749,6 @@ static void
 n_connect_request(call_desc_t *cd)
 {
 	cd_update(cd, NULL, EV_L3_SETUPRQ);
-
 	return;
 }
 
@@ -761,7 +759,6 @@ static void
 n_information_request(call_desc_t *cd)
 {
 	cd_update(cd, NULL, EV_L3_INFORQ);
-
 	return;
 }
 
@@ -773,26 +770,24 @@ n_connect_response(call_desc_t *cd, int response, int cause)
 {
 	cd->cause_out = cause;
 
-	switch(response)
-	{
-		case SETUP_RESP_ACCEPT:
-			cd_update(cd, NULL, EV_L3_SETACRS);
-			break;
+	switch(response) {
+	case SETUP_RESP_ACCEPT:
+	    cd_update(cd, NULL, EV_L3_SETACRS);
+	    break;
 		
-		case SETUP_RESP_REJECT:
-			cd_update(cd, NULL, EV_L3_SETRJRS);
-			break;
+	case SETUP_RESP_REJECT:
+	    cd_update(cd, NULL, EV_L3_SETRJRS);
+	    break;
 
-		case SETUP_RESP_DNTCRE:
-			cd_update(cd, NULL, EV_L3_RELEASE);
-			break;
+	case SETUP_RESP_DNTCRE:
+	    cd_update(cd, NULL, EV_L3_RELEASE);
+	    break;
 
-		default:	/* failsafe */
-			cd_update(cd, NULL, EV_L3_RELEASE);
-			NDBGL3(L3_ERR, "unknown response, doing SETUP_RESP_DNTCRE");
-			break;
+	default:	/* failsafe */
+	    cd_update(cd, NULL, EV_L3_RELEASE);
+	    NDBGL3(L3_ERR, "unknown response, doing SETUP_RESP_DNTCRE");
+	    break;
 	}
-
 	return;
 }
 
@@ -805,7 +800,6 @@ n_disconnect_request(call_desc_t *cd, int cause)
 	cd->cause_out = cause;
 
 	cd_update(cd, NULL, EV_L3_RELEASE);
-
 	return;
 }
 
@@ -816,7 +810,6 @@ static void
 n_alert_request(call_desc_t *cd)
 {
 	cd_update(cd, NULL, EV_L3_ALERTRQ);
-
 	return;
 }
 
@@ -859,9 +852,7 @@ n_allocate_cd(struct i4b_controller *cntl, void *pipe, u_int crval,
 
     cd->cr = crval;
 
-    cd->dst_telno_ptr = &cd->dst_telno[0];
-    cd->dst_telno_info_ptr = &cd->dst_telno[0];
-
+    cd->dst_telno_ptr = &(cd->dst_telno[0]);
 
     /* other variables are reset to zero by
      * "i4b_allocate_cd()"
@@ -875,7 +866,6 @@ n_allocate_cd(struct i4b_controller *cntl, void *pipe, u_int crval,
 
     cd_set_state(cd,state);
   }
-
   return cd;
 }
 
@@ -902,7 +892,6 @@ n_free_cd(call_desc_t *cd)
   cd_free_channel(cd);
 
   i4b_free_cd(cd);
-
   return;
 }
 

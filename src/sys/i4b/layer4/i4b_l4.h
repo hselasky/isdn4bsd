@@ -77,6 +77,8 @@ extern void i4b_l4_negcomplete_ind(struct call_desc *cd);
 extern void i4b_l4_accounting(int, int, int, int, int, int, int, int, int);
 extern void i4b_l4_setup_timeout(struct call_desc *cd);
 
+extern void i4b_l3_information_req(struct call_desc *cd, u_int8_t *ptr, u_int16_t len);
+
 extern void i4b_l4_dialout(int driver, int driver_unit );
 extern void i4b_l4_dialoutnumber(int driver, int driver_unit, int cmdlen, 
 				 char *cmd);

@@ -403,9 +403,9 @@ typedef struct call_desc
 
 	u_char	call_state;		/* from incoming SETUP */
 	
-	u_char	dst_telno[TELNO_MAX];	  /* destination number */
-	u_char *dst_telno_ptr;		  /* read/write pointer */
-	u_char *dst_telno_info_ptr;	  /* read pointer */
+	u_char	dst_telno[TELNO_MAX];	/* destination number (accumulated) */
+	u_char *dst_telno_ptr;		/* pointer to end of destination number */
+	u_char  dst_telno_part[16];	/* destination number (last part received) */
 
 	u_char	dst_subaddr[SUBADDR_MAX]; /* destination subaddr */
 	u_char	src_telno[TELNO_MAX];	  /* source number */

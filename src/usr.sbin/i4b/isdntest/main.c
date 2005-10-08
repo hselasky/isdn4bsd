@@ -1,4 +1,4 @@
-/*
+/*-
  * Copyright (c) 1997, 1999 Hellmuth Michaelis. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,14 +24,10 @@
  *
  *---------------------------------------------------------------------------
  *
- *	main.c - i4b selftest utility
+ *	main.c - I4B selftest utility
  *	-----------------------------
  *
- *	$Id: main.c,v 1.16 2000/03/13 16:18:38 hm Exp $ 
- *
  * $FreeBSD: src/usr.sbin/i4b/isdntest/main.c,v 1.8 2000/10/09 14:22:45 hm Exp $
- *
- *      last edit-date: [Mon Mar 13 17:19:26 2000]
  *
  *---------------------------------------------------------------------------*/
 
@@ -52,12 +48,13 @@
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_cause.h>
 
-static void kbdrdhdl ( void );
-static void isdnrdhdl (int isdnfd );
+static void kbdrdhdl(void);
+static void isdnrdhdl(int isdnfd);
 
 void handle_connect_ind(msg_connect_ind_t *msi);
 void handle_disconnect(msg_disconnect_ind_t *mdi);
 void handle_connect_active_ind(msg_connect_active_ind_t *msi);
+void handle_information_ind(msg_information_ind_t *mii);
 
 int connect_response(int isdnfd, unsigned int cdid, int response);
 int disconnect_request(int isdnfd, unsigned int cdid);
@@ -95,18 +92,21 @@ int dotest = 0;
 static void
 usage(void)
 {
-	fprintf(stderr, "\n");
-	fprintf(stderr, "isdntest - i4b selftest, version %d.%d.%d, compiled %s %s\n",I4B_VERSION, I4B_REL, I4B_STEP, __DATE__, __TIME__);
-	fprintf(stderr, "usage: isdntest [-u ctrl] [-d level] [-h] [-i telno] [-o telno] [-t num] [-w]\n");
-	fprintf(stderr, "       -u <unit>     specify controller unit to use\n");
-	fprintf(stderr, "       -d <level>    set debug level\n");	
-	fprintf(stderr, "       -h            use HDLC as Bchannel protocol\n");
-	fprintf(stderr, "       -i <telno>    incoming telephone number\n");
-	fprintf(stderr, "       -o <telno>    outgoing telephone number\n");
-	fprintf(stderr, "       -t <num>      send test pattern num times\n");
-	fprintf(stderr, "       -w            wait for keyboard entry to disconnect\n");
-	fprintf(stderr, "\n");
-	exit(1);
+    fprintf
+      (stderr,
+       "\n" "isdntest - i4b selftest, version %d.%d.%d, compiled %s %s"
+       "\n" "usage: isdntest [-u ctrl] [-d level] [-h] [-i telno] "
+       "\n" "                [-o telno] [-t num] [-w]"
+       "\n" "       -u <unit>     specify controller unit to use"
+       "\n" "       -d <level>    set debug level"	
+       "\n" "       -h            use HDLC as B-channel protocol"
+       "\n" "       -i <telno>    incoming telephone number"
+       "\n" "       -o <telno>    outgoing telephone number"
+       "\n" "       -t <num>      send test pattern num times"
+       "\n" "       -w            wait for keyboard entry to disconnect"
+       "\n"
+       ,I4B_VERSION, I4B_REL, I4B_STEP, __DATE__, __TIME__);
+    exit(1);
 }
 
 /*---------------------------------------------------------------------------*
@@ -132,24 +132,26 @@ main(int argc, char **argv)
 			case 'u':
 				if(isdigit(*optarg))
 				{
-					controller = strtoul(optarg, NULL, 10);
+				    controller = strtoul(optarg, NULL, 10);
 				}
 				else
 				{
-					fprintf(stderr, "Error: option -u requires a numeric argument!\n");
-					usage();
+				    fprintf(stderr, "Error: option -u "
+					    "requires a numeric argument!\n");
+				    usage();
 				}
 				break;
 
 			case 'd':
 				if(isdigit(*optarg))
 				{
-					debug_level = strtoul(optarg, NULL, 10);
+				    debug_level = strtoul(optarg, NULL, 10);
 				}
 				else
 				{
-					fprintf(stderr, "Error: option -d requires a numeric argument!\n");
-					usage();
+				    fprintf(stderr, "Error: option -d "
+					    "requires a numeric argument!\n");
+				    usage();
 				}
 				break;
 
@@ -161,12 +163,14 @@ main(int argc, char **argv)
 				{
 					if(isdigit(*ptr))
 					{
-						outgoingnumber[i++] = *ptr++;
+					    outgoingnumber[i++] = *ptr++;
 					}
 					else
 					{
-						fprintf(stderr, "Error: option -o requires a numeric argument!\n");
-						usage();
+					    fprintf(stderr, "Error: option "
+						    "-o requires a numeric "
+						    "argument!\n");
+					    usage();
 					}
 				}					
 				outgoingnumber[i] = '\0';
@@ -180,12 +184,14 @@ main(int argc, char **argv)
 				{
 					if(isdigit(*ptr))
 					{
-						incomingnumber[i++] = *ptr++;
+					    incomingnumber[i++] = *ptr++;
 					}
 					else
 					{
-						fprintf(stderr, "Error: option -i requires a numeric argument!\n");
-						usage();
+					    fprintf(stderr, "Error: option "
+						    "-i requires a numeric "
+						    "argument!\n");
+					    usage();
 					}
 				}					
 				incomingnumber[i] = '\0';
@@ -206,7 +212,9 @@ main(int argc, char **argv)
 				}
 				else
 				{
-					fprintf(stderr, "Error: option -t requires a numeric argument!\n");
+					fprintf(stderr, "Error: option -t "
+						"requires a numeric "
+						"argument!\n");
 					usage();
 				}
 				break;
@@ -221,12 +229,15 @@ main(int argc, char **argv)
 	if((strlen(incomingnumber) == 0) || (strlen(outgoingnumber) == 0))
 		usage();
 
-	fprintf(stderr, "isdntest: accepting calls from telephone number [%s] \n", incomingnumber);
-	fprintf(stderr, "isdntest:          calling out telephone number [%s] \n", outgoingnumber);
+	fprintf(stderr, "isdntest: accepting calls from telephone "
+		"number [%s] \n", incomingnumber);
+	fprintf(stderr, "isdntest:          calling out telephone "
+		"number [%s] \n", outgoingnumber);
 
 	if((atexit(cleanup)) != 0)
 	{
-		fprintf(stderr, "isdntest: atexit error: %s\n", strerror(errno));
+		fprintf(stderr, "isdntest: atexit error: %s\n", 
+			strerror(errno));
 		exit(1);
 	}
 
@@ -234,15 +245,19 @@ main(int argc, char **argv)
 
 	if((isdnfd = open(I4BDEVICE, O_RDWR)) < 0)
 	{
-		fprintf(stderr, "\nisdntest: cannot open %s: %s\n", I4BDEVICE, strerror(errno));
-		fprintf(stderr, "          isdnd is probably running, to use isdntest,\n");
-		fprintf(stderr, "          terminate isdnd and then run isdntest again!\n");
+		fprintf(stderr, "\nisdntest: cannot open %s: %s\n", 
+			I4BDEVICE, strerror(errno));
+		fprintf(stderr, "          isdnd is probably running, "
+			"to use isdntest,\n");
+		fprintf(stderr, "          terminate isdnd and then "
+			"run isdntest again!\n");
 		exit(1);
 	}
 
 	if((out_cdid = get_cdid(isdnfd)) == 0)
 	{
-		fprintf(stderr, "isdntest: error getting cdid: %s\n", strerror(errno));
+		fprintf(stderr, "isdntest: error getting cdid: %s\n", 
+			strerror(errno));
 		exit(1);
 	}
 
@@ -273,7 +288,8 @@ main(int argc, char **argv)
 		else
 		{
 			if(ret < 0)
-			  fprintf(stderr, "isdntest: select error: %s\n", strerror(errno));
+			  fprintf(stderr, "isdntest: select error: %s\n",
+				  strerror(errno));
 		}			
 	}
 }
@@ -299,29 +315,36 @@ isdnrdhdl(int isdnfd)
 
 	if((len = read(isdnfd, buf, 1024 - 1)) > 0)
 	{
-		switch (buf[0])
-		{
-			case MSG_CONNECT_IND:
-				handle_connect_ind((void *)&buf);
-				break;
+		switch (buf[0]) {
+		case MSG_CONNECT_IND:
+		    handle_connect_ind((void *)&buf);
+		    break;
 				
-			case MSG_CONNECT_ACTIVE_IND:
-				handle_connect_active_ind((void *)&buf);
-				break;
+		case MSG_CONNECT_ACTIVE_IND:
+		    handle_connect_active_ind((void *)&buf);
+		    break;
 				
-			case MSG_DISCONNECT_IND:
-				handle_disconnect((void *)&buf);
-				break;
-				
-			default:
-				if(debug_level)
-					fprintf(stderr, "isdntest: unknown message 0x%x = %c\n", buf[0], buf[0]);
-				break;
+		case MSG_DISCONNECT_IND:
+		    handle_disconnect((void *)&buf);
+		    break;
+
+		case MSG_INFORMATION_IND:
+		    handle_information_ind((void *)&buf);
+		    break;
+
+		default:
+		    if(debug_level)
+		    {
+		      fprintf(stderr, "isdntest: unknown message 0x%x = %c\n",
+			      buf[0], buf[0]);
+		    }
+		    break;
 		}
 	}
 	else
 	{
-		fprintf(stderr, "isdntest: read error, errno = %d, length = %d\n", errno, len);
+		fprintf(stderr, "isdntest: read error, errno = %d, "
+			"length = %d\n", errno, len);
 	}
 }
 
@@ -354,10 +377,12 @@ connect_request(int isdnfd, unsigned int cdid)
 	
 	if((ret = ioctl(isdnfd, I4B_CONNECT_REQ, &mcr)) < 0)
 	{
-		fprintf(stderr, "ioctl I4B_CONNECT_REQ failed: %s\n", strerror(errno));
+		fprintf(stderr, "ioctl I4B_CONNECT_REQ failed: %s\n",
+			strerror(errno));
 		return(-1);
 	}
-	fprintf(stderr, "isdntest: calling out to telephone number [%s] \n", outgoingnumber);
+	fprintf(stderr, "isdntest: calling out to telephone "
+		"number [%s] \n", outgoingnumber);
 	return(0);
 }
 
@@ -368,14 +393,15 @@ void
 handle_connect_ind(msg_connect_ind_t *msi)
 {
 	fprintf(stderr, "isdntest: incoming SETUP: from %s to %s\n",
-				msi->src_telno,
-				msi->dst_telno);
+		msi->src_telno,
+		msi->dst_telno);
 
-	fprintf(stderr, "          channel %d, controller %d, bprot %d, cdid %d\n",
-				msi->channel,
-				CDID2CONTROLLER(msi->header.cdid),
-				msi->bprot,
-				msi->header.cdid);
+	fprintf(stderr, "          channel %d, controller %d, "
+		"bprot %d, cdid %d\n",
+		msi->channel,
+		CDID2CONTROLLER(msi->header.cdid),
+		msi->bprot,
+		msi->header.cdid);
 
 	in_cdid = msi->header.cdid;
 	
@@ -384,7 +410,8 @@ handle_connect_ind(msg_connect_ind_t *msi)
 		msg_connect_resp_t msr = { /* zero */ };
 		int ret;
 
-		fprintf(stderr, "isdntest: ignoring incoming SETUP: my number [%s] != outgoing [%s]\n",
+		fprintf(stderr, "isdntest: ignoring incoming SETUP: "
+			"my number [%s] != outgoing [%s]\n",
 			msi->dst_telno, outgoingnumber);
 
 		msr.cdid = in_cdid;
@@ -392,7 +419,8 @@ handle_connect_ind(msg_connect_ind_t *msi)
 
 		if((ret = ioctl(isdnfd, I4B_CONNECT_RESP, &msr)) < 0)
 		{
-			fprintf(stderr, "ioctl I4B_CONNECT_RESP ignore failed: %s\n", strerror(errno));
+			fprintf(stderr, "ioctl I4B_CONNECT_RESP ignore "
+				"failed: %s\n", strerror(errno));
 			exit(1);
 		}
 
@@ -402,7 +430,8 @@ handle_connect_ind(msg_connect_ind_t *msi)
 		msg_connect_resp_t msr = { /* zero */ };
 		int ret;
 
-		fprintf(stderr, "isdntest: accepting call, sending CONNECT_RESPONSE .....\n");
+		fprintf(stderr, "isdntest: accepting call, sending "
+			"CONNECT_RESPONSE .....\n");
 
 		msr.cdid = in_cdid;
 		msr.response = SETUP_RESP_ACCEPT;
@@ -417,7 +446,8 @@ handle_connect_ind(msg_connect_ind_t *msi)
 		
 		if((ret = ioctl(isdnfd, I4B_CONNECT_RESP, &msr)) < 0)
 		{
-			fprintf(stderr, "ioctl I4B_CONNECT_RESP accept failed: %s\n", strerror(errno));
+			fprintf(stderr, "ioctl I4B_CONNECT_RESP accept "
+				"failed: %s\n", strerror(errno));
 			exit(1);
 		}
 	}
@@ -441,11 +471,13 @@ handle_connect_active_ind(msg_connect_active_ind_t *msi)
 	if(ioctl(isdnfd, I4B_LINK_B_CHANNEL_DRIVER_REQ, &mlr) < 0)
 	{
 		/* disconnect ? */
-		fprintf(stderr, "isdntest: linking B-channel driver failed, cdid %d\n",
+		fprintf(stderr, "isdntest: linking B-channel driver "
+			"failed, cdid %d\n",
 			msi->header.cdid);
 	}
 
-	fprintf(stderr, "isdntest: connection active, cdid %d\n", msi->header.cdid);
+	fprintf(stderr, "isdntest: connection active, cdid %d\n", 
+		msi->header.cdid);
 
 	if((msi->header.cdid == in_cdid) ||
  	   (msi->header.cdid == out_cdid))
@@ -457,7 +489,8 @@ handle_connect_active_ind(msg_connect_active_ind_t *msi)
 	{
 		if(waitchar)
 		{
-			fprintf(stderr, "isdntest: press any key to disconnect ...%c%c%c\n", 0x07, 0x07, 0x07);
+			fprintf(stderr, "isdntest: press any key to "
+				"disconnect ...%c%c%c\n", 0x07, 0x07, 0x07);
 			getchar();
 		}
 		else
@@ -468,7 +501,8 @@ handle_connect_active_ind(msg_connect_active_ind_t *msi)
 			}
 			else
 			{
-				fprintf(stderr, "isdntest: %d secs delay until disconnect:", SLEEPTIME);
+				fprintf(stderr, "isdntest: %d secs delay "
+					"until disconnect:", SLEEPTIME);
 	
 				for(i=0; i < SLEEPTIME;i++)
 				{
@@ -485,6 +519,17 @@ handle_connect_active_ind(msg_connect_active_ind_t *msi)
 }
 
 /*---------------------------------------------------------------------------*
+ *	handle information indication
+ *---------------------------------------------------------------------------*/
+void
+handle_information_ind(msg_information_ind_t *mii)
+{
+	fprintf(stderr, "isdntest: cdid %d, received digits: %s\n",
+		mii->header.cdid, &(mii->dst_telno));
+	return;
+}
+
+/*---------------------------------------------------------------------------*
  *	handle disconnect indication
  *---------------------------------------------------------------------------*/
 void
@@ -492,20 +537,23 @@ handle_disconnect(msg_disconnect_ind_t *mdi)
 {
 	if(mdi->header.cdid == out_cdid)
 	{
-		fprintf(stderr, "isdntest: incoming disconnect indication, cdid %d (out_cdid), cause %d\n",
+		fprintf(stderr, "isdntest: incoming disconnect indication, "
+			"cdid %d (out_cdid), cause %d\n",
 			mdi->header.cdid, mdi->cause);
 
 		out_cdid = CDID_UNUSED;
 	}
 	else if(mdi->header.cdid == in_cdid)
 	{
-		fprintf(stderr, "isdntest: incoming disconnect indication, cdid %d (in_cdid), cause %d\n",
+		fprintf(stderr, "isdntest: incoming disconnect indication, "
+			"cdid %d (in_cdid), cause %d\n",
 			mdi->header.cdid, mdi->cause);
 		in_cdid = CDID_UNUSED;
 	}
 	else
 	{
-		fprintf(stderr, "isdntest: incoming disconnect indication, cdid %d (?), cause %d\n",
+		fprintf(stderr, "isdntest: incoming disconnect indication, "
+			"cdid %d (?), cause %d\n",
 			mdi->header.cdid, mdi->cause);
 	}
 	return;
@@ -525,7 +573,8 @@ disconnect_request(int isdnfd, unsigned int cdid)
 	
 	if((ret = ioctl(isdnfd, I4B_DISCONNECT_REQ, &mdr)) < 0)
 	{
-		fprintf(stderr, "ioctl I4B_DISCONNECT_REQ failed: %s\n", strerror(errno));
+		fprintf(stderr, "ioctl I4B_DISCONNECT_REQ failed: %s\n", 
+			strerror(errno));
 		return(-1);
 	}
 	fprintf(stderr, "isdntest: sending disconnect request\n");
@@ -545,7 +594,8 @@ get_cdid(int isdnfd)
 	
 	if((ret = ioctl(isdnfd, I4B_CDID_REQ, &mcr)) < 0)
 	{
-		fprintf(stderr, "ioctl I4B_CDID_REQ failed: %s\n", strerror(errno));
+		fprintf(stderr, "ioctl I4B_CDID_REQ failed: %s\n", 
+			strerror(errno));
 		return(0);
 	}
 	fprintf(stderr, "isdntest: got cdid %d from kernel\n", mcr.cdid);
@@ -569,37 +619,50 @@ void cleanup(void)
 	while((out_cdid != CDID_UNUSED) || (in_cdid != CDID_UNUSED))
 	{
 		if(debug_level)
-			fprintf(stderr, "isdntest: cleanup, out_cdid %d, in_cdid %d\n", out_cdid, in_cdid);
+		{
+			fprintf(stderr, "isdntest: cleanup, out_cdid %d, "
+				"in_cdid %d\n", out_cdid, in_cdid);
+		}
 
 		if((len = read(isdnfd, buf, 1024 - 1)) > 0)
 		{
-			switch (buf[0])
-			{
-				case MSG_CONNECT_IND:
-					handle_connect_ind((void *)&buf);
-					break;
+			switch(buf[0]) {
+			case MSG_CONNECT_IND:
+			    handle_connect_ind((void *)&buf);
+			    break;
 					
-				case MSG_CONNECT_ACTIVE_IND:
-					handle_connect_active_ind((void *)&buf);
-					break;
+			case MSG_CONNECT_ACTIVE_IND:
+			    handle_connect_active_ind((void *)&buf);
+			    break;
 					
-				case MSG_DISCONNECT_IND:
-					handle_disconnect((void *)&buf);
-					break;
-					
-				default:
-					if(debug_level)				
-						fprintf(stderr, "isdntest: unknown message 0x%x = %c\n", buf[0], buf[0]);
-					break;
+			case MSG_DISCONNECT_IND:
+			    handle_disconnect((void *)&buf);
+			    break;
+
+			case MSG_INFORMATION_IND:
+			    handle_information_ind((void *)&buf);
+			    break;
+
+			default:
+			    if(debug_level)
+			    {
+			        fprintf(stderr, "isdntest: unknown message "
+					"0x%x = %c\n", buf[0], buf[0]);
+			    }
+			    break;
 			}
 		}
 		else
 		{
-			fprintf(stderr, "isdntest: read error, errno = %d, length = %d\n", errno, len);
+			fprintf(stderr, "isdntest: read error, errno = %d, "
+				"length = %d\n", errno, len);
 		}
 	}
 	if(debug_level)	
-		fprintf(stderr, "isdntest: exit cleanup, out_cdid %d, in_cdid %d\n", out_cdid, in_cdid);
+	{
+		fprintf(stderr, "isdntest: exit cleanup, out_cdid %d, "
+			"in_cdid %d\n", out_cdid, in_cdid);
+	}
 	return;
 }
 
@@ -629,13 +692,15 @@ int do_test(void)
 	
 	if((fd0 = open(DATADEV0, O_RDWR)) == -1)
 	{
-		fprintf(stderr, "open of %s failed: %s\n", DATADEV0, strerror(errno));
+		fprintf(stderr, "open of %s failed: %s\n", DATADEV0, 
+			strerror(errno));
 		return(-1);
 	}		
 
 	if((fd1 = open(DATADEV1, O_RDWR)) == -1)
 	{
-		fprintf(stderr, "open of %s failed: %s\n", DATADEV1, strerror(errno));
+		fprintf(stderr, "open of %s failed: %s\n", DATADEV1, 
+			strerror(errno));
 		return(-1);
 	}		
 
@@ -662,7 +727,9 @@ int do_test(void)
 		
 		if((sz = write(fd0, wrbuf, frm_len)) != frm_len)
 		{
-			fprintf(stderr, "write (%d of %d bytes) to %s failed: %s\n", sz, frm_len, DATADEV0, strerror(errno));
+			fprintf(stderr, "write (%d of %d bytes) to "
+				"%s failed: %s\n", sz, frm_len, 
+				DATADEV0, strerror(errno));
 		}
 
                 timeout.tv_sec =  2;
@@ -681,7 +748,9 @@ int do_test(void)
 			{
 				if((sz = read(fd1, rdbuf, 2048)) != frm_len)
 				{
-					fprintf(stderr, "read (%d bytes) from %s failed: %s\n", sz, DATADEV1, strerror(errno));
+					fprintf(stderr, "read (%d bytes) "
+						"from %s failed: %s\n", 
+						sz, DATADEV1, strerror(errno));
 				}
 
 				cur_time = time(NULL);
@@ -693,15 +762,18 @@ int do_test(void)
 				printf(" %6d %10d %4d %2.2d:%2.2d:%2.2d     \r",
 					errcnt, bytecnt,
 					(int)((int)bytecnt/(int)run_time),
-					(int)run_time/3600, (int)run_time/60, (int)run_time%60);
+					(int)run_time/3600, (int)run_time/60,
+				       (int)run_time%60);
 				fflush(stdout);
 
-				errcnt += check_rd(frm_len, &wrbuf[0], &rdbuf[0]);
+				errcnt += check_rd(frm_len, &wrbuf[0],
+						   &rdbuf[0]);
 				
 #ifdef NOTDEF
 				for(i=0; i<sz; i++)
 				{
-					printf("0x%02x ", (unsigned char)rdbuf[i]);
+					printf("0x%02x ", 
+					       (unsigned char)rdbuf[i]);
 				}
 				printf("\n");
 #endif				
@@ -716,7 +788,8 @@ int do_test(void)
 		else
 		{
 			if(ret < 0)
-			  fprintf(stderr, "isdntest, do_test: select error: %s\n", strerror(errno));
+			  fprintf(stderr, "isdntest, do_test: select "
+				  "error: %s\n", strerror(errno));
 		}
 
 		frm_len = frm_len*2;
@@ -754,7 +827,8 @@ check_rd(int len, unsigned char *wbuf, unsigned char *rbuf)
 	{
 		if(*wbuf != *rbuf)
 		{
-			fprintf(stderr, "\nERROR, byte %d, written 0x%02x, read 0x%02x\n", i, *wbuf, *rbuf);
+			fprintf(stderr, "\nERROR, byte %d, written "
+				"0x%02x, read 0x%02x\n", i, *wbuf, *rbuf);
 			ret++;
 		}
 		wbuf++;
@@ -763,4 +837,3 @@ check_rd(int len, unsigned char *wbuf, unsigned char *rbuf)
 	return(ret);
 }
 
-/* EOF */

@@ -1787,8 +1787,6 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		  m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x0000);
 		  if(m2)
 		  {
-		      u_int8_t *src, *src_end, *dst, *dst_end;
-
 		      CAPI_INIT(CAPI_INFO_REQ, &info_req);
 
 		      capi_decode(&msg.data, msg.head.wLen, &info_req);
@@ -1798,30 +1796,16 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		      capi_decode(info_req.add_info.ptr,
 				  info_req.add_info.len, &add_info);
 
-		      src = info_req.dst_telno.ptr;
-		      src_end = ADD_BYTES(info_req.dst_telno.ptr, 
-					  info_req.dst_telno.len);
-		      dst = &cd->dst_telno[0];
-		      dst_end = &cd->dst_telno[TELNO_MAX-1];
-
-		      if(src < src_end)
+		      if(info_req.dst_telno.len > 0)
 		      {
 			  /* skip number plan byte */
-			  src++;
-		      }
-		  
-		      /* find end */
-		      while((dst < dst_end) && *dst) dst++;
-
-		      /* append */
-		      while((src < src_end) && (dst < dst_end) && *src)
-		      {
-			  *dst++ = *src++;
+			  info_req.dst_telno.len --;
+			  info_req.dst_telno.ptr = 
+			    ADD_BYTES(info_req.dst_telno.ptr,1);
 		      }
 
-		      *dst = '\0'; /* zero terminate string ! */
-
-		      N_INFORMATION_REQUEST(cd);
+		      i4b_l3_information_req(cd, info_req.dst_telno.ptr, 
+					     info_req.dst_telno.len);
 		  }
 	      }
 	      goto send_confirmation;

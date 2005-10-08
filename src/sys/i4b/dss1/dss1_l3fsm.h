@@ -377,19 +377,22 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  break;
 
 	case EV_L3_INFORQ:
+	  if(TE_MODE(sc) || 
+	     IS_PRIMARY_RATE(sc) ||
+	     (state == ST_L3_UA) ||
+	     (state == ST_L3_UA_TO))
+	  {
+	      /* send next part of number,
+	       * "cd->dst_telno_part"
+	       */
+	      dss1_l3_tx_information(cd);
+	  }
+
 	  if((state == ST_L3_U2) ||
 	     (state == ST_L3_U2_ACK))
 	  {
-	    if(TE_MODE(sc) || IS_PRIMARY_RATE(sc))
-	    {
-	      /* send next part of number, which
-	       * should be added to "cd->dst_telno"
-	       */
-	      dss1_l3_tx_information(cd);
-	    }
-
-	    /* re-start timeout */
-	    cd_set_state(cd,state);
+	      /* re-start timeout */
+	      cd_set_state(cd,state);
 	  }
 	  break;
 
@@ -620,15 +623,17 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 #endif
 	default:
 	case EV_L3_INFO:
-	  if(state == ST_L3_IN_ACK)
-	  {
-	      if(cd->dst_telno[0] != '\0')
-	      {
-		/* re-start timeout */
-		cd_set_state(cd,state);
 
-		i4b_l4_information_ind(cd);
+	  /* catch digits */
+
+	  if(cd->dst_telno_part[0] != '\0')
+	  {
+	      if(state == ST_L3_IN_ACK)
+	      {
+		  /* re-start timeout */
+		  cd_set_state(cd,state);
 	      }
+	      i4b_l4_information_ind(cd);
 	  }
 	  break;
 #if 0

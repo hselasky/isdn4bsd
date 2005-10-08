@@ -197,7 +197,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		ptr = IEI_channelid(cd, ptr);
 	  }
 
-	  str = &cd->keypad[0];
+	  str = &(cd->keypad[0]);
 
 	  if(str[0] != 0)
 	  {
@@ -209,7 +209,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		ptr += len;
 	  }
 	
-	  str = &cd->src_telno[0];
+	  str = &(cd->src_telno[0]);
 
 	  if(str[0] != 0)
 	  {
@@ -248,7 +248,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		ptr += len;
 	  }
 
-	  str = &cd->src_subaddr[0];
+	  str = &(cd->src_subaddr[0]);
 
 	  if(str[0] != 0)
 	  {
@@ -261,8 +261,12 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		ptr += len;
 	  }
 
-	  /* NOTE: SETUP may be re-transmitted in NT-mode */
-	  str = &cd->dst_telno[0]; /* cd->dst_telno_ptr; */
+	  /*
+	   * re-transmit the complete destination telephone
+	   * number, hence in NT-mode the SETUP message may
+	   * be repeated:
+	   */
+	  str = &(cd->dst_telno[0]);
 
 	  if(str[0] != 0)
 	  {
@@ -278,7 +282,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		cd->dst_telno_ptr = str;
 	  }
 
-	  str = &cd->dst_subaddr[0];
+	  str = &(cd->dst_subaddr[0]);
 
 	  if(str[0] != 0)
 	  {
@@ -291,7 +295,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		ptr += len;
 	  }
 
-	  str = &cd->sms[0];
+	  str = &(cd->sms[0]);
 
 	  if(str[0] != 0)
 	  {
@@ -303,7 +307,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		ptr += len;
 	  }
 
-	  str = &cd->display[0];
+	  str = &(cd->display[0]);
 
 	  if(str[0] != 0)
 	  {
@@ -362,7 +366,6 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	{
 	  NDBGL3(L3_ERR, "out of mbufs!");
 	}
-
 	return;
 }
 
@@ -469,7 +472,7 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 
 	  if(flag & L3_TX_CALLEDPN)
 	  {
-	    str = cd->dst_telno_ptr; /* &cd->dst_telno[0]; */
+	    str = &(cd->dst_telno_part[0]);
 
 	    if(str[0] != 0)
 	    {
@@ -482,8 +485,6 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 		{
 		  *ptr++ = *str++;
 		}
-
-		cd->dst_telno_ptr = str;
 	    }
 	  }
 
@@ -514,7 +515,6 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 	{
 	  NDBGL3(L3_ERR, "out of mbufs!");
 	}
-
 	return;
 }
 

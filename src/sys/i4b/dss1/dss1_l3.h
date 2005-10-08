@@ -130,11 +130,11 @@ m( EV_L3_RELEASE  ,, "RELEASE")\
 m( EV_L3_STATENQ  ,, "received STATUS ENQUIRY")\
 m( EV_L3_INFO     ,, "received INFORMATION")\
 m( EV_L3_FACILITY ,, "received FACILITY")\
+m( EV_L3_INFORQ   ,, "L4 INFORMATION REQUEST")\
 /**/
 
 #define L3_EVENTS_LOCAL_OUTGOING(m)\
 m( EV_L3_SETUPRQ  ,, "L4 SETUP REQUEST")\
-m( EV_L3_INFORQ   ,, "L4 INFORMATION REQUEST")\
 m( EV_L3_SETUPAK  ,, "received SETUP ACKNOWLEDGE")\
 m( EV_L3_CALLPRC  ,, "received CALL PROCEEDING")\
 m( EV_L3_ALERT    ,, "received ALERT")\

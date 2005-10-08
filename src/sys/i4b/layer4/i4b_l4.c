@@ -502,66 +502,51 @@ i4b_l4_information_ind(call_desc_t *cd)
 	msg_information_ind_t *mp;
 	struct mbuf *m;
 	u_int8_t buffer[TELNO_MAX];
-	u_int8_t *ptr = &buffer[0];
-	u_int16_t len = 0;
+	int len;
 
-	if(cd->dst_telno_info_ptr == NULL)
+	if(cd->dst_telno_part[0] == 0)
 	{
-		NDBGL4(L4_ERR, "cdid=%d: dst_telno_info_ptr == NULL",
-		       cd->cdid);
-		return;
+	    NDBGL4(L4_MSG, "cdid=%d: cd->dst_telno_part[0] == 0",
+		   cd->cdid);
+	    return;
 	}
 
-	/* get digits into buffer */
+	len = snprintf(&(buffer[0]), sizeof(buffer),
+		       "%c%s", 0x81, &(cd->dst_telno_part[0]));
 
-	*ptr++ = 0x81; /* number PLAN */
-
-	while(*(cd->dst_telno_info_ptr))
+	if(len < 1)
 	{
-	        *ptr++ = *(cd->dst_telno_info_ptr)++;
-
-		if(ptr >= &buffer[TELNO_MAX-1])
-		{
-		    NDBGL4(L4_ERR, "cdid=%d: truncating large INFO!",
-			   cd->cdid);
-		    break;
-		}
+	    /* shouldn't happen */
+	    return;
 	}
 
-	*ptr++ = 0; /* zero terminate */
-
-	len = ptr - &buffer[0] - 2;
-
-	/* only send INFO if there is one 
-	 * or more digits !
-	 */
-	if(len)
+	len--;
+	
+	if((cd->ai_type == I4B_AI_I4B) || (cd->ai_type == I4B_AI_BROADCAST))
 	{
-	    if((cd->ai_type == I4B_AI_I4B) || (cd->ai_type == I4B_AI_BROADCAST))
+	    if((m = i4b_getmbuf(sizeof(*mp), M_NOWAIT)) != NULL)
 	    {
-	        if((m = i4b_getmbuf(sizeof(*mp), M_NOWAIT)) != NULL)
+	        mp = (void *)(m->m_data);
+
+		mp->header.type = MSG_INFORMATION_IND;
+		mp->header.cdid = cd->cdid;
+
+		if(len > (sizeof(mp->dst_telno)-1))
 		{
-		    mp = (void *)(m->m_data);
-
-		    mp->header.type = MSG_INFORMATION_IND;
-		    mp->header.cdid = cd->cdid;
-
-		    if(len > (sizeof(mp->dst_telno)-1))
-		    {
-		        /* should not happen */
-			len = (sizeof(mp->dst_telno)-1);
-		    }
-
-		    bcopy(&buffer[1], &mp->dst_telno[0], len+1);
-
-		    i4b_ai_putqueue(cd->ai_ptr,0,m);
+		    /* should not happen */
+		    len = (sizeof(mp->dst_telno)-1);
 		}
+
+		bcopy(&(buffer[1]), &(mp->dst_telno[0]), len);
+		mp->dst_telno[len] = 0;
+
+		i4b_ai_putqueue(cd->ai_ptr,0,m);
 	    }
-	    if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
-	    {
-	        capi_ai_info_ind(cd, 0, 0x0070 /* IEI_CALLEDPN */,
-				 &buffer[0], len + 1);
-	    }
+	}
+	if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
+	{
+	    capi_ai_info_ind(cd, 0, 0x0070 /* IEI_CALLEDPN */,
+			     &(buffer[0]), len+1);
 	}
 	return;
 }
@@ -1277,3 +1262,46 @@ i4b_l4_setup_timeout(call_desc_t *cd)
 	return;
 }
 
+void
+i4b_l3_information_req(struct call_desc *cd, u_int8_t *ptr, u_int16_t len)
+{
+	u_int8_t *dst = &(cd->dst_telno[0]);
+	u_int8_t *dst_end = &(cd->dst_telno[TELNO_MAX-1]);
+
+	enum { max = sizeof(cd->dst_telno_part)-1 };
+
+	if(len > max)
+	{
+	    len = max;
+	}
+
+	bcopy(ptr, &(cd->dst_telno_part[0]), len);
+	cd->dst_telno_part[len] = 0; /* zero terminate */
+
+	if(!(cd->dir_incoming))
+	{
+	    /* append digits to destination 
+	     * telephone number
+	     */
+	    if(cd->dst_telno_ptr < dst)
+	    {
+	        cd->dst_telno_ptr = dst;
+	    }
+	    else
+	    {
+	        dst = cd->dst_telno_ptr;
+
+		if(dst > dst_end)
+		{
+		    dst = dst_end;
+		}
+	    }
+
+	    len = min(len, (dst_end - dst));
+	    bcopy(ptr, dst, len);
+	    dst[len] = 0; /* zero terminate */
+	    cd->dst_telno_ptr = dst + len;
+	}
+	N_INFORMATION_REQUEST(cd);
+	return;
+}

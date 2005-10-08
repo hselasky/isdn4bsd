@@ -920,23 +920,9 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 		case I4B_INFORMATION_REQ:
 		{
 			msg_information_req_t *mir = (void *)data;
-			u_int8_t *src = &mir->dst_telno[0];
-			u_int8_t *src_end = &mir->dst_telno[TELNO_MAX-1];
-			u_int8_t *dst = &cd->dst_telno[0];
-			u_int8_t *dst_end = &cd->dst_telno[TELNO_MAX-1];
 
-			/* find end */
-			while((dst < dst_end) && *dst) dst++;
-
-			/* append */
-			while((src < src_end) && (dst < dst_end) && *src)
-			{
-			    *dst++ = *src++;
-			}
-
-			*dst = '\0'; /* zero terminate string ! */
-
-			N_INFORMATION_REQUEST(cd);
+			i4b_l3_information_req(cd, &(mir->dst_telno[0]), 
+					       strlen(&(mir->dst_telno[0])));
 			break;
 		}
 
@@ -948,11 +934,14 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 
 			if(cd->dir_incoming)
 			{
-				i4b_ai_connect_ind(cd, sc);
+			    if(cd->ai_type == I4B_AI_BROADCAST)
+			    {
+			        i4b_ai_connect_ind(cd, sc);
+			    }
 			}
 			else
 			{
-				error = EINVAL;
+			    error = EINVAL;
 			}
 			break;
 		}
