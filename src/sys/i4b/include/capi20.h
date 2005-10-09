@@ -193,7 +193,7 @@ struct capi_struct {
   struct CAPI_##ENUM##_##n ENUM;
 
 #define CAPI_DEBUG_OFFSET_1(field) \
-  ((unsigned)&(((struct capi_message_decoded *)0)->field))
+  (((u_int8_t *)&(((struct capi_message_decoded *)0)->field)) - ((u_int8_t *)0))
 
 /* this macro is a copy of the
  * next macro and is used to
