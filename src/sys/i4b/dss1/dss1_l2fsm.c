@@ -307,6 +307,27 @@ dss1_get_unused_pipe(l2softc_t *sc)
 }
 
 /*---------------------------------------------------------------------------*
+ *	count unused pipes
+ *---------------------------------------------------------------------------*/
+static u_int16_t
+dss1_count_unused_pipes(l2softc_t *sc)
+{
+  DSS1_TCP_pipe_t *pipe;
+  DSS1_TCP_pipe_t *pipe_adapter = &sc->sc_pipe[0];
+  u_int16_t unused = 0;
+
+  PIPE_FOREACH(pipe,&sc->sc_pipe[0])
+  {
+      if((pipe->state == ST_L2_PAUSE) &&
+	 (pipe != pipe_adapter))
+      {
+	  unused++;
+      }
+  }
+  return unused;
+}
+
+/*---------------------------------------------------------------------------*
  *	get unused, automatic, TEI-value
  * NOTE: this routine is only used in NT-mode
  *---------------------------------------------------------------------------*/
@@ -484,17 +505,22 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 		case MT_ID_REQUEST:
 		  if(NT_MODE(sc))
 		  {
-		    /* NOTE: the Network limits the number of
-		     * MT_ID_REQUEST-replies over time, allowing
-		     * Terminals to finish sending of
-		     * MT_ID_REQUEST. If not, all TEI values can be
-		     * allocated within eights of a second, to the
-		     * same device!
-		     */
-		    if(!callout_pending(&sc->ID_REQUEST_callout))
-		    {
-		      callout_reset(&sc->ID_REQUEST_callout, 1*hz, 
-				    ID_REQUEST_timeout, sc);
+		      if(dss1_count_unused_pipes(sc) <= (PIPE_MAX/2))
+		      {
+		          /* NOTE: the Network limits the number of
+			   * MT_ID_REQUEST-replies over time, allowing
+			   * Terminals to finish sending of
+			   * MT_ID_REQUEST. If not, all TEI values can be
+			   * allocated within eights of a second, to the
+			   * same device!
+			   */
+		          if(callout_pending(&sc->ID_REQUEST_callout))
+			  {
+			      break;
+			  }
+			  callout_reset(&sc->ID_REQUEST_callout, 1*hz, 
+					ID_REQUEST_timeout, sc);
+		      }
 
 		      pipe = dss1_get_unused_pipe(sc);
 
@@ -513,7 +539,6 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 			/* activate the pipe */
 			dss1_pipe_activate_req(pipe);
 		      }
-		    }
 		  }
 		  break;
 
