@@ -158,7 +158,7 @@ i4b_l1_trace_ind(i4b_trace_hdr_t *hdr, struct mbuf *m1)
 	 * is preferred !
 	 */
 	sc = &i4b_trace_softc[hdr->unit];
-	m2 = i4b_getmbuf(m1->m_len, M_DONTWAIT);
+	m2 = i4b_getmbuf(m1->m_len, M_NOWAIT);
 	m3 = i4b_getmbuf(sizeof(*hdr), M_NOWAIT);
 
 	/* setup header */

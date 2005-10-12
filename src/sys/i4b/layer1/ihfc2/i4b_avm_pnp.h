@@ -118,7 +118,6 @@
 #define  HSCX_CMD_XRS		0x80
 #define  HSCX_CMD_XME		0x01
 #define  HSCX_CMD_RRS		0x20
-#define  HSCX_CMD_XML_MASK	0x3f00
 
 #define IPAC_BUS_VAR(sc)				\
   bus_space_tag_t    t = sc->sc_resources.io_tag[0];	\
@@ -171,7 +170,7 @@ avm_pnp_fifo_read FIFO_READ_T(sc,f,ptr,len)
 {
 	if(FIFO_NO(f) == d1r)
 	{
-	    avm_a1_chip_read(sc,(f->fm.h.Zdata),ptr,len);
+	    avm_pnp_chip_read(sc,(f->fm.h.Zdata),ptr,len);
 	}
 	else
 	{
@@ -198,7 +197,7 @@ avm_pnp_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 {
 	if(FIFO_NO(f) == d1t)
 	{
-	    avm_a1_chip_write(sc,(f->fm.h.Zdata),ptr,len);
+	    avm_pnp_chip_write(sc,(f->fm.h.Zdata),ptr,len);
 	}
 	else
 	{
@@ -217,17 +216,6 @@ avm_pnp_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 }
 
 static void
-avm_pnp_write_b_command(ihfc_sc_t *sc, u_int8_t addr, u_int8_t cmdr)
-{
-	bus_space_tag_t    t = sc->sc_resources.io_tag[0];
-	bus_space_handle_t h = sc->sc_resources.io_hdl[0];
-
-	bus_space_write_1(t, h, REG_INDEX_OFFSET, addr);
-	bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_STAT, cmdr);
-	return;
-}
-
-static void
 avm_pnp_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 {
         if((f == CONFIG_WRITE_UPDATE) ||
@@ -237,40 +225,7 @@ avm_pnp_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	}
 	else
 	{
-		/* update FIFO configuration */
 
-		u_int8_t addr = 0xFF;
-		u_int8_t cmdr;
-
-		if((FIFO_NO(f) == b1t) ||
-		   (FIFO_NO(f) == b1r))
-		{
-		    addr = ADDR_HSCXA_FIFO;
-		}
-
-		if((FIFO_NO(f) == b2t) ||
-		   (FIFO_NO(f) == b2r))
-		{
-		    addr = ADDR_HSCXB_FIFO;
-		}
-
-		if(addr != 0xFF)
-		{
-		    if(FIFO_DIR(f) == transmit)
-		    {
-		      f->state |= ST_FRAME_ERROR;
-		      cmdr = HSCX_CMD_XRS;
-		    }
-		    else
-		    {
-		      cmdr = HSCX_CMD_RRS;
-		    }
-
-		    /* just reset the FIFO */
-
-		    avm_pnp_write_b_command(sc, addr, cmdr);
-		    avm_pnp_write_b_command(sc, addr, 0);
-		}
 	}
 	return;
 }
@@ -281,84 +236,111 @@ avm_pnp_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 	bus_space_tag_t    t = sc->sc_resources.io_tag[0];
 	bus_space_handle_t h = sc->sc_resources.io_hdl[0];
 	u_int8_t buffer[0x40 + 0x10]; /* allocate a buffer on the stack */
-	u_int8_t status;
-	u_int8_t len;
+	u_int8_t temp;
 
 	/* select chip and read status */
 	bus_space_write_1(t, h, REG_INDEX_OFFSET, addr);
-	status = bus_space_read_1(t, h, REG_DATA_OFFSET + HSCX_STAT);
+	temp = bus_space_read_1(t, h, REG_DATA_OFFSET + HSCX_STAT);
+
+	IHFC_MSG("b_status=0x%02x\n", temp);
+
+	if(temp)
+	{
+	  if(temp & HSCX_INT_RPR)
+	  {
+	      (f+receive)->i_ista |= I_ISTA_RPF;
+	  }
+
+	  if(temp & HSCX_STAT_RDO)
+	  {
+	      (f+receive)->i_ista |= I_ISTA_ERR;
+	  }
+
+	  if(temp & HSCX_INT_XPR)
+	  {
+	      (f+transmit)->i_ista |= I_ISTA_XPR;
+	  }
+
+	  if(temp & HSCX_INT_XDU)
+	  {
+	      (f+transmit)->i_ista |= I_ISTA_ERR;
+	  }
+	}
 
 	/* RME or RPF - B channel receive */
-	if((status & (HSCX_INT_RPR|HSCX_STAT_RDO)) &&
+	if(((f+receive)->i_ista & (I_ISTA_RPF|I_ISTA_ERR)) &&
 	   ((f+receive)->prot != P_DISABLE))
 	{
-		len = bus_space_read_1(t, h, REG_DATA_OFFSET + HSCX_LEN) & 0x3F;
-		if(len == 0) len = 32;
+	    (f+receive)->i_ista &= ~(I_ISTA_RPF|I_ISTA_ERR);
 
-		/* read all data from FIFO */
-		bus_space_read_multi_1(t, h, REG_DATA_OFFSET + HSCX_FIFO, &buffer[0], len);
+	    temp = bus_space_read_1(t, h, REG_DATA_OFFSET + HSCX_LEN) & 0x3F;
+	    if(temp == 0) temp = 32;
 
-		(f+receive)->Z_ptr = &buffer[0];
-		(f+receive)->Z_chip = len;
+	    /* read all data from FIFO */
+	    if(sc->sc_cookie == 1)
+	      bus_space_read_multi_4(t, h, REG_DATA_OFFSET + HSCX_FIFO, 
+				     (void *)&buffer[0], (temp+3)/4);
+	    else
+	      bus_space_read_multi_1(t, h, REG_DATA_OFFSET + HSCX_FIFO, 
+				     &buffer[0], temp);
 
-		/* call filter */
+	    (f+receive)->Z_ptr = &buffer[0];
+	    (f+receive)->Z_chip = temp;
 
-		((f+receive)->filter)(sc, f+receive);
+	    /* call filter */
 
-		/* RFO - B channel receive */
-		if(status & HSCX_STAT_RDO)
-		{
-			/* reset FIFO and wait for next RPR */
-
-			avm_pnp_write_b_command(sc, addr, HSCX_CMD_RRS);
-			avm_pnp_write_b_command(sc, addr, 0);
-		}
+	    ((f+receive)->filter)(sc, f+receive);
 	}
 
 	/* XPR - B channel transmit */
-	if((status & (HSCX_INT_XPR|HSCX_INT_XDU)) && 
+	if(((f+transmit)->i_ista & I_ISTA_XPR) &&
 	   ((f+transmit)->prot != P_DISABLE))
 	{
-		/* XDU - B channel transmit */
-		if(status & HSCX_INT_XDU)
-		{
-			/* reset FIFO and wait for next XPR */
-	  
-			avm_pnp_write_b_command(sc, addr, HSCX_CMD_XRS);
-			avm_pnp_write_b_command(sc, addr, 0);
+	    if((f+transmit)->i_ista & I_ISTA_ERR)
+	    {
+	        (f+transmit)->state |= ST_FRAME_ERROR;
+	    }
 
-			(f+transmit)->state |= ST_FRAME_ERROR;
-		}
-		else
-		{
-			(f+transmit)->Z_ptr = &buffer[0];
-			(f+transmit)->Z_chip = 32;
+	    temp = 32;
 
-			/* call filter */
+	    (f+transmit)->i_ista &= ~(I_ISTA_ERR|I_ISTA_XPR);
+	    (f+transmit)->Z_ptr = &buffer[0];
+	    (f+transmit)->Z_chip = temp;
 
-			((f+transmit)->filter)(sc, f+transmit);
+	    /* call filter */
 
-			/* fill unused FIFO space with 0xFF, which
-			 * is what these chips send when there is
-			 * no more data
-			 */
-			memset((f+transmit)->Z_ptr,
-			       0xFF,
-			       (f+transmit)->Z_chip);
+	    ((f+transmit)->filter)(sc, f+transmit);
 
-			/* update Z_chip */
-			(f+transmit)->Z_chip = 0;
+	    /* fill unused FIFO space with 0xFF, which
+	     * is what these chips send when there is
+	     * no more data
+	     */
+	    memset((f+transmit)->Z_ptr, 0xFF,
+		   (f+transmit)->Z_chip);
 
-			/* update state */
-			(f+transmit)->state &= ~(ST_FRAME_ERROR|ST_FRAME_END);
+	    /* update Z_chip */
+	    (f+transmit)->Z_chip = 0;
 
-			bus_space_write_1(t, h, REG_INDEX_OFFSET, addr);
+	    /* update state */
+	    (f+transmit)->state &= ~(ST_FRAME_ERROR|ST_FRAME_END);
 
-			/* write remainder of length modulo 32: */
-			bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_LEN, 32 % 32); 
-			bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_STAT, 0);
-			bus_space_write_multi_1(t, h, REG_DATA_OFFSET + HSCX_FIFO, &buffer[0], 32);
-		}
+	    bus_space_write_1(t, h, REG_INDEX_OFFSET, addr);
+
+#if 0
+	    /* the HSCX_LEN register must not be written in
+	     * extended transparent mode !
+	     */
+
+	    /* write remainder of length modulo 32: */
+	    bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_LEN, temp % 32); 
+#endif
+
+	    if(sc->sc_cookie == 1)
+	      bus_space_write_multi_4(t, h, REG_DATA_OFFSET + HSCX_FIFO, 
+				      (void *)&buffer[0], (temp+3)/4);
+	    else
+	      bus_space_write_multi_1(t, h, REG_DATA_OFFSET + HSCX_FIFO,
+				      &buffer[0], temp);
 	}
 	return;
 }
@@ -373,21 +355,14 @@ avm_pnp_chip_status_read CHIP_STATUS_READ_T(sc)
 	u_int8_t tmp;
 
 	status = bus_space_read_1(t, h, STAT0_OFFSET);
-
 #if 0
 	if(version 2)
 	{
-	  status ^= ASL_IRQ_PENDING;
+	    status ^= ASL_IRQ_PENDING;
 	}
 #endif
 
 	IHFC_MSG("status=0x%02x\n", status);
-
-	if((status & ASL_IRQ_PENDING) == ASL_IRQ_PENDING)
-	{
-	    /* no interrupts */
-	    return;
-	}
 
 	if(!(status & ASL_IRQ_ISAC))
 	{
@@ -433,11 +408,11 @@ avm_pnp_chip_status_read CHIP_STATUS_READ_T(sc)
 	    }
 	}
 
-	if(!(status & ASL_IRQ_HSCX))
-	{
-	    avm_pnp_b_status_read(sc, &sc->sc_fifo[b1t & b1r], ADDR_HSCXA_FIFO);
-	    avm_pnp_b_status_read(sc, &sc->sc_fifo[b2t & b2r], ADDR_HSCXB_FIFO);
-	}
+	/* ASL_IRQ_HSCX (always check B-channel status) */
+
+	avm_pnp_b_status_read(sc, &sc->sc_fifo[b1t & b1r], ADDR_HSCXA_FIFO);
+
+	avm_pnp_b_status_read(sc, &sc->sc_fifo[b2t & b2r], ADDR_HSCXB_FIFO);
 
 	if(!(status & ASL_IRQ_TIMER))
 	{
@@ -450,6 +425,11 @@ static void
 avm_pnp_chip_unselect CHIP_UNSELECT_T(sc)
 {
 	u_int8_t temp;
+
+  	temp = 0xFF;
+
+	/* write MASK (ISAC) */
+	avm_pnp_chip_write(sc, REG_isac_mask, &temp, 1);
 
 	/*
 	 * write CMDR (ISAC/HSCX)
@@ -467,34 +447,45 @@ avm_pnp_chip_unselect CHIP_UNSELECT_T(sc)
 		avm_pnp_chip_write(sc, REG_isac_cmdr, &temp, 1);
 		sc->sc_fifo[d1r].i_cmdr = 0;
 		sc->sc_fifo[d1t].i_cmdr = 0;
+
+		DELAY(12);
 	}
-
-  	temp = 0xFF;
-
-#if 0
-	if(version 2)
-	{
-	  I_MASKD = 0xFF;
-
-	}
-#endif
-
-	/* write MASK (ISAC) */
-	avm_pnp_chip_write(sc, REG_isac_mask, &temp, 1);
-
-	DELAY(12);
-
-#if 0
-	if(version 2)
-	{
-	    restore I_MASKD;
-	}
-#endif
 
 	temp = sc->sc_config.i_mask;
 
 	/* write MASK (ISAC) */
 	avm_pnp_chip_write(sc, REG_isac_mask, &temp, 1);
+
+	return;
+}
+
+static void
+avm_pnp_fifo_reset(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
+{
+	bus_space_tag_t    t = sc->sc_resources.io_tag[0];
+	bus_space_handle_t h = sc->sc_resources.io_hdl[0];
+	
+	bus_space_write_1(t, h, REG_INDEX_OFFSET, addr);
+
+	/* first step, reset the FIFO, 
+	 * which will clear the selected protocol
+	 */
+
+	bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_STAT, 
+			  (HSCX_CMD_XRS|HSCX_CMD_RRS));
+
+	DELAY(50);
+
+	/* second step, select extended transparent mode */
+
+	bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_PROT, HSCX_MODE_TRANS);
+
+	DELAY(50);
+
+	/* update FIFO state */
+
+	(f+receive)->i_ista = 0;
+	(f+transmit)->i_ista = (I_ISTA_XPR|I_ISTA_ERR);
 
 	return;
 }
@@ -512,19 +503,16 @@ avm_pnp_chip_reset CHIP_RESET_T(sc,error)
 	if(not pci version)
 #endif
 
-	bus_space_write_1(t, h, STAT1_OFFSET, ASL1_ENABLE_IOM|sc->sc_resources.iirq[0]);
+	bus_space_write_1(t, h, STAT1_OFFSET, 
+			  (ASL1_ENABLE_IOM|sc->sc_resources.iirq[0]));
 	DELAY(4000); /* 4 ms */
 
-	bus_space_write_1(t, h, STAT0_OFFSET, ASL_TIMERRESET|ASL_ENABLE_INT|ASL_TIMERDISABLE);
+	bus_space_write_1(t, h, STAT0_OFFSET, 
+			  (ASL_TIMERRESET|ASL_ENABLE_INT|ASL_TIMERDISABLE));
 	DELAY(4000); /* 4 ms */
 
- 	/* select extended transparent mode for B-channel FIFOs */
-
-	bus_space_write_1(t, h, REG_INDEX_OFFSET, ADDR_HSCXA_FIFO);
-	bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_PROT, HSCX_MODE_TRANS);
-
- 	bus_space_write_1(t, h, REG_INDEX_OFFSET, ADDR_HSCXB_FIFO);
-	bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_PROT, HSCX_MODE_TRANS);
+	avm_pnp_fifo_reset(sc, &(sc->sc_fifo[b1t & b1r]), ADDR_HSCXA_FIFO);
+	avm_pnp_fifo_reset(sc, &(sc->sc_fifo[b2t & b2r]), ADDR_HSCXB_FIFO);
 
 	if(bootverbose)
 	{
@@ -558,7 +546,6 @@ avm_pnp_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 		    program = &i4b_unknown_program;
 		}
 	}
-
 	return program;
 }
 
@@ -608,6 +595,7 @@ I4B_DBASE(COUNT())
 
   I4B_DBASE_ADD(desc               , "AVM Fritz!Card PCI");
   I4B_DBASE_ADD(io_rid[0]          , PCIR_BAR(1));
+  I4B_DBASE_ADD(cookie             , 1); /* 32-bit FIFO read/write only */
 }
 
 I4B_PCI_DRIVER(.vid = 0x0a001244);
@@ -675,7 +663,6 @@ I4B_PCI_DRIVER(.vid = 0x0a001244);
 #undef  HSCX_CMD_XRS
 #undef  HSCX_CMD_XME
 #undef  HSCX_CMD_RRS
-#undef  HSCX_CMD_XML_MASK
 
 #undef IPAC_BUS_VAR
 #undef IPAC_BUS_SETUP
