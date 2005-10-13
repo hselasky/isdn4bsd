@@ -244,7 +244,7 @@ rx_hdlc FIFO_FILTER_T(sc,f)
 		     * will only be dumped if the
 		     * filter     returns    when
 		     * f->Z_chip is non-zero (see
-		     * ``framing rules''  in  the
+		     * "framing rules"  in  the
 		     * file i4b_program.h)
 		     */
 
@@ -421,19 +421,26 @@ rx_hdlc_emulation FIFO_FILTER_T(sc,f)
 	    tmp     = f->hdlc.tmp;
 	    ib      = f->hdlc.ib;
 
-	    /* restore ``len'' and ``dst''
-	     * if ``f->mbuf'' is present
+	    /* restore "len" and "dst"
+	     * if "f->mbuf" is present
 	     */
 	    if(f->mbuf)
 	    {
 		/* resume */
- 		len = f->mbuf->m_len;
-		dst = f->mbuf->m_data + (BCH_MAX_DATALEN - len);
+	        len = f->mbuf_rem_length;
+		if(len > f->mbuf->m_len)
+		{
+		    HDLC_ERR("fifo(#%d) invalid remaining length: %d!\n",
+			     FIFO_NO(f), len);
+
+		    len = f->mbuf->m_len;
+		}
+		dst = f->mbuf->m_data + (f->mbuf->m_len - len);
 	    }
 	    else
 	    {
 		len = 0;
-		dst = 0;
+		dst = NULL;
 	    }
 
 	    while(src != src_end)
@@ -452,11 +459,11 @@ rx_hdlc_emulation FIFO_FILTER_T(sc,f)
 			  (f->hdlc.flag) = -1; /* reset */
 			} else {
 			  dst = f->mbuf->m_data;
-			  len = f->mbuf->m_len; /* variable length ! */
+			  len = f->mbuf->m_len; /* remaining length */
 			}
 		},
 		{/* cfr */
-			len = (BCH_MAX_DATALEN - len);
+			len = (f->mbuf->m_len - len);
 
 			if ((!len) || (len > BCH_MAX_DATALEN))
 			{
@@ -505,12 +512,12 @@ rx_hdlc_emulation FIFO_FILTER_T(sc,f)
 		d);
 	    }
 
-	    /* suspend ``f->mbuf->m_len''
-	     * if ``f->mbuf'' is present
+	    /* keep track of the 
+	     * remaining mbuf length
 	     */
 	    if(f->mbuf)
 	    {
-		f->mbuf->m_len = len;
+		f->mbuf_rem_length = len;
 	    }
 
 	    /* suspend HDLC variables */
@@ -652,8 +659,8 @@ tx_hdlc FIFO_FILTER_T(sc,f)
 	  {
 		if(f->mbuf)
 		{ /* currently add a flag after all mbufs and
-		   * ignore ``datagrams'' B+D-channel. Set
-		   * ST_FRAME_END according to ``framing rules''.
+		   * ignore "datagrams" B+D-channel. Set
+		   * ST_FRAME_END according to "framing rules".
 		   * (see i4b_program.h)
 		   */
 
@@ -818,8 +825,8 @@ tx_hdlc_emulation FIFO_FILTER_T(sc,f)
 	  crc     = f->hdlc.crc;
 	  ib      = f->hdlc.ib;
 
-	  /* restore ``src'' and ``len''
-	   * if ``f->mbuf'' is present
+	  /* restore "src" and "len"
+	   * if "f->mbuf" is present
 	   */
 	  if(f->mbuf)
 	  {
@@ -879,8 +886,8 @@ tx_hdlc_emulation FIFO_FILTER_T(sc,f)
 		dd );
 	  }
 
-	  /* suspend ``f->mbuf->m_len'' and ``f->mbuf->m_data''
-	   * if ``f->mbuf'' is present
+	  /* suspend "f->mbuf->m_len" and "f->mbuf->m_data"
+	   * if "f->mbuf" is present
 	   */
 	  if(f->mbuf)
 	  {
@@ -958,8 +965,8 @@ tx_hdlc_emulation_dchan FIFO_FILTER_T(sc,f)
 	  crc     = f->hdlc.crc;
 	  ib      = f->hdlc.ib;
 
-	  /* restore ``src'' and ``len''
-	   * if ``f->mbuf'' is present
+	  /* restore "src" and "len"
+	   * if "f->mbuf" is present
 	   */
 	  if(f->mbuf)
 	  {
@@ -1019,8 +1026,8 @@ tx_hdlc_emulation_dchan FIFO_FILTER_T(sc,f)
 		dd );
 	  }
 
-	  /* suspend ``f->mbuf->m_len'' and ``f->mbuf->m_data''
-	   * if ``f->mbuf'' is present
+	  /* suspend "f->mbuf->m_len" and "f->mbuf->m_data"
+	   * if "f->mbuf" is present
 	   */
 	  if(f->mbuf)
 	  {

@@ -1218,6 +1218,7 @@ struct sc_fifo {
 					 * and should be updated !
 					 */
 	/* /dev/ihfcX.X interface */
+	u_int16_t	mbuf_rem_length; /* remaining data length */
 	struct mbuf *	mbuf;
 	struct mbuf *	mbuf_dev;	/* used by /dev/ihfcX.X */
 	struct _ifqueue	ifqueue;	/* used by /dev/ihfcX.X */
