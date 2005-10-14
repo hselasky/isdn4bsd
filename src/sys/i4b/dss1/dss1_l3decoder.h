@@ -54,7 +54,7 @@ get_valid(struct buf_range *buf, u_int8_t offset)
 
 static u_int16_t
 get_multi_1(struct buf_range *buf, u_int8_t offset, 
-	    u_int8_t *dst, u_int16_t len)
+	    u_int8_t *dst, u_int16_t len, u_int8_t filter)
 {
     u_int8_t *ptr = buf->start + offset;
     u_int16_t max;
@@ -79,8 +79,28 @@ get_multi_1(struct buf_range *buf, u_int8_t offset,
     }
 
     bcopy(ptr, dst, len);
-
     dst[len] = 0;
+
+    if(filter)
+    {
+        while(dst[0])
+	{
+	    /* also see "man ascii" */
+	    if((dst[0] < 0x20) || (dst[0] > 0x7e))
+	    {
+	        if((filter == 2) && ((dst[0] == '\n') ||
+				     (dst[0] == '\t')))
+		{
+		    /* allow */
+		}
+		else
+		{
+		    dst[0] = '?';
+		}
+	    }
+	    dst++;
+	}
+    }
     return len;
 }
 
@@ -241,7 +261,7 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 	    break;
 			
 	case IEI_DISPLAY:	/* display */
-	    get_multi_1(src,2,&(cd->display[0]),sizeof(cd->display[0]));
+	    get_multi_1(src,2,&(cd->display[0]),sizeof(cd->display[0]),1);
 
 	    NDBGL3(L3_P_MSG, "IEI_DISPLAY = %s", &(cd->display[0]));
 	    break;
@@ -310,7 +330,7 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 		cd->scr_ind = SCR_NONE;
 		cd->prs_ind = PRS_NONE;				
 
-	        get_multi_1(src,3,&(cd->src_telno[0]),sizeof(cd->src_telno));
+	        get_multi_1(src,3,&(cd->src_telno[0]),sizeof(cd->src_telno),1);
 	    }
 	    else
 	    {
@@ -318,7 +338,7 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 		cd->scr_ind = (temp & 0x03) + SCR_USR_NOSC;
 		cd->prs_ind = ((temp >> 5) & 0x03) + PRS_ALLOWED;
 
-	        get_multi_1(src,4,&(cd->src_telno[0]),sizeof(cd->src_telno));
+	        get_multi_1(src,4,&(cd->src_telno[0]),sizeof(cd->src_telno),1);
 	    }
 	    NDBGL3(L3_P_MSG, "IEI_CALLINGPN = %s", &(cd->src_telno[0]));
 	    break;
@@ -329,7 +349,7 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 	        /* invalid */
 	        break;
 	    }
-	    get_multi_1(src,3,&(cd->src_subaddr[0]),sizeof(cd->src_subaddr));
+	    get_multi_1(src,3,&(cd->src_subaddr[0]),sizeof(cd->src_subaddr),1);
 	    NDBGL3(L3_P_MSG, "IEI_CALLINGPS = %s", &(cd->src_subaddr[0]));
 	    break;
 			
@@ -352,11 +372,11 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 
 		cd->dst_telno_ptr +=
 		  get_multi_1(src,3,cd->dst_telno_ptr,
-			      &(cd->dst_telno[TELNO_MAX])-cd->dst_telno_ptr);
+			      &(cd->dst_telno[TELNO_MAX])-cd->dst_telno_ptr,1);
 	    }
 
 	    get_multi_1(src,3,&(cd->dst_telno_part[0]), 
-			sizeof(cd->dst_telno_part));
+			sizeof(cd->dst_telno_part),1);
 
 	    NDBGL3(L3_P_MSG, "IEI_CALLED = %s", &(cd->dst_telno_part[0])); 
 	    break;
@@ -368,7 +388,7 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 	        break;
 	    }
 
-	    get_multi_1(src,3,&(cd->dst_subaddr[0]),sizeof(cd->dst_subaddr));
+	    get_multi_1(src,3,&(cd->dst_subaddr[0]),sizeof(cd->dst_subaddr),1);
 
 	    NDBGL3(L3_P_MSG, "IEI_CALLEDPS = %s", &(cd->dst_subaddr[0]));
 	    break;
@@ -396,7 +416,7 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 	case IEI_USERUSER:	/* user-user */
 	    m = "IEI_USER_USER";
 
-	    get_multi_1(src,2,&(cd->sms[0]),sizeof(cd->sms));
+	    get_multi_1(src,2,&(cd->sms[0]),sizeof(cd->sms),0);
 	    NDBGL3(L3_P_MSG, "IEI_USERUSER = %s", &(cd->sms[0]));
 	    break;
 			
