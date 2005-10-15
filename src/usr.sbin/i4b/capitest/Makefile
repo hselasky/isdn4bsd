@@ -8,6 +8,6 @@ DPADD+= ${LIBCAPI20}
 LDADD+=	-lcapi20
 
 install:
-	@${ECHO} "capitest is not installed automatically"
+	@echo "capitest is not installed automatically"
 
 .include <bsd.prog.mk>

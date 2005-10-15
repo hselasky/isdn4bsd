@@ -1,4 +1,4 @@
-/*
+/*-
  * Copyright (c) 1999 Hellmuth Michaelis. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@
  *
  *----------------------------------------------------------------------------*/
 
-#include <ncurses.h>
+#include <curses.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <signal.h>
@@ -49,7 +49,6 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
-#include <sys/soundcard.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/param.h>

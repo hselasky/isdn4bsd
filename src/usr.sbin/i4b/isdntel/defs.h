@@ -1,4 +1,4 @@
-/*
+/*-
  * Copyright (c) 1997, 1999 Hellmuth Michaelis. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@
  *
  *----------------------------------------------------------------------------*/
 
-#include <ncurses.h>
+#include <curses.h>
 #include <stdio.h>
 #include <signal.h>
 #include <errno.h>

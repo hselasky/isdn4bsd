@@ -34,7 +34,7 @@
  *---------------------------------------------------------------------------*/
 
 #include "isdnd.h"
-#include "y.tab.h"
+#include "rc_parse.h"
 
 static void check_config(void);
 static void print_config(void);
@@ -313,8 +313,12 @@ configure(char *filename, int reread)
 static void
 set_isppp_auth(cfg_entry_t *cep)
 {
+#ifdef __FreeBSD__
 	struct ifreq ifr;
 	struct spppreq spr;
+#else
+	struct spppauthcfg spcfg = { /* zero */ };
+#endif
 	int s;
 	int doioctl = 0;
 
@@ -354,7 +358,11 @@ set_isppp_auth(cfg_entry_t *cep)
 	if(!doioctl)
 		return;
 
+#ifdef __FreeBSD__
 	snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "isp%d", cep->usrdeviceunit);
+#else
+	snprintf(spcfg.ifname, sizeof(spcfg.ifname), "isp%d", cep->usrdeviceunit);
+#endif
 
 	/* use a random AF to create the socket */
 	if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -362,15 +370,19 @@ set_isppp_auth(cfg_entry_t *cep)
 		config_error_flag++;
 		return;
 	}
+
+#ifdef __FreeBSD__
 	spr.cmd = (int)SPPPIOGDEFS;
 	ifr.ifr_data = (caddr_t)&spr;
 
 	if (ioctl(s, SIOCGIFGENERIC, &ifr) == -1) {
-		log(LL_ERR, "ERROR fetching active PPP authentication info for %s at line %d!", ifr.ifr_name, lineno);
+		log(LL_ERR, "ERROR fetching active PPP authentication "
+		    "info for %s at line %d!", ifr.ifr_name, lineno);
 		close(s);
 		config_error_flag++;
 		return;
 	}
+
 	if (cep->ppp_expect_auth != AUTH_UNDEF)
 	{
 		if(cep->ppp_expect_auth == AUTH_NONE)
@@ -382,11 +394,12 @@ set_isppp_auth(cfg_entry_t *cep)
 			(cep->ppp_expect_name[0] != 0) &&
 			(cep->ppp_expect_password[0] != 0))
 		{
-			spr.defs.hisauth.proto = cep->ppp_expect_auth == AUTH_PAP ? PPP_PAP : PPP_CHAP;
-			strncpy(spr.defs.hisauth.name, cep->ppp_expect_name, AUTHNAMELEN);
-			strncpy(spr.defs.hisauth.secret, cep->ppp_expect_password, AUTHKEYLEN);
+			spr.defs.hisauth.proto = (cep->ppp_expect_auth == AUTH_PAP) ? PPP_PAP : PPP_CHAP;
+			strlcpy(spr.defs.hisauth.name, cep->ppp_expect_name, AUTHNAMELEN);
+			strlcpy(spr.defs.hisauth.secret, cep->ppp_expect_password, AUTHKEYLEN);
 		}
 	}
+
 	if (cep->ppp_send_auth != AUTH_UNDEF)
 	{
 		if(cep->ppp_send_auth == AUTH_NONE)
@@ -398,9 +411,9 @@ set_isppp_auth(cfg_entry_t *cep)
 			(cep->ppp_send_name[0] != 0) &&
 			(cep->ppp_send_password[0] != 0))
 		{
-			spr.defs.myauth.proto = cep->ppp_send_auth == AUTH_PAP ? PPP_PAP : PPP_CHAP;
-			strncpy(spr.defs.myauth.name, cep->ppp_send_name, AUTHNAMELEN);
-			strncpy(spr.defs.myauth.secret, cep->ppp_send_password, AUTHKEYLEN);
+			spr.defs.myauth.proto = (cep->ppp_send_auth == AUTH_PAP) ? PPP_PAP : PPP_CHAP;
+			strlcpy(spr.defs.myauth.name, cep->ppp_send_name, AUTHNAMELEN);
+			strlcpy(spr.defs.myauth.secret, cep->ppp_send_password, AUTHKEYLEN);
 
 			if(cep->ppp_auth_flags & AUTH_REQUIRED)
 				spr.defs.hisauth.flags &= ~AUTHFLAG_NOCALLOUT;
@@ -417,10 +430,75 @@ set_isppp_auth(cfg_entry_t *cep)
 	spr.cmd = (int)SPPPIOSDEFS;
 
 	if (ioctl(s, SIOCSIFGENERIC, &ifr) == -1) {
-		log(LL_ERR, "ERROR setting new PPP authentication parameters for %s at line %d!", ifr.ifr_name, lineno);
+		log(LL_ERR, "ERROR setting new PPP authentication parameters "
+		    "for %s at line %d!", ifr.ifr_name, lineno);
 		config_error_flag++;
 	}
+#else
+	if (ioctl(s, SPPPGETAUTHCFG, &spcfg) == -1) {
+		log(LL_ERR, "ERROR fetching active PPP authentication "
+		    "info for %s at line %d!", spcfg.ifname, lineno);
+		close(s);
+		config_error_flag++;
+		return;
+	}
+	if (cep->ppp_expect_auth != AUTH_UNDEF)
+	{
+		if (cep->ppp_expect_auth == AUTH_NONE)
+		{
+			spcfg.hisauth = SPPP_AUTHPROTO_NONE;
+		}
+		else if (((cep->ppp_expect_auth == AUTH_CHAP) ||
+			  (cep->ppp_expect_auth == AUTH_PAP)) &&
+			 (cep->ppp_expect_name[0] != 0) &&
+			 (cep->ppp_expect_password[0] != 0))
+		{
+			spcfg.hisauth = (cep->ppp_expect_auth == AUTH_PAP) ?
+			  SPPP_AUTHPROTO_PAP : SPPP_AUTHPROTO_CHAP;
+			spcfg.hisname = &(cep->ppp_expect_name[0]);
+			spcfg.hisname_length = strlen(&(cep->ppp_expect_name[0]))+1;
+			spcfg.hissecret = &(cep->ppp_expect_password[0]);
+			spcfg.hissecret_length = strlen(&(cep->ppp_expect_password[0]))+1;
+		}
+	}
+	if (cep->ppp_send_auth != AUTH_UNDEF)
+	{
+		if (cep->ppp_send_auth == AUTH_NONE)
+		{
+			spcfg.myauth = SPPP_AUTHPROTO_NONE;
+		}
+		else if (((cep->ppp_send_auth == AUTH_CHAP) ||
+			  (cep->ppp_send_auth == AUTH_PAP)) &&
+			 (cep->ppp_send_name[0] != 0) &&
+			 (cep->ppp_send_password[0] != 0))
+		{
+			spcfg.myauth = (cep->ppp_send_auth == AUTH_PAP) ?
+			  SPPP_AUTHPROTO_PAP : SPPP_AUTHPROTO_CHAP;
+			spcfg.myname = &(cep->ppp_send_name[0]);
+			spcfg.myname_length = strlen(&(cep->ppp_send_name[0]))+1;
+			spcfg.mysecret = &(cep->ppp_send_password[0]);
+			spcfg.mysecret_length = strlen(&(cep->ppp_send_password[0]))+1;
+
+			if (cep->ppp_auth_flags & AUTH_REQUIRED)
+				spcfg.hisauthflags &= ~SPPP_AUTHFLAG_NOCALLOUT;
+			else
+				spcfg.hisauthflags |= SPPP_AUTHFLAG_NOCALLOUT;
+
+			if (cep->ppp_auth_flags & AUTH_RECHALLENGE)
+				spcfg.hisauthflags &= ~SPPP_AUTHFLAG_NORECHALLENGE;
+			else
+				spcfg.hisauthflags |= SPPP_AUTHFLAG_NORECHALLENGE;
+		}
+	}
+
+	if (ioctl(s, SPPPSETAUTHCFG, &spcfg) == -1) {
+		log(LL_ERR, "ERROR setting new PPP authentication parameters "
+		    "for %s at line %d!", spcfg.ifname, lineno);
+		config_error_flag++;
+	}
+#endif
 	close(s);
+	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -536,12 +614,14 @@ cfg_setval(int keyword)
 			if(yylval.num < MINALERT)
 			{
 				yylval.num = MINALERT;
-				DBGL(DL_RCCF, (log(LL_DBG, "%s: alert < %d, min = %d", cep->name, MINALERT, yylval.num)));
+				DBGL(DL_RCCF, (log(LL_DBG, "%s: alert < %d, min = %d", 
+						   cep->name, MINALERT, yylval.num)));
 			}
 			else if(yylval.num > MAXALERT)
 			{
 				yylval.num = MAXALERT;
-				DBGL(DL_RCCF, (log(LL_DBG, "%s: alert > %d, min = %d", cep->name, MAXALERT, yylval.num)));
+				DBGL(DL_RCCF, (log(LL_DBG, "%s: alert > %d, min = %d", 
+						   cep->name, MAXALERT, yylval.num)));
 			}
 				
 			DBGL(DL_RCCF, (log(LL_DBG, "%s: alert = %d", cep->name, yylval.num)));
@@ -584,7 +664,8 @@ cfg_setval(int keyword)
 #undef m
  			else
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"b1protocol\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter "
+				    "for keyword \"b1protocol\" at line %d!", lineno);
 				config_error_flag++;
 			}
 			break;
@@ -616,7 +697,8 @@ cfg_setval(int keyword)
 
 		case BUDGETCALLBACKSFILEROTATE:
 			cep->budget_callbacksfile_rotate = yylval.booln;
-			DBGL(DL_RCCF, (log(LL_DBG, "%s: budget-callbacksfile-rotate = %d", cep->name, yylval.booln)));
+			DBGL(DL_RCCF, (log(LL_DBG, "%s: budget-callbacksfile-rotate = %d", 
+					   cep->name, yylval.booln)));
 			break;
 			
 		case BUDGETCALLBACKSFILE:
@@ -624,25 +706,30 @@ cfg_setval(int keyword)
 				FILE *fp;
 				int s, l;
 				int n;
-				DBGL(DL_RCCF, (log(LL_DBG, "%s: budget-callbacksfile = %s", cep->name, yylval.str)));
+				DBGL(DL_RCCF, (log(LL_DBG, "%s: budget-callbacksfile = %s", 
+						   cep->name, yylval.str)));
 				fp = fopen(yylval.str, "r");
 				if(fp != NULL)
 				{
 					if((fscanf(fp, "%d %d %d", (int *)&s, (int *)&l, &n)) != 3)
 					{
-						DBGL(DL_RCCF, (log(LL_DBG, "%s: initializing budget-callbacksfile %s", cep->name, yylval.str)));
+						DBGL(DL_RCCF, (log(LL_DBG, "%s: initializing "
+								   "budget-callbacksfile %s", 
+								   cep->name, yylval.str)));
 						fclose(fp);
 						fp = fopen(yylval.str, "w");
 						if(fp != NULL)
 						{
-							fprintf(fp, "%d %d %d", (int)time(NULL), (int)time(NULL), 0);
+							fprintf(fp, "%d %d %d", (int)time(NULL), 
+								(int)time(NULL), 0);
 							fclose(fp);
 						}
 					}
 				}
 				else
 				{
-					DBGL(DL_RCCF, (log(LL_DBG, "%s: creating budget-callbacksfile %s", cep->name, yylval.str)));
+					DBGL(DL_RCCF, (log(LL_DBG, "%s: creating budget-callbacksfile %s",
+							   cep->name, yylval.str)));
 					fp = fopen(yylval.str, "w");
 					if(fp != NULL)
 					{
@@ -679,29 +766,35 @@ cfg_setval(int keyword)
 				FILE *fp;
 				int s, l;
 				int n;
-				DBGL(DL_RCCF, (log(LL_DBG, "%s: budget-calloutsfile = %s", cep->name, yylval.str)));
+				DBGL(DL_RCCF, (log(LL_DBG, "%s: budget-calloutsfile = %s", 
+						   cep->name, yylval.str)));
 				fp = fopen(yylval.str, "r");
 				if(fp != NULL)
 				{
 					if((fscanf(fp, "%d %d %d", (int *)&s, (int *)&l, &n)) != 3)
 					{
-						DBGL(DL_RCCF, (log(LL_DBG, "%s: initializing budget-calloutsfile %s", cep->name, yylval.str)));
+						DBGL(DL_RCCF, (log(LL_DBG, "%s: initializing "
+								   "budget-calloutsfile %s", 
+								   cep->name, yylval.str)));
 						fclose(fp);
 						fp = fopen(yylval.str, "w");
 						if(fp != NULL)
 						{
-							fprintf(fp, "%d %d %d", (int)time(NULL), (int)time(NULL), 0);
+							fprintf(fp, "%d %d %d", (int)time(NULL), 
+								(int)time(NULL), 0);
 							fclose(fp);
 						}
 					}
 				}
 				else
 				{
-					DBGL(DL_RCCF, (log(LL_DBG, "%s: creating budget-calloutsfile %s", cep->name, yylval.str)));
+					DBGL(DL_RCCF, (log(LL_DBG, "%s: creating budget-calloutsfile %s",
+							   cep->name, yylval.str)));
 					fp = fopen(yylval.str, "w");
 					if(fp != NULL)
 					{
-						fprintf(fp, "%d %d %d", (int)time(NULL), (int)time(NULL), 0);
+						fprintf(fp, "%d %d %d", (int)time(NULL), 
+							(int)time(NULL), 0);
 						fclose(fp);
 					}
 				}
@@ -713,11 +806,13 @@ cfg_setval(int keyword)
 					{
 						if((cep->budget_callouts_file = malloc(strlen(yylval.str)+1)) == NULL)
 						{
-							log(LL_ERR, "%s: budget-calloutsfile, malloc failed!", cep->name);
+							log(LL_ERR, "%s: budget-calloutsfile, "
+							    "malloc failed!", cep->name);
 							exit(1);
 						}
 						strcpy(cep->budget_callouts_file, yylval.str);
-						DBGL(DL_RCCF, (log(LL_DBG, "%s: using calloutsfile %s", cep->name, yylval.str)));
+						DBGL(DL_RCCF, (log(LL_DBG, "%s: using calloutsfile %s",
+								   cep->name, yylval.str)));
 					}
 					fclose(fp);
 				}
@@ -728,7 +823,8 @@ cfg_setval(int keyword)
 			if(yylval.num < CALLBACKWAIT_MIN)
 			{
 				yylval.num = CALLBACKWAIT_MIN;
-				DBGL(DL_RCCF, (log(LL_DBG, "%s: callbackwait < %d, min = %d", cep->name, CALLBACKWAIT_MIN, yylval.num)));
+				DBGL(DL_RCCF, (log(LL_DBG, "%s: callbackwait < %d, min = %d", 
+						   cep->name, CALLBACKWAIT_MIN, yylval.num)));
 			}
 
 			DBGL(DL_RCCF, (log(LL_DBG, "%s: callbackwait = %d", cep->name, yylval.num)));
@@ -739,7 +835,8 @@ cfg_setval(int keyword)
 			if(yylval.num < CALLEDBACKWAIT_MIN)
 			{
 				yylval.num = CALLEDBACKWAIT_MIN;
-				DBGL(DL_RCCF, (log(LL_DBG, "%s: calledbackwait < %d, min = %d", cep->name, CALLEDBACKWAIT_MIN, yylval.num)));
+				DBGL(DL_RCCF, (log(LL_DBG, "%s: calledbackwait < %d, min = %d", 
+						   cep->name, CALLEDBACKWAIT_MIN, yylval.num)));
 			}
 
 			DBGL(DL_RCCF, (log(LL_DBG, "%s: calledbackwait = %d", cep->name, yylval.num)));
@@ -816,7 +913,8 @@ cfg_setval(int keyword)
 				cep->dialouttype = DIALOUT_CALLEDBACK;
 			else
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"dialout-type\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter "
+				    "for keyword \"dialout-type\" at line %d!", lineno);
 				config_error_flag++;
 			}
 			break;
@@ -843,7 +941,8 @@ cfg_setval(int keyword)
 				cep->inout = DIR_OUTONLY;
 			else
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"direction\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter "
+				    "for keyword \"direction\" at line %d!", lineno);
 				config_error_flag++;
 			}
 			break;
@@ -870,7 +969,8 @@ cfg_setval(int keyword)
 
 		case DRIVER_TYPE:
 		  /* case PROTOCOL: */
-			DBGL(DL_RCCF, (log(LL_DBG, "controller %d: driver_type = %s", controllercount, yylval.str)));
+			DBGL(DL_RCCF, (log(LL_DBG, "controller %d: driver_type = %s", 
+					   controllercount, yylval.str)));
 #define m(enum,args...)									\
 			if(!(strcmp(yylval.str, #enum)))				\
 				isdn_ctrl_tab[controllercount].driver_type = enum;	\
@@ -880,7 +980,8 @@ cfg_setval(int keyword)
 			I4B_D_DRIVERS(m)
 #undef m
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"driver_type\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter "
+				    "for keyword \"driver_type\" at line %d!", lineno);
 				config_error_flag++;
 			}
 			break;
@@ -896,7 +997,8 @@ cfg_setval(int keyword)
 			break;
 
 		case FIRMWARE:
-			DBGL(DL_RCCF, (log(LL_DBG, "controller %d: firmware = %s", controllercount, yylval.str)));
+			DBGL(DL_RCCF, (log(LL_DBG, "controller %d: firmware = %s", 
+					   controllercount, yylval.str)));
 			isdn_ctrl_tab[controllercount].firmware = strdup(yylval.str);
 			break;
 
@@ -906,7 +1008,8 @@ cfg_setval(int keyword)
 			break;
 
 		case IDLE_ALG_OUT:
-			DBGL(DL_RCCF, (log(LL_DBG, "%s: idle-algorithm-outgoing = %s", cep->name, yylval.str)));
+			DBGL(DL_RCCF, (log(LL_DBG, "%s: idle-algorithm-outgoing = %s", 
+					   cep->name, yylval.str)));
 
 			if(!(strcmp(yylval.str, "fix-unit-size")))
 			{
@@ -918,7 +1021,8 @@ cfg_setval(int keyword)
 			}
 			else
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"idle-algorithm-outgoing\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter "
+				    "for keyword \"idle-algorithm-outgoing\" at line %d!", lineno);
 				config_error_flag++;
 			}
 			break;
@@ -947,7 +1051,8 @@ cfg_setval(int keyword)
 			else
 			{
 					yylval.num += -1 +CHAN_B1;
-					DBGL(DL_RCCF, (log(LL_DBG, "%s: isdnchannel = B%d", cep->name, yylval.num)));
+					DBGL(DL_RCCF, (log(LL_DBG, "%s: isdnchannel = B%d", 
+							   cep->name, yylval.num)));
 
 					if((yylval.num < 0) ||
 					   (yylval.num >= MAX_CHANNELS))
@@ -1019,7 +1124,8 @@ cfg_setval(int keyword)
 			if (yylval.booln && inhibit_monitor)
 			{
 				do_monitor = 0;
-				DBGL(DL_RCCF, (log(LL_DBG, "system: monitor-enable overriden by command line flag")));
+				DBGL(DL_RCCF, (log(LL_DBG, "system: monitor-enable overriden "
+						   "by command line flag")));
 			}
 			else
 			{
@@ -1034,7 +1140,8 @@ cfg_setval(int keyword)
 			break;
 
 		case PPP_AUTH_RECHALLENGE:
-			DBGL(DL_RCCF, (log(LL_DBG, "%s: ppp-auth-rechallenge = %d", cep->name, yylval.booln)));
+			DBGL(DL_RCCF, (log(LL_DBG, "%s: ppp-auth-rechallenge = %d", 
+					   cep->name, yylval.booln)));
 			if(yylval.booln)
 				cep->ppp_auth_flags |= AUTH_RECHALLENGE;
 			else
@@ -1061,7 +1168,8 @@ cfg_setval(int keyword)
 				cep->ppp_expect_auth = AUTH_CHAP;
 			else
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"ppp-expect-auth\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter "
+				    "for keyword \"ppp-expect-auth\" at line %d!", lineno);
 				config_error_flag++;
 				break;
 			}
@@ -1070,13 +1178,13 @@ cfg_setval(int keyword)
 
 		case PPP_EXPECT_NAME:
 			DBGL(DL_RCCF, (log(LL_DBG, "%s: ppp-expect-name = %s", cep->name, yylval.str)));
-			strncpy(cep->ppp_expect_name, yylval.str, sizeof(cep->ppp_expect_name) -1);
+			strlcpy(cep->ppp_expect_name, yylval.str, sizeof(cep->ppp_expect_name));
 			set_isppp_auth(cep);
 			break;
 
 		case PPP_EXPECT_PASSWORD:
 			DBGL(DL_RCCF, (log(LL_DBG, "%s: ppp-expect-password = %s", cep->name, yylval.str)));
-			strncpy(cep->ppp_expect_password, yylval.str, sizeof(cep->ppp_expect_password) -1);
+			strlcpy(cep->ppp_expect_password, yylval.str, sizeof(cep->ppp_expect_password));
 			set_isppp_auth(cep);
 			break;
 
@@ -1090,7 +1198,8 @@ cfg_setval(int keyword)
 				cep->ppp_send_auth = AUTH_CHAP;
 			else
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"ppp-send-auth\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter "
+				    "for keyword \"ppp-send-auth\" at line %d!", lineno);
 				config_error_flag++;
 				break;
 			}
@@ -1099,24 +1208,26 @@ cfg_setval(int keyword)
 
 		case PPP_SEND_NAME:
 			DBGL(DL_RCCF, (log(LL_DBG, "%s: ppp-send-name = %s", cep->name, yylval.str)));
-			strncpy(cep->ppp_send_name, yylval.str, sizeof(cep->ppp_send_name) -1);
+			strlcpy(cep->ppp_send_name, yylval.str, sizeof(cep->ppp_send_name));
 			set_isppp_auth(cep);
 			break;
 
 		case PPP_SEND_PASSWORD:
 			DBGL(DL_RCCF, (log(LL_DBG, "%s: ppp-send-password = %s", cep->name, yylval.str)));
-			strncpy(cep->ppp_send_password, yylval.str, sizeof(cep->ppp_send_password) -1);
+			strlcpy(cep->ppp_send_password, yylval.str, sizeof(cep->ppp_send_password));
 			set_isppp_auth(cep);
 			break;
 
 		case PREFIXINTERNATIONAL:
-			strncpy(prefixinternational, yylval.str, sizeof(prefixinternational)-1);
-			DBGL(DL_RCCF, (log(LL_DBG, "system: prefix-international = %s", prefixinternational)));
+			strlcpy(prefixinternational, yylval.str, sizeof(prefixinternational));
+			DBGL(DL_RCCF, (log(LL_DBG, "system: prefix-international = %s", 
+					   prefixinternational)));
 			break;
 
 		case PREFIXNATIONAL:
-			strncpy(prefixnational, yylval.str, sizeof(prefixnational)-1);
-			DBGL(DL_RCCF, (log(LL_DBG, "system: prefix-national = %s", prefixnational)));
+			strlcpy(prefixnational, yylval.str, sizeof(prefixnational));
+			DBGL(DL_RCCF, (log(LL_DBG, "system: prefix-national = %s", 
+					   prefixnational)));
 			break;
 
 		case REACTION:
@@ -1135,7 +1246,8 @@ cfg_setval(int keyword)
 				cep->dialin_reaction = REACT_ALERT;
 			else
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"dialin_reaction\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter "
+				    "for keyword \"dialin_reaction\" at line %d!", lineno);
 				config_error_flag++;
 			}
 			break;
@@ -1143,7 +1255,8 @@ cfg_setval(int keyword)
 		case REMOTE_PHONE_DIALOUT:
 			if(cep->remote_numbers_count >= MAXRNUMBERS)
 			{
-				log(LL_ERR, "ERROR parsing config file: too many remote numbers at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: too many remote "
+				    "numbers at line %d!", lineno);
 				config_error_flag++;
 				break;
 			}				
@@ -1161,7 +1274,8 @@ cfg_setval(int keyword)
 		case REMOTE_SUBADDR_DIALOUT:
 			if(cep->remote_subaddr_count >= MAXRNUMBERS)
 			{
-				log(LL_ERR, "ERROR parsing config file: too many remote subaddresses at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: too many remote "
+				    "subaddresses at line %d!", lineno);
 				config_error_flag++;
 				break;
 			}				
@@ -1183,7 +1297,8 @@ cfg_setval(int keyword)
 				cep->remote_numbers_handling = RNH_FIRST;
 			else
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"remdial_handling\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter for "
+				    "keyword \"remdial_handling\" at line %d!", lineno);
 				config_error_flag++;
 			}
 			break;
@@ -1194,11 +1309,13 @@ cfg_setval(int keyword)
 				n = cep->incoming_numbers_count;
 				if (n >= MAX_INCOMING)
 				{
-					log(LL_ERR, "ERROR parsing config file: too many \"remote_phone_incoming\" entries at line %d!", lineno);
+					log(LL_ERR, "ERROR parsing config file: too many "
+					    "\"remote_phone_incoming\" entries at line %d!", lineno);
 					config_error_flag++;
 					break;
 				}
-				DBGL(DL_RCCF, (log(LL_DBG, "%s: remote_phone_incoming #%d = %s", cep->name, n, yylval.str)));
+				DBGL(DL_RCCF, (log(LL_DBG, "%s: remote_phone_incoming "
+						   "#%d = %s", cep->name, n, yylval.str)));
 				strcpy(cep->remote_phone_incoming[n].number, yylval.str);
 				cep->incoming_numbers_count++;
 			}
@@ -1210,11 +1327,13 @@ cfg_setval(int keyword)
 				n = cep->incoming_numbers_count;
 				if (n >= MAX_INCOMING)
 				{
-					log(LL_ERR, "ERROR parsing config file: too many \"remote_subaddr_incoming\" entries at line %d!", lineno);
+					log(LL_ERR, "ERROR parsing config file: too many "
+					    "\"remote_subaddr_incoming\" entries at line %d!", lineno);
 					config_error_flag++;
 					break;
 				}
-				DBGL(DL_RCCF, (log(LL_DBG, "%s: remote_subaddr_incoming #%d = %s", cep->name, n, yylval.str)));
+				DBGL(DL_RCCF, (log(LL_DBG, "%s: remote_subaddr_incoming "
+						   "#%d = %s", cep->name, n, yylval.str)));
 				strcpy(cep->remote_phone_incoming[n].subaddr, yylval.str);
 			}
 			break;
@@ -1233,7 +1352,8 @@ cfg_setval(int keyword)
 			if(yylval.num < RECOVERYTIME_MIN)
 			{
 				yylval.num = RECOVERYTIME_MIN;
-				DBGL(DL_RCCF, (log(LL_DBG, "%s: recoverytime < %d, min = %d", cep->name, RECOVERYTIME_MIN, yylval.num)));
+				DBGL(DL_RCCF, (log(LL_DBG, "%s: recoverytime < %d, min = %d", 
+						   cep->name, RECOVERYTIME_MIN, yylval.num)));
 			}
 
 			DBGL(DL_RCCF, (log(LL_DBG, "%s: recoverytime = %d", cep->name, yylval.num)));
@@ -1268,7 +1388,8 @@ cfg_setval(int keyword)
 				}
 				strcpy(rarr[nregexpr].re_expr, yylval.str);
 
-				DBGL(DL_RCCF, (log(LL_DBG, "system: regexpr %s stored into slot %d", yylval.str, nregexpr)));
+				DBGL(DL_RCCF, (log(LL_DBG, "system: regexpr %s stored into "
+						   "slot %d", yylval.str, nregexpr)));
 				
 				if(rarr[nregexpr].re_prog != NULL)
 					rarr[nregexpr].re_flg = 1;
@@ -1293,7 +1414,8 @@ cfg_setval(int keyword)
 			}
 			strcpy(rarr[nregprog].re_prog, yylval.str);
 
-			DBGL(DL_RCCF, (log(LL_DBG, "system: regprog %s stored into slot %d", yylval.str, nregprog)));
+			DBGL(DL_RCCF, (log(LL_DBG, "system: regprog %s stored into slot %d", 
+					   yylval.str, nregprog)));
 			
 			if(rarr[nregprog].re_expr != NULL)
 				rarr[nregprog].re_flg = 1;
@@ -1347,7 +1469,8 @@ cfg_setval(int keyword)
 				cep->unitlengthsrc = ULSRC_DYN;
 			else
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"unitlengthsrc\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter "
+				    "for keyword \"unitlengthsrc\" at line %d!", lineno);
 				config_error_flag++;
 			}
 			break;
@@ -1374,7 +1497,8 @@ cfg_setval(int keyword)
 #undef m
 			else
 			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter for keyword \"usrdevicename\" at line %d!", lineno);
+				log(LL_ERR, "ERROR parsing config file: unknown parameter "
+				    "for keyword \"usrdevicename\" at line %d!", lineno);
 				config_error_flag++;
 			}
 			break;
@@ -1636,7 +1760,8 @@ print_config(void)
 		{
 			if(m_rights->local)
 			{
-				fprintf(PFILE, "monitor         = \"%s\"\t\t# local socket name for monitoring\n", m_rights->name);
+				fprintf(PFILE, "monitor         = \"%s\"\t\t# local "
+					"socket name for monitoring\n", m_rights->name);
 			}
 			else
 			{

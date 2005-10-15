@@ -68,6 +68,10 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#ifdef __NetBSD__
+#undef USE_RTPRIO
+#endif
+
 #ifdef USE_RTPRIO
 #include <sys/rtprio.h>
 #endif
@@ -386,6 +390,11 @@ typedef struct cfg_entry {
 	int	ppp_auth_flags;
 #define AUTH_RECHALLENGE 0x01
 #define AUTH_REQUIRED    0x02
+
+#ifdef __NetBSD__
+#define AUTHNAMELEN     64
+#define AUTHKEYLEN      16
+#endif
 
 	char	ppp_expect_name[AUTHNAMELEN];	/* PPP PAP/CHAP login name */
 	char	ppp_send_name[AUTHNAMELEN];

@@ -4,7 +4,10 @@ PROG=	isdnd
 MAN=	isdnd.rc.5 isdnd.rates.5 isdnd.acct.5 isdnd.8
 SRCS=	rc_parse.y rc_scan.l main.c rc_config.c log.c curses.c \
 	rates.c fsm.c support.c exec.c monitor.c alias.c \
-	y.tab.h holiday.c
+	holiday.c
+
+# generate rc_parse.h
+YHEADER=1
 
 # compile debug support
 CFLAGS+= -DDEBUG

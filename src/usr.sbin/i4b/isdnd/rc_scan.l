@@ -45,7 +45,7 @@
 #include <ctype.h>
 #include <sysexits.h>
 
-#include "y.tab.h"
+#include "rc_parse.h"
 
 int lineno;
 
