@@ -50,7 +50,7 @@ main(int argc, char **argv)
         usage();
     }
 
-    error = mount("devfs", "/cdev", 0, NULL);
+    error = mount("devfs", argv[1], 0, NULL);
     if(error)
     {
         err(1, "could not mount at \"%s\"!\n", argv[1]);

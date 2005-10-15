@@ -31,6 +31,7 @@
  *
  * This file is a lite version of "FreeBSD/src/sys/fs/devfs/devfs_vnops.c"
  *
+ * On NetBSD the locking rules are defined in: /usr/src/sys/kern/vnode_if.src
  */
 
 #include <sys/param.h>
@@ -229,14 +230,14 @@ devfs_open(struct vop_open_args *ap)
 	    vp->v_flag |= VISTTY;
 	}
 
+	dev->si_file_flags &= ~(O_NONBLOCK | O_DIRECT);
+
 	VOP_UNLOCK(vp, 0);
 
 	if(dsw->d_flags & D_NEEDGIANT)
 	{
 	    mtx_lock(&Giant);
 	}
-
-	dev->si_file_flags &= ~(O_NONBLOCK | O_DIRECT);
 
 	if(dsw->d_fdopen)
 	{
@@ -252,6 +253,11 @@ devfs_open(struct vop_open_args *ap)
 	else
 	{
 	    error = dsw->d_open(dev, ap->a_mode, S_IFCHR, td);
+	}
+
+	if(dsw->d_flags & D_NEEDGIANT)
+	{
+	    mtx_unlock(&Giant);
 	}
 
 	vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
@@ -308,6 +314,8 @@ devfs_read(struct vop_read_args *ap)
 	        ioflag |= O_NONBLOCK;
 	    }
 
+	    VOP_UNLOCK(ap->a_vp, 0);
+
 	    if(dsw->d_flags & D_NEEDGIANT)
 	    {
 	        mtx_lock(&Giant);
@@ -319,6 +327,8 @@ devfs_read(struct vop_read_args *ap)
 	    {
 	        mtx_unlock(&Giant);
 	    }
+
+	    vn_lock(ap->a_vp, LK_EXCLUSIVE | LK_RETRY);
 
 	    dev_relthread(dev);
 
@@ -373,6 +383,8 @@ devfs_write(struct vop_write_args *ap)
 	        ioflag |= O_NONBLOCK;
 	    }
 
+	    VOP_UNLOCK(ap->a_vp, 0);
+
 	    if(dsw->d_flags & D_NEEDGIANT)
 	    {
 	        mtx_lock(&Giant);
@@ -384,6 +396,8 @@ devfs_write(struct vop_write_args *ap)
 	    {
 	        mtx_unlock(&Giant);
 	    }
+
+ 	    vn_lock(ap->a_vp, LK_EXCLUSIVE | LK_RETRY);
 
 	    dev_relthread(dev);
 
@@ -469,6 +483,11 @@ devfs_ioctl(struct vop_ioctl_args *ap)
 		goto done;
 	    }
 
+	    if(dsw->d_flags & D_NEEDGIANT)
+	    {
+	        mtx_lock(&Giant);
+	    }
+
 	    error = dsw->d_ioctl(dev, cmd, data, ap->a_fflag, ap->a_p);
 
 	    if(dsw->d_flags & D_NEEDGIANT)
@@ -521,7 +540,7 @@ devfs_poll(struct vop_poll_args *ap)
 	    if(dsw->d_flags & D_NEEDGIANT)
 	    {
 	        mtx_unlock(&Giant);
-	    }
+  	    }
 
 	    dev_relthread(dev);
 	}
@@ -593,6 +612,8 @@ devfs_close(struct vop_close_args *ap)
 	        goto done;
 	    }
 
+	    VOP_UNLOCK(ap->a_vp, 0);
+
 	    if(dsw->d_flags & D_NEEDGIANT)
 	    {
 	        mtx_lock(&Giant);
@@ -604,6 +625,9 @@ devfs_close(struct vop_close_args *ap)
 	    {
 	        mtx_unlock(&Giant);
 	    }
+
+	    vn_lock(ap->a_vp, LK_EXCLUSIVE | LK_RETRY);
+
 #ifdef DEVFS_DEBUG
 	    if(count_dev(dev) > 1)
 	    {
