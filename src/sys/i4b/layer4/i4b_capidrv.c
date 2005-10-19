@@ -262,7 +262,8 @@ capi_ai_get_closed_sc(void)
 	return sc;
 }
 
-#if ((__FreeBSD_version >= 700001) || (__FreeBSD_version == 0))
+#if ((__FreeBSD_version >= 700001) || (__FreeBSD_version == 0) || \
+     ((__FreeBSD_version >= 600034) && (__FreeBSD_version < 700000)))
 #define I4B_UCRED struct ucred *ucred,
 #else
 #define I4B_UCRED
