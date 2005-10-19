@@ -1175,6 +1175,10 @@ getdevbyname(const char *name)
     name += 5;
   }
 
+#ifndef NDEVFSINO
+#define NDEVFSINO 1024
+#endif
+
   for(inode = 0; inode < NDEVFSINO; inode++)
   {
 	pdev = devfs_itod(inode);
