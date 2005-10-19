@@ -1163,6 +1163,7 @@ snd_close(struct cdev **pdev)
 static struct cdev *
 getdevbyname(const char *name)
 {
+#ifdef NDEVFSINO
   struct cdev *dev, **pdev;
   int inode;
 
@@ -1174,10 +1175,6 @@ getdevbyname(const char *name)
   {
     name += 5;
   }
-
-#ifndef NDEVFSINO
-#define NDEVFSINO 1024
-#endif
 
   for(inode = 0; inode < NDEVFSINO; inode++)
   {
@@ -1205,6 +1202,10 @@ getdevbyname(const char *name)
  found:
 
   return dev;
+#else
+  /* XXX devfs was redesigned ... */
+  return NULL;
+#endif
 }
 
 static int
