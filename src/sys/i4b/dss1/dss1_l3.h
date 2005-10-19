@@ -115,31 +115,33 @@ m( ST_L3_UA_TO    ,, 4/*hz*/, ST_L3_U0    , "Active"                , 0x0A  )	\
  * memory-default-value of zero
  */
 #define L3_EVENTS_LOCAL_INCOMING(m)			\
-m( EV_L3_ILL      ,, "illegal event")\
+m( EV_L3_ILL         ,, "illegal event")\
 \
-m( EV_L3_ALERTRQ  ,, "L4 ALERT REQUEST")\
-m( EV_L3_SETACRS  ,, "L4 ACCEPT RESPONSE")\
-m( EV_L3_SETRJRS  ,, "L4 REJECT RESPONSE")\
-m( EV_L3_SETUP    ,, "received SETUP")\
-m( EV_L3_CONACK   ,, "received CONNECT ACKNOWLEDGE")\
+m( EV_L3_ALERTRQ     ,, "L4 ALERT REQUEST")\
+m( EV_L3_SETACRS     ,, "L4 ACCEPT RESPONSE")\
+m( EV_L3_SETRJRS     ,, "L4 REJECT RESPONSE")\
+m( EV_L3_SETUP       ,, "received SETUP")\
+m( EV_L3_CONACK      ,, "received CONNECT ACKNOWLEDGE")\
 /**/
 
 #define L3_EVENTS_NEUTRAL(m)\
-m( EV_L3_STATUS   ,, "received STATUS")\
-m( EV_L3_RELEASE  ,, "RELEASE")\
-m( EV_L3_STATENQ  ,, "received STATUS ENQUIRY")\
-m( EV_L3_INFO     ,, "received INFORMATION")\
-m( EV_L3_FACILITY ,, "received FACILITY")\
-m( EV_L3_INFORQ   ,, "L4 INFORMATION REQUEST")\
+m( EV_L3_STATUS      ,, "received STATUS")\
+m( EV_L3_RELEASE     ,, "RELEASE")\
+m( EV_L3_STATENQ     ,, "received STATUS ENQUIRY")\
+m( EV_L3_INFO        ,, "received INFORMATION")\
+m( EV_L3_FACILITY    ,, "received FACILITY")\
+m( EV_L3_RESTART_IND ,, "received RESTART INDICATION")\
+m( EV_L3_RESTART_ACK ,, "received RESTART ACKNOWLEDGE")\
+m( EV_L3_INFORQ      ,, "L4 INFORMATION REQUEST")\
 /**/
 
 #define L3_EVENTS_LOCAL_OUTGOING(m)\
-m( EV_L3_SETUPRQ  ,, "L4 SETUP REQUEST")\
-m( EV_L3_SETUPAK  ,, "received SETUP ACKNOWLEDGE")\
-m( EV_L3_CALLPRC  ,, "received CALL PROCEEDING")\
-m( EV_L3_ALERT    ,, "received ALERT")\
-m( EV_L3_CONNECT  ,, "received CONNECT")\
-m( EV_L3_PROGIND  ,, "received PROGRESS INDICATION")\
+m( EV_L3_SETUPRQ     ,, "L4 SETUP REQUEST")\
+m( EV_L3_SETUPAK     ,, "received SETUP ACKNOWLEDGE")\
+m( EV_L3_CALLPRC     ,, "received CALL PROCEEDING")\
+m( EV_L3_ALERT       ,, "received ALERT")\
+m( EV_L3_CONNECT     ,, "received CONNECT")\
+m( EV_L3_PROGIND     ,, "received PROGRESS INDICATION")\
 /**/
 
 /*---------------------------------------------------------------------------*
@@ -321,10 +323,10 @@ m(RETRIEVE_REJECT         ,=0x37, EV_L3_ILL	)\
 \
 m(DETACH                  ,=0x40, EV_L3_ILL     )\
 m(DISCONNECT              ,=0x45, EV_L3_RELEASE	)\
-m(RESTART                 ,=0x46, EV_L3_ILL	)\
+m(RESTART                 ,=0x46, EV_L3_RESTART_IND )\
 m(DETACH_ACKNOWLEDGE      ,=0x48, EV_L3_ILL	)\
 m(RELEASE                 ,=0x4d, EV_L3_RELEASE	)\
-m(RESTART_ACKNOWLEDGE     ,=0x4e, EV_L3_ILL	)\
+m(RESTART_ACKNOWLEDGE     ,=0x4e, EV_L3_RESTART_ACK )\
 m(RELEASE_COMPLETE        ,=0x5a, EV_L3_RELEASE	)\
 \
 /* misc messages */\

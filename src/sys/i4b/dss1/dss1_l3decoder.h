@@ -105,12 +105,30 @@ get_multi_1(struct buf_range *buf, u_int8_t offset,
 }
 
 /*---------------------------------------------------------------------------*
- *	decode and process one Q.931 codeset 0 information element
+ *	decode a Q.931 codeset 0 information element to restart 
+ *      indication byte
  *---------------------------------------------------------------------------*/
 static void
-dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
+dss1_decode_q931_cs0_ie_restart(void *arg, struct buf_range *src)
+{
+	u_int8_t *p_restart_ind = arg;
+
+	if(get_1(src,0) == IEI_RESTARTI)
+	{
+	    p_restart_ind[0] = get_1(src,2);
+	    NDBGL3(L3_P_MSG, "restart indication = 0x%02x", p_restart_ind[0]);
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	decode a Q.931 codeset 0 information element to a call descriptor
+ *---------------------------------------------------------------------------*/
+static void
+dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 {
 	const char *m = NULL;
+	call_desc_t *cd = arg;
 	u_int8_t temp = get_1(src,2);
 
 	switch(get_1(src,0)) {
@@ -447,7 +465,7 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 	default:
 	    NDBGL3(L3_P_ERR, "Unknown IE 0x%02x = ", get_1(src,0));
 #if DO_I4B_DEBUG
-	    if(i4b_l2_debug & L3_P_ERR)
+	    if(i4b_l3_debug & L3_P_ERR)
 	    {
 	        dss1_dump_buf(__FUNCTION__, src->start, src->end - src->start);
 	    }
@@ -463,6 +481,113 @@ dss1_decode_q931_cs0_ie(call_desc_t *cd, struct buf_range *src)
 }
 
 /*---------------------------------------------------------------------------*
+ *	dummy decoder
+ *---------------------------------------------------------------------------*/
+static void
+dss1_decode_dummy(void *arg, struct buf_range *src)
+{
+	return;
+}
+
+typedef void dss1_decode_ie_t(void *arg, struct buf_range *src);
+
+/*---------------------------------------------------------------------------*
+ *	generic information element decode
+ *---------------------------------------------------------------------------*/
+static void
+dss1_decode_ie(void *arg, u_int8_t *msg_ptr, u_int8_t *msg_end, 
+	       dss1_decode_ie_t *q931_func)
+{
+	struct buf_range buf_range;
+	u_int8_t codeset = CODESET_0;
+	u_int8_t codeset_next = CODESET_0;
+	u_int8_t *msg_tmp;
+
+	if(q931_func == NULL)
+	{
+	    q931_func = &dss1_decode_dummy;
+	}
+
+	/* check length */
+	while(msg_ptr < msg_end)
+	{
+	    if(*msg_ptr & 0x80)
+	    {
+		  /* single byte IE's */
+
+		  /* check for shift codeset IE */
+		  if((*msg_ptr & 0xf0) == IEI_SHIFT)
+		  {
+			codeset_next = codeset;
+
+			codeset = *msg_ptr & CODESET_MASK;
+
+			if(*msg_ptr & SHIFT_LOCK)
+			{
+			  codeset_next = codeset;
+			}
+		  }
+
+		  /* check for sending complete */
+		  if(*msg_ptr == IEI_SENDCOMPL)
+		  {
+			NDBGL3(L3_P_MSG,"IEI_SENDCOMPL");
+		  }
+
+		  msg_ptr++;
+	    }
+	    else
+	    {
+		  /* multi byte IE's */
+
+		  /* process one IE for selected codeset */
+
+		  msg_tmp  = msg_ptr;
+
+		  msg_ptr++;
+
+		  if(msg_ptr >= msg_end)
+		  {
+		      break;
+		  }
+
+		  msg_ptr += msg_ptr[0] + 1;
+		
+		  /* check length */
+		  if(msg_ptr <= msg_end)
+		  {
+		    switch(codeset) {
+		    case CODESET_0:
+		        buf_range.start = msg_tmp;
+			buf_range.end = msg_ptr;
+		        q931_func(arg, &buf_range);
+			break;
+				
+		    default:
+		        NDBGL3(L3_P_ERR, "unknown codeset %d, IE = ",
+			       codeset);
+#if DO_I4B_DEBUG
+			if(i4b_l3_debug & L3_P_ERR)
+			{
+			    dss1_dump_buf(__FUNCTION__, msg_tmp,
+					  msg_ptr - msg_tmp);
+			}
+#endif
+			break;
+		    }
+		  }
+
+		  /* select next codeset */
+		  codeset = codeset_next;
+	    }
+	}
+	return;
+}
+
+static void
+dss1_pipe_reset_ind(DSS1_TCP_pipe_t *pipe);
+
+/*---------------------------------------------------------------------------*
  *	PIPE DATA INDICATION from Layer 2
  *---------------------------------------------------------------------------*/
 static void
@@ -472,10 +597,7 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
         l2softc_t *sc = pipe->L5_sc;
 	u_int8_t *msg_end, *msg_tmp;
 	call_desc_t *cd;
-	struct buf_range buf_range;
 	u_int32_t crval;
-	u_int8_t codeset = CODESET_0;
-	u_int8_t codeset_next = CODESET_0;
 	u_int8_t event;
 
 	msg_end = msg_ptr + msg_len;
@@ -538,7 +660,7 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 	NDBGL3(L3_PRIM|L3_P_MSG, "unit=%x, crlen=%d crval=0x%04x, "
 	       "message_type=0x%02x", sc->sc_unit, msg_ptr-msg_tmp-1, crval, *msg_ptr);
 
-  	msg_ptr++;
+	msg_ptr++;
 
 	/* find call-descriptor */
 
@@ -554,6 +676,28 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 
 			cd = N_ALLOCATE_CD(sc->sc_cntl,pipe,crval,0,NULL);
 			/* cdid filled in */
+		}
+		else if((crval & ~0x80) == 0)
+		{
+			/* global callreference */
+
+			u_int8_t restart_ind;
+
+			dss1_decode_ie(&restart_ind,msg_ptr,msg_end,
+				       &dss1_decode_q931_cs0_ie_restart);
+
+			if(event == EV_L3_RESTART_IND)
+			{
+			    /* this driver only supports one thing
+			     * and that is full reset:
+			     */
+			    dss1_l3_tx_restart(pipe,RESTART_ACKNOWLEDGE,7,crval);
+			    dss1_pipe_reset_ind(pipe);
+			}
+
+			if(event == EV_L3_RESTART_ACK)
+			{
+			}
 		}
 #if 0
 		else if((crval & ~0x80) /* ignore global callreference */ &&
@@ -618,79 +762,8 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 
 	/* process information elements */
 
-	/* check length */
-	while(msg_ptr < msg_end)
-	{
-		if(*msg_ptr & 0x80)
-		{
-		  /* single byte IE's */
-
-		  /* check for shift codeset IE */
-		  if((*msg_ptr & 0xf0) == IEI_SHIFT)
-		  {
-			codeset_next = codeset;
-
-			codeset = *msg_ptr & CODESET_MASK;
-
-			if(*msg_ptr & SHIFT_LOCK)
-			{
-			  codeset_next = codeset;
-			}
-		  }
-
-		  /* check for sending complete */
-		  if(*msg_ptr == IEI_SENDCOMPL)
-		  {
-			NDBGL3(L3_P_MSG,"IEI_SENDCOMPL");
-		  }
-
-		  msg_ptr++;
-		}
-		else
-		{
-		  /* multi byte IE's */
-
-		  /* process one IE for selected codeset */
-
-		  msg_tmp  = msg_ptr;
-
-		  msg_ptr++;
-
-		  if(msg_ptr >= msg_end)
-		  {
-		      break;
-		  }
-
-		  msg_ptr += msg_ptr[0] + 1;
-		
-		  /* check length */
-		  if(msg_ptr <= msg_end)
-		  {
-		    switch(codeset) {
-		    case CODESET_0:
-		        buf_range.start = msg_tmp;
-			buf_range.end = msg_ptr;
-		        dss1_decode_q931_cs0_ie(cd, &buf_range);
-			break;
-				
-		    default:
-		        NDBGL3(L3_P_ERR, "unknown codeset %d, IE = ",
-			       codeset);
-#if DO_I4B_DEBUG
-			if(i4b_l2_debug & (L3_P_ERR))
-			{
-			    dss1_dump_buf(__FUNCTION__, msg_tmp,
-					  msg_ptr - msg_tmp);
-			}
-#endif
-			break;
-		    }
-		  }
-
-		  /* select next codeset */
-		  codeset = codeset_next;
-		}
-	}
+	dss1_decode_ie(cd,msg_ptr,msg_end,
+		       &dss1_decode_q931_cs0_ie_cd);
 
 	if(NT_MODE(sc) &&
 	   (event == EV_L3_RELEASE) &&

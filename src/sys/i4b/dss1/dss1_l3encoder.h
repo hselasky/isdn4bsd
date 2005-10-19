@@ -147,6 +147,58 @@ make_callreference(DSS1_TCP_pipe_t *pipe, u_int32_t cr, u_int8_t *ptr)
 }
 
 /*---------------------------------------------------------------------------*
+ *	send RESTART message
+ *
+ * (indication & 7):
+ *   7: restart all interfaces
+ *   6: restart single interface
+ *   0: restart indicated channels
+ *---------------------------------------------------------------------------*/
+static void
+dss1_l3_tx_restart(DSS1_TCP_pipe_t *pipe, u_int8_t what, 
+		   u_int8_t indication, u_int32_t call_ref)
+{
+	struct mbuf *m;
+	u_int8_t *ptr;
+
+	NDBGL3(L3_PRIM, "");
+
+#define DSS1_L3_TX_RESTART_LEN_MAX \
+	  (I_HEADER_LEN + 5 + 3 + 16 /* extra buffer */)
+
+	/* check length */
+
+#if (DSS1_L3_TX_RESTART_LEN_MAX > BCH_MAX_LEN)
+#error "DSS1_L3_TX_RESTART_LEN_MAX > BCH_MAX_LEN"
+#endif
+
+	m = i4b_getmbuf(BCH_MAX_LEN, M_NOWAIT);
+
+	if(m)
+	{
+	   ptr = m->m_data + I_HEADER_LEN;
+	
+	  *ptr++ = PD_Q931;		/* protocol discriminator */
+	   ptr   = make_callreference(pipe,call_ref,ptr);
+	  *ptr++ = what;
+
+	  *ptr++ = IEI_RESTARTI;
+	  *ptr++ = 1; /* byte */
+	  *ptr++ = indication | 0x80; /* restart indication */
+
+	  /* update length */
+	  m->m_len = ptr - ((__typeof(ptr))(m->m_data));
+
+	  dss1_pipe_data_req(pipe,m);
+	}
+	else
+	{
+	  NDBGL3(L3_ERR, "out of mbufs!");
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
  *	send SETUP message
  *---------------------------------------------------------------------------*/
 static void

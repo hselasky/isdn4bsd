@@ -45,7 +45,7 @@
 The
 .Nm
 utility
-is part of the isdn4bsd package and is used to convert between the A-Law and
+is part of the ISDN4BSD package and is used to convert between the A-Law and
 u-law formats as specified in ITU G.711. It is based on a freely available
 and freely usable reference implementation done by Sun Microsystems, Inc.
 .Pp
@@ -82,7 +82,7 @@ cat max_headroom.ul | g711conv -u -R > /dev/i4btel0
 .Ed
 .Pp
 converts the u-law coded voice of Max Headroom to A-law, reverses the
-bits of the result and moves that to an active isdn4bsd telephone connection.
+bits of the result and moves that to an active ISDN4BSD telephone connection.
 .Pp
 The command:
 .Bd -literal -offset indent
@@ -98,4 +98,4 @@ The
 utility and this manpage were written by
 .An Hellmuth Michaelis Aq hm@kts.org
 based on the G.711 conversion reference code written by Sun Microsystems,
-Inc.\& and code contributed to isdn4bsd by Stefan Bethke.
+Inc.\& and code contributed to ISDN4BSD by Stefan Bethke.

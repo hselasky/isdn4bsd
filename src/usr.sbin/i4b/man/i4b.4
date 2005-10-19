@@ -31,7 +31,7 @@
 .Os
 .Sh NAME
 .Nm i4b
-.Nd isdn4bsd call control ISDN driver
+.Nd ISDN4BSD call control ISDN driver
 .Sh SYNOPSIS
 .Cd device \&"i4b\&"
 .Sh DESCRIPTION
@@ -39,7 +39,7 @@ The
 .Nm
 device driver is used by the
 .Xr isdnd 8
-daemon to exchange messages with the isdn4bsd kernel part for the purpose
+daemon to exchange messages with the ISDN4BSD kernel part for the purpose
 of call establishment, control and disconnection and to access various
 control and status informations.
 The
@@ -94,7 +94,7 @@ A call was terminated.
 A userland interface driver requests the daemon to dial out (typically a
 network interface when a packet arrives in its send queue).
 .It Ar MSG_IDLE_TIMEOUT_IND
-A call was terminated by the isdn4bsd kernel driver because a B-channel
+A call was terminated by the ISDN4BSD kernel driver because a B-channel
 idle timeout occurred.
 .It Ar MSG_ACCT_IND
 Accounting information from a network driver.

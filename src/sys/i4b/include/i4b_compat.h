@@ -21,6 +21,7 @@
 #  include <sys/rtprio.h>
 #  include <sys/selinfo.h>
 #  include <sys/sysctl.h>
+#  include <sys/sx.h>
 #  include <fs/devfs/devfs.h>
 # else
 #  include <ncurses.h>

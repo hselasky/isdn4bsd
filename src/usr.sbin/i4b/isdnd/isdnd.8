@@ -33,7 +33,7 @@
 .Os
 .Sh NAME
 .Nm isdnd
-.Nd isdn4bsd ISDN connection management daemon
+.Nd ISDN4BSD ISDN connection management daemon
 .Sh SYNOPSIS
 .Nm
 .Op Fl c Ar configfile
@@ -52,7 +52,7 @@
 The
 .Nm
 utility
-is the isdn4bsd package daemon which manages all ISDN related connection
+is the ISDN4BSD package daemon which manages all ISDN related connection
 and disconnection of ISDN devices supported by the package.
 .Pp
 The options are as follows:
@@ -88,7 +88,7 @@ dialing.
 .It Ar 0x040
 process handling.
 .It Ar 0x080
-isdn4bsd kernel i/o calls.
+ISDN4BSD kernel i/o calls.
 .It Ar 0x100
 controller and channel busy/free messages.
 .It Ar 0x200
@@ -211,7 +211,7 @@ file option
 The
 .Nm
 utility
-communicates with the kernel part of isdn4bsd by receiving status and
+communicates with the kernel part of ISDN4BSD by receiving status and
 event messages
 .Xr ( read 2
 from device
@@ -267,7 +267,7 @@ A call was terminated.
 A userland interface driver requests the daemon to dial out (typically a
 network interface when a packet arrives in its send queue).
 .It Ar MSG_IDLE_TIMEOUT_IND
-A call was terminated by the isdn4bsd kernel driver because a B-channel
+A call was terminated by the ISDN4BSD kernel driver because a B-channel
 idle timeout occurred.
 .It Ar MSG_ACCT_IND
 Accounting information from a network driver.
@@ -277,7 +277,7 @@ Charging information from the kernel.
 .Pp
 .Ss OUTGOING CALLS
 Currently the only possibility to trigger an outgoing call is that an
-isdn4bsd network driver
+ISDN4BSD network driver
 .Em (ipr<n>)
 sends a
 .Em MSG_DIALOUT_IND
