@@ -19,5 +19,7 @@ NOGCCERROR              =
 
 LIBCAPI20              ?=       ${DESTDIR}${LIBDIR}/libcapi20.a
 
+ECHO                   ?=       echo
+
 .include "${.CURDIR}/../../Makefile.inc"
 

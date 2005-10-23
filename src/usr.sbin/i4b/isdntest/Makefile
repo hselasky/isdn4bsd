@@ -5,6 +5,6 @@ MAN=	isdntest.8
 SRCS=	main.c
 
 install:
-	@echo "isdntest is not installed automatically"
+	@${ECHO} "isdntest is not installed automatically"
 
 .include <bsd.prog.mk>
