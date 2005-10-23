@@ -1151,20 +1151,24 @@ tel_get_mbuf(struct fifo_translator *f)
 static void
 snd_close(struct cdev **pdev)
 {
-	if(*pdev)
-	{
-	  devsw(*pdev)->d_close(*pdev,0/*flags*/,0/*mode*/,NULL);
-	  *pdev = 0;
-	}
+	struct cdev *dev = *pdev;
 
+	if(dev)
+	{
+	  devsw(dev)->d_close(dev,0/*flags*/,0/*mode*/,NULL);
+	  dev_rel(dev);
+	  *pdev = NULL;
+	}
 	return;
 }
 
 static struct cdev *
 getdevbyname(const char *name)
 {
+  struct cdev *dev = NULL;
+
 #ifdef NDEVFSINO
-  struct cdev *dev, **pdev;
+  struct cdev **pdev;
   int inode;
 
   if((name[0] == '/') &&
@@ -1175,6 +1179,8 @@ getdevbyname(const char *name)
   {
     name += 5;
   }
+
+  dev_lock();
 
   for(inode = 0; inode < NDEVFSINO; inode++)
   {
@@ -1190,6 +1196,7 @@ getdevbyname(const char *name)
 	    {
 	      if(strcmp(dev->si_name,name) == 0)
 	      {
+		dev_refl(dev);
 		goto found;
 	      }
 	    }
@@ -1201,11 +1208,40 @@ getdevbyname(const char *name)
 
  found:
 
-  return dev;
+  dev_unlock();
 #else
-  /* XXX devfs was redesigned ... */
-  return NULL;
+
+  if((name[0] == '/') &&
+     (name[1] == 'd') &&
+     (name[2] == 'e') &&
+     (name[3] == 'v') &&
+     (name[4] == '/'))
+  {
+      name += 5;
+  }
+
+  dev_lock();
+
+  LIST_FOREACH(dev, &(dsp_cdevsw.d_devs), si_list)
+  {
+      if(dev->si_flags & SI_NAMED)
+      {
+	  if(strcmp(dev->si_name,name) == 0)
+	  {
+	      dev_refl(dev);
+	      goto found;
+	  }
+      }
+  }
+
+  dev = NULL;
+
+ found:
+
+  dev_unlock();
 #endif
+
+  return dev;
 }
 
 static int
@@ -1220,19 +1256,19 @@ snd_init(char *audiodevice, int flags, struct cdev **pdev)
 	snd_capabilities soundcaps;
 	__typeof(soundcaps.formats) play_fmt, rec_fmt;
 
-
 	dev = getdevbyname(audiodevice);
 
 	if(dev == NULL)
 	{
-	  dev = 0;
+	  dev = NULL;
 	  msg = "device not present";
 	  goto error;
 	}
 
 	if(devsw(dev)->d_open(dev,flags,0/*mode*/,curthread) != 0)
 	{
-	  dev = 0;
+	  dev_rel(dev);
+	  dev = NULL;
 	  msg = "unable to open";
 	  goto error;
 	}
@@ -1342,8 +1378,8 @@ snd_open(tel_sc_t *sc)
 		NDBGL1(L4_ERR, "cannot open dsp read device");
 	}
 
-	if((sc->rd.audio_dev == 0) ||
-	   (sc->wr.audio_dev == 0))
+	if((sc->rd.audio_dev == NULL) ||
+	   (sc->wr.audio_dev == NULL))
 	{
 		snd_close(&sc->rd.audio_dev);
 		snd_close(&sc->wr.audio_dev);

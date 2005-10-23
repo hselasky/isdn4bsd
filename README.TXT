@@ -62,6 +62,9 @@ rm -r "/dev/dev"
 mkdir "/dev/dev"
 mount_devfs "/dev/dev"
 
+HOW TO SET NT-MODE:
+
+See "man isdnconfig" or "man isdnd.rc".
 
 USING WITH ASTERISK
 

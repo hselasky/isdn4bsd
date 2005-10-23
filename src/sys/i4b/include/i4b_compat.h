@@ -5,6 +5,7 @@
 # ifdef _KERNEL
 #  include <machine/resource.h>
 #  include <dev/sound/pcm/sound.h>
+#  include <dev/sound/pcm/dsp.h>
 #  include <dev/pci/pcireg.h>
 #  include <dev/pci/pcivar.h>
 #  include <isa/isavar.h>

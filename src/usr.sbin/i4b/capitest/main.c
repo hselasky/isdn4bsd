@@ -54,7 +54,7 @@ usage(void)
        "\n" "       -d <level>    set debug level"	
        "\n" "       -i <telno>    incoming telephone number"
        "\n" "       -o <telno>    outgoing telephone number"
-       "\n" "       -p <value>    set CIP value"
+       "\n" "       -p <value>    set CIP value (2:HDLC,16:telephony)"
        "\n" "       -n <value>    number of dialouts"
        "\n" "       -s            write received data to stdout"
        "\n"
@@ -72,7 +72,7 @@ static u_int8_t dst_telno[TELNO_MAX];
 static u_int8_t controller = 0;
 static u_int8_t verbose_level = 0;
 static u_int8_t write_data_to_stdout = 0;
-static u_int8_t cip_value = 2; /* default: unrestricted data */
+static u_int8_t cip_value = 16; /* default: telephony */
 static u_int16_t num_calls_curr = 0;
 static u_int16_t num_calls_max = 1;
 

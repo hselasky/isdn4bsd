@@ -1,4 +1,4 @@
-SUBDIR= module src/usr.sbin src/lib/libcapi20
+SUBDIR= module src/lib/libcapi20 src/usr.sbin 
 
 .include <bsd.subdir.mk>
 

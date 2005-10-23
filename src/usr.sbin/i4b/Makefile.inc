@@ -17,5 +17,7 @@ MKLINT                  =       no
 
 NOGCCERROR              =
 
+LIBCAPI20              ?=       ${DESTDIR}${LIBDIR}/libcapi20.a
+
 .include "${.CURDIR}/../../Makefile.inc"
 

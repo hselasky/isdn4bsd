@@ -41,6 +41,7 @@
 .Op Fl o Ar number
 .Op Fl t Ar number
 .Op Fl n Ar number
+.Op Fl p Ar number
 .Op Fl w
 .Sh DESCRIPTION
 The
@@ -62,6 +63,8 @@ Sets the outgoing telephone number.
 Set number of times the test pattern on the B-channel should be exchanged.
 .It Fl n
 Set number of calls to make. Default is 1.
+.It Fl p
+Set protocol to use. "2" is HDLC. "16" is telephony. Default is 16.
 .El
 .Pp
 This utility can be used as an example on how to build your own CAPI
