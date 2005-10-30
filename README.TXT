@@ -26,6 +26,12 @@ cp -r "src/sys/i4b/include" "/usr/include/i4b"
 # compile and install kernel module, libraries and ISDN utilities
 #
 
+cd src/lib/libcapi20
+make depend
+make
+make install
+
+cd ../../../
 make depend
 make
 make install
