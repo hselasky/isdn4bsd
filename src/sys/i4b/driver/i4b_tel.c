@@ -1148,6 +1148,13 @@ tel_get_mbuf(struct fifo_translator *f)
 #define devsw(dev) ((dev)->si_devsw)
 #endif
 
+#if ((__FreeBSD_version > 0) && (__FreeBSD_version < 600034))
+#define dev_lock(arg)
+#define dev_unlock(arg)
+#define dev_refl(arg)
+#define dev_rel(arg)
+#endif
+
 static void
 snd_close(struct cdev **pdev)
 {
