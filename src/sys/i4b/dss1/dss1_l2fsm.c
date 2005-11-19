@@ -367,7 +367,7 @@ dss1_tei_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe,
 	struct mbuf *m;
 	u_int8_t *ptr;
 
-	if(IS_PRIMARY_RATE(sc))
+	if(IS_POINT_TO_POINT(sc))
 	{
 	    /* not supported */
 	    return;
@@ -434,7 +434,7 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 {
 	DSS1_TCP_pipe_t *pipe = &sc->sc_pipe[0];
 
-	if(IS_PRIMARY_RATE(sc))
+	if(IS_POINT_TO_POINT(sc))
 	{
 	    /* not supported */
 	    return;
@@ -618,7 +618,7 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
   {
 	if((pipe->refcount == 0) && _IF_QEMPTY(pipe))
 	{
-	    if(IS_PRIMARY_RATE(sc))
+	    if(IS_POINT_TO_POINT(sc))
 	    {
 	        /* call transmit FIFO, 
 		 * to keep the pipe active 
@@ -640,7 +640,7 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
   {
       if(pipe->refcount) /* auto activate */
       {
-	  if(!IS_PRIMARY_RATE(sc))
+	  if(!IS_POINT_TO_POINT(sc))
 	  {
 	      if(NT_MODE(sc))
 	      {
@@ -961,7 +961,7 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
   {
     broadcast = 0;
 
-    if(IS_PRIMARY_RATE(sc))
+    if(IS_POINT_TO_POINT(sc))
     {
         if(pipe->tei != tei)
 	{
@@ -1358,7 +1358,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 
   do {
     if(L2_STATE_IS_TEI_ASSIGNED(pipe->state) || 
-       (NT_MODE(sc) && (!IS_PRIMARY_RATE(sc)) && (pipe == pipe_adapter)))
+       (NT_MODE(sc) && (!IS_POINT_TO_POINT(sc)) && (pipe == pipe_adapter)))
     {
       /* send I-frame(s) */
 
@@ -1655,6 +1655,7 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 	  cntl->N_CONNECT_RESPONSE = n_connect_response;
 	  cntl->N_DISCONNECT_REQUEST = n_disconnect_request;
 	  cntl->N_ALERT_REQUEST = n_alert_request;        
+	  cntl->N_PROGRESS_REQUEST = n_progress_request;        
 	  cntl->N_ALLOCATE_CD = n_allocate_cd;
 	  cntl->N_FREE_CD = n_free_cd;
 
@@ -1670,17 +1671,24 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 	  if(max_channels < 3)
 	     max_channels = 3;
 
-	  if(max_channels >= 0x1f)
+	  if(cntl->L1_type == L1_TYPE_ISDN_PRI)
 	    sc->sc_primary_rate = 1;
 	  else
 	    sc->sc_primary_rate = 0;
+
+	  if((driver_type == DRVR_DSS1_P2P_TE) ||
+	     (driver_type == DRVR_DSS1_P2P_NT))
+	    sc->sc_point_to_point = 1;
+	  else
+	    sc->sc_point_to_point = 0;
 
 	  /* set default queue length */
 
 	  _IF_QUEUE_GET(sc)->ifq_maxlen =
 	    max_channels * MAX_QUEUE_PER_CHANNEL;
 
-	  if(driver_type == DRVR_DSS1_NT)
+	  if((driver_type == DRVR_DSS1_NT) ||
+	     (driver_type == DRVR_DSS1_P2P_NT))
 	  {
 	    /* set NT-mode */
 	    L1_COMMAND_REQ(cntl,CMR_SET_NT_MODE,0);
@@ -1688,7 +1696,7 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 	    cntl->N_nt_mode = 1;
 	    sc->sc_nt_mode = 1;
 
-	    if(!IS_PRIMARY_RATE(sc))
+	    if(!IS_POINT_TO_POINT(sc))
 	    {
 	        _IF_QUEUE_GET(sc)->ifq_maxlen =
 		  max_channels * (PIPE_MAX * MAX_QUEUE_PER_CHANNEL);
@@ -1727,9 +1735,9 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 
 	    pipe->L5_sc = sc;
 
-	    pipe->tei = (IS_PRIMARY_RATE(sc) && 
+	    pipe->tei = (IS_POINT_TO_POINT(sc) && 
 			 (PIPE_NO(pipe) == 0)) ? 
-	      TEI_PRI :
+	      TEI_POINT2POINT :
 	      TEI_BROADCAST;
 
 	    pipe->serial_number = 

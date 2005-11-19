@@ -529,7 +529,7 @@ ihfc_setup_i4b(ihfc_sc_t *sc, u_int8_t *error)
 
 	cntl->L1_channel_end = sc->sc_default.d_channels / 2;
 	cntl->L1_sc = sc;
-	cntl->L1_type = L1_TYPE_PASSIVE;
+	cntl->L1_type = sc->sc_default.d_L1_type;
 
 	snprintf(&sc->sc_nametmp[0],
 		 sizeof(sc->sc_nametmp),

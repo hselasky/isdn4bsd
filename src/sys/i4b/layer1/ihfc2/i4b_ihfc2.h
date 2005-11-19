@@ -883,6 +883,8 @@ struct sc_default {
   u_int8_t			led_p1_mask;
   u_int8_t			led_inverse_mask; /* inverse bits */
 
+  u_int8_t		      d_L1_type; 
+
   u_int16_t		      d_channels; /* RX + TX */
 
   u_int32_t		      d_interrupt_delay;

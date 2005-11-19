@@ -36,6 +36,8 @@
 #ifndef _DSS1_L3_H_
 #define _DSS1_L3_H_
 
+#define STATUS_ENQUIRY_TIMEOUT 8 /* timeouts ~ 8*8 = 64 seconds */
+
 #define T303VAL	(hz* 4) /* tx_setup	   : 4 seconds timeout		*/
 #define T305VAL	(hz*30) /* tx_disconnect   : 30 seconds timeout		*/
 #define T308VAL	(hz* 4) /* tx_release	   : 4 seconds timeout		*/
@@ -117,6 +119,7 @@ m( ST_L3_UA_TO    ,, 4/*hz*/, ST_L3_U0    , "Active"                , 0x0A  )	\
 #define L3_EVENTS_LOCAL_INCOMING(m)			\
 m( EV_L3_ILL         ,, "illegal event")\
 \
+m( EV_L3_PROGRESSRQ  ,, "L4 PROGRESS REQUEST")\
 m( EV_L3_ALERTRQ     ,, "L4 ALERT REQUEST")\
 m( EV_L3_SETACRS     ,, "L4 ACCEPT RESPONSE")\
 m( EV_L3_SETRJRS     ,, "L4 REJECT RESPONSE")\
@@ -165,6 +168,9 @@ extern u_int8_t dss1_aoc ( u_int8_t *, struct call_desc *cd );
 /* for outgoing causes */
 #define IEI_CAUSE_LEN		2
 #define CAUSE_STD_LOC_OUT	0x80	/* std = CCITT, loc = user */
+#define CAUSE_STD_LOC_PUBLIC    0x82    /* std = CCITT, loc = 
+					 *   public network serving local user
+					 */
 
 #define IEI_BEARERCAP_LEN	2	/* 2 octetts length */
 

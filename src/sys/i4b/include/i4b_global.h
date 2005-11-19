@@ -429,6 +429,7 @@ typedef struct call_desc
 	u_char	channel_allocated : 1;
 	u_char	dir_incoming : 1;	/* outgoing or incoming call	*/
 	u_char	need_release : 1;	/* need release */
+	u_char	peer_responded : 1; 	/* got a message from the other end */
 
 	struct	callout	idle_callout;
 	struct	callout	set_state_callout;
@@ -517,6 +518,10 @@ typedef struct i4b_controller
 	void	(*N_ALERT_REQUEST)(struct call_desc *);
 #	define    N_ALERT_REQUEST(cd)		\
          ((i4b_controller_by_cd(cd))->N_ALERT_REQUEST)(cd)
+
+	void	(*N_PROGRESS_REQUEST)(struct call_desc *);
+#	define    N_PROGRESS_REQUEST(cd)		\
+         ((i4b_controller_by_cd(cd))->N_PROGRESS_REQUEST)(cd)
 
 	struct call_desc * 
 		(*N_ALLOCATE_CD)(struct i4b_controller *, void *pipe, 

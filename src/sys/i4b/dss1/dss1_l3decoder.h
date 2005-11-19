@@ -760,12 +760,16 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 	/* reset partial telephone number */
 	cd->dst_telno_part[0] = 0;
 
+	/* set peer responded flag */
+	cd->peer_responded = 1;
+
 	/* process information elements */
 
 	dss1_decode_ie(cd,msg_ptr,msg_end,
 		       &dss1_decode_q931_cs0_ie_cd);
 
 	if(NT_MODE(sc) &&
+	   (!IS_POINT_TO_POINT(sc)) &&
 	   (event == EV_L3_RELEASE) &&
 	   (cd->cause_in != CAUSE_Q850_CALLREJ) &&
 	   (cd->pipe == (void *)&(sc->sc_pipe[0])))
@@ -782,12 +786,16 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 
 /*---------------------------------------------------------------------------*
  *	PIPE RESEND INDICATION from Layer 2
+ *
+ * NOTE: pipe == pipe_adapter
  *---------------------------------------------------------------------------*/
 static void
 dss1_pipe_resend_ind(DSS1_TCP_pipe_t *pipe)
 {
 	l2softc_t *sc = pipe->L5_sc;
+	DSS1_TCP_pipe_t *pipe_curr;
 	struct call_desc *cd;
+	struct mbuf *m;
 
 	NDBGL3(L3_MSG, "unit=%x, pipe=%x",
 	       sc->sc_unit, PIPE_NO(pipe));
@@ -796,16 +804,59 @@ dss1_pipe_resend_ind(DSS1_TCP_pipe_t *pipe)
 
 	CD_FOREACH(cd,&sc->sc_cntl->N_call_desc[0])
 	{
-		if( (cd->cdid != CDID_UNUSED) &&
-		    (cd->pipe == pipe) &&
-		    (cd->need_release) )
-                {
-		  /* need to repeat setup in case of frame loss */
-		  dss1_l3_tx_setup(cd);
-
-		  /* need to check status regularly */
-		  dss1_l3_tx_status_enquiry(cd);
+	    if((cd->cdid != CDID_UNUSED) &&
+	       (cd->pipe == pipe) &&
+	       (cd->need_release))
+	    {
+	        if(cd->peer_responded == 0)
+		{
+		    /* need to repeat setup in case of frame loss 
+		     *
+		     * NOTE: some equipment does not like when the
+		     * SETUP message is repeated, so just repeat
+		     * until one gets a response
+		     */
+		    dss1_l3_tx_setup(cd);
 		}
+#if 0
+		/* need to check status regularly
+		 *
+		 * NOTE: some ISDN PBXs will crash
+		 * if one asks for STATUS before 
+		 * CONNECT ...
+		 */
+		dss1_l3_tx_status_enquiry(cd);
+#endif
+	    }
+	}
+
+	/*
+	 * keep pipes alive by
+	 * sending a zero length
+	 * I-frame instead of 
+	 * STATUS ENQUIRY
+	 */
+	PIPE_FOREACH(pipe_curr,&sc->sc_pipe[0])
+	{
+	    /* skip "pipe == pipe_adapter" and
+	     * connected pipe
+	     */
+	    if((pipe_curr != pipe) &&
+	       (pipe_curr->state != ST_L2_PAUSE) &&
+	       _IF_QEMPTY(pipe_curr))
+	    {
+	        m = i4b_getmbuf(I_HEADER_LEN, M_NOWAIT);
+
+		if(m)
+		{
+		    m->m_len = I_HEADER_LEN;
+		    dss1_pipe_data_req(pipe_curr,m);
+		}
+		else
+		{
+		    NDBGL3(L3_ERR, "out of mbufs!");
+		}
+	    }
 	}
 	return;
 }
@@ -903,6 +954,16 @@ static void
 n_alert_request(call_desc_t *cd)
 {
 	cd_update(cd, NULL, EV_L3_ALERTRQ);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	handle progress request message from userland
+ *---------------------------------------------------------------------------*/
+static void
+n_progress_request(call_desc_t *cd)
+{
+	cd_update(cd, NULL, EV_L3_PROGRESSRQ);
 	return;
 }
 

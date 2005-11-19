@@ -91,9 +91,11 @@
 
 /* byte[1] -------------------------------------------------------------- */
 
-#define OFF_TEI		1	/* TEI offset */
-#define     TEI_BROADCAST 0xFF 	/* broadcast TEI */
-#define     TEI_PRI       0x01  /* TEI used by Primary Rate */
+#define OFF_TEI		1	  /* TEI offset */
+#define     TEI_BROADCAST   0xFF  /* broadcast TEI */
+#define     TEI_POINT2POINT 0x01  /* fixed TEI used by the 
+				   * point to point protocol
+				   */
 
 /* byte[2] -------------------------------------------------------------- */
 
@@ -236,7 +238,7 @@ typedef struct DSS1_TCP_pipe
 
 typedef struct
 {
-	u_int		sc_unit;	/* unit number for this entry */
+	u_int32_t	sc_unit;	/* unit number for this entry */
 
 	i4b_controller_t *
 			sc_cntl;
@@ -254,6 +256,8 @@ typedef struct
 	u_int8_t	sc_nt_mode;
 #define IS_PRIMARY_RATE(sc) ((sc)->sc_primary_rate)
 	u_int8_t	sc_primary_rate;
+#define IS_POINT_TO_POINT(sc) ((sc)->sc_point_to_point)
+	u_int8_t	sc_point_to_point;
 
 	struct_ifqueue; /* queue of outgoing frames */
 

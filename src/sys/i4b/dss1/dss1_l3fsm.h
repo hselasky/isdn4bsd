@@ -158,6 +158,7 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
 {
   DSS1_TCP_pipe_t *pipe = cd->pipe;
   l2softc_t *sc = pipe->L5_sc;
+  u_int8_t send_status_enquiry;
 
   /* stop timer */
   callout_stop(&cd->set_state_callout);
@@ -169,16 +170,13 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
 	   (cd->state == ST_L3_U4_TO) ||
 	   (cd->state == ST_L3_U7_TO))
 	{
-		NDBGL3(L3_ERR,
-		       "cdid=%d, no status reply - call disconnected",
-		       cd->cdid);
+	    NDBGL3(L3_MSG,
+		   "cdid=%d, no status reply - call disconnected",
+		   cd->cdid);
 	}
-  }
 
-  cd->state = newstate;
+	cd->state = newstate;
 
-  if(newstate == ST_L3_U0)
-  {
 	/* cleanup L2 before sending
 	 * RELEASE_COMPLETE
 	 */
@@ -245,27 +243,52 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
   }
   else
   {
-    /* re-start timeout;
-     * the timeout is increased when L1 is not activated
-     * the timeout is always running while the CD is allocated
-     */
-    callout_reset(&cd->set_state_callout,
-		  (L3_STATES_TIMEOUT_DELAY[newstate]*hz) +
-		  (sc->L1_activity ? 0 : L1_ACTIVATION_TIME),
-		  (void *)(void *)&cd_set_state_timeout, cd);
+	send_status_enquiry = 
+	  ((newstate == ST_L3_UA_TO) ||
+	   (newstate == ST_L3_U3_TO) ||
+	   (newstate == ST_L3_U4_TO) ||
+	   (newstate == ST_L3_U7_TO));
+
+	if(NT_MODE(sc) && 
+	   (!IS_POINT_TO_POINT(sc)) &&
+	   ((newstate == ST_L3_U3_TO) ||
+	    (newstate == ST_L3_U4_TO)))
+	{
+	    /* send no STATUS ENQUIRY, 
+	     * hence some devices crash
+	     * on it :-(
+	     */
+	    send_status_enquiry = 0;
+
+	    if(cd->peer_responded &&
+	       (cd->status_enquiry_timeout < STATUS_ENQUIRY_TIMEOUT))
+	    {
+	        cd->status_enquiry_timeout++;
+		newstate--;
+	    }
+	}
+
+	cd->state = newstate;
+
+	/* re-start timeout;
+	 * the timeout is increased when L1 is not activated
+	 * the timeout is always running while the CD is allocated
+	 */
+	callout_reset(&cd->set_state_callout,
+		      (L3_STATES_TIMEOUT_DELAY[newstate]*hz) +
+		      (sc->L1_activity ? 0 : L1_ACTIVATION_TIME),
+		      (void *)(void *)&cd_set_state_timeout, cd);
+
+	if(send_status_enquiry)
+	{
+	    /* need to check status regularly */
+	    dss1_l3_tx_status_enquiry(cd);
+	}
   }
 
   NDBGL3(L3_MSG, "cdid=%d, [%s]",
 	 cd->cdid, L3_STATES_DESC[newstate]);
 
-  if((newstate == ST_L3_UA_TO) ||
-     (newstate == ST_L3_U3_TO) ||
-     (newstate == ST_L3_U4_TO) ||
-     (newstate == ST_L3_U7_TO))
-  {
-	/* need to check status regularly */
-	dss1_l3_tx_status_enquiry(cd);
-  }
   return;
 }
 
@@ -329,7 +352,6 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  break;
 
 	case EV_L3_STATUS:
-#define STATUS_ENQUIRY_TIMEOUT 8 /* timeouts */
 
 	  if((state == ST_L3_U3_TO) ||
 	     (state == ST_L3_U4_TO) ||
@@ -362,7 +384,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	case EV_L3_SETUPRQ:
 	  if(state == ST_L3_OUTGOING)
 	  {
-	    if(TE_MODE(sc) || IS_PRIMARY_RATE(sc))
+	    if(TE_MODE(sc) || IS_POINT_TO_POINT(sc))
 	    {
 	      dss1_l3_tx_setup(cd);
 	    }
@@ -378,7 +400,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 
 	case EV_L3_INFORQ:
 	  if(TE_MODE(sc) || 
-	     IS_PRIMARY_RATE(sc) ||
+	     IS_POINT_TO_POINT(sc) ||
 	     (state == ST_L3_UA) ||
 	     (state == ST_L3_UA_TO))
 	  {
@@ -503,8 +525,10 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		  {
 			DSS1_TCP_pipe_t *p1;
 			DSS1_TCP_pipe_t *p2;
+			__typeof(cd->cause_out) cause;
 
 			p1 = cd->pipe;
+			cause = cd->cause_out;
 
 			PIPE_FOREACH(p2,&sc->sc_pipe[0])
 			{
@@ -516,14 +540,23 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 			     (p2->state != ST_L2_PAUSE))
 			  {
 			    cd->pipe = p2;
+			    cd->cause_out = CAUSE_Q850_NONSELUC;
+
+			    /* NOTE: some ISDN phones require
+			     * the "cause" information element
+			     * when sending RELEASE_COMPLETE
+			     */
 
 			    /* send RELEASE_COMPLETE */
-			    dss1_l3_tx_release_complete(cd,0);
+			    dss1_l3_tx_release_complete(cd,1);
 			  }
 			}
 
 			/* restore pipe pointer */
 			cd->pipe = p1;
+
+			/* restore cause out */
+			cd->cause_out = cause;
 		  }
 
 		  /* set pipe before state and tx */
@@ -665,6 +698,14 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	     dss1_l3_tx_alert(cd);
 
 	     cd_set_state(cd,ST_L3_U7);
+	  }
+	  break;
+
+	case EV_L3_PROGRESSRQ: /* local-CMD */
+	  if((state > ST_L3_INCOMING) &&
+	     (state < ST_L3_UA))
+	  {
+	     dss1_l3_tx_progress(cd);
 	  }
 	  break;
 

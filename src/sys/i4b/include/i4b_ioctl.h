@@ -98,12 +98,13 @@ enum { macro(_MAKE_ENUM) end }	\
 #define L1_TYPES_DEFAULT_DRIVER_TYPE(enum,value,desc,default_driver_type) default_driver_type
 #define L1_TYPES_DEFAULT_DRIVER_DESC(enum,value,desc,default_driver_type) desc
 #define L1_TYPES(m)\
-m(L1_TYPE_UNKNOWN  ,,"unknown"                   , DRVR_DUMMY      )\
-m(L1_TYPE_PASSIVE  ,,"passive ISDN"              , DRVR_DSS1_TE    )\
-m(L1_TYPE_DAIC     ,,"Diehl active"              , DRVR_DIEHL_TE   )\
-m(L1_TYPE_TINADD   ,,"Stollmann Tina-dd active"  , DRVR_TINA_DD_TE )\
-m(L1_TYPE_AVMB1    ,,"AVM B1 active"             , DRVR_AMV_B1_TE  )\
-m(L1_TYPE_CAPI     ,,"CAPI"                      , DRVR_CAPI_TE    )\
+m(L1_TYPE_UNKNOWN  ,,"unknown"                          , DRVR_DUMMY         )\
+m(L1_TYPE_ISDN_BRI ,,"passive ISDN (Basic Rate, 2xB)"   , DRVR_DSS1_TE       )\
+m(L1_TYPE_DAIC     ,,"Diehl active"                     , DRVR_DIEHL_TE      )\
+m(L1_TYPE_TINADD   ,,"Stollmann Tina-dd active"         , DRVR_TINA_DD_TE    )\
+m(L1_TYPE_AVMB1    ,,"AVM B1 active"                    , DRVR_AMV_B1_TE     )\
+m(L1_TYPE_CAPI     ,,"active CAPI 2.0"                  , DRVR_CAPI_TE       )\
+m(L1_TYPE_ISDN_PRI ,,"passive ISDN (Primary Rate, 30xB)", DRVR_DSS1_P2P_TE   )\
 /**/
 
 MAKE_ENUM(L1_TYPES,
@@ -143,6 +144,8 @@ MAKE_ENUM(L1_TYPES,
 #define I4B_DRIVERS_RESPONSE_TO_USER(enum,value,setup_ft,response_to_user,desc,dev) response_to_user
 #define I4B_DRIVERS_SETUP_FT(        enum,value,setup_ft,response_to_user,desc,dev) setup_ft
 #define I4B_DRIVERS_NAME(            enum,value,setup_ft,response_to_user,desc,dev) #enum
+#define I4B_DRIVERS_LLIST(           enum,value,setup_ft,response_to_user,desc,dev) { #enum, enum },
+#define I4B_DRIVERS_LONG_DESC(       enum,value,setup_ft,response_to_user,desc,dev) #enum ": <" desc ">\n\n"
 #define I4B_DRIVERS(m)				\
 	I4B_B_DRIVERS(m)			\
 	I4B_D_DRIVERS(m)			\
@@ -173,14 +176,14 @@ m(DRVR_CAPI_B3    ,,capi_setup_ft      ,capi_response_to_user,\
 
 #define I4B_D_DRIVERS(m) \
 m(DRVR_DSS1_TE    ,,dss1_setup_ft      ,NULL,\
-  "the DSS1 or so-called ``euro-ISDN'' "\
-  "terminal-driver according to ITU "\
-  "Recommendations Q.921 and Q.931"\
+  "This is the terminal side, point to multipoint driver, "\
+  "for the DSS1 or 'euro-ISDN' protocol. This driver "\
+  "supports ITU Recommendations Q.921 and Q.931."\
   ""						,null)\
 m(DRVR_DSS1_NT    ,,dss1_setup_ft      ,NULL,\
-  "the DSS1 or so-called ``euro-ISDN'' "\
-  "network-driver according to ITU "\
-  "Recommendations Q.921 and Q.931"\
+  "This is the network side, multipoint to point driver, "\
+  "for the DSS1 or 'euro-ISDN' protocol. This driver "\
+  "supports ITU Recommendations Q.921 and Q.931."\
   ""						,null)\
 m(DRVR_CAPI_TE    ,,capi_setup_ft      ,NULL,\
   ""						,null)\
@@ -191,16 +194,23 @@ m(DRVR_TINA_DD_TE ,,tina_dd_setup_ft   ,NULL,\
 m(DRVR_AMV_B1_TE  ,,amv_b1_setup_ft    ,NULL,\
   ""						,null)\
 \
-/* virtual drivers */\
 m(DRVR_D_CHANNEL  ,,NULL               ,NULL,\
-  "default D-channel-driver "\
-  "selection"\
+  "This driver selects the default D-channel driver." \
   ""						,null)\
 m(DRVR_D64S       ,,NULL               ,NULL,\
- "ISDN leased line driver with a "\
- "single B-channel"\
-  ""						,null)\
+ "This driver can be used on single B-channel leased lines."\
+ ""						,null)\
 m(DRVR_DUMMY      ,,NULL               ,NULL,\
+  ""						,null)\
+m(DRVR_DSS1_P2P_TE,,dss1_setup_ft      ,NULL,\
+  "This is the terminal side, point to point driver, "\
+  "for the DSS1 or 'euro-ISDN' protocol. This driver "\
+  "supports ITU Recommendations Q.921 and Q.931."\
+  ""						,null)\
+m(DRVR_DSS1_P2P_NT,,dss1_setup_ft      ,NULL,\
+  "This is the network side, point to point driver, "\
+  "for the DSS1 or 'euro-ISDN' protocol. This driver "\
+  "supports ITU Recommendations Q.921 and Q.931."\
   ""						,null)\
 /**/
 

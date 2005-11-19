@@ -36,6 +36,7 @@
 .Op Fl i Ar value
 .Op Fl p Ar protocol
 .Op Fl E Ar enum
+.Op Fl h
 .Sh DESCRIPTION
 .Bd -filled
 The
@@ -56,6 +57,8 @@ specified, the software will select some value.
 Set D-channel protocol. Default is DRVR_D_CHANNEL.
 .It Fl E
 Get value of enum.
+.It Fl h
+Display supported options and protocols.
 .El
 .Ed
 .Sh EXAMPLES
@@ -64,7 +67,8 @@ The command:
 isdnconfig -u 0 -p DRVR_DSS1_NT
 .Ed
 .Pp
-selects DSS1 NT mode for passive ISDN controller 0.
+selects NT mode and the DSS1 multipoint to point driver, for passive
+ISDN controller 0.
 .Sh AUTHORS
 The
 .Nm

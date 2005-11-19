@@ -267,10 +267,6 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *parm)
   return error;
 }
 
-#if defined (__FreeBSD__) && __FreeBSD__ < 5
-u_int16_t mtx_level = 0;
-#endif
-
 /*---------------------------------------------------------------------------*
  *	telephony silence detection
  *

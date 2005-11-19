@@ -241,9 +241,21 @@
 .Bl -tag 
 \&
 .It Ar DRVR_DSS1_TE
-\&the DSS1 or so-called ``euro-ISDN'' terminal-driver according to ITU Recommendations Q.921 and Q.931
+This is a point to multipoint terminal side driver
+for the DSS1 or 'euro-ISDN' protocol. This driver
+supports ITU Recommendations Q.921 and Q.931.
 .It Ar DRVR_DSS1_NT
-\&the DSS1 or so-called ``euro-ISDN'' network-driver according to ITU Recommendations Q.921 and Q.931
+This is a multipoint to point network side driver
+for the DSS1 or 'euro-ISDN' protocol. This driver
+supports ITU Recommendations Q.921 and Q.931.
+.It Ar DRVR_DSS1_P2P_TE
+This is a point to point terminal side driver
+for the DSS1 or 'euro-ISDN' protocol. This driver
+supports ITU Recommendations Q.921 and Q.931.
+.It Ar DRVR_DSS1_P2P_NT
+This is a point to point network side driver
+for the DSS1 or 'euro-ISDN' protocol. This driver
+supports ITU Recommendations Q.921 and Q.931.
 .It Ar DRVR_CAPI_TE
 \&
 .It Ar DRVR_DIEHL_TE
@@ -253,9 +265,9 @@
 .It Ar DRVR_AMV_B1_TE
 \&
 .It Ar DRVR_D_CHANNEL
-\&default D-channel-driver selection
+This driver selects the default D-channel driver.
 .It Ar DRVR_D64S
-\&ISDN leased line driver with a single B-channel
+This driver can be used on single B-channel leased lines.
 .It Ar DRVR_DUMMY
 \&
 .El

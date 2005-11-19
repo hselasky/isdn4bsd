@@ -50,8 +50,6 @@
 #include <i4b/include/i4b_ioctl.h>
 
 #define I4B_DEVICE            "/dev/i4b"
-#define MACRO_0(enum,args...) { #enum, enum },
-#define MACRO_1(enum,args...) #enum ", "
 
 static int isdnfd;
 static msg_prot_ind_t mpi = { /* zero */ };
@@ -65,10 +63,9 @@ static const struct enum_desc
     const u_int8_t * const name;
     u_int16_t value;
 }
-	enum_list[] =
+    enum_list[] =
 {
-    I4B_D_DRIVERS(MACRO_0)
-    { NULL, 0 }
+    I4B_D_DRIVERS(I4B_DRIVERS_LLIST) { NULL, 0 }
 };
 
 static int
@@ -104,7 +101,7 @@ usage(void)
        "\n	-E enum         get value of enum"
        "\n"
        "\nenums: "
-       I4B_D_DRIVERS(MACRO_1)
+       "\n" I4B_D_DRIVERS(I4B_DRIVERS_LONG_DESC)
        "\n",
        I4B_VERSION, I4B_REL, I4B_STEP, __DATE__, __TIME__);
 
@@ -181,7 +178,7 @@ main(int argc, char **argv)
 	}
     }
 
-    while((c = getopt(argc, argv, "u:E:p:")) != -1)
+    while((c = getopt(argc, argv, "hu:E:p:")) != -1)
     {
         switch(c) {
 	case 'u':

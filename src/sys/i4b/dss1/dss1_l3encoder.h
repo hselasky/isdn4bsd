@@ -221,7 +221,10 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	   ptr   = make_callreference(cd->pipe,cd->cr,ptr);
 	  *ptr++ = SETUP;		/* message type = setup */
 
-	  *ptr++ = IEI_SENDCOMPL;	/* sending complete */  
+	  if(cd->dst_telno[0])
+	  {
+	      *ptr++ = IEI_SENDCOMPL;	/* sending complete */
+	  }
 
 	  *ptr++ = IEI_BEARERCAP;	/* bearer capability */
 
@@ -469,20 +472,28 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	dss1_l3_tx_message(cd,STATUS_ENQUIRY,	\
 			   L3_TX_HEADER)
 
+#define dss1_l3_tx_progress(cd)		\
+	dss1_l3_tx_message(cd,PROGRESS,	\
+			   L3_TX_HEADER|L3_TX_PROGRESSI)
+
 #define L3_TX_HEADER     0x00
 #define L3_TX_CAUSE      0x01
 #define L3_TX_CALLSTATE  0x02
 #define L3_TX_CHANNELID  0x04
 #define L3_TX_CALLEDPN   0x08
+#define L3_TX_PROGRESSI  0x10
 /*---------------------------------------------------------------------------*
  *	send message
  *---------------------------------------------------------------------------*/
 static void
 dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 {
-	size_t len;
+	DSS1_TCP_pipe_t *pipe = cd->pipe;
+	l2softc_t *sc = pipe->L5_sc;
 	struct mbuf *m;
-	u_int8_t *ptr, *str;
+	u_int8_t *ptr;
+	u_int8_t *str;
+	size_t len;
 
 	NDBGL3(L3_PRIM, "cdid=%d, cr=%d, cause=0x%02x, "
 	       "state=0x%x, channel_id=0x%x",
@@ -499,11 +510,19 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 	   ptr   = make_callreference(cd->pipe,cd->cr,ptr);
 	  *ptr++ = message_type;          /* message type */
 
+	  if(flag & L3_TX_PROGRESSI)
+	  {
+	    *ptr++ = IEI_PROGRESSI;
+	    *ptr++ = 2; /* bytes */
+	    *ptr++ = NT_MODE(sc) ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
+	    *ptr++ = 0x88; /* in-band info available */
+	  }
+
 	  if(flag & L3_TX_CAUSE)
 	  {
 	    *ptr++ = IEI_CAUSE;                      /* cause ie */
 	    *ptr++ = IEI_CAUSE_LEN;
-	    *ptr++ = CAUSE_STD_LOC_OUT;
+	    *ptr++ = NT_MODE(sc) ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
 	    *ptr++ = i4b_make_q850_cause(cd->cause_out)|EXT_LAST;
 	  }
 
@@ -543,6 +562,8 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 	  /* check length */
 #if (I_HEADER_LEN   +\
     3               +\
+    4               +\
+                \
     4               +\
                 \
     4               +\

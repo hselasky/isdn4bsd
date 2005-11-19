@@ -1140,6 +1140,7 @@ I4B_DBASE(hfce1_dbase_root)
 
   I4B_DBASE_ADD(d_register_list      , &hfce1_register_list[0]);
   I4B_DBASE_ADD(d_channels           , 62);
+  I4B_DBASE_ADD(d_L1_type            , L1_TYPE_ISDN_PRI);
 
   /* delay 25 milliseconds */ 
   I4B_DBASE_ADD(d_interrupt_delay    , hz / 40);

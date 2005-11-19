@@ -1009,6 +1009,12 @@ ihfc_pnp_probe(device_t dev)
 		IHFC_MSG("this system has %d transmit and receive channels",
 			 sc->sc_default.d_channels);
 
+		if(sc->sc_default.d_L1_type == 0)
+		{
+		    /* set default */
+		    sc->sc_default.d_L1_type = L1_TYPE_ISDN_BRI;
+		}
+
 #if (IHFC_CHANNELS < 6)
 #error "please update code, (IHFC_CHANNELS < 6)"
 #endif
@@ -1087,14 +1093,6 @@ ihfc_pnp_probe(device_t dev)
 		  goto err;
 		}
 
-		/*
-		 * Setup interrupt
-		 */
-		if(ihfc_post_setup(sc, dev, &error[0]))
-		{
-		  goto err;
-		}
-
 		return 0; /* success */
 	    }
 	  }
@@ -1116,6 +1114,14 @@ ihfc_pnp_attach(device_t dev)
 
 	/* */
 	error[0] = 0;
+
+	/*
+	 * Setup interrupt
+	 */
+	if(ihfc_post_setup(sc, dev, &error[0]))
+	{
+	  return ihfc_unsetup(dev, &error[0], 0);
+	}
 
 	/* NOTE: ihfc_setup_i4b will generate
 	 * a new sc->sc_name that matches the

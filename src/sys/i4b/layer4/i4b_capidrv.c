@@ -1779,24 +1779,47 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(INFO): /* ============================== */
 
+	      CAPI_INIT(CAPI_INFO_REQ, &info_req);
+
+	      capi_decode(&msg.data, msg.head.wLen, &info_req);
+
+	      CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
+
+	      capi_decode(info_req.add_info.ptr,
+			  info_req.add_info.len, &add_info);
+
 	      if(cd->dir_incoming)
 	      {
-		  m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x2001);
+		  if(add_info.facility.len > 0)
+		  {
+		      /* 
+		       * TODO: decode more of these messages 
+		       */
+
+		      /* check for progress request */
+		      if(((u_int8_t *)(add_info.facility.ptr))[0] == 0x1e)
+		      {
+			  m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x0000);
+			  if(m2)
+			  {
+			      N_PROGRESS_REQUEST(cd);
+			  }
+		      }
+		      else
+		      {
+			  m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x300B);
+		      }
+		  }
+		  else
+		  {
+		      m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x2001);
+		  }
 	      }
 	      else
 	      {
 		  m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x0000);
 		  if(m2)
 		  {
-		      CAPI_INIT(CAPI_INFO_REQ, &info_req);
-
-		      capi_decode(&msg.data, msg.head.wLen, &info_req);
-
-		      CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
-
-		      capi_decode(info_req.add_info.ptr,
-				  info_req.add_info.len, &add_info);
-
 		      if(info_req.dst_telno.len > 0)
 		      {
 			  /* skip number plan byte */
