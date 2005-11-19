@@ -149,6 +149,7 @@ int
 main(int argc, char **argv)
 {
     register int c;
+    msg_vr_req_t mvr;
 
     if(argc <= 1)
     {
@@ -158,6 +159,26 @@ main(int argc, char **argv)
     if((isdnfd = open(I4B_DEVICE, O_RDWR)) < 0)
     {
         err(1, "cannot open \"%s\"!", I4B_DEVICE);
+    }
+
+    /* check I4B kernel version */
+        
+    if(ioctl(isdnfd, I4B_VR_REQ, &mvr) < 0)
+    {
+        warn("Could not get I4B version from kernel! "
+	     "This program might have to be recompiled.");
+    }
+    else
+    {
+        if((mvr.version != I4B_VERSION) ||
+	   (mvr.release != I4B_REL) ||
+	   (mvr.step != I4B_STEP))
+	{
+	    warn("Version mismatch: kernel:%d.%d.%d != software:%d.%d.%d. "
+		 "This program might have to be recompiled.",
+		 mvr.version, mvr.release, mvr.step, 
+		 I4B_VERSION, I4B_REL, I4B_STEP);
+	}
     }
 
     while((c = getopt(argc, argv, "u:E:p:")) != -1)
