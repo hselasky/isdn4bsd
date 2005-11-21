@@ -39,7 +39,7 @@
  *---------------------------------------------------------------------------*/
 #define I4B_VERSION    1                /* version number */
 #define I4B_REL        5                /* release number */
-#define I4B_STEP       6                /* release step   */
+#define I4B_STEP       7                /* release step   */
 
 /*---------------------------------------------------------------------------*
  * date/time format in i4b log messages
@@ -892,6 +892,8 @@ typedef struct {
 typedef struct {
 	cdid_t		cdid;		/* call descriptor id */
 	u_char		activate;       /* set if connect else disconnect */
+	int		driver;		/* driver to route B-channel data to */
+	int		driver_unit;	/* unit number for above driver */
 } msg_link_b_channel_driver_req_t;
 
 #define I4B_LINK_B_CHANNEL_DRIVER_REQ _IOW('4',12, msg_link_b_channel_driver_req_t)

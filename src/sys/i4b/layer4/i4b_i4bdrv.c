@@ -975,10 +975,10 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 			     * to all other application interfaces
 			     */
 			    i4b_l4_disconnect_ind(cd,1);
-			}
 
-			cd->driver_type = mcrsp->driver;
-			cd->driver_unit = mcrsp->driver_unit;
+			    cd->driver_type = mcrsp->driver;
+			    cd->driver_unit = mcrsp->driver_unit;
+			}
 
 			cd->shorthold_data.shorthold_algorithm = SHA_FIXU;
 			cd->shorthold_data.unitlen_time = 0;
@@ -1006,6 +1006,9 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 			     * to all other application interfaces
 			     */
 			    i4b_l4_disconnect_ind(cd,1);
+
+			    cd->driver_type = mlr->driver;
+			    cd->driver_unit = mlr->driver_unit;
 			}
 
 			if(i4b_link_bchandrvr(cd,mlr->activate))

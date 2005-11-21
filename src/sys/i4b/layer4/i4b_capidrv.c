@@ -1730,6 +1730,9 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		   * to all other application interfaces
 		   */
 		  i4b_l4_disconnect_ind(cd,1);
+
+		  cd->driver_type = DRVR_CAPI_B3;
+		  cd->driver_unit = 0;
 	      }
 
 	      /* update CID value first */
@@ -2014,10 +2017,10 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		   * to all other application interfaces
 		   */
 		  i4b_l4_disconnect_ind(cd,1);
-	      }
 
-	      cd->driver_type = DRVR_CAPI_B3;
-	      cd->driver_unit = 0;
+		  cd->driver_type = DRVR_CAPI_B3;
+		  cd->driver_unit = 0;
+	      }
 
 	      cd->shorthold_data.shorthold_algorithm = SHA_FIXU;
 	      cd->shorthold_data.unitlen_time = 0;
