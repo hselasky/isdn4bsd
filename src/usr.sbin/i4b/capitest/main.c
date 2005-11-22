@@ -1111,7 +1111,7 @@ main(int argc, char **argv)
     }
 
     /* register at CAPI, only two connections will be established */
-    error = capi20_register (2, 7, MAX_BDATA_LEN, &temp);
+    error = capi20_register (2, 7, MAX_BDATA_LEN, &temp, CAPI_STACK_VERSION);
     if(error)
     {
         fprintf(stderr, "%s: %s: could not register by CAPI, error=%s\n",
