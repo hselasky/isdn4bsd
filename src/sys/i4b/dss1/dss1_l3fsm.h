@@ -165,7 +165,8 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
 
   if(newstate == ST_L3_U0)
   {
-	if((cd->state == ST_L3_UA_TO) ||
+	if((cd->state == ST_L3_UC_TO) ||
+	   (cd->state == ST_L3_UA_TO) ||
 	   (cd->state == ST_L3_U3_TO) ||
 	   (cd->state == ST_L3_U4_TO) ||
 	   (cd->state == ST_L3_U7_TO))
@@ -244,7 +245,8 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
   else
   {
 	send_status_enquiry = 
-	  ((newstate == ST_L3_UA_TO) ||
+	  ((newstate == ST_L3_UC_TO) ||
+	   (newstate == ST_L3_UA_TO) ||
 	   (newstate == ST_L3_U3_TO) ||
 	   (newstate == ST_L3_U4_TO) ||
 	   (newstate == ST_L3_U7_TO));
@@ -341,6 +343,15 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  cd_set_state(cd,ST_L3_U0);
 	  break;
 
+	case EV_L3_DISCONNECT:
+	  if((cd->state != ST_L3_UC) &&
+	     (cd->state != ST_L3_UC_TO))
+	  {
+	      i4b_l4_pre_disconnect_ind(cd);
+	      cd_set_state(cd,ST_L3_UC);
+	  }
+	  break;
+
 	case EV_L3_RELEASE:
 	  /**/
 	  cd_set_state(cd,ST_L3_U0);
@@ -369,12 +380,10 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	      }
 	  }
 
-	  if(state == ST_L3_UA_TO)
+	  if(((state == ST_L3_UA_TO) && (cd->call_state == 0xA)) ||
+	     ((state == ST_L3_UC_TO) && ((cd->call_state == 0xB) ||  (cd->call_state == 0xC))))
 	  {
-	      if(cd->call_state == 0xA)
-	      {
-		cd_set_state(cd, state -1);
-	      }
+	      cd_set_state(cd, state -1);
 	  }
 	  break;
 
@@ -384,7 +393,8 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	case EV_L3_SETUPRQ:
 	  if(state == ST_L3_OUTGOING)
 	  {
-	    if(TE_MODE(sc) || IS_POINT_TO_POINT(sc))
+	    if(TE_MODE(sc) || 
+	       IS_POINT_TO_POINT(sc))
 	    {
 	      dss1_l3_tx_setup(cd);
 	    }
@@ -591,11 +601,13 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	     * number !
 	     */
 
-	    if(NT_MODE(sc))
+	    if(NT_MODE(sc) || 
+	       IS_POINT_TO_POINT(sc))
 	    {
 	        /* some terminals require a
 		 * RELEASE COMPLETE response before
-		 * CONNECT is sent
+		 * CONNECT is sent, in case of
+		 * failure
 		 */
 	        cd->need_release = 1;
 	    }

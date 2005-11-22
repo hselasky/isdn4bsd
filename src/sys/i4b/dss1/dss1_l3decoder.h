@@ -738,6 +738,12 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 		}
 	}
 
+	if((event == EV_L3_DISCONNECT) && (cd->want_late_inband == 0))
+	{
+	    /* hangup immediately */
+	    event = EV_L3_RELEASE;
+	}
+
 	if(event == EV_L3_CONNECT)
 	{
 	    cd->datetime[0] = '\0';
@@ -769,13 +775,21 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 		       &dss1_decode_q931_cs0_ie_cd);
 
 	if(NT_MODE(sc) &&
-	   (!IS_POINT_TO_POINT(sc)) &&
-	   (event == EV_L3_RELEASE) &&
-	   (cd->cause_in != CAUSE_Q850_CALLREJ) &&
-	   (cd->pipe == (void *)&(sc->sc_pipe[0])))
+	   (!IS_POINT_TO_POINT(sc)))
 	{
-	    /* just ignore it */
-	    goto done;
+	    if((event == EV_L3_RELEASE) &&
+	       (cd->cause_in != CAUSE_Q850_CALLREJ) &&
+	       (cd->pipe == (void *)&(sc->sc_pipe[0])))
+	    {
+	        /* just ignore it */
+	        goto done;
+	    }
+
+	    if(event == EV_L3_DISCONNECT)
+	    {
+	        /* just ignore it */
+	        goto done;
+	    }
 	}
 
 	cd_update(cd, pipe, event);

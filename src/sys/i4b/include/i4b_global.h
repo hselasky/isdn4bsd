@@ -429,7 +429,10 @@ typedef struct call_desc
 	u_char	channel_allocated : 1;
 	u_char	dir_incoming : 1;	/* outgoing or incoming call	*/
 	u_char	need_release : 1;	/* need release */
-	u_char	peer_responded : 1; 	/* got a message from the other end */
+	u_char	peer_responded : 1;	/* got a message from the other end */
+	u_char  want_late_inband : 1;	/* user wants inband information
+					 * after the disconnect signal
+					 */
 
 	struct	callout	idle_callout;
 	struct	callout	set_state_callout;

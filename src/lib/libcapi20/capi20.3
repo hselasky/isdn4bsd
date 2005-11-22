@@ -67,6 +67,7 @@ CAPI 2.0 Access Library (libcapi20, -lcapi20)
 .Fa "u_int32_t max_b_data_blocks"
 .Fa "u_int32_t max_b_data_len"
 .Fa "u_int32_t *app_id_ptr"
+.Fa "u_int32_t capi_stack_version"
 .Fc
 .
 .
@@ -159,6 +160,17 @@ other operating systems. There are only minor differences.
 will create a new CAPI application ID. It returns zero on success. The
 application ID is stored in the 32-bit unusigned integer pointed to by
 .Fa app_id_ptr .
+The parameter
+.Fa capi_stack_version
+should be equal to the macro 'CAPI_STACK_VERSION' defined in 
+.Pa capi20.h .
+It's purpose is to detect CAPI 2.0 API changes, which require software
+re-compile.
+.Nm libcapi20
+will compare the stack version with its internal compiled value and
+then against the kernel. If not all are equal,
+.Fn capi20_register
+will return an 'unsupported version' error.
 .
 .
 .

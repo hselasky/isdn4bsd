@@ -313,7 +313,8 @@ u_int16_t
 capi20_register(u_int32_t max_logical_connections,
 		u_int32_t max_b_data_blocks,
 		u_int32_t max_b_data_len,
-		u_int32_t *app_id_ptr)
+		u_int32_t *app_id_ptr,
+		u_int32_t stack_version)
 {
 	struct app_softc *sc;
 	struct data_buffer *mp;
@@ -323,6 +324,11 @@ capi20_register(u_int32_t max_logical_connections,
 	if(app_id_ptr == NULL)
 	{
 	    return CAPI_ERROR_INVALID_PARAM;
+	}
+
+	if(stack_version != CAPI_STACK_VERSION)
+	{
+	   return CAPI_ERROR_UNSUPPORTED_VERSION;
 	}
 
 	sc = alloc_app();
@@ -338,6 +344,18 @@ capi20_register(u_int32_t max_logical_connections,
 	    free_app(sc);
 	    app_id_ptr[0] = -1;
 	    return CAPI_ERROR_CAPI_NOT_INSTALLED;
+	}
+
+	/* set stack version first */
+	if(ioctl(sc->sc_fd, CAPI_SET_STACK_VERSION_REQ, &stack_version) < 0)
+	{
+	   /* an error here typically means that the
+	    * header files and this library must be 
+	    * re-compiled and re-installed
+	    */
+	    free_app(sc);
+	    app_id_ptr[0] = -1;
+	    return CAPI_ERROR_UNSUPPORTED_VERSION;
 	}
 
 	/* set non-blocking operation */

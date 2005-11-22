@@ -62,7 +62,7 @@ extern "C" {
 
 /* global defines */
 
-#define CAPI_STACK_VERSION     204
+#define CAPI_STACK_VERSION     205
 #define CAPI_APPLICATION_MAX   0x80 /* units */
 #define CAPI_DEVICE_NAME       "/dev/capi20"
 #define CAPI_SHLIB_BASENAME    "libcapi20.so"
@@ -603,6 +603,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, STRUCT, LLC,)\
   m(n, STRUCT, HLC,)\
   m(n, STRUCT, add_info, ADDITIONAL_INFO)\
+  m(n, BYTE,   bFlag_0,) /* BSD specific */\
   END
 
 #define CAPI_CONNECT_CONF(m,n) \
@@ -667,6 +668,9 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
 #define CAPI_CIP_7kHz_TELEPHONY                 26
 #define CAPI_CIP_VIDEO_TELEPHONY_1ST            27
 #define CAPI_CIP_VIDEO_TELEPHONY_2ND            28
+
+/* definition of "bFlag_0": */
+#define CAPI_FLAG0_WANT_LATE_INBAND   0x01
 
 /* ================================================ */
 
@@ -1633,6 +1637,8 @@ struct capi_get_profile_req
 
 #define CAPI_GET_PROFILE_REQ _IOWR('C', 7, struct capi_get_profile_req)
 
+#define CAPI_SET_STACK_VERSION_REQ _IOW('C', 8, u_int32_t)
+
 #endif
 
 /*---------------------------------------------------------------------------*
@@ -1647,7 +1653,8 @@ extern u_int16_t
 capi20_register(u_int32_t max_logical_connections,
 		u_int32_t max_b_data_blocks,
 		u_int32_t max_b_data_len,
-		u_int32_t *app_id_ptr);
+		u_int32_t *app_id_ptr,
+		u_int32_t stack_version);
 
 extern u_int16_t
 capi20_release(u_int32_t app_id);
@@ -2285,6 +2292,7 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 #define CONNECT_REQ_USERUSERDATA(x) ((x)->ADDITIONAL_INFO.useruser.ppbyte[0])
 #define CONNECT_REQ_FACILITYDATAARRAY(x) ((x)->ADDITIONAL_INFO.facility.ppbyte[0])
 #define CONNECT_REQ_SENDINGCOMPLETE(x) ((x)->ADDITIONAL_INFO.sending_complete.ppbyte[0])
+#define CONNECT_REQ_FLAG0(x) ((x)->data.CONNECT_REQ.bFlag_0)
 #define CONNECT_CONF_INFO(x) ((x)->data.CONNECT_CONF.wInfo)
 #define CONNECT_IND_CIPVALUE(x) ((x)->data.CONNECT_IND.wCIP)
 #define CONNECT_IND_CALLEDPARTYNUMBER(x) ((x)->data.CONNECT_IND.dst_telno.ppbyte[0])

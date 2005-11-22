@@ -1612,6 +1612,11 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		  }
 	      }
 
+	      if(connect_req.bFlag_0 & CAPI_FLAG0_WANT_LATE_INBAND)
+	      {
+		      cd->want_late_inband = 1;
+	      }
+
 	      if(cd->channel_allocated == 0)
 	      {
 		      cd->channel_id = CHAN_ANY;
@@ -2404,6 +2409,17 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 	case CAPI_IOCTL_TEST_REQ:
 	{
 		/* do nothing */
+		break;
+	}
+
+	case CAPI_SET_STACK_VERSION_REQ:
+	{
+		u_int32_t *stack_version = (void *)data;
+
+		if(stack_version[0] != CAPI_STACK_VERSION)
+		{
+		    error = EINVAL;
+		}
 		break;
 	}
 

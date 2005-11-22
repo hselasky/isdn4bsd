@@ -86,6 +86,9 @@ m( ST_L3_U8       ,, 4/*hz*/, ST_L3_U0    , "Incoming connecting"   , 0x08  )	\
 										\
 m( ST_L3_UA       ,, 8/*hz*/, ST_L3_UA_TO , "Active"                , 0x0A  )	\
 m( ST_L3_UA_TO    ,, 4/*hz*/, ST_L3_U0    , "Active"                , 0x0A  )	\
+										\
+m( ST_L3_UC       ,, 8/*hz*/, ST_L3_UC_TO , "Disconnected"          , 0x0C  )	\
+m( ST_L3_UC_TO    ,, 4/*hz*/, ST_L3_U0    , "Disconnected"          , 0x0C  )	\
 /**/
 
 /*---------------------------------------------------------------------------*
@@ -136,6 +139,7 @@ m( EV_L3_FACILITY    ,, "received FACILITY")\
 m( EV_L3_RESTART_IND ,, "received RESTART INDICATION")\
 m( EV_L3_RESTART_ACK ,, "received RESTART ACKNOWLEDGE")\
 m( EV_L3_INFORQ      ,, "L4 INFORMATION REQUEST")\
+m( EV_L3_DISCONNECT  ,, "received DISCONNECT INDICATION")\
 /**/
 
 #define L3_EVENTS_LOCAL_OUTGOING(m)\
@@ -328,7 +332,7 @@ m(RETRIEVE_REJECT         ,=0x37, EV_L3_ILL	)\
 /* call clearing */\
 \
 m(DETACH                  ,=0x40, EV_L3_ILL     )\
-m(DISCONNECT              ,=0x45, EV_L3_RELEASE	)\
+m(DISCONNECT              ,=0x45, EV_L3_DISCONNECT )\
 m(RESTART                 ,=0x46, EV_L3_RESTART_IND )\
 m(DETACH_ACKNOWLEDGE      ,=0x48, EV_L3_ILL	)\
 m(RELEASE                 ,=0x4d, EV_L3_RELEASE	)\

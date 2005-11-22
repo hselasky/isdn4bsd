@@ -950,6 +950,39 @@ i4b_l4_connect_active_ind(call_desc_t *cd)
 }
 
 /*---------------------------------------------------------------------------*
+ *	send MSG_PRE_DISCONNECT_IND message to userland
+ *
+ * This message is used when the charging has ended, and there
+ * is inband signalling available.
+ *---------------------------------------------------------------------------*/
+void
+i4b_l4_pre_disconnect_ind(call_desc_t *cd)
+{
+	struct mbuf *m;
+
+	if((cd->ai_type == I4B_AI_I4B) || 
+	   (cd->ai_type == I4B_AI_BROADCAST))
+	{
+	    if((m = i4b_getmbuf(sizeof(msg_disconnect_ind_t), M_NOWAIT)) != NULL)
+	    {
+		msg_pre_disconnect_ind_t *mp = (void *)m->m_data;
+
+		mp->header.type = MSG_PRE_DISCONNECT_IND;
+		mp->header.cdid = cd->cdid;
+		mp->cause = cd->cause_in;
+
+		i4b_ai_putqueue(cd->ai_ptr,0,m);
+	    }
+	}
+	if((cd->ai_type == I4B_AI_CAPI) || 
+	   (cd->ai_type == I4B_AI_BROADCAST))
+	{
+	    capi_ai_info_ind(cd, 0, 0x8045 /* DISCONNECT */, NULL, 0);
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
  *	send MSG_DISCONNECT_IND message to userland
  *---------------------------------------------------------------------------*/
 void
@@ -979,9 +1012,6 @@ i4b_l4_disconnect_ind(call_desc_t *cd, u_int8_t complement)
 	if((cd->ai_type == I4B_AI_CAPI) || 
 	   (cd->ai_type == I4B_AI_BROADCAST) || complement)
 	{
-#if 0
-	    capi_ai_info_ind(cd, complement, 0x8045 /* DISCONNECT */, NULL, 0);
-#endif
 	    capi_ai_info_ind(cd, complement, 0x805a /* RELEASE_COMPLETE */, NULL, 0);
 
 	    if(complement == 0)

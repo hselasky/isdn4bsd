@@ -452,6 +452,7 @@ enum
   MSG_KEYPAD_IND,
   MSG_DRVRREJECT_REQ,
   MSG_INFORMATION_IND,
+  MSG_PRE_DISCONNECT_IND,
 };
 
 /*---------------------------------------------------------------------------*
@@ -513,13 +514,15 @@ typedef struct {
 } msg_connect_active_ind_t;
 
 /*---------------------------------------------------------------------------*
- *	disconnect indication
+ *	disconnect indication or pre-disconnect indication
  *		indicates a disconnect
  *---------------------------------------------------------------------------*/
 typedef struct {
 	msg_hdr_t	header;		/* common header	*/
 	cause_t		cause;		/* cause code		*/
 } msg_disconnect_ind_t;
+
+typedef msg_disconnect_ind_t msg_pre_disconnect_ind_t;
 
 /*---------------------------------------------------------------------------*
  *	negotiation complete
