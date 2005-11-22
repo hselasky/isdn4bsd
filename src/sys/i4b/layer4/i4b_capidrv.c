@@ -2416,7 +2416,8 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 	{
 		u_int32_t *stack_version = (void *)data;
 
-		if(stack_version[0] != CAPI_STACK_VERSION)
+		/* reject invalid stack versions */
+		if(stack_version[0] < 204)
 		{
 		    error = EINVAL;
 		}
