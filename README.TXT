@@ -37,13 +37,18 @@ make
 make install
 
 #
-# load the driver
+# The rest of the install instructions from here
+# and downwards, apply to NetBSD only.
+#
+
+#
+# load the driver (NetBSD only)
 #
 
 modload -o i4b.t /usr/lkm/i4b.o
 
 #
-# mount new /dev
+# mount new /dev (NetBSD only)
 #
 
 rehash
