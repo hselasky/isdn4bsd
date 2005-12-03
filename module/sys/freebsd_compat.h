@@ -133,6 +133,10 @@ extern int pci_enumerate_bus
    int (*)(struct pci_attach_args *), 
    struct pci_attach_args *);
 #   endif
+#   define copy_statfs_info copy_statvfs_info
+#   define set_statfs_info set_statvfs_info
+#   define vfs_statfs vfs_statvfs
+#   define statfs statvfs
 #  endif
 
 # endif
