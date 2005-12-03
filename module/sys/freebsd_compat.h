@@ -122,6 +122,17 @@ typedef u_int64_t  vm_ooffset_t;
 typedef u_int64_t  vm_paddr_t;
 typedef u_int64_t  vm_pindex_t;
 
+#  if (__NetBSD_Version__ >= 300000000)
+#   ifdef PCI_MACHDEP_ENUMERATE_BUS
+#    define pci_enumerate_bus PCI_MACHDEP_ENUMERATE_BUS
+#   else
+extern int pci_enumerate_bus
+  (struct pci_softc *, const int *,
+   int (*)(struct pci_attach_args *), 
+   struct pci_attach_args *);
+#   endif
+#  endif
+
 # endif
 
 # ifndef __used
