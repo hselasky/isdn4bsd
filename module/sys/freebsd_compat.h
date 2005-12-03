@@ -126,6 +126,8 @@ typedef u_int64_t  vm_pindex_t;
 #   ifdef PCI_MACHDEP_ENUMERATE_BUS
 #    define pci_enumerate_bus PCI_MACHDEP_ENUMERATE_BUS
 #   else
+struct pci_softc;
+struct pci_attach_args;
 extern int pci_enumerate_bus
   (struct pci_softc *, const int *,
    int (*)(struct pci_attach_args *), 
