@@ -186,7 +186,9 @@ devfs_unmount(struct mount *mp, int mntflags,
 static int
 devfs_statfs(struct mount *mp, struct statfs *sbp, struct thread *td)
 {
+#if (__NetBSD_Version__ < 300000000)
 	sbp->f_flags = 0;
+#endif
 	sbp->f_bsize = DEV_BSIZE;
 	sbp->f_iosize = DEV_BSIZE;
 	sbp->f_blocks = 2;		/* 1K to keep df happy */
