@@ -225,9 +225,15 @@ devfs_start(struct mount *a, int b, struct proc *c)
 	return 0;
 }
 
+#if (__NetBSD_Version__ < 300000000)
 static int
 devfs_quotactl(struct mount *a, int b, uid_t c, caddr_t d,
 	       struct proc *e)
+#else
+static int
+devfs_quotactl(struct mount *a, int b, uid_t c, void *d,
+	       struct proc *e)
+#endif
 {
 	return ENOTSUP;
 }
