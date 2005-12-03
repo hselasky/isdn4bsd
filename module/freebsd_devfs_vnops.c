@@ -768,8 +768,11 @@ devfs_getattr(struct vop_getattr_args *ap)
 	vap->va_flags = 0;
 	vap->va_nlink = de->de_links;
 	vap->va_fileid = de->de_inode;
+#if (__NetBSD_Version__ >= 300000000)
+	vap->va_fsid = vp->v_mount->mnt_stat.f_fsidx.__fsid_val[0];
+#else
 	vap->va_fsid = vp->v_mount->mnt_stat.f_fsid.val[0];
-
+#endif
 	return 0;
 }
 
