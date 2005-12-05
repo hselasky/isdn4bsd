@@ -405,7 +405,7 @@ typedef struct call_desc
 	
 	u_char	dst_telno[TELNO_MAX];	/* destination number (accumulated) */
 	u_char *dst_telno_ptr;		/* pointer to end of destination number */
-	u_char  dst_telno_part[16];	/* destination number (last part received) */
+	u_char  dst_telno_part[TELNO_MAX]; /* destination number (last part received) */
 
 	u_char	dst_subaddr[SUBADDR_MAX]; /* destination subaddr */
 	u_char	src_telno[TELNO_MAX];	  /* source number */
