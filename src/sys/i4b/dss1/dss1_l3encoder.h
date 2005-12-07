@@ -428,8 +428,11 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	dss1_l3_tx_message(cd,ALERT,		\
 			   L3_TX_HEADER)
 /*
- * NOTE: some PBXs crash if one sends
- * the channel ID back in TE-mode
+ * NOTE: if one sends the channel-ID 
+ * to some PBXs while in TE-mode, and
+ * the call is incoming, the PBX might
+ * reject the message and send an
+ * error to the "up-link"
  */
 #define dss1_l3_tx_setup_acknowledge(cd,send_chan_id)			\
 	dss1_l3_tx_message(cd,SETUP_ACKNOWLEDGE, (send_chan_id) ?	\

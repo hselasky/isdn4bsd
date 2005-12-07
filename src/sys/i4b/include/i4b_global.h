@@ -425,10 +425,9 @@ typedef struct call_desc
 	u_int8_t ai_type; /* application interface type */
 	void *   ai_ptr; /* application interface private pointer */
 
-	u_char  release_complemented : 1; /* set if release message was complemented */
-	u_char	aocd_flag : 1;		/* AOCD used for unitlength calc*/
-	u_char	channel_allocated : 1;
-	u_char	dir_incoming : 1;	/* outgoing or incoming call	*/
+	u_char	aocd_flag : 1;		/* AOCD used for unitlength calc */
+	u_char	channel_allocated : 1;  /* set if a B-channel is allocated */
+	u_char	dir_incoming : 1;	/* outgoing or incoming call */
 	u_char	need_release : 1;	/* need release */
 	u_char	peer_responded : 1;	/* got a message from the other end */
 	u_char  want_late_inband : 1;	/* user wants inband information

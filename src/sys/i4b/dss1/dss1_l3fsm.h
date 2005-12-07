@@ -197,23 +197,33 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
 	  }
 
 	  /*
-	   * send RELEASE_COMPLETE in all
-	   * cases, instead of DISCONNECT and
-	   * RELEASE, and send cause
+	   * This driver sends RELEASE_COMPLETE 
+	   * in all cases, instead of DISCONNECT 
+	   * and RELEASE, when the call is terminated
+	   *
+	   * It is expected that the disconnect message
+	   * contains a hangup cause, which is stored
+	   * in "cd->cause_out"
+	   *
+	   * If "cd->pipe" is still set to the 
+	   * broadcast pipe, it means that no 
+	   * device answered the outgoing call 
+	   * from the NT-side. It appears that 
+	   * sending a broadcast RELEASE_COMPLETE 
+	   * will trigger some bugs, so instead
+	   * send an individual RELEASE_COMPLETE
+	   * message to all active pipes
 	   */
-	  dss1_l3_tx_release_complete(cd, 1);
-
 	  if(NT_MODE(sc) &&
 	     (!IS_POINT_TO_POINT(sc)) &&
 	     (!cd->dir_incoming) &&
-	     (!cd->release_complemented))
+	     (pipe == &(sc->sc_pipe[0])))
 	  {
-	    /*
-	     * send release complete to all remaining
-	     * ISDN devices, which did not get the
-	     * [broadcasted] RELEASE_COMPLETE
-	     */
-	    dss1_l3_tx_release_complete_complement(cd, cd->pipe, NULL);
+	      dss1_l3_tx_release_complete_complement(cd, pipe, NULL);
+	  }
+	  else
+	  {
+	      dss1_l3_tx_release_complete(cd, 1);
 	  }
 	}
 	else
@@ -547,7 +557,6 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		    if(NT_MODE(sc) && (!IS_POINT_TO_POINT(sc)))
 		    {
 		        cd->cause_out = CAUSE_Q850_NONSELUC;
-			cd->release_complemented = 1;
 
 			dss1_l3_tx_release_complete_complement
 			  (cd, cd->pipe, pipe);
