@@ -630,7 +630,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		/* need to send SETUP_ACKNOWLEDGE 
 		 * with the B-channel to use
 		 */
-		dss1_l3_tx_setup_acknowledge(cd);
+	        dss1_l3_tx_setup_acknowledge(cd,NT_MODE(sc));
 
 		/* set new state to allow 
 		 * information messages
@@ -642,7 +642,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		/* acknowledge the SETUP message
 		 * and send B-channel to use
 		 */
-		dss1_l3_tx_call_proceeding(cd);
+	        dss1_l3_tx_call_proceeding(cd,NT_MODE(sc));
 
 		/* set state before indication */
 		cd_set_state(cd,ST_L3_U6);
@@ -657,7 +657,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  if(state == ST_L3_IN_ACK)
 	  {
 	      /* sending complete */
-	      dss1_l3_tx_call_proceeding(cd);
+	      dss1_l3_tx_call_proceeding(cd,NT_MODE(sc));
 
 	      /* set new state */
 	      cd_set_state(cd,ST_L3_U6);
@@ -702,7 +702,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		* before any other messages
 		* for sake of compatibility
 		*/
-	       dss1_l3_tx_call_proceeding(cd);
+	       dss1_l3_tx_call_proceeding(cd,NT_MODE(sc));
 	     }
 
 	     dss1_l3_tx_alert(cd);
@@ -734,7 +734,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		* before any other messages
 		* for sake of compatibility
 		*/
-	       dss1_l3_tx_call_proceeding(cd);
+	       dss1_l3_tx_call_proceeding(cd,NT_MODE(sc));
 	     }
 
 	     dss1_l3_tx_connect(cd);

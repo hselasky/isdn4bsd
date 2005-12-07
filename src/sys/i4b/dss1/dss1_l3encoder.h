@@ -427,18 +427,21 @@ dss1_l3_tx_setup(call_desc_t *cd)
 #define dss1_l3_tx_alert(cd)			\
 	dss1_l3_tx_message(cd,ALERT,		\
 			   L3_TX_HEADER)
-
-#define dss1_l3_tx_setup_acknowledge(cd)		\
-	dss1_l3_tx_message(cd,SETUP_ACKNOWLEDGE,	\
-			   L3_TX_HEADER|L3_TX_CHANNELID)
+/*
+ * NOTE: some PBXs crash if one sends
+ * the channel ID back in TE-mode
+ */
+#define dss1_l3_tx_setup_acknowledge(cd,send_chan_id)			\
+	dss1_l3_tx_message(cd,SETUP_ACKNOWLEDGE, (send_chan_id) ?	\
+			   (L3_TX_HEADER|L3_TX_CHANNELID) : L3_TX_HEADER)
 
 #define dss1_l3_tx_information(cd)			\
 	dss1_l3_tx_message(cd,INFORMATION,		\
 			   L3_TX_HEADER|L3_TX_CALLEDPN)
 
-#define dss1_l3_tx_call_proceeding(cd)			\
-	dss1_l3_tx_message(cd,CALL_PROCEEDING,		\
-			   L3_TX_HEADER|L3_TX_CHANNELID)
+#define dss1_l3_tx_call_proceeding(cd,send_chan_id)			\
+	dss1_l3_tx_message(cd,CALL_PROCEEDING, (send_chan_id) ?		\
+			   (L3_TX_HEADER|L3_TX_CHANNELID) : L3_TX_HEADER)
 
 #define dss1_l3_tx_connect(cd)			\
 	dss1_l3_tx_message(cd,CONNECT,		\
