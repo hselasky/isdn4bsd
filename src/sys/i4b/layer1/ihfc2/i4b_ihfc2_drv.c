@@ -441,6 +441,21 @@ fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
 		fsm_write(sc,fsm_state.index);
 	}
 
+	if(flag == 0)
+	{
+	    /*
+	     * if the line goes down while the upper 
+	     * layers are holding references on the
+	     * auto activation, try a re-activation:
+	     */
+	    if((st->L1_auto_activate_ptr[0]) &&
+	       (!fsm_state.active) &&
+	       (!callout_pending(&sc->sc_statemachine.T3callout)))
+	    {
+	        flag = 3;
+	    }
+	}
+
 	/*
 	 * user activation:
 	 * set trycount
@@ -471,7 +486,7 @@ fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
 	  }
 	  else
 	  {
-	    if(*(st->L1_auto_activate_ptr) == 0)
+	    if(st->L1_auto_activate_ptr[0] == 0)
 	    {
 		flag = 2;
 	    }
