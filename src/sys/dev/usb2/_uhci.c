@@ -521,6 +521,9 @@ uhci_dump_all(uhci_softc_t *sc)
 	uhci_dumpregs(sc);
 	printf("intrs=%d\n", sc->sc_bus.no_intrs);
 	uhci_dump_qh(&sc->sc_ls_ctl_start);
+	uhci_dump_qh(&sc->sc_hs_ctl_start);
+	uhci_dump_qh(&sc->sc_bulk_start);
+	uhci_dump_qh(&sc->sc_last_qh);
 	return;
 }
 

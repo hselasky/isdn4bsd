@@ -620,7 +620,19 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	    no_channel_available:
 	        /* no circuit-channel available */
 	        cd->cause_out = CAUSE_Q850_NOCAVAIL;
-		cd->need_release = 1;
+		if(NT_MODE(sc) || 
+		   IS_POINT_TO_POINT(sc))
+		{
+		    /* the call cannot be accepted,
+		     * hence there is no channel
+		     * for it, and sending a
+		     * RELEASE COMPLETE now
+		     * will not arrive out
+		     * of sequence at the
+		     * other end:
+		     */
+		    cd->need_release = 1;
+		}
 		cd_set_state(cd,ST_L3_U0);
 		break;
 	    }
