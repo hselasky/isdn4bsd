@@ -456,9 +456,17 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	dss1_l3_tx_message(cd,RELEASE,(send_cause_flag) ? 		\
 			   L3_TX_HEADER|L3_TX_CAUSE : L3_TX_HEADER)
 
+/* NOTE: some ISDN phones require
+ * the "cause" information element
+ * when sending RELEASE_COMPLETE
+ */
 #define dss1_l3_tx_release_complete(cd,send_cause_flag)			\
 	dss1_l3_tx_message(cd,RELEASE_COMPLETE,(send_cause_flag) ? 	\
 			  L3_TX_HEADER|L3_TX_CAUSE : L3_TX_HEADER)
+
+#define dss1_l3_tx_release_complete_complement(cd,p1,p2)		\
+	dss1_l3_tx_message_complement(cd,p1,p2,RELEASE_COMPLETE,	\
+				      L3_TX_HEADER|L3_TX_CAUSE)
 
 #define dss1_l3_tx_status(cd,q850cause)			\
 {							\
@@ -591,3 +599,39 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 	return;
 }
 
+/*---------------------------------------------------------------------------*
+ *	send message to the pipes complementing the given pipes
+ *---------------------------------------------------------------------------*/
+static void
+dss1_l3_tx_message_complement(struct call_desc *cd,
+			      DSS1_TCP_pipe_t *pipe_skip_1,
+			      DSS1_TCP_pipe_t *pipe_skip_2,
+			      u_int8_t message_type, 
+			      u_int8_t flag)
+{
+	DSS1_TCP_pipe_t *pipe_curr;
+	DSS1_TCP_pipe_t *pipe_old;
+	l2softc_t *sc;
+
+	/* save current pipe pointer and
+	 * get pointer to softc
+	 */
+	pipe_old = cd->pipe;
+	sc = pipe_old->L5_sc;
+
+	PIPE_FOREACH(pipe_curr,&sc->sc_pipe[0])
+	{
+	    if((pipe_curr != pipe_skip_1) &&
+	       (pipe_curr != pipe_skip_2) &&
+	       (pipe_curr->state != ST_L2_PAUSE))
+	    {
+	        cd->pipe = pipe_curr;
+
+		dss1_l3_tx_message(cd, message_type, flag);
+	    }
+	}
+
+	/* restore pipe pointer */
+	cd->pipe = pipe_old;
+	return;
+}

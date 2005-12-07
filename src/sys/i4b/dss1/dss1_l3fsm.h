@@ -202,6 +202,19 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
 	   * RELEASE, and send cause
 	   */
 	  dss1_l3_tx_release_complete(cd, 1);
+
+	  if(NT_MODE(sc) &&
+	     (!IS_POINT_TO_POINT(sc)) &&
+	     (!cd->dir_incoming) &&
+	     (!cd->release_complemented))
+	  {
+	    /*
+	     * send release complete to all remaining
+	     * ISDN devices, which did not get the
+	     * [broadcasted] RELEASE_COMPLETE
+	     */
+	    dss1_l3_tx_release_complete_complement(cd, cd->pipe, NULL);
+	  }
 	}
 	else
 	{
@@ -300,7 +313,7 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
 static void
 cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 {
-	l2softc_t *sc = ((__typeof(pipe))cd->pipe)->L5_sc;
+	l2softc_t *sc = ((__typeof(pipe))(cd->pipe))->L5_sc;
 	__typeof(cd->state)
 	  state = cd->state;
 
@@ -530,52 +543,25 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 
 		if(cd->channel_allocated)
 		{
-		  /* disconnect non-connected pipes */
-		  if(NT_MODE(sc))
-		  {
-			DSS1_TCP_pipe_t *p1;
-			DSS1_TCP_pipe_t *p2;
-			__typeof(cd->cause_out) cause;
+		    /* disconnect non-connected pipes */
+		    if(NT_MODE(sc) && (!IS_POINT_TO_POINT(sc)))
+		    {
+		        cd->cause_out = CAUSE_Q850_NONSELUC;
+			cd->release_complemented = 1;
 
-			p1 = cd->pipe;
-			cause = cd->cause_out;
+			dss1_l3_tx_release_complete_complement
+			  (cd, cd->pipe, pipe);
 
-			PIPE_FOREACH(p2,&sc->sc_pipe[0])
-			{
-			  /* skip ``p1 == pipe_adapter'' and
-			   * connected pipe
-			   */
-			  if((p2 != p1) &&
-			     (p2 != pipe) &&
-			     (p2->state != ST_L2_PAUSE))
-			  {
-			    cd->pipe = p2;
-			    cd->cause_out = CAUSE_Q850_NONSELUC;
+			cd->cause_out = 0;
+		    }
 
-			    /* NOTE: some ISDN phones require
-			     * the "cause" information element
-			     * when sending RELEASE_COMPLETE
-			     */
+		    /* set pipe before state and tx */
+		    cd_set_pipe(cd,pipe);
 
-			    /* send RELEASE_COMPLETE */
-			    dss1_l3_tx_release_complete(cd,1);
-			  }
-			}
+		    /* CONNECT_ACKNOWLEDGE to remote */
+		    dss1_l3_tx_connect_acknowledge(cd);
 
-			/* restore pipe pointer */
-			cd->pipe = p1;
-
-			/* restore cause out */
-			cd->cause_out = cause;
-		  }
-
-		  /* set pipe before state and tx */
-		  cd_set_pipe(cd,pipe);
-
-		  /* CONNECT_ACKNOWLEDGE to remote */
-		  dss1_l3_tx_connect_acknowledge(cd);
-
-		  goto event_connect_ack;
+		    goto event_connect_ack;
 		}
 	    }
 

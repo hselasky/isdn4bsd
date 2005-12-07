@@ -425,6 +425,7 @@ typedef struct call_desc
 	u_int8_t ai_type; /* application interface type */
 	void *   ai_ptr; /* application interface private pointer */
 
+	u_char  release_complemented : 1; /* set if release message was complemented */
 	u_char	aocd_flag : 1;		/* AOCD used for unitlength calc*/
 	u_char	channel_allocated : 1;
 	u_char	dir_incoming : 1;	/* outgoing or incoming call	*/
