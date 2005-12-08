@@ -210,7 +210,7 @@ hfc_fsm_table =
   .state[ 9] = { 0, 0, 0, 0, 1, 2, "G0: Reset"                  },
   .state[10] = { 0, 0, 1, 0, 0, 0, "G1: Deactive"               },
   .state[11] = { 0, 0, 0, 1, 1, 3, "G2: Pending activation"     },
-  .state[12] = { 0, 1, 0, 1, 0, 0, "G3: Active"                 }, /* cmd=4? */
+  .state[12] = { 0, 1, 0, 1, 1, 4, "G3: Active"                 },
   .state[13] = { 0, 0, 1, 0, 0, 0, "G4: Pending deactivation"   }, 
 
 #undef HFC_FSM_RESTART /* fsm does currently not need restart */
