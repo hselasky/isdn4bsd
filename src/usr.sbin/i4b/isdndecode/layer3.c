@@ -46,6 +46,7 @@ get_pd_description(u_int8_t j)
     (j == 0x08)                  ? "Q.931/I.451/DSS1" :
     (j == 0x40)                  ? "1TR6, N0" :
     (j == 0x41)                  ? "1TR6, N1" :
+    (j == 0xaa)                  ? "Euracom specific" : 
     ((j >= 0x10) && (j <= 0x3f)) ? "Other Layer 3 or X.25" :
     ((j >= 0x40) && (j <= 0x4f)) ? "National Use" :
     ((j >= 0x50) && (j <= 0xfe)) ? "Other Layer 3 or X.25" :

@@ -1537,7 +1537,41 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 
 		sc->sc_current_tx_nr++;
 
-		m = m_copypacket(m, M_DONTWAIT);
+		/* check for ZIF, Zero length I-Frame */
+
+		if(m->m_len < ((m->m_flags & M_PROTO1) ? 
+			       (I_HEADER_LEN) : 
+			       (I_HEADER_LEN+1)))
+		{
+		    u_int8_t len = m->m_len;
+		    ptr = m->m_data;
+
+		    /*
+		     * NOTE: some PBXs lack a check for
+		     * zero length I-frames, and obviously
+		     * starts decoding information that is
+		     * not there giving random results ...
+		     */
+
+		    m = i4b_getmbuf(len+1, M_NOWAIT);
+		    if(m)
+		    {
+		        bcopy(ptr,m->m_data,len);
+
+			/* set some reserved, 
+			 * dummy protocol descriptor
+			 */
+			((u_int8_t *)(m->m_data))[len] = 0xFF; 
+		    }
+		}
+		else
+		{
+		    /* make a freeable copy 
+		     * of this I-frame 
+		     * for Layer 1
+		     */
+		    m = m_copypacket(m, M_DONTWAIT);
+		}
 
 		if(!m)
 		{
