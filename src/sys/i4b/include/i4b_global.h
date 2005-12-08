@@ -434,6 +434,8 @@ typedef struct call_desc
 					 * after the disconnect signal
 					 */
 
+	u_int8_t peer_responded_bitmask[4];
+
 	struct	callout	idle_callout;
 	struct	callout	set_state_callout;
 
