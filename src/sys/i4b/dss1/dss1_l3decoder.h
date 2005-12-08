@@ -705,6 +705,7 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 		else if(NT_MODE(sc) && 
 			(!IS_POINT_TO_POINT(sc)) &&
 			L3_EVENT_IS_LOCAL_OUTGOING(event) &&
+			(!L3_EVENT_IS_LOCAL_INCOMING(event)) &&
 			(!(crval & 0x80)))
 		{
 			NDBGL3(L3_PRIM, "unit=%x, shutting down invalid "
