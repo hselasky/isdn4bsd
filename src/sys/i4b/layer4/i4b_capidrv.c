@@ -1858,46 +1858,77 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      capi_decode(&msg.data, msg.head.wLen, &select_b_protocol_req);
 
-	      CAPI_INIT(CAPI_B_PROTOCOL, &b_protocol);
-
-	      capi_decode(select_b_protocol_req.b_protocol.ptr,
-			  select_b_protocol_req.b_protocol.len, 
-			  &b_protocol);
-
-	      if(b_protocol.wB1_protocol >= 2)
+	      if(select_b_protocol_req.b_protocol.len)
 	      {
-		  m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
-				      0x3001);
-		  goto send_confirmation;
-	      }
+		  CAPI_INIT(CAPI_B_PROTOCOL, &b_protocol);
+
+		  capi_decode(select_b_protocol_req.b_protocol.ptr,
+			      select_b_protocol_req.b_protocol.len, 
+			      &b_protocol);
+
+		  if(b_protocol.wB1_protocol >= 2)
+		  {
+		      m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
+					  0x3001);
+		      goto send_confirmation;
+		  }
  
-	      if(b_protocol.wB2_protocol != 1)
-	      {
-		  m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
-				      0x3002);
-		  goto send_confirmation;
+		  if(b_protocol.wB2_protocol != 1)
+		  {
+		      m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
+					  0x3002);
+		      goto send_confirmation;
+		  }
+
+		  if(b_protocol.wB3_protocol != 0)
+		  {
+		      m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
+					  0x3003);
+		      goto send_confirmation;
+		  }
+
+		  if(b_protocol.wB1_protocol == 0)
+		  {
+		      /* data over voice */
+		      cd->channel_bprot = BPROT_RHDLC;
+		  }
+		  else /* if(b_protocol.wB1_protocol == 1) */
+		  {
+		      /* voice over data */
+		      cd->channel_bprot = BPROT_NONE;
+		  }
+
+		  /*
+		   * TODO: add support for decoding of
+		   * b_protocol.global_config
+		   */
 	      }
 
-	      if(b_protocol.wB3_protocol != 0)
+	      if(cd->ai_type == I4B_AI_BROADCAST)
 	      {
-		  m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
-				      0x3003);
-		  goto send_confirmation;
-	      }
+		  /* early B3 for incoming calls */
 
-	      if(b_protocol.wB1_protocol == 0)
-	      {
-		  /* data over voice */
-		  cd->channel_bprot = BPROT_RHDLC;
-	      }
-	      else /* if(b_protocol.wB1_protocol == 1) */
-	      {
-		  /* voice over data */
-		  cd->channel_bprot = BPROT_NONE;
+		  /* set application interface */
+		  cd_set_appl_interface(cd,I4B_AI_CAPI,sc);
+
+		  /* send disconnect indication
+		   * to all other application interfaces
+		   */
+		  i4b_l4_disconnect_ind(cd,1);
+
+		  cd->driver_type = DRVR_CAPI_B3;
+		  cd->driver_unit = 0;
 	      }
 
 	      m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
 				  0x0000);
+
+	      if(cd->dir_incoming)
+	      {
+		  capi_ai_putqueue(sc, 0, m2);
+
+		  m2 = capi_make_connect_b3_ind(cd);
+	      }
 	      goto send_confirmation;
 
 
