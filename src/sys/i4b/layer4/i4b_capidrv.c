@@ -714,8 +714,8 @@ capi_make_facility_conf(struct capi_message_encoded *pmsg,
 
 	CAPI_INIT(CAPI_FACILITY_CONF, &fac_conf);
 
-	fac_conf.wInfo = htole16(wInfo);
-	fac_conf.wSelector = htole16(wSelector);
+	fac_conf.wInfo = wInfo;
+	fac_conf.wSelector = wSelector;
 
 	len = capi_encode(&msg.data, sizeof(msg.data), &fac_conf);
 	len += sizeof(msg.head);
