@@ -493,8 +493,9 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 
 	if((len == 0) && !(f->state & ST_FRAME_END))
 	{
-	  /* out of data;
-	   * need a ``fifo_call()'' to re-start xfer
+	  /* out of data:
+	   * need a "fifo_call()" to re-start xfer, that
+	   * again will call "hfcsusb_d1t_program()"
 	   */
 	  f->state &= ~ST_RUNNING;
 	  goto done;
@@ -1350,14 +1351,19 @@ hfcsusb_chip_status_read(ihfc_sc_t *sc)
 	/* read F_FILL(reg=0x1B) */
 	hfcsusb_chip_read(sc,0x1B,NULL,1);
 
+	return;
+}
+
+static u_int8_t
+hfcsusb_d1t_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
+{
 	/* re-start any stopped pipes,
 	 * hence the D-channel transmit
 	 * pipe is allowed to be stopped, to
 	 * reduce CPU usage:
 	 */
 	hfcsusb_chip_config_write (sc,CONFIG_WRITE_UPDATE);
-
-	return;
+	return PROGRAM_DONE;
 }
 
 static ihfc_fifo_program_t *
@@ -1367,8 +1373,11 @@ hfcsusb_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 
 	if(FIFO_NO(f) == d1t)
 	{
-	  if(PROT_IS_HDLC(f->prot) ||
-	     PROT_IS_TRANSPARENT(f->prot))
+	  if(PROT_IS_HDLC(f->prot))
+	  {
+	    program = &hfcsusb_d1t_program;
+	  }
+	  if(PROT_IS_TRANSPARENT(f->prot))
 	  {
 	    program = &i4b_unknown_program;
 	  }

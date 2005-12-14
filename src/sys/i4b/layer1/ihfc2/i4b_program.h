@@ -274,14 +274,6 @@ ihfc_program_check_status(ihfc_sc_t *sc)
 	return;
 }
 
-/* FIFO processing program return values: */
-
-enum {
-  PROGRAM_SLEEP,
-  PROGRAM_LOOP,
-  PROGRAM_DONE,
-};
-
 /*---------------------------------------------------------------------------*
  * : fifo processing kernel
  *---------------------------------------------------------------------------*/

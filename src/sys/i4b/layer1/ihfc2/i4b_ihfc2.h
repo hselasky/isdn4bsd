@@ -802,7 +802,17 @@ struct internal {
   u_int16_t value, internal;
 };
 
+/* definition of a FIFO processing program */
+
 typedef u_int8_t (ihfc_fifo_program_t)(struct ihfc_sc *, struct sc_fifo *);
+
+/* return values */
+
+enum {
+  PROGRAM_SLEEP,
+  PROGRAM_LOOP,
+  PROGRAM_DONE,
+};
 
 /*--------------------------------
  * struct sc_default
