@@ -22,6 +22,7 @@ DIFF    = new_ihfc_${VERSION}.diff.bz2
 PACKAGE = new_ihfc_${VERSION}.tar.bz2
 BACKUP  = i4b_system_backup_${VERSION}.tar.bz2
 N       =\n
+SITE    = http://www.turbocat.net/~hselasky/isdn4bsd/releases
 
 REMOVE_FILES=\
 ${S}/sys/i386/include/i4b*h \
@@ -277,8 +278,8 @@ help:
 	@printf ${HELP}
 
 fetch:
-	fetch http://home.c2i.net/hselasky/isdn4bsd/privat/temporary/${DIFF}
-	fetch http://home.c2i.net/hselasky/isdn4bsd/privat/temporary/${PACKAGE}
+	fetch ${SITE}/FreeBSD/${VERSION}/${DIFF}
+	fetch ${SITE}/FreeBSD/${VERSION}/${PACKAGE}
 
 backup:
 	@echo ""

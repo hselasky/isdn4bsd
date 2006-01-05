@@ -21,6 +21,7 @@ DIFF    = new_usb_${VERSION}.diff.bz2
 PACKAGE = new_usb_${VERSION}.tar.bz2
 BACKUP  = usb_system_backup_${VERSION}.tar.bz2
 N       =\n
+SITE    = http://www.turbocat.net/~hselasky/usb4bsd/releases
 
 REMOVE_FILES=\
 ${INCLUDE}/dev/usb2/*h \
@@ -174,9 +175,9 @@ ${N}'
 help:
 	@printf ${HELP}
 
-fetch: 
-	fetch http://home.c2i.net/hselasky/isdn4bsd/privat/usb/${DIFF}
-	fetch http://home.c2i.net/hselasky/isdn4bsd/privat/usb/${PACKAGE}
+fetch:
+	fetch ${SITE}/FreeBSD/${VERSION}/${DIFF}
+	fetch ${SITE}/FreeBSD/${VERSION}/${PACKAGE}
 
 backup:
 	@echo ""
