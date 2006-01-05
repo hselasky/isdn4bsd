@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2000-2003 Thomas Wintergerst. All rights reserved.
  *
- * Copyright (c) 2005 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2005-2006 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -670,6 +670,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	void *data_ptr;
 	u_int16_t cmd;
 	u_int16_t msg_len;
+	u_int16_t retval;
 	int len;
 
 	if(buf_pp == NULL)
@@ -687,8 +688,8 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	if(sc == NULL)
 	{
 	    /* application ID does not exist */
-	    buf_pp[0] = NULL;
-	    return CAPI_ERROR_INVALID_APPLICATION_ID;
+	    retval = CAPI_ERROR_INVALID_APPLICATION_ID;
+	    goto error;
 	}
 
 	mp = sc->sc_msg_free_list;
@@ -698,8 +699,8 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	    /* there is no data buffer where
 	     * the message can be stored
 	     */
-	    buf_pp[0] = NULL;
-	    return CAPI_ERROR_BUSY;
+	    retval = CAPI_ERROR_BUSY;
+	    goto error;
 	}
 
  again:
@@ -708,7 +709,6 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	if(len < 0)
 	{
 	    /* read error */
-	    buf_pp[0] = NULL;
 
 	    if((errno == EBUSY) ||
 	       (errno == ENODEV))
@@ -721,11 +721,12 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	      free_app(sc);
 	    }
 
-	    return 
+	    retval = 
 	      ((errno == EWOULDBLOCK) ? CAPI_ERROR_GET_QUEUE_EMPTY :
 	       (errno == ENXIO) ? CAPI_ERROR_CAPI_NOT_INSTALLED :
 	       (errno == EINVAL) ? CAPI_ERROR_ILLEGAL_MSG_PARAMETER :
 	       CAPI_ERROR_OS_RESOURCE_ERROR);
+	    goto error;
 	}
 
 	/* ignore too short messages */
@@ -829,16 +830,16 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 		     */
 		    free_app(sc);
 
-		    buf_pp[0] = NULL;
-		    return CAPI_ERROR_OS_RESOURCE_ERROR;
+		    retval = CAPI_ERROR_OS_RESOURCE_ERROR;
+		    goto error;
 		}
 
 	        /* this last data buffer
 		 * is needed to receive
 		 * call control information
 		 */
-		buf_pp[0] = NULL;
-	        return CAPI_ERROR_GET_QUEUE_OVERFLOW;
+		retval = CAPI_ERROR_GET_QUEUE_OVERFLOW;
+		goto error;
 	    }
 
 	    /* remove data buffer from 
@@ -864,6 +865,10 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	/* store pointer to the message */
 	buf_pp[0] = (u_int8_t *)&(mp->msg);
 	return 0;
+
+ error:
+	buf_pp[0] = NULL;
+	return retval;
 }
 
 /*---------------------------------------------------------------------------*
@@ -885,13 +890,13 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 u_int16_t
 capi20_wait_for_message(u_int32_t app_id, struct timeval *timeval_ptr)
 {
-	struct pollfd  pollfd;
+	struct pollfd  pollfd = { /* zero */ };
 	struct timeval tvEnd;
 	struct timeval tvCurr;
 	struct timeval tvTmp;
 	int            timeout;
 	int            error;
-   
+
 	/* get file number */
 	pollfd.fd = capi20_fileno(app_id);
 
@@ -1397,6 +1402,11 @@ capi_get_message_decoded(struct capi_message_decoded *mp, u_int32_t app_id)
 	u_int8_t *buf_ptr;
 	u_int16_t error;
 
+	if(mp == NULL)
+	{
+	    return CAPI_ERROR_INVALID_PARAM;
+	}
+	
 	error = capi20_get_message(app_id, &buf_ptr);
 
 	if(error)

@@ -216,8 +216,10 @@ will wait until there is a message for the CAPI application identified by
 .Fa app_id .
 If 
 .Fa timeval_ptr
-is not NULL, it will return after that time has elapsed. Zero is
-returned on success.
+is not NULL, it will return after that the time indicated by
+.Fa timeval_ptr
+has elapsed. Zero is returned if a message is available.  Else an
+error is returned.
 .
 .
 .
@@ -297,7 +299,7 @@ integer greater than zero is returned on success.
 .Sh IMPLEMENTATION NOTES
 .
 .
-Definition of CAPI messages and related structures are defined in the header file
+Definition of CAPI messages and related structures can be found in the header file
 .Pa capi20.h .
 To make implementing CAPI easier, there has been defined as set of
 helper functions that will encode and decode CAPI messages into
@@ -320,6 +322,41 @@ direct function result.
 .Fn capi_get_error_string()
 will return a zero terminated string that describes the return
 value. In general a return value of zero means no error.
+.Pp
+.Bl -tag
+.It 0x0000
+No error, data is available (default).
+.
+.It CAPI_ERROR_CAPI_NOT_INSTALLED
+The CAPI20 device, /dev/capi20, cannot be opened.
+.
+.It CAPI_ERROR_OS_RESOURCE_ERROR
+The kernel or libcapi20 cannot allocate required memory.
+.
+.It CAPI_ERROR_ILLEGAL_MSG_PARAMETER
+.
+.It CAPI_ERROR_INVALID_PARAM
+An invalid parameter was passed to the function.
+.
+.It CAPI_ERROR_INVALID_APPLICATION_ID
+The application ID does not exist. This can be an indication that the CAPI
+application was shut down due to lack of free memory in the
+kernel. The software has to restart.
+.
+.It CAPI_ERROR_INVALID_BUFFER_SIZE
+.
+.It CAPI_ERROR_UNSUPPORTED_VERSION
+The software or the CAPI20 library must be recompiled. One might have
+to re-install the CAPI20 header files to /usr/include.
+.
+.It CAPI_ERROR_BUSY
+There is no data buffer where the message can be stored.
+.
+.It CAPI_ERROR_GET_QUEUE_EMPTY
+No CAPI message is available.
+.
+.
+.El
 .
 .
 .

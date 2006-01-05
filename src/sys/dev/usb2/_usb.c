@@ -672,6 +672,7 @@ usb_post_init(void *arg)
 	devclass_t dc;
 	device_t dev;
 	int max;
+	int n;
 
 	mtx_lock(&usb_global_lock);
 
@@ -680,16 +681,15 @@ usb_post_init(void *arg)
 	if(dc)
 	{
 	    max = devclass_get_maxunit(dc);
- 	    while(max >= 0)
+	    for(n = 0; n <= max; n++)
 	    {
-	        dev = devclass_get_device(dc, max);
+	        dev = devclass_get_device(dc, n);
 		if(dev)
 		{
 		    bus = device_get_softc(dev);
 
 		    __usb_attach(dev, bus);
 		}
-		max--;
 	    }
 	}
 	else

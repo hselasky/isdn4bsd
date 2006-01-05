@@ -928,8 +928,8 @@ usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
 	struct usbd_device *udev = up->device;
 	struct device *bdev = NULL;
 	usbd_status err = 0;
-	int config;
-	int i;
+	u_int8_t config;
+	u_int8_t i;
 
 	up->last_refcount = usb_driver_added_refcount;
 
@@ -972,7 +972,7 @@ usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
 
 	if(udev->probed == USBD_PROBED_NOTHING)
 	{
-		/* first try with device specific drivers */
+		/* first try device specific drivers */
 		PRINTF(("trying device specific drivers\n"));
 
 		if(device_probe_and_attach(bdev) == 0)
@@ -989,17 +989,12 @@ usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
 			udev->ddesc.bNumConfigurations));
 	}
 
-	/* next try with interface drivers
-	 * (in decremental order so
-	 *  that config 0 is set last,
-	 *  in case of failure!)
-	 */
+	/* next try with interface drivers */
 
 	if((udev->probed == USBD_PROBED_NOTHING) ||
 	   (udev->probed == USBD_PROBED_IFACE_AND_FOUND))
 	{
-	  config = udev->ddesc.bNumConfigurations;
-	  while(config--)
+	  for(config = 0; config < udev->ddesc.bNumConfigurations; config++)
 	  {
 		struct usbd_interface *iface;
 
@@ -1011,16 +1006,12 @@ usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
 			err = usbd_set_config_index(udev, config, 1);
 			if(err)
 			{
-#ifdef USB_DEBUG
-				PRINTF(("%s: port %d, set config at addr %d failed, "
-					"error=%s\n", device_get_nameunit(parent),
-					port, udev->address, usbd_errstr(err)));
-#else
-				device_printf(parent,
-					      "port %d, set config at addr %d failed\n",
-					      port, udev->address);
-#endif
-				goto done;
+			    device_printf(parent,
+					  "port %d, set config at addr %d "
+					  "failed, error=%s\n",
+					  port, udev->address, 
+					  usbd_errstr(err));
+			    goto done;
 			}
 
 			/* ``bNumInterface'' is checked 
@@ -1031,6 +1022,10 @@ usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
 			 * is called by ``usbd_set_config_index()''
 			 */
 		}
+
+		/*
+		 * else the configuration is already set
+		 */
 
 		uaa.configno = udev->cdesc->bConfigurationValue;
 		uaa.ifaces_start = &udev->ifaces[0];
@@ -1111,7 +1106,18 @@ usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
 
 	if(udev->probed == USBD_PROBED_NOTHING)
 	{
-		/* config index 0 should be set */
+		/* set config index 0 */
+
+		err = usbd_set_config_index(udev, 0, 1);
+		if(err)
+		{
+		    device_printf(parent,
+				  "port %d, set config at addr %d "
+				  "failed, error=%s\n",
+				  port, udev->address, 
+				  usbd_errstr(err));
+		    goto done;
+		}
 
 		PRINTF(("no interface drivers found\n"));
 
