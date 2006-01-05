@@ -989,7 +989,7 @@ usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
 			udev->ddesc.bNumConfigurations));
 	}
 
-	/* next try with interface drivers */
+	/* next try interface drivers */
 
 	if((udev->probed == USBD_PROBED_NOTHING) ||
 	   (udev->probed == USBD_PROBED_IFACE_AND_FOUND))
