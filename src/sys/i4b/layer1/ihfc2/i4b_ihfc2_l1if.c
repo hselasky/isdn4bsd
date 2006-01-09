@@ -45,6 +45,7 @@ static int
 ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 {
 	ihfc_sc_t *sc = cntl->L1_sc;
+	u_int32_t temp;
 	u_int16_t n;
 	u_int8_t error[IHFC_MAX_ERR];
 
@@ -57,8 +58,9 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	switch(command) {
 	case CMR_SETTRACE:	/* set new trace mask */
 
-	    IHFC_MSG("CMR_SETTRACE: 0x%08x\n",
-		     (unsigned int)parm);
+	    temp = *((u_int32_t *)parm);
+
+	    IHFC_MSG("CMR_SETTRACE: 0x%08x\n", temp);
 
 	    for(n = 0; n < IHFC_CHANNELS; n++)
 	    {
@@ -70,24 +72,24 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 #error "please update code, (IHFC_CHANNELS < 2)"
 #endif
 
-	    if(((unsigned int)parm) & TRACE_D_RX)
+	    if(temp & TRACE_D_RX)
 	    {
 	        sc->sc_fifo[d1r].state |= ST_I4B_TRACE;
 	    }
 
-	    if(((unsigned int)parm) & TRACE_D_TX)
+	    if(temp & TRACE_D_TX)
 	    {
 	        sc->sc_fifo[d1t].state |= ST_I4B_TRACE;
 	    }
 
 	    for(n = 2; n < IHFC_CHANNELS; n += 2)
 	    {
-	        if(((unsigned int)parm) & TRACE_B_RX)
+	        if(temp & TRACE_B_RX)
 		{
 		    sc->sc_fifo[n+receive].state |= ST_I4B_TRACE;
 		}
 
-		if(((unsigned int)parm) & TRACE_B_TX)
+		if(temp & TRACE_B_TX)
 		{
 		    sc->sc_fifo[n+transmit].state |= ST_I4B_TRACE;
 		}

@@ -250,9 +250,10 @@ i4btrc_close(struct cdev *dev, int flag, int fmt, struct thread *td)
 
 	if(sc->sc_flags & ST_OPEN)
 	{
+	    u_int32_t temp = TRACE_OFF;
 	    sc->sc_flags |= ST_CLOSING;
 
-	    L1_COMMAND_REQ(CNTL_FIND(sc->sc_unit), CMR_SETTRACE, TRACE_OFF);
+	    L1_COMMAND_REQ(CNTL_FIND(sc->sc_unit), CMR_SETTRACE, &temp);
 
 	    while(sc->sc_flags & ST_WAIT_SLP)
 	    {
@@ -392,7 +393,7 @@ i4btrc_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread
 
 	switch(cmd) {
 	case I4B_TRC_SET:
-	    (void) L1_COMMAND_REQ(cntl, CMR_SETTRACE, (void *)*(unsigned int *)data);
+	    (void) L1_COMMAND_REQ(cntl, CMR_SETTRACE, data);
 	    break;
 
 	case FIONBIO:

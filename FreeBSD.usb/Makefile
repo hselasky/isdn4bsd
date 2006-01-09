@@ -22,6 +22,12 @@ PACKAGE = new_usb_${VERSION}.tar.bz2
 BACKUP  = usb_system_backup_${VERSION}.tar.bz2
 N       =\n
 SITE    = http://www.turbocat.net/~hselasky/usb4bsd/releases
+ARCH   := uname -m
+CONF_DIR=${S}/sys/${ARCH}/conf
+
+.if !exists(${CONF_DIR}/GENERIC)
+CONF_DIR=${S}/sys/i386/conf
+.endif
 
 REMOVE_FILES=\
 ${INCLUDE}/dev/usb2/*h \
@@ -148,8 +154,8 @@ ${N}\#    that are depending on this package: \
 ${N}\#    \"make install_mod\" \
 ${N}\# \
 ${N}\# 3. Make sure that the following lines are \
-${N}\#    in your kernel configuration file \
-${N}\#    (\"${S}/sys/i386/conf/custom\"): \
+${N}\#    in your kernel configuration file, \
+${N}\#    for example \"${CONF_DIR}/custom\": \
 ${N}\
 ${N}device usb \
 ${N}\

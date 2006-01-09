@@ -208,6 +208,7 @@ int
 ifpi2_mph_command_req(int unit, int command, void *parm)
 {
 	struct l1_softc *sc = ifpi2_scp[unit];
+	u_int32_t temp;
 
 	switch(command)
 	{
@@ -222,12 +223,13 @@ ifpi2_mph_command_req(int unit, int command, void *parm)
 			break;
 
 		case CMR_SETTRACE:
-			NDBGL1(L1_PRIM, "unit %d, command = CMR_SETTRACE, parm = %d", unit, (unsigned int)parm);
-			sc->sc_trace = (unsigned int)parm;
+			temp = *((u_int32_t *)parm);
+			NDBGL1(L1_PRIM, "unit %d, command = CMR_SETTRACE, parm = %d", unit, temp);
+			sc->sc_trace = temp;
 			break;
 		
 		default:
-			NDBGL1(L1_ERROR, "ERROR, unknown command = %d, unit = %d, parm = %d", command, unit, (unsigned int)parm);
+			NDBGL1(L1_ERROR, "ERROR, unknown command = %d, unit = %d, parm = %p", command, unit, parm);
 			break;
 	}
 
