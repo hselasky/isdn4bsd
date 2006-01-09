@@ -64,6 +64,7 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 	const u_int8_t *temp;
 	u_int16_t off = src->offset;
 	u_int8_t  codeset = 0;
+	u_int8_t  codeset_temp = 0;
 	u_int8_t  codeset_next = 0;
 	u_int16_t i = 0;
 	u_int8_t  j;
@@ -137,7 +138,8 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 	while(get_valid(src,0))
 	{
 	    off = src->offset;
-	    codeset = codeset_next;
+	    codeset = codeset_temp;
+	    codeset_temp = codeset_next;
 
 	    j = get_1(src,0);
 
@@ -157,12 +159,12 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 		else if((j & 0x70) == 0x10)
 		{
 		    codeset_next = codeset;
-		    codeset = (j & 0x07);
+		    codeset_temp = (j & 0x07);
 
 		    if(j & 0x08)
 		    {
 		        /* shift lock */
-		        codeset_next = codeset;
+		        codeset_next = codeset_temp;
 		    }
 
 		    bsprintline(3, dst, off+0, j, 0x70, "Shift");
@@ -425,6 +427,7 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 	const u_int8_t *temp;
 	u_int8_t  codeset = 0;
 	u_int8_t  codeset_next = 0;
+	u_int8_t  codeset_temp = 0;
 	u_int16_t off = src->offset;
 	u_int16_t end;
 	u_int16_t i = 0;
@@ -552,6 +555,9 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 	
 	while(get_valid(src,i))
 	{
+	    codeset = codeset_temp;
+	    codeset_temp = codeset_next;
+
 	    j = get_1(src,i);
 
 	    bsprintline(3, dst, off+i, j, 0x80, "%s info element",
@@ -573,13 +579,14 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 		    bsprintline(3, dst, off+i, j, 0x70, "info element type = "
 				"codeset shift (0x%x)", (j & 0x70) / 0x10);
 		    codeset_next = codeset;
-		    codeset = j & 0x07;
+		    codeset_temp = (j & 0x07);
 		    if(!(j & 0x08))
 		    {
-		        codeset_next = codeset;
+		        /* shift lock */
+		        codeset_next = codeset_temp;
 		    }
 		    bsprintline(3, dst, off+i, j, 0x07, "shift to 0x%x %s",
-				codeset, (j & 0x08) ? "" : "(locked)");
+				codeset_temp, (j & 0x08) ? "" : "(locked)");
 		    break;
 
 		case 0x20:	/* more data */
@@ -872,7 +879,6 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 		}
 next:
 		i = end;
-		codeset = codeset_next;
 	    }
 	}
 	return 0;
