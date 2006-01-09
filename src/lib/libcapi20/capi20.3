@@ -200,7 +200,7 @@ returns non-zero, the application should release its ID and restart.
 .Fn capi20_get_message
 will receive a message for the CAPI application identified by
 .Fa app_id .
-It returns zero on success. If there are no message and non-blocking
+It returns zero on success. If there are no messages and non-blocking
 operation is selected, 0x1104 will be returned. Else there is a critical
 error and the application should release its ID and restart.
 .Fa buf_pp
