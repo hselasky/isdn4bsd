@@ -433,6 +433,9 @@ typedef struct call_desc
 	u_char  want_late_inband : 1;	/* user wants inband information
 					 * after the disconnect signal
 					 */
+	u_char  sending_complete : 1;   /* set if sending of telephone number 
+					 * is complete 
+					 */
 
 	u_int8_t peer_responded_bitmask[4];
 
@@ -520,9 +523,9 @@ typedef struct i4b_controller
 #	define	  N_DISCONNECT_REQUEST(cd,cause)	\
          ((i4b_controller_by_cd(cd))->N_DISCONNECT_REQUEST)(cd,cause)
 
-	void	(*N_ALERT_REQUEST)(struct call_desc *);
-#	define    N_ALERT_REQUEST(cd)		\
-         ((i4b_controller_by_cd(cd))->N_ALERT_REQUEST)(cd)
+	void	(*N_ALERT_REQUEST)(struct call_desc *, int);
+#	define    N_ALERT_REQUEST(cd,flag)		\
+	 ((i4b_controller_by_cd(cd))->N_ALERT_REQUEST)(cd,flag)
 
 	void	(*N_PROGRESS_REQUEST)(struct call_desc *);
 #	define    N_PROGRESS_REQUEST(cd)		\

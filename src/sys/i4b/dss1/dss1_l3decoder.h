@@ -127,18 +127,33 @@ dss1_decode_q931_cs0_ie_restart(void *arg, struct buf_range *src)
 static void
 dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 {
-	const char *m = NULL;
 	call_desc_t *cd = arg;
 	u_int8_t temp = get_1(src,2);
+	u_int8_t msg_type = get_1(src,0);
 
-	switch(get_1(src,0)) {
+	if(msg_type & 0x80)
+	{
+	    /* single byte IE */
+
+	    if(msg_type == IEI_SENDCOMPL)
+	    {
+	        /* sending complete */
+	        if(cd->dir_incoming)
+		{
+		    NDBGL3(L3_P_MSG, "IEI_SENDCOMPL");
+		    cd->sending_complete = 1;
+		}
+	    }
+	    goto done;
+	}
+
+	switch(msg_type) {
 
 	  /* ---- Q.931 ---- */
 		
 	  /* multi byte IE's */
 		
 	case IEI_SEGMMSG:	/* segmented message */
-	    m = "IEI_SEGMENTED_MESSAGE";
 	    break;
 			
 	case IEI_BEARERCAP:	/* bearer capability */
@@ -153,12 +168,10 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    case 0x89:	/* restricted digital info */
 	    case 0x90:	/* 3.1KHz audio */
 	        cd->channel_bprot = BPROT_NONE;
-		m = "IEI_BEARERCAP - Telephony";
 		break;
 
 	    case 0x88:	/* unrestricted digital info */
 	        cd->channel_bprot = BPROT_RHDLC;
-		m = "IEI_BEARERCAP - Raw HDLC";
 		break;
 
 	    default:
@@ -175,7 +188,6 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    break;
 	
 	case IEI_CALLID:	/* call identity */
-	    m = "IEI_CALL_IDENTITY";
 	    break;
 
 	case IEI_CALLSTATE:	/* call state */
@@ -267,15 +279,12 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    break;				
 	
 	case IEI_PROGRESSI:	/* progress indicator	*/
-	    m = "IEI_PROGRESSINDICATOR";
 	    break;
 			
 	case IEI_NETSPCFAC:	/* network specific fac */
-	    m = "IEI_NETSPCFAC";
 	    break;
 			
 	case IEI_NOTIFIND:	/* notification indicator */
-	    m = "IEI_NOTIFICATION_INDICATOR";
 	    break;
 			
 	case IEI_DISPLAY:	/* display */
@@ -304,7 +313,6 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    break;
 			
 	case IEI_KEYPAD:	/* keypad facility */
-	    m = "IEI_KEYPAD_FACILITY";
 	    break;
 			
 	case IEI_SIGNAL:	/* signal type */
@@ -312,15 +320,12 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    break;
 
 	case IEI_INFRATE:	/* information rate */
-	    m = "IEI_INFORMATION_RATE";
 	    break;
 
 	case IEI_ETETDEL:	/* end to end transit delay */
-	    m = "IEI_END_TO_END_TRANSIT_DELAY";
 	    break;
 
 	case IEI_CUG:		/* closed user group */
-	    m = "IEI_CLOSED_USER_GROUP";
 	    break;
 
 	case IEI_CALLINGPN:	/* calling party no */
@@ -412,40 +417,31 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    break;
 
 	case IEI_REDIRNO:	/* redirecting number */
-	    m = "IEI_REDIRECTING_NUMBER";
 	    break;
 
 	case IEI_TRNSEL:	/* transit network selection */
-	    m = "IEI_TRANSIT_NETWORK_SELECTION";
 	    break;
 
 	case IEI_RESTARTI:	/* restart indicator */
-	    m = "IEI_RESTART_INDICATOR";
 	    break;
 
 	case IEI_LLCOMPAT:	/* low layer compat */
-	    m = "IEI_LLCOMPAT";
 	    break;
 			
 	case IEI_HLCOMPAT:	/* high layer compat	*/
-	    m = "IEI_HLCOMPAT";
 	    break;
 			
 	case IEI_USERUSER:	/* user-user */
-	    m = "IEI_USER_USER";
-
 	    get_multi_1(src,2,&(cd->sms[0]),sizeof(cd->sms),0);
 	    NDBGL3(L3_P_MSG, "IEI_USERUSER = %s", &(cd->sms[0]));
 	    break;
 			
 	case IEI_ESCAPE:	/* escape for extension */
-	    m = "IEI_ESCAPE";
 	    break;
 
 	    /* ---- Q.932 ---- */
 
 	case IEI_FACILITY:	/* facility */
-	    m = "IEI_FACILITY";
 #if 0
 	    XXX should this be accepted in TE-mode only ?
 
@@ -459,24 +455,19 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    /* ---- Q.95x ---- */
 
 	case IEI_CONCTDNO:	/* connected number */
-	    m = "IEI_CONCTDNO";
 	    break;
 
 	default:
-	    NDBGL3(L3_P_ERR, "Unknown IE 0x%02x = ", get_1(src,0));
+	    NDBGL3(L3_P_MSG, "Unknown IE 0x%02x = ", get_1(src,0));
 #if DO_I4B_DEBUG
-	    if(i4b_l3_debug & L3_P_ERR)
+	    if(i4b_l3_debug & L3_P_MSG)
 	    {
 	        dss1_dump_buf(__FUNCTION__, src->start, src->end - src->start);
 	    }
 #endif
 	    break;
 	}
-
-	if(m)
-	{
-	    NDBGL3(L3_P_MSG, "%s", m);
-	}
+ done:
 	return;
 }
 
@@ -501,7 +492,8 @@ dss1_decode_ie(void *arg, u_int8_t *msg_ptr, u_int8_t *msg_end,
 	struct buf_range buf_range;
 	u_int8_t codeset = CODESET_0;
 	u_int8_t codeset_next = CODESET_0;
-	u_int8_t *msg_tmp;
+	u_int8_t msg_type;
+	u_int8_t *msg_start;
 
 	if(q931_func == NULL)
 	{
@@ -511,74 +503,81 @@ dss1_decode_ie(void *arg, u_int8_t *msg_ptr, u_int8_t *msg_end,
 	/* check length */
 	while(msg_ptr < msg_end)
 	{
-	    if(*msg_ptr & 0x80)
+	    /* store start of message */
+	    msg_start = msg_ptr;
+
+	    /* get message type */
+	    msg_type = *msg_ptr;
+
+	    /* skip to next byte */
+	    msg_ptr++;
+
+	    if(!(msg_type & 0x80))
 	    {
-		  /* single byte IE's */
+	        /* multi byte IE */
 
-		  /* check for shift codeset IE */
-		  if((*msg_ptr & 0xf0) == IEI_SHIFT)
-		  {
-			codeset_next = codeset;
+	        /* process one IE for the selected codeset */
 
-			codeset = *msg_ptr & CODESET_MASK;
+	        if(msg_ptr >= msg_end)
+		{
+		    /* a multi byte IE should 
+		     * contain at least the length
+		     * field, else one has reached
+		     * the end
+		     */
+		    break;
+		}
 
-			if(*msg_ptr & SHIFT_LOCK)
-			{
-			  codeset_next = codeset;
-			}
-		  }
+		/* compute message end */
 
-		  /* check for sending complete */
-		  if(*msg_ptr == IEI_SENDCOMPL)
-		  {
-			NDBGL3(L3_P_MSG,"IEI_SENDCOMPL");
-		  }
+		msg_ptr += msg_ptr[0] + 1;
+	    }
+	    /* else single byte IE */
 
-		  msg_ptr++;
+	    /* check length again */
+
+	    if(msg_ptr > msg_end)
+	    {
+	        break;
+	    }
+
+	    switch(codeset) {
+	    case CODESET_0:
+	        buf_range.start = msg_start;
+		buf_range.end = msg_ptr;
+		q931_func(arg, &buf_range);
+		break;
+				
+	    default:
+	        NDBGL3(L3_P_MSG, "unknown codeset %d, IE = ",
+		       codeset);
+#if DO_I4B_DEBUG
+		if(i4b_l3_debug & L3_P_MSG)
+		{
+		    dss1_dump_buf(__FUNCTION__, msg_start,
+				  msg_ptr - msg_start);
+		}
+#endif
+		break;
+	    }
+
+	    /* check for codeset shift */
+
+	    if((msg_type & 0xf0) == IEI_SHIFT)
+	    {
+	        codeset_next = codeset;
+
+		codeset = (msg_type & CODESET_MASK);
+
+		if(msg_type & SHIFT_LOCK)
+		{
+		    codeset_next = codeset;
+		}
 	    }
 	    else
 	    {
-		  /* multi byte IE's */
-
-		  /* process one IE for selected codeset */
-
-		  msg_tmp  = msg_ptr;
-
-		  msg_ptr++;
-
-		  if(msg_ptr >= msg_end)
-		  {
-		      break;
-		  }
-
-		  msg_ptr += msg_ptr[0] + 1;
-		
-		  /* check length */
-		  if(msg_ptr <= msg_end)
-		  {
-		    switch(codeset) {
-		    case CODESET_0:
-		        buf_range.start = msg_tmp;
-			buf_range.end = msg_ptr;
-		        q931_func(arg, &buf_range);
-			break;
-				
-		    default:
-		        NDBGL3(L3_P_ERR, "unknown codeset %d, IE = ",
-			       codeset);
-#if DO_I4B_DEBUG
-			if(i4b_l3_debug & L3_P_ERR)
-			{
-			    dss1_dump_buf(__FUNCTION__, msg_tmp,
-					  msg_ptr - msg_tmp);
-			}
-#endif
-			break;
-		    }
-		  }
-
-		  /* select next codeset */
-		  codeset = codeset_next;
+	        /* select next codeset */
+	        codeset = codeset_next;
 	    }
 	}
 	return;
@@ -658,7 +657,8 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 	event = Q931_MESSAGE_TYPES_EVENT[*msg_ptr & 0x7F];
 
 	NDBGL3(L3_PRIM|L3_P_MSG, "unit=%x, crlen=%d crval=0x%04x, "
-	       "message_type=0x%02x", sc->sc_unit, msg_ptr-msg_tmp-1, crval, *msg_ptr);
+	       "message_type=0x%02x", sc->sc_unit, 
+	       (msg_tmp[0] & CRLENGTH_MASK), crval, *msg_ptr);
 
 	msg_ptr++;
 
@@ -967,9 +967,9 @@ n_disconnect_request(call_desc_t *cd, int cause)
  *	handle alert request message from userland
  *---------------------------------------------------------------------------*/
 static void
-n_alert_request(call_desc_t *cd)
+n_alert_request(call_desc_t *cd, int flag)
 {
-	cd_update(cd, NULL, EV_L3_ALERTRQ);
+	cd_update(cd, NULL, (flag & 1) ? EV_L3_PROCEEDINGRQ : EV_L3_ALERTRQ);
 	return;
 }
 

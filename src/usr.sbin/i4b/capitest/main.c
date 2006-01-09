@@ -599,6 +599,11 @@ capi_send_connect_req(struct call_desc *cd)
 	  dst_telno[0] = 0xFE; /* avoid escape code */
 
 	msg.data.CONNECT_REQ.dst_telno.ptr = &dst_telno[0];
+
+	/* send sending complete so that the kernel dials
+	 * immediately:
+	 */
+	CONNECT_REQ_SENDINGCOMPLETE(&msg) = (u_int8_t *)&sending_complete[0];
     }
 
     len = strlen(&cd->src_telno[0]);
@@ -623,10 +628,6 @@ capi_send_connect_req(struct call_desc *cd)
 	msg.data.CONNECT_REQ.src_telno.ptr = &src_telno[0];
     }
 
-    /* send sending complete so that the kernel dials
-     * immediately:
-     */
-    CONNECT_REQ_SENDINGCOMPLETE(&msg) = (u_int8_t *)&sending_complete[0];
     CONNECT_REQ_ADDITIONALINFO(&msg) = CAPI_COMPOSE;
     CONNECT_REQ_BPROTOCOL(&msg) = CAPI_DEFAULT;
 

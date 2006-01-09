@@ -591,7 +591,7 @@ capi_get_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len,
  *	compile CAPI telephone number and presentation
  *---------------------------------------------------------------------------*/
 static u_int16_t
-capi_put_telno(struct call_desc *cd, u_int8_t *src, u_int8_t *dst, 
+capi_put_telno(struct call_desc *cd, const u_int8_t *src, u_int8_t *dst, 
 	       u_int16_t len, u_int8_t type, u_int8_t flag)
 {
 	u_int8_t *dst_end;
@@ -864,6 +864,7 @@ capi_ai_connect_ind(struct call_desc *cd)
 	static const u_int8_t bc_bprot_none[] = { 0x04, 0x03, 0x80, 0x90, 0xA3 };
 	static const u_int8_t bc_bprot_rhdlc[] = { 0x04, 0x02, 0x88, 0x90 };
 	static const u_int8_t hlc_bprot_none[] = { 0x7D, 0x02, 0x91, 0x81 };
+	static const u_int8_t sending_complete[] = { 0x01, 0x00 };
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		   (cd->ai_type == I4B_AI_CAPI)), 
@@ -927,6 +928,16 @@ capi_ai_connect_ind(struct call_desc *cd)
 	connect_ind.src_subaddr.len = capi_put_telno
 	  (cd, &cd->src_subaddr[0], &src_subaddr[0], 
 	   sizeof(src_subaddr), 0x80, 0);
+
+	/* link in the additional info */
+	connect_ind.add_info_STRUCT = IE_STRUCT_DECODED;
+	connect_ind.add_info.ptr = &add_info;
+
+	if(cd->sending_complete)
+	{
+	    add_info.sending_complete.ptr = &sending_complete;
+	    add_info.sending_complete.len = sizeof(sending_complete);
+	}
 
 	len = capi_encode(&msg.data, sizeof(msg.data), &connect_ind);
 	len += sizeof(msg.head);
@@ -1454,16 +1465,11 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		      capi_decode(add_info.sending_complete.ptr,
 				  add_info.sending_complete.len, 
 				  &sending_complete);
-#if 0
-		      if(sending_complete.wMode == 1)
-		      {
-			  send sending complete or call proceeding;
 
-			  N_ALERT_REQUEST will send call proceeding;
-			  before alert, in case of overlap sending;
-		      }
-#endif
-		      N_ALERT_REQUEST(cd);
+		      N_ALERT_REQUEST(cd, 
+				      (sending_complete.wMode == 0x0001) ?
+				      /* send CALL PROCEEDING */ 1 :
+				      /* send ALERT */ 0);
 		  }
 	      }
 	      else
@@ -1616,6 +1622,14 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      {
 		      cd->want_late_inband = 1;
 	      }
+
+	      CAPI_INIT(CAPI_SENDING_COMPLETE, &sending_complete);
+
+	      capi_decode(add_info.sending_complete.ptr,
+			  add_info.sending_complete.len, 
+			  &sending_complete);
+
+	      cd->sending_complete = (sending_complete.wMode == 0x0001);
 
 	      if(cd->channel_allocated == 0)
 	      {

@@ -169,7 +169,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	   ptr   = make_callreference(cd->pipe,cd->cr,ptr);
 	  *ptr++ = SETUP;		/* message type = setup */
 
-	  if(cd->dst_telno[0])
+	  if(cd->sending_complete)
 	  {
 	      *ptr++ = IEI_SENDCOMPL;	/* sending complete */
 	  }
@@ -473,14 +473,6 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 	   ptr   = make_callreference(cd->pipe,cd->cr,ptr);
 	  *ptr++ = message_type;          /* message type */
 
-	  if(flag & L3_TX_PROGRESSI)
-	  {
-	    *ptr++ = IEI_PROGRESSI;
-	    *ptr++ = 2; /* bytes */
-	    *ptr++ = NT_MODE(sc) ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
-	    *ptr++ = 0x88; /* in-band info available */
-	  }
-
 	  if(flag & L3_TX_CAUSE)
 	  {
 	    *ptr++ = IEI_CAUSE;                      /* cause ie */
@@ -502,6 +494,21 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 	    {
 	      ptr = IEI_channelid(cd, ptr);
 	    }
+	  }
+
+	  /* NOTE: the progress indicator
+	   * must be sent after the 
+	   * channel-ID, because some
+	   * phones will setup the B-channel
+	   * immediately when receiving
+	   * this message:
+	   */
+	  if(flag & L3_TX_PROGRESSI)
+	  {
+	    *ptr++ = IEI_PROGRESSI;
+	    *ptr++ = 2; /* bytes */
+	    *ptr++ = NT_MODE(sc) ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
+	    *ptr++ = 0x88; /* in-band info available */
 	  }
 
 	  if(flag & L3_TX_CALLEDPN)

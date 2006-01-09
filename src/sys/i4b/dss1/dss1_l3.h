@@ -119,11 +119,12 @@ m( ST_L3_UC_TO    ,, 4/*hz*/, ST_L3_U0    , "Disconnected"          , 0x0C  )	\
 /* NOTE: enum ``EV_L3_ILL'' must have the
  * memory-default-value of zero
  */
-#define L3_EVENTS_LOCAL_INCOMING(m)			\
+#define L3_EVENTS_LOCAL_INCOMING(m) \
 m( EV_L3_ILL         ,, "illegal event")\
 \
 m( EV_L3_PROGRESSRQ  ,, "L4 PROGRESS REQUEST")\
 m( EV_L3_ALERTRQ     ,, "L4 ALERT REQUEST")\
+m( EV_L3_PROCEEDINGRQ,, "L4 CALL PROCEEDING REQUEST")\
 m( EV_L3_SETACRS     ,, "L4 ACCEPT RESPONSE")\
 m( EV_L3_SETRJRS     ,, "L4 REJECT RESPONSE")\
 m( EV_L3_SETUP       ,, "received SETUP")\

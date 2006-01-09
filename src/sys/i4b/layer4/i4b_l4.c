@@ -421,7 +421,7 @@ i4b_accounting_timeout(struct i4b_accounting *sc)
  *	send MSG_CONNECT_IND message to userland
  *---------------------------------------------------------------------------*/
 void
-i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ui_ptr)
+i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ai_ptr)
 {
 	msg_connect_ind_t *mp;
 	struct mbuf *m;
@@ -436,24 +436,28 @@ i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ui_ptr)
 		mp->channel = cd->channel_id;
 		mp->bprot = cd->channel_bprot;
 
-#define TELNO_COPY(cd,mp,what)				\
-		{					\
-		  if(cd->what[0] != '\0')		\
-		    strlcpy(mp->what, &cd->what[0],	\
-			    sizeof(mp->what));		\
-		  else					\
-		    strcpy(mp->what, TELNO_EMPTY);	\
-		}					\
+#define TELNO_COPY(cd,mp,what)					\
+		strlcpy((mp)->what,				\
+			(cd)->what[0] ?				\
+			(const char *)(&(cd)->what[0]) :	\
+			(const char *)(TELNO_EMPTY),		\
+			sizeof((mp)->what))			\
 		/**/
 
-		/* NOTE: if the destination telephone
-		 * number is empty it means overlap
-		 * sending!
+		/* store wether the number is complete or not */
+
+		mp->sending_complete = cd->sending_complete;
+
+		/* just copy the destination telephone 
+		 * number like is, hence it might be updated
+		 * later due to overlap sending:
 		 */
-		strlcpy(mp->dst_telno, &cd->dst_telno[0],
+		strlcpy(mp->dst_telno, cd->dst_telno,
 			sizeof(mp->dst_telno));
 
-		TELNO_COPY(cd,mp,dst_subaddr);
+		strlcpy(mp->dst_subaddr, cd->dst_subaddr,
+			sizeof(mp->dst_subaddr));
+
 		TELNO_COPY(cd,mp,src_telno);
 		TELNO_COPY(cd,mp,src_subaddr);
 
@@ -469,7 +473,7 @@ i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ui_ptr)
 		mp->scr_ind = cd->scr_ind;
 		mp->prs_ind = cd->prs_ind;
 
-		i4b_ai_putqueue(ui_ptr,0,m);
+		i4b_ai_putqueue(ai_ptr,0,m);
 	}
 	return;
 }
@@ -481,6 +485,7 @@ i4b_l4_connect_ind(call_desc_t *cd)
 	{
 		i4b_ai_connect_ind(cd, cd->ai_ptr);
 	}
+
 	if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
 	{
 		capi_ai_connect_ind(cd);

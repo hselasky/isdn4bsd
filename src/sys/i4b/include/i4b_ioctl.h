@@ -35,14 +35,14 @@
 #define _I4B_IOCTL_H_
 
 /*---------------------------------------------------------------------------*
- *	version and release number for isdn4bsd package
+ *	version and release number for ISDN4BSD package
  *---------------------------------------------------------------------------*/
 #define I4B_VERSION    1                /* version number */
 #define I4B_REL        5                /* release number */
-#define I4B_STEP       7                /* release step   */
+#define I4B_STEP       8                /* release step   */
 
 /*---------------------------------------------------------------------------*
- * date/time format in i4b log messages
+ * date/time format in I4B log messages
  * ------------------------------------
  * Being year 2000 clean is not easy with the current state of the
  * ANSI C library standard and it's implementation for some locales.
@@ -375,6 +375,8 @@ typedef struct {
                     <------------------ INFORMATION_IND (if overlap sending 
                                                          in NT-mode)
 
+   ALERT_REQ / CALL_PROCEEDING ----------->
+
                 CONNECT_RESP ------------->
 
                     <------------------ CONNECT_ACTIVE_IND (if accepted)
@@ -491,6 +493,8 @@ typedef struct {
 #define  PRS_RESERVED 4		/* reserved				*/
 	u_char		display[DISPLAY_MAX];	/* content of display IE*/
 	u_char		sms[SMS_MAX];	       /* content of useruser IE*/
+	u_char          sending_complete : 1;
+	u_char          unused : 7;
 } msg_connect_ind_t;
 
 /*---------------------------------------------------------------------------*
@@ -711,9 +715,11 @@ typedef struct {
 	int		driver;		/* driver to route b channel data to */
 	int		driver_unit;	/*      unit number for above driver */
 	msg_shorthold_t	shorthold_data;	/* the shorthold data		     */
-	int		unitlen_method;	/* how to calculate the unitlength   */
+	unsigned short	unitlen_method;	/* how to calculate the unitlength   */
 #define  ULEN_METHOD_STATIC  0	/* use unitlen_time value (see above) */
 #define  ULEN_METHOD_DYNAMIC 1	/* use AOCD */	
+	unsigned short  sending_not_complete : 1;
+	unsigned short  unused : 15;
 	char		dst_telno[TELNO_MAX];	/* destination telephone no  */
 	char		dst_subaddr[SUBADDR_MAX];	/* dest subaddr      */
 	char		src_telno[TELNO_MAX];	/* source telephone number   */
@@ -827,19 +833,21 @@ MAKE_ENUM(DSTATS,
  *	timeout value update
  *---------------------------------------------------------------------------*/
 typedef struct {
-	cdid_t		cdid;		/* call descriptor id		*/
+	cdid_t		cdid;		/* call descriptor id */
 	msg_shorthold_t	shorthold_data;
 } msg_timeout_upd_t;
-	
+
 #define	I4B_TIMEOUT_UPD		_IOW('4', 7, msg_timeout_upd_t)
 
 /*---------------------------------------------------------------------------*
- *	send alert request
+ *	send alert request or call proceeding
  *---------------------------------------------------------------------------*/
 typedef struct {
-	cdid_t		cdid;		/* call descriptor id		*/
+	cdid_t		cdid;		/* call descriptor id */
+	u_char		send_call_proceeding : 1;
+	u_char		unused : 7;
 } msg_alert_req_t;
-	
+
 #define	I4B_ALERT_REQ		_IOW('4', 8, msg_alert_req_t)
 
 /*---------------------------------------------------------------------------*

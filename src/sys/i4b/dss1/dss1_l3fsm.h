@@ -425,7 +425,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	    cd->cause_out = 0;
 	    cd->need_release = 1;
 	    cd_set_state(cd,
-			 cd->dst_telno[0] != '\0' ? 
+			 cd->sending_complete ? 
 			 ST_L3_U1 /* non-overlap sending */:
 			 ST_L3_U2 /* overlap sending */);
 	  }
@@ -632,7 +632,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		break;
 	    }
 
-	    if(cd->dst_telno[0] == '\0')
+	    if(cd->sending_complete == 0)
 	    {
 	        /* overlap sending */
 
@@ -661,18 +661,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	    i4b_l4_connect_ind(cd);
 	  }
 	  break;
-#if 0
-	case EV_L3_CALL_PROCEEDING_REQ:
-	  if(state == ST_L3_IN_ACK)
-	  {
-	      /* sending complete */
-	      dss1_l3_tx_call_proceeding(cd,NT_MODE(sc));
 
-	      /* set new state */
-	      cd_set_state(cd,ST_L3_U6);
-	  }
-	  break;
-#endif
 	default:
 	case EV_L3_INFO:
 
@@ -688,14 +677,19 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	      i4b_l4_information_ind(cd);
 	  }
 	  break;
-#if 0
-	case EV_L3_PROGRESSRQ:
-	  /* (state > ST_L3_INCOMING) */
-	  if(state == ST_L3_U6)
+
+	case EV_L3_PROCEEDINGRQ: /* local-CMD */
+	  if((state > ST_L3_INCOMING) &&
+	     (state < ST_L3_U6))
 	  {
+	      /* sending complete */
+	      dss1_l3_tx_call_proceeding(cd,NT_MODE(sc));
+
+	      /* overlap sending is complete, set new state */
+	      cd_set_state(cd,ST_L3_U6);
 	  }
 	  break;
-#endif
+
 	case EV_L3_ALERTRQ: /* local-CMD */
 	  if((state > ST_L3_INCOMING) &&
 	     (state < ST_L3_U7))

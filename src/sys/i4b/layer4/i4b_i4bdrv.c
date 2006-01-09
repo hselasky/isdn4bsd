@@ -914,6 +914,7 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 			}
 
 			cd->isdntxdelay = mcr->txdelay;
+			cd->sending_complete = !(mcr->sending_not_complete);
 			N_CONNECT_REQUEST(cd);
 			break;
 		}
@@ -1052,9 +1053,9 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 
 		case I4B_ALERT_REQ:
 		{
-			/* msg_alert_req_t *mar = (void *)data; */
+			msg_alert_req_t *mar = (void *)data;
 
-			N_ALERT_REQUEST(cd);
+			N_ALERT_REQUEST(cd, mar->send_call_proceeding ? 1 : 0);
 			break;
 		}
 
