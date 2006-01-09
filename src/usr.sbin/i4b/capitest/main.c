@@ -561,6 +561,7 @@ static u_int16_t
 capi_send_connect_req(struct call_desc *cd)
 {
     struct capi_message_decoded msg;
+    static const u_int8_t sending_complete[] = { 2, 1, 0 };
     u_int8_t dst_telno[TELNO_MAX+3];
     u_int8_t src_telno[TELNO_MAX+3];
     u_int16_t len;
@@ -622,7 +623,11 @@ capi_send_connect_req(struct call_desc *cd)
 	msg.data.CONNECT_REQ.src_telno.ptr = &src_telno[0];
     }
 
-    CONNECT_REQ_ADDITIONALINFO(&msg) = CAPI_DEFAULT;
+    /* send sending complete so that the kernel dials
+     * immediately:
+     */
+    CONNECT_REQ_SENDINGCOMPLETE(&msg) = (u_int8_t *)&sending_complete[0];
+    CONNECT_REQ_ADDITIONALINFO(&msg) = CAPI_COMPOSE;
     CONNECT_REQ_BPROTOCOL(&msg) = CAPI_DEFAULT;
 
     return capi_put_message_decoded(&msg);
