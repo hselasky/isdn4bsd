@@ -1112,7 +1112,8 @@ main(int argc, char **argv)
     error = capi20_is_installed();
     if(error)
     {
-        fprintf(stderr, "CAPI 2.0 not installed!\n");
+        fprintf(stderr, "CAPI 2.0 not installed! "
+		"Or insufficient access rights.\n");
 	return -1;
     }
 

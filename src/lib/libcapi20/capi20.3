@@ -58,7 +58,7 @@ CAPI 2.0 Access Library (libcapi20, -lcapi20)
 .Sh SYNOPSIS
 .
 .
-.In capi20.h
+.In i4b/include/capi20.h
 .
 .
 .Ft "u_int16_t"
@@ -285,6 +285,13 @@ in
 .
 .Pp
 .
+.Fn capi20_is_installed
+will return zero if CAPI is installed. Else 0x1009 is returned.
+.
+.
+.
+.Pp
+.
 .Fn capi20_fileno
 will return the file number for the CAPI application identified by
 .Fa app_id .
@@ -306,8 +313,8 @@ helper functions that will encode and decode CAPI messages into
 predefined structures. These are for example
 .Fn capi_get_message_decoded
 and
-.Fn capi_put_message_decoded
- . See also "struct capi_message_decoded". By default all encoded CAPI
+.Fn capi_put_message_decoded .
+See also "struct capi_message_decoded". By default all encoded CAPI
 structures use little endian byte order.
 .
 .
@@ -327,32 +334,32 @@ value. In general a return value of zero means no error.
 .It 0x0000
 No error, data is available (default).
 .
-.It CAPI_ERROR_CAPI_NOT_INSTALLED
+.It CAPI_ERROR_CAPI_NOT_INSTALLED = 0x1009
 The CAPI20 device, /dev/capi20, cannot be opened.
 .
-.It CAPI_ERROR_OS_RESOURCE_ERROR
+.It CAPI_ERROR_OS_RESOURCE_ERROR = 0x1008
 The kernel or libcapi20 cannot allocate required memory.
 .
-.It CAPI_ERROR_ILLEGAL_MSG_PARAMETER
+.It CAPI_ERROR_ILLEGAL_MSG_PARAMETER = 0x2007
 .
-.It CAPI_ERROR_INVALID_PARAM
+.It CAPI_ERROR_INVALID_PARAM = 0x10F0
 An invalid parameter was passed to the function.
 .
-.It CAPI_ERROR_INVALID_APPLICATION_ID
+.It CAPI_ERROR_INVALID_APPLICATION_ID = 0x1101
 The application ID does not exist. This can be an indication that the CAPI
 application was shut down due to lack of free memory in the
 kernel. The software has to restart.
 .
-.It CAPI_ERROR_INVALID_BUFFER_SIZE
+.It CAPI_ERROR_INVALID_BUFFER_SIZE = 0x1003
 .
-.It CAPI_ERROR_UNSUPPORTED_VERSION
+.It CAPI_ERROR_UNSUPPORTED_VERSION = 0x10F1
 The software or the CAPI20 library must be recompiled. One might have
 to re-install the CAPI20 header files to /usr/include.
 .
-.It CAPI_ERROR_BUSY
+.It CAPI_ERROR_BUSY = 0x1007
 There is no data buffer where the message can be stored.
 .
-.It CAPI_ERROR_GET_QUEUE_EMPTY
+.It CAPI_ERROR_GET_QUEUE_EMPTY = 0x1104
 No CAPI message is available.
 .
 .

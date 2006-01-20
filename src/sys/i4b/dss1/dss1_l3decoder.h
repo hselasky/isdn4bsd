@@ -85,18 +85,19 @@ get_multi_1(struct buf_range *buf, u_int8_t offset,
     {
         while(dst[0])
 	{
-	    /* also see "man ascii" */
-	    if((dst[0] < 0x20) || (dst[0] > 0x7e))
-	    {
-	        if((filter == 2) && ((dst[0] == '\n') ||
-				     (dst[0] == '\t')))
-		{
-		    /* allow */
-		}
-		else
-		{
-		    dst[0] = '?';
-		}
+	    /* if you don't understand why this filter is here,
+	     * then you should never write PBX software
+	     */
+	    if (((dst[0] >= 'a') && (dst[0] <= 'z')) ||
+		((dst[0] >= 'A') && (dst[0] <= 'Z')) ||
+		((dst[0] >= '0') && (dst[0] <= '9'))) {
+
+		/* allow */
+
+	    } else {
+
+		dst[0] = '_';
+
 	    }
 	    dst++;
 	}
