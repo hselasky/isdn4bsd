@@ -1670,7 +1670,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      /* check that the B-channel is connected */
 
-	      if((cd->fifo_translator == NULL) || 
+	      if((cd->fifo_translator_capi == NULL) || 
 		 (cd->ai_type == I4B_AI_BROADCAST))
 	      {
 		  NDBGL4(L4_MSG, "cdid=%d: B-channel data sent "
@@ -1696,7 +1696,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      /* check queue length */
 
-	      if(_IF_QFULL(&cd->fifo_translator->tx_queue))
+	      if(_IF_QFULL(&cd->fifo_translator_capi->tx_queue))
 	      {
 		  m2 = capi_make_b3_conf
 		    (&msg, data_b3_req.wHandle, 0x1008);
@@ -1725,9 +1725,9 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      m2->m_next = m1;
 	      m1 = NULL;
 
-	      _IF_ENQUEUE(&cd->fifo_translator->tx_queue, m2);
+	      _IF_ENQUEUE(&cd->fifo_translator_capi->tx_queue, m2);
 
-	      L1_FIFO_START(cd->fifo_translator);
+	      L1_FIFO_START(cd->fifo_translator_capi);
 	      break;
 
 
@@ -2097,7 +2097,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		   *      connect b3 active resp --->
 		   */
 
-		  if(cd->fifo_translator == NULL)
+		  if(cd->fifo_translator_capi == NULL)
 		  {
 		      m2 = capi_make_connect_b3_ind(cd);
 		      goto send_confirmation;
@@ -2758,13 +2758,11 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 
 	if(!protocol)
 	{
-		return cd->fifo_translator;
+		return cd->fifo_translator_capi;
 	}
 
-#if 0
-	XXX this is already done:
-	cd->fifo_translator = f; 
-#endif
+	cd->fifo_translator_capi = f; 
+
 	NDBGL4(L4_MSG, "capi, cdid=%d, protocol=%d", 
 	       cd->cdid, *protocol);
 

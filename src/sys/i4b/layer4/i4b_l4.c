@@ -834,11 +834,6 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int channel, u_int protocol,
 	   */
 	  f2->refcount++;
 
-	  if(cd)
-	  {
-	    cd->fifo_translator = f1;
-	  }
-
 	  setup_ft(cntl,f1,&protocol,driver_type,driver_unit,cd);
 
 	  if(f1)
@@ -891,6 +886,15 @@ i4b_link_bchandrvr(call_desc_t *cd, int activate)
 {
 	static const u_int8_t
 	  MAKE_TABLE(I4B_B_PROTOCOLS,PROTOCOL,[]);
+
+	if (cd->channel_allocated) {
+
+	    /* disconnect dialtone generator, if connected */
+	  
+	    (void) i4b_setup_driver
+	      (i4b_controller_by_cd(cd), cd->channel_id,
+	       P_DISABLE, DRVR_DIAL_GEN, 0, cd);
+	}
 
 	/* if(cd->fifo_translator) allow deactivate */
 	return

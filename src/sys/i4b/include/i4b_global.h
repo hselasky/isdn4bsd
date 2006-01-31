@@ -420,7 +420,8 @@ typedef struct call_desc
 	u_char	state;			/* state of call descriptor */
 	u_char	status_enquiry_timeout;
 
-	struct fifo_translator * fifo_translator; /* channel fifo-translator */
+	struct fifo_translator * fifo_translator_capi; /* CAPI2.0 FIFO-translator */
+	struct fifo_translator * fifo_translator_tone_gen; /* tone gen. FIFO-translator */
 
 	u_int8_t ai_type; /* application interface type */
 	void *   ai_ptr; /* application interface private pointer */
@@ -438,6 +439,10 @@ typedef struct call_desc
 					 */
 
 	u_int8_t peer_responded_bitmask[4];
+
+	u_int8_t *tone_gen_ptr;
+	u_int8_t  tone_gen_state; /* current state of tone generator */
+	u_int16_t tone_gen_pos;   /* current sine table position */
 
 	struct	callout	idle_callout;
 	struct	callout	set_state_callout;
@@ -488,7 +493,8 @@ struct lapdstat;
 typedef struct i4b_controller
 {
 	u_int8_t unit;			/* controller unit number    */
-	u_int8_t allocated;
+	u_int8_t allocated : 1;
+	u_int8_t no_layer1_dialtone : 1;
 
 	/*  --> Layer 2 */
 	/* ============ */

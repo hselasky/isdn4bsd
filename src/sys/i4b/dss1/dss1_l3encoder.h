@@ -382,17 +382,21 @@ dss1_l3_tx_setup(call_desc_t *cd)
  * reject the message and send an
  * error to the "up-link"
  */
-#define dss1_l3_tx_setup_acknowledge(cd,send_chan_id)			\
-	dss1_l3_tx_message(cd,SETUP_ACKNOWLEDGE, (send_chan_id) ?	\
-			   (L3_TX_HEADER|L3_TX_CHANNELID) : L3_TX_HEADER)
+#define dss1_l3_tx_setup_acknowledge(cd,send_chan_id,send_progress)	\
+	dss1_l3_tx_message(cd,SETUP_ACKNOWLEDGE,			\
+			   (L3_TX_HEADER|				\
+			    ((send_progress) ? (L3_TX_PROGRESSI) : 0)|	\
+			    ((send_chan_id) ? (L3_TX_CHANNELID) : 0)))
+
+#define dss1_l3_tx_call_proceeding(cd,send_chan_id,send_progress)	\
+	dss1_l3_tx_message(cd,CALL_PROCEEDING,				\
+			   (L3_TX_HEADER|				\
+			    ((send_progress) ? (L3_TX_PROGRESSI) : 0)|	\
+			    ((send_chan_id) ? (L3_TX_CHANNELID) : 0)))
 
 #define dss1_l3_tx_information(cd)			\
 	dss1_l3_tx_message(cd,INFORMATION,		\
 			   L3_TX_HEADER|L3_TX_CALLEDPN)
-
-#define dss1_l3_tx_call_proceeding(cd,send_chan_id)			\
-	dss1_l3_tx_message(cd,CALL_PROCEEDING, (send_chan_id) ?		\
-			   (L3_TX_HEADER|L3_TX_CHANNELID) : L3_TX_HEADER)
 
 #define dss1_l3_tx_connect(cd)			\
 	dss1_l3_tx_message(cd,CONNECT,		\

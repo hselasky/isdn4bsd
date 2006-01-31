@@ -314,6 +314,10 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
   NDBGL3(L3_MSG, "cdid=%d, [%s]",
 	 cd->cdid, L3_STATES_DESC[newstate]);
 
+  /* store the Q.931 state for the tone generator */
+
+  cd->tone_gen_state = L3_STATES_Q931_CONV[cd->state];
+
   return;
 }
 
@@ -589,6 +593,9 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  if((state == ST_L3_INCOMING) ||
 	     (state == ST_L3_IN_ACK))
 	  {
+	    u_int8_t want_dialtone =
+	      NT_MODE(sc) && (!i4b_controller_by_cd(cd)->no_layer1_dialtone);
+
 	    /* the other end is allowed
 	     * to retransmit the SETUP 
 	     * message with a new
@@ -639,7 +646,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		/* need to send SETUP_ACKNOWLEDGE 
 		 * with the B-channel to use
 		 */
-	        dss1_l3_tx_setup_acknowledge(cd,NT_MODE(sc));
+	        dss1_l3_tx_setup_acknowledge(cd,NT_MODE(sc),want_dialtone);
 
 		/* set new state to allow 
 		 * information messages
@@ -651,10 +658,18 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		/* acknowledge the SETUP message
 		 * and send B-channel to use
 		 */
-	        dss1_l3_tx_call_proceeding(cd,NT_MODE(sc));
+	        dss1_l3_tx_call_proceeding(cd,NT_MODE(sc),want_dialtone);
 
 		/* set state before indication */
 		cd_set_state(cd,ST_L3_U6);
+	    }
+
+	    if(want_dialtone) {
+
+	        cd->driver_type = DRVR_DIAL_GEN;
+		cd->driver_unit = 0;
+
+		(void) i4b_link_bchandrvr(cd, 1);
 	    }
 
 	    /* tell l4 we have an incoming setup */	
@@ -683,7 +698,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	     (state < ST_L3_U6))
 	  {
 	      /* sending complete */
-	      dss1_l3_tx_call_proceeding(cd,NT_MODE(sc));
+	      dss1_l3_tx_call_proceeding(cd,NT_MODE(sc),0);
 
 	      /* overlap sending is complete, set new state */
 	      cd_set_state(cd,ST_L3_U6);
@@ -705,7 +720,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		* before any other messages
 		* for sake of compatibility
 		*/
-	       dss1_l3_tx_call_proceeding(cd,NT_MODE(sc));
+	       dss1_l3_tx_call_proceeding(cd,NT_MODE(sc),0);
 	     }
 
 	     dss1_l3_tx_alert(cd);
@@ -737,7 +752,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		* before any other messages
 		* for sake of compatibility
 		*/
-	       dss1_l3_tx_call_proceeding(cd,NT_MODE(sc));
+	       dss1_l3_tx_call_proceeding(cd,NT_MODE(sc),0);
 	     }
 
 	     dss1_l3_tx_connect(cd);

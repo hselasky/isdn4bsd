@@ -1940,6 +1940,143 @@ i4b_tel_attach(void *dummy)
 }
 SYSINIT(i4b_tel_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, i4b_tel_attach, NULL);
 
+/*---------------------------------------------------------------------------*
+ *	dial and ringing tone generator
+ *---------------------------------------------------------------------------*/
+
+static void
+tel_dial_put_mbuf(struct fifo_translator *f, struct mbuf *m)
+{
+	/* just free the mbuf */
+
+	m_freem(m);
+
+	return;
+}
+
+static struct mbuf *
+tel_dial_get_mbuf(struct fifo_translator *f)
+{
+	struct call_desc *cd = f->L5_sc;
+	struct mbuf *m;
+	u_int16_t pos;
+	u_int16_t len;
+	u_int16_t freq;
+	u_int8_t *ptr;
+
+	m = i4b_getmbuf(880, M_NOWAIT);
+
+	if (m) {
+
+	  if (cd->tone_gen_ptr == NULL)
+	  {
+	      /* 1 second of 440Hz sine wave */
+	      cd->tone_gen_ptr = "aaaaaaaaaa";
+	  } 
+	  else if (cd->tone_gen_ptr[0] == 0)
+	  {
+	      if ((cd->tone_gen_state == 0x19) && (cd->dst_telno[0] == 0))
+	      {
+		  cd->tone_gen_ptr = "a";
+	      }
+	      else if ((cd->tone_gen_state == 0x19) ||
+		       (cd->tone_gen_state == 0x08) ||
+		       (cd->tone_gen_state == 0x0A))
+	      {
+	          /* all silent */
+	          cd->tone_gen_ptr = " ";
+	      }
+	      else
+	      {
+		  /* ringing */
+		  cd->tone_gen_ptr = 
+		    "aaaaaaaaaa"
+		    "          "
+		    "          "
+		    "          ";
+	      }
+	  }
+
+	  if (cd->tone_gen_ptr[0] == 'a')
+	      freq = 440; /* Hz */
+	  else
+	      freq = 0; /* Hz */
+
+	  if (freq == 0) {
+	    cd->tone_gen_pos = 0;
+	  }
+
+	  /* get last position */
+	  pos = cd->tone_gen_pos;
+
+	  len = m->m_len;
+	  ptr = m->m_data;
+
+	  while (len) {
+
+	    *ptr = sinetab[pos]; /* u-law */
+
+	    ptr++;
+	    len--;
+	    pos += freq;
+
+	    if (pos >= 8000) {
+	        pos -= 8000;
+	    }
+	  }
+
+	  /* store position */
+	  cd->tone_gen_pos = pos;
+	  
+	  /* convert data (u-law to a-law and bitreverse) */
+	  i4b_tel_convert(m->m_data, m->m_len, 0x08|0x04);
+
+	  /* increment tone program */
+	  cd->tone_gen_ptr++;
+
+	} else {
+
+	  /* out of memory */
+
+	}
+	return m;
+}
+
+/*---------------------------------------------------------------------------*
+ *	setup the FIFO-translator for this driver
+ *---------------------------------------------------------------------------*/
+fifo_translator_t *
+tel_dial_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
+		  u_int driver_type, u_int driver_unit, call_desc_t *cd)
+{
+	if(!cd)
+	{
+		return FT_INVALID;
+	}
+
+	if(!protocol)
+	{
+		return cd->fifo_translator_tone_gen;
+	}
+
+	cd->fifo_translator_tone_gen = f; 
+
+	if(*protocol)
+	{
+	    /* connected */
+
+	    f->L5_sc = cd;
+
+	    f->L5_PUT_MBUF = tel_dial_put_mbuf;
+	    f->L5_GET_MBUF = tel_dial_get_mbuf;
+
+	    /* reset tone generator */
+
+	    cd->tone_gen_ptr = NULL;
+	}
+	return f;
+}
+
 /*===========================================================================*
  *	AUDIO FORMAT CONVERSION (produced by running g711conv)
  *===========================================================================*/

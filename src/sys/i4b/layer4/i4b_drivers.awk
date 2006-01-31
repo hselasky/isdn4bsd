@@ -28,6 +28,7 @@ END {
   m("i4b_isppp.o","i4bisppp") ;
   m("i4b_rbch.o","rbch") ;
   m("i4b_tel.o","tel") ;
+  m("i4b_tel.o","tel_dial") ;
   m("i4b_ihfc2_dev.o","ihfc_dev") ;
   m("i4b_capidrv.o","capi") ;
   m("dss1_l2fsm.o","dss1") ;

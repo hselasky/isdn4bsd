@@ -154,6 +154,7 @@ extern     setup_ft_t
   i4bisppp_setup_ft,
       rbch_setup_ft,
        tel_setup_ft,
+  tel_dial_setup_ft,
   ihfc_dev_setup_ft,
       dss1_setup_ft,
       capi_setup_ft,
