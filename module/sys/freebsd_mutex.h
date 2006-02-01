@@ -82,6 +82,8 @@ extern int
 extern struct mtx Giant;
 extern struct mtx Atomic; /* internal use only */
 
+#if (!defined(PSR_IMPL))
+
 /*
  * On NetBSD locking a mutex will
  * disable the interrupts!
@@ -99,6 +101,8 @@ intr_restore(register_t restore)
     mtx_unlock(&Atomic);
     return;
 }
+
+#endif
 
 struct mtx_args {
   struct mtx *mtx;

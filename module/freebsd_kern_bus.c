@@ -35,11 +35,15 @@
 #include <dev/pci/pcivar.h>
 #include <dev/pci/pcidevs.h>
 
+#ifndef FREEBSD_NO_ISA
+
 #include <dev/isa/isavar.h>
 
 #include <dev/isapnp/isapnpreg.h>
 #include <dev/isapnp/isapnpvar.h>
 #include <dev/isapnp/isapnpdevs.h>
+
+#endif
 
 static const char * const unknown_string = "unknown";
 
@@ -354,6 +358,8 @@ bus_alloc_resource(device_t dev, int type, int *rid, u_int32_t start,
 	  goto error;
       }
 
+#ifndef FREEBSD_NO_ISA
+
       if(dev->dev_what == DEVICE_IS_PNP)
       {
 	  struct isapnp_attach_args *arg = device_get_ivars(dev);
@@ -449,7 +455,9 @@ bus_alloc_resource(device_t dev, int type, int *rid, u_int32_t start,
 
       }
 #endif
-      else if(dev->dev_what == DEVICE_IS_PCI)
+      else 
+#endif
+	if(dev->dev_what == DEVICE_IS_PCI)
       {
 	  struct pci_attach_args *arg = device_get_ivars(dev);
 
@@ -556,6 +564,7 @@ bus_release_resource(device_t dev, int type, int rid,
 	if((dev->dev_res_alloc_count == 0) &&
 	   (dev->dev_res_alloc))
 	{
+#ifndef FREEBSD_NO_ISA
 	    if(dev->dev_what == DEVICE_IS_PNP)
 	    {
 	        struct isapnp_attach_args *arg = device_get_ivars(dev);
@@ -565,6 +574,7 @@ bus_release_resource(device_t dev, int type, int rid,
 		    isapnp_unconfig(arg->ipa_iot, arg->ipa_memt, arg);
 		}
 	    }
+#endif
 	    dev->dev_res_alloc = 0;
 	}
     }
@@ -640,6 +650,7 @@ bus_setup_intr(device_t dev, struct resource *res, int flags,
 
     cookiep[0] = NULL;
 
+#ifndef FREEBSD_NO_ISA
     if(dev->dev_what == DEVICE_IS_PNP)
     {
         struct isapnp_attach_args *arg = device_get_ivars(dev);
@@ -664,7 +675,9 @@ bus_setup_intr(device_t dev, struct resource *res, int flags,
 				 &interrupt_wrapper, dev);
 	}
     }
-    else if(dev->dev_what == DEVICE_IS_PCI)
+    else 
+#endif
+      if(dev->dev_what == DEVICE_IS_PCI)
     {
         struct pci_attach_args *arg = device_get_ivars(dev);
 
@@ -701,6 +714,7 @@ bus_teardown_intr(device_t dev, struct resource *r, void *cookie)
         return 0;
     }
 
+#ifndef FREEBSD_NO_ISA
     if(dev->dev_what == DEVICE_IS_PNP)
     {
 	  struct isapnp_attach_args *arg = device_get_ivars(dev);
@@ -717,7 +731,9 @@ bus_teardown_intr(device_t dev, struct resource *r, void *cookie)
 	    isa_intr_disestablish(arg->ia_ic, cookie);
 	}
     }
-    else if(dev->dev_what == DEVICE_IS_PCI)
+    else
+#endif
+      if(dev->dev_what == DEVICE_IS_PCI)
     {
         struct pci_attach_args *arg = device_get_ivars(dev);
 	if(arg)
@@ -1091,7 +1107,7 @@ usb_alloc_mem(u_int32_t size, u_int8_t align_power)
     size -= sizeof(temp);
 
     bcopy(&temp, ((u_int8_t *)ptr) + size, sizeof(temp));
-
+ 
     return ptr;
 
  done_1:

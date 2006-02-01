@@ -214,7 +214,7 @@ bus_generic_driver_added(device_t dev, driver_t *driver)
 static __inline struct resource *
 bus_alloc_resource_any(device_t dev, int type, int *rid, u_int32_t flags)
 {
-    return (bus_alloc_resource(dev, type, rid, 0ul, ~0ul, 1, flags));
+    return (bus_alloc_resource(dev, type, rid, 0, 0-1, 1, flags));
 }
 
 static __inline u_int32_t

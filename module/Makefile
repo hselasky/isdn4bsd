@@ -16,6 +16,11 @@ KMOD=     i4b
 MAN=
 CFLAGS+=  -Wall -I${.CURDIR}/../src/sys
 OSNAME!=  uname
+CPUNAME!= uname -m
+
+.if (${CPUNAME} == "sparc64")
+CFLAGS+=-DFREEBSD_NO_ISA
+.endif
 
 # FIX:
 # i4b/layer4/i4b_drivers.awk
