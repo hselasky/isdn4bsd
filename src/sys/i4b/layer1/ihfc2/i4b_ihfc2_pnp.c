@@ -321,6 +321,31 @@ ihfc_get_rid(const u_int8_t *rid, u_int8_t number)
 }
 
 /*---------------------------------------------------------------------------*
+ * : Automatic bit-order detection
+ *---------------------------------------------------------------------------*/
+static u_int32_t
+bit_reverse(u_int32_t x)
+{
+	u_int8_t n = 32;
+	u_int32_t y = 0;
+	while(n--) {
+	    y *= 2;
+	    if (x & 1) {
+	        y |= 1;
+	    }
+	    x /= 2;
+	}
+	return y;
+}
+
+const struct {
+
+	u_int32_t xxx [0];
+	u_int32_t xx1 : 1;
+
+} __packed bit_test = { .xx1 = 1, };
+
+/*---------------------------------------------------------------------------*
  * : Resource allocation
  *---------------------------------------------------------------------------*/
 static int
@@ -341,6 +366,17 @@ static const
 const   struct resource_tab *ptr;
 
 	u_int8_t number;
+
+	/* check bit order, for non-little endian processors */
+	if (bit_test.xxx[0] == 0x80000000)
+	{
+	    o_RES = bit_reverse(o_RES);
+	}
+	else if (bit_test.xxx[0] != 0x00000001)
+	{
+	    IHFC_ADD_ERR(error,
+			 "Invalid bit-order: 0x%08x!", bit_test.xxx[0]);
+	}
 
 	/* allocate i4b-controller */
 	if((sc->sc_resources.i4b_controller =
