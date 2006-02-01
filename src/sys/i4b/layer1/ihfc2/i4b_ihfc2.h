@@ -1058,7 +1058,7 @@ ihfc_fifo_program_t *
 
 # define USBD_CALLBACK_T(xfer)			\
 	(struct usbd_xfer *xfer)
-};
+} __packed;
 
 /* when making an embedded product, one can set
  * these macros to point to the real functions:
