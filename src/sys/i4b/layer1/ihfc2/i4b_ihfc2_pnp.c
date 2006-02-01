@@ -519,7 +519,8 @@ const   struct resource_tab *ptr;
 		if(!sc->sc_resources.mwba_start[0])
 		{
 		    sc->sc_resources.mwba_size [0] = (1<<15);
-		    sc->sc_resources.mwba_start[0] = usb_alloc_mem((1<<15),15);
+		    sc->sc_resources.mwba_start[0] = 
+		      usb_alloc_mem(device_get_dma_tag(dev),(1<<15),15);
 
 		    if(!sc->sc_resources.mwba_start[0])
 		    {
@@ -545,7 +546,8 @@ const   struct resource_tab *ptr;
 		if(!sc->sc_resources.mwba_start[0])
 		{
 		    sc->sc_resources.mwba_size [0] = (1<<14);
-		    sc->sc_resources.mwba_start[0] = usb_alloc_mem((1<<14),2);
+		    sc->sc_resources.mwba_start[0] = 
+		      usb_alloc_mem(device_get_dma_tag(dev),(1<<14),2);
 
 		    if(!sc->sc_resources.mwba_start[0])
 		    {

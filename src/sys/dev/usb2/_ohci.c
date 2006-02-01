@@ -2584,7 +2584,8 @@ ohci_xfer_setup(struct usbd_device *udev,
 		total_size = size;
 
 		/* allocate zeroed memory */
-		buf = usb_alloc_mem(size, LOG2(OHCI_TD_ALIGN));
+		buf = usb_alloc_mem(device_get_dma_tag(sc->sc_dev),
+				    size, LOG2(OHCI_TD_ALIGN));
 
 		if(!buf)
 		{

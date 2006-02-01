@@ -80,6 +80,7 @@ struct usbd_memory_info;
 struct device;
 struct callout;
 struct module;
+struct bus_dma_tag;
 
 typedef u_int8_t usbd_status;
 
@@ -609,8 +610,12 @@ extern u_int8_t usb_driver_added_refcount;
 void
 usb_needs_probe_and_attach(void);
 
+#ifdef __FreeBSD__
+#define device_get_dma_tag(dev) NULL
+#endif
+
 void *
-usb_alloc_mem(u_int32_t size, u_int8_t align_power);
+usb_alloc_mem(struct bus_dma_tag *tag, u_int32_t size, u_int8_t align_power);
 
 u_int32_t
 usb_vtophys(void *ptr, u_int32_t size);

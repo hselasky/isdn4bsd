@@ -188,7 +188,8 @@ ohci_pci_attach(device_t self)
 	int rid;
 	int err;
 
-	sc = usb_alloc_mem(sizeof(*sc), LOG2(OHCI_HCCA_ALIGN));
+	sc = usb_alloc_mem(device_get_dma_tag(self),
+			   sizeof(*sc), LOG2(OHCI_HCCA_ALIGN));
 
 	if(sc == NULL)
 	{
@@ -206,6 +207,7 @@ ohci_pci_attach(device_t self)
 		 NULL, MTX_DEF|MTX_RECURSE);
 
 	device_set_softc(self, sc);
+	sc->sc_dev = self;
 
 	pci_enable_busmaster(self);
 

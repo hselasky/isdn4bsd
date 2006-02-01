@@ -444,6 +444,9 @@ typedef struct ehci_softc {
 	struct resource *	io_res;
 	struct resource *	irq_res;
 #endif
+
+	device_t		sc_dev;
+
 	u_int8_t		sc_offs; /* offset to operational registers */
 	u_int8_t		sc_doorbell_disable; /* set on doorbell failure */
 

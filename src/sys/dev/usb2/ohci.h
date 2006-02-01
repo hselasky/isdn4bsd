@@ -321,6 +321,8 @@ typedef struct ohci_softc {
 	u_int8_t sc_addr;		/* device address */
 	u_int8_t sc_conf;		/* device configuration */
 
+	device_t sc_dev;
+
 	struct usbd_xfer *sc_intrxfer;
 
 	u_int8_t sc_vendor[16];

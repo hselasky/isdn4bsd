@@ -1158,16 +1158,17 @@ struct usb_dma
 };
 
 void *
-usb_alloc_mem(u_int32_t size, u_int8_t align_power)
+usb_alloc_mem(struct bus_dma_tag *tag, u_int32_t size, u_int8_t align_power)
 {
-	struct bus_dma_tag *tag;
 	struct bus_dmamap *map;
 	u_int32_t physaddr = 0;
 	void *ptr;
 
 	size += sizeof(struct usb_dma);
 
-	if(bus_dma_tag_create
+	if(tag == NULL)
+	{
+	  if(bus_dma_tag_create
 	   ( /* parent    */NULL,
 	     /* alignment */(1 << align_power),
 	     /* boundary  */0,
@@ -1184,9 +1185,10 @@ usb_alloc_mem(u_int32_t size, u_int8_t align_power)
 	     /*           */NULL,
 #endif
 	     &tag))
-	{
+	  {
 		return NULL;
 
+	  }
 	}
 
 	if(bus_dmamem_alloc

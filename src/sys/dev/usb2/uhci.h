@@ -295,6 +295,8 @@ typedef struct uhci_softc {
 	struct resource *irq_res;
 #endif
 
+	device_t sc_dev;
+
 	u_int32_t sc_loops;		/* number of QHs that wants looping */
 
 	u_int8_t sc_addr;		/* device address */
