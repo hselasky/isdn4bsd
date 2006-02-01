@@ -258,7 +258,7 @@ static __inline time_t time_second() { return time.tv_sec; }
   { if_attach(ifp); if_alloc_sadl(ifp); }
 
 void *
-usb_alloc_mem(u_int32_t size, u_int8_t align_power);
+usb_alloc_mem(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power);
 
 u_int32_t
 usb_vtophys(void *ptr, u_int32_t size);

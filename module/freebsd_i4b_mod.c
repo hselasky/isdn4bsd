@@ -90,6 +90,7 @@ _pci_pci_probe(struct pci_attach_args *arg)
     /* initialize "dev" structure */
 
     dev->dev_id = arg->pa_id;
+    dev->dev_dma_tag = arg->pa_dmat;
     dev->dev_what = DEVICE_IS_PCI;
     dev->dev_parent = &dummy_pci_dev;
 

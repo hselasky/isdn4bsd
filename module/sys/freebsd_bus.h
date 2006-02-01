@@ -92,6 +92,8 @@ struct __device {
     void    (*dev_intr_func)(void *);
     void *    dev_intr_arg;
 
+bus_dma_tag_t dev_dma_tag;
+
 const struct bsd_module_data *dev_module;
     struct __device *dev_next;
     struct __device *dev_parent;
@@ -329,6 +331,12 @@ device_get_softc(device_t dev);
 
 extern void
 device_set_softc(device_t dev, void *softc);
+
+static __inline bus_dma_tag_t
+device_get_dma_tag(device_t dev)
+{
+    return (dev) ? (dev->dev_dma_tag) : NULL;
+}
 
 extern int
 device_delete_child(device_t dev, device_t child);

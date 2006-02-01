@@ -468,6 +468,11 @@ bus_alloc_resource(device_t dev, int type, int *rid, u_int32_t start,
 
 	  switch(type) {
 	  case SYS_RES_IOPORT:
+	    if ((rid[0] < PCI_MAPREG_START) || (rid[0] & 3)) {
+	        printf("%s: Invalid I/O-port rid: 0x%x\n", __FUNCTION__, rid[0]);
+		goto error;
+	    }
+
 	    if(pci_mapreg_map(arg, rid[0], 
 			      PCI_MAPREG_TYPE_IO, 0, 
 			      &res->r_bustag, &res->r_bushandle,
@@ -482,6 +487,11 @@ bus_alloc_resource(device_t dev, int type, int *rid, u_int32_t start,
 	    break;
 
 	  case SYS_RES_MEMORY:
+	    if ((rid[0] < PCI_MAPREG_START) || (rid[0] & 3)) {
+	        printf("%s: Invalid memory rid: 0x%x\n", __FUNCTION__, rid[0]);
+		goto error;
+	    }
+
 	    if(pci_mapreg_map(arg, rid[0], 
 			      (PCI_MAPREG_TYPE_MEM | PCI_MAPREG_MEM_TYPE_32BIT), 0,
 			      &res->r_bustag, &res->r_bushandle,
@@ -1067,14 +1077,14 @@ struct usb_dma {
 };
 
 void *
-usb_alloc_mem(u_int32_t size, u_int8_t align_power)
+usb_alloc_mem(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
 {
     caddr_t ptr = NULL;
     struct usb_dma temp;
 
     bzero(&temp, sizeof(temp));
 
-    temp.tag = &pci_bus_dma_tag;
+    temp.tag = dma_tag;
     temp.seg_count = 1;
 
     size += sizeof(struct usb_dma);
