@@ -210,18 +210,24 @@ extern struct drvr_id
 #include <i4b/layer1/ihfc2/i4b_avm_a1.h>
 #include <i4b/layer1/ihfc2/i4b_avm_pnp.h>
 
+#ifndef FREEBSD_NO_ISA
 #include <i4b/layer1/ihfc2/i4b_ctx_s0P.h>
 #include <i4b/layer1/ihfc2/i4b_diva.h>
 #include <i4b/layer1/ihfc2/i4b_drn_ngo.h>
 #include <i4b/layer1/ihfc2/i4b_dynalink.h>
 #include <i4b/layer1/ihfc2/i4b_elsa_pcc16.h>
+#endif
+
 #include <i4b/layer1/ihfc2/i4b_ipac1.h>
 #include <i4b/layer1/ihfc2/i4b_psb2152.h>
 #include <i4b/layer1/ihfc2/i4b_psb3186.h>
+
+#ifndef FREEBSD_NO_ISA
 #include <i4b/layer1/ihfc2/i4b_tel_s08.h>
 #include <i4b/layer1/ihfc2/i4b_tel_s016.h>
 #include <i4b/layer1/ihfc2/i4b_tel_s0163.h>
 #include <i4b/layer1/ihfc2/i4b_usr_sti.h>
+#endif
 
 /* Tiger 300 */
 #include <i4b/layer1/ihfc2/i4b_tiger300_amd.h>
