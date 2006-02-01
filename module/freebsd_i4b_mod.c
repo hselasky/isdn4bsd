@@ -58,7 +58,7 @@ _pci_pci_probe(struct pci_attach_args *arg)
     if(sizeof(dev->dev_aux_data) < sizeof(*arg))
     {
         printf("%s: match needs %d bytes!\n",
-	       __FUNCTION__, sizeof(*arg));
+	       __FUNCTION__, (u_int32_t)sizeof(*arg));
 	return 0;
     }
 

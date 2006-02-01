@@ -37,7 +37,9 @@
 #include <sys/sysctl.h>
 #include <sys/vnode.h>
 
+#ifdef __FreeBSD__
 #include <machine/atomic.h>
+#endif
 
 #include <sys/freebsd_compat.h>
 
