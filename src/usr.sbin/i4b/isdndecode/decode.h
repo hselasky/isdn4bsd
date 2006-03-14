@@ -75,6 +75,8 @@ struct buffer {
   u_int16_t offset;     /* offset from start */
   u_int16_t len;        /* length from start */
   u_int8_t  state;      /* used by AOC */
+  u_int8_t  layer;      /* used by bsprintline() */
+  u_int16_t last_offset;/* used by bsprintline() */
 };
 
 struct ie {
@@ -96,12 +98,11 @@ extern u_int8_t layer3_dss1(   struct buffer *dst, struct buffer *src);
 extern u_int8_t layer3_1tr6(   struct buffer *dst, struct buffer *src);
 extern u_int8_t layer3_unknown(struct buffer *dst, struct buffer *src);
 
-extern void extension(int layer, struct buffer *dst, u_int16_t cnt, 
-		      u_int8_t value, u_int8_t mask);
+extern void extension(struct buffer *dst, struct buffer *src, 
+		      u_int16_t offset, u_int8_t mask);
 extern void bsprintf(struct buffer *dst, const void *fmt, ...);
-extern void bsprintline(u_int8_t layer, struct buffer *dst,
-		       u_int16_t oct_count, u_int8_t oct_val, 
-		       u_int8_t oct_mask, const void *fmt, ...);
+extern void bsprintline(struct buffer *dst, struct buffer *src, 
+			u_int16_t oct_count, u_int8_t oct_mask, const void *fmt, ...);
 
 extern void q932_facility(struct buffer *dst, struct buffer *src);
 extern void dump_raw(struct buffer *dst, struct buffer *src, const u_int8_t *desc);

@@ -40,20 +40,10 @@
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/malloc.h>
-#if defined(__NetBSD__) || defined(__OpenBSD__)
-#include <sys/device.h>
-#include <sys/ioctl.h>
-#elif defined(__FreeBSD__)
-#include <sys/module.h>
-#include <sys/bus.h>
 #include <sys/ioccom.h>
-#include <sys/conf.h>
-#include <sys/fcntl.h>
 #include <sys/filio.h>
-#endif
 #include <sys/tty.h>
 #include <sys/file.h>
-#include <sys/selinfo.h>
 #include <sys/vnode.h>
 #include <sys/poll.h>
 
@@ -122,14 +112,14 @@ struct ugen_endpoint {
 };
 
 struct ugen_softc {
-  struct device *	  sc_dev;
+  device_t       	  sc_dev;
   struct usbd_device *	  sc_udev;
   struct ugen_endpoint	  sc_endpoints[USB_MAX_ENDPOINTS];
   struct ugen_endpoint	  sc_endpoints_end[0];
   struct mtx		  sc_mtx;
 };
 
-extern struct cdevsw ugen_cdevsw;
+extern cdevsw_t ugen_cdevsw;
 
 static void
 ugen_make_devnodes(struct ugen_softc *sc);
@@ -163,9 +153,10 @@ ugen_get_alt_index(struct usbd_device *udev, int ifaceidx);
 #define DEV2SC(dev) ((dev)->si_drv1)
 #define DEV2SCE(dev) ((dev)->si_drv2)
 
-USB_MATCH(ugen)
+static int 
+ugen_probe(device_t dev)
 {
-	struct usb_attach_arg *uaa = device_get_ivars(self);
+	struct usb_attach_arg *uaa = device_get_ivars(dev);
 
 	if(uaa->usegeneric)
 		return (UMATCH_GENERIC);
@@ -173,36 +164,37 @@ USB_MATCH(ugen)
 		return (UMATCH_NONE);
 }
 
-USB_ATTACH(ugen)
+static int
+ugen_attach(device_t dev)
 {
-	struct usb_attach_arg *uaa = device_get_ivars(self);
-	struct ugen_softc *sc = device_get_softc(self);
+	struct usb_attach_arg *uaa = device_get_ivars(dev);
+	struct ugen_softc *sc = device_get_softc(dev);
 	struct ugen_endpoint *sce;
 	int conf;
 
-	sc->sc_dev = self;
+	sc->sc_dev = dev;
 	sc->sc_udev = uaa->device;
 
         mtx_init(&sc->sc_mtx, "ugen lock",
                  NULL, MTX_DEF|MTX_RECURSE);
 
 	/**/
-	usbd_set_desc(self, sc->sc_udev);
+	usbd_set_desc(dev, sc->sc_udev);
 
 	/* first set configuration index 0, the default one for ugen */
 	if(usbd_set_config_index(sc->sc_udev, 0, 0))
 	{
-		device_printf(self, "setting configuration index 0 failed\n");
-		USB_ATTACH_ERROR_RETURN;
+		device_printf(dev, "setting configuration index 0 failed\n");
+		return ENXIO;
 	}
 	conf = usbd_get_config_descriptor(sc->sc_udev)->bConfigurationValue;
 
 	/* set up all the local state for this configuration */
 	if(ugen_set_config(sc, conf))
 	{
-		device_printf(self, "setting configuration "
+		device_printf(dev, "setting configuration "
 			      "%d failed\n", conf);
-		USB_ATTACH_ERROR_RETURN;
+		return ENXIO;
 	}
 
 	sce = &sc->sc_endpoints[0];
@@ -216,12 +208,13 @@ USB_ATTACH(ugen)
 		DEV2SC(sce->dev) = sc;
 		DEV2SCE(sce->dev) = sce;
 	}
-	USB_ATTACH_SUCCESS_RETURN;
+	return 0; /* success */
 }
 
-USB_DETACH(ugen)
+static int
+ugen_detach(device_t dev)
 {
-	struct ugen_softc *sc = device_get_softc(self);
+	struct ugen_softc *sc = device_get_softc(dev);
 	struct ugen_endpoint *sce = &sc->sc_endpoints[0];
 	struct ugen_endpoint *sce_end = &sc->sc_endpoints_end[0];
 
@@ -235,7 +228,7 @@ USB_DETACH(ugen)
 
 	/* destroy all devices */
 	ugen_destroy_devnodes(sc, 0);
-	return (0);
+	return 0;
 }
 
 #define ugen_inc_input_index(ufr) \
@@ -1028,7 +1021,7 @@ ugenread(struct cdev *dev, struct uio *uio, int flag)
 			if(len > uio->uio_resid)
 			{
 			    PRINTFN(5, ("dumping %d bytes!\n", 
-					len - uio->uio_resid));
+					len - (u_int16_t)(uio->uio_resid)));
 
 			    /* rest of this frame will get dumped
 			     * for sake of synchronization!
@@ -2068,7 +2061,7 @@ ugenpoll(struct cdev *dev, int events, struct thread *p)
 	return (revents);
 }
 
-struct cdevsw ugen_cdevsw = {
+cdevsw_t ugen_cdevsw = {
 #ifdef D_VERSION
 	.d_version =	D_VERSION,
 #endif
@@ -2088,7 +2081,7 @@ static driver_t ugen_driver =
         .name    = "ugen",
         .methods = (device_method_t [])
         {
-          DEVMETHOD(device_probe, ugen_match),
+          DEVMETHOD(device_probe, ugen_probe),
           DEVMETHOD(device_attach, ugen_attach),
           DEVMETHOD(device_detach, ugen_detach),
           { 0, 0 }

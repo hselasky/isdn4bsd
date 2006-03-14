@@ -94,13 +94,13 @@ _mtx_assert(struct mtx *mtx, u_int32_t what,
 
     if((what & MA_OWNED) && (own == 0))
     {
-        panic("%s:%d: mutex %s not owned!\n", 
-	      file, line, mtx->name ? mtx->name : "unknown");
+	printf("%s:%d: mutex %s not owned!\n", 
+	       file, line, mtx->name ? mtx->name : "unknown");
     }
     if((what & MA_NOTOWNED) && (own == 1))
     {
-        panic("%s:%d: mutex %s owned!\n", 
-	      file, line, mtx->name ? mtx->name : "unknown");
+	printf("%s:%d: mutex %s owned!\n", 
+	       file, line, mtx->name ? mtx->name : "unknown");
     }
     return;
 }
@@ -183,10 +183,9 @@ mtx_trylock(struct mtx *mtx)
 }
 
 void
-mtx_unlock(struct mtx *mtx)
+_mtx_unlock(struct mtx *mtx)
 {
     u_int32_t s;
-    mtx_assert(mtx, MA_OWNED);
 
     if(mtx->mtx_recurse == 0)    
     {

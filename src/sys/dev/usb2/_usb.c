@@ -46,20 +46,15 @@
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/lock.h>
-#include <sys/mutex.h>
 #include <sys/malloc.h>
-#include <sys/bus.h> /* device_xxx() */
-#include <sys/module.h>
 
 #include <sys/uio.h> /* UIO_XXX */
-#include <sys/sysctl.h> /* SYSCTL_XXX() */
 #include <sys/proc.h>
 #include <sys/unistd.h>
 #include <sys/filio.h> /* FXXX */
 #include <sys/ioccom.h> /* IOR()/IOW()/IORW() */
 #include <sys/kthread.h>
 #include <sys/poll.h>
-#include <sys/conf.h>
 #include <sys/signalvar.h>
 #include <sys/vnode.h>
 
@@ -281,7 +276,7 @@ static void
 usb_create_event_thread(struct usbd_bus *bus)
 {
 	if(usb_kthread_create1((void*)(void*)&usb_event_thread, bus, &bus->event_thread,
-			"%s", device_get_nameunit(bus->bdev)))
+			       "%s", device_get_nameunit(bus->bdev)))
 	{
 		device_printf(bus->bdev, "unable to create event thread for\n");
 		panic("usb_create_event_thread");
@@ -396,7 +391,7 @@ usbd_add_dev_event(int type, struct usbd_device *udev)
 }
 
 void
-usbd_add_drv_event(int type, struct usbd_device *udev, struct device *dev)
+usbd_add_drv_event(int type, struct usbd_device *udev, device_t dev)
 {
 	struct usb_event ue;
 
@@ -409,152 +404,24 @@ usbd_add_drv_event(int type, struct usbd_device *udev, struct device *dev)
 	return;
 }
 
-/* XXX NOTE: caller must increase dev->refcount !! */
-
-#if defined(__NetBSD__) || defined(__OpenBSD__)
-static int
-usbd_print(void *aux, const char *pnp)
-{
-	struct usb_attach_arg *uaa = aux;
-	char devinfo[1024];
-
-	PRINTFN(15, ("dev=%p\n", uaa->device));
-	if(pnp)
-	{
-		if(!uaa->usegeneric)
-		{
-			return (QUIET);
-		}
-		usbd_devinfo(uaa->device, 1, devinfo);
-		printf("%s, %s", devinfo, pnp);
-	}
-	if(uaa->port != 0)
-	{
-		printf(" port %d", uaa->port);
-	}
-	if(uaa->configno != UHUB_UNK_CONFIGURATION)
-	{
-		printf(" configuration %d", uaa->configno);
-	}
-	if(uaa->ifaceno != UHUB_UNK_INTERFACE)
-	{
-		printf(" interface %d", uaa->ifaceno);
-	}
-#if 0
-	/*
-	 * It gets very crowded with these locators on the attach line.
-	 * They are not really needed since they are printed in the clear
-	 * by each driver.
-	 */
-	if(uaa->vendor != UHUB_UNK_VENDOR)
-	{
-		printf(" vendor 0x%04x", uaa->vendor);
-	}
-	if(uaa->product != UHUB_UNK_PRODUCT)
-	{
-		printf(" product 0x%04x", uaa->product);
-	}
-	if(uaa->release != UHUB_UNK_RELEASE)
-	{
-		printf(" release 0x%04x", uaa->release);
-	}
-#endif
-	return (UNCONF);
-}
-
-#if defined(__NetBSD__)
-static int
-usbd_submatch(struct device *parent, struct cfdata *cf, void *aux)
-{
-#elif defined(__OpenBSD__)
-static int
-usbd_submatch(struct device *parent, void *match, void *aux)
-{
-	struct cfdata *cf = match;
-#endif
-	struct usb_attach_arg *uaa = aux;
-
-	PRINTFN(5,("port=%d,%d configno=%d,%d "
-	    "ifaceno=%d,%d vendor=%d,%d product=%d,%d release=%d,%d\n",
-	    uaa->port, cf->uhubcf_port,
-	    uaa->configno, cf->uhubcf_configuration,
-	    uaa->ifaceno, cf->uhubcf_interface,
-	    uaa->vendor, cf->uhubcf_vendor,
-	    uaa->product, cf->uhubcf_product,
-	    uaa->release, cf->uhubcf_release));
-	if((uaa->port != 0) &&	/* root hub has port 0, it should match */
-
-	   (
-		((uaa->port != 0) &&
-		 (cf->uhubcf_port != UHUB_UNK_PORT) &&
-		 (cf->uhubcf_port != uaa->port) ) ||
-
-		((uaa->configno != UHUB_UNK_CONFIGURATION) &&
-		 (cf->uhubcf_configuration != UHUB_UNK_CONFIGURATION) &&
-		 (cf->uhubcf_configuration != uaa->configno)) ||
-
-		((uaa->ifaceno != UHUB_UNK_INTERFACE) &&
-		 (cf->uhubcf_interface != UHUB_UNK_INTERFACE) &&
-		 (cf->uhubcf_interface != uaa->ifaceno)) ||
-
-		((uaa->vendor != UHUB_UNK_VENDOR) &&
-		 (cf->uhubcf_vendor != UHUB_UNK_VENDOR) &&
-		 (cf->uhubcf_vendor != uaa->vendor)) ||
-
-		((uaa->product != UHUB_UNK_PRODUCT) &&
-		 (cf->uhubcf_product != UHUB_UNK_PRODUCT) &&
-		 (cf->uhubcf_product != uaa->product)) ||
-
-		((uaa->release != UHUB_UNK_RELEASE) &&
-		 (cf->uhubcf_release != UHUB_UNK_RELEASE) &&
-		 (cf->uhubcf_release != uaa->release))
-		)
-	   )
-	{
-		return 0;
-	}
-	if((cf->uhubcf_vendor != UHUB_UNK_VENDOR) &&
-	   (cf->uhubcf_vendor == uaa->vendor) &&
-	   (cf->uhubcf_product != UHUB_UNK_PRODUCT) &&
-	   (cf->uhubcf_product == uaa->product))
-	{
-		/* we have a vendor & product locator match */
-		if((cf->uhubcf_release != UHUB_UNK_RELEASE) &&
-		   (cf->uhubcf_release == uaa->release))
-		{
-			uaa->matchlvl = UMATCH_VENDOR_PRODUCT_REV;
-		}
-		else
-		{
-			uaa->matchlvl = UMATCH_VENDOR_PRODUCT;
-		}
-	}
-	else
-	{
-		uaa->matchlvl = 0;
-	}
-
-	return ((*cf->cf_attach->ca_match)(parent, cf, aux));
-}
-#endif
-
-
 /* called from uhci_pci_attach */
 
-USB_MATCH(usb)
+static int
+usb_probe(device_t dev)
 {
 	PRINTF(("\n"));
 	return (UMATCH_GENERIC);
 }
 
-extern struct cdevsw usb_cdevsw;
+extern cdevsw_t usb_cdevsw;
 
 static void
-__usb_attach(device_t self, struct usbd_bus *bus)
+__usb_attach(device_t dev, struct usbd_bus *bus)
 {
 	usbd_status err;
 	u_int8_t speed;
 	struct usb_event ue;
+	struct cdev *cdev;
 
 	PRINTF(("\n"));
 
@@ -624,40 +491,32 @@ __usb_attach(device_t self, struct usbd_bus *bus)
 		bus->use_polling--;
 	}
 
-#if defined(__NetBSD__) || defined(__OpenBSD__)
-	usb_kthread_create
-	  ((void*)(void*)&usb_create_event_thread, bus);
-#endif
-
-#if defined(__FreeBSD__)
 	usb_create_event_thread(bus);
-
-	struct cdev *dev;
 
 	/* the per controller devices (used for usb_discover) */
 	/* XXX This is redundant now, but old usbd's will want it */
-	dev = make_dev(&usb_cdevsw, device_get_unit(self), UID_ROOT, GID_OPERATOR,
-		       0660, "usb%d", device_get_unit(self));
+	cdev = make_dev(&usb_cdevsw, device_get_unit(dev), UID_ROOT, GID_OPERATOR,
+			0660, "usb%d", device_get_unit(dev));
 
-	if(dev)
+	if(cdev)
 	{
-		DEV2BUS(dev) = bus;
+		DEV2BUS(cdev) = bus;
 	}
-#endif
 	return;
 }
 
 static u_int8_t usb_post_init_called = 0;
 
-USB_ATTACH(usb)
+static int
+usb_attach(device_t dev)
 {
-	struct usbd_bus *bus = device_get_softc(self);
+	struct usbd_bus *bus = device_get_softc(dev);
 
 	mtx_lock(&usb_global_lock);
 
 	if(usb_post_init_called != 0)
 	{
-		__usb_attach(self, bus);
+		__usb_attach(dev, bus);
 	}
 
 	mtx_unlock(&usb_global_lock);
@@ -707,47 +566,10 @@ usb_post_init(void *arg)
 
 SYSINIT(usb_post_init, SI_SUB_PSEUDO, SI_ORDER_ANY, usb_post_init, NULL);
 
-#if defined(__NetBSD__) || defined(__OpenBSD__)
-int
-usb_activate(device_ptr_t self, enum devact act)
-{
-	struct usbd_bus *bus = device_get_softc(self);
-	struct usbd_device *udev = bus->root_port.device;
-	int i, rv = 0;
-
-	switch (act)
-	{
-	case DVACT_ACTIVATE:
-		return (EOPNOTSUPP);
-
-	case DVACT_DEACTIVATE:
-
-		lock();
-		bus->root_port.device = NULL;
-		unlock();
-
-		XXX subdevs is a structure;
-		XXX subdevs are not zero terminated;
-
-		if((udev != NULL) &&
-		    (udev->cdesc != NULL) &&
-		    (udev->subdevs != NULL))
-		{
-			for (i = 0; udev->subdevs[i]; i++)
-			{
-				rv |= config_deactivate(udev->subdevs[i]);
-			}
-		}
-		break;
-	}
-	return (rv);
-}
-#endif
-
 static int
-usb_detach(device_t self, int flags)
+usb_detach(device_t dev, int flags)
 {
-	struct usbd_bus *bus = device_get_softc(self);
+	struct usbd_bus *bus = device_get_softc(dev);
 	struct usb_event ue;
 
 	PRINTF(("start\n"));
@@ -791,7 +613,7 @@ usb_detach(device_t self, int flags)
 	usb_event_add(USB_EVENT_CTRLR_DETACH, &ue);
 
 	mtx_lock(&bus->mtx);
-	if(bus->bdev == self)
+	if(bus->bdev == dev)
 	{
 		/* need to clear bus->bdev
 		 * here so that the parent
@@ -802,7 +624,7 @@ usb_detach(device_t self, int flags)
 	}
 	else
 	{
-		device_printf(self, "unexpected bus->bdev value!\n");
+		device_printf(dev, "unexpected bus->bdev value!\n");
 	}
 	mtx_unlock(&bus->mtx);
 	return (0);
@@ -1091,16 +913,12 @@ usbpoll(struct cdev *dev, int events, struct thread *td)
 	}
 	else
 	{
-#if defined(__FreeBSD__)
-		return (0);	/* select/poll never wakes up - back compat */
-#else
-		return (ENXIO);
-#endif
+		/* select/poll never wakes up - back compat */
+		return 0;
 	}
 }
 
-struct cdevsw usb_cdevsw =
-{
+cdevsw_t usb_cdevsw = {
 #ifdef D_VERSION
 	.d_version =	D_VERSION,
 #endif
@@ -1115,28 +933,26 @@ struct cdevsw usb_cdevsw =
 static void
 usb_init(void *arg)
 {
+	struct cdev *cdev;
+
 #ifndef usb_global_lock
 	mtx_init(&usb_global_lock, "usb_global_lock",
 		 NULL, MTX_DEF|MTX_RECURSE);
 #endif
-
-#if defined(__FreeBSD__)
-	struct cdev *dev;
-
 	/* the device spitting out events */
-	dev = make_dev(&usb_cdevsw, USB_DEV_MINOR, UID_ROOT, GID_OPERATOR,
-		       0660, "usb");
+	cdev = make_dev(&usb_cdevsw, USB_DEV_MINOR, UID_ROOT, 
+			GID_OPERATOR, 0660, "usb");
 
-	if(dev)
+	if(cdev)
 	{
-		DEV2BUS(dev) = NULL;
+		DEV2BUS(cdev) = NULL;
 	}
-#endif
 	return;
 }
 
 SYSINIT(usb_init, SI_SUB_DRIVERS, SI_ORDER_FIRST, usb_init, NULL);
 
+#ifdef __FreeBSD__
 static void
 bus_dmamap_load_callback(void *arg, bus_dma_segment_t *segs, int nseg, int error)
 {
@@ -1150,12 +966,11 @@ bus_dmamap_load_callback(void *arg, bus_dma_segment_t *segs, int nseg, int error
 	return;
 }
 
-struct usb_dma 
-{
+struct usb_dma {
 	struct bus_dma_tag *	tag;
 	struct bus_dmamap *	map;
 	u_int32_t		physaddr;
-};
+} __packed;
 
 void *
 usb_alloc_mem(struct bus_dma_tag *tag, u_int32_t size, u_int8_t align_power)
@@ -1262,6 +1077,7 @@ usb_free_mem(void *ptr, u_int32_t size)
 #endif
 	return;
 }
+#endif
 
 static devclass_t usb_devclass;
 static driver_t usb_driver =
@@ -1269,7 +1085,7 @@ static driver_t usb_driver =
 	.name    = "usb",
 	.methods = (device_method_t [])
 	{
-	  DEVMETHOD(device_probe, usb_match),
+	  DEVMETHOD(device_probe, usb_probe),
 	  DEVMETHOD(device_attach, usb_attach),
 	  DEVMETHOD(device_detach, usb_detach),
 	  DEVMETHOD(device_suspend, bus_generic_suspend),

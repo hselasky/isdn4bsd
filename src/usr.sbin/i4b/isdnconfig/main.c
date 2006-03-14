@@ -65,7 +65,7 @@ static const struct enum_desc
 }
     enum_list[] =
 {
-    I4B_D_DRIVERS(I4B_DRIVERS_LLIST) { NULL, 0 }
+  I4B_D_DRIVERS(I4B_DRIVERS_LLIST) { NULL, 0 }
 };
 
 static int

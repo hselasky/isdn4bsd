@@ -169,6 +169,7 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
 	   (cd->state == ST_L3_UA_TO) ||
 	   (cd->state == ST_L3_U3_TO) ||
 	   (cd->state == ST_L3_U4_TO) ||
+	   (cd->state == ST_L3_U6_TO) ||
 	   (cd->state == ST_L3_U7_TO))
 	{
 	    NDBGL3(L3_MSG,
@@ -272,6 +273,7 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
 	   (newstate == ST_L3_UA_TO) ||
 	   (newstate == ST_L3_U3_TO) ||
 	   (newstate == ST_L3_U4_TO) ||
+	   (newstate == ST_L3_U6_TO) ||
 	   (newstate == ST_L3_U7_TO));
 
 	if(NT_MODE(sc) && 
@@ -393,6 +395,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 
 	  if((state == ST_L3_U3_TO) ||
 	     (state == ST_L3_U4_TO) ||
+	     (state == ST_L3_U6_TO) ||
 	     (state == ST_L3_U7_TO))
 	  {
 	      /* NOTE: there are more callstates than 0x0..0xA+0x19 ! */
@@ -413,6 +416,78 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	      cd_set_state(cd, state -1);
 	  }
 	  break;
+
+	case EV_L3_HOLD_REQ:
+	  if(((cd->state == ST_L3_UA) ||
+	      (cd->state == ST_L3_UA_TO) ||
+	      ((cd->state >= ST_L3_U6) &&
+	       (cd->state <= ST_L3_U8))) &&
+	     (!cd->call_is_on_hold) && NT_MODE(sc))
+	    {
+	      if(cd->b_link_want_active)
+	      {
+		  /* disconnect B-channel if any */
+		  i4b_link_bchandrvr(cd, 0);
+
+		  /* still want the link active */
+		  cd->b_link_want_active = 1;
+	      }
+
+	      /* free allocated channel if any */
+	      cd_free_channel(cd);
+
+	      /* send acknowledge back */
+	      dss1_l3_tx_hold_acknowledge(cd);
+
+	      /* forward hold notify indication */
+	      i4b_l4_hold_ind(cd);
+
+	      /**/
+	      cd->call_is_on_hold = 1;
+	  }
+	  else
+	  {
+	      /* reject: message not compatible with call state */
+	      dss1_l3_tx_hold_reject(cd, CAUSE_Q850_MSGNCMPT);
+	  }
+	  break;
+
+	case EV_L3_RETRIEVE_REQ:
+
+	  if(cd->call_is_on_hold)
+	  {
+	      /* reserve channel */
+	      cd_allocate_channel(cd);
+
+	      if(cd->channel_allocated == 0)
+	      {
+		  /* reject: no circuit channel available */
+		  dss1_l3_tx_retrieve_reject(cd, CAUSE_Q850_NOCAVAIL);
+	      }
+	      else
+	      {
+		  /* send acknowledge back */
+		  dss1_l3_tx_retrieve_acknowledge(cd);
+
+		  /* forward retrieve indication */
+		  i4b_l4_retrieve_ind(cd);
+
+		  /**/
+		  cd->call_is_on_hold = 0;
+
+		  if(cd->b_link_want_active)
+		  {
+		      i4b_link_bchandrvr(cd, 1);
+		  }
+	      }
+	  }
+	  else
+	  {
+	      /* reject: message not compatible with call state */
+	      dss1_l3_tx_retrieve_reject(cd, CAUSE_Q850_MSGNCMPT);
+	  }
+	  break;
+
 
 /*
  * outgoing calls

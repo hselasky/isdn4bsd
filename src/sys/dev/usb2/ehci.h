@@ -409,21 +409,19 @@ typedef struct {
 	u_int8_t fill[(-(2*sizeof(u_int32_t))) & (EHCI_FSTN_ALIGN-1)];
 } UPACKED ehci_fstn_t;
 
+struct ehci_hw_softc {
+	u_int32_t		pframes[EHCI_FRAMELIST_COUNT]; /* start TD pointer */
+
+	/* structures with highest alignment are first */
+
+	ehci_qh_t		async_start;
+	ehci_qh_t		intr_start[EHCI_VIRTUAL_FRAMELIST_COUNT];
+	ehci_itd_t		isoc_hs_start[EHCI_VIRTUAL_FRAMELIST_COUNT];
+	ehci_sitd_t		isoc_fs_start[EHCI_VIRTUAL_FRAMELIST_COUNT];
+} UPACKED;
+
 typedef struct ehci_softc {
-  /*
-   * hardware structures first
-   * (highest alignment is first)
-   */
-	u_int32_t		sc_pframes[EHCI_FRAMELIST_COUNT]; /* start TD pointer */
-
-	ehci_qh_t		sc_async_start;
-	ehci_qh_t		sc_intr_start[EHCI_VIRTUAL_FRAMELIST_COUNT];
-	ehci_itd_t		sc_isoc_hs_start[EHCI_VIRTUAL_FRAMELIST_COUNT];
-	ehci_sitd_t		sc_isoc_fs_start[EHCI_VIRTUAL_FRAMELIST_COUNT];
-
-  /*
-   * software structures last 
-   */
+	struct ehci_hw_softc sc_hw; /* hardware structures first */
 
 	ehci_qh_t *		sc_async_p_last;
 	ehci_qh_t *		sc_intr_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
@@ -438,12 +436,11 @@ typedef struct ehci_softc {
 	bus_space_tag_t		iot;
 	bus_space_handle_t	ioh;
 	bus_size_t		sc_size;
-#if defined(__FreeBSD__)
+
 	void *			ih;
 
 	struct resource *	io_res;
 	struct resource *	irq_res;
-#endif
 
 	device_t		sc_dev;
 
@@ -471,7 +468,7 @@ typedef struct ehci_softc {
 
 	struct callout		sc_tmo_pcd;
 
-} UPACKED ehci_softc_t;
+} ehci_softc_t;
 
 #define EREAD1(sc, a) bus_space_read_1((sc)->iot, (sc)->ioh, (a))
 #define EREAD2(sc, a) bus_space_read_2((sc)->iot, (sc)->ioh, (a))

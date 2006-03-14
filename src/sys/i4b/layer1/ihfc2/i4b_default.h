@@ -108,7 +108,7 @@ default_chip_status_check CHIP_STATUS_CHECK_T(sc)
 	  /* CISQ */
 	  if(sc->sc_config.i_ista & 0x04)
 	  {
-	    fsm_update(sc,0);
+		ihfc_fsm_update(sc,&sc->sc_fifo[0],0);
 	  }
 
 	  /* RME or RPF - D channel receive */
@@ -169,7 +169,7 @@ default_chip_status_check CHIP_STATUS_CHECK_T(sc)
 	  /* statemachine changed */
 	  if(sc->sc_config.s_int_s1 & 0x40)
 	  {
-		fsm_update(sc,0);
+		ihfc_fsm_update(sc,&sc->sc_fifo[0],0);
 	  }
 
 	  /* Timer 64ms, 50ms, 25ms ... */
@@ -252,14 +252,14 @@ default_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 }
 
 static void
-default_fsm_read FSM_READ_T(sc,ptr)
+default_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	ptr[0] = 0;
 	return;
 }
 
 static void
-default_fsm_write FSM_WRITE_T(sc,ptr)
+default_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	return;
 }

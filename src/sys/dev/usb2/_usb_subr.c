@@ -42,9 +42,7 @@
 #include <sys/endian.h>
 #include <sys/queue.h> /* LIST_XXX() */
 #include <sys/lock.h>
-#include <sys/mutex.h>
 #include <sys/malloc.h>
-#include <sys/bus.h> /* device_xxx() */
 
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
@@ -922,11 +920,11 @@ usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di,
  * from "usbd_new_device()" and "uhub_explore()"
  */
 usbd_status
-usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
+usbd_probe_and_attach(device_t parent, int port, struct usbd_port *up)
 {
 	struct usb_attach_arg uaa;
 	struct usbd_device *udev = up->device;
-	struct device *bdev = NULL;
+	device_t bdev = NULL;
 	usbd_status err = 0;
 	u_int8_t config;
 	u_int8_t i;
@@ -946,7 +944,7 @@ usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
 
 	uaa.device = udev;
 	uaa.port = port;
-	uaa.configno = UHUB_UNK_CONFIGURATION;
+	uaa.configno = -1;
 	uaa.vendor = UGETW(udev->ddesc.idVendor);
 	uaa.product = UGETW(udev->ddesc.idProduct);
 	uaa.release = UGETW(udev->ddesc.bcdDevice);
@@ -1127,7 +1125,7 @@ usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
 		uaa.ifaces_start = NULL;
 		uaa.ifaces_end = NULL;
 		uaa.usegeneric = 1;
-		uaa.configno = UHUB_UNK_CONFIGURATION;
+		uaa.configno = -1;
 
 		if(device_probe_and_attach(bdev) == 0)
 		{
@@ -1161,7 +1159,7 @@ usbd_probe_and_attach(struct device *parent, int port, struct usbd_port *up)
  * and attach a driver.
  */
 usbd_status
-usbd_new_device(struct device *parent, struct usbd_bus *bus, int depth,
+usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 		int speed, int port, struct usbd_port *up)
 {
 	struct usbd_device *adev;
@@ -1432,8 +1430,8 @@ void
 usbd_free_device(struct usbd_port *up, u_int8_t free_subdev)
 {
 	struct usbd_device *udev = up->device;
-	struct device **subdev = &udev->subdevs[0];
-	struct device **subdev_end = &udev->subdevs_end[0];
+	device_t *subdev = &udev->subdevs[0];
+	device_t *subdev_end = &udev->subdevs_end[0];
 	int error = 0;
 
 	/* mtx_assert() */
@@ -1510,7 +1508,7 @@ usbd_free_device(struct usbd_port *up, u_int8_t free_subdev)
 }
 
 void
-usb_detach_wait(struct device *dev)
+usb_detach_wait(device_t dev)
 {
 	PRINTF(("waiting for %s\n", device_get_nameunit(dev)));
 
@@ -1525,7 +1523,7 @@ usb_detach_wait(struct device *dev)
 }
 
 void
-usb_detach_wakeup(struct device *dev)
+usb_detach_wakeup(device_t dev)
 {
 	PRINTF(("for %s\n", device_get_nameunit(dev)));
 	wakeup(dev);
@@ -1548,7 +1546,7 @@ usbd_get_iface(struct usbd_device *udev, u_int8_t iface_index)
 }
 
 void
-usbd_set_desc(struct device *dev, struct usbd_device *udev)
+usbd_set_desc(device_t dev, struct usbd_device *udev)
 {
 	u_int8_t devinfo[1024];
 

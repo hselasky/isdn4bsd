@@ -447,9 +447,8 @@ devfs_ioctl(struct vop_ioctl_args *ap)
 		{
 		    dev->si_file_flags &= ~O_NONBLOCK;
 		}
-		dev_relthread(dev);
-		error = 0;
-	        goto done;
+
+		/* this IOCTL is also forwarded to the driver */
 	    }
 	    else if(cmd == FIODTYPE)
 	    {
@@ -1668,6 +1667,7 @@ devfs_link(struct vop_link_args *ap)
 #ifdef DEVFS_DEBUG
 	printf("%s\n", __FUNCTION__);
 #endif
+	VOP_UNLOCK(ap->a_dvp, 0);
 	return EOPNOTSUPP;
 }
 

@@ -252,7 +252,7 @@ I4B_FIFO_MAP_DECLARE(tiger300_fifo_map[]) =
 	}
 
 static void
-tiger300_amd_fsm_read FSM_READ_T(sc,ptr)
+tiger300_amd_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	AMD_BUS_VAR(sc);
 	u_int8_t tmp;
@@ -267,7 +267,7 @@ tiger300_amd_fsm_read FSM_READ_T(sc,ptr)
 }
 
 static void
-tiger300_amd_fsm_write FSM_WRITE_T(sc,ptr)
+tiger300_amd_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	AMD_BUS_VAR(sc);
 
@@ -493,7 +493,7 @@ tiger300_isac_chip_write CHIP_WRITE_T(sc,reg,ptr,len)
 }
 
 static void
-tiger300_isac_fsm_read FSM_READ_T(sc,ptr)
+tiger300_isac_fsm_read FSM_READ_T(sc,f,ptr)
 {
   IPAC_BUS_VAR(sc);
   register u_int8_t tmp;
@@ -507,7 +507,7 @@ tiger300_isac_fsm_read FSM_READ_T(sc,ptr)
 }
 
 static void
-tiger300_isac_fsm_write FSM_WRITE_T(sc,ptr)
+tiger300_isac_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
   IPAC_BUS_VAR(sc);
 

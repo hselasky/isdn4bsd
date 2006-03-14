@@ -148,7 +148,7 @@ memset_1(u_int8_t *ptr, u_int32_t fill, u_int len)
 #define IHFC_DEBUG(bits,fmt,args...) {			\
 	if(i4b_l1_debug & (bits))				\
                 printf("i4b-L1 %s: %s: "		\
-                       fmt, sc->sc_name, __FUNCTION__ ,## args); }
+                       fmt, sc->sc_nametmp, __FUNCTION__ ,## args); }
 #else
 #define IHFC_DEBUG(args...) 
 #endif
@@ -296,8 +296,9 @@ for((f) = (sc)->sc_fifo_end ? &(sc)->sc_fifo[0] : NULL;	\
  * functions are not called
  */
 
-#define IHFC_CRIT_BEG(sc) mtx_lock(sc->sc_mtx);
-#define IHFC_CRIT_END(sc) mtx_unlock(sc->sc_mtx);
+#define IHFC_LOCK(sc) mtx_lock((sc)->sc_mtx_p)
+#define IHFC_UNLOCK(sc) mtx_unlock((sc)->sc_mtx_p)
+#define IHFC_ASSERT_LOCKED(sc) mtx_assert((sc)->sc_mtx_p, MA_OWNED)
 
 #define IHFC_WAKEUP(fifo)			\
 {						\
@@ -777,10 +778,10 @@ struct sc_resources {
 	 * IHFC_NRES.
 	 */
 #ifdef IHFC_USB_ENABLED
-	struct usbd_xfer *	usb_xfer[IHFC_NUSB];
+	struct usbd_xfer * usb_xfer[IHFC_NUSB];
 #endif
 
-	i4b_controller_t	*i4b_controller;
+	i4b_controller_t * i4b_controller;
 };
 
 #define REGISTER_FOREACH(r,reg_list)		\
@@ -826,21 +827,16 @@ enum {
  */
 struct sc_default {
   u_int32_t o_RES_start[0];
-  RESOURCES(RES_MACRO_2)	   /* o_RES_XXX (must be first) */
+  RESOURCES(RES_MACRO_2)	      /* o_RES_XXX (must be first) */
 
-# define   o_16K_MWBA o_TIGER_MWBA /* 0xff filled & aligned 4bytes */
-# define   o_32K_MWBA o_HFC_MWBA   /* 0x00 filled & aligned 32K */
-
-  u_int32_t o_HFC_MWBA           : 1; /* 32kbyte memory required      */
-  u_int32_t o_TIGER_MWBA         : 1; /* 16kbyte memory required      */
-  u_int32_t o_NTMODE             : 1; /* set if NT-mode is selected.
-				       * Else TE-mode is selected.
+  u_int32_t o_HFC_MWBA           : 1; /* 32kbyte memory aligned to 32K,
+				       *  0xff filled, required  
 				       */
-  u_int32_t o_NTMODE_VARIABILITY : 1; /* set if o_NTMODE can be changed.
-				       * Else o_NTMODE is a constant.
+  u_int32_t o_TIGER_MWBA         : 1; /* 16kbyte memory aligned to 4 bytes,
+				       * 0x00 filled, required 
 				       */
-  u_int32_t o_DLOWPRI            : 1; /* set if D-channel low priority selected.
-				       * Else D-channel high priority selected.
+  u_int32_t o_BUS_TYPE_IOM2      : 1; /* set if ISAC IOM mode2 selected.
+				       * Else ISAC IOM mode1 selected.
 				       */
   u_int32_t o_8KFIFO             : 1; /* set if HFC 8k FIFO mode selected.
 				       * Else HFC 32k FIFO mode selected.
@@ -848,29 +844,31 @@ struct sc_default {
   u_int32_t o_512KFIFO           : 1; /* set if HFC 512k FIFO mode selected.
 				       * Else HFC 128k FIFO mode selected.
 				       */
-  u_int32_t o_BUS_TYPE_IOM2      : 1; /* set if ISAC IOM mode2 selected.
-				       * Else ISAC IOM mode1 selected.
-				       */
   u_int32_t o_PCI_DEVICE         : 1; /* set if device uses PCI ctrl. */
   u_int32_t o_POLLED_MODE        : 1; /* set if POLLING is enabled    */
   u_int32_t o_POST_SETUP         : 1; /* set if post setup is done    */
-  u_int32_t o_LOCAL_LOOP         : 1; /* set if local loop is enabled */
-  u_int32_t o_REMOTE_LOOP        : 1; /* set if remote loop is enabled*/
-  u_int32_t o_IPAC               : 1; /* set if IPAC is present. 
-				       * Else ISAC/HSCX is present.
-				       */
   u_int32_t o_PORTABLE           : 1; /* set if device is portable    */
-  u_int32_t o_TRANSPARENT_BYTE_REPETITION : 1; /* set if bytes are repeated
-						* in [extended] transparent
-						* mode
-						*/
   u_int32_t o_EXTERNAL_RAM       : 1; /* set if the chip should use
 				       * external RAM
+				       */
+  u_int32_t o_NTMODE_VARIABILITY : 1; /* set if o_NTMODE can be changed.
+				       * Else o_NTMODE is a constant.
+				       */
+  u_int32_t o_DLOWPRI_FIXED      : 1; /* set if o_DLOWPRI is fixed.
+				       * Else o_DLOWPRI can be changed.
 				       */
   u_int32_t o_PRIVATE_FLAG_0     : 1; /* private driver flag */
   u_int32_t o_PRIVATE_FLAG_1     : 1; /* private driver flag */
   u_int32_t o_PCM_SLAVE          : 1; /* set if PCM slave mode is used */
-
+  u_int32_t o_ISAC_NT            : 1; /* set if ISAC supports NT-mode */
+  u_int32_t o_IPAC               : 1; /* set if IPAC is present. 
+				       * Else ISAC/HSCX is present.
+				       */
+  u_int32_t o_TRANSPARENT_BYTE_REPETITION : 1; /* set if bytes are repeated
+						* in [extended] transparent
+						* mode
+						*/
+  u_int32_t o_T125_WAIT          : 1; /* set if waiting for 125us timeout */
 
   u_int8_t                      cookie;
   u_int8_t                      stdel_nt;  /* S/T delay for NT-mode */
@@ -895,6 +893,8 @@ struct sc_default {
 
   u_int8_t		      d_L1_type; 
 
+  u_int8_t		      d_sub_controllers;
+
   u_int16_t		      d_channels; /* RX + TX */
 
   u_int32_t		      d_interrupt_delay;
@@ -906,7 +906,7 @@ struct sc_default {
   const struct internal *       list_iio;
   const struct internal *       list_iirq;
 
-  const u_int8_t *              desc;
+  const char *                  desc;
 
 #ifdef IHFC_USB_ENABLED
   const struct usbd_config *    usb;
@@ -964,17 +964,19 @@ struct sc_default {
 
   void (*c_chip_config_write) CHIP_CONFIG_WRITE_T(,) ;
 
-# define FSM_READ_T(sc,ptr)			\
+# define FSM_READ_T(sc,f,ptr)			\
 	(struct ihfc_sc         *sc,		\
+	 struct sc_fifo          *f,		\
 	 register u_int8_t     *ptr) /* dst */
 
-  void (*c_fsm_read) FSM_READ_T(, ) ;
+  void (*c_fsm_read) FSM_READ_T(,, ) ;
 
-# define FSM_WRITE_T(sc,ptr)			\
+# define FSM_WRITE_T(sc,f,ptr)			\
 	(struct ihfc_sc         *sc,		\
+	 struct sc_fifo          *f,		\
 	 register const u_int8_t*ptr) /* src */
 
-  void (*c_fsm_write) FSM_WRITE_T(, ) ;
+  void (*c_fsm_write) FSM_WRITE_T(,, ) ;
 
 # define FIFO_GET_PROGRAM_T(sc,f)		\
 	(register struct ihfc_sc*sc,		\
@@ -1088,7 +1090,6 @@ ihfc_fifo_program_t *
 #define CHIP_WRITE_1(sc,reg,src)         (sc)->sc_default.c_chip_write(sc,reg,src,1)
 
 #define CHIP_CONFIG_WRITE(sc,a...)       (sc)->sc_default.c_chip_config_write(sc,a)
-#define CHIP_INTERRUPT                   ihfc_chip_interrupt
 
 #define FSM_READ(sc,a...)                (sc)->sc_default.c_fsm_read(sc,a)
 #define FSM_WRITE(sc,a...)               (sc)->sc_default.c_fsm_write(sc,a)
@@ -1137,10 +1138,11 @@ struct hdlc {
 };
 
 struct sc_fifo {
-        union fifo_map	fm;		/* fifo register map 	  */
-	u_int8_t	s_fifo_sel;    	/* HFC fifo number(SP/USB)*/
-	u_int8_t	s_par_hdlc;	/* HFC fifo config reg.   */
-	u_int8_t	s_con_hdlc;	/* HFC fifo config reg.   */
+        union fifo_map	fm;		/* FIFO register map 	  */
+	u_int8_t	s_fifo_sel;    	/* HFC FIFO number(SP/USB)*/
+	u_int8_t	s_par_hdlc;	/* HFC FIFO config reg.   */
+	u_int8_t	s_con_hdlc;	/* HFC FIFO config reg.   */
+	u_int8_t	sub_unit;	/* HFC sub-unit */
 	u_int8_t	last_byte;	/* last byte transferred, if set  */
 
 #	define		i_rsta F_chip	/* reuse variables (no conflicts) */
@@ -1238,13 +1240,11 @@ struct sc_fifo {
 	u_int32_t	io_stat;
 };
 
-struct regdata
-{
+struct regdata {
 	u_int8_t unused,dir,reg,data;
 };
 
-struct sc_config_buffer /* used by USB */
-{
+struct sc_config_buffer { /* used by USB */
 	struct buffer  buf;
 	struct regdata start[0], data[0x60], end[0];
 };
@@ -1255,8 +1255,7 @@ struct sc_config_buffer /* used by USB */
  *       8-bit variable, Sizeof(sc_config) must be less
  *	 than 256 bytes.
  */
-struct sc_config
-  {
+struct sc_config {
 #define REGISTERS(m) /* write only registers */ \
         m(dummy,                ,YES,NO )       \
         m(aux_data_0,           ,NO ,NO )       \
@@ -2471,12 +2470,12 @@ struct fsm_state {
   u_int8_t can_down : 1; /* can deactivate */
   u_int8_t command  : 1;
   u_int8_t index    : 3;
-  const u_int8_t * description;
+  const char * description;
 } __packed;
 
 struct fsm_command {
   u_int8_t value;
-  const u_int8_t * description;
+  const char * description;
 } __packed;
 
 struct fsm_table {
@@ -2484,12 +2483,26 @@ struct fsm_table {
   struct fsm_command  cmd[8];
 } __packed;
 
-struct sc_statemachine { 
+#define IHFC_SUB_CONTROLLERS_MAX 8
+
+struct sc_state {
+
+  u_int32_t o_NTMODE             : 1; /* set if NT-mode is selected.
+				       * Else TE-mode is selected.
+				       */
+  u_int32_t o_DLOWPRI            : 1; /* set if D-channel low priority selected.
+				       * Else D-channel high priority selected.
+				       */
+  u_int32_t o_LOCAL_LOOP         : 1; /* set if local loop is enabled */
+  u_int32_t o_REMOTE_LOOP        : 1; /* set if remote loop is enabled*/
+
   L1_auto_activate_t *L1_auto_activate_ptr;
   L1_auto_activate_t L1_auto_activate_variable;
 
   L1_activity_t *L1_activity_ptr;
   L1_activity_t L1_activity_variable;
+
+  i4b_controller_t *i4b_controller;
 
   struct callout T3callout;	/* T3 callout */
   struct fsm_state state;	/* last known state */
@@ -2498,14 +2511,9 @@ struct sc_statemachine {
 /*---------------------------------------------------------------------------*
  * : IHFC softc
  *---------------------------------------------------------------------------*/
-struct  ihfc_sc
-{
-	u_int32_t      		sc_unit;
-#	define			sc_i4bcntl sc_resources.i4b_controller
-#	define			sc_i4bunit sc_resources.i4b_controller->unit
+struct ihfc_sc {
 
- const	u_int8_t	       *sc_name;
-	u_int8_t		sc_nametmp[10];
+	u_int8_t		sc_nametmp[16];
 
 	device_t		sc_device;
 
@@ -2513,12 +2521,13 @@ struct  ihfc_sc
 
 	register_t		sc_intr_temp;
 
-	u_int8_t		sc_chip_interrupt_called : 1; /* interrupt is called */
-	u_int8_t		sc_t125_wait             : 1; /* wait for T125       */
+	struct sc_state		sc_state[IHFC_SUB_CONTROLLERS_MAX];
+
+	u_int8_t		sc_chip_interrupt_called; /* interrupt is called */
 #	define			SC_T125_WAIT_DELAY     (hz / 1000)
-#	define			SC_T125_WAIT_SET(sc)   (sc)->sc_t125_wait = 1;
-#	define			SC_T125_WAIT_CLEAR(sc) (sc)->sc_t125_wait = 0;
-#	define			SC_T125_WAIT(sc)      ((sc)->sc_t125_wait)
+#	define			SC_T125_WAIT_SET(sc)   (sc)->sc_default.o_T125_WAIT = 1
+#	define			SC_T125_WAIT_CLEAR(sc) (sc)->sc_default.o_T125_WAIT = 0
+#	define			SC_T125_WAIT(sc)      ((sc)->sc_default.o_T125_WAIT)
 			/* T125:
 			 * =====
 			 * delay is rounded up to 1.000ms == 8*125us
@@ -2530,17 +2539,13 @@ struct  ihfc_sc
 			 * using msleep().
 			 */
 
-	struct mtx *		sc_mtx;		/* ihfc driver mutex  */
-	struct mtx		sc_mtx3;	/* ihfc driver mutex 
-						 * (in absence of I4B)
-						 */
+	struct mtx *		sc_mtx_p;	/* pointer to driver mutex */
 
 	struct sc_resources	sc_resources;
 
 	struct sc_config	sc_config;
 	struct sc_config	sc_config2;	/* shadow config */
 	struct sc_config_buffer sc_config_buffer; /* used by USB */
-	struct sc_statemachine	sc_statemachine;
 
 	struct sc_default	sc_default;
 #       define sc_cookie        sc_default.cookie
@@ -2583,7 +2588,6 @@ struct  ihfc_sc
  *---------------------------------------------------------------------------*/
 typedef	       struct ihfc_sc	      ihfc_sc_t;
 typedef	       struct sc_fifo	      ihfc_fifo_t;
-typedef	       struct sc_statemachine ihfc_statemachine_t;
 
 typedef const  struct fsm_table       fsm_t;
 typedef const  struct fsm_state       fsm_state_t;

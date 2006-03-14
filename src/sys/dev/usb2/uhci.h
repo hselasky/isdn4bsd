@@ -253,26 +253,24 @@ typedef struct uhci_qh {
 #error "or UHCI_VFRAMELIST_COUNT > UHCI_FRAMELIST_COUNT"
 #endif
 
+struct uhci_hw_softc {
+	u_int32_t pframes[UHCI_FRAMELIST_COUNT]; /* start TD pointer */
+
+	struct uhci_td isoc_start[UHCI_VFRAMELIST_COUNT]; /* start TD for isochronous */
+	struct uhci_qh intr_start[UHCI_IFRAMELIST_COUNT]; /* start QH for interrupt */
+
+	struct uhci_qh ls_ctl_start;	/* start QH for low speed control */
+	struct uhci_qh hs_ctl_start;	/* start QH for high speed control */
+	struct uhci_qh bulk_start;	/* start QH for bulk */
+
+	struct uhci_qh last_qh;	/* last QH */
+	struct uhci_td last_td;	/* last TD */
+} UPACKED;
+
 typedef struct uhci_softc {
-/*
- * data used by the UHCI controller:
- */
-	u_int32_t      sc_pframes[UHCI_FRAMELIST_COUNT]; /* start TD pointer */
-
-	struct uhci_td sc_isoc_start[UHCI_VFRAMELIST_COUNT]; /* start TD for isochronous */
-	struct uhci_qh sc_intr_start[UHCI_IFRAMELIST_COUNT]; /* start QH for interrupt */
-
-	struct uhci_qh sc_ls_ctl_start;	/* start QH for low speed control */
-	struct uhci_qh sc_hs_ctl_start;	/* start QH for high speed control */
-	struct uhci_qh sc_bulk_start;	/* start QH for bulk */
-
-	struct uhci_qh sc_last_qh;	/* last QH */
-	struct uhci_td sc_last_td;	/* last TD */
-
-/*
- * data used by software:
- */
-	u_int32_t      sc_physaddr;	/* physical address of this structure */
+	struct uhci_hw_softc sc_hw; /* hardware structures first */
+  
+	u_int32_t       sc_physaddr;	/* physical address of this structure */
 
 	struct uhci_td *sc_isoc_p_last[UHCI_VFRAMELIST_COUNT]; /* pointer to last TD for isochronous */
 	struct uhci_qh *sc_intr_p_last[UHCI_IFRAMELIST_COUNT]; /* pointer to last QH for interrupt */
@@ -288,12 +286,11 @@ typedef struct uhci_softc {
 	bus_space_tag_t iot;
 	bus_space_handle_t ioh;
 	bus_size_t ios;
-#if defined(__FreeBSD__)
+
 	void *ih;
 
 	struct resource *io_res;
 	struct resource *irq_res;
-#endif
 
 	device_t sc_dev;
 
@@ -310,7 +307,7 @@ typedef struct uhci_softc {
 
 	char sc_vendor[16];		/* vendor string for root hub */
 
-} UPACKED uhci_softc_t;
+} uhci_softc_t;
 
 usbd_status
 uhci_init(uhci_softc_t *sc);

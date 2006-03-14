@@ -62,7 +62,6 @@ u_int8_t
 layer3_dss1(struct buffer *dst, struct buffer *src)
 {
 	const u_int8_t *temp;
-	u_int16_t off = src->offset;
 	u_int8_t  codeset = 0;
 	u_int8_t  codeset_temp = 0;
 	u_int8_t  codeset_next = 0;
@@ -83,7 +82,7 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 	{
 	    return 1;
 	}
-	bsprintline(3, dst, off+i, j, 0xff, 
+	bsprintline(dst, src, i, 0xff, 
 		    "Protocol = %s (0x%02x)", 
 		    get_pd_description(j), j);
 	i++;
@@ -92,23 +91,26 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 
 	j = get_1(src,i) & 0x0f;
 	
-	bsprintline(3, dst, off+i, get_1(src,i), 0xf0, "Call Reference");
+	bsprintline(dst, src, i, 0xf0, "Call Reference");
 
-	bsprintline(3, dst, off+i, get_1(src,i), 0x0f, "Call Reference length is %d byte%s%s", 
+	bsprintline(dst, src, i, 0x0f, "Call Reference length is %d byte%s%s", 
 		    j, (j == 1) ? "" : "s", j ? "" : " (Dummy CR)");
 
 	if(j && j--)
 	{
 	    i++;
-	    bsprintline(3, dst, off+i, get_1(src,i), 0x80, "Call Reference is sent %s call originator", (get_1(src,i) & 0x80) ? "to" : "from");
-	    bsprintline(3, dst, off+i, get_1(src,i), 0x7f, "Call Reference = %d = 0x%02x", (get_1(src,i) & 0x7f), (get_1(src,i) & 0x7f));
+	    bsprintline(dst, src, i, 0x80, "Call Reference is sent "
+			"%s call originator", (get_1(src,i) & 0x80) ? "to" : "from");
+
+	    bsprintline(dst, src, i, 0x7f, "Call Reference = %d = "
+			"0x%02x", (get_1(src,i) & 0x7f), (get_1(src,i) & 0x7f));
 	}
 
 	while(j && j--)
 	{
 	    i++;
-	    bsprintline(3, dst, off+i, get_1(src,i), 0xff, "Call reference = %d = 0x%02x", 
-			get_1(src,i), get_1(src,i));
+	    bsprintline(dst, src, i, 0xff, "Call reference = "
+			"%d = 0x%02x", get_1(src,i), get_1(src,i));
 	}
 
 	i++;
@@ -117,7 +119,8 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 
 	j = get_1(src,i) & 0x80;
 
-	bsprintline(3, dst, off+i, j, 0x80, "Message type extension = %d", j ? 1 : 0);
+	bsprintline(dst, src, i, 0x80, "Message type "
+		    "extension = %d", j ? 1 : 0);
 
 	j = get_1(src,i) & 0x7f;
 
@@ -126,7 +129,7 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 	else
 	  temp = "UNKNOWN";
 
-	bsprintline(3, dst, off+i, j, 0x7f, 
+	bsprintline(dst, src, i, 0x7f, 
 		    "Message type = %s (0x%02x)", temp, j);
 	i++;
 	
@@ -137,13 +140,12 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 
 	while(get_valid(src,0))
 	{
-	    off = src->offset;
 	    codeset = codeset_temp;
 	    codeset_temp = codeset_next;
 
 	    j = get_1(src,0);
 
-	    bsprintline(3, dst, off+0, j, 0x80, "%s Information element", 
+	    bsprintline(dst, src, 0, 0x80, "%s Information element", 
 		       (j & 0x80) ? "Single octet" : "Variable length");
 
 	    if(j & 0x80)
@@ -153,8 +155,9 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 	        if((j & 0x70) == 0x00)
 		{
 		    temp = "Reserved";
-		    bsprintline(3, dst, off+0, j, 0x70, "Reserved");
-		    bsprintline(3, dst, off+0, j, 0x0f, "Reserved, content of IE");
+		    bsprintline(dst, src, 0, 0x70, "Reserved");
+		    bsprintline(dst, src, 0, 0x0f, "Reserved, "
+				"content of IE");
 		}
 		else if((j & 0x70) == 0x10)
 		{
@@ -167,8 +170,8 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 		        codeset_next = codeset_temp;
 		    }
 
-		    bsprintline(3, dst, off+0, j, 0x70, "Shift");
-		    bsprintline(3, dst, off+0, j, 0x08, "%s shift", 
+		    bsprintline(dst, src, 0, 0x70, "Shift");
+		    bsprintline(dst, src, 0, 0x08, "%s shift", 
 			       (j & 0x08) ? "Non-locking" : "Locking");
 
 		    j &= 0x07;
@@ -181,12 +184,12 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 		      (j == 7) ? "Codeset 7 (User specific)" :
 		      "Reserved";
 
-		    bsprintline(3, dst, off+0, j, 0x07, 
+		    bsprintline(dst, src, 0, 0x07, 
 			       "%s (0x%02x)", temp, j);
 		}
 		else if((j & 0x70) == 0x30)
 		{
-		    bsprintline(3, dst, off+0, j, 0x70, "Congestion Level");
+		    bsprintline(dst, src, 0, 0x70, "Congestion Level");
 
 		    j &= 0x0f;
 
@@ -195,12 +198,12 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 		      (j == 0x0f) ? "receiver not ready" :
 		      "reserved";
 
-		    bsprintline(3, dst, off+0, j, 0x0f, 
-			       "Congestion Level = %s (0x%02x)", temp, j);
+		    bsprintline(dst, src, 0, 0x0f, 
+				"Congestion Level = %s (0x%02x)", temp, j);
 		}
 		else if((j & 0x70) == 0x50)
 		{
-		    bsprintline(3, dst, off+0, j, 0x70, "Repeat Indicator");
+		    bsprintline(dst, src, 0, 0x70, "Repeat Indicator");
 
 		    j &= 0x0f;
 
@@ -208,24 +211,24 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 		      (j == 0x02) ? "Prioritized list for selecting one possibility" :
 		      "reserved";
 
-		    bsprintline(3, dst, off+0, j, 0x0f, 
-			       "Repeat indication = %s (0x%02x)", temp, j);
+		    bsprintline(dst, src, 0, 0x0f, 
+				"Repeat indication = %s (0x%02x)", temp, j);
 		}
 			
 		/* single octett info element type 2 */
 
 		else if((j & 0x7f) == 0x20)
 		{
-		    bsprintline(3, dst, off+0, j, 0x7f, "More data");
+		    bsprintline(dst, src, 0, 0x7f, "More data");
 		}
 		else if((j & 0x7f) == 0x21)
 		{
-		    bsprintline(3, dst, off+0, j, 0x7f, "Sending complete");
+		    bsprintline(dst, src, 0, 0x7f, "Sending complete");
 		}
 		else
 		{
-		    bsprintline(3, dst, off+0, j, 0xff, 
-			       "UNKNOWN single octet IE = 0x%02x", j);
+		    bsprintline(dst, src, 0, 0xff, 
+				"UNKNOWN single octet IE = 0x%02x", j);
 		}
 		src->offset += 1;
 		continue;
@@ -247,8 +250,8 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 
 		j = get_1(src,1);
 
-		bsprintline(3, dst, off+0, get_1(src,0), 0x7f, "IE = %s", iep->name);
-		bsprintline(3, dst, off+1, j, 0xff, "IE Length = %d bytes", j);
+		bsprintline(dst, src, 0, 0x7f, "IE = %s", iep->name);
+		bsprintline(dst, src, 1, 0xff, "IE Length = %d bytes", j);
 
 		if(iep->func)
 		{
@@ -271,7 +274,7 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 
 	    j = get_1(src,1);
 
-	    bsprintline(3, dst, src->offset+1, j, 0xff, "length = %d bytes", j);
+	    bsprintline(dst, src, 1, 0xff, "length = %d bytes", j);
 
 	    src->offset += 2;
 
@@ -279,7 +282,7 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 	    {
 	        i = get_1(src,0);
 
-	        bsprintline(3, dst, src->offset, i, 0xff,
+	        bsprintline(dst, src, 0, 0xff,
 			    "unknown byte = 0x%02x, %c", 
 			    i, isprint(i) ? i : '.');
 
@@ -323,7 +326,6 @@ static void
 itr6_cause(struct buffer *dst, struct buffer *src, u_int16_t i, u_int16_t end)
 {
 	const u_int8_t *temp;
-	u_int16_t off = src->offset;
 	u_int8_t j;
 
 	/* skip length and type */
@@ -332,7 +334,7 @@ itr6_cause(struct buffer *dst, struct buffer *src, u_int16_t i, u_int16_t end)
 	if(get_valid(src,i))
 	{
 	    j = get_1(src,i);
-	    bsprintline(3, dst, off+i, j, 0x7f, "cause = %s (0x%02x)",
+	    bsprintline(dst, src, i, 0x7f, "cause = %s (0x%02x)",
 			itr6_get_cause(j), j);
 	    i++;
 	}
@@ -352,7 +354,7 @@ itr6_cause(struct buffer *dst, struct buffer *src, u_int16_t i, u_int16_t end)
 	      (j == 0x0f) ? "no information" :
 	      "unknown";
 
-	    bsprintline(3, dst, off+i, j, 0x0f, "location = %s (0x%02x)",
+	    bsprintline(dst, src, i, 0x0f, "location = %s (0x%02x)",
 			temp, j);
 	    i++;
 	}
@@ -361,7 +363,7 @@ itr6_cause(struct buffer *dst, struct buffer *src, u_int16_t i, u_int16_t end)
 	{
 	    j = get_1(src,i);
 
-	    bsprintline(3, dst, off+i, j, 0xff, "extra byte = 0x%02x, %c",
+	    bsprintline(dst, src, i, 0xff, "extra byte = 0x%02x, %c",
 			j, isprint(j) ? j : '.');
 	    i++;
 	}
@@ -375,7 +377,6 @@ static void
 itr6_address(struct buffer *dst, struct buffer *src, u_int16_t i, u_int16_t end)
 {
 	const u_int8_t *temp;
-	u_int16_t off = src->offset;
 	u_int8_t j;
 
 	/* skip type and length */
@@ -388,7 +389,7 @@ itr6_address(struct buffer *dst, struct buffer *src, u_int16_t i, u_int16_t end)
 	  (j == 0x20) ? "national" :
 	  "unknown";
 
-	bsprintline(3, dst, off+i, j, 0x70, "type = %s (0x%02x)",
+	bsprintline(dst, src, i, 0x70, "type = %s (0x%02x)",
 		    temp, j / 0x10);
 
 	j = get_1(src,i) & 0x0f;
@@ -397,7 +398,7 @@ itr6_address(struct buffer *dst, struct buffer *src, u_int16_t i, u_int16_t end)
 	  (j == 1) ? "ISDN" : 
 	  "unknown";
 
-	bsprintline(3, dst, off+i, j, 0x0f, "plan = %s (0x%02x)",
+	bsprintline(dst, src, i, 0x0f, "plan = %s (0x%02x)",
 		    temp, j);
 
 	i++;
@@ -407,9 +408,9 @@ itr6_address(struct buffer *dst, struct buffer *src, u_int16_t i, u_int16_t end)
 	  j = get_1(src,i);
 
 	  if(isprint(j))
-	    bsprintline(3, dst, off+i, j, 0xff, "digit = %c", j);
+	    bsprintline(dst, src, i, 0xff, "digit = %c", j);
 	  else
-	    bsprintline(3, dst, off+i, j, 0xff, "digit = 0x%02x", j);
+	    bsprintline(dst, src, i, 0xff, "digit = 0x%02x", j);
 
 	  i++;
 	}
@@ -428,10 +429,10 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 	u_int8_t  codeset = 0;
 	u_int8_t  codeset_next = 0;
 	u_int8_t  codeset_temp = 0;
-	u_int16_t off = src->offset;
 	u_int16_t end;
 	u_int16_t i = 0;
 	u_int8_t  j;
+	u_int8_t  k;
 	u_int8_t  pd;
 
 	if(!get_valid(src,0))
@@ -450,7 +451,7 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 	    return 1;
 	}
 
-	bsprintline(3, dst, off+i, pd, 0xff, 
+	bsprintline(dst, src, i, 0xff, 
 		    "Protocol = %s (0x%02x)", 
 		    get_pd_description(pd), pd);
 
@@ -460,23 +461,27 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 
 	j = get_1(src,i) & 0x0f;
 
-	bsprintline(3, dst, off+i, get_1(src,i), 0xf0, "Call Reference");
+	bsprintline(dst, src, i, 0xf0, "Call Reference");
 
-	bsprintline(3, dst, off+i, get_1(src,i), 0x0f, "Call Reference length is %d byte%s%s", 
+	bsprintline(dst, src, i, 0x0f, "Call Reference length is %d byte%s%s", 
 		    j, (j == 1) ? "" : "s", j ? "" : " (Dummy CR)");
 
 	if(j && j--)
 	{
 	    i++;
-	    bsprintline(3, dst, off+i, get_1(src,i), 0x80, "Call Reference direction = %s call originator", (get_1(src,i) & 0x80) ? "to" : "from");
-	    bsprintline(3, dst, off+i, get_1(src,i), 0x7f, "Call Reference = %d = 0x%02x", (get_1(src,i) & 0x7f), (get_1(src,i) & 0x7f));
+	    k = get_1(src,i);
+	    bsprintline(dst, src, i, 0x80, "Call Reference direction = "
+			"%s call originator", (k & 0x80) ? "to" : "from");
+	    bsprintline(dst, src, i, 0x7f, "Call Reference = %d = "
+			"0x%02x", (k & 0x7f), (k & 0x7f));
 	}
 
 	while(j && j--)
 	{
 	    i++;
-	    bsprintline(3, dst, off+i, get_1(src,i), 0xff, "Call reference = %d = 0x%02x", 
-			get_1(src,i), get_1(src,i));
+	    k = get_1(src,i);
+	    bsprintline(dst, src, i, 0xff, "Call reference = "
+			"%d = 0x%02x", k, k);
 	}
 
 	i++;
@@ -485,7 +490,7 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 
 	j = get_1(src,i) & 0x80;
 
-	bsprintline(3, dst, off+i, j, 0x80, "Message type extension = %d", j ? 1 : 0);
+	bsprintline(dst, src, i, 0x80, "Message type extension = %d", j ? 1 : 0);
 
 	/* message type */
 
@@ -546,7 +551,7 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 	    temp = "UNKNOWN";
 	}
 
-	bsprintline(3, dst, off+i, j, 0x7f, 
+	bsprintline(dst, src, i, 0x7f, 
 		    "Message type = %s (0x%02x)", temp, j);
 
 	/* other information elements */
@@ -560,7 +565,7 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 
 	    j = get_1(src,i);
 
-	    bsprintline(3, dst, off+i, j, 0x80, "%s info element",
+	    bsprintline(dst, src, i, 0x80, "%s info element",
 			(j & 0x80) ? "single octett" : "variable length");
 
 	    if(j & 0x80)
@@ -569,14 +574,15 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 
 	        switch(j & 0x70) {
 		case 0x00:	/* reserved */
-		    bsprintline(3, dst, off+i, j, 0x70, "info element type = reserved (0x%x)",
-				(j & 0x70) / 0x10);
-		    bsprintline(3, dst, off+i, j, 0x0F, "reserved single "
+		    bsprintline(dst, src, i, 0x70, "info element "
+				"type = reserved (0x%x)", (j & 0x70) / 0x10);
+
+		    bsprintline(dst, src, i, 0x0F, "reserved single "
 				"octett info (0x%02x)", j & 0x0F);
 		    break;
 
 		case 0x10:	/* shift */
-		    bsprintline(3, dst, off+i, j, 0x70, "info element type = "
+		    bsprintline(dst, src, i,  0x70, "info element type = "
 				"codeset shift (0x%x)", (j & 0x70) / 0x10);
 		    codeset_next = codeset;
 		    codeset_temp = (j & 0x07);
@@ -585,25 +591,25 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 		        /* shift lock */
 		        codeset_next = codeset_temp;
 		    }
-		    bsprintline(3, dst, off+i, j, 0x07, "shift to 0x%x %s",
+		    bsprintline(dst, src, i, 0x07, "shift to 0x%x %s",
 				codeset_temp, (j & 0x08) ? "" : "(locked)");
 		    break;
 
 		case 0x20:	/* more data */
-		    bsprintline(3, dst, off+i, j, 0x7F, "info element type = "
+		    bsprintline(dst, src, i, 0x7F, "info element type = "
 				"more data (0x%02x)", j & 0x7F);
 		    break;
 
 		case 0x30:	/* congestion level */
-		    bsprintline(3, dst, off+i, j, 0x70, "info element type = "
+		    bsprintline(dst, src, i, 0x70, "info element type = "
 				"more data (0x%02x)", j & 0x7F);
 
-		    bsprintline(3, dst, off+i, j, 0x0f, "congestion "
+		    bsprintline(dst, src, i, 0x0f, "congestion "
 				"level = %d", j & 0xF);
 		    break;
 
 		default:
-		    bsprintline(3, dst, off+i, j, 0x7F, "info element type = "
+		    bsprintline(dst, src, i, 0x7F, "info element type = "
 				"unknown (0x%02x)", j & 0x7F);
 		    break;
 		}
@@ -620,33 +626,33 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 		{
 		    switch(j) {
 		    case 0x08:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "cause (0x%02x)", j & 0x7F);
 
 			itr6_cause(dst, src, i, end);
 			goto next;
 						
 		    case 0x0c:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "connect address (0x%02x)", j & 0x7F);
 
 			itr6_address(dst, src, i, end);
 			goto next;
 
 		    case 0x10:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "call identity (0x%02x)", j & 0x7F);
 			break;
 
 		    case 0x18:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "channel identity (0x%02x)", j & 0x7F);
 
 			i += 2;
 
 			j = get_1(src,i) & 0x08;
 
-			bsprintline(3, dst, off+i, j, 0x08, j ? "exclusive channel" : "preferred channel");
+			bsprintline(dst, src, i, 0x08, j ? "exclusive channel" : "preferred channel");
 
 			j = get_1(src,i) & 0x03;
 
@@ -657,11 +663,11 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 			  (j == 3) ? "any channel" :
 			  "unknown";
 
-		        bsprintline(3, dst, off+i, j, 0x03, "channel = %s", temp);
+		        bsprintline(dst, src, i, 0x03, "channel = %s", temp);
 			goto next;
 
 		    case 0x20:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		      bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "network specific facilities (0x%02x)", j & 0x7F);
 
 			i += 3;
@@ -689,64 +695,64 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 			  (j == 0x24) ? "Anrufumltg. priv. Netz" :
 			  "undefined";
 
-			bsprintline(3, dst, off+i, j, 0xff, "facility = %s (0x%02x)",
+			bsprintline(dst, src, i, 0xff, "facility = %s (0x%02x)",
 				    temp, j);
 
 			i++;
 			j = get_1(src,i);
-			bsprintline(3, dst, off+i, j, 0xff, "serv = 0x%02x", j);
+			bsprintline(dst, src, i, 0xff, "serv = 0x%02x", j);
 
 			i++;
 			j = get_1(src,i);
-			bsprintline(3, dst, off+i, j, 0xff, "ainfo = 0x%02x", j);
+			bsprintline(dst, src, i, 0xff, "ainfo = 0x%02x", j);
 
 			i++;
 
 			while(i < end)
 			{
 			    j = get_1(src,i);
-			    bsprintline(3, dst, off+i, j, 0xff, "extra data = 0x%02x, %c", 
+			    bsprintline(dst, src, i, 0xff, "extra data = 0x%02x, %c", 
 					j, isprint(j) ? j : '.');
 			    i++;
 			}
 			goto next;
 
 		    case 0x28:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "display (0x%02x)", j & 0x7F);
 			break;
 
 		    case 0x2c:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "keypad (0x%02x)", j & 0x7F);
 			break;
 
 		    case 0x6c:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "originator address (0x%02x)", j & 0x7F);
 
 			itr6_address(dst, src, i, end);
 			goto next;
 
 		    case 0x70:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "destination address (0x%02x)", j & 0x7F);
 
 			itr6_address(dst, src, i, end);
 			goto next;
 
 		    case 0x7e:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "user-user information (0x%02x)", j & 0x7F);
 			break;
 
 		    case 0x7f:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "reserved (0x%02x)", j & 0x7F);
 			break;
 
 		    default:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "unknown (0x%02x)", j & 0x7F);
 			break;
 		    }
@@ -755,7 +761,7 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 		{
 		    switch(j) {
 		    case 0x01:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "service indication (0x%02x)", j & 0x7F);
 
 			i += 2;
@@ -777,44 +783,44 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 			  (j == 0x10) ? "videophone" :
 			  "unknown";
 
-		        bsprintline(3, dst, off+i, j, 0xff, "protocol = %s (0x%02x)",
-				    temp, j);
+		        bsprintline(dst, src, i, 0xff, "protocol = "
+				    "%s (0x%02x)", temp, j);
 
 			i++;
 			j = get_1(src,i);
-			bsprintline(3, dst, off+i, j, 0xff, "ainfo = 0x%02x", j);
+			bsprintline(dst, src, i, 0xff, "ainfo = 0x%02x", j);
 			goto next;
 
 		    case 0x02:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "charging information (0x%02x)", j & 0x7F);
 			break;
 
 		    case 0x03:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "date (0x%02x)", j & 0x7F);
 			i += 2;
 			while(i < end)
 			{
 			    j = get_1(src,i);
-			    bsprintline(3, dst, off+i, j, 0xff, "data = 0x%02x, %c", j,
+			    bsprintline(dst, src, i, 0xff, "data = 0x%02x, %c", j,
 					isprint(j) ? j : '.');
 			    i++;
 			}
 			goto next;
 
 		    case 0x05:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "facility select (0x%02x)", j & 0x7F);
 			break;
 
 		    case 0x06:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "status of facilities (0x%02x)", j & 0x7F);
 			break;
 
 		    case 0x07:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "status of called party (0x%02x)", j & 0x7F);
 			i += 2;
 			j = get_1(src,i);
@@ -824,12 +830,12 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 			  (j == 2) ? "is being called" :
 			  "undefined";
 
-			bsprintline(3, dst, off+i, j, 0xff, "status = %s, 0x%02x",
-				    temp, j);
+			bsprintline(dst, src, i, 0xff, "status = %s, "
+				    "0x%02x", temp, j);
 			goto next;
 
 		    case 0x08:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "additional transmit attributes (0x%02x)", j & 0x7F);
 
 			i += 2;
@@ -837,7 +843,7 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 			{
 			  j = get_1(src,i) & 0x80;
 
-			  bsprintline(3, dst, off+i, j, 0x80, "flag = %s", 
+			  bsprintline(dst, src, i, 0x80, "flag = %s", 
 				      j ? "request" : "indication");
 
 			  j = get_1(src,i) & 0x70;
@@ -849,23 +855,23 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 			    (j == 0x30) ? "3" :
 			    "undefined value";
 
-			  bsprintline(3, dst, off+i, j, 0x70, "number of "
+			  bsprintline(dst, src, i, 0x70, "number of "
 				      "satellite links = s", temp);
 				      
 			}
 			goto next;
 
 		    default:
-		        bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
+		        bsprintline(dst, src, i, 0x7f, "info element type = "
 				    "unknown (0x%02x)", j & 0x7F);
 			break;
 		    }
 		}
 		else
 		{
-		    bsprintline(3, dst, off+i, j, 0x7f, "info element type = "
-				"0x%02x, codeset %d is not supported, cannot decode", 
-				j & 0x7F, codeset);
+		    bsprintline(dst, src, i, 0x7f, "info element type = "
+				"0x%02x, codeset %d is not supported, "
+				"cannot decode", j & 0x7F, codeset);
 		}
 
 		i += 2;
@@ -873,7 +879,7 @@ layer3_1tr6(struct buffer *dst, struct buffer *src)
 		while(i < end)
 		{
 		    j = get_1(src,i);
-		    bsprintline(3, dst, off+i, j, 0xff, "extra byte = 0x%02x, %c",
+		    bsprintline(dst, src, i, 0xff, "extra byte = 0x%02x, %c",
 				j, isprint(j) ? j : '.');
 		    i++;
 		}
@@ -892,7 +898,6 @@ next:
 u_int8_t
 layer3_unknown(struct buffer *dst, struct buffer *src)
 {
-	u_int16_t off = src->offset;
 	u_int8_t  j;
 
 	if(get_valid(src,0) == 0)
@@ -905,11 +910,12 @@ layer3_unknown(struct buffer *dst, struct buffer *src)
 
 	j = get_1(src,0);
 
-	bsprintline(3, dst, off+0, j, 0xff, 
-		    "Protocol = %s (0x%02x)", 
+	bsprintline(dst, src, 0, 0xff, "Protocol = %s (0x%02x)", 
 		    get_pd_description(j), j);
 
- 	src->offset ++;
+ 	src->offset++;
+
 	dump_raw(dst, src, "Layer3");
+
 	return 0;
 }

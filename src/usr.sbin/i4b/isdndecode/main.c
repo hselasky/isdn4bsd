@@ -118,9 +118,13 @@ set_length(struct buffer *src, u_int16_t new_len)
 void
 buf_init(struct buffer *dst, void *start, u_int16_t len)
 {
+    bzero(dst, sizeof(*dst));
+
     dst->start = start;
     dst->len = len;
     dst->offset = 0;
+    dst->layer = 1;
+    dst->last_offset = -1;
     return;
 }
 
@@ -557,6 +561,8 @@ dumpbuf(i4b_trace_hdr_t *hdr, void *pframe, u_int16_t len)
 
 	    h = dst.offset; /* update header offset */
 
+	    src.layer = 2;
+
 	    layer2(&dst, &src, hdr->dir);
 
 	    if(print_q921 == 0)
@@ -565,10 +571,14 @@ dumpbuf(i4b_trace_hdr_t *hdr, void *pframe, u_int16_t len)
 		dst.start[dst.offset] = '\0';
 	    }
 
-	    if(!layer3_dss1(&dst, &src))
+	    src.layer = 3;
+
+	    if(!layer3_dss1(&dst, &src)) {
 	      break;
-	    if(!layer3_1tr6(&dst, &src))
+	    }
+	    if(!layer3_1tr6(&dst, &src)) {
 	      break;
+	    }
 
 	    if(xflag == 0)
 	    {
@@ -577,8 +587,9 @@ dumpbuf(i4b_trace_hdr_t *hdr, void *pframe, u_int16_t len)
 		break;
 	    }
 
-	    if(!layer3_unknown(&dst, &src))
+	    if(!layer3_unknown(&dst, &src)) {
 	      break;
+	    }
 
 	    break;
 
@@ -853,12 +864,14 @@ reopenfiles(int dummy)
  *	decode extension bit
  *---------------------------------------------------------------------------*/
 void
-extension(int layer, struct buffer *dst, u_int16_t cnt, 
-	  u_int8_t value, u_int8_t mask)
+extension(struct buffer *dst, struct buffer *src, 
+	  u_int16_t offset, u_int8_t mask)
 {
-    bsprintline(layer, dst, cnt, value, mask, "Extension Bit = %c (%s)",
-		(value & mask) ? '1' : '0',
-		(value & mask) ? "no extension, final octet" : 
+    u_int8_t data = get_1(src, offset);
+
+    bsprintline(dst, src, offset, mask, "Extension Bit = %c (%s)",
+		(data & mask) ? '1' : '0',
+		(data & mask) ? "no extension, final octet" : 
 		"with extension, octet follows");
     return;
 }
@@ -921,30 +934,39 @@ bsprintf(struct buffer *dst, const void *fmt, ...)
  *	print one decoded output line
  *---------------------------------------------------------------------------*/
 void
-bsprintline(u_int8_t layer, struct buffer *dst,
-	    u_int16_t oct_count, u_int8_t oct_val, 
-	    u_int8_t oct_mask, const void *fmt, ...)
+bsprintline(struct buffer *dst, struct buffer *src, 
+	    u_int16_t offset, u_int8_t mask, const void *fmt, ...)
 {
-	static u_int16_t lastcount = -1;
 	u_int8_t *buffer = dst->start + dst->offset; /* inclusive */
 	u_int8_t *buffer_end = dst->start + dst->len; /* exclusive */
 	u_int8_t *col_end = buffer + (NCOLS+1); /* exlusive */
 	u_int8_t *ptr;
-	int       error;
-	va_list   ap;
+	u_int8_t data;
+	u_int8_t valid;
+	int error;
+	va_list ap;
 
-	if(oct_count != lastcount)
+	/* get data first */
+
+	data = get_1(src, offset);
+	valid = get_valid(src, offset);
+
+	/* update offset to get real offset */
+
+	offset += src->offset;
+
+	if(offset != src->last_offset)
 	{
-	    lastcount = oct_count;
+	    src->last_offset = offset;
 
 	    bsprintf(dst, "L%d %02X %02X %s ",
-		     layer, oct_count, oct_val, 
-		     print_bits(oct_val, oct_mask));
+		     src->layer, offset, data,
+		     print_bits(data, mask));
 	}
 	else
 	{
 	    bsprintf(dst, "         %s ",
-		     print_bits(oct_val, oct_mask));
+		     print_bits(data, mask));
 	}
 
 	va_start(ap, fmt);
@@ -959,7 +981,7 @@ bsprintline(u_int8_t layer, struct buffer *dst,
 
         va_end(ap);
 
-        bsprintf(dst, "\n");
+        bsprintf(dst, "%s\n", valid ? "" : "(invalid offset)");
 
 	/* get current write pointer */
 

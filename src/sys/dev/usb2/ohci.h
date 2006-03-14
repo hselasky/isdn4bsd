@@ -282,20 +282,17 @@ typedef struct ohci_itd {
 
 #define OHCI_NO_EDS (2*OHCI_NO_INTRS)
 
+struct ohci_hw_softc {
+	struct ohci_hcca	hcca;
+	ohci_ed_t		ctrl_start;
+	ohci_ed_t		bulk_start;
+	ohci_ed_t		isoc_start;
+	ohci_ed_t		intr_start[OHCI_NO_EDS];
+} UPACKED;
+
 typedef struct ohci_softc {
-	/*
-	 * hardware structures first
-	 */
+	struct ohci_hw_softc  sc_hw;     /* hardware structures first */
 
-	struct ohci_hcca	sc_hcca;
-	ohci_ed_t		sc_ctrl_start;
-	ohci_ed_t		sc_bulk_start;
-	ohci_ed_t		sc_isoc_start;
-	ohci_ed_t		sc_intr_start[OHCI_NO_EDS];
-
-	/*
-	 * software structures
-	 */
 	ohci_ed_t *		sc_ctrl_p_last;
 	ohci_ed_t *		sc_bulk_p_last;
 	ohci_ed_t *		sc_isoc_p_last;
@@ -309,12 +306,11 @@ typedef struct ohci_softc {
 	bus_space_handle_t ioh;
 	bus_size_t sc_size;
 
-#if defined(__FreeBSD__)
 	void *ih;
 
 	struct resource *io_res;
 	struct resource *irq_res;
-#endif
+
 	u_int32_t sc_eintrs;		/* enabled interrupts */
 
 	u_int8_t sc_noport;
@@ -338,7 +334,7 @@ typedef struct ohci_softc {
 	LIST_HEAD(, usbd_xfer) sc_interrupt_list_head;
 
 	struct callout sc_tmo_rhsc;
-} UPACKED ohci_softc_t;
+} ohci_softc_t;
 
 usbd_status
 ohci_init(ohci_softc_t *sc);

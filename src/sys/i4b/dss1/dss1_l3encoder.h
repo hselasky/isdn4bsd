@@ -116,6 +116,9 @@ get_callreference(u_int8_t *ptr)
     return cr;
 }
 
+/*---------------------------------------------------------------------------*
+ *	make_callreference - generate the DSS1 call reference value
+ *---------------------------------------------------------------------------*/
 static u_int8_t *
 make_callreference(DSS1_TCP_pipe_t *pipe, u_int32_t cr, u_int8_t *ptr)
 {
@@ -159,7 +162,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	NDBGL3(L3_PRIM, "cdid=%d, cr=%d",
 	       cd->cdid, cd->cr);
 
-	m = i4b_getmbuf(BCH_MAX_LEN, M_NOWAIT);
+	m = i4b_getmbuf(BCH_MAX_DATALEN, M_NOWAIT);
 
 	if(m)
 	{
@@ -176,23 +179,22 @@ dss1_l3_tx_setup(call_desc_t *cd)
 
 	  *ptr++ = IEI_BEARERCAP;	/* bearer capability */
 
-	  switch(cd->channel_bprot)
-	  {
-		case BPROT_NONE:	/* telephony */
-		case BPROT_RHDLC_DOV:	/* Data over Voice */
-			*ptr++ = IEI_BEARERCAP_LEN+1;
-			*ptr++ = IT_CAP_SPEECH;
-			*ptr++ = IT_RATE_64K;
-			*ptr++ = IT_UL1_G711A;
-			break;
+	  switch(cd->channel_bprot) {
+	  case BPROT_NONE:        /* telephony */
+	  case BPROT_RHDLC_DOV:   /* Data over Voice */
+	      *ptr++ = IEI_BEARERCAP_LEN+1;
+	      *ptr++ = IT_CAP_SPEECH;
+	      *ptr++ = IT_RATE_64K;
+	      *ptr++ = IT_UL1_G711A;
+	      break;
 
-		case BPROT_RHDLC:	/* raw HDLC */
-		case BPROT_NONE_VOD:    /* Voice over Data */
-		default:
-			*ptr++ = IEI_BEARERCAP_LEN;
-			*ptr++ = IT_CAP_UNR_DIG_INFO;
-			*ptr++ = IT_RATE_64K;
-			break;
+	  case BPROT_RHDLC:       /* raw HDLC */
+	  case BPROT_NONE_VOD:    /* Voice over Data */
+	  default:
+	      *ptr++ = IEI_BEARERCAP_LEN;
+	      *ptr++ = IT_CAP_UNR_DIG_INFO;
+	      *ptr++ = IT_RATE_64K;
+	      break;
 	  }
 
 	  if(cd->channel_allocated)
@@ -356,8 +358,8 @@ dss1_l3_tx_setup(call_desc_t *cd)
     2               +\
     DISPLAY_MAX     +\
                 \
-    0) > BCH_MAX_LEN
-#error " > BCH_MAX_LEN"
+    0) > BCH_MAX_DATALEN
+#error " > BCH_MAX_DATALEN"
 #endif
 
 	  /* update length */
@@ -426,12 +428,12 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	dss1_l3_tx_message_complement(cd,p1,p2,RELEASE_COMPLETE,	\
 				      L3_TX_HEADER|L3_TX_CAUSE)
 
-#define dss1_l3_tx_status(cd,q850cause)			\
-{							\
-	(cd)->cause_out = q850cause;			\
-	dss1_l3_tx_message(cd,STATUS,			\
-			  L3_TX_CAUSE|L3_TX_CALLSTATE);	\
-	(cd)->cause_out = 0;				\
+#define dss1_l3_tx_status(cd,q850cause)					\
+{									\
+	(cd)->cause_out = (q850cause);					\
+	dss1_l3_tx_message(cd,STATUS,					\
+			  L3_TX_HEADER|L3_TX_CAUSE|L3_TX_CALLSTATE);	\
+	(cd)->cause_out = 0;						\
 }
 
 #define dss1_l3_tx_status_enquiry(cd)		\
@@ -441,6 +443,38 @@ dss1_l3_tx_setup(call_desc_t *cd)
 #define dss1_l3_tx_progress(cd)		\
 	dss1_l3_tx_message(cd,PROGRESS,	\
 			   L3_TX_HEADER|L3_TX_PROGRESSI)
+
+#define dss1_l3_tx_hold(cd)			\
+	dss1_l3_tx_message(cd,HOLD,		\
+			   L3_TX_HEADER)
+
+#define dss1_l3_tx_hold_acknowledge(cd)		\
+	dss1_l3_tx_message(cd,HOLD_ACKNOWLEDGE,	\
+			   L3_TX_HEADER)
+
+#define dss1_l3_tx_hold_reject(cd,q850cause)		\
+{							\
+	(cd)->cause_out = (q850cause);			\
+	dss1_l3_tx_message(cd,HOLD_REJECT,		\
+			  L3_TX_HEADER|L3_TX_CAUSE);	\
+	(cd)->cause_out = 0;				\
+}
+
+#define dss1_l3_tx_retrieve(cd)			\
+	dss1_l3_tx_message(cd,RETRIEVE,		\
+			   L3_TX_HEADER)
+
+#define dss1_l3_tx_retrieve_acknowledge(cd)		\
+	dss1_l3_tx_message(cd,RETRIEVE_ACKNOWLEDGE,	\
+			   L3_TX_HEADER|L3_TX_CHANNELID)
+
+#define dss1_l3_tx_retrieve_reject(cd,q850cause)	\
+{							\
+	(cd)->cause_out = (q850cause);			\
+	dss1_l3_tx_message(cd,RETRIEVE_REJECT,		\
+			  L3_TX_HEADER|L3_TX_CAUSE);	\
+	(cd)->cause_out = 0;				\
+}
 
 #define L3_TX_HEADER     0x00
 #define L3_TX_CAUSE      0x01
@@ -467,7 +501,7 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 	       cd->cdid, cd->cr,
 	       cd->cause_out, cd->state, cd->channel_id);
 
-	m = i4b_getmbuf(DCH_MAX_LEN, M_NOWAIT);
+	m = i4b_getmbuf(DCH_MAX_DATALEN, M_NOWAIT);
 
 	if(m)
 	{
@@ -549,8 +583,8 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
     3               +\
     TELNO_MAX       +\
                 \
-    0) > DCH_MAX_LEN
-#error " > DCH_MAX_LEN"
+    0) > DCH_MAX_DATALEN
+#error " > DCH_MAX_DATALEN"
 #endif
 
 	  /* update length */
@@ -625,7 +659,7 @@ dss1_l3_tx_message_by_pipe_cr(DSS1_TCP_pipe_t *pipe, u_int32_t call_ref,
 	NDBGL3(L3_PRIM, "call_ref=%d, cause=0x%02x, rst_ind=0x%02x",
 	       call_ref, cause_out, restart_indication);
 
-	m = i4b_getmbuf(DCH_MAX_LEN, M_NOWAIT);
+	m = i4b_getmbuf(DCH_MAX_DATALEN, M_NOWAIT);
 
 	if(m)
 	{
@@ -664,8 +698,8 @@ dss1_l3_tx_message_by_pipe_cr(DSS1_TCP_pipe_t *pipe, u_int32_t call_ref,
                 \
     3               +\
                 \
-    0) > DCH_MAX_LEN
-#error " > DCH_MAX_LEN"
+    0) > DCH_MAX_DATALEN
+#error " > DCH_MAX_DATALEN"
 #endif
 
 	  /* update length */

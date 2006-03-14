@@ -71,12 +71,15 @@ struct data_buffer
 # define   ST_FREE 0 /* default */
 # define   ST_USED 1
 
+  u_int8_t unused; /* for sake of alignment */
+
   u_int16_t wHandle; /* copy of wHandle from data-b3-indication */
 
   struct capi_message_encoded msg;
 
   u_int8_t data[0]; /* B-channel data follows */
-};
+
+} __packed;
 
 /* this structure stores information about
  * a registered application
@@ -542,7 +545,7 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 
 		temp = le32toh(pmsg->data.DATA_B3_REQ.dwPtr_1);
 
-		iov[1].iov_base = ((void **)(&temp))[0];
+		iov[1].iov_base = ((void_p_t *)(&temp))->data;
 		iov[1].iov_len = le16toh(pmsg->data.DATA_B3_REQ.wLen);
 	    }
 	    else if(sizeof(void *) <= 8)
@@ -556,7 +559,7 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 
 		temp = le64toh(pmsg->data.DATA_B3_REQ.qwPtr_2);
 
-		iov[1].iov_base = ((void **)(&temp))[0];
+		iov[1].iov_base = ((void_p_t *)(&temp))->data;
 		iov[1].iov_len = le16toh(pmsg->data.DATA_B3_REQ.wLen);
 	    }
 	    else
@@ -778,7 +781,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 		    goto again;
 		}
 
-		((void **)(&temp))[0] = data_ptr;
+		((void_p_t *)(&temp))->data = data_ptr;
 
 		mp->msg.data.DATA_B3_IND.dwPtr_1 = htole32(temp);
 	    }
@@ -792,7 +795,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 		    goto again;
 		}
 
-		((void **)(&temp))[0] = data_ptr;
+		((void_p_t *)(&temp))->data = data_ptr;
 
 		mp->msg.data.DATA_B3_IND.dwPtr_1 = 0;
 		mp->msg.data.DATA_B3_IND.qwPtr_2 = htole64(temp);
@@ -1449,7 +1452,7 @@ capi_translate_from_message_decoded(struct capi_message_decoded *mp,
 			   buf_len - len, &(mp->data));
 
 	/* update length */
-	((u_int16_t *)(buf_ptr))[0] = htole16(len);
+	((u_int16_p_t *)(buf_ptr))->data = htole16(len);
 
 	return;
 }
@@ -1731,17 +1734,19 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
 
       case IE_WORD:
 	temp = snprintf(dst, len, "  WORD       %-20s= 0x%04x\n",
-			ptr->field, ((u_int16_t *)(var))[0]);
+			ptr->field, ((u_int16_p_t *)(var))->data);
 	break;
 
       case IE_DWORD:
 	temp = snprintf(dst, len, "  DWORD      %-20s= 0x%08x\n",
-			ptr->field, ((u_int32_t *)(var))[0]);
+			ptr->field, ((u_int32_p_t *)(var))->data);
 	break;
 
       case IE_QWORD:
-	temp = snprintf(dst, len, "  QWORD      %-20s= 0x%016llx\n",
-			ptr->field, ((u_int64_t *)(var))[0]);
+	temp = snprintf(dst, len, "  QWORD      %-20s= 0x%08x%08x\n",
+			ptr->field, 
+			(u_int32_t)(((u_int64_p_t *)(var))->data >> 32),
+			(u_int32_t)(((u_int64_p_t *)(var))->data >> 0));
 	break;
 
       case IE_STRUCT:
@@ -1752,7 +1757,7 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
 	dst += temp;
 	len -= temp;
 
-	temp = capi_print_struct(dst, len, ((void **)(var))[0]);
+	temp = capi_print_struct(dst, len, ((void_p_t *)(var))->data);
 	break;
 
       case IE_BYTE_ARRAY:

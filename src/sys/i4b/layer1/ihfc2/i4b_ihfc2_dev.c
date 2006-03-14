@@ -48,8 +48,7 @@ static d_ioctl_t	ihfc_dioctl;
  * :ihfc_cdevsw struct
  *---------------------------------------------------------------------------*/
 static cdevsw_t
-ihfc_cdevsw =
-{
+ihfc_cdevsw = {
 #ifdef D_VERSION
   .d_version   = D_VERSION,
 #endif
@@ -64,50 +63,67 @@ ihfc_cdevsw =
 /*---------------------------------------------------------------------------*
  * :shortcuts to the ihfc_softc struct
  *---------------------------------------------------------------------------*/
-#define ihfc_softc(dev)	  (*((ihfc_sc_t    **)&((dev)->si_drv1)))
-#define fifo_receive(ft)  (((ihfc_fifo_t *)((ft)->L5_fifo))+receive)
-#define fifo_transmit(ft) (((ihfc_fifo_t *)((ft)->L5_fifo))+transmit)
+#define i4b_controller(dev)  (*((struct i4b_controller **)&((dev)->si_drv1)))
 #define fifo_translator(dev) (*((fifo_translator_t **)&((dev)->si_drv2)))
-#define channel(dev) ((minor(dev) >> 16) % IHFC_DEVICES)
+#define fifo_transmit(ft)    (((ihfc_fifo_t *)((ft)->L5_fifo))+transmit)
+#define fifo_receive(ft)     (((ihfc_fifo_t *)((ft)->L5_fifo))+receive)
+#define channel(dev)         ((minor(dev) >> 16) % IHFC_DEVICES)
 
 /* maximum frame length */
-#define IHFC_MAX_FRAME  (BCH_MAX_LEN - 3)
+#define IHFC_MAX_FRAME  (BCH_MAX_DATALEN - 3)
 	/* -3: Make room for 2 CRC + 1 STAT */
 
 #define IHFC_DEVICES (IHFC_CHANNELS/2)
 
 /*---------------------------------------------------------------------------*
- * :setup
+ * :setup local devices, /dev/ihfcX.Y
  *---------------------------------------------------------------------------*/
 u_int8_t
 ihfc_setup_ldev(ihfc_sc_t *sc, u_int8_t *error)
 {
-	u_int32_t unit;
-	u_int32_t channel;
+	struct i4b_controller *cntl;
 	struct cdev *dev;
 	ihfc_fifo_t *f;
+	u_int32_t unit_curr;
+	u_int32_t unit_dev;
+	u_int32_t channel;
+	u_int32_t n;
 
-	FIFO_FOREACH(f,sc)
+	for(n = 0; 
+	    n < sc->sc_default.d_sub_controllers;
+	    n++)
 	{
-	    if(FIFO_DIR(f) == 0)
+	    cntl = sc->sc_state[n].i4b_controller;
+	    unit_curr = cntl->unit;
+	    f = cntl->L1_fifo;
+
+	    device_printf(sc->sc_device, "Creating /dev/ihfc%d.X.\n",
+			  unit_curr);
+
+	    for(channel = 0; 
+		channel < cntl->L1_channel_end;
+		channel++, f += 2)
 	    {
-	        channel = FIFO_NO(f) / 2;
-		unit = (sc->sc_unit*IHFC_DEVICES) + channel;
-		dev = make_dev(&ihfc_cdevsw, unit << 16,
-				     UID_ROOT, GID_OPERATOR, 0600,
-				     "%s.%d", sc->sc_name, channel);
-		if(!dev)
+	        if(sc->sc_test_dev[FIFO_NO(f)/2] == NULL)
 		{
-		    IHFC_ADD_ERR(error,
-				 "make_dev == NULL (lunit=%d,"
-				 "device=%s.%d",
-				 unit, sc->sc_name, channel);
-		}
-		else
-		{
-		    ihfc_softc(dev) = sc;
-		    fifo_translator(dev) = NULL;
-		    sc->sc_test_dev[channel] = dev;
+		    unit_dev = ((unit_curr*IHFC_DEVICES) + channel) << 16;
+
+		    dev = make_dev(&ihfc_cdevsw, unit_dev,
+				   UID_ROOT, GID_OPERATOR, 0600,
+				   "ihfc%d.%d", unit_curr, channel);
+		    if(!dev)
+		    {
+		        device_printf(sc->sc_device,
+				      "WARNING: make_dev(lunit=0x%x,"
+				      "device=ihfc%d.%d) failed!\n",
+				      unit_dev, unit_curr, channel);
+		    }
+		    else
+		    {
+		        i4b_controller(dev) = cntl;
+			fifo_translator(dev) = NULL;
+			sc->sc_test_dev[FIFO_NO(f)/2] = dev;
+		    }
 		}
 	    }
 	}
@@ -125,18 +141,18 @@ ihfc_unsetup_ldev(ihfc_sc_t *sc)
 
 	FIFO_FOREACH(f,sc)
 	{
-		IHFC_WAKEUP(f);
+	    IHFC_WAKEUP(f);
 	}
 
 	while(channel--)
 	{
 	    if(sc->sc_test_dev[channel])
 	    {
-	      /* in case device is opened */
-	      ihfc_dclose(sc->sc_test_dev[channel],0,0,0);
+	        /* in case the device is opened, close it: */
+	        ihfc_dclose(sc->sc_test_dev[channel],0,0,0);
 
-	      destroy_dev(sc->sc_test_dev[channel]);
-	      sc->sc_test_dev[channel] = 0;
+		destroy_dev(sc->sc_test_dev[channel]);
+		sc->sc_test_dev[channel] = NULL;
 	    }
 	}
 	return;
@@ -198,7 +214,11 @@ ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, u_int *protocol
 		  u_int driver_type, u_int driver_unit, call_desc_t *cd)
 {
 	ihfc_sc_t *sc = cntl->L1_sc;
-	struct cdev *dev = sc->sc_test_dev[driver_unit];
+	ihfc_fifo_t *f = cntl->L1_fifo;
+	struct cdev *dev;
+
+	driver_unit += (FIFO_NO(f)/2);
+	dev = sc->sc_test_dev[driver_unit];
 
 	IHFC_MSG("\n");
 
@@ -229,7 +249,6 @@ ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, u_int *protocol
 	{
 	  /* not connected */
 	}
-
 	return ft;
 }
 
@@ -239,7 +258,7 @@ ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, u_int *protocol
 static int
 ihfc_dioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *p)
 {
-	ihfc_sc_t *sc = ihfc_softc(dev);
+	ihfc_sc_t *sc = i4b_controller(dev)->L1_sc;
 	int error = 0;
 
 	IHFC_MSG("cmd=0x%x data %s, flag=0x%x\n",
@@ -267,26 +286,25 @@ ihfc_dioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 		     */
 		    if(ft->mbuf_dev->m_len < *(u_int *)data)
 		    {
-		      IHFC_ERR("Cannot set this length(%d)!\n",
-			       *(int *)data);
+		        IHFC_ERR("Cannot set this length, %d bytes!\n",
+				 *(int *)data);
 
-		      /* free the current mbuf */
-		      I4B_FREEMBUF(ft,ft->mbuf_dev);
-		      /* ft->mbuf_dev = 0; see below */
+			/* free the current mbuf */
+			I4B_FREEMBUF(ft,ft->mbuf_dev);
 		    }
 		    else
 		    {
-		      ft->mbuf_dev->m_len = *(u_int *)data;
+		        ft->mbuf_dev->m_len = *(u_int *)data;
 
-		      /* enqueue mbuf */
-		      _IF_ENQUEUE(&ft->ifqueue, ft->mbuf_dev);
+			/* enqueue mbuf */
+			_IF_ENQUEUE(&ft->ifqueue, ft->mbuf_dev);
 
-		      /* start TX fifo */
-		      ihfc_fifo_call(sc,ft);
+			/* start TX fifo */
+			ihfc_fifo_call(sc,ft);
 		    }
 
 		    /* mark mbuf as unused */
-		    ft->mbuf_dev = 0;
+		    ft->mbuf_dev = NULL;
 		  }
 		  break;
 
@@ -353,15 +371,15 @@ ihfc_dioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 static int
 ihfc_dopen(struct cdev *dev, int oflags, int devtype, struct thread *p)
 {
-	ihfc_sc_t *sc = ihfc_softc(dev);
+	struct i4b_controller *cntl = i4b_controller(dev);
 	u_int32_t channel = channel(dev);
-
+#if DO_I4B_DEBUG
+	ihfc_sc_t *sc = cntl->L1_sc;
+#endif
 	IHFC_MSG("oflags=0x%x\n",oflags);
 
-	i4b_setup_driver(sc->sc_resources.i4b_controller, 
-			 channel,
-			 P_HDLC/*overwritten by setup_ft*/, DRVR_IHFC_DEV,
-			 channel, NULL);
+	i4b_setup_driver(cntl, channel, P_HDLC/* overwritten by setup_ft */, 
+			 DRVR_IHFC_DEV, channel, NULL);
 
 	/*
 	 * Provide a default protocol for ``cat''
@@ -370,7 +388,7 @@ ihfc_dopen(struct cdev *dev, int oflags, int devtype, struct thread *p)
 	 * Allow open and write by different threads.
 	 */
 
-	return (0);
+	return 0;
 }
 
 /*---------------------------------------------------------------------------*
@@ -379,17 +397,17 @@ ihfc_dopen(struct cdev *dev, int oflags, int devtype, struct thread *p)
 static int
 ihfc_dclose(struct cdev *dev, int fflag, int devtype, struct thread *p)
 {
-	ihfc_sc_t *sc = ihfc_softc(dev);
+	struct i4b_controller *cntl = i4b_controller(dev);
 	u_int32_t channel = channel(dev);
-
+#if DO_I4B_DEBUG
+	ihfc_sc_t *sc = cntl->L1_sc;
+#endif
 	IHFC_MSG("fflag = 0x%x\n", (u_int32_t)fflag);
 
-	i4b_setup_driver(sc->sc_resources.i4b_controller,
-			 channel, 
-			 P_DISABLE, DRVR_IHFC_DEV,
-			 channel, NULL);
+	i4b_setup_driver(cntl, channel, P_DISABLE, 
+			 DRVR_IHFC_DEV, channel, NULL);
 
-	return (0);
+	return 0;
 }
 
 static int
@@ -437,7 +455,7 @@ static int
 ihfc_dread(struct cdev *dev, struct uio *uio, int ioflag)
 {
 #if DO_I4B_DEBUG
-	ihfc_sc_t *sc = ihfc_softc(dev);
+	ihfc_sc_t *sc = i4b_controller(dev)->L1_sc;
 #endif
 	int error = 0;
 
@@ -547,7 +565,7 @@ ihfc_dread(struct cdev *dev, struct uio *uio, int ioflag)
 static int
 ihfc_dwrite(struct cdev *dev, struct uio *uio, int ioflag)
 {
-	ihfc_sc_t *sc = ihfc_softc(dev);
+	ihfc_sc_t *sc = i4b_controller(dev)->L1_sc;
 	int error = 0;
 
 	IHFC_MSG("\n");

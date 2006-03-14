@@ -244,7 +244,7 @@ hfc1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
    * have been put here, because they
    * are not mappable, and will only
    * be updated after ``fifo_setup(..)''
-   * or ``fsm_update(..)''
+   * or ``ihfc_fsm_update(..)''
    */
 
   if((f == CONFIG_WRITE_UPDATE) ||
@@ -385,7 +385,7 @@ hfc1_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 }
 
 static void
-hfc1_fsm_read FSM_READ_T(sc,ptr)
+hfc1_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	register u_int16_t tmp;
 	HFC1_BUS_VAR(sc);
@@ -405,7 +405,7 @@ hfc1_fsm_read FSM_READ_T(sc,ptr)
 }
 
 static void
-hfc1_fsm_write FSM_WRITE_T(sc,ptr)
+hfc1_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	register u_int16_t tmp;
 	HFC1_BUS_VAR(sc);

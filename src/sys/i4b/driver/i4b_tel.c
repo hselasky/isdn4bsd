@@ -1968,20 +1968,15 @@ tel_dial_get_mbuf(struct fifo_translator *f)
 
 	if (m) {
 
-	  if (cd->tone_gen_ptr == NULL)
-	  {
-	      /* 1 second of 440Hz sine wave */
-	      cd->tone_gen_ptr = "aaaaaaaaaa";
-	  } 
-	  else if (cd->tone_gen_ptr[0] == 0)
+	  if ((cd->tone_gen_ptr == NULL) || 
+	      (cd->tone_gen_ptr[0] == 0))
 	  {
 	      if ((cd->tone_gen_state == 0x19) && (cd->dst_telno[0] == 0))
 	      {
+		  /* continuous 440Hz sine wave */
 		  cd->tone_gen_ptr = "a";
 	      }
-	      else if ((cd->tone_gen_state == 0x19) ||
-		       (cd->tone_gen_state == 0x08) ||
-		       (cd->tone_gen_state == 0x0A))
+	      else if (cd->tone_gen_state != 0x07)
 	      {
 	          /* all silent */
 	          cd->tone_gen_ptr = " ";

@@ -60,10 +60,11 @@ struct resource {
 };
 
 #define DEVICE_MAXRES 64
-#define DEVICE_IS_PCI 0
-#define DEVICE_IS_ISA 1
-#define DEVICE_IS_PNP 2
-#define DEVICE_IS_USB 3
+#define DEVICE_IS_UNKNOWN 0
+#define DEVICE_IS_PCI     1
+#define DEVICE_IS_ISA     2
+#define DEVICE_IS_PNP     3
+#define DEVICE_IS_USB     4
 
 struct __device {
     struct device dev_local; /* this structure must be first */
@@ -74,6 +75,8 @@ struct __device {
     u_int32_t dev_id;
     u_int32_t dev_id_sub;
     u_int32_t dev_flags;
+    u_int32_t dev_pci_class;
+    int32_t   dev_order;
 
     u_int8_t  dev_what : 4;
     u_int8_t  dev_res_alloc : 1;
@@ -81,6 +84,8 @@ struct __device {
     u_int8_t  dev_softc_set : 1;
     u_int8_t  dev_softc_alloc : 1;
     u_int8_t  dev_attached : 1;
+    u_int8_t  dev_fixed_class : 1;
+    u_int8_t  dev_unit_manual : 1;
 
     u_int8_t  dev_nameunit[64];
     u_int8_t  dev_desc[64];
@@ -95,7 +100,10 @@ struct __device {
 bus_dma_tag_t dev_dma_tag;
 
 const struct bsd_module_data *dev_module;
-    struct __device *dev_next;
+
+    TAILQ_HEAD(device_list, __device) dev_children;
+    TAILQ_ENTRY(__device) dev_link;
+
     struct __device *dev_parent;
 };
 
@@ -107,7 +115,7 @@ struct __devclass {
     device_t dev_list[DEVCLASS_MAXUNIT];
 };
 
-typedef struct __devclass devclass_t;
+typedef struct __devclass *devclass_t;
 
 struct __driver {
     const u_int8_t *name;
@@ -127,7 +135,7 @@ struct bsd_module_data {
     const u_int8_t *mod_name;
     const u_int8_t *long_name;
     const struct __driver *driver;
-    struct __devclass *devclass;
+    struct __devclass **devclass_pp;
 };
 
 #define DECLARE_MOD_DATA(name)				\
@@ -142,10 +150,10 @@ static const DECLARE_MOD_DATA(name##_##busname##_driver_mod) =		\
 #define MODULE_DEPEND(args...)
 #define MODULE_VERSION(args...)
 
-typedef int  bus_child_location_str_t(device_t child, 
+typedef int  bus_child_location_str_t(device_t parent, device_t child, 
 				      char *buf, size_t buflen);
-typedef int  bus_child_pnpinfo_str_t(device_t child, char *buf, 
-				     size_t buflen);
+typedef int  bus_child_pnpinfo_str_t(device_t parent, device_t child, 
+				     char *buf, size_t buflen);
 typedef void bus_driver_added_t(device_t dev, driver_t *driver);
 typedef int  bus_print_child_t(device_t dev, device_t child);
 typedef int  device_attach_t(device_t dev);
@@ -281,6 +289,9 @@ device_get_nameunit(device_t dev);
 extern int
 __device_printf(device_t dev, const char *, ...) __printflike(2, 3);
 
+extern device_t
+device_add_child_ordered(device_t dev, int order, const char *name, int unit);
+
 extern device_t 
 device_add_child(device_t dev, const char *name, int unit);
 
@@ -347,6 +358,9 @@ device_is_attached(device_t dev);
 extern void
 device_set_desc(device_t dev, const char* desc);
 
+extern void
+device_set_desc_copy(device_t dev, const char* desc);
+
 static __inline int
 device_get_unit(device_t dev)
 {
@@ -354,15 +368,15 @@ device_get_unit(device_t dev)
 }
 
 extern void *
-devclass_get_softc(devclass_t *dc, int unit);
+devclass_get_softc(devclass_t dc, int unit);
 
 extern int 
-devclass_get_maxunit(devclass_t *dc);
+devclass_get_maxunit(devclass_t dc);
 
 extern device_t
-devclass_get_device(devclass_t *dc, int unit);
+devclass_get_device(devclass_t dc, int unit);
 
-extern devclass_t *
+extern devclass_t 
 devclass_find(const char *classname);
 
 enum {
@@ -406,6 +420,54 @@ static __inline u_int32_t
 pci_get_devid(device_t dev)
 {
     return dev->dev_id;
+}
+
+#include <sys/freebsd_pcireg.h>
+
+#if 0
+#define pci_get_cachelnsz(dev)   pci_read_config(dev, PCIR_CACHELNSZ, 1)
+#define pci_get_class(dev)       pci_read_config(dev, PCIR_CLASS, 1)
+#define pci_get_cmdreg(dev)      pci_read_config(dev, PCIR_COMMAND, 2)
+#define pci_get_device(dev)      pci_read_config(dev, PCIR_DEVICE, 2)
+#define pci_get_hdrtype(dev)     pci_read_config(dev, PCIR_HDRTYPE, 1)
+#define pci_get_intpin(dev)      pci_read_config(dev, PCIR_INTPIN, 1)
+#define pci_get_irq(dev)         pci_read_config(dev, PCIR_INTLINE, 1)
+#define pci_get_lattimer(dev)    pci_read_config(dev, PCIR_LATTIMER, 1)
+#define pci_get_maxlat(dev)      pci_read_config(dev, PCIR_MAXLAT, 1)
+#define pci_get_mingnt(dev)      pci_read_config(dev, PCIR_MINGNT, 1)
+#define pci_get_progif(dev)      pci_read_config(dev, PCIR_PROGIF, 1)
+#define pci_get_revid(dev)       pci_read_config(dev, PCIR_REVID, 1)
+#define pci_get_statreg(dev)     pci_read_config(dev, PCIR_STATUS, 2)
+#define pci_get_subclass(dev)    pci_read_config(dev, PCIR_SUBCLASS, 1)
+#define pci_get_subdevice(dev)   pci_read_config(dev, PCIR_SUBDEV_0, 2)
+#define pci_get_subvendor(dev)   pci_read_config(dev, PCIR_SUBVEND_0, 2)
+#define pci_get_vendor(dev)      pci_read_config(dev, PCIR_VENDOR, 2)
+#else
+extern u_int8_t pci_get_class(device_t dev);
+extern u_int8_t pci_get_subclass(device_t dev);
+extern u_int8_t pci_get_progif(device_t dev);
+extern u_int16_t pci_get_vendor(device_t dev);
+extern u_int16_t pci_get_device(device_t dev);
+#endif
+
+#define PCI_POWERSTATE_D0       0
+#define PCI_POWERSTATE_D1       1
+#define PCI_POWERSTATE_D2       2
+#define PCI_POWERSTATE_D3       3
+#define PCI_POWERSTATE_UNKNOWN  -1
+
+static __inline int
+pci_get_powerstate(device_t dev)
+{
+    device_printf(dev, "pci_get_powerstate() is not supported!\n");
+    return PCI_POWERSTATE_D0;
+}
+
+static __inline int
+pci_set_powerstate(device_t dev, int state)
+{
+    device_printf(dev, "pci_set_powerstate() is not supported!\n");
+    return 0;
 }
 
 static __inline u_int32_t 

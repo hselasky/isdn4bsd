@@ -52,6 +52,7 @@
 
 #define REG_hfce1_cirm              0x00
 #define REG_hfce1_con_hdlc          0xfa
+#define REG_hfce1_conf              0xd1
 #define REG_hfce1_crc_ech           0x35
 #define REG_hfce1_crc_ecl           0x34
 #define REG_hfce1_ctrl              0x01
@@ -364,29 +365,33 @@ hfce1_chip_reset CHIP_RESET_T(sc,error)
 	} while(temp & 0xFF);
 #endif
 
-	if(sc->sc_default.o_NTMODE)
+	/* 1. PCM interface */
+
+	/* disable all time slots */
+
+	for(temp = 0; temp < 128; temp++)
 	{
-	    /* 1. PCM interface */
+	    HFCE1_WRITE_1(REG_hfce1_slot, temp);
+	    HFCE1_WRITE_1(REG_hfce1_sl_cfg, 0x00);
+	    HFCE1_WRITE_1(REG_hfce1_conf, 0x00);
+	}
 
-	    /* disable all time slots */
+	/* PCM slave or master with 4Mbit/s PCM64 */
+	HFCE1_WRITE_1(REG_hfce1_pcm_md0, 
+		      sc->sc_default.o_PCM_SLAVE ? 0x90 : 0x91);
+	HFCE1_WRITE_1(REG_hfce1_pcm_md1, 0x10);
 
-	    for(temp = 0; temp < 128; temp++)
-	    {
-	        HFCE1_WRITE_1(REG_hfce1_slot, temp);
-		HFCE1_WRITE_1(REG_hfce1_sl_cfg, 0x00);
-	    }
+	/* PCM is synchronized to E1 receive */
+	HFCE1_WRITE_1(REG_hfce1_pcm_md2, 0x00);
 
-	    /* PCM slave or master with 4Mbit/s PCM64 */
-	    HFCE1_WRITE_1(REG_hfce1_pcm_md0, 
-			  sc->sc_default.o_PCM_SLAVE ? 0x90 : 0x91);
-	    HFCE1_WRITE_1(REG_hfce1_pcm_md1, 0x10);
+	/* wait until PCM reset sequence is finished */
+	DELAY(4*125);
 
-	    /* wait until PCM reset sequence is finished */
-	    DELAY(4*125);
+	hfce1_chip_slots_init(sc);
 
-	    hfce1_chip_slots_init(sc);
-
-
+	if(sc->sc_state[0].o_NTMODE)
+	{
+	    /* NT-mode */
 
 	    /* 2. E1 transmitter */
 
@@ -487,34 +492,7 @@ hfce1_chip_reset CHIP_RESET_T(sc,error)
 	}
 	else
 	{
-
 	    /* TE-mode (default) */
-
-	    /* 1. PCM interface */
-
-	    /* disable all time slots */
-
-	    for(temp = 0; temp < 128; temp++)
-	    {
-	        HFCE1_WRITE_1(REG_hfce1_slot, temp);
-		HFCE1_WRITE_1(REG_hfce1_sl_cfg, 0x00);
-	    }
-
-	    /* enable PCM master with 4Mbit/s PCM64 */
-
-	    HFCE1_WRITE_1(REG_hfce1_pcm_md0, 0x91);
-	    HFCE1_WRITE_1(REG_hfce1_pcm_md1, 0x10);
-
-	    /* PCM is synchronized to E1 receive */
-
-	    HFCE1_WRITE_1(REG_hfce1_pcm_md2, 0x00);
-
-	    /* wait until PCM reset sequence is finished */
-	    DELAY(4*125);
-
-	    hfce1_chip_slots_init(sc);
-
-
 
 	    /* 2. E1 transmitter */
 
@@ -629,9 +607,9 @@ hfce1_chip_reset CHIP_RESET_T(sc,error)
 
 	sc->sc_default.o_PRIVATE_FLAG_1 = 1;
 
-	/* enable timer: 16 ms */
+	/* enable timer: 32 ms */
 
-	HFCE1_WRITE_1(REG_hfce1_ti_wd, 0x06);
+	HFCE1_WRITE_1(REG_hfce1_ti_wd, 0x07);
 
 	/* enable global interrupt
 	 * - low is active
@@ -671,14 +649,10 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	     */
 	    temp = 0x01;
 
-	    if(sc->sc_statemachine.state.active ||
-	       sc->sc_statemachine.state.pending)
+	    if(ihfc_fifos_active(sc))
 	    {
-	        if(ihfc_fifos_active(sc))
-		{
-		    /* enable timer */		
-		    temp |= 0x02;
-		}
+	        /* enable timer */
+	        temp |= 0x02;
 	    }
 
 	    /*
@@ -865,7 +839,7 @@ hfce1_chip_write CHIP_WRITE_T(sc,reg,ptr,len)
 }
 
 static void
-hfce1_fsm_read FSM_READ_T(sc,ptr)
+hfce1_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	HFCE1_BUS_VAR(sc);
 	u_int8_t temp;
@@ -873,13 +847,13 @@ hfce1_fsm_read FSM_READ_T(sc,ptr)
 	/* read STATES */
 	HFCE1_READ_1(REG_hfce1_states, temp);
 	*ptr = ((temp & 7) +
-		(sc->sc_default.o_NTMODE ?
+		(sc->sc_state[0].o_NTMODE ?
 		 HFC_NT_OFFSET : HFC_TE_OFFSET)) & 0xf;
 	return;
 }
 
 static void
-hfce1_fsm_write FSM_WRITE_T(sc,ptr)
+hfce1_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 #if 0
 	HFCE1_BUS_VAR(sc);
@@ -1011,7 +985,7 @@ hfce1_chip_status_read CHIP_STATUS_READ_T(sc)
 	/* statemachine changed */
 	if(temp & 1)
 	{
-	    fsm_update(sc, 0);
+	    ihfc_fsm_update(sc, &sc->sc_fifo[0], 0);
 	}
 
 	/* timer elapsed */
@@ -1151,6 +1125,7 @@ I4B_DBASE(hfce1_dbase_root)
   I4B_DBASE_ADD(o_RES_MEMORY_0       , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
   I4B_DBASE_ADD(o_NTMODE_VARIABILITY , 1); /* enable */
+  I4B_DBASE_ADD(o_DLOWPRI_FIXED      , 1); /* enable */
 
 #if 0
   I4B_DBASE_ADD(o_EXTERNAL_RAM       , 1); /* enable */

@@ -736,16 +736,20 @@ capi_make_facility_conf(struct capi_message_encoded *pmsg,
 }
 
 /*---------------------------------------------------------------------------*
- *	make CAPI connect B-channel active indication
+ *	send CAPI connect B-channel active indication
  *---------------------------------------------------------------------------*/
-static struct mbuf *
-capi_make_connect_b3_active_ind(struct call_desc *cd)
+static void
+capi_ai_connect_b3_active_ind(struct call_desc *cd)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
 	struct CAPI_CONNECT_B3_ACTIVE_IND_DECODED connect_b3_active_ind = { /* zero */ };
 
 	u_int16_t len;
+
+	__KASSERT(((cd->ai_ptr == NULL) || 
+		   (cd->ai_type == I4B_AI_CAPI)), 
+		  ("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
 
 	CAPI_INIT(CAPI_CONNECT_B3_ACTIVE_IND, &connect_b3_active_ind);
 
@@ -764,7 +768,9 @@ capi_make_connect_b3_active_ind(struct call_desc *cd)
 	{
 	    bcopy(&msg, m->m_data, m->m_len);
 	}
-	return m;
+
+	capi_ai_putqueue(cd->ai_ptr,0,m);
+	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -1001,7 +1007,7 @@ capi_ai_connect_active_ind(struct call_desc *cd)
 /*---------------------------------------------------------------------------*
  *	send CAPI B-channel disconnect indication
  *---------------------------------------------------------------------------*/
-void
+static void
 capi_ai_disconnect_b3_ind(struct call_desc *cd)
 {
 	struct mbuf *m;
@@ -1761,13 +1767,34 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      m2 = capi_make_conf(&msg, CAPI_CONF(CONNECT_B3), 0x0000);
 	      capi_ai_putqueue(sc, 0, m2);
 
-	      m2 = capi_make_connect_b3_active_ind(cd);
-	      goto send_confirmation;
-
+	      if(i4b_link_bchandrvr(cd, 1))
+	      {
+		  /* XXX one could try to detect 
+		   * failure earlier
+		   */
+		  NDBGL4(L4_MSG, "cdid=%d: could "
+			 "not connect B-channel "
+			 "(maybe on hold)!", cd->cdid);
+	      }
+	      break;
 
 	    case CAPI_P_REQ(DISCONNECT_B3): /* ======================== */
 
-	      /* disconnect request, actively terminate connection */
+	      if(cd->ai_type == I4B_AI_CAPI)
+	      {
+		  /* disconnect request, actively terminate connection */
+
+		  m2 = capi_make_conf(&msg, CAPI_CONF(DISCONNECT_B3), 0x0000);
+		  capi_ai_putqueue(sc, 0, m2);
+
+		  (void)i4b_link_bchandrvr(cd, 0);
+	      }
+	      else
+	      {
+		  m2 = capi_make_conf(&msg, CAPI_CONF(DISCONNECT_B3), 0x2001);
+		  goto send_confirmation;
+	      }
+	      break;
 
 	    case CAPI_P_REQ(DISCONNECT): /* =========================== */
 #if 0
@@ -1775,11 +1802,9 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	       * that one does not have to send any confirmation 
 	       * messages !
 	       */
-	      m2 = capi_make_conf(&msg, CAPI_CONF(DISCONNECT_B3), 0x0000);
 	      m2 = capi_make_conf(&msg, CAPI_CONF(DISCONNECT), 0x0000);
-	      capi_ai_disconnect_b3_ind(cd);
 #endif
-	      i4b_link_bchandrvr(cd, 0);
+	      (void)i4b_link_bchandrvr(cd, 0);
 
 	      /* preset causes with our cause */
 
@@ -2125,8 +2150,15 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		  }
 		  else
 		  {
-		      m2 = capi_make_connect_b3_active_ind(cd);
-		      goto send_confirmation;
+		      if(i4b_link_bchandrvr(cd, 1))
+		      {
+			  /* XXX one could try to detect 
+			   * failure earlier
+			   */
+			  NDBGL4(L4_MSG, "cdid=%d: could "
+				 "not connect B-channel "
+				 "(maybe on hold)!", cd->cdid);
+		      }
 		  }
 	      }
 	      break;
@@ -2134,14 +2166,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	    case CAPI_P_RESP(CONNECT_B3_ACTIVE):
 	      if(cd->ai_type == I4B_AI_CAPI)
 	      {
-		  if(i4b_link_bchandrvr(cd, 1))
-		  {
-		      /* XXX one could try to detect 
-		       * failure earlier
-		       */
-		      NDBGL4(L4_ERR, "cdid=%d: could not connect "
-			     "B-channel!", cd->cdid);
-		  }
+
 	      }
 	      break;
 
@@ -2775,6 +2800,14 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 		f->L5_PUT_MBUF = &capi_put_mbuf;
 		f->L5_GET_MBUF = &capi_get_mbuf;
 		f->L5_ALLOC_MBUF = &capi_alloc_mbuf;
+
+		capi_ai_connect_b3_active_ind(cd);
+	}
+	else
+	{
+		/* disconnected */
+
+		capi_ai_disconnect_b3_ind(cd);
 	}
 	return f;
 }

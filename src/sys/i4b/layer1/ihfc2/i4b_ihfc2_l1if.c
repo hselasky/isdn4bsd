@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2000-2004 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2000-2006 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,16 +27,15 @@
  *	i4b_ihfc2_l1if.c - layer 1 handler
  *	----------------------------------
  *
- *      This file defines the functions that are used
- *      to interface with I4B.
+ * $FreeBSD: $
  *
- *	NOTE: channel != chan
+ *      This file defines the functions that are used
+ *      to interface with ISDN4BSD
+ *
  *---------------------------------------------------------------------------*/
 
 #include <i4b/layer1/ihfc2/i4b_ihfc2.h>
 #include <i4b/layer1/ihfc2/i4b_ihfc2_ext.h>
-
-__FBSDID("$FreeBSD: $");
 
 /*---------------------------------------------------------------------------*
  *	command from the upper layers
@@ -45,13 +44,15 @@ static int
 ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 {
 	ihfc_sc_t *sc = cntl->L1_sc;
+	ihfc_fifo_t *f = cntl->L1_fifo;
+	struct sc_state *st = &(sc->sc_state[f->sub_unit]);
 	u_int32_t temp;
 	u_int16_t n;
 	u_int8_t error[IHFC_MAX_ERR];
 
 	error[0] = 0;
 
-	IHFC_CRIT_BEG(sc);
+	IHFC_ASSERT_LOCKED(sc);
 
 	IHFC_MSG("parm %s.\n", parm ? "!= NULL" : "== NULL");
 
@@ -62,36 +63,37 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 
 	    IHFC_MSG("CMR_SETTRACE: 0x%08x\n", temp);
 
-	    for(n = 0; n < IHFC_CHANNELS; n++)
+	    /* clear trace bits first */
+
+	    for(n = 0; n < cntl->L1_channel_end; n++)
 	    {
-	        /* clear trace bits first */
-	        sc->sc_fifo[n].state &= ~ST_I4B_TRACE;
+	        (f + (2*n) +  receive)->state &= ~ST_I4B_TRACE;
+		(f + (2*n) + transmit)->state &= ~ST_I4B_TRACE;
 	    }
 
-#if (IHFC_CHANNELS < 2)
-#error "please update code, (IHFC_CHANNELS < 2)"
-#endif
+	    /* set trace bits */
 
-	    if(temp & TRACE_D_RX)
+	    if(cntl->L1_channel_end >= 1)
 	    {
-	        sc->sc_fifo[d1r].state |= ST_I4B_TRACE;
+	        if(temp & TRACE_D_RX)
+		{
+		    (f + d1r)->state |= ST_I4B_TRACE;
+		}
+		if(temp & TRACE_D_TX)
+		{
+		    (f + d1t)->state |= ST_I4B_TRACE;
+		}
 	    }
 
-	    if(temp & TRACE_D_TX)
-	    {
-	        sc->sc_fifo[d1t].state |= ST_I4B_TRACE;
-	    }
-
-	    for(n = 2; n < IHFC_CHANNELS; n += 2)
+	    for(n = 1; n < cntl->L1_channel_end; n++)
 	    {
 	        if(temp & TRACE_B_RX)
 		{
-		    sc->sc_fifo[n+receive].state |= ST_I4B_TRACE;
+		    (f + (2*n) + receive)->state |= ST_I4B_TRACE;
 		}
-
 		if(temp & TRACE_B_TX)
 		{
-		    sc->sc_fifo[n+transmit].state |= ST_I4B_TRACE;
+		    (f + (2*n) + transmit)->state |= ST_I4B_TRACE;
 		}
 	    }
 	    break;
@@ -105,25 +107,34 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	case CMR_SET_POLLED_MODE:
 	    IHFC_MSG("CMR_SET_POLLED_MODE\n");
 
-	    sc->sc_default.o_POLLED_MODE = 1;
-	    ihfc_setup_softc(sc, &error[0]);
+	    if(sc->sc_default.o_POLLED_MODE == 0) {
+	        sc->sc_default.o_POLLED_MODE = 1;
+		ihfc_setup_softc(sc, &error[0]);
+	    }
 	    break;
 
 	case CMR_SET_STANDARD_MODE:
 	    IHFC_MSG("CMR_SET_STANDARD_MODE\n");
 
-	    sc->sc_default.o_POLLED_MODE = 0;
-	    ihfc_setup_softc(sc, &error[0]);
+	    if(sc->sc_default.o_POLLED_MODE) {
+	        sc->sc_default.o_POLLED_MODE = 0;
+		ihfc_setup_softc(sc, &error[0]);
+	    }
 	    break;
 
 	case CMR_SET_NT_MODE:
 	    IHFC_MSG("CMR_SET_NT_MODE\n");
 
 	    if((sc->sc_default.o_NTMODE_VARIABILITY) &&
-	       (sc->sc_default.o_NTMODE == 0))
+	       (st->o_NTMODE == 0))
 	    {
-	        sc->sc_default.o_NTMODE = 1;
+	        st->o_NTMODE = 1;
 		ihfc_setup_softc(sc, &error[0]);
+	    }
+	    if(st->o_NTMODE == 0)
+	    {
+	        IHFC_ADD_ERR(error, "NT-mode is not "
+			     "supported by hardware!");
 	    }
 	    break;
 
@@ -131,14 +142,49 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	    IHFC_MSG("CMR_SET_TE_MODE\n");
 
 	    if((sc->sc_default.o_NTMODE_VARIABILITY) &&
-	       (sc->sc_default.o_NTMODE))
+	       (st->o_NTMODE))
 	    {
-	        sc->sc_default.o_NTMODE = 0;
+	        st->o_NTMODE = 0;
 		ihfc_setup_softc(sc, &error[0]);
+	    }
+	    if(st->o_NTMODE)
+	    {
+	        IHFC_ADD_ERR(error, "TE-mode is not "
+			     "supported by hardware!");
 	    }
 	    break;
 
-#define st (&(sc)->sc_statemachine)
+	case CMR_SET_DCH_HI_PRI:
+	    IHFC_MSG("CMR_SET_DCH_HI_PRI\n");
+
+	    if((!(sc->sc_default.o_DLOWPRI_FIXED)) &&
+	       (st->o_DLOWPRI))
+	    {
+	        st->o_DLOWPRI = 0;
+		ihfc_setup_softc(sc, &error[0]);
+	    }
+	    if(st->o_DLOWPRI)
+	    {
+	        IHFC_ADD_ERR(error, "D-channel priority "
+			     "is fixed!");
+	    }
+	    break;
+
+	case CMR_SET_DCH_LO_PRI:
+	    IHFC_MSG("CMR_SET_DCH_LO_PRI\n");
+
+	    if((!(sc->sc_default.o_DLOWPRI_FIXED)) &&
+	       (st->o_DLOWPRI == 0))
+	    {
+	        st->o_DLOWPRI = 1;
+		ihfc_setup_softc(sc, &error[0]);
+	    }
+	    if(st->o_DLOWPRI == 0)
+	    {
+	        IHFC_ADD_ERR(error, "D-channel priority "
+			     "is fixed!");
+	    }
+	    break;
 
 	case CMR_SET_L1_AUTO_ACTIVATE_VARIABLE:
 	    if(parm == NULL)
@@ -165,42 +211,35 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	case CMR_PH_ACTIVATE:
 	    IHFC_MSG("CMR_PH_ACTIVATE\n");
 
-	    fsm_update(sc, 1);
+	    ihfc_fsm_update(sc, f, 1);
 	    break;
 
 	case CMR_PH_DEACTIVATE:
 	    IHFC_MSG("CMR_PH_DEACTIVATE\n");
 
-	    fsm_update(sc, 2);
+	    ihfc_fsm_update(sc, f, 2);
 	    break;
-#if 0
-	case CMR_CLEAR_POST_SETUP:
-	    IHFC_MSG("CMR_CLEAR_POST_SETUP\n");
-
-	    sc->sc_default.o_POST_SETUP = 0;
-	    break;
-#endif
 
 	case CMR_SET_PROTOCOL:
 	{
 	    i4b_debug_t *dbg = parm;
 
-	    dbg->chan *= 2;
-
-	    if(dbg->chan >= sc->sc_default.d_channels)
+	    if(dbg->chan >= cntl->L1_channel_end)
 	    {
 	        IHFC_MSG("Invalid channel >= %d!\n",
-			 sc->sc_default.d_channels);
+			 cntl->L1_channel_end);
 		break;
 	    }
 
+	    dbg->chan *= 2;
+
 	    IHFC_MSG("CMR_SET_PROTOCOL: 0x%02x(#%d,#%d)\n",
 		     (dbg->value) & 0xff,
-		     (dbg->chan + receive),
-		     (dbg->chan + transmit));
+		     (FIFO_NO(f) + dbg->chan + receive),
+		     (FIFO_NO(f) + dbg->chan + transmit));
 
-	    sc->sc_fifo[dbg->chan +  receive].default_prot = dbg->value;
-	    sc->sc_fifo[dbg->chan + transmit].default_prot = dbg->value;
+	    (f + dbg->chan +  receive)->default_prot = dbg->value;
+	    (f + dbg->chan + transmit)->default_prot = dbg->value;
 	    break;
 	}
 
@@ -210,9 +249,18 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 
 	    if(sc->sc_device)
 	    {
-	        snprintf(&req->l1_desc[0], sizeof(req->l1_desc),
+	        snprintf(req->l1_desc, sizeof(req->l1_desc),
 			 "%s", device_get_desc(sc->sc_device));
 	    }
+
+	    if(st->state.description)
+	    {
+	        snprintf(req->l1_state, sizeof(req->l1_state),
+			 "%s", st->state.description);
+	    }
+
+	    req->l1_active = st->state.active;
+
 	    break;
 	}
 
@@ -280,7 +328,7 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	    if(sc->sc_channel_mapping != p_map[0])
 	    {
 	        /* need to reset after that channel
-		 * mapping is changed:
+		 * mapping has changed:
 		 */
 	        sc->sc_channel_mapping = p_map[0];
 		ihfc_setup_softc(sc, &error[0]);
@@ -296,9 +344,8 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	if(error[0] != 0)
 	{
 	    IHFC_ERR("Command failed: %s!\n", &error[0]);
+	    return ENODEV;
 	}
-
-	IHFC_CRIT_END(sc);
 
 	return 0;
 }
@@ -307,15 +354,24 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
  *	trace routine
  *---------------------------------------------------------------------------*/
 static void
-ihfc_trace (ihfc_sc_t *sc, ihfc_fifo_t *f, struct mbuf *m)
+ihfc_trace(ihfc_sc_t *sc, ihfc_fifo_t *f, int type, struct mbuf *m)
 {
-	sc->sc_trace_hdr.count++;
-	sc->sc_trace_hdr.unit = sc->sc_i4bunit;
-	sc->sc_trace_hdr.type = f ? ((FIFO_NO(f) / 2) + TRC_CH_D) : TRC_CH_I;
+	struct i4b_controller *cntl = sc->sc_state[f->sub_unit].i4b_controller;
+	u_int8_t from_te = sc->sc_state[f->sub_unit].o_NTMODE;
+	ihfc_fifo_t *f_start = cntl->L1_fifo;
 
-	sc->sc_trace_hdr.dir = 
-	  ((f && (FIFO_DIR(f) == transmit)) ^ 
-	   (sc->sc_default.o_NTMODE != 0)) ? FROM_TE : FROM_NT ;
+	if(type == TRC_CH_D) {
+	   type += ((FIFO_NO(f) - FIFO_NO(f_start)) / 2);
+
+	   if(FIFO_DIR(f) == transmit) {
+	       from_te = !from_te;
+	   }
+	}
+
+	sc->sc_trace_hdr.count++;
+	sc->sc_trace_hdr.unit = cntl->unit;
+	sc->sc_trace_hdr.type = type;
+	sc->sc_trace_hdr.dir = from_te ? FROM_TE : FROM_NT;
 
 	microtime(&sc->sc_trace_hdr.time);
 
@@ -328,7 +384,7 @@ ihfc_trace (ihfc_sc_t *sc, ihfc_fifo_t *f, struct mbuf *m)
  *	trace info routine
  *---------------------------------------------------------------------------*/
 void
-ihfc_trace_info(ihfc_sc_t *sc, const u_int8_t *desc)
+ihfc_trace_info(ihfc_sc_t *sc, ihfc_fifo_t *f, const u_int8_t *desc)
 {
 	u_int16_t len = strlen(desc);
 	struct mbuf *m = i4b_getmbuf(len, M_NOWAIT);
@@ -337,7 +393,7 @@ ihfc_trace_info(ihfc_sc_t *sc, const u_int8_t *desc)
 	{
 	    bcopy(desc, m->m_data, len);
 
-	    ihfc_trace(sc, NULL, m);
+	    ihfc_trace(sc, f, TRC_CH_I, m);
 
 	    m_freem(m);
 	}
@@ -354,7 +410,7 @@ ihfc_i4b_putmbuf (ihfc_sc_t *sc, ihfc_fifo_t *f, struct mbuf *m)
 
 	if(f->state & ST_I4B_TRACE)
 	{
-	    ihfc_trace(sc,f,m);
+	    ihfc_trace(sc,f,TRC_CH_D,m);
 	}
 
 	f->io_stat += m->m_len;
@@ -424,7 +480,7 @@ ihfc_i4b_getmbuf (ihfc_sc_t *sc, ihfc_fifo_t *f)
 
 	    if(f->state & ST_I4B_TRACE)
 	    {
-	        ihfc_trace(sc,f,m1);
+	        ihfc_trace(sc,f,TRC_CH_D,m1);
 	    }
 #if 0
 	    IHFC_ERR("(#%d) %p\n", FIFO_NO(f), m1);
@@ -496,22 +552,50 @@ ihfc_B_stat(fifo_translator_t *ft, bchan_statistics_t *bsp)
 
 /*---------------------------------------------------------------------------*
  *	return FIFO-translator
+ *
+ * NOTE: "channel" range checking is performed by caller
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 ihfc_B_get_fifo_translator(struct i4b_controller *cntl, int channel)
 {
 	ihfc_sc_t *sc = cntl->L1_sc;
-	fifo_translator_t *ft = &sc->sc_fifo_translator[channel];
+	ihfc_fifo_t *f = cntl->L1_fifo;
+	fifo_translator_t *ft;
 
 	IHFC_MSG("\n");
 
+	f += (channel*2);
+	ft = FIFO_TRANSLATOR(sc,f);
+
 	ft->L1_sc		= sc;
-	ft->L1_fifo		= &sc->sc_fifo[channel*2];
+	ft->L1_fifo		= f;
 	ft->L1_FIFO_SETUP	= ihfc_B_setup;
 	ft->L1_FIFO_START	= ihfc_B_start;
 	ft->L1_FIFO_STAT	= ihfc_B_stat;
 
 	return ft;
+}
+
+/*---------------------------------------------------------------------------*
+ *	default i4b interface init
+ *---------------------------------------------------------------------------*/
+void
+ihfc_init_i4b(ihfc_sc_t *sc, struct i4b_controller *cntl)
+{
+	CNTL_LOCK(cntl);
+
+	/* init function pointers, type and controller */
+
+	cntl->L1_GET_FIFO_TRANSLATOR = &ihfc_B_get_fifo_translator;
+	cntl->L1_COMMAND_REQ = &ihfc_mph_command_req;
+
+	cntl->L1_sc = sc;
+	cntl->L1_fifo = &sc->sc_fifo[0]; /* default */
+	cntl->L1_type = sc->sc_default.d_L1_type;
+	cntl->L1_channel_end = (sc->sc_default.d_channels / 2); /* default */
+
+	CNTL_UNLOCK(cntl);
+	return;
 }
  
 /*---------------------------------------------------------------------------*
@@ -521,30 +605,17 @@ u_int8_t
 ihfc_setup_i4b(ihfc_sc_t *sc, u_int8_t *error)
 {
 	i4b_controller_t *cntl = sc->sc_resources.i4b_controller;
+	u_int8_t sub_controllers = sc->sc_default.d_sub_controllers;
+	u_int8_t retval = 0;
 
-	IHFC_CRIT_BEG(sc);
+	while(sub_controllers--) {
+	    device_printf(sc->sc_device, "Attaching I4B "
+			  "controller %d.\n", cntl->unit);
 
-	/* init function pointers, type and controller */
-
-	cntl->L1_GET_FIFO_TRANSLATOR = ihfc_B_get_fifo_translator;
-	cntl->L1_COMMAND_REQ = ihfc_mph_command_req;
-
-	cntl->L1_channel_end = sc->sc_default.d_channels / 2;
-	cntl->L1_sc = sc;
-	cntl->L1_type = sc->sc_default.d_L1_type;
-
-	snprintf(&sc->sc_nametmp[0],
-		 sizeof(sc->sc_nametmp),
-		 "ihfc%d", cntl->unit);
-
-	printf("%s: renamed to: %s\n",
-	       sc->sc_name, &sc->sc_nametmp[0]);
-
-	sc->sc_name = &sc->sc_nametmp[0];
-
-	IHFC_CRIT_END(sc);
-
-	return i4b_controller_attach(cntl,error);
+	    retval |= i4b_controller_attach(cntl,error);
+	    cntl++;
+	}
+	return retval;
 }
 
 /*---------------------------------------------------------------------------*
@@ -554,8 +625,11 @@ void
 ihfc_unsetup_i4b(ihfc_sc_t *sc)
 {
 	i4b_controller_t *cntl = sc->sc_resources.i4b_controller;
+	u_int8_t sub_controllers = sc->sc_default.d_sub_controllers;
 
-	i4b_controller_detach(cntl);
-
+	while(sub_controllers--) {
+	    i4b_controller_detach(cntl); 
+	    cntl++;
+	}
 	return;
 }

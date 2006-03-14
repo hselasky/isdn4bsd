@@ -774,6 +774,11 @@ isdnrdhdl(void)
 	        msg_keypad((void *)&msg_rd_buf);
 		break;
 
+	    case MSG_HOLD_IND:
+	    case MSG_RETRIEVE_IND:
+		/* just ignore */
+		break;
+
 	    default:
 	        log(LL_WRN, "ERROR, unknown message received from %s (0x%02x)", 
 		    I4BDEVICE, msg_rd_buf[0]);

@@ -566,7 +566,7 @@ i4b_l4_idle_timeout_ind(call_desc_t *cd)
 
 	if((cd->ai_type == I4B_AI_I4B) || (cd->ai_type == I4B_AI_BROADCAST))
 	{
-	  if((m = i4b_getmbuf(sizeof(msg_idle_timeout_ind_t), M_NOWAIT)) != NULL)
+	    if((m = i4b_getmbuf(sizeof(msg_idle_timeout_ind_t), M_NOWAIT)) != NULL)
 	    {
 		msg_idle_timeout_ind_t *mp = (void *)m->m_data;
 
@@ -687,6 +687,74 @@ i4b_l4_proceeding_ind(call_desc_t *cd, u_int8_t sending_complete)
 		capi_ai_info_ind(cd, 0, 0x001e /* PROGRESS */, 
 				 &progress_indicator, sizeof(progress_indicator));
 	    }
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	send MSG_RETRIEVE_IND message to userland
+ *---------------------------------------------------------------------------*/
+void
+i4b_l4_retrieve_ind(call_desc_t *cd)
+{
+	struct mbuf *m;
+	msg_retrieve_ind_t *mp;
+
+	if((cd->ai_type == I4B_AI_I4B) || 
+	   (cd->ai_type == I4B_AI_BROADCAST))
+	{
+	    if((m = i4b_getmbuf(sizeof(*mp), M_NOWAIT)) != NULL)
+	    {
+	        mp = (void *)(m->m_data);
+
+		mp->header.type = MSG_RETRIEVE_IND;
+		mp->header.cdid = cd->cdid;
+
+		i4b_ai_putqueue(cd->ai_ptr,0,m);
+	    }
+	}
+	if((cd->ai_type == I4B_AI_CAPI) || 
+	   (cd->ai_type == I4B_AI_BROADCAST))
+	{
+
+	    static const u_int8_t retrieve_indicator[] = { 0x01, 0xfa };
+
+	    capi_ai_info_ind(cd, 0, 0x0027 /* NOTIFY */, 
+			     &retrieve_indicator, sizeof(retrieve_indicator));
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	send MSG_HOLD_IND message to userland
+ *---------------------------------------------------------------------------*/
+void
+i4b_l4_hold_ind(call_desc_t *cd)
+{
+	struct mbuf *m;
+	msg_hold_ind_t *mp;
+
+	if((cd->ai_type == I4B_AI_I4B) || 
+	   (cd->ai_type == I4B_AI_BROADCAST))
+	{
+	    if((m = i4b_getmbuf(sizeof(*mp), M_NOWAIT)) != NULL)
+	    {
+	        mp = (void *)(m->m_data);
+
+		mp->header.type = MSG_HOLD_IND;
+		mp->header.cdid = cd->cdid;
+
+		i4b_ai_putqueue(cd->ai_ptr,0,m);
+	    }
+	}
+	if((cd->ai_type == I4B_AI_CAPI) || 
+	   (cd->ai_type == I4B_AI_BROADCAST))
+	{
+
+	    static const u_int8_t hold_indicator[] = { 0x01, 0xf9 };
+
+	    capi_ai_info_ind(cd, 0, 0x0027 /* NOTIFY */, 
+			     &hold_indicator, sizeof(hold_indicator));
 	}
 	return;
 }
@@ -886,25 +954,36 @@ i4b_link_bchandrvr(call_desc_t *cd, int activate)
 {
 	static const u_int8_t
 	  MAKE_TABLE(I4B_B_PROTOCOLS,PROTOCOL,[]);
+	u_int32_t protocol;
 
-	if (cd->channel_allocated) {
+	if (activate) {
 
-	    /* disconnect dialtone generator, if connected */
-	  
-	    (void) i4b_setup_driver
-	      (i4b_controller_by_cd(cd), cd->channel_id,
-	       P_DISABLE, DRVR_DIAL_GEN, 0, cd);
+	    /* disconnect any previously connected channel drivers */
+
+	    (void) i4b_link_bchandrvr(cd, 0);
+
+	    /* make a copy of the "driver_type" and 
+	     * the "driver_unit", hence these variables
+	     * might be changed by the software:
+	     */
+
+	    cd->driver_type_copy = cd->driver_type;
+	    cd->driver_unit_copy = cd->driver_unit;
+	    cd->b_link_want_active = 1;
+	    protocol = I4B_B_PROTOCOLS_PROTOCOL[cd->channel_bprot];
+
+	} else {
+
+	    cd->b_link_want_active = 0;
+	    protocol = P_DISABLE;
 	}
 
-	/* if(cd->fifo_translator) allow deactivate */
 	return
 	  (cd->channel_allocated) ?
 	  i4b_setup_driver(i4b_controller_by_cd(cd),
-			   cd->channel_id,
-			   activate ? 
-			   I4B_B_PROTOCOLS_PROTOCOL[cd->channel_bprot] : P_DISABLE,
-			   cd->driver_type,
-			   cd->driver_unit,
+			   cd->channel_id, protocol,
+			   cd->driver_type_copy,
+			   cd->driver_unit_copy,
 			   cd) : 1;
 }
 
@@ -1021,12 +1100,8 @@ i4b_l4_disconnect_ind(call_desc_t *cd, u_int8_t complement)
 	if((cd->ai_type == I4B_AI_CAPI) || 
 	   (cd->ai_type == I4B_AI_BROADCAST) || complement)
 	{
-	    capi_ai_info_ind(cd, complement, 0x805a /* RELEASE_COMPLETE */, NULL, 0);
-
-	    if(complement == 0)
-	    {
-	        capi_ai_disconnect_b3_ind(cd);
-	    }
+	    capi_ai_info_ind(cd, complement, 
+			     0x805a /* RELEASE_COMPLETE */, NULL, 0);
 
 	    capi_ai_disconnect_ind(cd, complement);
 	}

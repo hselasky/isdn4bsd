@@ -60,7 +60,12 @@ extern void
 extern void
   mtx_lock(struct mtx *m);
 extern void
-  mtx_unlock(struct mtx *m);
+  _mtx_unlock(struct mtx *m);
+
+#define mtx_unlock(mtx) {	\
+    mtx_assert(mtx, MA_OWNED);	\
+   _mtx_unlock(mtx); }
+
 extern u_int8_t
   mtx_trylock(struct mtx *m);
 extern void
@@ -81,28 +86,6 @@ extern int
 
 extern struct mtx Giant;
 extern struct mtx Atomic; /* internal use only */
-
-#if (!defined(PSR_IMPL))
-
-/*
- * On NetBSD locking a mutex will
- * disable the interrupts!
- */
-static __inline register_t
-intr_disable(void)
-{
-    mtx_lock(&Atomic);
-    return 0;
-}
-
-static __inline void
-intr_restore(register_t restore)
-{
-    mtx_unlock(&Atomic);
-    return;
-}
-
-#endif
 
 struct mtx_args {
   struct mtx *mtx;
@@ -128,6 +111,28 @@ struct mtx_args {
         _mtx_assert((m), (what), __FILE__, __LINE__)
 #else
 #define mtx_assert(a...) 
+#endif
+
+#if (!defined(PSR_IMPL))
+
+/*
+ * On NetBSD locking a mutex will
+ * disable the interrupts!
+ */
+static __inline register_t
+intr_disable(void)
+{
+    mtx_lock(&Atomic);
+    return 0;
+}
+
+static __inline void
+intr_restore(register_t restore)
+{
+    mtx_unlock(&Atomic);
+    return;
+}
+
 #endif
 
 #endif

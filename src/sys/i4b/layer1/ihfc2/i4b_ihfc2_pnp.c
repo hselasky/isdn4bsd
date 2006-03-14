@@ -175,9 +175,8 @@ struct drvr_id
 /* disable modules that are not finished,
  * and that are not used by other modules
  */
-#define _I4B_HFCS2M_H_
-#define _I4B_PSB2152_H__
-#define _I4B_PSB3186_H__
+#define __I4B_PSB2152_H__
+#define __I4B_PSB3186_H__
 
 extern struct drvr_id
   ihfc_usb_id_start[0],
@@ -203,7 +202,7 @@ extern struct drvr_id
 #ifdef IHFC_USB_ENABLED
 #include <i4b/layer1/ihfc2/i4b_hfcsusb.h>
 #endif
-#include <i4b/layer1/ihfc2/i4b_hfcs2m.h>
+#include <i4b/layer1/ihfc2/i4b_hfc4s8s.h>
 #include <i4b/layer1/ihfc2/i4b_hfce1.h>
 
 /* ISAC / HSCX / IPAC */
@@ -342,6 +341,7 @@ const struct {
 
 	u_int32_t xxx [0];
 	u_int32_t xx1 : 1;
+	u_int32_t xx2 : 31; /* dummy */
 
 } __packed bit_test = { .xx1 = 1, };
 
@@ -374,17 +374,25 @@ const   struct resource_tab *ptr;
 	}
 	else if (bit_test.xxx[0] != 0x00000001)
 	{
-	    IHFC_ADD_ERR(error,
-			 "Invalid bit-order: 0x%08x!", bit_test.xxx[0]);
+	    IHFC_ADD_ERR(error, "Invalid bit-order: "
+			 "0x%08x!", bit_test.xxx[0]);
 	}
 
-	/* allocate i4b-controller */
-	if((sc->sc_resources.i4b_controller =
-	    i4b_controller_allocate(sc->sc_default.o_PORTABLE, error)))
+	sc->sc_resources.i4b_controller =
+	  i4b_controller_allocate(sc->sc_default.o_PORTABLE, 
+				  sc->sc_default.d_sub_controllers, error);
+
+	/* allocate I4B-controller(s) */
+	if(sc->sc_resources.i4b_controller == NULL)
 	{
-	  /* update mutex */
-	  sc->sc_mtx = &sc->sc_resources.i4b_controller->L1_lock;
+	    IHFC_ADD_ERR(error, "Cannot allocate I4B controller!");
+	    goto done;
 	}
+
+	/* get the mutex to use, which should and must 
+	 * be the same for all sub-controllers:
+	 */
+	sc->sc_mtx_p = &sc->sc_resources.i4b_controller->L1_lock;
 
 	/* check size of o_RES */
 	if((sizeof(o_RES)*8) < IHFC_NRES)
@@ -506,37 +514,6 @@ const   struct resource_tab *ptr;
 
 		IHFC_MSG("Internal IRQ-address: 0x%x\n",
 			 sc->sc_resources.iirq[number]);
-
-#if 0
-		/*
-		 * Do some checking
-		 */
-		if(rid->res->r_sharehead)
-		{
-		  if(!def->o_PCI_DEVICE)
-		  {
-		    printf("%s: This device was assigned a "
-			   "shared IRQ and may not work.\n",
-			   sc->sc_name);
-
-		    if(def->d_interrupt_delay >= 2)
-		    {
-		      /* delay is suitable for this system.
-		       * Enable polling. NOTE: IRQ handler
-		       * should  not  be  freed  even   if
-		       * polling is in use (unless the IRQ
-		       * line  has  been   electronically
-		       * disconnected)!
-		       */
-		      printf("%s: This device will use a pace maker "
-			     "in addition to the shared IRQ!\n",
-			     sc->sc_name);
-
-		      def->o_POLLED_MODE = 1;
-		    }
-		  }
-		}
-#endif
 		continue;
 
 	  drq:
@@ -622,8 +599,8 @@ const   struct resource_tab *ptr;
 		/* hence USB doesn't announce
 		 * any devices do it here:
 		 */
-		printf("%s: <%s>\n",
-		       sc->sc_name, device_get_desc(dev));
+		device_printf(sc->sc_device, "<%s>\n",
+			      device_get_desc(dev));
 
 		if(def->usb_length > IHFC_NUSB) {
 		   def->usb_length = IHFC_NUSB;
@@ -655,7 +632,7 @@ const   struct resource_tab *ptr;
 		/* setup transfers */
 		err = usbd_transfer_setup(udev, def->usb_iface_no, &sc->sc_resources.usb_xfer[0],
 					  &def->usb[0], def->usb_length,
-					  sc, sc->sc_mtx, NULL);
+					  sc, sc->sc_mtx_p, NULL);
 		if(err)
 		{
 		  usb_err:
@@ -665,9 +642,9 @@ const   struct resource_tab *ptr;
 		    goto done;
 		}
 	}
- done:
 #endif /* IHFC_USB_ENABLED */
 
+ done:
 	return IHFC_IS_ERR(error);
 }
 
@@ -687,8 +664,8 @@ ihfc_post_setup(ihfc_sc_t *sc, device_t dev, u_int8_t *error)
 
 	    if(bus_setup_intr(dev, rid->res, INTR_TYPE_NET
 			      I4B_DROP_GIANT(|INTR_MPSAFE), 
-			      ((void *)(void *)CHIP_INTERRUPT),
-			      sc, &sc->sc_resources.irq_tmp[0]))
+			      &ihfc_chip_interrupt, sc, 
+			      &sc->sc_resources.irq_tmp[0]))
 	    {
 	      IHFC_ADD_ERR(error,
 			   "Error setting up interrupt "
@@ -714,8 +691,9 @@ ihfc_unsetup_resource(device_t dev)
 
 	IHFC_MSG("\n");
 
-	/* free i4b-controller */
-	i4b_controller_free(sc->sc_resources.i4b_controller);
+	/* free I4B-controller(s) */
+	i4b_controller_free(sc->sc_resources.i4b_controller, 
+			    sc->sc_default.d_sub_controllers);
 
 	rid = &sc->sc_resources.rid[0];
 
@@ -775,7 +753,7 @@ static int
 ihfc_unsetup(device_t dev, u_int8_t *error, u_int8_t level)
 {
 	ihfc_sc_t *sc = device_get_softc(dev);
-	ihfc_fifo_t *f;
+	u_int8_t n;
 
 	switch(level) {
 	case 3:
@@ -794,19 +772,13 @@ ihfc_unsetup(device_t dev, u_int8_t *error, u_int8_t level)
 
 	callout_stop(&sc->sc_pollout_timr);
 	callout_stop(&sc->sc_pollout_timr_wait);
-	callout_stop(&sc->sc_statemachine.T3callout);
 
-	/*
-	 * Destroy mutex (reverse order)
-	 */
-
-	mtx_destroy(&sc->sc_mtx3);
-
-	FIFO_FOREACH(f,sc)
+	for(n = 0; 
+	    n < sc->sc_default.d_sub_controllers;
+	    n++)
 	{
-#if 0
-	  mtx_destroy(&f->ifqueue.ifq_mtx);
-#endif
+	    struct sc_state *st = &sc->sc_state[n];
+	    callout_stop(&st->T3callout);
 	}
 
 	if(IHFC_IS_ERR(error))
@@ -821,21 +793,274 @@ ihfc_unsetup(device_t dev, u_int8_t *error, u_int8_t level)
  * : default probe routine
  *---------------------------------------------------------------------------*/
 static int
+__ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
+{
+        u_int32_t flags =  device_get_flags(dev);
+        u_int8_t name = *device_get_name(device_get_parent(dev));
+	u_int8_t error[IHFC_MAX_ERR];
+	ihfc_fifo_t *f;
+	u_int32_t n;
+
+	error[0] = 0;
+
+#if DO_I4B_DEBUG
+	if(bootverbose)
+	{
+	    i4b_l1_debug |= L1_HFC_DBG | L1_ERROR;
+	}
+#endif
+	/*
+	 * bzero in case the softc was
+	 * already used:
+	 */
+
+	bzero(sc, sizeof(*sc));
+
+	/*
+	 * call default_sc_default()
+	 */
+	(default_sc_default)(&sc->sc_default);
+
+	/*
+	 * call id->dbase()
+	 */
+	(id->dbase)(&sc->sc_default);
+
+	/*
+	 * identify chip resources
+	 * ("sc" should be available through
+	 *  device_get_softc())
+	 */
+	if(sc->sc_default.c_chip_identify)
+	{
+	    if((sc->sc_default.c_chip_identify)(dev))
+	    {
+	        return ENXIO;
+	    }
+	}
+
+	/*
+	 * Set description
+	 * NOTE: PnP/USB cards provide a description
+	 *       from the PnP/USB-(E)EPROM.
+	 */
+	if(sc->sc_default.desc)
+	{
+	    device_set_desc(dev, sc->sc_default.desc);
+	}
+
+	/*
+	 * Add o_PCI_DEVICE if device
+	 * is on the PCI bus:
+	 */
+	if(!flags)
+	{
+	    if(name == 'p')
+	    {
+	        sc->sc_default.o_PCI_DEVICE = 1;
+	    }
+	}
+
+	/*
+	 * Allocate resources and probe hardware
+	 */
+
+	sc->sc_device = dev;
+
+	/* NOTE: the pointer returned by  
+	 * "device_get_nameunit(dev)" is 
+	 * not constant, so make a copy:
+	 */
+	snprintf(&sc->sc_nametmp[0],
+		 sizeof(sc->sc_nametmp),
+		 "%s", device_get_nameunit(dev));
+	/*
+	 * NOTE: if the last argument of callout_init is
+	 * zero, Giant will be applied before timeout.
+	 * Else Giant will be dropped. To make this
+	 * clear the definition of callout_init
+	 * should be
+	 * ``callout_init(struct callout *c, int drop_giant)``
+	 * instead of
+	 * ``callout_init(struct callout *c, int mpsafe)``
+	 * which may imply the oposite.
+	 */
+
+	callout_init(&sc->sc_pollout_timr_wait, I4B_DROP_GIANT(1+)0);
+	callout_init(&sc->sc_pollout_timr, I4B_DROP_GIANT(1+)0);
+
+	if(sc->sc_default.d_sub_controllers == 0)
+	{
+	    /* set default */
+	    sc->sc_default.d_sub_controllers = 1;
+	}
+
+	if(sc->sc_default.d_sub_controllers > IHFC_SUB_CONTROLLERS_MAX)
+	{
+	    device_printf(dev, "warning: the number of sub "
+			  "controllers is reduced to %d!\n", 
+			  IHFC_SUB_CONTROLLERS_MAX);
+	    sc->sc_default.d_sub_controllers = IHFC_SUB_CONTROLLERS_MAX;
+	}
+
+	if(sc->sc_default.d_channels > IHFC_CHANNELS)
+	{
+	    device_printf(dev, "warning: number of channels, receive "
+			  "and transmit, is reduced to %d!\n",
+			  IHFC_CHANNELS);
+	    sc->sc_default.d_channels = IHFC_CHANNELS;
+	}
+
+	if(sc->sc_default.d_channels & 1)
+	{
+	    device_printf(dev, "error: number of "
+			  "receive and transmit channels "
+			  "is odd!\n");
+	    goto err;
+	}
+
+	if(sc->sc_default.d_channels == 0)
+	{
+	    device_printf(dev, "number of channels, receive "
+			  "and transmit, defaults to 6!\n");
+	    sc->sc_default.d_channels = 6;
+	}
+
+	/* setup FIFO end */
+
+	sc->sc_fifo_end = &sc->sc_fifo[sc->sc_default.d_channels];
+
+	IHFC_MSG("this unit has %d transmit and receive "
+		 "channels and %d sub-controllers\n",
+		 sc->sc_default.d_channels, 
+		 sc->sc_default.d_sub_controllers);
+
+	if(sc->sc_default.d_L1_type == 0)
+	{
+	    /* set default */
+	    sc->sc_default.d_L1_type = L1_TYPE_ISDN_BRI;
+	}
+
+#if (IHFC_CHANNELS < 6)
+#error "please update code, (IHFC_CHANNELS < 6)"
+#endif
+	/*
+	 * Setup fifo numbers for HFC-SP chip
+	 */
+	sc->sc_fifo[d1t].s_fifo_sel = 0x04; /* chip: D1 channel  */
+	sc->sc_fifo[d1r].s_fifo_sel = 0x05; /* chip: D1 channel  */
+	sc->sc_fifo[b1t].s_fifo_sel = 0x00; /* chip: B1 channel  */
+	sc->sc_fifo[b1r].s_fifo_sel = 0x01; /* chip: B1 channel  */
+	sc->sc_fifo[b2t].s_fifo_sel = 0x02; /* chip: B2 channel  */
+	sc->sc_fifo[b2r].s_fifo_sel = 0x03; /* chip: B2 channel  */
+#if 0
+	sc->sc_fifo[b3t].s_fifo_sel = 0x06; /* chip: PCM channel */
+	sc->sc_fifo[b3r].s_fifo_sel = 0x07; /* chip: PCM channel */
+#endif
+	/*
+	 * Set default protocol for /dev/ihfcX.XX,
+	 * setup __fn for FIFO_DIR() and FIFO_NO()
+	 * use and setup fifo maps for all fifos.
+	 * Also initialize mtx for all ifqueues.
+	 */
+	FIFO_FOREACH(f,sc)
+	{
+	    n = f - &sc->sc_fifo[0];
+
+	    f->__fn = n;
+
+	    f->default_prot = P_TRANS_RING;
+
+	    if(sc->sc_default.d_fifo_map[n])
+	    {
+	        bcopy(sc->sc_default.d_fifo_map[n], &f->fm,
+		      sizeof(union fifo_map));
+	    }
+	}
+#if 0
+	/* for testing purpose */
+	sc->sc_default.d_interrupt_delay = hz / 10;
+#endif
+	/*
+	 * Allocate and setup
+	 * all resources
+	 */
+	if(ihfc_alloc_all_resources(sc, dev, flags, &error[0]))
+	{
+	    goto err;
+	}
+
+	for(n = 0; 
+	    n < sc->sc_default.d_sub_controllers;
+	    n++)
+	{
+	    struct sc_state *st = &sc->sc_state[n];
+	    struct i4b_controller *cntl = sc->sc_resources.i4b_controller + n;
+
+	    /* 
+	     * initialize statemachine variables
+	     */
+	    st->L1_auto_activate_ptr = 
+	      &st->L1_auto_activate_variable;
+
+	    st->L1_activity_ptr = 
+	      &st->L1_activity_variable;
+
+	    /* 
+	     * set default controller and FIFO 
+	     */
+	    st->i4b_controller = cntl;
+
+	    callout_init(&st->T3callout, I4B_DROP_GIANT(1+)0);
+
+	    ihfc_init_i4b(sc, cntl);
+	}
+
+	/*
+	 * Setup softc
+	 * and reset chip
+	 */
+	if(ihfc_setup_softc(sc, &error[0]))
+	{
+	    goto err;
+	}
+
+	for(n = 0;
+	    n < sc->sc_default.d_sub_controllers;
+	    n++)
+	{
+	    struct sc_state *st = &sc->sc_state[n];
+	    f = st->i4b_controller->L1_fifo;
+
+	    /*
+	     * Use HDLC as default for D-channels,
+	     * hence transparent mode is not
+	     * supported by all chips:
+	     */
+	    (f+receive)->default_prot = P_HDLC;
+	    (f+transmit)->default_prot = P_HDLC;
+	}
+
+	return 0; /* success */
+
+ err:
+	return ihfc_unsetup(dev,&error[0],0);
+}
+
+/*---------------------------------------------------------------------------*
+ * : default probe routine
+ *---------------------------------------------------------------------------*/
+static int
 ihfc_pnp_probe(device_t dev)
 {
 	ihfc_sc_t *        sc =  device_get_softc(dev);
-        ihfc_fifo_t *      f;
         u_int32_t       flags =  device_get_flags(dev);
         u_int8_t         name = *device_get_name(device_get_parent(dev));
-
-	u_int8_t         error[IHFC_MAX_ERR];
 
         const struct drvr_id * id       = NULL;
 	const struct drvr_id * id_end   = NULL;
 
-        u_int32_t n, vid = 0, lid = 0, cid = 0;
-
-	error[0] = 0;
+        u_int32_t vid = 0, lid = 0, cid = 0;
 
 	if(!sc)
 	{
@@ -915,235 +1140,19 @@ ihfc_pnp_probe(device_t dev)
 	 * (will be checked below)
 	 */
 
-	 for( ; id < id_end; id++)
+	for( ; id < id_end; id++)
+	{
 	  if((id->vid == vid) ||
 	     (id->vid == lid) ||
 	     (id->vid == cid))
 	  {
-	    if(id->dbase)
-	    {
-#if DO_I4B_DEBUG
-		if(bootverbose)
-		{
-		    i4b_l1_debug |= L1_HFC_DBG | L1_ERROR;
-		}
-#endif
-		/*
-		 * bzero in case the softc was
-		 * already used:
-		 */
-
-		bzero(sc, sizeof(*sc));
-
-		/*
-		 * call default_sc_default()
-		 */
-		(default_sc_default)(&sc->sc_default);
-
-		/*
-		 * call id->dbase()
-		 */
-		(id->dbase)(&sc->sc_default);
-
-		/*
-		 * identify chip resources
-		 * ("sc" should be available through
-		 *  device_get_softc())
-		 */
-		if(sc->sc_default.c_chip_identify)
-		{
-		    if((sc->sc_default.c_chip_identify)(dev))
-		    {
-		        return ENXIO;
-		    }
-		}
-
-		/*
-		 * Set description
-		 * NOTE: PnP/USB cards provide a description
-		 *       from the PnP/USB-(E)EPROM.
-		 */
-		if(sc->sc_default.desc)
-		{
-		    device_set_desc(dev, sc->sc_default.desc);
-		}
-
-		/*
-		 * Add o_PCI_DEVICE if device
-		 * is on the PCI bus:
-		 */
-		if(!flags)
-		{
-			if(name == 'p')
-			{
-				sc->sc_default.o_PCI_DEVICE = 1;
-			}
-		}
-
-		/*
-		 * Allocate resources and probe hardware
-		 */
-
-		sc->sc_device = dev;
-		sc->sc_unit   = device_get_unit(dev);
-
-	/* BUG in kern/subr_bus.c:
-	 *	device_get_nameunit(dev) is not constant.
-	 *	sc->sc_name   = device_get_nameunit(dev);
-	 *
-	 * TEMPORARY:
-	 */
-		snprintf(&sc->sc_nametmp[0],
-			 sizeof(sc->sc_nametmp),
-			 "%s", device_get_nameunit(dev));
-
-		sc->sc_name = &sc->sc_nametmp[0];
-
-		/*
-		 * NOTE: if the last argument of callout_init is
-		 * zero, Giant will be applied before timeout.
-		 * Else Giant will be dropped. To make this
-		 * clear the definition of callout_init
-		 * should be
-		 * ``callout_init(struct callout *c, int drop_giant)``
-		 * instead of
-		 * ``callout_init(struct callout *c, int mpsafe)``
-		 * which may imply the oposite.
-		 */
-
-		callout_init(&sc->sc_statemachine.T3callout, I4B_DROP_GIANT(1+)0);
-		callout_init(&sc->sc_pollout_timr_wait, I4B_DROP_GIANT(1+)0);
-		callout_init(&sc->sc_pollout_timr, I4B_DROP_GIANT(1+)0);
-
-		/*
-		 * Setup mutex in case of early
-		 * interrupts.
-		 */
-
-		sc->sc_mtx = &sc->sc_mtx3;
-
-		mtx_init(&sc->sc_mtx3, sc->sc_name, "ihfc_drv", 
-			 MTX_DEF|MTX_RECURSE);
-
-		if(sc->sc_default.d_channels > IHFC_CHANNELS)
-		{
-		    device_printf(dev, "number of channels, receive "
-				  "and transmit, is reduced to %d!\n",
-				  IHFC_CHANNELS);
-		    sc->sc_default.d_channels = IHFC_CHANNELS;
-		}
-
-		if(sc->sc_default.d_channels & 1)
-		{
-		    device_printf(dev, "warning: number of channels, receive "
-				  "and transmit, is odd! (continuing)\n");
-		}
-
-		if(sc->sc_default.d_channels == 0)
-		{
-		    device_printf(dev, "number of channels, receive "
-				  "and transmit, defaults to 6!\n");
-		    sc->sc_default.d_channels = 6;
-		}
-
-		/* setup FIFO end */
-		sc->sc_fifo_end =
-		  &sc->sc_fifo[sc->sc_default.d_channels];
-
-		IHFC_MSG("this system has %d transmit and receive channels",
-			 sc->sc_default.d_channels);
-
-		if(sc->sc_default.d_L1_type == 0)
-		{
-		    /* set default */
-		    sc->sc_default.d_L1_type = L1_TYPE_ISDN_BRI;
-		}
-
-#if (IHFC_CHANNELS < 6)
-#error "please update code, (IHFC_CHANNELS < 6)"
-#endif
-		/*
-		 * Setup fifo numbers for HFC-SP chip
-		 */
-	        sc->sc_fifo[d1t].s_fifo_sel = 0x04; /* chip: D1 channel  */
-	        sc->sc_fifo[d1r].s_fifo_sel = 0x05; /* chip: D1 channel  */
-		sc->sc_fifo[b1t].s_fifo_sel = 0x00; /* chip: B1 channel  */
-		sc->sc_fifo[b1r].s_fifo_sel = 0x01; /* chip: B1 channel  */
-		sc->sc_fifo[b2t].s_fifo_sel = 0x02; /* chip: B2 channel  */
-		sc->sc_fifo[b2r].s_fifo_sel = 0x03; /* chip: B2 channel  */
-#if 0
-		sc->sc_fifo[b3t].s_fifo_sel = 0x06; /* chip: PCM channel */
-		sc->sc_fifo[b3r].s_fifo_sel = 0x07; /* chip: PCM channel */
-#endif
-		/*
-		 * Set default protocol for /dev/ihfcX.XX,
-		 * setup __fn for FIFO_DIR() and FIFO_NO()
-		 * use and setup fifo maps for all fifos.
-		 * Also initialize mtx for all ifqueues.
-		 */
-		FIFO_FOREACH(f,sc)
-		{
-		    n = f - &sc->sc_fifo[0];
-
-		    f->__fn = n;
-
-		    f->default_prot = P_TRANS_RING;
-
-		    if(sc->sc_default.d_fifo_map[n])
-		    {
-		    	bcopy(sc->sc_default.d_fifo_map[n], &f->fm,
-			      sizeof(union fifo_map));
-		    }
-#if 0
-		    mtx_init(&f->ifqueue.ifq_mtx, sc->sc_name,"ihfc_ifq", 
-			     MTX_DEF);
-#endif
-		}
-
-		/*
-		 * D-channel transparent mode
-		 * is not supported by all chips.
-		 * Use HDLC instead:
-		 */
-		sc->sc_fifo[d1r].default_prot = P_HDLC;
-		sc->sc_fifo[d1t].default_prot = P_HDLC;
-#if 0
-		/* for testing purpose */
-		sc->sc_default.d_interrupt_delay = hz / 10;
-#endif
-		/* Setup statemachine
-		 * variables
-		 */
-		sc->sc_statemachine.L1_auto_activate_ptr = 
-		  &sc->sc_statemachine.L1_auto_activate_variable;
-		sc->sc_statemachine.L1_activity_ptr = 
-		  &sc->sc_statemachine.L1_activity_variable;
-
-		/*
-		 * Allocate and setup
-		 * all resources
-		 */
-		if(ihfc_alloc_all_resources(sc, dev, flags, &error[0]))
-		{
-		  goto err;
-		}
-
-		/*
-		 * Setup softc
-		 * and reset chip
-		 */
-		if(ihfc_setup_softc(sc, &error[0]))
-		{
-		  goto err;
-		}
-
-		return 0; /* success */
-	    }
+	      if(id->dbase)
+	      {
+	          return __ihfc_pnp_probe(dev,sc,id);
+	      }
 	  }
-
+	}
 	return ENXIO;
- err:
-	return ihfc_unsetup(dev,&error[0],0);
 }
 
 /*---------------------------------------------------------------------------*
@@ -1166,13 +1175,6 @@ ihfc_pnp_attach(device_t dev)
 	{
 	  return ihfc_unsetup(dev, &error[0], 0);
 	}
-
-	/* NOTE: ihfc_setup_i4b will generate
-	 * a new sc->sc_name that matches the
-	 * mux unit. sc->sc_name will be used
-	 * to generate /dev/ihfcxx in
-	 * ihfc_setup_ldev. 
-	 */
 
 	if(ihfc_setup_i4b(sc, &error[0]))
 	{

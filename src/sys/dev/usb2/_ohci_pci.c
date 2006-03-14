@@ -55,18 +55,12 @@
 #include <sys/endian.h>
 #include <sys/queue.h> /* LIST_XXX() */
 #include <sys/lock.h>
-#include <sys/mutex.h>
 #include <sys/malloc.h>
 #include <sys/callout.h> /* callout_xxx() */
-#include <sys/bus.h> /* device_xxx() */
-#include <sys/module.h>
 
 #include <machine/bus.h> /* bus_space_xxx() */
-#include <machine/resource.h> /* SYS_XXX */
-#include <sys/rman.h> 
 
-#include <dev/pci/pcivar.h>
-#include <dev/pci/pcireg.h>
+#define INCLUDE_PCIXXX_H
 
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
@@ -347,8 +341,6 @@ ohci_pci_detach(device_t self)
 		bus_release_resource(self, SYS_RES_MEMORY, PCI_CBMEM,
 				     sc->io_res);
 		sc->io_res = NULL;
-		sc->iot = 0;
-		sc->ioh = 0;
 	}
 
 	usb_free_mem(sc, sizeof(*sc));

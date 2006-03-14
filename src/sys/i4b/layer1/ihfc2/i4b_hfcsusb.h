@@ -27,8 +27,6 @@
  *	i4b_hfcsusb.h - HFC-S USB driver module
  * 	---------------------------------------
  *
- *	last edit-date: []
- *
  * $FreeBSD: $
  *
  *---------------------------------------------------------------------------*/
@@ -104,8 +102,6 @@
 # define HFCSUSB_DEBUG_INTR
 # define HFCSUSB_DEBUG_STAT
 # define HFCSUSB_DEBUG_ERR
-#else
-# define HFCSUSB_DEBUG_ERR
 #endif
 
 /* imports */
@@ -138,8 +134,7 @@ hfcsusb_callback_chip_read USBD_CALLBACK_T(xfer)
 	IHFC_MSG("ReadReg:0x%02x, Val:0x%02x\n",
 		 req->wIndex[0], req->bData[0]);
 
-	switch(req->wIndex[0])
-	{
+	switch(req->wIndex[0]) {
 	case 0x30:
 	  /* check for statemachine change */
 	  if(sc->sc_config.s_states != req->bData[0])
@@ -147,7 +142,7 @@ hfcsusb_callback_chip_read USBD_CALLBACK_T(xfer)
 		/* update s_states */
 		sc->sc_config.s_states = req->bData[0];
 
-		fsm_update(sc,0);
+		ihfc_fsm_update(sc,&sc->sc_fifo[0],0);
 	  }
 	  break;
 
@@ -525,11 +520,11 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 	  }
 
 	  /* FIFO Control Byte */
-	  *((u_int8_t *)(tmp   )) = 0x00; /* default value */
+	  *(tmp) = 0x00; /* default value */
 
 	  /* copy 8-bytes      */
-	  *((u_int32_t *)(tmp +1)) = *((u_int32_t *)(d1_start   ));
-	  *((u_int32_t *)(tmp +5)) = *((u_int32_t *)(d1_start +4));
+	  ((u_int32_p_t *)(tmp +1))->data = ((u_int32_p_t *)(d1_start   ))->data;
+	  ((u_int32_p_t *)(tmp +5))->data = ((u_int32_p_t *)(d1_start +4))->data;
 
 	  /* update d1_start   */
 	  d1_start              += average;
@@ -550,7 +545,7 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 	   * avoid irregular CRC-byte
 	   * insertion:
 	   */
-	  *((u_int8_t *)(tmp   )) = control_byte; /**/
+	  *(tmp) = control_byte; /**/
 	}
 
  tr_error:
@@ -796,7 +791,7 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	   */
 	  tmp = d1_start + EXPANSION_BUFFER_SIZE;
 
-	  while(d1_end != d1_start)
+	  while(d1_end != d1_start) 
 	  {
 	    tmp -= 4;
 	    d1_end -= 1;
@@ -832,12 +827,12 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	   */
 
 	  /* FIFO Control Byte */
-	  *((u_int8_t  *)(tmp   )) = 0;
+	  *(tmp) = 0;
 
 	  /* copy 9-bytes */
-	  *((u_int32_t *)(tmp +1)) = *((u_int32_t *)(d1_start   ));
-	  *((u_int32_t *)(tmp +5)) = *((u_int32_t *)(d1_start +4));
-	  *((u_int8_t  *)(tmp +9)) = *((u_int8_t  *)(d1_start +8));
+	  ((u_int32_p_t *)(tmp +1))->data = ((u_int32_p_t *)(d1_start   ))->data;
+	  ((u_int32_p_t *)(tmp +5))->data = ((u_int32_p_t *)(d1_start +4))->data;
+	                 *(tmp +9) = *(d1_start +8);
 
 	  if(frlengths == frlengths_adj)
 	  {
@@ -984,9 +979,9 @@ hfcsusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 		 * the buffer
 		 */
 
-		((u_int32_t *)d1_end)[0] = ((u_int32_t *)tmp)[0];
-		((u_int32_t *)d1_end)[1] = ((u_int32_t *)tmp)[1];
-		((u_int32_t *)d1_end)[2] = ((u_int32_t *)tmp)[2];
+		(((u_int32_p_t *)d1_end)+0)->data = (((u_int32_p_t *)tmp)+0)->data;
+		(((u_int32_p_t *)d1_end)+1)->data = (((u_int32_p_t *)tmp)+1)->data;
+		(((u_int32_p_t *)d1_end)+2)->data = (((u_int32_p_t *)tmp)+2)->data;
 
 		/*
 		 * update data pointer
@@ -1097,7 +1092,8 @@ hfcsusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	    ihfc_fifo_t *f = xfer[0]->priv_fifo;
 
 	    if((f->prot != P_DISABLE) &&
-	       (sc->sc_statemachine.state.active))
+	       ((FIFO_NO(f) == d1r) || 
+		sc->sc_state[0].state.active))
 	    {
 	      /* start pipe */
 	      usbd_transfer_start(xfer[0]);
@@ -1179,7 +1175,7 @@ hfcsusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 }
 
 static void
-hfcsusb_fsm_read FSM_READ_T(sc,ptr)
+hfcsusb_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	/*
 	 * Use cached version,
@@ -1193,7 +1189,7 @@ hfcsusb_fsm_read FSM_READ_T(sc,ptr)
 }
 
 static void
-hfcsusb_fsm_write FSM_WRITE_T(sc,ptr)
+hfcsusb_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	/* write STATES(reg=0x30) */
 	hfcsusb_chip_write(sc,0x30,ptr,1);
@@ -1500,6 +1496,28 @@ I4B_DBASE(COUNT())
 #undef LED_SCHEME
 #define LED_SCHEME(m)				\
   m(p1, 0x02,YES)				\
+  m(d1, 0x01,YES)				\
+  m(b1, 0x04,YES)				\
+  m(b2, 0x08,YES)				\
+    /**/
+
+  I4B_ADD_LED_SUPPORT(LED_SCHEME);
+}
+
+I4B_USB_DRIVER(/* ISDN Terminal Adapter
+                */
+               .vid      = 0x07422009,
+               );
+
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
+I4B_DBASE(COUNT())
+{
+  I4B_DBASE_IMPORT(hfcsusb_dbase_root);
+
+#undef LED_SCHEME
+#define LED_SCHEME(m)				\
+  m(p1, 0x02,YES)				\
   m(d1, 0x00,YES) /* not present */		\
   m(b1, 0x04,YES)				\
   m(b2, 0x01,YES)				\
@@ -1560,7 +1578,6 @@ I4B_USB_DRIVER(/* Billion tinyUSB
                 */
                .vid      = 0x07b00007,
                );
-
 
 /*
  * cleanup

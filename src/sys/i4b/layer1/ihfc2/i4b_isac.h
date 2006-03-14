@@ -653,7 +653,7 @@ isac_hscx_generic_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 }
 
 static void __used
-isac_hscx_generic_fsm_read FSM_READ_T(sc,ptr)
+isac_hscx_generic_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	IPAC_BUS_VAR(sc);
 	u_int8_t temp;
@@ -667,7 +667,7 @@ isac_hscx_generic_fsm_read FSM_READ_T(sc,ptr)
 }
 
 static void __used
-isac_hscx_generic_fsm_write FSM_WRITE_T(sc,ptr)
+isac_hscx_generic_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	IPAC_BUS_VAR(sc);
 	u_int8_t temp = (*ptr | sc->sc_config.i_cirq);

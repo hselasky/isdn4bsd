@@ -79,7 +79,8 @@ m( ST_L3_U4_TO    ,, 4/*hz*/, ST_L3_U0    , "Outgoing delivered"    , 0x04  )	\
 										\
 m( ST_L3_INCOMING ,, 8/*hz*/, ST_L3_U0    , "Incoming initialized"  , 0x00  )	\
 m( ST_L3_IN_ACK   ,,16/*hz*/, ST_L3_U0    , "Incoming initialized"  , 0x19  )	\
-m( ST_L3_U6       ,, 8/*hz*/, ST_L3_U0    , "Incoming present"      , 0x06  )	\
+m( ST_L3_U6       ,, 8/*hz*/, ST_L3_U6_TO , "Incoming present"      , 0x06  )	\
+m( ST_L3_U6_TO    ,, 4/*hz*/, ST_L3_U0    , "Incoming present"      , 0x06  )	\
 m( ST_L3_U7       ,, 8/*hz*/, ST_L3_U7_TO , "Incoming alerted"      , 0x07  )	\
 m( ST_L3_U7_TO    ,, 4/*hz*/, ST_L3_U0    , "Incoming alerted"      , 0x07  )	\
 m( ST_L3_U8       ,, 4/*hz*/, ST_L3_U0    , "Incoming connecting"   , 0x08  )	\
@@ -139,6 +140,8 @@ m( EV_L3_INFO        ,, "received INFORMATION")\
 m( EV_L3_FACILITY    ,, "received FACILITY")\
 m( EV_L3_RESTART_IND ,, "received RESTART INDICATION")\
 m( EV_L3_RESTART_ACK ,, "received RESTART ACKNOWLEDGE")\
+m( EV_L3_HOLD_REQ    ,, "received HOLD REQUEST")\
+m( EV_L3_RETRIEVE_REQ,, "received RETRIEVE REQUEST")\
 m( EV_L3_INFORQ      ,, "L4 INFORMATION REQUEST")\
 m( EV_L3_DISCONNECT  ,, "received DISCONNECT INDICATION")\
 /**/
@@ -319,14 +322,14 @@ m(CONNECT_ACKNOWLEDGE     ,=0x0f, EV_L3_CONACK	)\
 m(USER_INFORMATION        ,=0x20, EV_L3_ILL	)\
 m(SUSPEND_REJECT          ,=0x21, EV_L3_ILL	)\
 m(RESUME_REJECT           ,=0x22, EV_L3_ILL	)\
-m(HOLD                    ,=0x24, EV_L3_ILL	)\
+m(HOLD                    ,=0x24, EV_L3_HOLD_REQ)\
 m(SUSPEND                 ,=0x25, EV_L3_ILL	)\
 m(RESUME                  ,=0x26, EV_L3_ILL	)\
 m(HOLD_ACKNOWLEDGE        ,=0x28, EV_L3_ILL	)\
 m(SUSPEND_ACKNOWLEDGE     ,=0x2d, EV_L3_ILL	)\
 m(RESUME_ACKNOWLEDGE      ,=0x2e, EV_L3_ILL	)\
 m(HOLD_REJECT             ,=0x30, EV_L3_ILL	)\
-m(RETRIEVE                ,=0x31, EV_L3_ILL	)\
+m(RETRIEVE                ,=0x31, EV_L3_RETRIEVE_REQ)\
 m(RETRIEVE_ACKNOWLEDGE    ,=0x33, EV_L3_ILL	)\
 m(RETRIEVE_REJECT         ,=0x37, EV_L3_ILL	)\
 \

@@ -58,13 +58,12 @@
 #include <sys/endian.h>
 #include <sys/queue.h> /* LIST_XXX() */
 #include <sys/lock.h>
-#include <sys/mutex.h>
 #include <sys/malloc.h>
 #include <sys/callout.h> /* callout_xxx() */
-#include <sys/bus.h> /* device_xxx() */
-#include <sys/sysctl.h> /* SYSCTL_XXX() */
 
 #include <machine/bus.h> /* bus_space_xxx() */
+
+#define INCLUDE_PCIXXX_H
 
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
@@ -198,24 +197,24 @@ ehci_init(ehci_softc_t *sc)
 
 	for(i = 0; i < EHCI_VIRTUAL_FRAMELIST_COUNT; i++)
 	{
-		sc->sc_intr_start[i].qh_self = 
-		  htole32(PHYSADDR(sc,sc_intr_start[i])|EHCI_LINK_QH);
+		sc->sc_hw.intr_start[i].qh_self = 
+		  htole32(PHYSADDR(sc,sc_hw.intr_start[i])|EHCI_LINK_QH);
 
-		sc->sc_intr_start[i].qh_endp = 
+		sc->sc_hw.intr_start[i].qh_endp = 
 		  htole32(EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH));
-		sc->sc_intr_start[i].qh_endphub = 
+		sc->sc_hw.intr_start[i].qh_endphub = 
 		  htole32(EHCI_QH_SET_MULT(1));
-		sc->sc_intr_start[i].qh_curqtd = 0;
+		sc->sc_hw.intr_start[i].qh_curqtd = 0;
 
-		sc->sc_intr_start[i].qh_qtd.qtd_next = 
+		sc->sc_hw.intr_start[i].qh_qtd.qtd_next = 
 		  htole32(EHCI_LINK_TERMINATE);
-		sc->sc_intr_start[i].qh_qtd.qtd_altnext = 
+		sc->sc_hw.intr_start[i].qh_qtd.qtd_altnext = 
 		  htole32(EHCI_LINK_TERMINATE);
-		sc->sc_intr_start[i].qh_qtd.qtd_status = 
+		sc->sc_hw.intr_start[i].qh_qtd.qtd_status = 
 		  htole32(EHCI_QTD_HALTED);
 
 		sc->sc_intr_p_last[i] = 
-		  &sc->sc_intr_start[i];
+		  &sc->sc_hw.intr_start[i];
 	}
 
 	/*
@@ -233,43 +232,43 @@ ehci_init(ehci_softc_t *sc)
 			/* the next QH has half the
 			 * poll interval
 			 */
-			sc->sc_intr_start[x].qh_link =
-			  sc->sc_intr_start[y].qh_self;
+			sc->sc_hw.intr_start[x].qh_link =
+			  sc->sc_hw.intr_start[y].qh_self;
 			x++;
 		}
 		bit >>= 1;
 	}
 
 	/* the last (1ms) QH terminates */
-	sc->sc_intr_start[0].qh_link = htole32(EHCI_LINK_TERMINATE);
+	sc->sc_hw.intr_start[0].qh_link = htole32(EHCI_LINK_TERMINATE);
 
 	for(i = 0; i < EHCI_VIRTUAL_FRAMELIST_COUNT; i++)
 	{
 		/* initialize full speed isochronous */
 
-		sc->sc_isoc_fs_start[i].sitd_self = 
-		  htole32(PHYSADDR(sc,sc_isoc_fs_start[i])|EHCI_LINK_SITD);
+		sc->sc_hw.isoc_fs_start[i].sitd_self = 
+		  htole32(PHYSADDR(sc,sc_hw.isoc_fs_start[i])|EHCI_LINK_SITD);
 
-		sc->sc_isoc_fs_start[i].sitd_back = 
+		sc->sc_hw.isoc_fs_start[i].sitd_back = 
 		  htole32(EHCI_LINK_TERMINATE);
 
-		sc->sc_isoc_fs_start[i].sitd_next = 
-		  sc->sc_intr_start[i|(EHCI_VIRTUAL_FRAMELIST_COUNT/2)].qh_self;
+		sc->sc_hw.isoc_fs_start[i].sitd_next = 
+		  sc->sc_hw.intr_start[i|(EHCI_VIRTUAL_FRAMELIST_COUNT/2)].qh_self;
 
 		sc->sc_isoc_fs_p_last[i] = 
-		  &sc->sc_isoc_fs_start[i];
+		  &sc->sc_hw.isoc_fs_start[i];
 
 
 		/* initialize high speed isochronous */
 
-		sc->sc_isoc_hs_start[i].itd_self = 
-		  htole32(PHYSADDR(sc,sc_isoc_hs_start[i])|EHCI_LINK_ITD);
+		sc->sc_hw.isoc_hs_start[i].itd_self = 
+		  htole32(PHYSADDR(sc,sc_hw.isoc_hs_start[i])|EHCI_LINK_ITD);
 
-		sc->sc_isoc_hs_start[i].itd_next = 
-		  sc->sc_isoc_fs_start[i].sitd_self;
+		sc->sc_hw.isoc_hs_start[i].itd_next = 
+		  sc->sc_hw.isoc_fs_start[i].sitd_self;
 
 		sc->sc_isoc_hs_p_last[i] = 
-		  &sc->sc_isoc_hs_start[i];
+		  &sc->sc_hw.isoc_hs_start[i];
 	}
 
 	/*
@@ -279,43 +278,43 @@ ehci_init(ehci_softc_t *sc)
 	 */
 	for(i = 0; i < EHCI_FRAMELIST_COUNT; i++)
 	{
-		sc->sc_pframes[i] = sc->sc_isoc_hs_start
+		sc->sc_hw.pframes[i] = sc->sc_hw.isoc_hs_start
 		  [i & (EHCI_VIRTUAL_FRAMELIST_COUNT-1)].itd_self;
 	}
 
 	/* setup sync list pointer */
-	EOWRITE4(sc, EHCI_PERIODICLISTBASE, PHYSADDR(sc,sc_pframes[0]));
+	EOWRITE4(sc, EHCI_PERIODICLISTBASE, PHYSADDR(sc,sc_hw.pframes[0]));
 
 
 	/* init dummy QH that starts the async list */
 
-	sc->sc_async_start.qh_self = 
-	  htole32(PHYSADDR(sc,sc_async_start)|EHCI_LINK_QH);
+	sc->sc_hw.async_start.qh_self = 
+	  htole32(PHYSADDR(sc,sc_hw.async_start)|EHCI_LINK_QH);
 
 	/* fill the QH */
-	sc->sc_async_start.qh_endp =
+	sc->sc_hw.async_start.qh_endp =
 	    htole32(EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) | EHCI_QH_HRECL);
-	sc->sc_async_start.qh_endphub = htole32(EHCI_QH_SET_MULT(1));
-	sc->sc_async_start.qh_link = sc->sc_async_start.qh_self;
-	sc->sc_async_start.qh_curqtd = 0;
+	sc->sc_hw.async_start.qh_endphub = htole32(EHCI_QH_SET_MULT(1));
+	sc->sc_hw.async_start.qh_link = sc->sc_hw.async_start.qh_self;
+	sc->sc_hw.async_start.qh_curqtd = 0;
 
 	/* fill the overlay qTD */
-	sc->sc_async_start.qh_qtd.qtd_next = htole32(EHCI_LINK_TERMINATE);
-	sc->sc_async_start.qh_qtd.qtd_altnext = htole32(EHCI_LINK_TERMINATE);
-	sc->sc_async_start.qh_qtd.qtd_status = htole32(EHCI_QTD_HALTED);
+	sc->sc_hw.async_start.qh_qtd.qtd_next = htole32(EHCI_LINK_TERMINATE);
+	sc->sc_hw.async_start.qh_qtd.qtd_altnext = htole32(EHCI_LINK_TERMINATE);
+	sc->sc_hw.async_start.qh_qtd.qtd_status = htole32(EHCI_QTD_HALTED);
 
 	sc->sc_async_p_last = 
-	  &sc->sc_async_start;
+	  &sc->sc_hw.async_start;
 
 #ifdef USB_DEBUG
 	if(ehcidebug)
 	{
-		ehci_dump_sqh(&sc->sc_async_start);
+		ehci_dump_sqh(&sc->sc_hw.async_start);
 	}
 #endif
 
 	/* setup async list pointer */
-	EOWRITE4(sc, EHCI_ASYNCLISTADDR, PHYSADDR(sc,sc_async_start)|EHCI_LINK_QH);
+	EOWRITE4(sc, EHCI_ASYNCLISTADDR, PHYSADDR(sc,sc_hw.async_start)|EHCI_LINK_QH);
 
 
 	/* enable interrupts */
@@ -451,8 +450,8 @@ ehci_resume(struct ehci_softc *sc)
 
 	/* restore things in case the bios doesn't */
 	EOWRITE4(sc, EHCI_CTRLDSSEGMENT, 0);
-	EOWRITE4(sc, EHCI_PERIODICLISTBASE, PHYSADDR(sc,sc_pframes[0]));
-	EOWRITE4(sc, EHCI_ASYNCLISTADDR, PHYSADDR(sc,sc_async_start)|EHCI_LINK_QH);
+	EOWRITE4(sc, EHCI_PERIODICLISTBASE, PHYSADDR(sc,sc_hw.pframes[0]));
+	EOWRITE4(sc, EHCI_ASYNCLISTADDR, PHYSADDR(sc,sc_hw.async_start)|EHCI_LINK_QH);
 
 	EOWRITE4(sc, EHCI_USBINTR, sc->sc_eintrs);
 
@@ -637,17 +636,26 @@ ehci_dump_qtd(ehci_qtd_t *qtd)
 	printf("  status=0x%08x: toggle=%d bytes=0x%x ioc=%d c_page=0x%x\n",
 	       s, EHCI_QTD_GET_TOGGLE(s), EHCI_QTD_GET_BYTES(s),
 	       EHCI_QTD_GET_IOC(s), EHCI_QTD_GET_C_PAGE(s));
-	printf("    cerr=%d pid=%d stat=%b\n", EHCI_QTD_GET_CERR(s),
-	       EHCI_QTD_GET_PID(s), EHCI_QTD_GET_STATUS(s),
-	       "\20\10ACTIVE\7HALTED\6BUFERR\5BABBLE\4XACTERR"
-	       "\3MISSED\2SPLIT\1PING");
+	printf("    cerr=%d pid=%d stat=%s%s%s%s%s%s%s%s\n", 
+	       EHCI_QTD_GET_CERR(s), EHCI_QTD_GET_PID(s), 
+	       (s & EHCI_QTD_ACTIVE) ? "ACTIVE" : "NOT_ACTIVE",
+	       (s & EHCI_QTD_HALTED) ? "-HALTED" : "",
+	       (s & EHCI_QTD_BUFERR) ? "-BUFERR" : "",
+	       (s & EHCI_QTD_BABBLE) ? "-BABBLE" : "",
+	       (s & EHCI_QTD_XACTERR) ? "-XACTERR" : "",
+	       (s & EHCI_QTD_MISSEDMICRO) ? "-MISSED" : "",
+	       (s & EHCI_QTD_SPLITXSTATE) ? "-SPLIT" : "",
+	       (s & EHCI_QTD_PINGSTATE) ? "-PING" : "");
+
 	for(s = 0; s < 5; s++)
 	{
-		printf("  buffer[%d]=0x%08x\n", s, le32toh(qtd->qtd_buffer[s]));
+		printf("  buffer[%d]=0x%08x\n", s, 
+		       le32toh(qtd->qtd_buffer[s]));
 	}
 	for(s = 0; s < 5; s++)
 	{
-		printf("  buffer_hi[%d]=0x%08x\n", s, le32toh(qtd->qtd_buffer_hi[s]));
+		printf("  buffer_hi[%d]=0x%08x\n", s, 
+		       le32toh(qtd->qtd_buffer_hi[s]));
 	}
 	return;
 }
@@ -1029,12 +1037,17 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 	{
 		DPRINTFN(10,
 			 ("error, addr=%d, endpt=0x%02x, "
-			  "status %b\n",
+			  "status=%s%s%s%s%s%s%s%s\n",
 			  xfer->address,
 			  xfer->endpoint,
-			  (u_int32_t)status,
-			  "\20\7HALTED\6BUFERR\5BABBLE\4XACTERR"
-			  "\3MISSED"));
+			  (status & EHCI_QTD_ACTIVE) ? "ACTIVE" : "NOT_ACTIVE",
+			  (status & EHCI_QTD_HALTED) ? "-HALTED" : "",
+			  (status & EHCI_QTD_BUFERR) ? "-BUFERR" : "",
+			  (status & EHCI_QTD_BABBLE) ? "-BABBLE" : "",
+			  (status & EHCI_QTD_XACTERR) ? "-XACTERR" : "",
+			  (status & EHCI_QTD_MISSEDMICRO) ? "-MISSED" : "",
+			  (status & EHCI_QTD_SPLITXSTATE) ? "-SPLIT" : "",
+			  (status & EHCI_QTD_PINGSTATE) ? "-PING" : ""));
 	}
 #endif
 
@@ -3353,6 +3366,9 @@ ehci_xfer_setup(struct usbd_device *udev,
  repeat:
 	size = 0;
 
+	/* align data to 8 byte boundary */
+	size += ((-size) & (USB_HOST_ALIGN-1));
+
 	if(buf)
 	{
 	    info = ADD_BYTES(buf,size);
@@ -3376,6 +3392,9 @@ ehci_xfer_setup(struct usbd_device *udev,
 	  nqh = 0;
 	  nsitd = 0;
 	  nitd = 0;
+
+	  /* align data to 8 byte boundary */
+	  size += ((-size) & (USB_HOST_ALIGN-1));
 
 	  if(buf)
 	  {
@@ -3495,6 +3514,9 @@ ehci_xfer_setup(struct usbd_device *udev,
 	  }
 
 	  size += sizeof(xfer[0]);
+
+	  /* align data to 8 byte boundary */
+	  size += ((-size) & (USB_HOST_ALIGN-1));
 
 	  if(buf)
 	  {

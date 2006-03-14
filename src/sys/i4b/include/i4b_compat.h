@@ -4,6 +4,7 @@
 
 # ifdef _KERNEL
 #  include <machine/resource.h>
+#  include <sys/bus.h>
 #  include <dev/sound/pcm/sound.h>
 #  include <dev/sound/pcm/dsp.h>
 #  include <dev/pci/pcireg.h>
@@ -14,7 +15,6 @@
 #  include <netgraph/ng_message.h>
 #  include <netgraph/ng_parse.h>
 #  include <netgraph/netgraph.h>
-#  include <sys/bus.h>
 #  include <sys/lockmgr.h>
 #  include <sys/module.h>
 #  include <sys/mutex.h>
@@ -24,15 +24,14 @@
 #  include <sys/sysctl.h>
 #  include <sys/sx.h>
 #  include <fs/devfs/devfs.h>
+#  ifndef __KASSERT
+typedef struct cdevsw cdevsw_t;
+#   define __lockmgr lockmgr
+#   define __KASSERT KASSERT
+#  endif
 # else
 #  include <ncurses.h>
 #  include <osreldate.h>
-# endif
-
-# ifdef _KERNEL
-typedef struct cdevsw cdevsw_t;
-# define __lockmgr lockmgr
-# define __KASSERT KASSERT
 # endif
 
 #else

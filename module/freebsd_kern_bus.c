@@ -22,6 +22,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
+ * "module/freebsd_kern_bus.c"
  */
 
 #include <sys/param.h>
@@ -31,9 +32,17 @@
 
 #include <machine/stdarg.h>
 
+#if (__NetBSD_Version__ < 300000000)
+#define pci_set_powerstate __pci_set_powerstate
+#define pci_get_powerstate __pci_get_powerstate
+#endif
+
 #include <dev/pci/pcireg.h>
 #include <dev/pci/pcivar.h>
 #include <dev/pci/pcidevs.h>
+
+#undef pci_set_powerstate
+#undef pci_get_powerstate
 
 #ifndef FREEBSD_NO_ISA
 
@@ -104,6 +113,7 @@ netbsd_pnp_match(device_t dev, struct isapnp_attach_args *arg)
     dev->dev_id_sub = isapnp_vendor_to_id(&arg->ipa_devcompat[0]);
     dev->dev_what = DEVICE_IS_PNP;
     dev->dev_parent = &dummy_isa_dev;
+    TAILQ_INIT(&dev->dev_children);
 
     snprintf(&dev->dev_desc[0], sizeof(dev->dev_desc), 
 	     "%s", &arg->ipa_devident[0]);
@@ -179,8 +189,7 @@ pci_write_config(device_t dev, int reg, u_int32_t val, int width)
 	if(arg)
 	{
 	    val &= temp;
-	    temp = ~temp;
-	    val |= pci_read_config(dev, reg, 4) & temp;
+	    val |= pci_read_config(dev, reg, 4) & (~temp);
 	    pci_conf_write(arg->pa_pc, arg->pa_tag, reg, val);
 	}
     }
@@ -277,6 +286,36 @@ pci_disable_io(device_t dev, int space)
 	}
     }
     return 0;
+}
+
+u_int8_t
+pci_get_class(device_t dev)
+{
+    return PCI_CLASS(dev->dev_pci_class);
+}
+
+u_int8_t
+pci_get_subclass(device_t dev)
+{
+    return PCI_SUBCLASS(dev->dev_pci_class);
+}
+
+u_int8_t
+pci_get_progif(device_t dev)
+{
+    return PCI_INTERFACE(dev->dev_pci_class);
+}
+
+u_int16_t
+pci_get_vendor(device_t dev)
+{
+    return (dev->dev_id & 0xFFFF);
+}
+
+u_int16_t
+pci_get_device(device_t dev)
+{
+    return ((dev->dev_id >> 16) & 0xFFFF);
 }
 
 static struct resource *
@@ -786,14 +825,237 @@ __device_printf(device_t dev, const char *fmt, ...)
     return 0; /* XXX should return number of characters printed */
 }
 
-device_t 
-device_add_child(device_t dev, const char *name, int unit)
+static u_int8_t
+devclass_create(devclass_t *dc_pp)
 {
-    device_printf(dev, "%s not supported!\n", __FUNCTION__);
+    if (dc_pp == NULL) {
+        return 1;
+    }
+
+    if (dc_pp[0] == NULL) {
+        dc_pp[0] = malloc(sizeof(**(dc_pp)), 
+			  M_DEVBUF, M_WAITOK|M_ZERO);
+
+	if (dc_pp[0] == NULL) {
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+static const struct bsd_module_data *
+devclass_find_create(const char *classname)
+{
+    const struct bsd_module_data *mod;
+
+    for(mod = &bsd_module_data_start[0]; 
+	mod < &bsd_module_data_end[0];
+	mod++)
+    {
+        if(mod->mod_name &&
+	   (strcmp(classname, mod->mod_name) == 0))
+	{
+	    if(devclass_create(mod->devclass_pp))
+	    {
+	        continue;
+	    }
+	    return mod;
+	}
+    }
     return NULL;
 }
 
-void
+static u_int8_t
+devclass_add_device(const struct bsd_module_data *mod, device_t dev)
+{
+    u_int16_t n;
+    const char *name = "unknown";
+
+    if ((mod->devclass_pp == NULL) ||
+	(mod->devclass_pp[0] == NULL)) {
+        return 1;
+    }
+
+    if(mod->driver &&
+       mod->driver->name) {
+        name = mod->driver->name;
+    }
+
+    if (dev->dev_unit_manual) {
+
+        n = dev->dev_unit;
+
+	if ((n < DEVCLASS_MAXUNIT) &&
+	    (mod->devclass_pp[0]->dev_list[n] == NULL))
+	{
+	    goto found;
+	}
+
+    } else {
+
+        for(n = 0; n < DEVCLASS_MAXUNIT; n++)
+	{
+	    if(mod->devclass_pp[0]->dev_list[n] == NULL)
+	    {
+	        goto found;
+	    }
+	}
+    }
+
+    return 1;
+
+ found:
+
+    mod->devclass_pp[0]->dev_list[n] = dev;
+
+    dev->dev_unit = n;
+    dev->dev_module = mod;
+    snprintf(&dev->dev_nameunit[0], 
+	     sizeof(dev->dev_nameunit), "%s%d", name, n);
+
+    return 0;
+}
+
+static void
+devclass_delete_device(const struct bsd_module_data *mod, device_t dev)
+{
+    if (mod == NULL) {
+        return;
+    }
+
+    if(devclass_get_device(mod->devclass_pp ? 
+			   mod->devclass_pp[0] : NULL, dev->dev_unit) == dev)
+    {
+        mod->devclass_pp[0]->dev_list[dev->dev_unit] = NULL;
+    }
+    else
+    {
+        device_printf(dev, "WARNING: device is not present in devclass!\n");
+    }
+    dev->dev_module = NULL;
+    return;
+}
+
+static device_t
+make_device(device_t parent, const char *name, int unit)
+{
+    device_t dev = NULL;
+    const struct bsd_module_data *mod = NULL;
+
+    if (name) {
+
+        mod = devclass_find_create(name);
+
+	if (!mod) {
+
+	    printf("%s:%d:%s: can't find device "
+		   "class %s\n", __FILE__, __LINE__,
+		   __FUNCTION__, name);
+	    goto done;
+        }
+    }
+
+    dev = malloc(sizeof(*dev), M_DEVBUF, M_NOWAIT|M_ZERO);
+
+    if (dev == NULL) goto done;
+
+    dev->dev_parent = parent;
+    TAILQ_INIT(&dev->dev_children);
+
+    if (unit != -1) {
+        dev->dev_unit_manual = 1;
+	dev->dev_unit = unit;
+    }
+
+    if (name) {
+        dev->dev_fixed_class = 1;
+	dev->dev_module = mod;
+
+	if (devclass_add_device(mod, dev)) {
+	    goto error;
+	}
+    }
+
+ done:
+    return dev;
+
+ error:
+    if (dev) {
+        free(dev, M_DEVBUF);
+    }
+    return NULL;
+}
+
+device_t
+device_add_child_ordered(device_t dev, int order, const char *name, int unit)
+{
+    device_t child;
+    device_t place;
+
+    child = make_device(dev, name, unit);
+    if (child == NULL) {
+        goto done;
+    }
+    child->dev_order = order;
+
+    TAILQ_FOREACH(place, &dev->dev_children, dev_link) {
+        if (place->dev_order > order) {
+	    break;
+	}
+    }
+
+    if (place) {
+        /*
+	 * The device 'place' is the first device whose order is
+	 * greater than the new child.
+	 */
+        TAILQ_INSERT_BEFORE(place, child, dev_link);
+    } else {
+        /*
+	 * The new child's order is greater or equal to the order of
+	 * any existing device. Add the child to the tail of the list.
+	 */
+        TAILQ_INSERT_TAIL(&dev->dev_children, child, dev_link);
+    }
+
+ done:
+    return child;
+}
+
+device_t 
+device_add_child(device_t dev, const char *name, int unit)
+{
+    return device_add_child_ordered(dev, 0, name, unit);
+}
+
+int
+device_delete_child(device_t dev, device_t child)
+{
+    int error = 0;
+    device_t grandchild;
+
+    /* remove children first */
+
+    while ( (grandchild = TAILQ_FIRST(&child->dev_children)) ) {
+        error = device_delete_child(child, grandchild);
+	if (error) goto done;
+    }
+
+    error = device_detach(child);
+
+    if (error) goto done;
+
+    devclass_delete_device(child->dev_module, child);
+
+    TAILQ_REMOVE(&dev->dev_children, child, dev_link);
+
+    free(child, M_DEVBUF);
+
+ done:
+    return error;
+}
+
+ void
 device_quiet(device_t dev)
 {
     dev->dev_quiet = 1;
@@ -866,15 +1128,33 @@ device_probe_and_attach(device_t dev)
 {
     const struct bsd_module_data *mod;
     const u_int8_t *bus_name_parent = device_get_name(device_get_parent(dev));
-    u_int16_t n;
 
     if(dev->dev_attached)
     {
         return 0;
     }
 
+    if (dev->dev_fixed_class) {
+
+        mod = dev->dev_module;
+
+	if(CALL_METHOD(dev, device_probe, dev) <= 0)
+	{
+	    if(CALL_METHOD(dev, device_attach, dev) == 0)
+	    {
+	        /* success */
+	        dev->dev_attached = 1;
+		return 0;
+	    }
+	}
+
+	device_detach(dev);
+
+	goto error;
+    }
+
     /*
-     * find a module for our device, if any
+     * else find a module for our device, if any
      */
     for(mod = &bsd_module_data_start[0]; 
 	mod < &bsd_module_data_end[0];
@@ -883,42 +1163,36 @@ device_probe_and_attach(device_t dev)
         if(mod->bus_name && 
 	   mod->driver && 
 	   mod->driver->methods &&
-	   mod->devclass && 
 	   mod->driver->name &&
 	   (strcmp(mod->bus_name, bus_name_parent) == 0))
 	{
-	    for(n = 0; n < DEVCLASS_MAXUNIT; n++)
-	    {
-	        if(mod->devclass->dev_list[n])
-		{
-		    continue;
-		}
-
-		mod->devclass->dev_list[n] = dev;
-
-		dev->dev_unit = n;
-		dev->dev_module = mod;
-		snprintf(&dev->dev_nameunit[0], sizeof(dev->dev_nameunit), 
-			 "%s%d", mod->driver->name, n);
-
-		if(CALL_METHOD(dev, device_probe, dev) == 0)
-		{
-		    if(CALL_METHOD(dev, device_attach, dev) == 0)
-		    {
-		        /* success */
-		        dev->dev_attached = 1;
-			return 0;
-		    }
-		}
-
-		/* else try next driver */
-
-		device_detach(dev);
-
-		break;
+	    if (devclass_create(mod->devclass_pp)) {
+	        device_printf(dev, "devclass_create_() failed!\n");
+	        continue;
 	    }
+
+	    if (devclass_add_device(mod, dev)) {
+	        device_printf(dev, "devclass_add_device() failed!\n");
+	        continue;
+	    }
+
+	    if(CALL_METHOD(dev, device_probe, dev) <= 0)
+	    {
+	        if(CALL_METHOD(dev, device_attach, dev) == 0)
+		{
+		    /* success */
+		    dev->dev_attached = 1;
+		    return 0;
+		}
+	    }
+
+	    /* else try next driver */
+
+	    device_detach(dev);
 	}
     }
+
+ error:
     return ENODEV;
 }
 
@@ -948,16 +1222,9 @@ device_detach(device_t dev)
     device_set_softc(dev, NULL);
     dev->dev_softc_set = 0;
 
-    if(devclass_get_device(mod->devclass, dev->dev_unit) == dev)
-    {
-        mod->devclass->dev_list[dev->dev_unit] = NULL;
+    if (dev->dev_fixed_class == 0) {
+        devclass_delete_device(mod, dev);
     }
-    else
-    {
-        device_printf(dev, "warning device is not present in devclass!\n");
-    }
-
-    dev->dev_module = NULL;
     return 0;
 }
 
@@ -979,7 +1246,13 @@ device_set_softc(device_t dev, void *softc)
 void *
 device_get_softc(device_t dev)
 {
-    const struct bsd_module_data *mod = dev->dev_module;
+    const struct bsd_module_data *mod;
+
+    if (dev == NULL) {
+        return NULL;
+    }
+
+    mod = dev->dev_module;
 
     if((!dev->dev_softc_set) &&
        (!dev->dev_softc_alloc) &&
@@ -987,7 +1260,8 @@ device_get_softc(device_t dev)
        mod->driver &&
        mod->driver->size)
     {
-        dev->dev_sc = malloc(mod->driver->size, M_DEVBUF, M_WAITOK);
+        dev->dev_sc = malloc(mod->driver->size, 
+			     M_DEVBUF, M_WAITOK|M_ZERO);
 
 	if(dev->dev_sc)
 	{
@@ -996,13 +1270,6 @@ device_get_softc(device_t dev)
 	}
     }
     return dev->dev_sc;
-}
-
-int
-device_delete_child(device_t dev, device_t child)
-{
-    device_printf(dev, "%s not supported!\n", __FUNCTION__);
-    return ENXIO;
 }
 
 int
@@ -1018,14 +1285,21 @@ device_set_desc(device_t dev, const char * desc)
     return;
 }
 
+void
+device_set_desc_copy(device_t dev, const char * desc)
+{
+    device_set_desc(dev, desc);
+    return;
+}
+
 void *
-devclass_get_softc(devclass_t *dc, int unit)
+devclass_get_softc(devclass_t dc, int unit)
 {
     return device_get_softc(devclass_get_device(dc,unit));
 }
 
 int 
-devclass_get_maxunit(devclass_t *dc)
+devclass_get_maxunit(devclass_t dc)
 {
     int max_unit = 0;
 
@@ -1045,13 +1319,13 @@ devclass_get_maxunit(devclass_t *dc)
 }
 
 device_t
-devclass_get_device(devclass_t *dc, int unit)
+devclass_get_device(devclass_t dc, int unit)
 {
     return ((unit < 0) || (unit >= DEVCLASS_MAXUNIT) || (dc == NULL)) ? 
       NULL : dc->dev_list[unit];
 }
 
-devclass_t *
+devclass_t 
 devclass_find(const char *classname)
 {
     const struct bsd_module_data *mod;
@@ -1060,10 +1334,12 @@ devclass_find(const char *classname)
 	mod < &bsd_module_data_end[0];
 	mod++)
     {
-        if(mod->devclass && mod->mod_name &&
+        if(mod->devclass_pp && 
+	   mod->devclass_pp[0] &&
+	   mod->mod_name &&
 	   (strcmp(classname, mod->mod_name) == 0))
 	{
-	    return mod->devclass;
+	    return mod->devclass_pp[0];
 	}
     }
     return NULL;
@@ -1074,7 +1350,7 @@ struct usb_dma {
     bus_dmamap_t      map;
     bus_dma_segment_t seg;
     int               seg_count;
-};
+} __packed;
 
 void *
 usb_alloc_mem(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
@@ -1087,7 +1363,7 @@ usb_alloc_mem(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
     temp.tag = dma_tag;
     temp.seg_count = 1;
 
-    size += sizeof(struct usb_dma);
+    size += sizeof(temp);
 
     if(bus_dmamem_alloc(temp.tag, size, (1 << align_power), 0,
 			&temp.seg, 1,
@@ -1137,19 +1413,22 @@ u_int32_t
 usb_vtophys(void *ptr, u_int32_t size)
 {
     struct usb_dma *arg = (void *)(((u_int8_t *)ptr) + size);
+#if 1
+    return arg->map->dm_segs[0].ds_addr;
+#else
     return arg->seg.ds_addr;
+#endif
 }
 
 void
 usb_free_mem(void *ptr, u_int32_t size)
 {
     struct usb_dma *arg = (void *)(((u_int8_t *)ptr) + size);
+    struct usb_dma temp = *arg; /* make a copy ! */
 
-    bus_dmamap_unload(arg->tag, arg->map);
-    bus_dmamap_destroy(arg->tag, arg->map);
-    bus_dmamem_unmap(arg->tag, ptr, size);
-    bus_dmamem_free(arg->tag, &arg->seg, arg->seg_count);
-
+    bus_dmamap_unload(temp.tag, temp.map);
+    bus_dmamap_destroy(temp.tag, temp.map);
+    bus_dmamem_unmap(temp.tag, ptr, size);
+    bus_dmamem_free(temp.tag, &temp.seg, temp.seg_count);
     return;
 }
-

@@ -60,6 +60,39 @@
 extern "C" {
 #endif
 
+#ifndef __UA_TYPES_H__
+#define __UA_TYPES_H__
+
+/* the following structures are 
+ * used to force the compiler to
+ * generate un-aligned memory 
+ * access code on processors that
+ * do not support un-aligned
+ * memory accesses:
+ */
+
+struct void_p {
+  void *data;
+} __packed;
+
+struct u_int16_p {
+  u_int16_t data;
+} __packed;
+
+struct u_int32_p {
+  u_int32_t data;
+} __packed;
+
+struct u_int64_p {
+  u_int64_t data;
+} __packed;
+
+typedef struct void_p    void_p_t;
+typedef struct u_int16_p u_int16_p_t;
+typedef struct u_int32_p u_int32_p_t;
+typedef struct u_int64_p u_int64_p_t;
+#endif
+
 /* global defines */
 
 #define CAPI_STACK_VERSION     205
@@ -1572,8 +1605,8 @@ union capi_struct_encoded {
 /* the following structure uses
  * host endian format:
  */
-struct capi_register_req
-{
+struct capi_register_req {
+
   /* input parameters */
   u_int32_t max_logical_connections;
   u_int32_t max_b_data_blocks;
@@ -1589,36 +1622,35 @@ struct capi_register_req
 
 #define CAPI_MANUFACTURER_LEN 64
 
-struct capi_get_manufacturer_req
-{
+struct capi_get_manufacturer_req {
   u_int32_t controller;
   u_int8_t name[CAPI_MANUFACTURER_LEN]; /* zero terminated! */
 };
 
 #define CAPI_GET_MANUFACTURER_REQ _IOWR('C', 3, struct capi_get_manufacturer_req)
 
-struct capi_get_version_req
-{
+struct capi_get_version_req_vdata {
+  u_int8_t raw[0];
+  u_int8_t CAPI_major;
+  u_int8_t CAPI_minor;
+  u_int8_t manufacturer_major;
+  u_int8_t manufacturer_minor;
+  u_int8_t BSD_major;
+  u_int8_t BSD_minor;
+  u_int8_t stack_major;
+  u_int8_t stack_minor;
+} __packed;
+
+struct capi_get_version_req {
   u_int32_t controller;
-  struct {
-    u_int8_t raw[0];
-    u_int8_t CAPI_major;
-    u_int8_t CAPI_minor;
-    u_int8_t manufacturer_major;
-    u_int8_t manufacturer_minor;
-    u_int8_t BSD_major;
-    u_int8_t BSD_minor;
-    u_int8_t stack_major;
-    u_int8_t stack_minor;
-  } version;
+  struct capi_get_version_req_vdata version;
 };
 
 #define CAPI_GET_VERSION_REQ _IOWR('C', 4, struct capi_get_version_req)
 
 #define CAPI_SERIAL_LEN	8
 
-struct capi_get_serial_req
-{
+struct capi_get_serial_req {
   u_int32_t controller;
   u_int8_t serial_number[CAPI_SERIAL_LEN]; /* zero terminated! */
 };
@@ -1627,8 +1659,7 @@ struct capi_get_serial_req
 
 #define CAPI_IOCTL_TEST_REQ _IO('C', 6)
 
-struct capi_get_profile_req
-{
+struct capi_get_profile_req {
   u_int32_t controller;
 
   /* the following structure uses little endian format ! */
@@ -1852,45 +1883,45 @@ capi_decode(void *ptr, u_int16_t len, void *ie)
 	  case IE_WORD:
 	    if(len >= 2)
 	    {
-	      ((u_int16_t *)(ie))[0] =
-		le16toh(((u_int16_t *)(ptr))[0]);
+	      ((u_int16_p_t *)(ie))->data =
+		le16toh(((u_int16_p_t *)(ptr))->data);
 
 	      ie = ADD_BYTES(ie, 2);
 	      ptr = ADD_BYTES(ptr, 2);
 	      len -= 2;
 	      break;
 	    }
-	    ((u_int16_t *)(ie))[0] = 0;
+	    ((u_int16_p_t *)(ie))->data = 0;
 	    ie = ADD_BYTES(ie, 2);
 	    goto ie_error;
 
 	  case IE_DWORD:
 	    if(len >= 4)
 	    {
-	      ((u_int32_t *)(ie))[0] =
-		le32toh(((u_int32_t *)(ptr))[0]);
+	      ((u_int32_p_t *)(ie))->data =
+		le32toh(((u_int32_p_t *)(ptr))->data);
 
 	      ie = ADD_BYTES(ie, 4);
 	      ptr = ADD_BYTES(ptr, 4);
 	      len -= 4;
 	      break;
 	    }
-	    ((u_int32_t *)(ie))[0] = 0;
+	    ((u_int32_p_t *)(ie))->data = 0;
 	    ie = ADD_BYTES(ie, 4);
 	    goto ie_error;
 
 	  case IE_QWORD:
 	    if(len >= 8)
 	    {
-	      ((u_int64_t *)(ie))[0] = 
-		le64toh(((u_int64_t *)(ptr))[0]);
+	      ((u_int64_p_t *)(ie))->data = 
+		le64toh(((u_int64_p_t *)(ptr))->data);
 
 	      ie = ADD_BYTES(ie, 8);
 	      ptr = ADD_BYTES(ptr, 8);
 	      len -= 8;
 	      break;
 	    }
-	    ((u_int64_t *)(ie))[0] = 0;
+	    ((u_int64_p_t *)(ie))->data = 0;
 	    ie = ADD_BYTES(ie, 8);
 	    goto ie_error;
 
@@ -1902,7 +1933,7 @@ capi_decode(void *ptr, u_int16_t len, void *ie)
 
 	  case IE_STRUCT_CAPI:
 	    /* pre-store pointer to CAPI structure */
-	    ((void **)(ADD_BYTES(ie,2)))[0] = ptr;
+	    ((void_p_t *)(ADD_BYTES(ie,2)))->data = ptr;
 
 	  case IE_STRUCT_DECODED:
 	  case IE_STRUCT_DECODED_EMPTY:
@@ -1958,19 +1989,19 @@ capi_decode(void *ptr, u_int16_t len, void *ie)
 	      /* store length */
 	      if(what == IE_STRUCT)
 	      {
-		  ((u_int16_t *)(ie))[0] = temp;
+		  ((u_int16_p_t *)(ie))->data = temp;
 		  ie = ADD_BYTES(ie, 2);
 
 		  /* store pointer to data structure */
-		  ((void **)(ie))[0] = ptr;
+		  ((void_p_t *)(ie))->data = ptr;
 	      }
 	      else
 	      {
 		  /* this field should not be used */
-		  ((u_int16_t *)(ie))[0] = 0;
+		  ((u_int16_p_t *)(ie))->data = 0;
 		  ie = ADD_BYTES(ie, 2);
 
-		  /* ((void **)(ie))[0] should already have
+		  /* ((void_p_t *)(ie))->data should already have
 		   * been set !
 		   */
 	      }
@@ -1982,10 +2013,10 @@ capi_decode(void *ptr, u_int16_t len, void *ie)
 		   * hence the application might want to 
 		   * check this field !
 		   */
-		  *(((u_int8_t *)(ie)) - 3) = (temp) ?
+		  (((u_int8_t *)(ie)) - 3)[0] = (temp) ?
 		    IE_STRUCT_DECODED : IE_STRUCT_DECODED_EMPTY;
 
-		  capi_decode(ptr, temp, ((void **)(ie))[0]);
+		  capi_decode(ptr, temp, ((void_p_t *)(ie))->data);
 	      }
 	      else
 	      {
@@ -2002,7 +2033,7 @@ capi_decode(void *ptr, u_int16_t len, void *ie)
 		      static const u_int8_t empty_struct[8] = { /* zero */ };
 
 		      /* structure is empty or non-existing */
-		      ((const void **)(ie))[0] = &empty_struct;
+		      ((void_p_t *)(ie))->data = (void *)&empty_struct;
 		  }
 	      }
 	      ie = ADD_BYTES(ie, sizeof(void *));
@@ -2015,7 +2046,7 @@ capi_decode(void *ptr, u_int16_t len, void *ie)
 	    {
 	      register u_int16_t temp;
 
-	      temp = ((u_int16_t *)(ie))[0];
+	      temp = ((u_int16_p_t *)(ie))->data;
 
 	      ie = ADD_BYTES(ie, 2);
 
@@ -2081,8 +2112,8 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 	  case IE_WORD:
 	    if(len < 2) goto error; /* overflow */
 
-	    ((u_int16_t *)(ptr))[0] =
-	      htole16(((u_int16_t *)(ie))[0]);
+	    ((u_int16_p_t *)(ptr))->data =
+	      htole16(((u_int16_p_t *)(ie))->data);
 	    ie = ADD_BYTES(ie, 2);
 	    ptr = ADD_BYTES(ptr, 2);
 	    len -= 2;
@@ -2091,8 +2122,8 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 	  case IE_DWORD:
 	    if(len < 4) goto error; /* overflow */
 
-	    ((u_int32_t *)(ptr))[0] =
-	      htole32(((u_int32_t *)(ie))[0]);
+	    ((u_int32_p_t *)(ptr))->data =
+	      htole32(((u_int32_p_t *)(ie))->data);
 	    ie = ADD_BYTES(ie, 4);
 	    ptr = ADD_BYTES(ptr, 4);
 	    len -= 4;
@@ -2101,8 +2132,8 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 	  case IE_QWORD:
 	    if(len < 8) goto error; /* overflow */
 
-	    ((u_int64_t *)(ptr))[0] =
-	      htole64(((u_int64_t *)(ie))[0]);
+	    ((u_int64_p_t *)(ptr))->data =
+	      htole64(((u_int64_p_t *)(ie))->data);
 	    ie = ADD_BYTES(ie, 8);
 	    ptr = ADD_BYTES(ptr, 8);
 	    len -= 8;
@@ -2124,9 +2155,9 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 	      register u_int16_t temp;
 	      register void *var;
 
-	      temp = ((u_int16_t *)(ie))[0];
+	      temp = ((u_int16_p_t *)(ie))->data;
 	      ie = ADD_BYTES(ie, 2);
-	      var = ((void **)(ie))[0];
+	      var = ((void_p_t *)(ie))->data;
 	      ie = ADD_BYTES(ie, sizeof(void *));
 
 	      if(what == IE_STRUCT_CAPI)
@@ -2216,7 +2247,7 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 	    {
 	      register u_int16_t temp;
 
-	      temp = ((u_int16_t *)(ie))[0];
+	      temp = ((u_int16_p_t *)(ie))->data;
 
 	      if(len < temp) goto error; /* overflow */
 
@@ -2382,21 +2413,21 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 #define DISCONNECT_B3_CONF_INFO(x) ((x)->data.DISCONNECT_B3_CONF.wInfo)
 #define DISCONNECT_B3_IND_REASON_B3(x) ((x)->data.DISCONNECT_B3_IND.wReason)
 #define DISCONNECT_B3_IND_NCPI(x) ((x)->data.DISCONNECT_B3_IND.NCPI.ppbyte[0])
-#define DATA_B3_REQ_DATA(x) \
-  (((u_int8_t **)	    \
+#define DATA_B3_REQ_DATA(x)   \
+  (((void_p_t *)	      \
     ((sizeof(void *) <= 4) ? (void *)&((x)->data.DATA_B3_REQ.dwPtr_1) :	\
      (sizeof(void *) <= 8) ? (void *)&((x)->data.DATA_B3_REQ.qwPtr_2) : \
-     (void *)0 ))[0])
+     (void *)0 ))->data)
 #define DATA_B3_REQ_DATALENGTH(x) ((x)->data.DATA_B3_REQ.wLen)
 #define DATA_B3_REQ_DATAHANDLE(x) ((x)->data.DATA_B3_REQ.wHandle)
 #define DATA_B3_REQ_FLAGS(x) ((x)->data.DATA_B3_REQ.wFlags)
 #define DATA_B3_CONF_DATAHANDLE(x) ((x)->data.DATA_B3_CONF.wHandle)
 #define DATA_B3_CONF_INFO(x) ((x)->data.DATA_B3_CONF.wInfo)
 #define DATA_B3_IND_DATA(x) \
-  (((u_int8_t **)	    \
+  (((void_p_t *)	    \
     ((sizeof(void *) <= 4) ? (void *)&((x)->data.DATA_B3_IND.dwPtr_1) : \
      (sizeof(void *) <= 8) ? (void *)&((x)->data.DATA_B3_IND.qwPtr_2) : \
-     (void *)0))[0])
+     (void *)0))->data)
 #define DATA_B3_IND_DATALENGTH(x) ((x)->data.DATA_B3_IND.wLen)
 #define DATA_B3_IND_DATAHANDLE(x) ((x)->data.DATA_B3_IND.wHandle)
 #define DATA_B3_IND_FLAGS(x) ((x)->data.DATA_B3_IND.wFlags)
@@ -2531,8 +2562,8 @@ typedef struct capi_message_decoded _cmsg;
 
 #define CAPIMSG_BASELEN         8
 #define CAPIMSG_U8(x, off)      (x[off])
-#define CAPIMSG_U16(x, off)     le16toh(((u_int16_t *)&(x[off]))[0])
-#define CAPIMSG_U32(x, off)     le32toh(((u_int32_t *)&(x[off]))[0])
+#define CAPIMSG_U16(x, off)     le16toh(((u_int16_p_t *)&(x[off]))->data)
+#define CAPIMSG_U32(x, off)     le32toh(((u_int32_p_t *)&(x[off]))->data)
 #define CAPIMSG_LEN(m)          CAPIMSG_U16(m,0)
 #define CAPIMSG_APPID(m)        CAPIMSG_U16(m,2)
 #define CAPIMSG_COMMAND(m)      CAPIMSG_U8(m,4)
@@ -2546,17 +2577,17 @@ typedef struct capi_message_decoded _cmsg;
 
 static __inline void capimsg_setu8(void *m, u_int32_t off, u_int8_t val)
 {
-	((u_int8_t  *)ADD_BYTES(m, off))[0] = val;
+	((u_int8_t *)ADD_BYTES(m, off))[0] = val;
 }
 
 static __inline void capimsg_setu16(void *m, u_int32_t off, u_int16_t val)
 {
-	((u_int16_t *)ADD_BYTES(m, off))[0] = htole16(val);
+	((u_int16_p_t *)ADD_BYTES(m, off))->data = htole16(val);
 }
 
 static __inline void capimsg_setu32(void *m, u_int32_t off, u_int32_t val)
 {
-	((u_int32_t *)ADD_BYTES(m, off))[0] = htole32(val);
+	((u_int32_p_t *)ADD_BYTES(m, off))->data = htole32(val);
 }
 
 #define CAPIMSG_SETLEN(m, len)          capimsg_setu16(m, 0, len)

@@ -177,13 +177,12 @@ get_q850_cause(u_int8_t code)
 static void
 dump_remainder(struct buffer *dst, struct buffer *src, u_int16_t i)
 {
-	u_int16_t off = src->offset;
 	u_int8_t j;
 	while(get_valid(src,i))
 	{
 	    j = get_1(src,i);
 
-	    bsprintline(3, dst, off+i, j, 0xff, "Unknown byte: 0x%02x, %c", 
+	    bsprintline(dst, src, i, 0xff, "Unknown byte: 0x%02x, %c", 
 			j, isprint(j) ? j : '?');
 	    i++;
 	}
@@ -196,17 +195,16 @@ dump_remainder(struct buffer *dst, struct buffer *src, u_int16_t i)
 static void
 f_cstat(struct buffer *dst, struct buffer *src)
 {
-	u_int16_t off = src->offset;
 	u_int8_t  j;
 
 	j = get_1(src,2) & 0x60;
 
-	bsprintline(3, dst, off+2, j, 0x60, "Coding standard = %s", 
+	bsprintline(dst, src, 2, 0x60, "Coding standard = %s", 
 		    get_standard(j >> 5));
 
 	j = get_1(src,2) & 0x1f;
 
-	bsprintline(3, dst, off+2, j, 0x1f, "state = %s", 
+	bsprintline(dst, src, 2, 0x1f, "state = %s", 
 		    get_state(j));
 
 	return;
@@ -224,7 +222,7 @@ f_keypad(struct buffer *dst, struct buffer *src)
 	{
 	    j = get_1(src,2);
 
-	    bsprintline(3, dst, src->offset+2, j, 0xff, "data = 0x%02x, %c",
+	    bsprintline(dst, src, 2, 0xff, "data = 0x%02x, %c",
 			j, isprint(j) ? j : '.');
 
 	    src->offset ++;
@@ -239,7 +237,6 @@ static void
 f_notify(struct buffer *dst, struct buffer *src)
 {
 	const u_int8_t *temp;
-	u_int16_t off = src->offset;
 	u_int8_t  j;
 
 	j = get_1(src,2);
@@ -275,18 +272,17 @@ f_notify(struct buffer *dst, struct buffer *src)
 	  (j == 0xfb) ? "call is diverting" :
 	  "undefined";
 
-	bsprintline(3, dst, off+2, j, 0xff, "Notification = %s (0x%02x)",
+	bsprintline(dst, src, 2, 0xff, "Notification = %s (0x%02x)",
 		    temp, j);
 
 	while(get_valid(src,3))
 	{
 	    j = get_1(src,3);
 
-	    bsprintline(3, dst, off+3, j, 0xff, "data = 0x%02x, %c",
+	    bsprintline(dst, src, 3, 0xff, "data = 0x%02x, %c",
 			j, isprint(j) ? j : '.');
 
 	    src->offset ++;
-	    off ++;
 	}
 	return;
 }
@@ -297,26 +293,25 @@ f_notify(struct buffer *dst, struct buffer *src)
 static void
 f_chid(struct buffer *dst, struct buffer *src)
 {
-	u_int16_t off = src->offset;
 	u_int8_t j = get_1(src,2);
  	u_int8_t p = j & 0x20;
 	u_int8_t iid = j & 0x40;
 
-	extension(3, dst, off+2, j, 0x80);
+	extension(dst, src, 2, 0x80);
 
-	bsprintline(3, dst, off+2, j, 0x40, "Interface Id present = %s", (j & 0x40) ? "Yes" : "No");
+	bsprintline(dst, src, 2, 0x40, "Interface Id present = %s", (j & 0x40) ? "Yes" : "No");
 
-	bsprintline(3, dst, off+2, j, 0x20, "Interface Type = %s", (j & 0x20) ? "Other (PRI)" : "BRI");
+	bsprintline(dst, src, 2, 0x20, "Interface Type = %s", (j & 0x20) ? "Other (PRI)" : "BRI");
 
-	bsprintline(3, dst, off+2, j, 0x10, "Spare");
+	bsprintline(dst, src, 2, 0x10, "Spare");
 
-	bsprintline(3, dst, off+2, j, 0x08, "Channel is %s", (j & 0x08) ? "exclusive" : "preferred");
+	bsprintline(dst, src, 2, 0x08, "Channel is %s", (j & 0x08) ? "exclusive" : "preferred");
 
-	bsprintline(3, dst, off+2, j, 0x04, "Channel is%s the D-Channel", (j & 0x04) ? "" : " not");
+	bsprintline(dst, src, 2, 0x04, "Channel is%s the D-Channel", (j & 0x04) ? "" : " not");
 
 	j &= 0x3;
 
-	bsprintline(3, dst, off+2, j, 0x03, "Channel = %s", 
+	bsprintline(dst, src, 2, 0x03, "Channel = %s", 
 		    (j == 0) ? "no channel" :
 		    (j == 1) ? (p ? "B-X" : "B-1") :
 		    (j == 2) ? (p ? "reserved" : "B-2") :
@@ -327,11 +322,10 @@ f_chid(struct buffer *dst, struct buffer *src)
 	{
 	    j = get_1(src,3);
 
-	    extension(3, dst, off+3, j, 0x80);
+	    extension(dst, src, 3, 0x80);
 
-	    bsprintline(3, dst, off+3, j, 0x7F, "Interface identifier");
+	    bsprintline(dst, src, 3, 0x7F, "Interface identifier");
 
-	    off++;
 	    src->offset++;
 	}
 
@@ -341,17 +335,17 @@ f_chid(struct buffer *dst, struct buffer *src)
 
 	    j = get_1(src,3);
 
-	    extension(3, dst, off+3, j, 0x80);
+	    extension(dst, src, 3, 0x80);
 
-	    bsprintline(3, dst, off+3, j, 0x60, "Coding standard = %s", 
+	    bsprintline(dst, src, 3, 0x60, "Coding standard = %s", 
 			get_standard((j & 0x60) >> 5));
 
-	    bsprintline(3, dst, off+3, j, 0x20, "channel is indicated by the %s",
+	    bsprintline(dst, src, 3, 0x20, "channel is indicated by the %s",
 			(j & 0x20) ? "slot map" : "following octet");
 
 	    j &= 0xf;
 
-	    bsprintline(3, dst, off+3, j, 0x0F, "unit = %s",
+	    bsprintline(dst, src, 3, 0x0F, "unit = %s",
 			(j == 3) ? "B-channel" :
 			(j == 6) ? "H0-channel" :
 			(j == 8) ? "H11-channel" :
@@ -360,9 +354,9 @@ f_chid(struct buffer *dst, struct buffer *src)
 
 	    j = get_1(src,4);
 
-	    extension(3, dst, off+4, j, 0x80);
+	    extension(dst, src, 4, 0x80);
 
-	    bsprintline(3, dst, off+4, j, 0x7F, "channel number = 0x%02x (time-slot)", j & 0x7F);
+	    bsprintline(dst, src, 4, 0x7F, "channel number = 0x%02x (time-slot)", j & 0x7F);
 	}
 	dump_remainder(dst,src,5);
 	return;
@@ -385,22 +379,21 @@ f_fac(struct buffer *dst, struct buffer *src)
 static void
 f_progi(struct buffer *dst, struct buffer *src)
 {
-	u_int16_t off = src->offset;
 	u_int8_t j;
 
 	j = get_1(src,2) & 0x60;
 
-	bsprintline(3, dst, off+2, j, 0x60, "Coding standard = %s",
+	bsprintline(dst, src, 2, 0x60, "Coding standard = %s",
 		    get_standard(j >> 5));
 
 	j = get_1(src,2) & 0x0f;
 
-	bsprintline(3, dst, off+2, j, 0x0f, "location = %s",
+	bsprintline(dst, src, 2, 0x0f, "location = %s",
 		    get_location(j));
 
 	j = get_1(src,3) & 0x7f;
 
-	bsprintline(3, dst, off+3, j, 0x7f, "description = %s",
+	bsprintline(dst, src, 3, 0x7f, "description = %s",
 		    get_endpoint_desc(j));
 
 	dump_remainder(dst,src,4);
@@ -440,32 +433,31 @@ f_displ(struct buffer *dst, struct buffer *src)
 static void
 f_date(struct buffer *dst, struct buffer *src)
 {
-	u_int16_t off = src->offset;
 	u_int8_t j;
 
 	j = get_1(src,2);
-	bsprintline(3, dst, off+2, j, 0xff, "Year = %02d", j);
+	bsprintline(dst, src, 2, 0xff, "Year = %02d", j);
 
 	j = get_1(src,3);
 	if(j)
 	{
-	  bsprintline(3, dst, off+3, j, 0xff, "Month = %02d", j);
+	  bsprintline(dst, src, 3, 0xff, "Month = %02d", j);
 
 	  j = get_1(src,4);
 	  if(j)
 	  {
-	    bsprintline(3, dst, off+4, j, 0xff, "Day = %02d", j);
+	    bsprintline(dst, src, 4, 0xff, "Day = %02d", j);
 
 	    j = get_1(src,5);
 	    if(j)
 	    {
-	      bsprintline(3, dst, off+5, j, 0xff, "Hour = %02d", j);
+	      bsprintline(dst, src, 5, 0xff, "Hour = %02d", j);
 
 	      j = get_1(src,6);
-	      bsprintline(3, dst, off+6, j, 0xff, "Minute = %02d", j);
+	      bsprintline(dst, src, 6, 0xff, "Minute = %02d", j);
 
 	      j = get_1(src,7);
-	      bsprintline(3, dst, off+7, j, 0xff, "Second = %02d", j);
+	      bsprintline(dst, src, 7, 0xff, "Second = %02d", j);
 	    }
 	  }
 	}
@@ -480,20 +472,19 @@ f_date(struct buffer *dst, struct buffer *src)
 static void
 f_cause(struct buffer *dst, struct buffer *src)
 {
-	u_int16_t off = src->offset;
 	u_int16_t i = 2;
 	u_int8_t j;
 
 	j = get_1(src,i);
 
-	extension(3, dst, off+i, j, 0x80);
+	extension(dst, src, i, 0x80);
 
-	bsprintline(3, dst, off+i, j, 0x60, "Coding standard = %s",
+	bsprintline(dst, src, i, 0x60, "Coding standard = %s",
 		    get_standard((j & 0x60) >> 5));
 
-	bsprintline(3, dst, off+i, j, 0x10, "Spare");
+	bsprintline(dst, src, i, 0x10, "Spare");
 
-	bsprintline(3, dst, off+i, j, 0x0f, "Location = %s", 
+	bsprintline(dst, src, i, 0x0f, "Location = %s", 
 		    get_location(j & 0x0f));
 	
 	i++;
@@ -502,9 +493,9 @@ f_cause(struct buffer *dst, struct buffer *src)
 	{
 	  j = get_1(src,i);
 
-	  extension(3, dst, off+i, j, 0x80);
+	  extension(dst, src, i, 0x80);
 
-	  bsprintline(3, dst, off+i, j, 0x7f, 
+	  bsprintline(dst, src, i, 0x7f, 
 		      "Recommendation = %s", 
 		      get_recommendation(j & 0x7f));
 
@@ -513,9 +504,9 @@ f_cause(struct buffer *dst, struct buffer *src)
 
 	j = get_1(src,i);
 
-	extension(3, dst, off+i, j, 0x80);
+	extension(dst, src, i, 0x80);
 	
-	bsprintline(3, dst, off+i, j, 0x7f, 
+	bsprintline(dst, src, i, 0x7f, 
 		    "Cause = %d: Q.850: %s", 
 		    (j & 0x7f), get_q850_cause(j & 0x7f));
 
@@ -524,7 +515,7 @@ f_cause(struct buffer *dst, struct buffer *src)
 	{
 	    j = get_1(src,i);
 
-	    bsprintline(3, dst, off+i, j, 0xff, 
+	    bsprintline(dst, src, i, 0xff, 
 			"Diagnostics = 0x%02x %c", j, isprint(j) ? j : '?');
 	    i++;
 	}
@@ -538,35 +529,34 @@ static void
 f_bc(struct buffer *dst, struct buffer *src)
 {
         const u_int8_t *temp;
-	u_int16_t off = src->offset;
 	u_int16_t i = 2;
 	u_int8_t j;
 	u_int8_t prot;
 
 	j = get_1(src,2);
 
-	extension(3, dst, off+i, j, 0x80);
+	extension(dst, src, i, 0x80);
 	
-	bsprintline(3, dst, off+i, j, 0x60, "Coding standard = %s", 
+	bsprintline(dst, src, i, 0x60, "Coding standard = %s", 
 		    get_standard((j & 0x60) >> 5));
 
 	j &= 0x1f;
 
-	bsprintline(3, dst, off+i, j, 0x1f, "Capability = 0x%02x, %s",
+	bsprintline(dst, src, i, 0x1f, "Capability = 0x%02x, %s",
 		    j, get_bearer_cap(j));
 
 	i++;
 
-	extension(3, dst, off+i, get_1(src,i), 0x80);
+	extension(dst, src, i, 0x80);
 
 	j = get_1(src,i) & 0x60;
 	
-	bsprintline(3, dst, off+i, j, 0x60, "Mode = 0x%02x, %s",
+	bsprintline(dst, src, i, 0x60, "Mode = 0x%02x, %s",
 		    j, get_line_mode(j >> 5));
 	
 	j = get_1(src,i) & 0x1f;
 
-	bsprintline(3, dst, off+i, get_1(src,i), 0x1f, "Rate = 0x%02x, %s", 
+	bsprintline(dst, src, i, 0x1f, "Rate = 0x%02x, %s", 
 		    j, 
 		    (j == 0x00) ? "packet mode" :
 		    (j == 0x10) ? "64 kbit/s" :
@@ -582,8 +572,8 @@ f_bc(struct buffer *dst, struct buffer *src)
 	{
 	   j = get_1(src,i);
 
-	   extension(3, dst, off+i, j, 0x80);
-	   bsprintline(3, dst, off+i, j, 0x7f, 
+	   extension(dst, src, i, 0x80);
+	   bsprintline(dst, src, i, 0x7f, 
 		       "Rate multiplier = %d", j & 0x7f);
 	   i++;
 	}
@@ -592,18 +582,18 @@ f_bc(struct buffer *dst, struct buffer *src)
 	{
 	    j = get_1(src,i);
 
-	    extension(3, dst, off+1, j, 0x80);
+	    extension(dst, src, i, 0x80);
 
 	    j = get_1(src,i) & 0x60;
 
-	    bsprintline(3, dst, off+i, j, 0x60, 
+	    bsprintline(dst, src, i, 0x60, 
 			"Layer 1 identity = %d", 
 			(j / 0x20));
 
 	    j = get_1(src,i) & 0x1f;
 	    prot = j;
 
-	    bsprintline(3, dst, off+i, j, 0x1f, 
+	    bsprintline(dst, src, i, 0x1f, 
 			"Layer 1 Protocol = 0x%02x, %s", 
 			j, get_layer1_prot(j));
 
@@ -613,17 +603,17 @@ f_bc(struct buffer *dst, struct buffer *src)
 	    {
 		j = get_1(src,i);
 
-		bsprintline(3, dst, off+i, j, 0x40,
+		bsprintline(dst, src, i, 0x40,
 			    "%s", (j & 0x40) ? "async" : "sync");
 
-		bsprintline(3, dst, off+i, j, 0x20,
+		bsprintline(dst, src, i, 0x20,
 			    "%s", (j & 0x20) ? 
 			    "in-band negotiation possible" :
 			    "in-band negotiation not possible");
 
 	        j = get_1(src,i) & 0x1f;
 
-		bsprintline(3, dst, off+i, j, 0x1f, 
+		bsprintline(dst, src, i, 0x1f, 
 			    "user rate = 0x%02x, %s", j,
 			    (j == 0x01) ? "0.6 kbit/s" :
 			    (j == 0x02) ? "1.2 kbit/s" :
@@ -660,7 +650,7 @@ f_bc(struct buffer *dst, struct buffer *src)
 		{
 		    j = get_1(src,i) & 0x60;
 
-		    bsprintline(3, dst, off+i, j, 0x60,
+		    bsprintline(dst, src, i, 0x60,
 				"intermediate rate = %s",
 				(j == 0x00) ? "not used" :
 				(j == 0x20) ? "8 kbit/s" :
@@ -670,22 +660,22 @@ f_bc(struct buffer *dst, struct buffer *src)
 
 		    j = get_1(src,i);
 
-		    bsprintline(3, dst, off+i, j, 0x10,
+		    bsprintline(dst, src, i, 0x10,
 				(j & 0x10) ?
 				"Required to send data with network independent clock" :
 				"Not required to send data with network independent clock");
 
-		    bsprintline(3, dst, off+i, j, 0x08,
+		    bsprintline(dst, src, i, 0x08,
 				(j & 0x08) ?
 				"Can accept data with network independent clock" :
 				"Cannot accept data with network independent clock" );
 
-		    bsprintline(3, dst, off+i, j, 0x04,
+		    bsprintline(dst, src, i, 0x04,
 				(j & 0x04) ?
 				"Required to send data with flow control mechanism" :
 				"Not required to send data with flow control mechanism");
 
-		    bsprintline(3, dst, off+i, j, 0x02,
+		    bsprintline(dst, src, i, 0x02,
 				(j & 0x02) ? 
 				"Can accept data with flow control mechanism" :
 				"Cannot accept data with flow control mechanism");
@@ -694,28 +684,28 @@ f_bc(struct buffer *dst, struct buffer *src)
 		{
 		    j = get_1(src,i);
 
-		    bsprintline(3, dst, off+i, j, 0x40,
+		    bsprintline(dst, src, i, 0x40,
 				(j & 0x40) ? "Rate adaption header included" :
 				"Rate adaption header not included");
 
-		    bsprintline(3, dst, off+i, j, 0x20,
+		    bsprintline(dst, src, i, 0x20,
 				(j & 0x20) ? "Multiple frame establishment supported" :
 				"Multiple frame establishment not supported. Only UI frames allowed.");
 
-		    bsprintline(3, dst, off+i, j, 0x10,
+		    bsprintline(dst, src, i, 0x10,
 				(j & 0x10) ? "Protocol sensitive mode of operation" :
 				"Bit transparent mode of operation");
 
-		    bsprintline(3, dst, off+i, j, 0x08,
+		    bsprintline(dst, src, i, 0x08,
 				(j & 0x08) ? "Full protocol negotiation" :
 				"Default, LLI = 256 only");
 
-		    bsprintline(3, dst, off+i, j, 0x04,
+		    bsprintline(dst, src, i, 0x04,
 				(j & 0x04) ? 
 				"Message originator is \"Assignor only\"" :
 				"Message originator is \"Default assignee\"");
 
-		    bsprintline(3, dst, off+i, j, 0x02,
+		    bsprintline(dst, src, i, 0x02,
 				(j & 0x02) ? 
 				"Negotiation is done in-band using logical link zero" :
 				"Negotiation is done with USER INFORMATION messages "
@@ -726,7 +716,7 @@ f_bc(struct buffer *dst, struct buffer *src)
 		{
 		    j = get_1(src,i);
 
-		    bsprintline(3, dst, off+i, j, 0xFF, 
+		    bsprintline(dst, src, i, 0xFF, 
 				"Unknown byte: 0x%02x", j);
 		}
 		i++;
@@ -736,7 +726,7 @@ f_bc(struct buffer *dst, struct buffer *src)
 	    {
 	        j = get_1(src,i) & 0x60;
 
-		bsprintline(3, dst, off+i, j, 0x60,
+		bsprintline(dst, src, i, 0x60,
 			    "number of stop bits = %s",
 			    (j == 0x00) ? "Not used" :
 			    (j == 0x01) ? "1 bit" :
@@ -746,7 +736,7 @@ f_bc(struct buffer *dst, struct buffer *src)
 
 	        j = get_1(src,i) & 0x18;
 
-		bsprintline(3, dst, off+i, j, 0x18,
+		bsprintline(dst, src, i, 0x18,
 			    "number of data bits = %s",
 			    (j == 0x00) ? "Not used" :
 			    (j == 0x01) ? "5 bits" :
@@ -756,7 +746,7 @@ f_bc(struct buffer *dst, struct buffer *src)
 
 	        j = get_1(src,i) & 0x07;
 
-		bsprintline(3, dst, off+i, j, 0x07,
+		bsprintline(dst, src, i, 0x07,
 			    "parity = %s",
 			    (j == 0x00) ? "Odd" :
 			    (j == 0x02) ? "Even" :
@@ -771,7 +761,7 @@ f_bc(struct buffer *dst, struct buffer *src)
 	    {
 	        j = get_1(src,i) & 0x3f;
 
-		bsprintline(3, dst, off+i, j, 0x3f,
+		bsprintline(dst, src, i, 0x3f,
 			    "modem type = %s",
 			    (j == 17) ? "V.21" :
 			    (j == 18) ? "V.22" :
@@ -796,7 +786,8 @@ f_bc(struct buffer *dst, struct buffer *src)
 	    {
 	        j = get_1(src,i);
 
-		bsprintline(3, dst, off+i, j, 0xFF, "Unknown byte: 0x%02x", j);
+		bsprintline(dst, src, i, 0xFF, 
+			    "Unknown byte: 0x%02x", j);
 
 	        i++;
 	    }
@@ -811,7 +802,7 @@ f_bc(struct buffer *dst, struct buffer *src)
 	      (j == 0x46) ? "X.25 link" :
 	      "unknown";
 
-	    bsprintline(3, dst, off+i, j, 0x7f,
+	    bsprintline(dst, src, i, 0x7f,
 			"layer2 = %s (0x%02x)", temp, j);
 	    i++;
 	}
@@ -825,7 +816,7 @@ f_bc(struct buffer *dst, struct buffer *src)
 	      (j == 0x66) ? "X.25 packet" :
 	      "unknown";
 
-	    bsprintline(3, dst, off+i, j, 0x7f,
+	    bsprintline(dst, src, i, 0x7f,
 			"layer3 = %s (0x%02x)", temp, j);
 	    i++;
 	}
@@ -840,14 +831,13 @@ f_bc(struct buffer *dst, struct buffer *src)
 static void
 f_cnu(struct buffer *dst, struct buffer *src)
 {
-	u_int16_t off = src->offset;
 	const char *temp;
 	u_int16_t i = 2;
 	u_int8_t j;
 
 	j = get_1(src,i);
 
-	extension(3, dst, off+i, j, 0x80);
+	extension(dst, src, i, 0x80);
 
 	j = (get_1(src,i) & 0x70) >> 4;
 
@@ -860,7 +850,7 @@ f_cnu(struct buffer *dst, struct buffer *src)
 	  (j == 6) ? "Abbreviated number" :
 	  "Reserved (7)";
 
-	bsprintline(3, dst, off+i, get_1(src,i), 0x70, 
+	bsprintline(dst, src, i, 0x70, 
 		    "Type = %s", temp);
 
 	j = (get_1(src,i) & 0x0f);
@@ -874,14 +864,14 @@ f_cnu(struct buffer *dst, struct buffer *src)
 	  (j == 9) ? "Private" :
 	  "Reserved";
 
-	bsprintline(3, dst, off+i, get_1(src,i), 0x0f, 
+	bsprintline(dst, src, i, 0x0f, 
 		    "Plan = %s (0x%x)", temp, j);
 
 	i++;
 	
 	if(!(get_1(src,i-1) & 0x80))
 	{
-	    extension(3, dst, off+i, get_1(src,i), 0x80);
+	    extension(dst, src, i, 0x80);
 
 	    j = (get_1(src,i) & 0x60) >> 5;
 	    
@@ -892,10 +882,10 @@ f_cnu(struct buffer *dst, struct buffer *src)
 	      (j == 3) ? "reserved" :
 	      "unknown";
 
-	    bsprintline(3, dst, off+i, get_1(src,i), 0x60, 
+	    bsprintline(dst, src, i, 0x60, 
 			"Presentation = %s", temp);
 
-	    bsprintline(3, dst, off+i, get_1(src,i), 0x1c, "Spare");
+	    bsprintline(dst, src, i, 0x1c, "Spare");
 
 	    j = (get_1(src,i) & 0x03);
 
@@ -906,14 +896,14 @@ f_cnu(struct buffer *dst, struct buffer *src)
 	      (j == 3) ? "network provided" :
 	      "unknown";
 
-	    bsprintline(3, dst, off+i, j, 0x03, 
+	    bsprintline(dst, src, i, 0x03, 
 			"Screening = %s", temp);
 	    i++;
 	}
 
 	if(!(get_1(src,i-1) & 0x80))
 	{
-	    extension(3, dst, off+i, get_1(src,i), 0x80);
+	    extension(dst, src, i, 0x80);
 
 	    j = get_1(src,i) & 0x0f;
 
@@ -925,7 +915,7 @@ f_cnu(struct buffer *dst, struct buffer *src)
 	      (j == 0xf) ? "call forwarding unconditional" :
 	      "unknown";
 
-	    bsprintline(3, dst, off+i, j, 0x0f,
+	    bsprintline(dst, src, i, 0x0f,
 			"Reason for diversion = %s (0x%02x)", 
 			temp, j);
 	    i++;
@@ -935,7 +925,7 @@ f_cnu(struct buffer *dst, struct buffer *src)
 	{
 	    j = get_1(src,i);
 
-	    bsprintline(3, dst, off+i, j, 0xff, 
+	    bsprintline(dst, src, i, 0xff, 
 			"Number digit = %c", isprint(j) ? j : '?');
 	    i++;
 	}
@@ -948,32 +938,29 @@ f_cnu(struct buffer *dst, struct buffer *src)
 static void
 f_hlc(struct buffer *dst, struct buffer *src)
 {
-	u_int16_t off = src->offset;
 	const char *temp;
 	u_int16_t i = 2;
 	u_int8_t j;
 
 	j = get_1(src,i);
 
-	extension(3, dst, off+i, j, 0x80);
+	extension(dst, src, i, 0x80);
 	
-	bsprintline(3, dst, off+i, j, 0x60, 
+	bsprintline(dst, src, i, 0x60, 
 		    "Coding standard = %s", 
 		    get_standard((j >> 5) & 0x03));
 
-	bsprintline(3, dst, off+i, j, 0x1c, "Interpretation = %s", 
+	bsprintline(dst, src, i, 0x1c, "Interpretation = %s", 
 		    (((j >> 2) & 0x07) == 0x04) ? "first" : "reserved");
 
-	bsprintline(3, dst, off+i, j, 0x03, "Presentation = %s", 
+	bsprintline(dst, src, i, 0x03, "Presentation = %s", 
 		    ((j & 0x03) == 0x01) ? "High layer protocol profile" : "reserved");
 
 	i++;
 
-	j = get_1(src,i);
+	extension(dst, src, i, 0x80);
 
-	extension(3, dst, off+i, j, 0x80);
-
-	j &= 0x7f;
+	j = get_1(src,i) & 0x7f;
 
 	temp =
 	  (j == 0x01) ? "Telephony" :
@@ -992,7 +979,7 @@ f_hlc(struct buffer *dst, struct buffer *src)
 	  (j == 0x60) ? "Audio visual (F.721)" :
 	  "Reserved";
 
-	bsprintline(3, dst, off+i, j, 0x7f, 
+	bsprintline(dst, src, i, 0x7f, 
 		    "Characteristics = %s (0x%02x)", temp, j);
 	i++;
 
@@ -1000,7 +987,7 @@ f_hlc(struct buffer *dst, struct buffer *src)
 	{
 	    j = get_1(src,i);
 
-	    extension(3, dst, off+i, j, 0x80);
+	    extension(dst, src, i, 0x80);
 
 	    j &= 0x7f;
 
@@ -1021,7 +1008,7 @@ f_hlc(struct buffer *dst, struct buffer *src)
 	      (j == 0x60) ? "Audio visual (F.721)" :
 	      "Reserved";
 
-	    bsprintline(3, dst, off+i, j, 0x7f, 
+	    bsprintline(dst, src, i, 0x7f, 
 			"Ext. characteristics = %s (0x%02x)", temp, j);
 
 	    i++;
@@ -1038,7 +1025,6 @@ static void
 f_uu(struct buffer *dst, struct buffer *src)
 {
 	const char *temp;
-	u_int16_t off = src->offset;
 	u_int16_t i = 2;
 	u_int8_t j;
 	
@@ -1058,7 +1044,7 @@ f_uu(struct buffer *dst, struct buffer *src)
 	  ((j >= 0x50) && (j <= 0xfe)) ? "reserved incl X.31" :
 	  "reserved";
 
-	bsprintline(3, dst, off+i, j, 0xff, 
+	bsprintline(dst, src, i, 0xff, 
 		    "protocol = %s (0x%02x)", temp, j);
 	i++;
 
@@ -1067,9 +1053,9 @@ f_uu(struct buffer *dst, struct buffer *src)
 	    j = get_1(src,i);
 
 	    if(isprint(j))
-	      bsprintline(3, dst, off+i, j, 0xff, "user information = %c", j);
+	      bsprintline(dst, src, i, 0xff, "user information = %c", j);
 	    else
-	      bsprintline(3, dst, off+i, j, 0xff, "user information = 0x%02x", j);
+	      bsprintline(dst, src, i, 0xff, "user information = 0x%02x", j);
 	    i++;
 	}
 	return;

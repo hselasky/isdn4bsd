@@ -31,11 +31,12 @@ FEATURES
 
   - support for EuroISDN, DSS1 (point to point and point to multipoint)
   - support for overlap sending and dial in digits
+  - support for hold and retrieve in NT-mode
   - support for early B-channel connection when dialing out
   - support for Basic Rate Interface, 2xB, in software and hardware
   - support for Primary Rate Interface, 30xB, in software and hardware
   - driver uses a per controller mutex to protect data and chip access
-  - direct access to D-channel and B-channels
+  - direct access to D-channel and B-channels through /dev/ihfcX.Y
   - full support for NT-mode in software and hardware **
   - cloneable "/dev/i4b"
   - new "CAPI 2.0" application interface
@@ -45,7 +46,7 @@ FEATURES
   - new "isdndecode"
   - new "isdnd"
 
-
+** not all hardware can run NT-mode
 
 SUPPORTED HARDWARE
 ==================
@@ -100,6 +101,20 @@ cd ../../../
 make depend
 make
 make install
+
+#
+# By default USB support is not compiled. Be sure
+# to disable all USB devices in the kernel first.
+# You might have to build a new kernel. Then compile
+# the I4B module like this:
+#
+# cd module
+# make -DWITH_USB clean
+# make -DWITH_USB depend
+# make -DWITH_USB all
+# make -DWITH_USB install
+# cd ..
+#
 
 #
 # load the driver

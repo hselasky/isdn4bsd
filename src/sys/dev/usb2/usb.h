@@ -55,6 +55,8 @@
 
 #define USB_STACK_VERSION 2
 
+#define USB_HOST_ALIGN    8 /* bytes, must be power of two */
+
 #define USB_MAX_DEVICES 128
 #define USB_START_ADDR 0
 
@@ -62,6 +64,39 @@
 #define USB_MAX_ENDPOINTS 16
 
 #define USB_FRAMES_PER_SECOND 1000
+
+#ifndef __UA_TYPES_H__
+#define __UA_TYPES_H__
+
+/* the following structures are
+ * used to force the compiler to
+ * generate un-aligned memory
+ * access code on processors that
+ * do not support un-aligned
+ * memory accesses:
+ */
+
+struct void_p {
+  void *data;
+} __packed;
+
+struct u_int16_p {
+  u_int16_t data;
+} __packed;
+
+struct u_int32_p {
+  u_int32_t data;
+} __packed;
+
+struct u_int64_p {
+  u_int64_t data;
+} __packed;
+
+typedef struct void_p    void_p_t;
+typedef struct u_int16_p u_int16_p_t;
+typedef struct u_int32_p u_int32_p_t;
+typedef struct u_int64_p u_int64_p_t;
+#endif
 
 /*
  * The USB records contain some unaligned little-endian word
@@ -486,7 +521,8 @@ typedef struct {
 #define  UIPROTO_IRDA			0
 
 #define UICLASS_VENDOR		0xff
-
+#define  UISUBCLASS_XBOX360_CONTROLLER	0x5d
+#define  UIPROTO_XBOX360_GAMEPAD	0x01
 
 #define USB_HUB_MAX_DEPTH 5
 

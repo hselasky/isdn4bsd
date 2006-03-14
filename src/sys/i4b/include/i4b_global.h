@@ -393,10 +393,13 @@ typedef struct call_desc
 	int	channel_id;		/* channel id value cannot be 
 					 * changed when channel is allocated
 					 */
-	int	channel_bprot;		/* channel B-protocol, BPROT_XXX*/
+	int	channel_bprot;		/* channel B-protocol, BPROT_XXX */
 
-	int	driver_type;		/* driver-type to use for channel*/
+	int	driver_type;		/* driver-type to use for channel */
 	int	driver_unit;		/* driver-unit for above driver-type */
+
+	int	driver_type_copy;	/* copy of "driver_type" */
+	int	driver_unit_copy;	/* copy of "driver_unit" */
 	
 	cause_t	cause_in;		/* cause value from remote */
 	cause_t	cause_out;		/* cause value to remote */
@@ -437,7 +440,9 @@ typedef struct call_desc
 	u_char  sending_complete : 1;   /* set if sending of telephone number 
 					 * is complete 
 					 */
-
+	u_char b_link_want_active : 1;  /* set if B-channel should be connected */
+	u_char call_is_on_hold : 1;     /* set if call descriptor is on hold */
+  
 	u_int8_t peer_responded_bitmask[4];
 
 	u_int8_t *tone_gen_ptr;
@@ -495,6 +500,7 @@ typedef struct i4b_controller
 	u_int8_t unit;			/* controller unit number    */
 	u_int8_t allocated : 1;
 	u_int8_t no_layer1_dialtone : 1;
+	u_int8_t attached : 1;
 
 	/*  --> Layer 2 */
 	/* ============ */
@@ -572,6 +578,7 @@ GET_BIT((cntl)->N_channel_utilization,channel)	\
 	/* ============ */
 
 	void *    L1_sc;		/* layer 1 softc */
+	void *    L1_fifo;		/* layer 1 FIFO */
 
 	struct mtx L1_lock;
 
@@ -623,6 +630,8 @@ enum
   CMR_SET_L1_ACTIVITY_VARIABLE,
   CMR_SET_NT_MODE,
   CMR_SET_TE_MODE,
+  CMR_SET_DCH_HI_PRI,
+  CMR_SET_DCH_LO_PRI,
   CMR_PH_ACTIVATE,
   CMR_PH_DEACTIVATE,
 
@@ -654,12 +663,12 @@ typedef u_int8_t L1_activity_t;
 /* prototypes from i4b_l1.c */
 
 extern struct i4b_controller * i4b_controller_by_cd(struct call_desc *cd);
-extern struct i4b_controller * i4b_controller_allocate(int portable, u_int8_t *error);
+extern struct i4b_controller * i4b_controller_allocate(u_int8_t portable, u_int8_t, u_int8_t *);
 extern int i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *parm);
 extern int i4b_l1_bchan_tel_silence(unsigned char *data, int len);
 extern int i4b_controller_attach(struct i4b_controller *cntl, u_int8_t *error);
 extern void i4b_controller_detach(struct i4b_controller *cntl);
-extern void i4b_controller_free(struct i4b_controller *cntl);
+extern void i4b_controller_free(struct i4b_controller *cntl, u_int8_t sub_controllers);
 
 /* prototypes from i4b_trace.c */
 

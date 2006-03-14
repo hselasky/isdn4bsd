@@ -49,13 +49,12 @@
 #include <sys/endian.h>
 #include <sys/queue.h> /* LIST_XXX() */
 #include <sys/lock.h>
-#include <sys/mutex.h>
 #include <sys/malloc.h>
 #include <sys/callout.h> /* callout_xxx() */
-#include <sys/bus.h> /* device_xxx() */
-#include <sys/sysctl.h> /* SYSCTL_XXX() */
 
 #include <machine/bus.h> /* bus_space_xxx() */
+
+#define INCLUDE_PCIXXX_H
 
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
@@ -189,9 +188,9 @@ ohci_controller_init(ohci_softc_t *sc)
 	/* The controller is now in SUSPEND state, we have 2ms to finish. */
 
 	/* set up HC registers */
-	OWRITE4(sc, OHCI_HCCA, PHYSADDR(sc, sc_hcca));
-	OWRITE4(sc, OHCI_CONTROL_HEAD_ED, PHYSADDR(sc, sc_ctrl_start));
-	OWRITE4(sc, OHCI_BULK_HEAD_ED, PHYSADDR(sc, sc_bulk_start));
+	OWRITE4(sc, OHCI_HCCA, PHYSADDR(sc, sc_hw.hcca));
+	OWRITE4(sc, OHCI_CONTROL_HEAD_ED, PHYSADDR(sc, sc_hw.ctrl_start));
+	OWRITE4(sc, OHCI_BULK_HEAD_ED, PHYSADDR(sc, sc_hw.bulk_start));
 	/* disable all interrupts and then switch on all desired interrupts */
 	OWRITE4(sc, OHCI_INTERRUPT_DISABLE, OHCI_ALL_INTRS);
 	OWRITE4(sc, OHCI_INTERRUPT_ENABLE, sc->sc_eintrs | OHCI_MIE);
@@ -259,25 +258,25 @@ ohci_init(ohci_softc_t *sc)
 	/*
 	 * setup self pointers
 	 */
-	sc->sc_ctrl_start.ed_self = htole32(PHYSADDR(sc,sc_ctrl_start));
-	sc->sc_ctrl_start.ed_flags = htole32(OHCI_ED_SKIP);
-	sc->sc_ctrl_p_last = &sc->sc_ctrl_start;
+	sc->sc_hw.ctrl_start.ed_self = htole32(PHYSADDR(sc,sc_hw.ctrl_start));
+	sc->sc_hw.ctrl_start.ed_flags = htole32(OHCI_ED_SKIP);
+	sc->sc_ctrl_p_last = &sc->sc_hw.ctrl_start;
 
-	sc->sc_bulk_start.ed_self = htole32(PHYSADDR(sc,sc_bulk_start));
-	sc->sc_bulk_start.ed_flags = htole32(OHCI_ED_SKIP);
-	sc->sc_bulk_p_last = &sc->sc_bulk_start;
+	sc->sc_hw.bulk_start.ed_self = htole32(PHYSADDR(sc,sc_hw.bulk_start));
+	sc->sc_hw.bulk_start.ed_flags = htole32(OHCI_ED_SKIP);
+	sc->sc_bulk_p_last = &sc->sc_hw.bulk_start;
 
-	sc->sc_isoc_start.ed_self = htole32(PHYSADDR(sc,sc_isoc_start));
-	sc->sc_isoc_start.ed_flags = htole32(OHCI_ED_SKIP);
-	sc->sc_isoc_p_last = &sc->sc_isoc_start;
+	sc->sc_hw.isoc_start.ed_self = htole32(PHYSADDR(sc,sc_hw.isoc_start));
+	sc->sc_hw.isoc_start.ed_flags = htole32(OHCI_ED_SKIP);
+	sc->sc_isoc_p_last = &sc->sc_hw.isoc_start;
 
 	for(i = 0;
 	    i < OHCI_NO_EDS;
 	    i++)
 	{
-		sc->sc_intr_start[i].ed_self = htole32(PHYSADDR(sc,sc_intr_start[i]));
-		sc->sc_intr_start[i].ed_flags = htole32(OHCI_ED_SKIP);
-		sc->sc_intr_p_last[i] = &sc->sc_intr_start[i];
+		sc->sc_hw.intr_start[i].ed_self = htole32(PHYSADDR(sc,sc_hw.intr_start[i]));
+		sc->sc_hw.intr_start[i].ed_flags = htole32(OHCI_ED_SKIP);
+		sc->sc_intr_p_last[i] = &sc->sc_hw.intr_start[i];
 	}
 
 	/*
@@ -294,17 +293,17 @@ ohci_init(ohci_softc_t *sc)
 			/* the next QH has half the
 			 * poll interval
 			 */
-			sc->sc_intr_start[x].next = NULL;
-			sc->sc_intr_start[x].ed_next =
-			  sc->sc_intr_start[y].ed_self;
+			sc->sc_hw.intr_start[x].next = NULL;
+			sc->sc_hw.intr_start[x].ed_next =
+			  sc->sc_hw.intr_start[y].ed_self;
 			x++;
 		}
 		bit >>= 1;
 	}
 
 	/* the last (1ms) QH */
-	sc->sc_intr_start[0].next = &sc->sc_isoc_start;
-	sc->sc_intr_start[0].ed_next = sc->sc_isoc_start.ed_self;
+	sc->sc_hw.intr_start[0].next = &sc->sc_hw.isoc_start;
+	sc->sc_hw.intr_start[0].ed_next = sc->sc_hw.isoc_start.ed_self;
 
 	/*
 	 * Fill HCCA interrupt table.  The bit reversal is to get
@@ -314,8 +313,8 @@ ohci_init(ohci_softc_t *sc)
 	    i < OHCI_NO_INTRS;
 	    i++)
 	{
-		sc->sc_hcca.hcca_interrupt_table[i] =
-		  sc->sc_intr_start[i|(OHCI_NO_EDS/2)].ed_self;
+		sc->sc_hw.hcca.hcca_interrupt_table[i] =
+		  sc->sc_hw.intr_start[i|(OHCI_NO_EDS/2)].ed_self;
 	}
 
 	LIST_INIT(&sc->sc_interrupt_list_head);
@@ -333,10 +332,10 @@ ohci_init(ohci_softc_t *sc)
 		    i++)
 		{
 			printf("ed#%d ", i);
-			ohci_dump_ed(&sc->sc_intr_start[i]);
+			ohci_dump_ed(&sc->sc_hw.intr_start[i]);
 		}
 		printf("iso ");
-		ohci_dump_ed(&sc->sc_isoc_start);
+		ohci_dump_ed(&sc->sc_hw.isoc_start);
 	}
 #endif
 
@@ -501,8 +500,8 @@ ohci_dumpregs(ohci_softc_t *sc)
 		 OREAD4(sc, OHCI_RH_PORT_STATUS(1)),
 		 OREAD4(sc, OHCI_RH_PORT_STATUS(2))));
 	DPRINTF(("         HCCA: frame_number=0x%04x done_head=0x%08x\n",
-		 le32toh(sc->sc_hcca.hcca_frame_number),
-		 le32toh(sc->sc_hcca.hcca_done_head)));
+		 le32toh(sc->sc_hw.hcca.hcca_frame_number),
+		 le32toh(sc->sc_hw.hcca.hcca_done_head)));
 }
 static void
 ohci_dump_tds(ohci_td_t *std)
@@ -516,17 +515,22 @@ ohci_dump_tds(ohci_td_t *std)
 static void
 ohci_dump_td(ohci_td_t *std)
 {
-	printf("TD(%p) at %08lx: %b delay=%d ec=%d cc=%d\ncbp=0x%08lx "
-	       "next=0x%08lx be=0x%08lx\n",
-	       std, (u_long)le32toh(std->td_self), 
-	       (u_int32_t)le32toh(std->td_flags),
-	       "\20\23R\24OUT\25IN\31TOG1\32SETTOGGLE",
+	u_int32_t td_flags = le32toh(std->td_flags);
+
+	printf("TD(%p) at %08lx: %s%s%s%s%s delay=%d ec=%d "
+	       "cc=%d\ncbp=0x%08lx next=0x%08lx be=0x%08lx\n",
+	       std, (long)le32toh(std->td_self),
+	       (td_flags & OHCI_TD_R) ? "-R" : "",
+	       (td_flags & OHCI_TD_OUT) ? "-OUT" : "",
+	       (td_flags & OHCI_TD_IN) ? "-IN" : "",
+	       ((td_flags & OHCI_TD_TOGGLE_MASK) == OHCI_TD_TOGGLE_1) ? "-TOG1" : "",
+	       ((td_flags & OHCI_TD_TOGGLE_MASK) == OHCI_TD_TOGGLE_0) ? "-TOG0" : "",
 	       OHCI_TD_GET_DI(le32toh(std->td_flags)),
 	       OHCI_TD_GET_EC(le32toh(std->td_flags)),
 	       OHCI_TD_GET_CC(le32toh(std->td_flags)),
-	       (u_long)le32toh(std->td_cbp),
-	       (u_long)le32toh(std->td_next),
-	       (u_long)le32toh(std->td_be));
+	       (long)le32toh(std->td_cbp),
+	       (long)le32toh(std->td_next),
+	       (long)le32toh(std->td_be));
 }
 
 static void
@@ -536,14 +540,14 @@ ohci_dump_itd(ohci_itd_t *sitd)
 
 	printf("ITD(%p) at %08lx: sf=%d di=%d fc=%d cc=%d\n"
 	       "bp0=0x%08lx next=0x%08lx be=0x%08lx\n",
-	       sitd, (u_long)le32toh(sitd->itd_self),
+	       sitd, (long)le32toh(sitd->itd_self),
 	       OHCI_ITD_GET_SF(le32toh(sitd->itd_flags)),
 	       OHCI_ITD_GET_DI(le32toh(sitd->itd_flags)),
 	       OHCI_ITD_GET_FC(le32toh(sitd->itd_flags)),
 	       OHCI_ITD_GET_CC(le32toh(sitd->itd_flags)),
-	       (u_long)le32toh(sitd->itd_bp0),
-	       (u_long)le32toh(sitd->itd_next),
-	       (u_long)le32toh(sitd->itd_be));
+	       (long)le32toh(sitd->itd_bp0),
+	       (long)le32toh(sitd->itd_next),
+	       (long)le32toh(sitd->itd_be));
 	for(i = 0; i < OHCI_ITD_NOFFSET; i++)
 	{
 		printf("offs[%d]=0x%04x ", i,
@@ -564,19 +568,25 @@ ohci_dump_itds(ohci_itd_t *sitd)
 static void
 ohci_dump_ed(ohci_ed_t *sed)
 {
-	printf("ED(%p) at 0x%08lx: addr=%d endpt=%d maxp=%d flags=%b\ntailp=0x%08lx "
-	       "headflags=%b headp=0x%08lx nexted=0x%08lx\n",
-	       sed, (u_long)le32toh(sed->ed_self),
+	u_int32_t ed_flags = le32toh(sed->ed_flags);
+	u_int32_t ed_headp = le32toh(sed->ed_headp);
+
+	printf("ED(%p) at 0x%08lx: addr=%d endpt=%d maxp=%d flags=%s%s%s%s%s\n"
+	       "tailp=0x%08lx headflags=%s%s headp=0x%08lx nexted=0x%08lx\n",
+	       sed, (long)le32toh(sed->ed_self),
 	       OHCI_ED_GET_FA(le32toh(sed->ed_flags)),
 	       OHCI_ED_GET_EN(le32toh(sed->ed_flags)),
 	       OHCI_ED_GET_MAXP(le32toh(sed->ed_flags)),
-	       (u_int32_t)le32toh(sed->ed_flags),
-	       "\20\14OUT\15IN\16LOWSPEED\17SKIP\20ISO",
-	       (u_long)le32toh(sed->ed_tailp), 
-	       (u_int32_t)le32toh(sed->ed_headp),
-	       "\20\1HALT\2CARRY",
-	       (u_long)le32toh(sed->ed_headp),
-	       (u_long)le32toh(sed->ed_next));
+	       (ed_flags & OHCI_ED_DIR_OUT) ? "-OUT" : "",
+	       (ed_flags & OHCI_ED_DIR_IN) ? "-IN" : "",
+	       (ed_flags & OHCI_ED_SPEED) ? "-LOWSPEED" : "",
+	       (ed_flags & OHCI_ED_SKIP) ? "-SKIP" : "",
+	       (ed_flags & OHCI_ED_FORMAT_ISO) ? "-ISO" : "",
+	       (long)le32toh(sed->ed_tailp), 
+	       (ed_headp & OHCI_HALTED) ? "-HALTED" : "",
+	       (ed_headp & OHCI_TOGGLECARRY) ? "-CARRY" : "",
+	       (long)le32toh(sed->ed_headp),
+	       (long)le32toh(sed->ed_next));
 }
 #endif
 
@@ -894,7 +904,7 @@ ohci_interrupt(ohci_softc_t *sc)
 #endif
 
 	status = 0;
-	done = le32toh(sc->sc_hcca.hcca_done_head);
+	done = le32toh(sc->sc_hw.hcca.hcca_done_head);
 
 	/* The LSb of done is used to inform the HC Driver that an interrupt
 	 * condition exists for both the Done list and for another event
@@ -918,7 +928,7 @@ ohci_interrupt(ohci_softc_t *sc)
 			status |= OREAD4(sc, OHCI_INTERRUPT_STATUS);
 			done &= ~OHCI_DONE_INTRS;
 		}
-		sc->sc_hcca.hcca_done_head = 0;
+		sc->sc_hw.hcca.hcca_done_head = 0;
 	}
 	else
 	{
@@ -1675,7 +1685,7 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 	DPRINTFN(5,("xfer=%p next=%d nframes=%d\n",
 		    xfer, xfer->pipe->isoc_next, xfer->nframes));
 
-	nframes = le32toh(sc->sc_hcca.hcca_frame_number);
+	nframes = le32toh(sc->sc_hw.hcca.hcca_frame_number);
 
 	if((((nframes - xfer->pipe->isoc_next) & ((1<<16)-1)) < xfer->nframes) ||
 	   (((xfer->pipe->isoc_next - nframes) & ((1<<16)-1)) >= 256))
@@ -2361,6 +2371,9 @@ ohci_xfer_setup(struct usbd_device *udev,
  repeat:
 	size = 0;
 
+	/* align data to 8 byte boundary */
+	size += ((-size) & (USB_HOST_ALIGN-1));
+
 	if(buf)
 	{
 	    info = ADD_BYTES(buf,size);
@@ -2383,6 +2396,9 @@ ohci_xfer_setup(struct usbd_device *udev,
 	  ntd = 0;
 	  nitd = 0;
 	  nqh = 0;
+
+	  /* align data to 8 byte boundary */
+	  size += ((-size) & (USB_HOST_ALIGN-1));
 
 	  if(buf)
 	  {
@@ -2498,6 +2514,9 @@ ohci_xfer_setup(struct usbd_device *udev,
 	  }
 
 	  size += sizeof(xfer[0]);
+
+	  /* align data to 8 byte boundary */
+	  size += ((-size) & (USB_HOST_ALIGN-1));
 
 	  if(buf)
 	  {

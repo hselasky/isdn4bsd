@@ -141,13 +141,12 @@ regdata_count(ihfc_sc_t *sc, u_int8_t dir, u_int8_t reg)
 	return count;
 }
 
-struct regdata_usb
-{
+struct regdata_usb {
 	u_int8_t data[32-2];
 
 	u_int8_t current_register;
 	u_int8_t current_data;
-};
+} __packed;
 
 #define REGDATA_XFER_WRITE 0
 #define REGDATA_BUFFER_WRITE_SIZE sizeof(struct regdata_usb)

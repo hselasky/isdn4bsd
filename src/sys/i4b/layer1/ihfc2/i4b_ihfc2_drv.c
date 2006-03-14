@@ -27,6 +27,7 @@
  *	i4b_ihfc2_drv.c - driver interface
  *	----------------------------------
  *
+ * $FreeBSD: $
  *
  *	NOTE: INTEL CPU's use 8-bit I/O access for the ISA-BUS, so
  *	      counter registers may be unstable even if
@@ -47,13 +48,14 @@
 #include <i4b/layer1/ihfc2/i4b_ihfc2.h>
 #include <i4b/layer1/ihfc2/i4b_ihfc2_ext.h>
 
-__FBSDID("$FreeBSD: $");
-
 static void
 ihfc_fifo_program(register ihfc_sc_t *sc);
 
 static void
 ihfc_fifo_program_reset(ihfc_sc_t *sc, ihfc_fifo_t *f);
+
+static void
+__ihfc_chip_interrupt(ihfc_sc_t *sc);
 
 /*---------------------------------------------------------------------------*
  * : reg_get_desc - ``provide human readable debugging support''
@@ -80,17 +82,30 @@ u_int8_t
 ihfc_fifos_active(ihfc_sc_t *sc)
 {
     ihfc_fifo_t *f;
+    u_int8_t n;
 
-    /* NOTE: the search below will not be
-     * very lengthy, hence the D-channel 
-     * is usually active, and its FIFO
-     * is checked first!
-     */
-    FIFO_FOREACH(f,sc)
+    for(n = 0; 
+	n < sc->sc_default.d_sub_controllers;
+	n++)
     {
-        if(f->prot != P_DISABLE)
+        if(sc->sc_state[n].state.active ||
+	   sc->sc_state[n].state.pending)
 	{
-	    return 1;
+	    /* NOTE: the search below will not be
+	     * very lengthy, hence the D-channel 
+	     * is usually active, and its FIFO
+	     * is checked first!
+	     */
+	    FIFO_FOREACH(f,sc)
+	    {
+	        if((f->prot != P_DISABLE) &&
+		   (sc->sc_state[f->sub_unit].state.active ||
+		    (sc->sc_state[f->sub_unit].state.pending)))
+		{
+		    return 1;
+		}
+	    }
+	    break;
 	}
     }
     return 0;
@@ -115,13 +130,13 @@ ihfc_fifos_active(ihfc_sc_t *sc)
  *
  * 16-bit and 32-bit registers must be added to a custom `c_chip_config_write'.
  *
- * This routine is called from fifo_setup(,), fsm_update(,),
+ * This routine is called from fifo_setup(,), ihfc_fsm_update(,),
  * chip_reset(,) and fifo_link(,) ...
  *---------------------------------------------------------------------------*/
 static void
 ihfc_config_write(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
-#define c (&sc->sc_config)
+  struct sc_config *c = &sc->sc_config;
 
   if((f == CONFIG_WRITE_UPDATE) ||
      (f == CONFIG_WRITE_RELOAD))
@@ -136,9 +151,7 @@ ihfc_config_write(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	 * when line is activated. Else dis-
 	 * able the timers (sleep mode).
 	 */
-	if(ihfc_fifos_active(sc) &&
-	   (sc->sc_statemachine.state.active ||
-	    sc->sc_statemachine.state.pending))
+	if(ihfc_fifos_active(sc))
 	{
 	  /* decrease interrupt delay when
 	   * the line is activated.
@@ -236,7 +249,6 @@ ihfc_config_write(ihfc_sc_t *sc, ihfc_fifo_t *f)
   CHIP_CONFIG_WRITE(sc,f);
 
   return;
-#undef c
 }
 
 /*---------------------------------------------------------------------------*
@@ -252,15 +264,21 @@ void
 ihfc_reset(ihfc_sc_t *sc, u_int8_t *error)
 {
 	ihfc_fifo_t *f;
+	u_int8_t sub_unit;
+
+	IHFC_ASSERT_LOCKED(sc);
 
 	/* reset config buffer (used by USB) */
 	BUF_SETUP_WRITELEN(&sc->sc_config_buffer.buf,
 			   (void *)&sc->sc_config_buffer.start[0],
 			   (void *)&sc->sc_config_buffer.end[0]);
-
- /* step 1 */
-
-	/* reset chip */
+	/*
+	 * ========
+	 *  step 1 
+	 * ========
+	 *
+	 * reset chip:
+	 */
 	CHIP_RESET(sc,error);
 
 	if(IHFC_IS_ERR(error))
@@ -277,33 +295,55 @@ ihfc_reset(ihfc_sc_t *sc, u_int8_t *error)
 	/* reload configuration first */
 	ihfc_config_write(sc, CONFIG_WRITE_RELOAD);
 
- /* step 2 */
-
-	/* reset fifo */
+	/*
+	 * ========
+	 *  step 2
+	 * ========
+	 *
+	 * reset FIFO:
+	 */
 	FIFO_FOREACH(f,sc)
 	{
 		/* configure and reset fifo */
 		ihfc_config_write(sc,f);
 	}
 
- /* step 3 */
-
-	/* call interrupt handler to clear any
+	/*
+	 * ========
+	 *  step 3
+	 * ========
+	 *
+	 * call interrupt handler to clear any
 	 * early interrupts, to run queued
 	 * FIFOs and to start any timers:
 	 */
-	CHIP_INTERRUPT(sc);
+	__ihfc_chip_interrupt(sc);
 
- /* step 4 */
-
-	/* release   statemachine  and
+	/*
+	 * ========
+	 *  step 4
+	 * ========
+	 *
+	 * release   statemachine  and
 	 * try to re-activate the line
 	 * if it was already activated.
 	 *
-	 * NOTE: ``fsm_update(,)'' will
+	 * NOTE: ``ihfc_fsm_update(,)'' will
 	 * also call ``ihfc_config_write(,)''
 	 */
-	fsm_update(sc, sc->sc_statemachine.state.active != 0);
+	for(sub_unit = 0; 
+	    sub_unit < sc->sc_default.d_sub_controllers; 
+	    sub_unit++)
+	{
+	    struct sc_state *st = &sc->sc_state[sub_unit];
+
+	    /* reset state description */
+	    st->state.description = (const char *)0;
+
+	    ihfc_fsm_update
+	      (sc, st->i4b_controller->L1_fifo, 
+	       st->state.active ? 1 : 0);
+	}
 
 	/* return success */
 	return;
@@ -312,12 +352,12 @@ ihfc_reset(ihfc_sc_t *sc, u_int8_t *error)
 /*---------------------------------------------------------------------------*
  * : statemachine read hardware					(ALL CHIPS)
  *---------------------------------------------------------------------------*/
-static __inline fsm_state_t *
-fsm_read(register ihfc_sc_t *sc /*, register ihfc_statemachine_t *st */)
+static fsm_state_t *
+fsm_read(register ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
 	u_int8_t state = 0;
 
-	FSM_READ(sc,&state);
+	FSM_READ(sc,f,&state);
 
 	return &(sc->sc_default.d_fsm_table->state[state & 0xf]);
 }
@@ -325,51 +365,58 @@ fsm_read(register ihfc_sc_t *sc /*, register ihfc_statemachine_t *st */)
 /*---------------------------------------------------------------------------*
  * : statemachine write hardware				(ALL CHIPS)
  *---------------------------------------------------------------------------*/
-static __inline fsm_command_t *
-fsm_write(register ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
+static void
+fsm_write(register ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag)
 {
-#if DO_I4B_DEBUG
-	const u_int8_t * const temp = "unknown";
-#endif
-	fsm_command_t *fsm;
-
-	fsm = &(sc->sc_default.d_fsm_table->cmd[flag & 0x7]);
+	fsm_command_t *fsm = &(sc->sc_default.d_fsm_table->cmd[flag & 0x7]);
 
 	/*
 	 * Generate debug output:
 	 */
 
 	IHFC_MSG("%s, cmd[%d]=0x%02x\n",
-		 fsm->description ? fsm->description : temp, 
+		 fsm->description ? 
+		 (const char *)(fsm->description) : 
+		 (const char *)("unknown"), 
 		 flag, fsm->value);
 
-	FSM_WRITE(sc,&fsm->value);
+	FSM_WRITE(sc,f,&fsm->value);
 
-	return fsm;
+	return;
 }
 
 /*---------------------------------------------------------------------------*
  * : fsm_T3_expire (PH layer)                                   (ALL CHIPS)
  *---------------------------------------------------------------------------*/
 static void
-fsm_T3_expire(ihfc_sc_t *sc)
+fsm_T3_expire(void *arg)
 {
-	IHFC_MSG("Timeout.\n");
+	struct i4b_controller *cntl = arg;
+	ihfc_sc_t *sc;
+	ihfc_fifo_t *f;
 
-	IHFC_CRIT_BEG(sc);
+	CNTL_LOCK(cntl);
 
-	/* timeout command (through fsm_update) */
-	fsm_update(sc,3);
-	
-	IHFC_CRIT_END(sc);
+	sc = cntl->L1_sc;
+	f = cntl->L1_fifo;
+
+	IHFC_MSG("T3 timeout.\n");
+
+	if (sc)
+	{
+	    /* timeout command (through ihfc_fsm_update) */
+	    ihfc_fsm_update(sc,f,3);
+	}
+
+	CNTL_UNLOCK(cntl);
 
 	return;
 }
 
-#define IHFC_T3_DELAY 4*hz /* PH - activation timeout */
+#define IHFC_T3_DELAY (4*hz) /* PH - activation timeout */
 
 /*---------------------------------------------------------------------------*
- * : state machine handler (PH layer)                            (ALL CHIPS)
+ * : physical layer state machine handler function             (ALL CHIPS)
  *
  *	flag: 0 = Read state and process commands
  *	      1 = Activate
@@ -381,7 +428,7 @@ fsm_T3_expire(ihfc_sc_t *sc)
  *	      properly activated. This can be checked by polling
  *	      ``sc->sc_statemachine.state.active'' which is set to
  *	      one when this is true. The driver should call
- *	      fsm_update(sc,1) when data is waiting and
+ *	      "ihfc_fsm_update(sc,1)" when data is waiting and
  *	      ``sc->sc_statemachine.state.active'' is zero.
  *
  *      NOTE: When activated the HFC and ISAC chips transmit data on
@@ -395,27 +442,31 @@ fsm_T3_expire(ihfc_sc_t *sc)
  *
  *      NOTE: Test signal can be used to ensure proper synchronization.
  *
- *	NOTE: currently only one statemachine is supported per chip (ihfc_sc_t *sc)
+ *      NOTE: The FIFO structure pointed to by "f" is just used to
+ *            get the "sub_unit" in a convenient way.
  *---------------------------------------------------------------------------*/
 void
-fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
+ihfc_fsm_update(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag)
 {
-	register ihfc_statemachine_t *st = &sc->sc_statemachine;
+	struct sc_state *st = &(sc->sc_state[f->sub_unit]);
 	struct fsm_state fsm_state;
+
+	IHFC_ASSERT_LOCKED(sc);
 
 	/*
 	 * Get current state (rx/downstream)
 	 */
-
-        fsm_state = *fsm_read(sc);
+	fsm_state = *fsm_read(sc,f);;
 
 	/*
 	 * Generate debug output:
 	 */
 
-	if(fsm_state.description)
+	if (fsm_state.description)
 	{
-		ihfc_trace_info(sc, fsm_state.description);
+	    if (fsm_state.description != st->state.description)
+	    {
+	        ihfc_trace_info(sc, f, fsm_state.description);
 
 		IHFC_MSG("%s. (p%d,a%d,c%d,u%d,d%d,i%d)\n",
 			 fsm_state.description,
@@ -425,11 +476,15 @@ fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
 			 fsm_state.can_up,
 			 fsm_state.can_down,
 			 fsm_state.index);
+	    }
 	}
 	else
 	{
-		IHFC_ERR("Illegal state: %d!\n", 
+	    if (fsm_state.index != st->state.index)
+	    {
+	        IHFC_ERR("Illegal state: %d!\n", 
 			 fsm_state.index);
+	    }
 	}
 
 	/*
@@ -438,7 +493,7 @@ fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
 	 */
 	if(fsm_state.command)
 	{
-		fsm_write(sc,fsm_state.index);
+	    fsm_write(sc,f,fsm_state.index);
 	}
 
 	if(flag == 0)
@@ -450,7 +505,7 @@ fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
 	     */
 	    if((st->L1_auto_activate_ptr[0]) &&
 	       (!fsm_state.active) &&
-	       (!callout_pending(&sc->sc_statemachine.T3callout)))
+	       (!callout_pending(&st->T3callout)))
 	    {
 	        flag = 3;
 	    }
@@ -462,7 +517,7 @@ fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
 	 */
 	if(flag == 1)
 	{
-		st->L1_auto_activate_variable = 1;
+	    st->L1_auto_activate_variable = 1;
 	}
 
 	/*
@@ -471,26 +526,26 @@ fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
 	 */
 	if(flag == 2)
 	{
-		st->L1_auto_activate_variable = 0;
+	    st->L1_auto_activate_variable = 0;
 	}
 
 	/*
 	 * user activation
-	 * timeout(T3)
+	 * timeout, T3
 	 */
 	if(flag == 3)
 	{
-	  if(fsm_state.active)
-	  {
-		flag = 0;
-	  }
-	  else
-	  {
-	    if(st->L1_auto_activate_ptr[0] == 0)
+	    if(fsm_state.active)
 	    {
-		flag = 2;
+	        flag = 0;
 	    }
-	  }
+	    else
+	    {
+	        if(st->L1_auto_activate_ptr[0] == 0)
+		{
+		    flag = 2;
+		}
+	    }
 	}
 
 	/*
@@ -499,13 +554,13 @@ fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
 
 	if((flag == 2) || (flag == 3))
 	{
-		/* index 1 is deactivate
-		 * command in all tables
-		 */
-		if(fsm_state.can_down)
-		{
-			fsm_write(sc,1);
-		}
+	    /* index 1 is deactivate
+	     * command in all tables
+	     */
+	    if(fsm_state.can_down)
+	    {
+	        fsm_write(sc,f,1);
+	    }
 	}
 
 	/*
@@ -514,34 +569,34 @@ fsm_update(ihfc_sc_t *sc, /* register ihfc_statemachine_t *st, */ u_int8_t flag)
 
 	if((flag == 1) || (flag == 3))
 	{
-		/* index 0 is activate
-		 * command in all tables
-		 */
-		if(fsm_state.can_up)
-		{
-			fsm_write(sc,0);
-		}
+	    /* index 0 is activate
+	     * command in all tables
+	     */
+	    if(fsm_state.can_up)
+	    {
+	        fsm_write(sc,f,0);
+	    }
 
-		if(!callout_pending(&sc->sc_statemachine.T3callout))
-		{
-			callout_reset(&sc->sc_statemachine.T3callout, IHFC_T3_DELAY,
-				      (void *)(void *)&fsm_T3_expire, sc);
-		}
+	    if(!callout_pending(&st->T3callout))
+	    {
+	        callout_reset(&st->T3callout, IHFC_T3_DELAY, 
+			      &fsm_T3_expire, st->i4b_controller);
+	    }
 	}
 
-	/*
-	 * Update softc + upper layers
-	 */
+	/* update upper layers */
 
 	if(st->state.active != fsm_state.active)
 	{
-	  *(st->L1_activity_ptr) = fsm_state.active;
+	    *(st->L1_activity_ptr) = fsm_state.active;
 #if 0
-	  /* send an activation signal to L4 */
-	  i4b_l4_l12stat(sc->sc_i4bunit,1,fsm_state.active);
-	  i4b_l4_l12stat(sc->sc_i4bunit,2,fsm_state.active);
+	    /* send an activation signal to L4 */
+	    i4b_l4_l12stat(sc->sc_i4bunit,1,fsm_state.active);
+	    i4b_l4_l12stat(sc->sc_i4bunit,2,fsm_state.active);
 #endif
 	}
+
+	/* store state in softc */
 
 	st->state = fsm_state;
 
@@ -636,19 +691,21 @@ ihfc_buffer_setup(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int16_t buffersize)
  * : fifo link routine
  * NOTE: first match wins
  *---------------------------------------------------------------------------*/
-static __inline void
+static void
 ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
-  ihfc_fifo_program_t *program;
- const struct filter_info  * filt;
+	ihfc_fifo_program_t *program;
+  const struct filter_info  *filt;
  __typeof(filt->buffersize)  buffersize;
  __typeof(filt->rxtx_interrupt) *rxtx_interrupt;
- u_int32_t prot;
- u_int8_t direction;
+	u_int32_t prot;
+	u_int8_t direction;
 
- rxtx_interrupt = (FIFO_DIR(f) == transmit) ?
-   &FIFO_TRANSLATOR(sc,f)->L5_TX_INTERRUPT :
-   &FIFO_TRANSLATOR(sc,f)->L5_RX_INTERRUPT ;
+	IHFC_ASSERT_LOCKED(sc);
+
+	rxtx_interrupt = (FIFO_DIR(f) == transmit) ?
+	  &FIFO_TRANSLATOR(sc,f)->L5_TX_INTERRUPT :
+	  &FIFO_TRANSLATOR(sc,f)->L5_RX_INTERRUPT ;
 
  reconfigure:
 
@@ -758,11 +815,9 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 /*---------------------------------------------------------------------------*
  * : ihfc interrupt routine
  *---------------------------------------------------------------------------*/
-void
-ihfc_chip_interrupt(ihfc_sc_t *sc)
+static void
+__ihfc_chip_interrupt(ihfc_sc_t *sc)
 {
-	IHFC_CRIT_BEG(sc); /* should be done by caller */
-
 	/* Interrupts are generated by software and hardware,
 	 * so this routine may recurse:
 	 *
@@ -850,8 +905,24 @@ ihfc_chip_interrupt(ihfc_sc_t *sc)
 	    /* clear ``sc_chip_interrupt_called'' */
 	    sc->sc_chip_interrupt_called = 0;
 	}
+	return;
+}
 
-	IHFC_CRIT_END(sc);
+/*---------------------------------------------------------------------------*
+ * : ihfc interrupt routine
+ *---------------------------------------------------------------------------*/
+void
+ihfc_chip_interrupt(void *arg)
+{
+	ihfc_sc_t *sc = (ihfc_sc_t *)arg;
+
+	/* locking should be done by caller */
+
+	IHFC_LOCK(sc); 
+
+	__ihfc_chip_interrupt(sc);
+
+	IHFC_UNLOCK(sc);
 
 	return;
 }
@@ -867,7 +938,7 @@ ihfc_chip_interrupt(ihfc_sc_t *sc)
 void
 ihfc_fifo_call(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
-	IHFC_CRIT_BEG(sc);
+	IHFC_ASSERT_LOCKED(sc);
 
 	if(!(f->state &  ST_RUNNING)) {
 	     f->state |= ST_RUNNING;
@@ -884,7 +955,7 @@ ihfc_fifo_call(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	    /* call interrupt */
 	    if(!SC_T125_WAIT(sc))
 	    {
-	      CHIP_INTERRUPT(sc);
+	        __ihfc_chip_interrupt(sc);
 	    }
 	    else
 	    {
@@ -899,9 +970,6 @@ ihfc_fifo_call(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	     * errors
 	     */
 	}
-
-	IHFC_CRIT_END(sc);
-
 	return;
 }
 
@@ -1045,7 +1113,7 @@ ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 		break;
 	}
 
-	if(sc->sc_default.o_LOCAL_LOOP)
+	if(sc->sc_state[0].o_LOCAL_LOOP)
 	{
 	  f->s_con_hdlc  |=  0xC0;
 	  c->s_connect   |=  0x36;
@@ -1275,7 +1343,7 @@ ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 u_int8_t
 ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 {
-  	IHFC_CRIT_BEG(sc);
+	IHFC_ASSERT_LOCKED(sc);
 
 	IHFC_MSG("fifo(#%d) prot(%d).\n",
 		 FIFO_NO(f), f->prot);
@@ -1325,9 +1393,11 @@ ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 	/*
 	 * Try linking the FIFO first
 	 * (f->prot may be changed!)
+	 *
+	 * NOTE: ihfc_config_write will 
+	 * reset the FIFO program!
 	 */
 	ihfc_fifo_link(sc,f);
-	/* XXX depends on config_write, to reset fifo program XXX */
 
 	ihfc_fifo_setup_soft(sc,f);
 
@@ -1343,8 +1413,6 @@ ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 	/* clear reset bits */
 	c->w_cmdr1    &= ~0xC0;
 	c->w_cmdr2    &= ~0xCC;
-
-	IHFC_CRIT_END(sc);
 
 	/* call fifo program */
 	ihfc_fifo_call(sc,f);
@@ -1572,18 +1640,9 @@ static struct sc_config ihfc_config_default =
 u_int8_t
 ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
 {
-#define   ntmode        ((sc->sc_default.o_NTMODE)        != 0)
-#define   dlp           ((sc->sc_default.o_DLOWPRI)       != 0)
-#define   f8kfifo       ((sc->sc_default.o_8KFIFO)        != 0)
-#define   local_loop    ((sc->sc_default.o_LOCAL_LOOP)    != 0)
-#define   remote_loop   ((sc->sc_default.o_REMOTE_LOOP)   != 0)
-#define   iom_mode2     ((sc->sc_default.o_BUS_TYPE_IOM2) != 0)
-#define   polled        ((sc->sc_default.o_POLLED_MODE)   != 0)
-#define   ipac          ((sc->sc_default.o_IPAC)          != 0)
-#define   isac_nt 0 /* */
-#define   hscx_clock    ((ipac) ? 0x2 : 0x5)
+	ihfc_fifo_t *f;
 
-        IHFC_CRIT_BEG(sc);
+        IHFC_LOCK(sc);
 
         if(!(sc->sc_default.o_POST_SETUP)) {
              sc->sc_default.o_POST_SETUP = 1;
@@ -1608,13 +1667,9 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
 	       sc->sc_default.led_inverse_mask ^ 
 	       sc->sc_default.led_p1_mask;
 
+	     FIFO_FOREACH(f,sc)
 	     {
-	       register ihfc_fifo_t *f;
-
-	       FIFO_FOREACH(f,sc)
-	       {
-		   ihfc_fifo_setup_soft(sc,f);
-	       }
+	         ihfc_fifo_setup_soft(sc,f);
 	     }
         }
 
@@ -1642,7 +1697,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
         c->i_cirq         &= ~0x07; /* select IOM mode 1 + D-ch. high pri. */
         c->b_cir0         &= ~0x10; /* select D-ch. high pri. */
 
-        if(isac_nt)
+        if(sc->sc_default.o_ISAC_NT)
 	{
           /* these features are not changed
            * unless the ISAC is capable of
@@ -1664,7 +1719,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
         c->h_tsar[a]      = 0x00 | 0x07; /* unused (?) */            \
                                                                                 \
         c->h_ccr1[a]     &= ~0x07;      /* clear clock mode */       \
-        c->h_ccr1[a]     |= hscx_clock; /* set clock mode */
+        c->h_ccr1[a]     |= (sc->sc_default.o_IPAC ? 0x2 : 0x5); /* set clock mode */
 
         HSCX_CONFIG(0);
         HSCX_CONFIG(1);
@@ -1692,7 +1747,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
          * ===========================
          */
 
-        if(iom_mode2)
+        if(sc->sc_default.o_BUS_TYPE_IOM2)
 	{
           c->i_adf1         &= ~0x04; /* B-ch. at IOM ch. 0 */
           c->i_adf2         |=  0x80; /* select IOM mode 2 */
@@ -1703,13 +1758,13 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
           c->h_tsar[1]       =  0x03; /* rx slot 0 */
         }
 
-        if(f8kfifo)
+        if(sc->sc_default.o_8KFIFO)
         {
           c->s_cirm_0       |= 0x10; /* 8K fifo mode */
           c->s_cirm         |= 0x10; /* 8K fifo mode */
         }
 
-        if(local_loop)
+        if(sc->sc_state[0].o_LOCAL_LOOP)
         {
           c->a_lmr2         |= 0x02; /* D-CH */
           c->i_spcr         |= 0x10;
@@ -1717,7 +1772,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
           c->w_d_mode       |= 0x02;
         }
 
-        if(remote_loop)
+        if(sc->sc_state[0].o_REMOTE_LOOP)
         {
           c->a_lmr2         |= 0x01; /* D-CH */
           c->w_cmdr1        |= 0x01;
@@ -1744,13 +1799,13 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
          *       no routines for this (TODO)
          */
 
-        if(polled)
+        if(sc->sc_default.o_POLLED_MODE)
         {
                 c->s_cirm_0     &= ~0x07; /* switch intr. to unused pin */
                 c->s_cirm       &= ~0x07; /* switch intr. to unused pin */
                 c->s_int_m2     &= ~0x08; /* interrupt output disable */
                 c->s_int_m2_pci &= ~0x08; /* interrupt output disable */
-                /* timer is started by a ``CHIP_INTERRUPT()'' call */
+                /* timer is started by a ``__ihfc_chip_interrupt()'' call */
         }
 
         /*
@@ -1761,13 +1816,13 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
          *       (TErminal-mode is default)
          */
 
-        if(ntmode)
+        if(sc->sc_state[0].o_NTMODE)
         {
                 c->s_sctrl         |= 0x44; /* NT+non-cap line mode */
                 c->s_clkdel        &= ~0x7f;
                 c->s_clkdel        |= (sc->sc_default.stdel_nt);
                 
-                if(isac_nt)
+                if(sc->sc_default.o_ISAC_NT)
 		{
                   c->i_stcr          &= ~0x70; /* TIC bus address = 0 */
                   c->b_cir0          &= ~0x0e; /* TIC bus address = 0 */
@@ -1811,7 +1866,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
          * line.
          */
 
-        if(dlp)
+        if(sc->sc_state[0].o_DLOWPRI)
         {
                 c->a_lpr        |=  0x01;
                 c->b_cir0       |=  0x10;
@@ -1824,7 +1879,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
          */
         ihfc_reset(sc,error);
 
-        IHFC_CRIT_END(sc);
+        IHFC_UNLOCK(sc);
 
         return IHFC_IS_ERR(error);
 }
@@ -1846,6 +1901,8 @@ ihfc_unsetup_softc(register ihfc_sc_t *sc)
 {
         ihfc_fifo_t *f;
 
+        IHFC_LOCK(sc);
+
         FIFO_FOREACH(f,sc)
         {
           /* disable all channels
@@ -1857,8 +1914,6 @@ ihfc_unsetup_softc(register ihfc_sc_t *sc)
           f->prot = P_DISABLE;
           ihfc_fifo_setup(sc,f);
         }
-
-        IHFC_CRIT_BEG(sc);
 
         /* hfc (2b) */
         c->s_cirm_0          &= ~0x07; /* disable interrupts */
@@ -1901,6 +1956,5 @@ ihfc_unsetup_softc(register ihfc_sc_t *sc)
         /* write the config (flush all registers) */
         ihfc_config_write(sc,CONFIG_WRITE_RELOAD);
 
-        IHFC_CRIT_END(sc);
+        IHFC_UNLOCK(sc);
 }
-

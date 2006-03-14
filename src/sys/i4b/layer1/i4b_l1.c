@@ -1,6 +1,8 @@
 /*-
  * Copyright (c) 2000, 2001 Hellmuth Michaelis. All rights reserved.
  *
+ * Copyright (c) 2000-2006 Hans Petter Selasky. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -24,8 +26,10 @@
  *
  *---------------------------------------------------------------------------
  *
- *	i4b_l1.c - isdn4bsd layer 1
+ *	i4b_l1.c - ISDN4BSD layer 1
  *	---------------------------
+ *
+ * $FreeBSD: $
  *
  *---------------------------------------------------------------------------*/
 
@@ -39,8 +43,6 @@
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_trace.h>
 #include <i4b/include/i4b_global.h>
-
-__FBSDID("$FreeBSD: $");
 
 unsigned int i4b_l1_debug = L1_DEBUG_DEFAULT;
 unsigned int i4b_l2_debug = L2_DEBUG_DEFAULT;
@@ -93,13 +95,16 @@ i4b_controller_reset(i4b_controller_t *cntl)
   cntl->N_nt_mode = 0;
   cntl->N_cdid_end = 0;
 
-  cntl->L1_sc = 0;
+  cntl->L1_sc = NULL;
+  cntl->L1_fifo = NULL;
   cntl->L1_channel_end = 0;
 
   cntl->L1_type = L1_TYPE_UNKNOWN;
 
   cntl->L1_GET_FIFO_TRANSLATOR = NULL;
   cntl->L1_COMMAND_REQ = NULL;
+
+  cntl->no_layer1_dialtone = 0;
 
   return;
 }
@@ -108,9 +113,16 @@ i4b_controller_reset(i4b_controller_t *cntl)
  *	i4b_controller_allocate
  *---------------------------------------------------------------------------*/
 i4b_controller_t *
-i4b_controller_allocate(int portable, u_int8_t *error)
+i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers, 
+			u_int8_t *error)
 {
   i4b_controller_t *cntl;
+
+  if(sub_controllers != 1)
+  {
+      printf("%s:%d: FIXME!\n", __FILE__, __LINE__);
+      return NULL;
+  }
 
   if(portable)
   {
@@ -149,10 +161,10 @@ i4b_controller_allocate(int portable, u_int8_t *error)
   }
 
   /* no controller found */
-  cntl = 0;
+  cntl = NULL;
 
   ADD_ERROR(error, "%s: cannot handle more than %d devices!",
-	    __func__ , MAX_CONTROLLERS);
+	    __FUNCTION__ , MAX_CONTROLLERS);
  done:
   return cntl;
 }
@@ -166,6 +178,8 @@ int
 i4b_controller_attach(i4b_controller_t *cntl, u_int8_t *error)
 {
   CNTL_LOCK(cntl);
+
+  cntl->attached = 1;
 
   if(cntl->L1_type >= N_L1_TYPES)
   {
@@ -193,10 +207,14 @@ i4b_controller_detach(i4b_controller_t *cntl)
   {
     CNTL_LOCK(cntl);
 
-    /* set N_protocol before D-channel is updated */
-    cntl->N_protocol = P_DISABLE;
+    if(cntl->attached) {
+       cntl->attached = 0;
 
-    i4b_update_d_channel(cntl);
+        /* set N_protocol before D-channel is updated */
+        cntl->N_protocol = P_DISABLE;
+
+	i4b_update_d_channel(cntl);
+    }
 
     CNTL_UNLOCK(cntl);
   }
@@ -207,17 +225,30 @@ i4b_controller_detach(i4b_controller_t *cntl)
  *	i4b_controller_free
  *---------------------------------------------------------------------------*/
 void
-i4b_controller_free(i4b_controller_t *cntl)
+i4b_controller_free(i4b_controller_t *cntl, u_int8_t sub_controllers)
 {
   if(cntl)
   {
-    CNTL_LOCK(cntl);
+      /* the sub-controllers should be 
+       * all under the same lock!
+       */
+      CNTL_LOCK(cntl);
 
-    i4b_controller_reset(cntl);
+      while(sub_controllers--)
+      {
+	  if(cntl->attached) {
+	      i4b_controller_detach(cntl);
+	  }
 
-    cntl->allocated = 0;
+	  i4b_controller_reset(cntl);
 
-    CNTL_UNLOCK(cntl);
+	  cntl->allocated = 0;
+
+	  if(sub_controllers) {
+	      cntl++;
+	  }
+      }
+      CNTL_UNLOCK(cntl);
   }
   return;
 }
@@ -290,10 +321,3 @@ i4b_l1_bchan_tel_silence(unsigned char *data, register int len)
 
 	return((j < 0) ? 1 : 0);
 }
-
-/* EOF */
-
-#if 0
-L1_ACTIVE / DEACTIVE
-i4b_l4_l12stat(cntl, 1, parm);
-#endif

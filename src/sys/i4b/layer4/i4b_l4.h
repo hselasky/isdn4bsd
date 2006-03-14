@@ -73,6 +73,9 @@ extern void i4b_l4_disconnect_ind(struct call_desc *cd, u_int8_t complement);
 extern void i4b_l4_idle_timeout_ind(struct call_desc *cd);
 extern void i4b_l4_proceeding_ind(struct call_desc *cd, 
 				  u_int8_t sending_complete);
+extern void i4b_l4_retrieve_ind(call_desc_t *cd);
+extern void i4b_l4_hold_ind(call_desc_t *cd);
+
 extern void i4b_l4_negcomplete_ind(struct call_desc *cd);
 
 extern void i4b_l4_accounting(int, int, int, int, int, int, int, int, int);
@@ -123,7 +126,6 @@ extern void capi_ai_info_ind(struct call_desc *cd, u_int8_t complement,
 			     u_int16_t wInfoNumber, void *ptr, u_int16_t len);
 extern void capi_ai_connect_ind(struct call_desc *cd);
 extern void capi_ai_connect_active_ind(struct call_desc *cd);
-extern void capi_ai_disconnect_b3_ind(struct call_desc *cd);
 extern void capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement);
 
 /* other prototypes */

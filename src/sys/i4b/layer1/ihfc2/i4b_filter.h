@@ -154,7 +154,7 @@ get_mbuf_rx FIFO_FILTER_T(sc,f)
 	 * again.
 	 */
 
-	f->mbuf = L5_ALLOC_MBUF(FIFO_TRANSLATOR(sc,f), BCH_MAX_LEN, f->Z_chip);;
+	f->mbuf = L5_ALLOC_MBUF(FIFO_TRANSLATOR(sc,f), BCH_MAX_DATALEN, f->Z_chip);;
 
 	if(f->mbuf) {
 	  /* setup buffer */

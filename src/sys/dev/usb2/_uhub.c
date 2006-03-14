@@ -44,11 +44,7 @@
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/lock.h>
-#include <sys/mutex.h>
 #include <sys/malloc.h>
-#include <sys/bus.h> /* device_xxx() */
-#include <sys/sysctl.h> /* SYSCTL_XXX() */
-#include <sys/module.h>
 
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
@@ -71,7 +67,7 @@ SYSCTL_INT(_hw_usb_uhub, OID_AUTO, debug, CTLFLAG_RW,
 
 struct uhub_softc
 {
-	struct device *		sc_dev;         /* base device */
+	device_t       		sc_dev;         /* base device */
 	struct usbd_device *	sc_hub;         /* USB device */
 	struct usbd_xfer *	sc_xfer[2];	/* interrupt xfer */
 	u_int8_t                sc_running;
@@ -661,9 +657,9 @@ uhub_child_location_string(device_t parent, device_t child,
 		udev = hub->ports[port].device;
 		if(udev)
 		{
-			struct device **subdev = 
+			device_t * subdev = 
 			  &udev->subdevs[0];
-			struct device **subdev_end = 
+			device_t * subdev_end = 
 			  &udev->subdevs_end[0];
 
 			iface_index = 0;
@@ -730,9 +726,9 @@ uhub_child_pnpinfo_string(device_t parent, device_t child,
 		udev = hub->ports[port].device;
 		if(udev)
 		{
-			struct device **subdev = 
+			device_t * subdev = 
 			  &udev->subdevs[0];
-			struct device **subdev_end = 
+			device_t * subdev_end = 
 			  &udev->subdevs_end[0];
 
 			iface_index = 0;

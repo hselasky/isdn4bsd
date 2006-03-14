@@ -792,6 +792,6 @@ clone_cleanup(struct clonedevs **cdp)
 void
 termioschars(struct termios *t)
 {
-    bcopy(t->c_cc, &ttydefchars, sizeof(t->c_cc));
+    bcopy(&ttydefchars, t->c_cc, sizeof(t->c_cc));
     return;
 }

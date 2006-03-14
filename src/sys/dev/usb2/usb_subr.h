@@ -77,7 +77,6 @@ struct usbd_config;
 struct usbd_device;
 struct usbd_interface;
 struct usbd_memory_info;
-struct device;
 struct callout;
 struct module;
 struct bus_dma_tag;
@@ -136,7 +135,7 @@ struct usbd_hub {
 
 struct usbd_bus {
 	/* filled by HC driver */
-	struct device		*bdev; /* base device, host adapter */
+	device_t                bdev; /* base device, host adapter */
 	struct usbd_bus_methods	*methods;
 
 	/* filled by USB driver */
@@ -215,8 +214,8 @@ struct usbd_device {
 	const struct usbd_quirks *quirks;  /* device quirks, always set */
 	struct usbd_hub	*	hub;           /* only if this is a hub */
 
-	struct device *         subdevs[USB_MAX_ENDPOINTS]; /* array of all sub-devices */
-	struct device *         subdevs_end[0];
+	device_t                subdevs[USB_MAX_ENDPOINTS]; /* array of all sub-devices */
+	device_t                subdevs_end[0];
 	struct usbd_interface   ifaces[USB_MAX_ENDPOINTS]; /* array of all interfaces */
 	struct usbd_interface   ifaces_end[0];
 	struct usbd_pipe        pipes[USB_MAX_ENDPOINTS]; /* array of all pipes */
@@ -384,13 +383,13 @@ struct usbd_xfer {
 typedef void (usbd_unsetup_callback_t)(struct usbd_memory_info *info);
 
 struct usbd_memory_info {
-  void *         memory_base;
-  u_int32_t      memory_size;
-  u_int32_t      memory_refcount;
-  void *         priv_sc;
-  struct mtx *   priv_mtx;
-  struct mtx *   usb_mtx;
-  usbd_unsetup_callback_t *priv_func;
+    void *         memory_base;
+    u_int32_t      memory_size;
+    u_int32_t      memory_refcount;
+    void *         priv_sc;
+    struct mtx *   priv_mtx;
+    struct mtx *   usb_mtx;
+    usbd_unsetup_callback_t *priv_func;
 };
 
 struct usbd_callback_info {
@@ -398,53 +397,13 @@ struct usbd_callback_info {
     u_int32_t refcount;
 };
 
-/* locator stuff  */
-
-#if defined(__NetBSD__)
-#include "locators.h"
-#elif defined(__FreeBSD__) || defined(__OpenBSD__)
-/* XXX these values are used to statically bind some elements in the USB tree
- * to specific driver instances. This should be somehow emulated in FreeBSD
- * but can be done later on.
- * The values are copied from the files.usb file in the NetBSD sources.
- */
-#define UHUBCF_PORT_DEFAULT -1
-#define UHUBCF_CONFIGURATION_DEFAULT -1
-#define UHUBCF_INTERFACE_DEFAULT -1
-#define UHUBCF_VENDOR_DEFAULT -1
-#define UHUBCF_PRODUCT_DEFAULT -1
-#define UHUBCF_RELEASE_DEFAULT -1
-#endif
-
-#if defined (__OpenBSD__)
-#define	UHUBCF_PORT		0
-#define	UHUBCF_CONFIGURATION	1
-#define	UHUBCF_INTERFACE	2
-#define	UHUBCF_VENDOR		3
-#define	UHUBCF_PRODUCT		4
-#define	UHUBCF_RELEASE		5
-#endif
-
-#define	uhubcf_port		cf_loc[UHUBCF_PORT]
-#define	uhubcf_configuration	cf_loc[UHUBCF_CONFIGURATION]
-#define	uhubcf_interface	cf_loc[UHUBCF_INTERFACE]
-#define	uhubcf_vendor		cf_loc[UHUBCF_VENDOR]
-#define	uhubcf_product		cf_loc[UHUBCF_PRODUCT]
-#define	uhubcf_release		cf_loc[UHUBCF_RELEASE]
-#define	UHUB_UNK_PORT		UHUBCF_PORT_DEFAULT /* wildcarded 'port' */
-#define	UHUB_UNK_CONFIGURATION	UHUBCF_CONFIGURATION_DEFAULT /* wildcarded 'configuration' */
-#define	UHUB_UNK_INTERFACE	UHUBCF_INTERFACE_DEFAULT /* wildcarded 'interface' */
-#define	UHUB_UNK_VENDOR		UHUBCF_VENDOR_DEFAULT /* wildcarded 'vendor' */
-#define	UHUB_UNK_PRODUCT	UHUBCF_PRODUCT_DEFAULT /* wildcarded 'product' */
-#define	UHUB_UNK_RELEASE	UHUBCF_RELEASE_DEFAULT /* wildcarded 'release' */
-
 /*---------------------------------------------------------------------------*
  * structures used by probe and attach
  *---------------------------------------------------------------------------*/
 struct usb_devno {
-	u_int16_t ud_vendor;
-	u_int16_t ud_product;
-};
+    u_int16_t ud_vendor;
+    u_int16_t ud_product;
+} __packed;
 
 #define usb_lookup(tbl, vendor, product) usb_match_device			\
 	((const struct usb_devno *)(tbl), (sizeof (tbl) / sizeof ((tbl)[0])),	\
@@ -473,30 +432,8 @@ struct usb_attach_arg
 #endif
 };
 
-#if defined(__NetBSD__) || defined(__OpenBSD__)
-/* Match codes. */
-/* First five codes is for a whole device. */
-#define UMATCH_VENDOR_PRODUCT_REV			14
-#define UMATCH_VENDOR_PRODUCT				13
-#define UMATCH_VENDOR_DEVCLASS_DEVPROTO			12
-#define UMATCH_DEVCLASS_DEVSUBCLASS_DEVPROTO		11
-#define UMATCH_DEVCLASS_DEVSUBCLASS			10
-/* Next six codes are for interfaces. */
-#define UMATCH_VENDOR_PRODUCT_REV_CONF_IFACE		 9
-#define UMATCH_VENDOR_PRODUCT_CONF_IFACE		 8
-#define UMATCH_VENDOR_IFACESUBCLASS_IFACEPROTO		 7
-#define UMATCH_VENDOR_IFACESUBCLASS			 6
-#define UMATCH_IFACECLASS_IFACESUBCLASS_IFACEPROTO	 5
-#define UMATCH_IFACECLASS_IFACESUBCLASS			 4
-#define UMATCH_IFACECLASS				 3
-#define UMATCH_IFACECLASS_GENERIC			 2
-/* Generic driver */
-#define UMATCH_GENERIC					 1
-/* No match */
-#define UMATCH_NONE					 0
+/* return values for device_probe() method: */
 
-#elif defined(__FreeBSD__)
-/* FreeBSD needs values less than zero */
 #define UMATCH_VENDOR_PRODUCT_REV			(-10)
 #define UMATCH_VENDOR_PRODUCT				(-20)
 #define UMATCH_VENDOR_DEVCLASS_DEVPROTO			(-30)
@@ -512,7 +449,6 @@ struct usb_attach_arg
 #define UMATCH_IFACECLASS_GENERIC			(-130)
 #define UMATCH_GENERIC					(-140)
 #define UMATCH_NONE					(ENXIO)
-#endif
 
 /*---------------------------------------------------------------------------*
  * prototypes
@@ -565,27 +501,27 @@ usbd_status
 usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index);
 
 usbd_status
-usbd_probe_and_attach(struct device *parent, 
+usbd_probe_and_attach(device_t parent, 
 		      int port, struct usbd_port *up);
 
 usbd_status
-usbd_new_device(struct device *parent, struct usbd_bus *bus, int depth,
+usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 		int speed, int port, struct usbd_port *up);
 
 void
 usbd_free_device(struct usbd_port *up, u_int8_t free_subdev);
 
 void
-usb_detach_wait(struct device *dv);
+usb_detach_wait(device_t dv);
 
 void
-usb_detach_wakeup(struct device *dv);
+usb_detach_wakeup(device_t dv);
 
 struct usbd_interface *
 usbd_get_iface(struct usbd_device *udev, u_int8_t iface_index);
 
 void
-usbd_set_desc(struct device *dev, struct usbd_device *udev);
+usbd_set_desc(device_t dev, struct usbd_device *udev);
 
 /* routines from usb.c */
 
@@ -600,7 +536,7 @@ void
 usbd_add_dev_event(int type, struct usbd_device *udev);
 
 void
-usbd_add_drv_event(int type, struct usbd_device *udev, struct device *dev);
+usbd_add_drv_event(int type, struct usbd_device *udev, device_t dev);
 
 void
 usb_needs_explore(struct usbd_device *udev);
@@ -612,7 +548,6 @@ usb_needs_probe_and_attach(void);
 
 #ifdef __FreeBSD__
 #define device_get_dma_tag(dev) NULL
-#endif
 
 void *
 usb_alloc_mem(struct bus_dma_tag *tag, u_int32_t size, u_int8_t align_power);
@@ -622,6 +557,7 @@ usb_vtophys(void *ptr, u_int32_t size);
 
 void
 usb_free_mem(void *ptr, u_int32_t size);
+#endif
 
 /* routines from usb_transfer.c */
 
@@ -645,7 +581,7 @@ usbd_dump_xfer(struct usbd_xfer *xfer);
 #endif
 
 u_int32_t
-usb_get_devid(struct device *dev);
+usb_get_devid(device_t dev);
 
 struct usbd_pipe *
 usbd_get_pipe(struct usbd_device *udev, u_int8_t iface_index,
@@ -721,10 +657,8 @@ const struct usb_devno *
 usb_match_device(const struct usb_devno *tbl, u_int nentries, u_int size,
 		 u_int16_t vendor, u_int16_t product);
 
-#if defined(__FreeBSD__)
 int
 usbd_driver_load(struct module *mod, int what, void *arg);
-#endif
 
 #ifdef USB_COMPAT_OLD
 usbd_status

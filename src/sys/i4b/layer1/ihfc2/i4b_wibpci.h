@@ -185,7 +185,7 @@ wibpci_chip_reset CHIP_RESET_T(sc,error)
 }
 
 static void
-wibpci_fsm_read FSM_READ_T(sc,ptr)
+wibpci_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	register u_int8_t tmp;
 	WIBPCI_BUS_VAR(sc);
@@ -198,7 +198,7 @@ wibpci_fsm_read FSM_READ_T(sc,ptr)
 }
 
 static void
-wibpci_fsm_write FSM_WRITE_T(sc,ptr)
+wibpci_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	WIBPCI_BUS_VAR(sc);
 
@@ -443,7 +443,7 @@ wibpci_chip_status_check CHIP_STATUS_CHECK_T(sc)
  	  /* ISC - check statemachine change first */
 	  if(sc->sc_config.i_exir & 0x04)
 	  {
-		fsm_update(sc,0);
+	      ihfc_fsm_update(sc,&sc->sc_fifo[0],0);
 	  }
 
 	  /* RME or RPF - D channel receive */

@@ -37,11 +37,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.15 2005/08/21 14:16:20 damien 
 #include <sys/bus.h>
 #include <sys/endian.h>
 
-#include <machine/bus.h>
-#include <machine/resource.h>
-#include <machine/clock.h>
-#include <sys/rman.h>
-
 #include <net/bpf.h>
 #include <net/if.h>
 #include <net/if_arp.h>

@@ -37,8 +37,16 @@
 #include <sys/file.h>
 #include <sys/errno.h>
 
+#if (__NetBSD_Version__ < 300000000)
+#define pci_set_powerstate __pci_set_powerstate
+#define pci_get_powerstate __pci_get_powerstate
+#endif
+
 #include <dev/pci/pcivar.h>
 #include <dev/pci/pcidevs.h>
+
+#undef pci_set_powerstate
+#undef pci_get_powerstate
 
 #include <sys/freebsd_compat.h>
 
@@ -90,13 +98,16 @@ _pci_pci_probe(struct pci_attach_args *arg)
     /* initialize "dev" structure */
 
     dev->dev_id = arg->pa_id;
+    dev->dev_pci_class = arg->pa_class;
     dev->dev_dma_tag = arg->pa_dmat;
     dev->dev_what = DEVICE_IS_PCI;
     dev->dev_parent = &dummy_pci_dev;
-
-    snprintf(&dev->dev_desc[0], sizeof(dev->dev_desc), "unknown");
+    TAILQ_INIT(&dev->dev_children);
 
     device_set_ivars(dev, arg);
+
+    snprintf(&dev->dev_desc[0], 
+	     sizeof(dev->dev_desc), "unknown");
 
     mtx_lock(&Giant);
 

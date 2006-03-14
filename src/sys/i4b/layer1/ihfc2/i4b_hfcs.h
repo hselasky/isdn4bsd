@@ -201,7 +201,7 @@ hfcs_chip_write CHIP_WRITE_T(sc,reg,ptr,len)
 }
 
 static void
-hfcs_fsm_read FSM_READ_T(sc,ptr)
+hfcs_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	HFC1_BUS_VAR(sc);
 
@@ -214,7 +214,7 @@ hfcs_fsm_read FSM_READ_T(sc,ptr)
 }
 
 static void
-hfcs_fsm_write FSM_WRITE_T(sc,ptr)
+hfcs_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	HFC1_BUS_VAR(sc);
 

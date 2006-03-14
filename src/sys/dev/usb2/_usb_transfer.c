@@ -40,9 +40,7 @@
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/lock.h>
-#include <sys/mutex.h>
 #include <sys/malloc.h>
-#include <sys/bus.h> /* device_xxx() */
 
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
@@ -146,7 +144,7 @@ usbd_dump_xfer(struct usbd_xfer *xfer)
 #endif
 
 u_int32_t
-usb_get_devid(struct device *dev)
+usb_get_devid(device_t dev)
 {
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	return ((uaa->vendor << 16) | (uaa->product));
@@ -268,11 +266,12 @@ usbd_transfer_setup(struct usbd_device *udev,
 		    }
 		}
 		if(setup->flags & 
-		   (USBD_DEV_OPEN|
-		    USBD_DEV_RECURSED_1|
-		    USBD_DEV_RECURSED_2|
-		    USBD_DEV_TRANSFERRING|
-		    USBD_BANDWIDTH_RECLAIMED))
+		   (~(USBD_SYNCHRONOUS|
+		      USBD_FORCE_SHORT_XFER|
+		      USBD_SHORT_XFER_OK|
+		      USBD_CUSTOM_CLEARSTALL|
+		      USBD_USE_POLLING|
+		      USBD_SELF_DESTRUCT)))
 		{
 		    error = USBD_BAD_FLAG;
 		    PRINTF(("invalid flag(s) specified: "
@@ -341,7 +340,7 @@ usbd_drop_refcount(struct usbd_memory_info *info)
 
     mtx_lock(info->usb_mtx);
 
-    KASSERT(info->memory_refcount != 0, ("Invalid memory reference count!\n"));
+    __KASSERT(info->memory_refcount != 0, ("Invalid memory reference count!\n"));
 
     free_memory = ((--(info->memory_refcount)) == 0);
 
@@ -1170,12 +1169,12 @@ usb_match_device(const struct usb_devno *tbl, u_int nentries, u_int size,
 		{
 			return (tbl);
 		}
-		*((const u_int8_t **)(&tbl)) += size;
+		tbl = (const struct usb_devno *)
+		  (((const u_int8_t *)tbl) + size);
 	}
 	return (NULL);
 }
 
-#if defined(__FreeBSD__)
 int
 usbd_driver_load(struct module *mod, int what, void *arg)
 {
@@ -1185,7 +1184,6 @@ usbd_driver_load(struct module *mod, int what, void *arg)
 
  	return (0);
 }
-#endif
 
 #ifdef USB_COMPAT_OLD
 
@@ -1425,7 +1423,8 @@ usbd_setup_xfer(struct usbd_xfer *xfer, struct usbd_pipe *pipe,
 	usbd_config[0].bufsize = length;
 
 	if(usbd_transfer_setup(pipe->udev, pipe->iface_index, 
-			       &__xfer[0], &usbd_config[0], (flags & USBD_CUSTOM_CLEARSTALL) ? 1 : 2,
+			       &__xfer[0], &usbd_config[0], 
+			       (flags & USBD_CUSTOM_CLEARSTALL) ? 1 : 2,
 			       priv, NULL, NULL))
 	{
 	    PRINTFN(3,("USBD_NOMEM\n"));

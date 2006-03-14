@@ -292,7 +292,7 @@ hfcspci_chip_write CHIP_WRITE_T(sc,reg,ptr,len)
 }
 
 static void
-hfcspci_fsm_read FSM_READ_T(sc,ptr)
+hfcspci_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	HFCSPCI_BUS_VAR(sc);
 	u_int8_t temp;
@@ -306,7 +306,7 @@ hfcspci_fsm_read FSM_READ_T(sc,ptr)
 }
 
 static void
-hfcspci_fsm_write FSM_WRITE_T(sc,ptr)
+hfcspci_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	HFCSPCI_BUS_VAR(sc);
 
@@ -383,11 +383,7 @@ hfcspci_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 	 *
 	 * F_drvr and Z_drvr counters should not
 	 * change during read and are only read
-	 * once. Z_chip counter is read twice.
-	 *
-	 * The ``*(u_int8_t *)'' cast below, is a
-	 * workaround due to the compiler not
-	 * allowing XOR with pointers.
+	 * once. The Z_chip counter is read twice.
 	 *
 	 * mwba_start[0] is aligned to 0x8000 or
 	 * 32Kbyte in memory.
@@ -397,13 +393,14 @@ hfcspci_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 	 */
 	   
 	/* get F_chip pointer */
-	(f->F_ptr) = (u_int8_t *)(caddr_t)(sc->sc_resources.mwba_start[0]
-					   +f->fm.h.Fbase);
+	(f->F_ptr) = (u_int8_t *)(sc->sc_resources.mwba_start[0]
+				  +f->fm.h.Fbase);
 	/* read F_chip from MWBA */
 	(f->F_chip) = *(__volatile__ u_int8_t  *)(f->F_ptr);
 
 	/* get F_drvr pointer */
-	*(u_int8_t *)(&f->F_ptr) ^= 1 * sizeof(u_int8_t); /* byte granularity */
+	(f->F_ptr) = (u_int8_t *)(sc->sc_resources.mwba_start[0]
+				  +(f->fm.h.Fbase ^ 1));
 
 	/* read F_drvr from MWBA */
 	(f->F_drvr) = *(__volatile__ u_int8_t  *)(f->F_ptr);

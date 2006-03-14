@@ -27,8 +27,6 @@
  *	i4b_wibusb.h - W6694x USB support
  *	---------------------------------
  *
- *      last edit-date: []
- *
  * $FreeBSD: $
  *
  *---------------------------------------------------------------------------*/
@@ -79,8 +77,6 @@
 # define WIBUSB_DEBUG_INTR
 # define WIBUSB_DEBUG_ERR
 # define WIBUSB_DEBUG_STAT
-#else
-# define WIBUSB_DEBUG_ERR
 #endif
 
 /* imports */
@@ -139,8 +135,7 @@ wibusb_callback_chip_read USBD_CALLBACK_T(xfer)
 	IHFC_MSG("ReadReg:0x%02x, Val:0x%02x\n",
 		 buf->data[0], buf->data[1]);
 
-	switch(buf->data[0])
-	{
+	switch(buf->data[0]) {
 	default:
 	  /* unknown */
 	  IHFC_ERR("Unknown reg=0x%02x; data=0x%02x\n",
@@ -284,7 +279,7 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 	  *d1_start, *d1_end, d1_stat = 0,
 	  *b1_start, *b1_end, b1_stat = 0,
 	  *b2_start, *b2_end, b2_stat = 0,
-	  *tmp;
+	  *tmp, status;
 
 	USBD_CHECK_STATUS(xfer);
 
@@ -337,59 +332,65 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 		 * D-channel
 		 */
 
+		status = tmp[0];
+
 		tmp++;
 
 		/* move 8-bytes */
-		((u_int32_t *)d1_end)[0] = ((u_int32_t *)tmp)[0];
-		((u_int32_t *)d1_end)[1] = ((u_int32_t *)tmp)[1];
+		((u_int32_p_t *)(d1_end+0))->data = ((u_int32_p_t *)(tmp+0))->data;
+		((u_int32_p_t *)(d1_end+4))->data = ((u_int32_p_t *)(tmp+4))->data;
 
 #ifdef WIBUSB_DEBUG_STAT
-		printf(" d1:0x%02x ", tmp[-1]);
+		printf(" d1:0x%02x ", status);
 #endif
 		/* update data pointers */
-		d1_stat |= tmp[-1];
-		d1_end  += tmp[-1] & 7;
-		tmp     += tmp[-1] & 7;
+		d1_stat |= status;
+		d1_end  += status & 7;
+		tmp     += status & 7;
 
 		/*
 		 * B1-channel
 		 */
 
+		status = tmp[0];
+
 		tmp++;
 
 		/* move 16-bytes */
-		((u_int32_t *)b1_end)[0] = ((u_int32_t *)tmp)[0];
-		((u_int32_t *)b1_end)[1] = ((u_int32_t *)tmp)[1];
-		((u_int32_t *)b1_end)[2] = ((u_int32_t *)tmp)[2];
-		((u_int32_t *)b1_end)[3] = ((u_int32_t *)tmp)[3];
+		((u_int32_p_t *)(b1_end +0 ))->data = ((u_int32_p_t *)(tmp +0 ))->data;
+		((u_int32_p_t *)(b1_end +4 ))->data = ((u_int32_p_t *)(tmp +4 ))->data;
+		((u_int32_p_t *)(b1_end +8 ))->data = ((u_int32_p_t *)(tmp +8 ))->data;
+		((u_int32_p_t *)(b1_end +12))->data = ((u_int32_p_t *)(tmp +12))->data;
 
 #ifdef WIBUSB_DEBUG_STAT
-		printf(" b1:0x%02x ", tmp[-1]);
+		printf(" b1:0x%02x ", status);
 #endif
 		/* update data pointers */
-		b1_stat |= tmp[-1];
-		b1_end  += tmp[-1] & 15;
-		tmp     += tmp[-1] & 15;
+		b1_stat |= status;
+		b1_end  += status & 15;
+		tmp     += status & 15;
 
 		/*
 		 * B2-channel
 		 */
 
+		status = tmp[0];
+
 		tmp++;
 
 		/* move 16-bytes */
-		((u_int32_t *)b2_end)[0] = ((u_int32_t *)tmp)[0];
-		((u_int32_t *)b2_end)[1] = ((u_int32_t *)tmp)[1];
-		((u_int32_t *)b2_end)[2] = ((u_int32_t *)tmp)[2];
-		((u_int32_t *)b2_end)[3] = ((u_int32_t *)tmp)[3];
+		((u_int32_p_t *)(b2_end +0 ))->data = ((u_int32_p_t *)(tmp +0 ))->data;
+		((u_int32_p_t *)(b2_end +4 ))->data = ((u_int32_p_t *)(tmp +4 ))->data;
+		((u_int32_p_t *)(b2_end +8 ))->data = ((u_int32_p_t *)(tmp +8 ))->data;
+		((u_int32_p_t *)(b2_end +12))->data = ((u_int32_p_t *)(tmp +12))->data;
 
 #ifdef WIBUSB_DEBUG_STAT
-		printf(" b2:0x%02x ", tmp[-1]);
+		printf(" b2:0x%02x ", status);
 #endif
 		/* update data pointers */
-		b2_stat |= tmp[-1];
-		b2_end  += tmp[-1] & 15;
-		tmp     += tmp[-1] & 15;
+		b2_stat |= status;
+		b2_end  += status & 15;
+		tmp     += status & 15;
 #undef break
 #undef goto
 	}
@@ -705,22 +706,22 @@ wibusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 		*(xfer->frlengths + x)     = p_average;
 
 		/* D-channel: copy 4 bytes */
-		*((u_int32_t *)(tmp   +1)) = *((u_int32_t *)(d1_start   ));
+		((u_int32_p_t *)(tmp +1))->data = ((u_int32_p_t *)(d1_start))->data;
 
 		/* B1-channel: copy 9 bytes */
-  		*((u_int32_t *)(tmp   +5)) = *((u_int32_t *)(b1_start   ));
-		*((u_int32_t *)(tmp   +9)) = *((u_int32_t *)(b1_start +4));
-		*((u_int8_t  *)(tmp  +13)) = *((u_int8_t  *)(b1_start +8));
+  		((u_int32_p_t *)(tmp +5))->data = ((u_int32_p_t *)(b1_start   ))->data;
+		((u_int32_p_t *)(tmp +9))->data = ((u_int32_p_t *)(b1_start +4))->data;
+		               *(tmp +13) = *(b1_start +8);
 
 		/* store frame length(s) */
-		*((u_int8_t  *)(tmp     )) = d_average; /* D-length (0x02) */
-		*((u_int8_t  *)(tmp   +4)) = b_average; /* B-length (0x08) */
-		               (tmp     ) += b_average; /* adjust tmp */
+		*(tmp   ) = d_average; /* D-length (0x02) */
+		*(tmp +4) = b_average; /* B-length (0x08) */
+		  tmp    += b_average; /* adjust tmp */
 
 		/* B2-channel: copy 9 bytes */
- 		*((u_int32_t *)(tmp   +5)) = *((u_int32_t *)(b2_start   ));
- 		*((u_int32_t *)(tmp   +9)) = *((u_int32_t *)(b2_start +4));
-		*((u_int8_t  *)(tmp  +13)) = *((u_int8_t  *)(b2_start +8));
+		((u_int32_p_t *)(tmp +5))->data = ((u_int32_p_t *)(b2_start   ))->data;
+ 		((u_int32_p_t *)(tmp +9))->data = ((u_int32_p_t *)(b2_start +4))->data;
+		               *(tmp +13) = *(b2_start +8);
 
 		/* update pointers (byte granularity) */
 		               (d1_start) += d_average;
@@ -766,14 +767,12 @@ wibusb_callback_interrupt USBD_CALLBACK_T(xfer)
 	/* if(stat->w_ista & 0x80)
 	 * check for statemachine change
 	 */
-	if(sc->sc_config.w_cir != stat->w_cir)
-	{
-		/* update w_cir */
-		sc->sc_config.w_cir = stat->w_cir;
 
-		/* update statemachine */
-		fsm_update(sc,0);
-	}
+	/* update w_cir */
+	sc->sc_config.w_cir = stat->w_cir;
+
+	/* update statemachine */
+	ihfc_fsm_update(sc,&sc->sc_fifo[0],0);
 
 	/* clear all status bits */
 	stat->w_ista = 0x00;
@@ -812,7 +811,7 @@ wibusb_chip_reset CHIP_RESET_T(sc,error)
 	/*
 	 * setup some defaults
 	 */
-	sc->sc_config.w_cir = 0x0f; /* deactivated */
+	sc->sc_config.w_cir = 0x00; /* deactivate request */
 
 	sc->sc_config.fifo_level =
 	  (0x80 >> d1t) | /* XFR */
@@ -873,20 +872,25 @@ wibusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	   * are started.
 	   */
 
-	  if(GROUP_ANY(sc) && 
-	     sc->sc_statemachine.state.active)
+	  if(GROUP_ANY(sc))
 	  {
 	    /* start pipes (rx) */
 
 	    usbd_transfer_start(sc->sc_resources.usb_xfer[5]);
 	    usbd_transfer_start(sc->sc_resources.usb_xfer[6]);
 
-	    if(GROUP_TX(sc))
+	    if(GROUP_TX(sc) &&
+	       sc->sc_state[0].state.active)
 	    {
 		/* start pipes (tx) */
 
 		usbd_transfer_start(sc->sc_resources.usb_xfer[3]);
 		usbd_transfer_start(sc->sc_resources.usb_xfer[4]);
+	    }
+	    else
+	    {
+	        usbd_transfer_stop(sc->sc_resources.usb_xfer[3]);
+		usbd_transfer_stop(sc->sc_resources.usb_xfer[4]);
 	    }
 	  }
 	  else
@@ -906,7 +910,7 @@ wibusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 }
 
 static void
-wibusb_fsm_read FSM_READ_T(sc,ptr)
+wibusb_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	/* NOTE: w_cir cannot be read by a
 	 * USB register read,   because it
@@ -929,7 +933,7 @@ wibusb_fsm_read FSM_READ_T(sc,ptr)
  */
 
 static void
-wibusb_fsm_write FSM_WRITE_T(sc,ptr)
+wibusb_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	u_int8_t tmp   = (*ptr) | sc->sc_config.i_cirq;
 		 tmp >>= 2;

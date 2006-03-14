@@ -65,8 +65,8 @@ typedef struct cdevsw cdevsw_t;
 
 #elif (defined(__NetBSD__) || defined(__OpenBSD__))
 
-#include <sys/cdefs.h>
-#include <sys/types.h>
+# include <sys/cdefs.h>
+# include <sys/types.h>
 
 # ifdef _KERNEL
 #  include <machine/bus.h>
@@ -184,6 +184,15 @@ extern int pci_enumerate_bus
 #  include <sys/freebsd_section.h>
 #  include <sys/freebsd_if_var.h>
 #  include <sys/freebsd_sound.h>
+#  ifndef selwakeuppri
+#   define selwakeuppri(sel, pri) selwakeup(sel)
+#  endif
+#  ifndef PROC_LOCK
+#   define PROC_LOCK(x)
+#  endif
+#  ifndef PROC_UNLOCK
+#   define PROC_UNLOCK(x)
+#  endif
 # endif
 
 # include <sys/freebsd_conf.h>

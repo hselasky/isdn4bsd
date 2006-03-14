@@ -40,7 +40,6 @@
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/lock.h>
-#include <sys/mutex.h>
 #include <sys/malloc.h>
 
 #include <dev/usb2/usb_port.h>

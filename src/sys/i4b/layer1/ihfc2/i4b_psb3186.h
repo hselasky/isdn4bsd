@@ -218,7 +218,7 @@ psb3186_chip_status_read CHIP_STATUS_READ_T(sc)
     /* CISQ */
     if(/*tmp & 0x04 assume it is CIR0 */ 1)
     {
-      fsm_update(sc,0);
+      ihfc_fsm_update(sc,&sc->sc_fifo[0],0);
     }
   }
 
@@ -310,7 +310,7 @@ psb3186_chip_status_check CHIP_STATUS_CHECK_T(sc)
 }
 
 static void    
-psb3186_fsm_read FSM_READ_T(sc,ptr)   
+psb3186_fsm_read FSM_READ_T(sc,f,ptr)   
 {
   IPAC_BUS_VAR(sc);
   register u_int8_t tmp;
@@ -324,7 +324,7 @@ psb3186_fsm_read FSM_READ_T(sc,ptr)
 }
 
 static void    
-psb3186_fsm_write FSM_WRITE_T(sc,ptr) 
+psb3186_fsm_write FSM_WRITE_T(sc,f,ptr) 
 {
   IPAC_BUS_VAR(sc);
 

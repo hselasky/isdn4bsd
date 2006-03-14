@@ -474,13 +474,13 @@ avm_pnp_fifo_reset(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 	bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_STAT, 
 			  (HSCX_CMD_XRS|HSCX_CMD_RRS));
 
-	DELAY(50);
+	DELAY(150); /* wait at least 125 us */
 
 	/* second step, select extended transparent mode */
 
 	bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_PROT, HSCX_MODE_TRANS);
 
-	DELAY(50);
+	DELAY(150); /* wait at least 125 us */
 
 	/* update FIFO state */
 

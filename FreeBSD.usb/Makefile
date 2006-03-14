@@ -1,5 +1,5 @@
-VERSION=1_5_4
-DATE=December 2005
+VERSION=1_5_10
+DATE=February 2006
 
 FILTER= grep -v "temp"   |\
 	grep -v "~"      |\
@@ -89,6 +89,7 @@ ${S}/sys/conf/kmod.mk \
 ${S}/sys/dev/sound/usb/uaudio.c \
 ${S}/sys/dev/usb/if_ural.c \
 ${S}/sys/dev/usb/ums.c \
+${S}/sys/dev/usb/udbp.c \
 ${S}/sys/dev/usb/ukbd.c \
 ${S}/sys/dev/usb/umass.c \
 ${S}/sys/dev/usb/umodem.c \

@@ -39,7 +39,7 @@
  *---------------------------------------------------------------------------*/
 #define I4B_VERSION    1                /* version number */
 #define I4B_REL        5                /* release number */
-#define I4B_STEP       9                /* release step   */
+#define I4B_STEP      10                /* release step   */
 
 /*---------------------------------------------------------------------------*
  * date/time format in I4B log messages
@@ -129,9 +129,7 @@ MAKE_ENUM(L1_TYPES,
  *	channel parameters
  *---------------------------------------------------------------------------*/
 #define BCH_MAX_DATALEN	2048	/* max length of a B channel frame */
-#define BCH_MAX_LEN 2048        /* max length of a B channel frame */
-#define MAX_DFRAME_LEN 264	/* max length of a D channel frame */
-#define DCH_MAX_LEN 264		/* max length of a D channel frame */
+#define DCH_MAX_DATALEN  264	/* max length of a D channel frame */
 
 /*---------------------------------------------------------------------------*
  * userland driver types
@@ -457,6 +455,8 @@ enum
   MSG_DRVRREJECT_REQ,
   MSG_INFORMATION_IND,
   MSG_PRE_DISCONNECT_IND,
+  MSG_HOLD_IND,
+  MSG_RETRIEVE_IND,
 };
 
 /*---------------------------------------------------------------------------*
@@ -630,6 +630,22 @@ typedef struct {
 } msg_proceeding_ind_t;
 
 /*---------------------------------------------------------------------------*
+ *	call retrieve indication
+ *		indicates that the remote end has retrieved the call
+ *---------------------------------------------------------------------------*/
+typedef struct {
+	msg_hdr_t	header;		/* common header		   */
+} msg_retrieve_ind_t;
+
+/*---------------------------------------------------------------------------*
+ *	call hold indication
+ *		indicates that the remote end has put the call on hold
+ *---------------------------------------------------------------------------*/
+typedef struct {
+	msg_hdr_t	header;		/* common header		   */
+} msg_hold_ind_t;
+
+/*---------------------------------------------------------------------------*
  *	alert indication
  *		indicates remote user side "rings"
  *---------------------------------------------------------------------------*/
@@ -783,6 +799,9 @@ typedef struct {
 	u_int32_t l1_serial;    /* serial number used */
 	u_int8_t  l1_type;  	/* controller type passive/active */
 	u_char    l1_desc[64];	/* controller description, zero terminated */
+	u_char    l1_state[64]; /* controller state, zero terminated */
+	u_char    l1_active : 1;/* set if layer 1 is active */
+	u_char    l1_unused : 7;
 } msg_ctrl_info_req_t;
 	
 #define	I4B_CTRL_INFO_REQ	_IOWR('4', 5, msg_ctrl_info_req_t)

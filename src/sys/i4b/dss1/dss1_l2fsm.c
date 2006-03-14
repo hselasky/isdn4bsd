@@ -1263,9 +1263,14 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 
 	/* check if response is needed
 	 *
-	 * (I-frame) and (P == 1)
+	 * (I-frame) and ((P == 1) or NT-mode)
+	 *
+	 * NOTE: Some buggy PBXs does not set P = 1
+	 * when sending I-frames, but still expects
+	 * a response.
 	 */
-	if(((~ptr[OFF_CNTL]) & ptr[OFF_RX_NR] & 1) || (resp == CNTL_REJ))
+	if((((~ptr[OFF_CNTL]) & 1) && 
+	    ((ptr[OFF_RX_NR] & 1) || NT_MODE(sc))) || (resp == CNTL_REJ))
 	{
 	  dss1_cntl_tx_frame(sc,pipe,CR_COMMAND,resp);
 	}
