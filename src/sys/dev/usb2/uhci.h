@@ -180,19 +180,7 @@ typedef struct uhci_td {
 	struct uhci_td *next;
 	struct uhci_td *prev;
 
-/*
- * make the TD size a multiple of UHCI_TD_ALIGN so that
- * the TD's in a TD array are aligned to UHCI_TD_ALIGN:
- */
-	u_int8_t fill[(-sizeof(u_int32_t)
-		       -sizeof(u_int32_t)
-		       -sizeof(u_int32_t)
-		       -sizeof(u_int32_t)
-
-		       -sizeof(u_int32_t)
-		       -sizeof(struct uhci_td *)
-		       -sizeof(struct uhci_td *)) & (UHCI_TD_ALIGN-1)];
-} UPACKED uhci_td_t;
+} __attribute__((__aligned__(UHCI_TD_ALIGN))) uhci_td_t;
 
 #define UHCI_TD_ERROR (UHCI_TD_BITSTUFF|UHCI_TD_CRCTO|UHCI_TD_BABBLE|UHCI_TD_DBUFFER|UHCI_TD_STALLED)
 
@@ -227,21 +215,7 @@ typedef struct uhci_qh {
 
 	u_int16_t	intr_pos;
 
-/*
- * make the QH size a multiple of UHCI_QH_ALIGN so that
- * the QH's in a QH array are aligned to UHCI_QH_ALIGN:
- */
-	u_int8_t fill[(-sizeof(u_int32_t)
-		       -sizeof(u_int32_t)
-
-		       -sizeof(u_int32_t)
-
-		       -sizeof(struct uhci_qh *)
-		       -sizeof(struct uhci_qh *)
-
-		       -sizeof(struct uhci_td *)
-		       -sizeof(u_int16_t)) & (UHCI_QH_ALIGN-1)];
-} UPACKED uhci_qh_t;
+} __attribute__((__aligned__(UHCI_QH_ALIGN))) uhci_qh_t;
 
 #define UHCI_VFRAMELIST_COUNT 128 /* maximum number of isochronous TD's */
 #define UHCI_IFRAMELIST_COUNT (2*UHCI_VFRAMELIST_COUNT) /* maximum number of interrupt QH's */
@@ -265,7 +239,8 @@ struct uhci_hw_softc {
 
 	struct uhci_qh last_qh;	/* last QH */
 	struct uhci_td last_td;	/* last TD */
-} UPACKED;
+
+};
 
 typedef struct uhci_softc {
 	struct uhci_hw_softc sc_hw; /* hardware structures first */

@@ -227,10 +227,7 @@ typedef struct ehci_itd {
 	struct ehci_itd *next;
 	struct ehci_itd *prev;
 
-	u_int8_t fill[(-(24*sizeof(u_int32_t))
-		       -(2*sizeof(void *))) & (EHCI_ITD_ALIGN-1)];
-
-} UPACKED ehci_itd_t;
+} __attribute__((__aligned__(EHCI_ITD_ALIGN))) ehci_itd_t;
 
 /* Split Transaction Isochronous Transfer Descriptor
  * this descriptor is used for full speed transfers only
@@ -278,9 +275,7 @@ typedef struct ehci_sitd {
 	struct ehci_sitd *next;
 	struct ehci_sitd *prev;
 
-	u_int8_t fill[(-(10*sizeof(u_int32_t))
-		       -(2*sizeof(void *))) & (EHCI_SITD_ALIGN-1)];
-} UPACKED ehci_sitd_t;
+} __attribute__((__aligned__(EHCI_SITD_ALIGN))) ehci_sitd_t;
 
 /* Queue Element Transfer Descriptor */
 #define EHCI_QTD_NBUFFERS 5
@@ -329,13 +324,7 @@ typedef struct ehci_qtd {
 
 	struct ehci_qtd *next;
 
-	u_int8_t fill[(-(3*sizeof(u_int32_t))
-		       -(EHCI_QTD_NBUFFERS*sizeof(u_int32_t))
-		       -(EHCI_QTD_NBUFFERS*sizeof(u_int32_t))
-		       -sizeof(u_int32_t)
-		       -sizeof(u_int16_t)
-		       -sizeof(void *)) & (EHCI_QTD_ALIGN-1)];
-} UPACKED ehci_qtd_t;
+} __attribute__((__aligned__(EHCI_QTD_ALIGN))) ehci_qtd_t;
 
 /* Queue Head */
 #define EHCI_QH_ALIGN 128 /* bytes */
@@ -383,7 +372,7 @@ typedef struct ehci_qh {
 	  __volatile__ u_int32_t qtd_status;
 	  __volatile__ u_int32_t qtd_buffer[EHCI_QTD_NBUFFERS];
 	  __volatile__ u_int32_t qtd_buffer_hi[EHCI_QTD_NBUFFERS];
-	} UPACKED qh_qtd;
+	} __attribute__((__aligned__(4))) qh_qtd;
 
   /* 
    * extra information needed:
@@ -392,13 +381,7 @@ typedef struct ehci_qh {
 	struct ehci_qh *next;
 	struct ehci_qh *prev;
 
-	u_int8_t fill[(-(4*sizeof(u_int32_t))
-		       -(3*sizeof(u_int32_t))
-		       -(EHCI_QTD_NBUFFERS*sizeof(u_int32_t))
-		       -(EHCI_QTD_NBUFFERS*sizeof(u_int32_t))
-		       -(1*sizeof(u_int32_t))
-		       -(2*sizeof(void *))) & (EHCI_QH_ALIGN-1)];
-} UPACKED ehci_qh_t;
+} __attribute__((__aligned__(EHCI_QH_ALIGN))) ehci_qh_t;
 
 /* Periodic Frame Span Traversal Node */
 #define EHCI_FSTN_ALIGN 32 /* bytes */
@@ -406,8 +389,7 @@ typedef struct {
 	__volatile__ u_int32_t	fstn_link;
 	__volatile__ u_int32_t	fstn_back;
 
-	u_int8_t fill[(-(2*sizeof(u_int32_t))) & (EHCI_FSTN_ALIGN-1)];
-} UPACKED ehci_fstn_t;
+} __attribute__((__aligned__(EHCI_FSTN_ALIGN))) ehci_fstn_t;
 
 struct ehci_hw_softc {
 	u_int32_t		pframes[EHCI_FRAMELIST_COUNT]; /* start TD pointer */
@@ -418,7 +400,7 @@ struct ehci_hw_softc {
 	ehci_qh_t		intr_start[EHCI_VIRTUAL_FRAMELIST_COUNT];
 	ehci_itd_t		isoc_hs_start[EHCI_VIRTUAL_FRAMELIST_COUNT];
 	ehci_sitd_t		isoc_fs_start[EHCI_VIRTUAL_FRAMELIST_COUNT];
-} UPACKED;
+};
 
 typedef struct ehci_softc {
 	struct ehci_hw_softc sc_hw; /* hardware structures first */

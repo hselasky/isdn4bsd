@@ -669,7 +669,7 @@ capi_make_b3_conf(struct capi_message_encoded *msg, u_int16_t wDataHandle,
  *---------------------------------------------------------------------------*/
 static struct mbuf *
 capi_make_conf(struct capi_message_encoded *msg, u_int16_t wCmd, 
-		  u_int16_t wStatus)
+	       u_int16_t wStatus)
 {
 	struct mbuf *m;
 	struct {

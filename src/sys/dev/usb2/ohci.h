@@ -129,15 +129,14 @@
 #define OHCI_PERIODIC(i) ((i)*9/10)
 
 #define OHCI_NO_INTRS 32
+#define OHCI_HCCA_SIZE 256
+#define OHCI_HCCA_ALIGN 256 /* bytes */
 struct ohci_hcca {
 	__volatile__ u_int32_t	hcca_interrupt_table[OHCI_NO_INTRS];
 	__volatile__ u_int32_t	hcca_frame_number;
 	__volatile__ u_int32_t	hcca_done_head;
-	__volatile__ u_int32_t	fill[64-OHCI_NO_INTRS-1-1];
 #define OHCI_DONE_INTRS 1
-} UPACKED;
-#define OHCI_HCCA_SIZE 256
-#define OHCI_HCCA_ALIGN 256 /* bytes */
+} __attribute__((__aligned__(OHCI_HCCA_ALIGN)));
 
 #define OHCI_PAGE_SIZE 0x1000
 #define OHCI_PAGE(x) ((x) &~ 0xfff)
@@ -179,10 +178,7 @@ typedef struct ohci_ed {
 	struct ohci_ed *next;
 	struct ohci_ed *prev;
 
-	u_int8_t fill[(-(4*sizeof(u_int32_t))
-		       -(1*sizeof(u_int32_t))
-		       -(2*sizeof(void *))) & (OHCI_ED_ALIGN-1)];
-} UPACKED ohci_ed_t;
+} __attribute__((__aligned__(OHCI_ED_ALIGN))) ohci_ed_t;
 
 #define OHCI_TD_ALIGN 16 /* bytes */
 
@@ -217,11 +213,7 @@ typedef struct ohci_td {
 
 	u_int16_t		len;
 
-	u_int8_t fill[(-(4*sizeof(u_int32_t))
-		       -(1*sizeof(u_int32_t))
-		       -(1*sizeof(void *))
-		       -(1*sizeof(u_int16_t))) & (OHCI_TD_ALIGN-1)];
-} UPACKED ohci_td_t;
+} __attribute__((__aligned__(OHCI_TD_ALIGN))) ohci_td_t;
 
 
 #define OHCI_ITD_NOFFSET 8
@@ -255,12 +247,7 @@ typedef struct ohci_itd {
 
 	u_int8_t frames;
 
-	u_int8_t fill[(-(4*sizeof(u_int32_t))
-		       -(OHCI_ITD_NOFFSET*sizeof(u_int16_t))
-		       -(1*sizeof(u_int32_t))
-		       -(1*sizeof(void *))
-		       -(1*sizeof(u_int8_t))) & (OHCI_ITD_ALIGN-1)];
-} UPACKED ohci_itd_t;
+} __attribute__((__aligned__(OHCI_ITD_ALIGN))) ohci_itd_t;
 
 #define OHCI_CC_NO_ERROR		0
 #define OHCI_CC_CRC			1
@@ -288,7 +275,7 @@ struct ohci_hw_softc {
 	ohci_ed_t		bulk_start;
 	ohci_ed_t		isoc_start;
 	ohci_ed_t		intr_start[OHCI_NO_EDS];
-} UPACKED;
+};
 
 typedef struct ohci_softc {
 	struct ohci_hw_softc  sc_hw;     /* hardware structures first */
