@@ -90,7 +90,8 @@ get_multi_1(struct buf_range *buf, u_int8_t offset,
 	     */
 	    if (((dst[0] >= 'a') && (dst[0] <= 'z')) ||
 		((dst[0] >= 'A') && (dst[0] <= 'Z')) ||
-		((dst[0] >= '0') && (dst[0] <= '9'))) {
+		((dst[0] >= '0') && (dst[0] <= '9')) ||
+		 (dst[0] == '*') || (dst[0] == '#')) {
 
 		/* allow */
 
