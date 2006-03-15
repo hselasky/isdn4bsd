@@ -1409,7 +1409,7 @@ usb_alloc_mem(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
     return NULL;
 }
 
-u_int32_t
+bus_size_t
 usb_vtophys(void *ptr, u_int32_t size)
 {
     struct usb_dma *arg = (void *)(((u_int8_t *)ptr) + size);

@@ -552,7 +552,7 @@ usb_needs_probe_and_attach(void);
 void *
 usb_alloc_mem(struct bus_dma_tag *tag, u_int32_t size, u_int8_t align_power);
 
-u_int32_t
+bus_size_t
 usb_vtophys(void *ptr, u_int32_t size);
 
 void

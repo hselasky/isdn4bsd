@@ -969,14 +969,14 @@ bus_dmamap_load_callback(void *arg, bus_dma_segment_t *segs, int nseg, int error
 struct usb_dma {
 	struct bus_dma_tag *	tag;
 	struct bus_dmamap *	map;
-	u_int32_t		physaddr;
+	bus_size_t		physaddr;
 } __packed;
 
 void *
 usb_alloc_mem(struct bus_dma_tag *tag, u_int32_t size, u_int8_t align_power)
 {
 	struct bus_dmamap *map;
-	u_int32_t physaddr = 0;
+	bus_size_t physaddr = 0;
 	void *ptr;
 
 	size += sizeof(struct usb_dma);
@@ -1038,17 +1038,17 @@ usb_alloc_mem(struct bus_dma_tag *tag, u_int32_t size, u_int8_t align_power)
 	return ptr;
 }
 
-u_int32_t
+bus_size_t
 usb_vtophys(void *ptr, u_int32_t size)
 {
-	register u_int32_t temp = 
+	bus_size_t temp = 
 	  ((struct usb_dma *)(((u_int8_t *)ptr) + size))->physaddr;
 
 #ifdef USB_DEBUG
 	if(usbdebug > 14)
 	{
-	    printf("%s: %p, physaddr = 0x%08x\n", 
-		   __FUNCTION__, ptr, temp);
+	    printf("%s: %p, 32-bit physaddr = 0x%08x\n", 
+		   __FUNCTION__, ptr, (u_int32_t)(temp));
 	}
 #endif
   	return temp;
@@ -1102,3 +1102,4 @@ DRIVER_MODULE(usb, ehci, usb_driver, usb_devclass, 0, 0);
 
 MODULE_DEPEND(usb, usb, 1, 1, 1);
 MODULE_VERSION(usb, 1);
+
