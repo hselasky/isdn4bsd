@@ -1,5 +1,5 @@
-VERSION=1_5_10
-DATE=February 2006
+VERSION=1_5_10_r2
+DATE=March 2006
 
 FILTER= grep -v "temp"   |\
 	grep -v "~"      |\
