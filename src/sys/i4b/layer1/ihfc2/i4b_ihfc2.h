@@ -111,34 +111,37 @@
 #define __used __attribute__((__used__))
 #endif
 
-#undef memset
-#define memset(ptr,fill,len) memset_1((u_int8_t *)ptr,fill,len)
-
 static __inline void
-memset_1(u_int8_t *ptr, u_int32_t fill, u_int len)
+memset_1(void *dst, u_int32_t fill, u_int32_t len)
 {
-  /* fill &= 0xff; */
+    u_int8_t *ptr = (u_int8_t *)dst;
+    u_int8_t rem;
 
-  while(len--)
-  {
-    *ptr++ = (u_int8_t)fill;
+    fill &= 0xff;
 
-    if(!(len & 3))
+    while(len--)
     {
-      fill |= fill << 8;
-      fill |= fill << 16;
+        *ptr++ = (u_int8_t)fill;
 
-      len /= 4;
+	if(!((ptr - ((u_int8_t *)0)) & 3))
+	{
+	    /* alignment is right */
 
-      while(len--)
-      {
-	*((u_int32_t *)ptr) = fill;
-	ptr += 4;
-      }
-      break;
+	    rem = len & 3;
+	    len /= 4;
+
+	    fill |= fill << 8;
+	    fill |= fill << 16;
+
+	    while(len--)
+	    {
+	        *((u_int32_t *)ptr) = fill;
+		ptr += 4;
+	    }
+	    len = rem;
+	}
     }
-  }
-  return;
+    return;
 }
 
 /*---------------------------------------------------------------------------*

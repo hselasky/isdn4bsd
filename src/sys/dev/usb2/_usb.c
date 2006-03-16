@@ -1047,8 +1047,8 @@ usb_vtophys(void *ptr, u_int32_t size)
 #ifdef USB_DEBUG
 	if(usbdebug > 14)
 	{
-	    printf("%s: %p, 32-bit physaddr = 0x%08x\n", 
-		   __FUNCTION__, ptr, (u_int32_t)(temp));
+	    printf("%s: %p, physaddr = %p\n", 
+		   __FUNCTION__, ptr, ((char *)0) + temp);
 	}
 #endif
   	return temp;

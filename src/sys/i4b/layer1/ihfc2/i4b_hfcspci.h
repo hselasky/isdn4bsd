@@ -175,7 +175,7 @@ hfcspci_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	  u_int16_t fifo_len = (f->fm.h.Zsize);
 
 	  /* fill FIFO with 0xFF bytes */
-	  memset(fifo_ptr, 0xFF, fifo_len);
+	  memset_1(fifo_ptr, 0xFF, fifo_len);
 	}
 	return;
 }

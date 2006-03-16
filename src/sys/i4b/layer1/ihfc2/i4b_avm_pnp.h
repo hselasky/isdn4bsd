@@ -315,8 +315,8 @@ avm_pnp_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 	     * is what these chips send when there is
 	     * no more data
 	     */
-	    memset((f+transmit)->Z_ptr, 0xFF,
-		   (f+transmit)->Z_chip);
+	    memset_1((f+transmit)->Z_ptr, 0xFF,
+		     (f+transmit)->Z_chip);
 
 	    /* update Z_chip */
 	    (f+transmit)->Z_chip = 0;

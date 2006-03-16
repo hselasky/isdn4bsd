@@ -651,17 +651,17 @@ wibusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	 * with the last byte:
 	 */
 
-	memset(sc->sc_fifo[d1t].Z_ptr,
-	       sc->sc_fifo[d1t].last_byte,
-	       sc->sc_fifo[d1t].Z_chip);
+	memset_1(sc->sc_fifo[d1t].Z_ptr,
+		 sc->sc_fifo[d1t].last_byte,
+		 sc->sc_fifo[d1t].Z_chip);
 
-	memset(sc->sc_fifo[b1t].Z_ptr,
-	       sc->sc_fifo[b1t].last_byte,
-	       sc->sc_fifo[b1t].Z_chip);
+	memset_1(sc->sc_fifo[b1t].Z_ptr,
+		 sc->sc_fifo[b1t].last_byte,
+		 sc->sc_fifo[b1t].Z_chip);
 
-	memset(sc->sc_fifo[b2t].Z_ptr,
-	       sc->sc_fifo[b2t].last_byte,
-	       sc->sc_fifo[b2t].Z_chip);
+	memset_1(sc->sc_fifo[b2t].Z_ptr,
+		 sc->sc_fifo[b2t].last_byte,
+		 sc->sc_fifo[b2t].Z_chip);
 	/*
 	 * clear ``Z_chip'', hence the
 	 * FIFO cannot be written out-

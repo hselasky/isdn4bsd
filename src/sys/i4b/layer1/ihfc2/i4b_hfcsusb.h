@@ -736,9 +736,9 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	 * with the last byte:
 	 */
 
-	memset(f->Z_ptr,
-	       f->last_byte,
-	       f->Z_chip);
+	memset_1(f->Z_ptr,
+		 f->last_byte,
+		 f->Z_chip);
 
 	d1_end += f->Z_chip;
 #endif

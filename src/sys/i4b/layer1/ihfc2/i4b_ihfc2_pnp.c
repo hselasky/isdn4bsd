@@ -573,7 +573,7 @@ const   struct resource_tab *ptr;
 			/*
 			 * Default is 0xff
 			 */
-			memset(sc->sc_resources.mwba_start[0],0xff,(1<<14));
+			memset_1(sc->sc_resources.mwba_start[0],0xff,(1<<14));
 		    }
 		}
 	}
