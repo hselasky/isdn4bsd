@@ -145,10 +145,21 @@ mtx_lock(struct mtx *mtx)
 
     if(mtx->owner_td)
     {
-        printf("WARNING: something is sleeping with "
-	       "mutex '%s' locked!\n", mtx->name ? 
-	       mtx->name : "unknown");
-	return;
+        if(curlwp)
+	{
+	    while(mtx->owner_td)
+	    {
+	        mtx->waiting = 1;
+		(void) ltsleep(mtx, 0, "wait lock", 0, NULL);
+	    }
+	}
+	else
+	{
+	    printf("WARNING: something is sleeping with "
+		   "mutex '%s' locked!\n", mtx->name ? 
+		   mtx->name : "unknown");
+	    return;
+	}
     }
 
     simple_lock(&mtx->lock);
