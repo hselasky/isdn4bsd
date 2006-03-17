@@ -29,26 +29,6 @@
 
 #include <sys/freebsd_compat.h>
 
-struct __callout {
-    struct callout c_old;
-    struct mtx *mtx;
-    void *softintr;
-    void (*func)(void *);
-    void *arg;
-    u_int32_t flags;
-};
-
-#define CALLOUT_RETURNUNLOCKED 0x0001
-
-extern void
-__callout_init_mtx(struct __callout *c, struct mtx *mtx, u_int32_t flags);
-
-extern void
-__callout_reset(struct __callout *c, u_int32_t to_ticks, 
-		void (*func)(void *), void *arg);
-extern void
-__callout_stop(struct __callout *c);
-
 static void
 __callout_cb_1(void *arg)
 {
@@ -89,6 +69,13 @@ __callout_init_mtx(struct __callout *c, struct mtx *mtx, u_int32_t flags)
     }
     c->mtx = mtx;
     c->flags = (flags & CALLOUT_RETURNUNLOCKED);
+
+#ifdef __NetBSD__
+    callout_init(&c->c_old);
+#elif defined(__OpenBSD__)
+#else
+#error "Unknown operating system"
+#endif
     return;
 }
 
@@ -106,7 +93,13 @@ __callout_reset(struct __callout *c, u_int32_t to_ticks,
     c->arg = arg;
     c->softintr = softintr_establish(IPL_NET, &__callout_cb_2, c);
 
+#ifdef __NetBSD__
     callout_reset(&c->c_old, to_ticks, &__callout_cb_1, c);
+#elif defined(__OpenBSD__)
+    timeout(&__callout_cb_1, c, to_ticks);
+#else
+#error "Unknown operating system"
+#endif
     return;
 }
 
@@ -115,7 +108,13 @@ __callout_stop(struct __callout *c)
 {
     mtx_assert(c->mtx, MA_OWNED);
 
+#ifdef __NetBSD__
     callout_stop(&c->c_old);
+#elif defined(__OpenBSD__)
+    untimeout(c->func, c->arg);
+#else
+#error "Unknown operating system"
+#endif
 
     if(c->softintr) {
 
@@ -127,4 +126,20 @@ __callout_stop(struct __callout *c)
 	c->softintr = NULL;
     }
     return;
+}
+
+u_int8_t
+__callout_pending(struct __callout *c)
+{
+    u_int8_t retval;
+
+    mtx_assert(c->mtx, MA_OWNED);
+
+#ifdef __NetBSD__
+    retval = callout_pending(&c->c_old) != 0;
+#else
+#error "Unknown operating system"
+#endif
+
+    return retval;
 }

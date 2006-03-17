@@ -395,7 +395,7 @@ fsm_T3_expire(void *arg)
 	ihfc_sc_t *sc;
 	ihfc_fifo_t *f;
 
-	CNTL_LOCK(cntl);
+	CNTL_LOCK_ASSERT(cntl);
 
 	sc = cntl->L1_sc;
 	f = cntl->L1_fifo;
@@ -407,8 +407,6 @@ fsm_T3_expire(void *arg)
 	    /* timeout command (through ihfc_fsm_update) */
 	    ihfc_fsm_update(sc,f,3);
 	}
-
-	CNTL_UNLOCK(cntl);
 
 	return;
 }
@@ -505,7 +503,7 @@ ihfc_fsm_update(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag)
 	     */
 	    if((st->L1_auto_activate_ptr[0]) &&
 	       (!fsm_state.active) &&
-	       (!callout_pending(&st->T3callout)))
+	       (!__callout_pending(&st->T3callout)))
 	    {
 	        flag = 3;
 	    }
@@ -577,10 +575,10 @@ ihfc_fsm_update(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag)
 	        fsm_write(sc,f,0);
 	    }
 
-	    if(!callout_pending(&st->T3callout))
+	    if(!__callout_pending(&st->T3callout))
 	    {
-	        callout_reset(&st->T3callout, IHFC_T3_DELAY, 
-			      &fsm_T3_expire, st->i4b_controller);
+	        __callout_reset(&st->T3callout, IHFC_T3_DELAY, 
+				&fsm_T3_expire, st->i4b_controller);
 	    }
 	}
 
@@ -830,6 +828,8 @@ __ihfc_chip_interrupt(ihfc_sc_t *sc)
 	 * ihfc_fifo_program().
 	 */
 
+	mtx_assert(sc->sc_mtx_p, MA_OWNED);
+
 	/* set ``sc_chip_interrupt_called'' */
 	if(!sc->sc_chip_interrupt_called)
 	{   sc->sc_chip_interrupt_called = 1;
@@ -885,20 +885,20 @@ __ihfc_chip_interrupt(ihfc_sc_t *sc)
 		}
 
 		/* delay 1 millisecond (command delay) */
-		if(!callout_pending(&sc->sc_pollout_timr_wait))
+		if(!__callout_pending(&sc->sc_pollout_timr_wait))
 		{
-		  callout_reset(&sc->sc_pollout_timr_wait,
-				SC_T125_WAIT_DELAY,
-				(void *)(void *)&ihfc_chip_interrupt, sc);
+		    __callout_reset(&sc->sc_pollout_timr_wait,
+				    SC_T125_WAIT_DELAY,
+				    (void *)(void *)&__ihfc_chip_interrupt, sc);
 		}
 	      }
 
 	      /* delay 50 millisecond (data delay) */
-	      if(!callout_pending(&sc->sc_pollout_timr))
+	      if(!__callout_pending(&sc->sc_pollout_timr))
 	      {
-		callout_reset(&sc->sc_pollout_timr,
-			      sc->sc_default.d_interrupt_delay,
-			      (void *)(void *)&ihfc_chip_interrupt, sc);
+		__callout_reset(&sc->sc_pollout_timr,
+				sc->sc_default.d_interrupt_delay,
+				(void *)(void *)&__ihfc_chip_interrupt, sc);
 	      }
 	    }
 

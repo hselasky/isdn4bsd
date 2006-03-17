@@ -76,7 +76,7 @@ struct i4b_accounting {
     u_int           sc_driver_unit;
     u_int           sc_driver_type;
     struct fifo_translator *sc_fifo_translator;
-    struct callout  sc_callout;
+    struct __callout sc_callout;
     u_int           sc_iinb;   /* number of ISDN incoming bytes from HSCX */
     u_int           sc_ioutb;  /* number of ISDN outgoing bytes to HSCX */
     u_int           sc_inb;    /* number of incoming bytes after 
@@ -100,19 +100,19 @@ extern void i4b_accounting_timeout(struct i4b_accounting *sc);
  * Counters are reset by ``i4b_accounting_timeout'' at
  * disconnect
  */
-#define I4B_ACCOUNTING_INIT(sc)				   \
-{							   \
-     callout_init(&(sc)->sc_callout, I4B_DROP_GIANT(1+)0); \
-}							   \
-/**/
-
+#define I4B_ACCOUNTING_INIT(sc) { }
 #define I4B_ACCOUNTING_UPDATE(sc,fifo_translator,driver_type,driver_unit) \
-{									  \
-  (sc)->sc_fifo_translator = fifo_translator;				  \
-  (sc)->sc_driver_type = driver_type;					  \
-  (sc)->sc_driver_unit = driver_unit;					  \
-  i4b_accounting_timeout(sc);						  \
-}									  \
+{									\
+  if(fifo_translator)							\
+  {									\
+      /* connecting */							\
+      __callout_init_mtx(&(sc)->sc_callout, (fifo_translator)->mtx, 0);	\
+  }									\
+  (sc)->sc_fifo_translator = fifo_translator;				\
+  (sc)->sc_driver_type = driver_type;					\
+  (sc)->sc_driver_unit = driver_unit;					\
+  i4b_accounting_timeout(sc);						\
+}									\
 /**/
 #endif
 
@@ -449,8 +449,8 @@ typedef struct call_desc
 	u_int8_t  tone_gen_state; /* current state of tone generator */
 	u_int16_t tone_gen_pos;   /* current sine table position */
 
-	struct	callout	idle_callout;
-	struct	callout	set_state_callout;
+	struct  __callout idle_callout;
+	struct  __callout set_state_callout;
 
 	u_char  idle_state;	/* wait for idle_time begin	*/
 #define IST_NOT_STARTED 0	/* shorthold mode disabled 	*/
@@ -603,8 +603,10 @@ extern struct mtx i4b_global_lock;
 extern u_int32_t i4b_open_refcount;
 
 #define CNTL_FIND(unit) (&i4b_controller[((unsigned)(unit)) % MAX_CONTROLLERS])
-#define CNTL_LOCK(cntl) mtx_lock(&(cntl)->L1_lock)
-#define CNTL_UNLOCK(cntl) mtx_unlock(&(cntl)->L1_lock)
+#define CNTL_LOCK(cntl)        mtx_lock(&(cntl)->L1_lock)
+#define CNTL_LOCK_ASSERT(cntl) mtx_assert(&(cntl)->L1_lock, MA_OWNED)
+#define CNTL_UNLOCK(cntl)      mtx_unlock(&(cntl)->L1_lock)
+#define CNTL_GET_LOCK(cntl)    (&(cntl)->L1_lock)
 
 /*---------------------------------------------------------------------------*
  *	

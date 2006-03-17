@@ -387,9 +387,9 @@ i4b_accounting_timeout(struct i4b_accounting *sc)
 				  sc->sc_inb ? sc->sc_inb : sc->sc_iinb);
 	  }
 
-	  callout_reset(&sc->sc_callout,
-			I4B_ACCOUNTING_INTERVAL*hz,
-			(void *)(void *)i4b_accounting_timeout, sc);
+	  __callout_reset(&sc->sc_callout,
+			  I4B_ACCOUNTING_INTERVAL*hz,
+			  (void *)(void *)i4b_accounting_timeout, sc);
 	},
 	{
 	  /* not connected */
@@ -400,7 +400,7 @@ i4b_accounting_timeout(struct i4b_accounting *sc)
 			    0, 0, 
 			    sc->sc_outb, sc->sc_inb);
 
-	  callout_stop(&sc->sc_callout);
+	  __callout_stop(&sc->sc_callout);
 
 	  sc->sc_iinb = 0;
 	  sc->sc_ioutb = 0;
@@ -1163,7 +1163,7 @@ i4b_idle_check(call_desc_t *cd)
 	  i4b_controller_by_cd(cd);
 	time_t time;
 
-	CNTL_LOCK(cntl);
+	CNTL_LOCK_ASSERT(cntl);
 
 	if((cntl->N_fifo_translator) &&
 	   (cd->cdid != CDID_UNUSED))
@@ -1205,8 +1205,8 @@ i4b_idle_check(call_desc_t *cd)
 			}
 
 			/* start timeout */
-			callout_reset(&cd->idle_callout, time*hz,
-				      (void *)(void *)i4b_idle_check, cd);
+			__callout_reset(&cd->idle_callout, time*hz,
+					(void *)(void *)i4b_idle_check, cd);
 			break;
 		}
 		else
@@ -1233,8 +1233,6 @@ i4b_idle_check(call_desc_t *cd)
 		break;
 	  }
 	}
-
-	CNTL_UNLOCK(cntl);
 	return;
 }
 

@@ -61,20 +61,29 @@
 #   include <sys/sysctl.h> /* SYSCTL_XXX() */
 #   include <sys/fcntl.h>
 #   include <sys/taskqueue.h>
+#   include <sys/callout.h> /* callout_xxx() */
 
 #   ifndef __KASSERT
-typedef struct cdevsw cdevsw_t;
+     typedef struct cdevsw cdevsw_t;
 #    define __lockmgr lockmgr
 #    define __KASSERT KASSERT
 #    define uio_procp uio_td
 #   endif
+#   ifndef __callout_init_mtx
+#    define __callout_init_mtx(c,m,f) callout_init_mtx(&(c)->co,m,f)
+#    define __callout_reset(c,t,f,d) callout_reset(&(c)->co,t,f,d)
+#    define __callout_stop(c) callout_stop(&(c)->co)
+#    define __callout_pending(c) callout_pending(&(c)->co)
+     struct __callout { struct callout co; };
+#   endif
+
 #  else
 #   include <sys/freebsd_compat.h>
 #  endif
 # endif
 
 /*
- * Macro's to cope with the differences between operating systems.
+ * Macros to cope with the differences between operating systems.
  */
 
 #ifdef __NetBSD__
@@ -169,11 +178,6 @@ typedef int usb_malloc_type;
 #define change_sign16_le change_sign16
 
 extern int cold;
-
-struct callout { void *func; void *arg; };
-#define callout_init(ptr,arg) { (ptr)->func = NULL; (ptr)->arg = NULL; }
-#define callout_reset(h, t, f, d) { (h)->func = (f); (h)->arg = (d); timeout((f), (d), (t)); }
-#define callout_stop(h) { if((h)->func) { untimeout((h)->func, (h)->arg); (h)->func = NULL; } }
 
 #elif defined(__FreeBSD__)
 /*
@@ -308,11 +312,11 @@ typedef struct thread *usb_proc_ptr;
 #define USBGETSOFTC(bdev)    device_get_softc(bdev)
 #define	USB_DNAME(dname)     dname
 
-typedef struct callout                usb_callout_t;
-#define usb_callout_init(h)	      callout_init(&(h), 0)
-#define	usb_callout(h, t, f, d)	      callout_reset(&(h), (t), (f), (d))
-#define	usb_uncallout(h, f, d)	      callout_stop(&(h))
-#define usb_uncallout_drain(h, f, d)  callout_drain(&(h))
+typedef struct __callout              usb_callout_t;
+#define usb_callout_init(h)           __callout_init_mtx(&(h), &Giant, 0)
+#define usb_callout(h, t, f, d)       __callout_reset(&(h), (t), (f), (d))
+#define usb_uncallout(h, f, d)        __callout_stop(&(h))
+#define usb_uncallout_drain(h, f, d)  __callout_stop(&(h))
 
 #define USB_DECLARE_DRIVER_INIT(dname, init...)		\
   Static device_probe_t __CONCAT(dname,_match);		\

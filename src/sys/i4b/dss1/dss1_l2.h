@@ -200,16 +200,15 @@ MAKE_ENUM(L2_STATES,
 
 /* ------------------------------------------------------------------------ */
 
-typedef struct DSS1_TCP_pipe
-{
+typedef struct DSS1_TCP_pipe {
   u_int8_t	__pn;	/* pipe number Quick Reference */
 #define PIPE_NO(pipe) ((pipe)->__pn)
 
   u_int32_t	refcount;
   u_int8_t	state;  /* current state */
 
-  struct callout get_mbuf_callout;
-  struct callout set_state_callout;
+  struct __callout get_mbuf_callout;
+  struct __callout set_state_callout;
 
   void		*L5_sc;
 
@@ -261,8 +260,8 @@ typedef struct
 
 	struct_ifqueue; /* queue of outgoing frames */
 
-	struct callout ID_REQUEST_callout;
-	struct callout L1_activity_callout;
+	struct __callout ID_REQUEST_callout;
+	struct __callout L1_activity_callout;
 
 	/* statistics */
 

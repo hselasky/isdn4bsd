@@ -129,11 +129,14 @@ i4b_allocate_cd(struct i4b_controller *cntl)
 				goto error;
 			}
 
-			callout_init(&cd->idle_callout, I4B_DROP_GIANT(1+)0);
-			callout_init(&cd->set_state_callout, I4B_DROP_GIANT(1+)0);
+			__callout_init_mtx(&cd->idle_callout, 
+					   CNTL_GET_LOCK(cntl), 0);
 
-			NDBGL4(L4_MSG, "found free cd - cdid=%d",
-			       cd->cdid);
+			__callout_init_mtx(&cd->set_state_callout, 
+					   CNTL_GET_LOCK(cntl), 0);
+
+			NDBGL4(L4_MSG, "found free cd - "
+			       "cdid=%d", cd->cdid);
 
   			goto done;
 		}
@@ -160,8 +163,8 @@ i4b_free_cd(struct call_desc *cd)
 
 	cd->cdid = CDID_UNUSED;
 
-	callout_stop(&cd->idle_callout);
-	callout_stop(&cd->set_state_callout);
+	__callout_stop(&cd->idle_callout);
+	__callout_stop(&cd->set_state_callout);
 
 	return;
 }

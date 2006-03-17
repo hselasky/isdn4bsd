@@ -96,7 +96,7 @@
 # define usbd_xfer		{ }
 # define device_t		int
 # define resource		{ }
-  struct callout                { };
+  struct __callout              { };
   struct ifqueue		{ };
 # define mtx			{ }
 # define tv			{ }
@@ -2507,7 +2507,7 @@ struct sc_state {
 
   i4b_controller_t *i4b_controller;
 
-  struct callout T3callout;	/* T3 callout */
+  struct __callout T3callout;	/* T3 callout */
   struct fsm_state state;	/* last known state */
 };
 
@@ -2569,8 +2569,8 @@ struct ihfc_sc {
 	u_int8_t		sc_intr_status[(IHFC_CHANNELS+SC_INTR_BITS-1)/SC_INTR_BITS];
 	u_int8_t		sc_intr_status_end[0];
 
-	struct callout		sc_pollout_timr;      /* T50 ms  */
-	struct callout		sc_pollout_timr_wait; /* T125 us */
+	struct __callout	sc_pollout_timr;      /* T50 ms  */
+	struct __callout	sc_pollout_timr_wait; /* T125 us */
 
 	u_int8_t		sc_buffer[1024];
   

@@ -53,7 +53,6 @@
 #include <sys/queue.h> /* LIST_XXX() */
 #include <sys/lock.h>
 #include <sys/malloc.h>
-#include <sys/callout.h> /* callout_xxx() */
 
 #include <machine/bus.h> /* bus_space_xxx() */
 
@@ -1150,7 +1149,7 @@ uhci_timeout(struct usbd_xfer *xfer)
 
 	DPRINTF(("xfer=%p\n", xfer));
 
-	mtx_lock(&sc->sc_bus.mtx);
+	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	/* transfer is transferred */
 	uhci_device_done(xfer, USBD_TIMEOUT);
@@ -1475,7 +1474,7 @@ uhci_device_done(struct usbd_xfer *xfer, usbd_status error)
 	}
 
 	/* stop timeout */
-	callout_stop(&xfer->timeout_handle);
+	__callout_stop(&xfer->timeout_handle);
 
 	/* remove interrupt info */
 	uhci_remove_interrupt_info(xfer);
@@ -1558,8 +1557,8 @@ uhci_device_bulk_start(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)uhci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)uhci_timeout, xfer);
 	}
 	return;
 }
@@ -1637,8 +1636,8 @@ uhci_device_ctrl_start(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)uhci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)uhci_timeout, xfer);
 	}
 	return;
 }
@@ -1737,8 +1736,8 @@ uhci_device_intr_start(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)uhci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)uhci_timeout, xfer);
 	}
 	return;
 }
@@ -1923,8 +1922,8 @@ uhci_device_isoc_enter(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)uhci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)uhci_timeout, xfer);
 	}
 
 	/* enqueue transfer 
@@ -2565,8 +2564,8 @@ uhci_root_intr_start(struct usbd_xfer *xfer)
 	DPRINTFN(3, ("xfer=%p len=%d\n",
 		     xfer, xfer->length));
 
-	callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->interval),
-		      (void *)(void *)uhci_root_intr_check, xfer);
+	__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->interval),
+			(void *)(void *)uhci_root_intr_check, xfer);
 	return;
 }
 
@@ -2583,7 +2582,7 @@ uhci_root_intr_check(struct usbd_xfer *xfer)
 
 	DPRINTFN(20,("\n"));
 
-	mtx_lock(&sc->sc_bus.mtx);
+	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	buf[0] = 0;
 
@@ -2717,7 +2716,8 @@ uhci_xfer_setup(struct usbd_device *udev,
 	  xfer->timeout = setup->timeout;
 	  xfer->callback = setup->callback;
 
-	  callout_init(&xfer->timeout_handle, 1);
+	  __callout_init_mtx(&xfer->timeout_handle, &sc->sc_bus.mtx, 
+			     CALLOUT_RETURNUNLOCKED);
 
 	  xfer->pipe = usbd_get_pipe(udev, iface_index, setup);
 

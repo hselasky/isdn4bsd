@@ -50,7 +50,6 @@
 #include <sys/queue.h> /* LIST_XXX() */
 #include <sys/lock.h>
 #include <sys/malloc.h>
-#include <sys/callout.h> /* callout_xxx() */
 
 #include <machine/bus.h> /* bus_space_xxx() */
 
@@ -322,7 +321,8 @@ ohci_init(ohci_softc_t *sc)
 	/* set up the bus struct */
 	sc->sc_bus.methods = &ohci_bus_methods;
 
-	callout_init(&sc->sc_tmo_rhsc, 1);
+	__callout_init_mtx(&sc->sc_tmo_rhsc,  &sc->sc_bus.mtx, 
+			   CALLOUT_RETURNUNLOCKED);
 
 #ifdef USB_DEBUG
 	if(ohcidebug > 15)
@@ -380,7 +380,7 @@ ohci_detach(struct ohci_softc *sc)
 {
 	mtx_lock(&sc->sc_bus.mtx);
 
-	callout_stop(&sc->sc_tmo_rhsc);
+	__callout_stop(&sc->sc_tmo_rhsc);
 
 	OWRITE4(sc, OHCI_INTERRUPT_DISABLE, OHCI_ALL_INTRS);
 	OWRITE4(sc, OHCI_CONTROL, OHCI_HCFS_RESET);
@@ -838,7 +838,7 @@ ohci_rhsc_enable(ohci_softc_t *sc)
 
 	DPRINTFN(4, ("\n"));
 
-	mtx_lock(&sc->sc_bus.mtx);
+	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	sc->sc_eintrs |= OHCI_RHSC;
 	OWRITE4(sc, OHCI_INTERRUPT_ENABLE, OHCI_RHSC);
@@ -991,8 +991,8 @@ ohci_interrupt(ohci_softc_t *sc)
 		OWRITE4(sc, OHCI_INTERRUPT_DISABLE, OHCI_RHSC);
 
 		/* do not allow RHSC interrupts > 1 per second */
-		callout_reset(&sc->sc_tmo_rhsc, hz,
-			      (void *)(void *)ohci_rhsc_enable, sc);
+		__callout_reset(&sc->sc_tmo_rhsc, hz,
+				(void *)(void *)ohci_rhsc_enable, sc);
 	}
 
 	status &= ~(OHCI_RHSC|OHCI_WDH|OHCI_SO);
@@ -1063,7 +1063,7 @@ ohci_timeout(struct usbd_xfer *xfer)
 
 	DPRINTF(("xfer=%p\n", xfer));
 
-	mtx_lock(&sc->sc_bus.mtx);
+	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	/* transfer is transferred */
 	ohci_device_done(xfer, USBD_TIMEOUT);
@@ -1417,7 +1417,7 @@ ohci_device_done(struct usbd_xfer *xfer, usbd_status error)
 	}
 
 	/* stop timeout */
-	callout_stop(&xfer->timeout_handle);
+	__callout_stop(&xfer->timeout_handle);
 
 	/* remove interrupt info */
 	ohci_remove_interrupt_info(xfer);
@@ -1489,8 +1489,8 @@ ohci_device_bulk_start(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)ohci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ohci_timeout, xfer);
 	}
 	return;
 }
@@ -1549,8 +1549,8 @@ ohci_device_ctrl_start(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)ohci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ohci_timeout, xfer);
 	}
 	return;
 }
@@ -1639,8 +1639,8 @@ ohci_device_intr_start(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)ohci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ohci_timeout, xfer);
 	}
 	return;
 }
@@ -1799,8 +1799,8 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)ohci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ohci_timeout, xfer);
 	}
 
 	/* enqueue transfer 
@@ -2150,6 +2150,7 @@ ohci_root_ctrl_enter(struct usbd_xfer *xfer)
 			/* enable RHSC interrupt if condition is cleared. */
 			if((OREAD4(sc, port) >> 16) == 0)
 			{
+				mtx_lock(&sc->sc_bus.mtx);
 				ohci_rhsc_enable(sc);
 			}
 			break;
@@ -2425,7 +2426,8 @@ ohci_xfer_setup(struct usbd_device *udev,
 	  xfer->timeout = setup->timeout;
 	  xfer->callback = setup->callback;
 
-	  callout_init(&xfer->timeout_handle, 1);
+	  __callout_init_mtx(&xfer->timeout_handle, &sc->sc_bus.mtx, 
+			     CALLOUT_RETURNUNLOCKED);
 
 	  xfer->pipe = usbd_get_pipe(udev, iface_index, setup);
 

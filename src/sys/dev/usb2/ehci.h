@@ -448,7 +448,7 @@ typedef struct ehci_softc {
 	u_int32_t		sc_eintrs;
 	u_int32_t		sc_cmd;	/* shadow of cmd register during suspend */
 
-	struct callout		sc_tmo_pcd;
+	struct __callout	sc_tmo_pcd;
 
 } ehci_softc_t;
 

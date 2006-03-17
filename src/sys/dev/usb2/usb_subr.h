@@ -77,7 +77,7 @@ struct usbd_config;
 struct usbd_device;
 struct usbd_interface;
 struct usbd_memory_info;
-struct callout;
+struct __callout;
 struct module;
 struct bus_dma_tag;
 
@@ -343,7 +343,7 @@ struct usbd_xfer {
 
 	LIST_ENTRY(usbd_xfer)	interrupt_list;
 
-	struct callout		timeout_handle;
+	struct __callout	timeout_handle;
 
 	u_int8_t		address;
 	u_int8_t		endpoint;

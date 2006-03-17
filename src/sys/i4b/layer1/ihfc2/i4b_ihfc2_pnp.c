@@ -756,29 +756,33 @@ ihfc_unsetup(device_t dev, u_int8_t *error, u_int8_t level)
 	u_int8_t n;
 
 	switch(level) {
-	case 3:
+	case 4:
 	  ihfc_unsetup_ldev(sc);
-	case 2:
+	case 3:
 	  ihfc_unsetup_i4b(sc);
-	case 1:
+	case 2:
 	  ihfc_unsetup_softc(sc);
+	case 1:
+	  mtx_lock(sc->sc_mtx_p);
+
+	  /*
+	   * Stop timeouts if running
+	   */
+
+	  __callout_stop(&sc->sc_pollout_timr);
+	  __callout_stop(&sc->sc_pollout_timr_wait);
+
+	  for(n = 0; 
+	      n < sc->sc_default.d_sub_controllers;
+	      n++)
+	  {
+	      struct sc_state *st = &sc->sc_state[n];
+	      __callout_stop(&st->T3callout);
+	  }
+	  mtx_unlock(sc->sc_mtx_p);
 	case 0:
 	  ihfc_unsetup_resource(dev);
-	}
-
-	/*
-	 * Stop timeouts if running
-	 */
-
-	callout_stop(&sc->sc_pollout_timr);
-	callout_stop(&sc->sc_pollout_timr_wait);
-
-	for(n = 0; 
-	    n < sc->sc_default.d_sub_controllers;
-	    n++)
-	{
-	    struct sc_state *st = &sc->sc_state[n];
-	    callout_stop(&st->T3callout);
+	  break;
 	}
 
 	if(IHFC_IS_ERR(error))
@@ -800,6 +804,7 @@ __ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	u_int8_t error[IHFC_MAX_ERR];
 	ihfc_fifo_t *f;
 	u_int32_t n;
+	u_int8_t level = 0;
 
 	error[0] = 0;
 
@@ -874,20 +879,6 @@ __ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	snprintf(&sc->sc_nametmp[0],
 		 sizeof(sc->sc_nametmp),
 		 "%s", device_get_nameunit(dev));
-	/*
-	 * NOTE: if the last argument of callout_init is
-	 * zero, Giant will be applied before timeout.
-	 * Else Giant will be dropped. To make this
-	 * clear the definition of callout_init
-	 * should be
-	 * ``callout_init(struct callout *c, int drop_giant)``
-	 * instead of
-	 * ``callout_init(struct callout *c, int mpsafe)``
-	 * which may imply the oposite.
-	 */
-
-	callout_init(&sc->sc_pollout_timr_wait, I4B_DROP_GIANT(1+)0);
-	callout_init(&sc->sc_pollout_timr, I4B_DROP_GIANT(1+)0);
 
 	if(sc->sc_default.d_sub_controllers == 0)
 	{
@@ -961,7 +952,6 @@ __ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	 * Set default protocol for /dev/ihfcX.XX,
 	 * setup __fn for FIFO_DIR() and FIFO_NO()
 	 * use and setup fifo maps for all fifos.
-	 * Also initialize mtx for all ifqueues.
 	 */
 	FIFO_FOREACH(f,sc)
 	{
@@ -990,6 +980,12 @@ __ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	    goto err;
 	}
 
+	/* initialize callouts after that 
+	 * one has got a mutex:
+	 */
+	__callout_init_mtx(&sc->sc_pollout_timr_wait, sc->sc_mtx_p, 0);
+	__callout_init_mtx(&sc->sc_pollout_timr, sc->sc_mtx_p, 0);
+
 	for(n = 0; 
 	    n < sc->sc_default.d_sub_controllers;
 	    n++)
@@ -1011,10 +1007,12 @@ __ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	     */
 	    st->i4b_controller = cntl;
 
-	    callout_init(&st->T3callout, I4B_DROP_GIANT(1+)0);
+	    __callout_init_mtx(&st->T3callout, sc->sc_mtx_p, 0);
 
 	    ihfc_init_i4b(sc, cntl);
 	}
+
+	level = 1;
 
 	/*
 	 * Setup softc
@@ -1044,7 +1042,7 @@ __ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	return 0; /* success */
 
  err:
-	return ihfc_unsetup(dev,&error[0],0);
+	return ihfc_unsetup(dev,&error[0],level);
 }
 
 /*---------------------------------------------------------------------------*
@@ -1173,17 +1171,17 @@ ihfc_pnp_attach(device_t dev)
 	 */
 	if(ihfc_post_setup(sc, dev, &error[0]))
 	{
-	  return ihfc_unsetup(dev, &error[0], 0);
+	  return ihfc_unsetup(dev, &error[0], 1);
 	}
 
 	if(ihfc_setup_i4b(sc, &error[0]))
 	{
-	  return ihfc_unsetup(dev, &error[0], 2);
+	  return ihfc_unsetup(dev, &error[0], 3);
 	}
 
 	if(ihfc_setup_ldev(sc, &error[0]))
 	{
-	  return ihfc_unsetup(dev, &error[0], 3);
+	  return ihfc_unsetup(dev, &error[0], 4);
 	}
 	return 0;
 }
@@ -1194,5 +1192,5 @@ ihfc_pnp_attach(device_t dev)
 static int
 ihfc_pnp_detach(device_t dev)
 {
-	return ihfc_unsetup(dev,"",3);
+	return ihfc_unsetup(dev, "", 4);
 }

@@ -320,7 +320,7 @@ typedef struct ohci_softc {
 
 	LIST_HEAD(, usbd_xfer) sc_interrupt_list_head;
 
-	struct callout sc_tmo_rhsc;
+	struct __callout sc_tmo_rhsc;
 } ohci_softc_t;
 
 usbd_status

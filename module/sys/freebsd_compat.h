@@ -83,6 +83,7 @@ typedef struct cdevsw cdevsw_t;
 #  include <net/if.h>
 #  include <net/if_spppvar.h>
 #  include <net80211/ieee80211_compat.h>
+#  include <sys/callout.h>
 # else
 #  include <sys/queue.h>
 # endif
@@ -184,6 +185,7 @@ extern int pci_enumerate_bus
 #  include <sys/freebsd_section.h>
 #  include <sys/freebsd_if_var.h>
 #  include <sys/freebsd_sound.h>
+#  include <sys/freebsd_callout.h>
 #  ifndef selwakeuppri
 #   define selwakeuppri(sel, pri) selwakeup(sel)
 #  endif
@@ -236,21 +238,6 @@ suser_cred(struct ucred *cred, int flag)
 
 # ifndef suser
 #  define suser(td) suser((td)->p_ucred, NULL)
-# endif
-
-# ifndef callout_init
-/* neither of the existing callbacks are under Giant,
- * so there is no problem with the "drop_giant" flag:
- * TODO: write wrappers for "callout_xxx()" and extend
- * "struct callout"
- */
-#  define callout_init(ptr, drop_giant)			\
-   if((drop_giant) == 0) {				\
-     printf("%s:%s:%d: WARNING: callout_init: "		\
-	    "callback must lock its own mutex!\n",	\
-	    __FILE__, __FUNCTION__, __LINE__);		\
-   }							\
-   callout_init(ptr)
 # endif
 
 # ifndef time_second

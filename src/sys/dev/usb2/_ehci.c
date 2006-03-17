@@ -59,7 +59,6 @@
 #include <sys/queue.h> /* LIST_XXX() */
 #include <sys/lock.h>
 #include <sys/malloc.h>
-#include <sys/callout.h> /* callout_xxx() */
 
 #include <machine/bus.h> /* bus_space_xxx() */
 
@@ -123,7 +122,8 @@ ehci_init(ehci_softc_t *sc)
 
 	LIST_INIT(&sc->sc_interrupt_list_head);
 
-	callout_init(&sc->sc_tmo_pcd, 1);
+	__callout_init_mtx(&sc->sc_tmo_pcd, &sc->sc_bus.mtx, 
+			   CALLOUT_RETURNUNLOCKED);
 
 #ifdef USB_DEBUG
 	if(ehcidebug > 2)
@@ -360,7 +360,7 @@ ehci_detach(struct ehci_softc *sc)
 {
 	mtx_lock(&sc->sc_bus.mtx);
 
-	callout_stop(&sc->sc_tmo_pcd);
+	__callout_stop(&sc->sc_tmo_pcd);
 
 	EOWRITE4(sc, EHCI_USBINTR, sc->sc_eintrs);
 	EOWRITE4(sc, EHCI_USBCMD, 0);
@@ -1173,7 +1173,7 @@ ehci_pcd_enable(ehci_softc_t *sc)
 	struct usbd_callback_info info[1];
 	struct usbd_xfer *xfer;
 
-	mtx_lock(&sc->sc_bus.mtx);
+	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	sc->sc_eintrs |= EHCI_STS_PCD;
 	EOWRITE4(sc, EHCI_USBINTR, sc->sc_eintrs);
@@ -1301,8 +1301,8 @@ ehci_interrupt(ehci_softc_t *sc)
 		EOWRITE4(sc, EHCI_USBINTR, sc->sc_eintrs);
 
 		/* do not allow RHSC interrupts > 1 per second */
-		callout_reset(&sc->sc_tmo_pcd, hz,
-			      (void *)(void *)ehci_pcd_enable, sc);
+		__callout_reset(&sc->sc_tmo_pcd, hz,
+				(void *)(void *)ehci_pcd_enable, sc);
 	}
 
 	status &= ~(EHCI_STS_INT | EHCI_STS_ERRINT | EHCI_STS_PCD | EHCI_STS_IAA);
@@ -1369,7 +1369,7 @@ ehci_timeout(struct usbd_xfer *xfer)
 
 	DPRINTF(("xfer=%p\n", xfer));
 
-	mtx_lock(&sc->sc_bus.mtx);
+	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	/* transfer is transferred */
 	ehci_device_done(xfer, USBD_TIMEOUT);
@@ -1928,7 +1928,7 @@ ehci_device_done(struct usbd_xfer *xfer, usbd_status error)
 	}
 
 	/* stop timeout */
-	callout_stop(&xfer->timeout_handle);
+	__callout_stop(&xfer->timeout_handle);
 
 	/* remove interrupt info (if any) */
 	ehci_remove_interrupt_info(xfer);
@@ -2032,8 +2032,8 @@ ehci_device_bulk_start(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)ehci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ehci_timeout, xfer);
 	}
 	return;
 }
@@ -2092,8 +2092,8 @@ ehci_device_ctrl_start(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)ehci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ehci_timeout, xfer);
 	}
 	return;
 }
@@ -2182,8 +2182,8 @@ ehci_device_intr_start(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)ehci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ehci_timeout, xfer);
 	}
 	return;
 }
@@ -2402,8 +2402,8 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)ehci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ehci_timeout, xfer);
 	}
 
 	/* enqueue transfer 
@@ -2684,8 +2684,8 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 
 	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
 	{
-		callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-			      (void *)(void *)ehci_timeout, xfer);
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ehci_timeout, xfer);
 	}
 
 	/* enqueue transfer 
@@ -3097,6 +3097,7 @@ ehci_root_ctrl_enter(struct usbd_xfer *xfer)
 			/* Enable RHSC interrupt if condition is cleared. */
 			if((OREAD4(sc, port) >> 16) == 0)
 			{
+				mtx_lock(&sc->sc_bus.mtx);
 				ehci_pcd_enable(sc);
 			}
 			break;
@@ -3421,7 +3422,8 @@ ehci_xfer_setup(struct usbd_device *udev,
 	  xfer->timeout = setup->timeout;
 	  xfer->callback = setup->callback;
 
-	  callout_init(&xfer->timeout_handle, 1);
+	  __callout_init_mtx(&xfer->timeout_handle, &sc->sc_bus.mtx, 
+			     CALLOUT_RETURNUNLOCKED);
 
 	  xfer->pipe = usbd_get_pipe(udev, iface_index, setup);
 

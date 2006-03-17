@@ -55,7 +55,6 @@
 #include <sys/queue.h> /* LIST_XXX() */
 #include <sys/lock.h>
 #include <sys/malloc.h>
-#include <sys/callout.h> /* callout_xxx() */
 
 #include <machine/bus.h> /* bus_space_xxx() */
 
