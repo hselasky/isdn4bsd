@@ -245,7 +245,7 @@ msleep(void *ident, struct mtx *mtx, int priority,
        const char *wmesg, int timeout)
 {
     int error;
-    u_int32_t mtx_recurse;
+    u_int32_t mtx_recurse = 0;
     u_int32_t s;
     u_int8_t held;
 
