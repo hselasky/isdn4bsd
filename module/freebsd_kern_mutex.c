@@ -158,6 +158,7 @@ mtx_lock(struct mtx *mtx)
 	    printf("WARNING: something is sleeping with "
 		   "mutex '%s' locked!\n", mtx->name ? 
 		   mtx->name : "unknown");
+	    splx(s);
 	    return;
 	}
     }
