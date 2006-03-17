@@ -30,26 +30,16 @@
 #include <sys/freebsd_compat.h>
 
 static void
-__callout_cb_1(void *arg)
-{
-    struct __callout *c = (struct __callout *)arg;
-    if(c->softintr) {
-      softintr_schedule(c->softintr);
-    } else {
-      printf("%s:%d: WARNING: no soft interrupt "
-	     "handler!\n", __FILE__, __LINE__);
-    }
-    return;
-}
-
-static void
-__callout_cb_2(void *arg)
+__callout_cb(void *arg)
 {
     struct __callout *c = (struct __callout *)arg;
 
     mtx_lock(c->mtx);
 
-    (c->func)(c->arg);
+    if(c->func)
+    {
+        (c->func)(c->arg);
+    }
 
     if(!(c->flags & CALLOUT_RETURNUNLOCKED))
     {
@@ -85,18 +75,15 @@ __callout_reset(struct __callout *c, u_int32_t to_ticks,
 {
     mtx_assert(c->mtx, MA_OWNED);
 
-    if(c->softintr) {
-        __callout_stop(c);
-    }
+    __callout_stop(c);
 
     c->func = func;
     c->arg = arg;
-    c->softintr = softintr_establish(IPL_NET, &__callout_cb_2, c);
 
 #ifdef __NetBSD__
-    callout_reset(&c->c_old, to_ticks, &__callout_cb_1, c);
+    callout_reset(&c->c_old, to_ticks, &__callout_cb, c);
 #elif defined(__OpenBSD__)
-    timeout(&__callout_cb_1, c, to_ticks);
+    timeout(&__callout_cb, c, to_ticks);
 #else
 #error "Unknown operating system"
 #endif
@@ -111,20 +98,12 @@ __callout_stop(struct __callout *c)
 #ifdef __NetBSD__
     callout_stop(&c->c_old);
 #elif defined(__OpenBSD__)
-    untimeout(c->func, c->arg);
+    untimeout(&__callout_cb, c);
 #else
 #error "Unknown operating system"
 #endif
-
-    if(c->softintr) {
-
-        /* XXX if the callback has already 
-	 * been called back, this can cause
-	 * a deadlock:
-	 */
-        softintr_disestablish(c->softintr);
-	c->softintr = NULL;
-    }
+    c->func = NULL;
+    c->arg = NULL;
     return;
 }
 
@@ -136,7 +115,7 @@ __callout_pending(struct __callout *c)
     mtx_assert(c->mtx, MA_OWNED);
 
 #ifdef __NetBSD__
-    retval = callout_pending(&c->c_old) != 0;
+    retval = (callout_pending(&c->c_old) != 0);
 #else
 #error "Unknown operating system"
 #endif

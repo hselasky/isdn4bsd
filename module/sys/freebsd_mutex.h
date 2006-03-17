@@ -31,9 +31,10 @@ struct mtx {
   struct simplelock lock;
   u_int32_t mtx_recurse;
   u_int32_t s;
-  u_int8_t held : 1;
-  u_int8_t init : 1;
+  u_int8_t init;
+  u_int8_t waiting;
   const char * name;
+  void *owner_td;
 };
 
 #define MTX_DEF         0x00000000      /* DEFAULT (sleep) lock */ 

@@ -35,7 +35,6 @@ struct __callout {
 #error "Unknown operating system"
 #endif
     struct mtx *mtx;
-    void *softintr;
     void (*func)(void *);
     void *arg;
     u_int32_t flags;

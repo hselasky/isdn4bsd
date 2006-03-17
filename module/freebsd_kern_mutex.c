@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2005 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2005-2006 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -68,19 +68,12 @@ atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src)
     return ret;
 }
 
-#if 0
-#define cli() mtx_lock(0)
-#define sti() mtx_unlock(0);
-#endif
-
 static __inline u_int8_t
 mtx_lock_held(struct mtx *mtx)
 {
-#ifdef simple_lock_held
-  return simple_lock_held(&mtx->lock);
-#else
-  return mtx->held;
-#endif
+    u_int8_t result;
+    result = (mtx->owner_td == (void *)curthread);
+    return result;
 }
 
 #ifdef MA_OWNED
@@ -89,8 +82,11 @@ _mtx_assert(struct mtx *mtx, u_int32_t what,
 	    const char *file, u_int32_t line)
 {
     u_int8_t own;
+    u_int32_t s = splhigh();
 
     own = mtx_lock_held(mtx);
+
+    splx(s);
 
     if((what & MA_OWNED) && (own == 0))
     {
@@ -147,10 +143,18 @@ mtx_lock(struct mtx *mtx)
 	return;
     }
 
+    if(mtx->owner_td)
+    {
+        printf("WARNING: something is sleeping with "
+	       "mutex '%s' locked!\n", mtx->name ? 
+	       mtx->name : "unknown");
+	return;
+    }
+
     simple_lock(&mtx->lock);
 
     mtx->s = s;
-    mtx->held = 1;
+    mtx->owner_td = (void *)curthread;
 
     return;
 }
@@ -168,6 +172,12 @@ mtx_trylock(struct mtx *mtx)
 	return 1;
     }
 
+    if(mtx->owner_td)
+    {
+        splx(s);
+	return 0;
+    }
+
     r = simple_lock_try(&mtx->lock);
 
     if(r == 0)
@@ -177,7 +187,7 @@ mtx_trylock(struct mtx *mtx)
     else
     {
         mtx->s = s;
-	mtx->held = 1;
+	mtx->owner_td = (void *)curthread;
     }
     return r;
 }
@@ -185,19 +195,34 @@ mtx_trylock(struct mtx *mtx)
 void
 _mtx_unlock(struct mtx *mtx)
 {
-    u_int32_t s;
+    u_int32_t s = splhigh();
+
+    if(!mtx_lock_held(mtx))
+    {
+        goto done;
+    }
 
     if(mtx->mtx_recurse == 0)    
     {
-      s = mtx->s;
-      mtx->held = 0;
-      simple_unlock(&mtx->lock);
-      splx(s);
+        splx(s);
+
+        s = mtx->s;
+	mtx->owner_td = NULL;
+	mtx->s = 0;
+	simple_unlock(&mtx->lock);
+
+	if(mtx->waiting) {
+	   mtx->waiting = 0;
+	   wakeup(mtx);
+	}
     }
     else
     {
-       mtx->mtx_recurse --;
+        mtx->mtx_recurse --;
     }
+
+ done:
+    splx(s);
     return;
 }
 
@@ -222,34 +247,49 @@ msleep(void *ident, struct mtx *mtx, int priority,
     int error;
     u_int32_t mtx_recurse;
     u_int32_t s;
+    u_int8_t held;
 
     if(mtx == NULL)
     {
         mtx = &Giant;
     }
 
-    mtx_assert(mtx, MA_OWNED);
-  
-    mtx_recurse = mtx->mtx_recurse;
-    mtx->mtx_recurse = 0;
-    mtx->held = 0;
-
-    s = mtx->s;
-
-    /* XXX one never sleeps from an interrupt handler
-     * so it is safe to exit the current interrupt
-     * level before exiting the lock, though actually
-     * one should exit this level after exiting the lock,
-     * but that is not supported by "lt_sleep()"
-     */
+    s = splhigh();
+    held = mtx_lock_held(mtx);
     splx(s);
+
+    if(held)
+    {
+        /* drop the lock */
+        mtx_recurse = mtx->mtx_recurse;
+	s = mtx->s;
+	mtx->mtx_recurse = 0;
+	mtx->owner_td = NULL;
+	mtx->s = 0;
+    }
+    else
+    {
+        printf("WARNING: mutex '%s' was not locked when "
+	       "trying to sleep '%s'!\n", mtx->name ? mtx->name : 
+	       "unknown", wmesg ? wmesg : "unknown");
+    }
 
     error = ltsleep(ident, priority, wmesg, timeout, &mtx->lock);
 
-    /* XXX ltsleep should have done this before entering the lock */
-    mtx->s = splhigh();
-    mtx->mtx_recurse = mtx_recurse;
-    mtx->held = 1;
+    if(held)
+    {
+        /* pickup the lock */
+
+        while(mtx->owner_td)
+	{
+	    mtx->waiting = 1;
+
+	    (void) ltsleep(mtx, 0, "wait lock", 0, &mtx->lock);
+	}
+        mtx->s = s;
+	mtx->mtx_recurse = mtx_recurse;
+	mtx->owner_td = (void *)curthread;
+    }
 
     return error;
 }
