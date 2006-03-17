@@ -3533,6 +3533,9 @@ ehci_xfer_setup(struct usbd_device *udev,
 		size += 8 * EHCI_VIRTUAL_FRAMELIST_COUNT * sizeof(xfer->frlengths[0]);
 	  }
 
+	  /* align data to 8 byte boundary */
+	  size += ((-size) & (USB_HOST_ALIGN-1));
+
 	  if(buf)
 	  {
 		xfer->buffer = ADD_BYTES(buf,size);
