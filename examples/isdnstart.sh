@@ -29,6 +29,11 @@ ln -s /dev/dev/i4bctl /dev/i4bctl
 ln -s /dev/dev/capi20 /dev/capi20
 ln -s /dev/dev/i4btrc0 /dev/i4btrc0
 ln -s /dev/dev/i4btrc1 /dev/i4btrc1
+ln -s /dev/dev/i4btrc2 /dev/i4btrc2
+ln -s /dev/dev/i4btrc3 /dev/i4btrc3
+ln -s /dev/dev/i4btrc4 /dev/i4btrc4
+ln -s /dev/dev/i4btrc5 /dev/i4btrc5
+ln -s /dev/dev/i4btrc6 /dev/i4btrc6
 ln -s /dev/dev/i4btrc7 /dev/i4btrc7
 
 rm -f -r "/dev/dev"
@@ -36,9 +41,12 @@ mkdir "/dev/dev"
 mount_devfs "/dev/dev"
 
 #
-# set NT-mode for controller 1
+# set NT-mode for controller 1 and 2
+#
+# HINT: One can do all the configuration
+#       in one line, like this:
+#
+# isdnconfig -u 1 -p DRVR_DSS1_NT \
+#            -u 2 -p DRVR_DSS1_NT 
 #
 
-#
-# isdnconfig -u 1 -p DRVR_DSS1_NT
-#
