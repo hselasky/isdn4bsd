@@ -913,6 +913,8 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
    * and is not supported, because the software is too slow.
    */
 
+  sc->sc_received_frame = 1;
+
   /* check U-frame length (smallest) */
   if(len < min(3,U_FRAME_LEN)) /* 5 oct minus 2 checksum oct == 3 oct */
   {

@@ -244,11 +244,14 @@ typedef struct
 
 	u_int8_t	sc_teiused[(256+7)/8];
 
-	u_int8_t	sc_tei_last;	/* TEI value assigned to remote Terminal */
+	u_int8_t	sc_tei_last;	/* last TEI value assigned to 
+					 * a remote Terminal 
+					 */
+	u_int8_t	sc_received_frame;
 
+	u_int8_t L1_deactivate_count;
 	L1_activity_t L1_activity;
 	L1_auto_activate_t L1_auto_activate;
-	u_int8_t L1_deactivate_count;
 
 #define NT_MODE(sc) ((sc)->sc_nt_mode)
 #define TE_MODE(sc) (!NT_MODE(sc))

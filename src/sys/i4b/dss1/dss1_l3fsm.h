@@ -39,11 +39,15 @@ dss1_L1_activity_timeout(l2softc_t *sc)
   FIFO_TRANSLATOR_ACCESS(f,sc->sc_fifo_translator,
   {
     /* connected */
-    if(sc->L1_activity && !sc->L1_auto_activate)
+    if(sc->L1_activity && 
+       (!(sc->L1_auto_activate)) && 
+       (!(sc->sc_received_frame)))
     {
       if(sc->L1_deactivate_count)
       {
-	/* no call for last 15*hz - deactivate */
+	/* if there was no call or frame for the last
+	 * 15 seconds, deactivate the ISDN line:
+	 */
 	L1_COMMAND_REQ(sc->sc_cntl,CMR_PH_DEACTIVATE,NULL);
 	sc->L1_deactivate_count = 0;
       }
@@ -55,6 +59,7 @@ dss1_L1_activity_timeout(l2softc_t *sc)
     else
     {
       sc->L1_deactivate_count = 0;
+      sc->sc_received_frame = 0;
     }
 
     /* start timer - should run when not auto-activated */
