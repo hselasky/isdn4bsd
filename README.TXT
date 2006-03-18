@@ -84,7 +84,7 @@ HOW TO INSTALL AS ROOT ON NETBSD
 # install header files
 #
 
-rm -r -i "/usr/include/i4b"
+rm -r "/usr/include/i4b"
 mkdir "/usr/include/i4b"
 cp -r "src/sys/i4b/include" "/usr/include/i4b"
 
