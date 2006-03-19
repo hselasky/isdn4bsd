@@ -193,10 +193,12 @@ dss1_pipe_data_acknowledge(DSS1_TCP_pipe_t *pipe, call_desc_t *cd)
 static void
 dss1_l2_data_req(l2softc_t *sc, struct mbuf *m)
 {
-	if(_IF_QFULL(sc) || !sc->L1_activity)
+	if(_IF_QFULL(sc) || 
+	   (!(sc->L1_activity)) || 
+	   (!(sc->sc_fifo_translator)))
 	{
-	  NDBGL2(L2_PRIM, "unit=%x, queue full or L1 deactivated!!",
-		 sc->sc_unit);
+	  NDBGL2(L2_PRIM, "unit=%x, queue full, L1 deactivated or "
+		 "no FIFO translator!", sc->sc_unit);
 	  m_freem(m);
 	}
 	else
@@ -532,6 +534,8 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 			pipe->tei           = dss1_get_unused_TEI(sc);
 
 			dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
+			dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
+
 			dss1_tei_tx_frame(sc,pipe,MT_ID_ASSIGN);
 
 			sc->sc_teiused[pipe->tei / 8] |= 1 << (pipe->tei % 8);
@@ -606,7 +610,7 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
     return;
   }
 
-  /* update "pipe->state" before calling any functions
+   /* update "pipe->state" before calling any functions
    * that might use "pipe->state"!
    */
   pipe->state = newstate;
@@ -618,7 +622,7 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
   {
 	if((pipe->refcount == 0) && _IF_QEMPTY(pipe))
 	{
-	    if(IS_POINT_TO_POINT(sc))
+	    if(IS_POINT_TO_POINT(sc) || NT_MODE(sc))
 	    {
 	        /* call transmit FIFO, 
 		 * to keep the pipe active 
@@ -715,6 +719,15 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
 
 	/* stop re-transmit timeout */
 	__callout_stop(&pipe->get_mbuf_callout);
+
+	if(NT_MODE(sc) && 
+	   (!(IS_POINT_TO_POINT(sc))) && 
+	   (!(pipe == pipe_adapter)))
+	{
+	    /* remove the TEI value */
+	    dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
+	    dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
+	}
 	goto done;
   }
 
@@ -1816,8 +1829,6 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 
 	  cntl->N_lapdstat = NULL;
 
-	  _IF_DRAIN(sc);
-
 	  /* untimeout */
 	  __callout_stop(&sc->ID_REQUEST_callout);
 	  __callout_stop(&sc->L1_activity_callout);
@@ -1837,6 +1848,8 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 		__callout_stop(&pipe->set_state_callout);
 		__callout_stop(&pipe->get_mbuf_callout);
 	  }
+
+	  _IF_DRAIN(sc);
 
 	  L1_COMMAND_REQ(cntl,CMR_SET_L1_AUTO_ACTIVATE_VARIABLE,NULL);
 	  L1_COMMAND_REQ(cntl,CMR_SET_L1_ACTIVITY_VARIABLE,NULL);
