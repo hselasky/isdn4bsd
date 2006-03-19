@@ -175,8 +175,8 @@ struct drvr_id
 /* disable modules that are not finished,
  * and that are not used by other modules
  */
-#define __I4B_PSB2152_H__
-#define __I4B_PSB3186_H__
+#define _I4B_PSB2152_H_
+#define _I4B_PSB3186_H_
 
 extern struct drvr_id
   ihfc_usb_id_start[0],
@@ -205,9 +205,10 @@ extern struct drvr_id
 #include <i4b/layer1/ihfc2/i4b_hfc4s8s.h>
 #include <i4b/layer1/ihfc2/i4b_hfce1.h>
 
-/* ISAC / HSCX / IPAC */
+/* ISAC / ISAC-SX / HSCX / IPAC */
 #include <i4b/layer1/ihfc2/i4b_avm_a1.h>
 #include <i4b/layer1/ihfc2/i4b_avm_pnp.h>
+#include <i4b/layer1/ihfc2/i4b_avm_pci.h>
 
 #ifndef FREEBSD_NO_ISA
 #include <i4b/layer1/ihfc2/i4b_ctx_s0P.h>

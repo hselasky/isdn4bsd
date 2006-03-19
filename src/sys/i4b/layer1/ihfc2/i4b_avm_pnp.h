@@ -233,8 +233,8 @@ avm_pnp_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 static void
 avm_pnp_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 {
-	bus_space_tag_t    t = sc->sc_resources.io_tag[0];
-	bus_space_handle_t h = sc->sc_resources.io_hdl[0];
+	IPAC_BUS_VAR(sc);
+
 	u_int8_t buffer[0x40 + 0x10]; /* allocate a buffer on the stack */
 	u_int8_t temp;
 
@@ -348,19 +348,12 @@ avm_pnp_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 static void
 avm_pnp_chip_status_read CHIP_STATUS_READ_T(sc)
 {
-	bus_space_tag_t    t = sc->sc_resources.io_tag[0];
-	bus_space_handle_t h = sc->sc_resources.io_hdl[0];
+	IPAC_BUS_VAR(sc);
 
 	u_int8_t status;
 	u_int8_t tmp;
 
 	status = bus_space_read_1(t, h, STAT0_OFFSET);
-#if 0
-	if(version 2)
-	{
-	    status ^= ASL_IRQ_PENDING;
-	}
-#endif
 
 	IHFC_MSG("status=0x%02x\n", status);
 
@@ -462,8 +455,7 @@ avm_pnp_chip_unselect CHIP_UNSELECT_T(sc)
 static void
 avm_pnp_fifo_reset(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 {
-	bus_space_tag_t    t = sc->sc_resources.io_tag[0];
-	bus_space_handle_t h = sc->sc_resources.io_hdl[0];
+	IPAC_BUS_VAR(sc);
 	
 	bus_space_write_1(t, h, REG_INDEX_OFFSET, addr);
 
@@ -493,8 +485,7 @@ avm_pnp_fifo_reset(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 static void
 avm_pnp_chip_reset CHIP_RESET_T(sc,error)
 {
-	bus_space_tag_t    t = sc->sc_resources.io_tag[0];
-	bus_space_handle_t h = sc->sc_resources.io_hdl[0];
+	IPAC_BUS_VAR(sc);
 
 	bus_space_write_1(t, h, STAT0_OFFSET, ASL_RESET_ALL|ASL_TIMERDISABLE);
 	DELAY(4000); /* 4 ms */
@@ -603,7 +594,6 @@ I4B_PCI_DRIVER(.vid = 0x0a001244);
 
 /* cleanup */
 
-/* imports */
 #undef avm_pnp_chip_status_check
 #undef avm_pnp_fsm_table
 #undef avm_pnp_fsm_read
