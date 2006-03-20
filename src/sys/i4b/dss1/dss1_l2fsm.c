@@ -1573,15 +1573,26 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 		     * not there giving random results ...
 		     */
 
-		    m = i4b_getmbuf(len+1, M_NOWAIT);
+		    m = i4b_getmbuf(len+16, M_NOWAIT);
 		    if(m)
 		    {
 		        bcopy(ptr,m->m_data,len);
 
-			/* set some reserved, 
-			 * dummy protocol descriptor
-			 */
-			((u_int8_t *)(m->m_data))[len] = 0xFF; 
+			ptr = ((u_int8_t *)(m->m_data)) + len;
+
+			/* send a dummy RELEASE_COMPLETE */
+
+			*ptr++ = PD_Q931;
+			 ptr   = make_callreference(pipe_adapter, 0x7f, ptr);
+			*ptr++ = RELEASE_COMPLETE;
+			*ptr++ = IEI_CAUSE;
+			*ptr++ = IEI_CAUSE_LEN;
+			*ptr++ = NT_MODE(sc) ? 
+			  CAUSE_STD_LOC_PUBLIC : 
+			  CAUSE_STD_LOC_OUT;
+			*ptr++ = 0x10|EXT_LAST; /* normal call clearing */
+
+			m->m_len = ptr - ((__typeof(ptr))m->m_data);
 		    }
 		}
 		else
