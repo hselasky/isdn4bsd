@@ -119,12 +119,22 @@
 #define  HSCX_CMD_XME		0x01
 #define  HSCX_CMD_RRS		0x20
 
-#define IPAC_BUS_VAR(sc)				\
-  bus_space_tag_t    t = sc->sc_resources.io_tag[0];	\
-  bus_space_handle_t h = sc->sc_resources.io_hdl[0];
+#define IPAC_BUS_VAR(sc)			\
+  bus_space_tag_t t;				\
+  bus_space_handle_t h;				\
+						\
+  if((sc)->sc_cookie == 1)			\
+  {						\
+      t = (sc)->sc_resources.mem_tag[0];	\
+      h = (sc)->sc_resources.mem_hdl[0];	\
+  }						\
+  else						\
+  {						\
+      t = (sc)->sc_resources.io_tag[0];		\
+      h = (sc)->sc_resources.io_hdl[0];		\
+  }
 
 #define IPAC_BUS_SETUP(reg)				\
-  if(1)							\
   {							\
     u_int8_t what;					\
 							\
@@ -326,15 +336,6 @@ avm_pnp_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 
 	    bus_space_write_1(t, h, REG_INDEX_OFFSET, addr);
 
-#if 0
-	    /* the HSCX_LEN register must not be written in
-	     * extended transparent mode !
-	     */
-
-	    /* write remainder of length modulo 32: */
-	    bus_space_write_1(t, h, REG_DATA_OFFSET + HSCX_LEN, temp % 32); 
-#endif
-
 	    if(sc->sc_cookie == 1)
 	      bus_space_write_multi_4(t, h, REG_DATA_OFFSET + HSCX_FIFO, 
 				      (void *)&buffer[0], (temp+3)/4);
@@ -490,12 +491,14 @@ avm_pnp_chip_reset CHIP_RESET_T(sc,error)
 	bus_space_write_1(t, h, STAT0_OFFSET, ASL_RESET_ALL|ASL_TIMERDISABLE);
 	DELAY(4000); /* 4 ms */
 
-#if 0
-	if(not pci version)
-#endif
+	if(sc->sc_cookie == 0)
+	{
+	    /* write interrupt number */
 
-	bus_space_write_1(t, h, STAT1_OFFSET, 
-			  (ASL1_ENABLE_IOM|sc->sc_resources.iirq[0]));
+	    bus_space_write_1(t, h, STAT1_OFFSET, 
+			      (ASL1_ENABLE_IOM|sc->sc_resources.iirq[0]));
+	}
+
 	DELAY(4000); /* 4 ms */
 
 	bus_space_write_1(t, h, STAT0_OFFSET, 
@@ -585,7 +588,9 @@ I4B_DBASE(COUNT())
   I4B_DBASE_IMPORT(avm_pnp_dbase_root);
 
   I4B_DBASE_ADD(desc               , "AVM Fritz!Card PCI");
+  I4B_DBASE_ADD(mem_rid[0]         , PCIR_BAR(0));
   I4B_DBASE_ADD(io_rid[0]          , PCIR_BAR(1));
+  I4B_DBASE_ADD(o_RES_MEMORY_0     , 1); /* enable */
   I4B_DBASE_ADD(cookie             , 1); /* 32-bit FIFO read/write only */
 }
 

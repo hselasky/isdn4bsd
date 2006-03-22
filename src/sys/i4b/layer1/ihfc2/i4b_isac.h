@@ -295,6 +295,7 @@ enum
   REG_isacsx_stard      = (0x21 | 0x80),
   REG_isacsx_sti        = (0x58 | 0x80),
   REG_isacsx_tr_cr      = (0x50 | 0x80),
+  REG_isacsx_tr_mode    = (0x3a | 0x80),
   REG_isacsx_tr_tsdp_bc1= (0x4c | 0x80),
   REG_isacsx_tr_tsdp_bc2= (0x4d | 0x80),
   REG_isacsx_wacgf2     = (0x3c | 0x80),

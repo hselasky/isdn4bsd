@@ -103,8 +103,8 @@
 #define  HSCX_CMD_RRS		0x20
 
 #define IPAC_BUS_VAR(sc)				\
-  bus_space_tag_t    t = sc->sc_resources.io_tag[0];	\
-  bus_space_handle_t h = sc->sc_resources.io_hdl[0];
+  bus_space_tag_t    t = sc->sc_resources.mem_tag[0];	\
+  bus_space_handle_t h = sc->sc_resources.mem_hdl[0];
 
 static void
 avm_pci_chip_read CHIP_READ_T(sc,reg,ptr,len)
@@ -233,7 +233,7 @@ avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
 	u_int8_t buffer[0x40 + 0x10]; /* allocate a buffer on the stack */
 	u_int8_t temp;
 
-	/* select chip and read status */
+	/* read status */
 	temp = bus_space_read_1(t, h, offset + HSCX_STAT);
 
 	IHFC_MSG("b_status=0x%02x\n", temp);
@@ -344,10 +344,14 @@ avm_pci_chip_status_read CHIP_STATUS_READ_T(sc)
 	    /* read ISTA (ISAC) */
 	    avm_pci_chip_read(sc, REG_isacsx_ista, &ista, 1);
 
+	    IHFC_MSG("ista=0x%02x\n", ista);
+
 	    if(ista & 0x01 /* ICD */)
 	    {
 	        /* read ISTAD (ISAC) */
 	        avm_pci_chip_read(sc, REG_isacsx_istad, &ista_d, 1);
+
+		IHFC_MSG("ista_d=0x%02x\n", ista_d);
 
 		if(ista_d & 0x80 /* RME */)
 		{
@@ -440,12 +444,14 @@ avm_pci_chip_unselect CHIP_UNSELECT_T(sc)
 		DELAY(12);
 	}
 
-	temp = 0x01 /* ICD */ | 0x10 /* CIC */;
+	/* NOTE: the interrupt write MASK is inverted */
+
+	temp = 0xFF ^ (0x01 /* ICD */ | 0x10 /* CIC */);
 
 	/* write MASK (ISAC-SX) */
 	avm_pci_chip_write(sc, REG_isacsx_mask, &temp, 1);
 
-	temp = 0xFC; /* enable all interrupts */
+	temp = 0xFF ^ (0xFC); /* enable all interrupts */
 
 	/* write MASKD (ISAC-SX) */
 	avm_pci_chip_write(sc, REG_isacsx_maskd, &temp, 1);
@@ -540,6 +546,12 @@ avm_pci_chip_reset CHIP_RESET_T(sc,error)
 	  0x01 /* DIM0 */;
 	avm_pci_chip_write(sc, REG_isacsx_wmoded, &temp, 1);
 
+	/* TR_MODE:
+	 *     Select TE-mode
+	 */
+	temp = 0;
+	avm_pci_chip_write(sc, REG_isacsx_tr_mode, &temp, 1);
+
 	return;
 }
 
@@ -606,8 +618,9 @@ I4B_DBASE(avm_pci_dbase_root)
   I4B_DBASE_ADD(d_fifo_map[d1r]    , FM2OFF (isac_fifo_map[0]));
 
   I4B_DBASE_ADD(o_RES_IRQ_0        , 1); /* enable */
-  I4B_DBASE_ADD(o_RES_IOPORT_0     , 1); /* enable */
+  I4B_DBASE_ADD(o_RES_MEMORY_0     , 1); /* enable */
 
+  I4B_DBASE_ADD(mem_rid[0]         , PCIR_BAR(0));
   I4B_DBASE_ADD(io_rid[0]          , PCIR_BAR(1));
 }
 
