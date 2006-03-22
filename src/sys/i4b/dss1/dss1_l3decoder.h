@@ -826,25 +826,31 @@ dss1_pipe_resend_ind(DSS1_TCP_pipe_t *pipe)
 	       (cd->pipe == pipe) &&
 	       (cd->need_release))
 	    {
-	        if(cd->peer_responded == 0)
+	        if((cd->peer_responded == 0) &&
+		   ((cd->setup_interleave == 0) ||
+		    (cd->setup_interleave == 4) ||
+		    (cd->setup_interleave >= 6)))
 		{
 		    /* need to repeat setup in case of frame loss 
 		     *
-		     * NOTE: some equipment does not like when the
+		     * NOTE: some ISDN PBXs do not like when the
 		     * SETUP message is repeated, so just repeat
 		     * until one gets a response
 		     */
 		    dss1_l3_tx_setup(cd);
 		}
-#if 0
-		/* need to check status regularly
-		 *
+
+		if(sc->L1_activity || 
+		   cd->setup_interleave)
+		{
+		   cd->setup_interleave++;
+		}
+
+		/*
 		 * NOTE: some ISDN PBXs will crash
-		 * if one asks for STATUS before 
+		 * if one sends STATUS_ENQUIRY before 
 		 * CONNECT ...
 		 */
-		dss1_l3_tx_status_enquiry(cd);
-#endif
 	    }
 	}
 

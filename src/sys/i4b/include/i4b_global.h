@@ -382,8 +382,7 @@ f##unlock:					\
 /*---------------------------------------------------------------------------*
  *	definition of a call and all its parameters
  *---------------------------------------------------------------------------*/
-typedef struct call_desc
-{
+typedef struct call_desc {
 	cdid_t	cdid;			/* call descriptor id		*/
 
 	void	*pipe;			/* isdn controller pipe		*/
@@ -447,6 +446,7 @@ typedef struct call_desc
 
 	u_int8_t *tone_gen_ptr;
 	u_int8_t  tone_gen_state; /* current state of tone generator */
+	u_int8_t  setup_interleave;
 	u_int16_t tone_gen_pos;   /* current sine table position */
 
 	struct  __callout idle_callout;
