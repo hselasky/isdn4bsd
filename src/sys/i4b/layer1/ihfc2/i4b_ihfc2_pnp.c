@@ -150,6 +150,10 @@ struct drvr_id
                          * variable is used as
                          * card number.
                          */
+  u_int32_t       sub;  /* for PCI cards, 
+			 * subdevice ID. Zero
+			 * means any.
+			 */
 
   void (*dbase)(struct sc_default *);
 };
@@ -1059,7 +1063,7 @@ ihfc_pnp_probe(device_t dev)
         const struct drvr_id * id       = NULL;
 	const struct drvr_id * id_end   = NULL;
 
-        u_int32_t vid = 0, lid = 0, cid = 0;
+        u_int32_t vid = 0, lid = 0, cid = 0, sub = 0;
 
 	if(!sc)
 	{
@@ -1104,12 +1108,13 @@ ihfc_pnp_probe(device_t dev)
 		id_end   = &ihfc_pci_id_end[0];
 
 		vid = pci_get_devid(dev);
+		sub = pci_read_config(dev, 0x2c, 4);
 
 		/* XXX Tiger Jet is reusing 
 		 * chip ID's
 		 */
 		if((vid == 0x0001e159) &&
-		   (pci_read_config(dev, 0x2c, 4) == 0x0001b119))
+		   (sub == 0x0001b119))
 		{
 		    /* this is a Firewire Device */
 		    return ENXIO;
@@ -1141,9 +1146,12 @@ ihfc_pnp_probe(device_t dev)
 
 	for( ; id < id_end; id++)
 	{
-	  if((id->vid == vid) ||
-	     (id->vid == lid) ||
-	     (id->vid == cid))
+	  if(((id->vid == vid) ||
+	      (id->vid == lid) ||
+	      (id->vid == cid)) &&
+	     ((id->sub == 0) ||
+	      (id->sub == 0xFFFFFFFF) ||
+	      (id->sub == sub)))
 	  {
 	      if(id->dbase)
 	      {

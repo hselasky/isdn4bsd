@@ -646,7 +646,8 @@ I4B_PCI_DRIVER(/* CCD HFC PCI A - generic
 	       .vid = 0x2bd01397);
 
 I4B_PCI_DRIVER(/* ASUSCOM HFC-S PCI A */
-	       .vid = 0x06751043);
+	       .vid = 0x06751043,
+	       .sub = 0x17040675);
 
 I4B_PCI_DRIVER(/* ASUSCOM HFC-S PCI A */
 	       .vid = 0x06751704);

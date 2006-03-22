@@ -700,14 +700,29 @@ I4B_PCI_DRIVER(/* ASUSCOM P-IN100-ST-D (Winbond W6692, 0x105e10cf)
 	       .vid= 0x105e10cf,
 	 );
 
-I4B_PCI_DRIVER(/* ASUSCOM P-IN100-ST-D (Winbond W6692, 0x06751043)
-		* Subvendor: 0x144F, Subdevice: 0x1707
-		* Subvendor: 0x1443, Subdevice: 0x1702
-		* Subvendor: 0x1443, Subdevice: 0x1707
-		* Subvendor: 0x144F, Subdevice: 0x2000
-		* Subvendor: 0x144F, Subdevice: 0x2000
-		*/
+I4B_PCI_DRIVER(/* ASUSCOM P-IN100-ST-D (Winbond W6692, 0x06751043) */
 	       .vid= 0x06751043,
+	       .sub= 0x1707144F,
+	 );
+
+I4B_PCI_DRIVER(/* ASUSCOM P-IN100-ST-D (Winbond W6692, 0x06751043) */
+	       .vid= 0x06751043,
+	       .sub= 0x2000144F,
+	 );
+
+I4B_PCI_DRIVER(/* ASUSCOM P-IN100-ST-D (Winbond W6692, 0x06751043) */
+	       .vid= 0x06751043,
+	       .sub= 0x17021443,
+	 );
+
+I4B_PCI_DRIVER(/* ASUSCOM P-IN100-ST-D (Winbond W6692, 0x06751043) */
+	       .vid= 0x06751043,
+	       .sub= 0x17071443,
+	 );
+
+I4B_PCI_DRIVER(/* ASUSCOM P-IN100-ST-D (Winbond W6692, 0x06751043) */
+	       .vid= 0x06751043,
+	       .sub= 0x2000144F,
 	 );
 
 #undef wibpci_fsm_table
