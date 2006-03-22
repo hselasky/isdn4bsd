@@ -811,9 +811,7 @@ static void
 dss1_pipe_resend_ind(DSS1_TCP_pipe_t *pipe)
 {
 	l2softc_t *sc = pipe->L5_sc;
-	DSS1_TCP_pipe_t *pipe_curr;
 	struct call_desc *cd;
-	struct mbuf *m;
 
 	NDBGL3(L3_MSG, "unit=%x, pipe=%x",
 	       sc->sc_unit, PIPE_NO(pipe));
@@ -851,35 +849,6 @@ dss1_pipe_resend_ind(DSS1_TCP_pipe_t *pipe)
 		 * if one sends STATUS_ENQUIRY before 
 		 * CONNECT ...
 		 */
-	    }
-	}
-
-	/*
-	 * keep pipes alive by
-	 * sending a zero length
-	 * I-frame instead of 
-	 * STATUS ENQUIRY
-	 */
-	PIPE_FOREACH(pipe_curr,&sc->sc_pipe[0])
-	{
-	    /* skip "pipe == pipe_adapter" and
-	     * connected pipe
-	     */
-	    if((pipe_curr != pipe) &&
-	       (pipe_curr->state != ST_L2_PAUSE) &&
-	       _IF_QEMPTY(pipe_curr))
-	    {
-	        m = i4b_getmbuf(I_HEADER_LEN, M_NOWAIT);
-
-		if(m)
-		{
-		    m->m_len = I_HEADER_LEN;
-		    dss1_pipe_data_req(pipe_curr,m);
-		}
-		else
-		{
-		    NDBGL3(L3_ERR, "out of mbufs!");
-		}
 	    }
 	}
 	return;
