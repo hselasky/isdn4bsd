@@ -444,9 +444,8 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 
 	NDBGL2(L2_TEI_MSG, "type=0x%02x", ptr[OFF_MT]);
 
- 	switch(ptr[OFF_MT])
-	{
-		case MT_ID_ASSIGN:
+ 	switch(ptr[OFF_MT]) {
+	case MT_ID_ASSIGN:
 		  if(TE_MODE(sc))
 		  {
 		    if(pipe->tei == ptr[OFF_AI])
@@ -476,11 +475,11 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 		  }
 		  break;
 
-		case MT_ID_DENY: /* TE-mode */
+	case MT_ID_DENY: /* TE-mode */
 		  /* nothing to do */
 		  break;
 
-		case MT_ID_CHECK_REQUEST:
+	case MT_ID_CHECK_REQUEST:
 		  /* NOTE: there is no ID_CHECK_REQUEST_ACK */
 		  if(L2_STATE_IS_TEI_ASSIGNED(pipe->state)) /* both modes */
 		  {
@@ -492,7 +491,7 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 		  }
 		  break;
 
-		case MT_ID_REMOVE:
+	case MT_ID_REMOVE:
 		  if(L2_STATE_IS_TEI_ASSIGNED(pipe->state)) /* both modes */
 		  {
 		    if((ptr[OFF_AI] == pipe->tei) ||
@@ -504,7 +503,7 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 		  }
 		  break;
 
-		case MT_ID_REQUEST:
+	case MT_ID_REQUEST:
 		  if(NT_MODE(sc))
 		  {
 		      if(dss1_count_unused_pipes(sc) <= (PIPE_MAX/2))
@@ -546,7 +545,7 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 		  }
 		  break;
 
-		case MT_ID_CHECK_RESPONSE: /* both modes */
+	case MT_ID_CHECK_RESPONSE: /* both modes */
 		  /* this frame may contain
 		   * more than one TEI value
 		   *
@@ -554,10 +553,10 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 		   */
 		  break;
 
-		case MT_ID_VERIFY: /**/
+	case MT_ID_VERIFY: /**/
 		  break;
 
-		default:
+	default:
 		  NDBGL2(L2_TEI_ERR, "unknown Message Type: 0x%02x",
 			 ptr[OFF_MT]);
 		  break;
@@ -690,11 +689,14 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
 
   if(pipe->state == ST_L2_SEND_SABME)
   {
-	/* Set Asynchronous Balanced Mode Extended 
-	 *
-	 * NOTE: "pipe->tx_nr" should not be reset here 
-	 */
-	dss1_cntl_tx_frame(sc,pipe,CR_COMMAND,(CNTL_SABME|CNTL_PF_BIT));
+	if(TE_MODE(sc) || IS_POINT_TO_POINT(sc))
+	{
+	    /* Set Asynchronous Balanced Mode Extended 
+	     *
+	     * NOTE: "pipe->tx_nr" should not be reset here 
+	     */
+	    dss1_cntl_tx_frame(sc,pipe,CR_COMMAND,(CNTL_SABME|CNTL_PF_BIT));
+	}
 	goto done;
   }
 
