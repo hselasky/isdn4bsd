@@ -732,17 +732,6 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
 	/* stop re-transmit timeout */
 	__callout_stop(&pipe->get_mbuf_callout);
 
-	if(NT_MODE(sc) && 
-	   (!(IS_POINT_TO_POINT(sc))) && 
-	   (!(pipe == pipe_adapter)))
-	{
-	    if(pipe->tei >= 0x80)
-	    {
-	        /* remove the TEI value */
-	        dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
-		dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
-	    }
-	}
 	goto done;
   }
 
