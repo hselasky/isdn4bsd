@@ -494,12 +494,12 @@ typedef struct call_desc {
  *	i4b-controller definition
  *---------------------------------------------------------------------------*/
 struct lapdstat;
-typedef struct i4b_controller
-{
+typedef struct i4b_controller {
 	u_int8_t unit;			/* controller unit number    */
 	u_int8_t allocated : 1;
 	u_int8_t no_layer1_dialtone : 1;
 	u_int8_t attached : 1;
+	u_int8_t no_power_save : 1; /* set to disable power saving */
 
 	/*  --> Layer 2 */
 	/* ============ */

@@ -41,7 +41,8 @@ dss1_L1_activity_timeout(l2softc_t *sc)
     /* connected */
     if(sc->L1_activity && 
        (!(sc->L1_auto_activate)) && 
-       (!(sc->sc_received_frame)))
+       (!(sc->sc_received_frame)) &&
+       (!(sc->sc_cntl->no_power_save)))
     {
       if(sc->L1_deactivate_count)
       {
