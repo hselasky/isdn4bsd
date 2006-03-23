@@ -118,7 +118,7 @@ MAKE_ENUM(L1_TYPES,
 #define DISPLAY_MAX	91  /* max length of display information  */
 #define DATETIME_MAX	21  /* max length of datetime information */
 #define KEYPAD_MAX	35  /* max length of a keypad string      */
-#define SMS_MAX        129  /* max length of a SMS                */
+#define USER_USER_MAX  129  /* max length of a user-user string   */
 
 /*---------------------------------------------------------------------------*
  *	in case the source or destination telephone number is empty
@@ -494,7 +494,7 @@ typedef struct {
 #define  PRS_NNINTERW 3		/* number not available due to interworking */
 #define  PRS_RESERVED 4		/* reserved				*/
 	u_char		display[DISPLAY_MAX];	/* content of display IE*/
-	u_char		sms[SMS_MAX];	       /* content of useruser IE*/
+	u_char		user_user[USER_USER_MAX]; /* content of useruser IE*/
 	u_char          sending_complete : 1;
 	u_char          unused : 7;
 } msg_connect_ind_t;
@@ -842,7 +842,7 @@ m(DSTAT_NO_ENTRY       ,, "disconnected, no valid configuration entry", EV_DISCO
 	cause_t		cause;		/* exact i4b cause */
 	char		src_telno[TELNO_MAX]; /**/
 	char		src_display[DISPLAY_MAX]; /**/
-	char		src_sms[SMS_MAX]; /**/
+	char		src_user_user[USER_USER_MAX]; /**/
 } msg_response_to_user_t;
 
 MAKE_ENUM(DSTATS,

@@ -434,8 +434,8 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    break;
 			
 	case IEI_USERUSER:	/* user-user */
-	    get_multi_1(src,2,&(cd->sms[0]),sizeof(cd->sms),0);
-	    NDBGL3(L3_P_MSG, "IEI_USERUSER = %s", &(cd->sms[0]));
+	    get_multi_1(src,2,&(cd->user_user[0]),sizeof(cd->user_user),0);
+	    NDBGL3(L3_P_MSG, "IEI_USERUSER = %s", &(cd->user_user[0]));
 	    break;
 			
 	case IEI_ESCAPE:	/* escape for extension */

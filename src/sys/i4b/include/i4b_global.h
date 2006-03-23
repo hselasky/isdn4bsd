@@ -428,6 +428,7 @@ typedef struct call_desc {
 	u_int8_t ai_type; /* application interface type */
 	void *   ai_ptr; /* application interface private pointer */
 
+	u_char  is_sms : 1;		/* set if message is an SMS */
 	u_char	aocd_flag : 1;		/* AOCD used for unitlength calc */
 	u_char	channel_allocated : 1;  /* set if a B-channel is allocated */
 	u_char	dir_incoming : 1;	/* outgoing or incoming call */
@@ -470,7 +471,7 @@ typedef struct call_desc {
 	u_char	display[DISPLAY_MAX];	/* display information element	*/
 	u_char	datetime[DATETIME_MAX];	/* date/time information element*/
 	u_char	keypad[KEYPAD_MAX];	/* keypad facility		*/
-	u_char  sms[SMS_MAX];           /* SMS information element      */
+	u_char  user_user[USER_USER_MAX]; /* user-user information element */
 } call_desc_t;
 
 #define SET_BIT(var,offset,value)			\

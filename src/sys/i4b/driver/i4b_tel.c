@@ -110,7 +110,7 @@ typedef struct {
 #define ST_NO_STATUS     0x80		/* userland can't read result */
 	u_int8_t		src_telno[TELNO_MAX];
 	u_int8_t		src_display[DISPLAY_MAX];
-	u_int8_t		src_sms[SMS_MAX];
+	u_int8_t		src_user_user[USER_USER_MAX];
 } tel_sc_t;
 
 static tel_sc_t tel_sc[NI4BTEL];
@@ -717,7 +717,7 @@ i4b_tel_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct threa
 		break;
 
 	case I4B_TEL_GET_SMS:
-		strlcpy(data, &sc->src_sms[0], SMS_MAX);
+		strlcpy(data, &sc->src_user_user[0], USER_USER_MAX);
 		break;
 	
 	  default:
@@ -1038,8 +1038,8 @@ tel_response_to_user(msg_response_to_user_t *mrtu)
 		strlcpy(&sc->src_display[0], &mrtu->src_display[0],
 			sizeof(sc->src_display));
 
-		strlcpy(&sc->src_sms[0], &mrtu->src_sms[0],
-			sizeof(sc->src_sms));
+		strlcpy(&sc->src_user_user[0], &mrtu->src_user_user[0],
+			sizeof(sc->src_user_user));
 	}
 
 	if(sc->state & ST_RDWAIT_STATUS)

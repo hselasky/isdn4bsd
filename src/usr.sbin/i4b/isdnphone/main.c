@@ -545,7 +545,7 @@ update_state(int event, char *reason)
 #ifndef max
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #endif
-	u_int8_t buffer[max(max(max(64,SMS_MAX),TELNO_MAX),DISPLAY_MAX)];
+	u_int8_t buffer[max(max(max(64,USER_USER_MAX),TELNO_MAX),DISPLAY_MAX)];
 	u_int16_t temp;
 
 	debug("%s (%d)\n",

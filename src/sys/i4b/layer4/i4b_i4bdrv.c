@@ -883,10 +883,10 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 			SET_CAUSE_VAL(cd->cause_in, CAUSE_I4B_NORMAL);
 			  
 			/*
-			 * if(cd->sms[0] != 0)
+			 * if(cd->user_user[0] != 0)
 			 * {
-			 * CHAN_NOT_ANY;
-			 * use unused/invalid/sms prot??;
+			 *   CHAN_NOT_ANY;
+			 *   use unused/invalid/sms prot??;
 			 * }
 			 */
 

@@ -590,7 +590,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  if((state > ST_L3_OUTGOING) &&
 	     (state < ST_L3_U4))
 	  {
-	     if(cd->sms[0] != 0)
+	     if(cd->is_sms)
 	     {
 	       goto sms_release;
 	     }
@@ -623,7 +623,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  if((state > ST_L3_OUTGOING) &&
 	     (state < ST_L3_UA))
 	  {
-	    if(cd->sms[0] != 0)
+	    if(cd->is_sms)
 	    {
 	      goto sms_release;
 	    }
@@ -788,7 +788,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  if((state > ST_L3_INCOMING) &&
 	     (state < ST_L3_U7))
 	  {
-	     if(cd->sms[0] != 0)
+	     if(cd->is_sms)
 	     {
 	       goto sms_release;
 	     }
@@ -820,7 +820,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  if((state > ST_L3_INCOMING) &&
 	     (state < ST_L3_U8))
 	  {
-	     if(cd->sms[0] != 0)
+	     if(cd->is_sms)
 	     {
 	       goto sms_release;
 	     }
@@ -861,7 +861,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	     * CONNECT ACKNOWLEDGE? In NT-mode
 	     * I-frame broadcast is not allowed.
 	     */
-	    if(cd->sms[0] != 0)
+	    if(cd->is_sms)
 	    {
 	    sms_release:
 	      /* no answer from user */

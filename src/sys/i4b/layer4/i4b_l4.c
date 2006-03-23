@@ -467,8 +467,8 @@ i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ai_ptr)
 		strlcpy(mp->display, cd->display,
 			sizeof(mp->display));
 
-		strlcpy(mp->sms, cd->sms,
-			sizeof(mp->sms));
+		strlcpy(mp->user_user, cd->user_user,
+			sizeof(mp->user_user));
 
 		mp->scr_ind = cd->scr_ind;
 		mp->prs_ind = cd->prs_ind;

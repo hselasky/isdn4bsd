@@ -643,6 +643,14 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
 				       (CNTL_DISC|CNTL_PF_BIT));
 		    dss1_cntl_tx_frame(sc,pipe,CR_COMMAND,
 				       (CNTL_DISC|CNTL_PF_BIT));
+#if 0
+		    if(pipe->tei >= 0x80)
+		    {
+		        /* remove the TEI value */
+		        dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
+			dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
+		    }
+#endif
 		}
 	        pipe->state = ST_L2_PAUSE;
 	    }

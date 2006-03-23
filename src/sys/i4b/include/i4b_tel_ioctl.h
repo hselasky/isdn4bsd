@@ -91,7 +91,7 @@ struct i4b_tel_tones {
  *---------------------------------------------------------------------------*/
 #define I4B_TEL_GET_TELNO		_IOR('A',12, u_int8_t [TELNO_MAX])
 #define I4B_TEL_GET_DISPLAY		_IOR('A',13, u_int8_t [DISPLAY_MAX])
-#define I4B_TEL_GET_SMS			_IOR('A',14, u_int8_t [SMS_MAX])
+#define I4B_TEL_GET_SMS			_IOR('A',14, u_int8_t [USER_USER_MAX])
 
 /*===========================================================================*
  *	/dev/i4bteld<n> devices (dialer interface)

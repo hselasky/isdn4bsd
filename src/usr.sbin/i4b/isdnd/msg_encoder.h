@@ -80,13 +80,16 @@ response_to_user(cfg_entry_t *cep, int dstat)
 
 	if(dstat == DSTAT_INCOMING_CALL)
 	{
-		/* copy display, sms and telephone number */
+		/* copy display, user-user and telephone number */
 
-		strcpy(&mrtu.src_display[0], cep->display);
+		strlcpy(mrtu.src_display, cep->display,
+			sizeof(mrtu.src_display));
 
-		strcpy(&mrtu.src_sms[0], cep->sms);
+		strlcpy(mrtu.src_user_user, cep->user_user,
+			sizeof(mrtu.src_user_user));
 
-		strcpy(&mrtu.src_telno[0], cep->real_phone_incoming.number);
+		strlcpy(mrtu.src_telno, cep->real_phone_incoming.number,
+			sizeof(mrtu.src_telno));
 	}
 	
 	if((ioctl(isdnfd, I4B_RESPONSE_TO_USER, &mrtu)) < 0)

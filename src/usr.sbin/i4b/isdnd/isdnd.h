@@ -470,7 +470,7 @@ typedef struct cfg_entry {
 #define RANDOM_MASK 0x03		/* bits used from randomtime	*/
 
 	char display[DISPLAY_MAX];
-	char sms[SMS_MAX];
+	char user_user[USER_USER_MAX];
 
 	time_t	budget_callbackperiod_time; /* end of current period	*/
 	int	budget_callbackncalls_cnt;  /* amount of calls left	*/

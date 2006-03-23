@@ -1571,10 +1571,10 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      /* XXX if there is user-user info or a keypad-string
 	       * in "add_info" one could have added that to 
-	       * "cd->keypad[] and cd->sms[]"
+	       * "cd->keypad[] and cd->user_user[]"
 	       */
 	      cd->keypad[0] = '\0';
-	      cd->sms[0] = '\0';
+	      cd->user_user[0] = '\0';
 	      cd->display[0] = '\0';
 
 	      SET_CAUSE_TYPE(cd->cause_in, CAUSET_I4B);

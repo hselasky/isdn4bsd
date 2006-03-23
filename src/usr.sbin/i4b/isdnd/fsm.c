@@ -854,15 +854,18 @@ ev_incoming_from_i4b(msg_connect_ind_t *mp)
 
 	/* copy number to real one used */
 
-	strcpy(cep->real_phone_incoming.number, mp->src_telno);
+	strlcpy(cep->real_phone_incoming.number, mp->src_telno,
+		sizeof(cep->real_phone_incoming.number));
 
 	/* copy display string */
 
-	strcpy(cep->display, mp->display);
+	strlcpy(cep->display, mp->display,
+		sizeof(cep->display));
 
-	/* copy SMS string */
+	/* copy user-user string */
 
-	strcpy(cep->sms, mp->sms);
+	strlcpy(cep->user_user, mp->user_user,
+		sizeof(cep->user_user));
 
 	switch(cep->dialin_reaction)
 	{

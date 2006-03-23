@@ -300,13 +300,13 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		ptr += len;
 	  }
 
-	  str = &(cd->sms[0]);
+	  str = &(cd->user_user[0]);
 
 	  if(str[0] != 0)
 	  {
 		len = strlen(str);
-		*ptr++ = IEI_USERUSER;		/* SMS */
-		*ptr++ = IEI_USERUSER_LEN+len;	/* SMS length */
+		*ptr++ = IEI_USERUSER;		/* user-user */
+		*ptr++ = IEI_USERUSER_LEN+len;	/* user-user length */
 
 		bcopy(str, ptr, len);
 		ptr += len;
@@ -353,7 +353,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
     SUBADDR_MAX     +\
                 \
     2               +\
-    SMS_MAX         +\
+    USER_USER_MAX   +\
 		\
     2               +\
     DISPLAY_MAX     +\
