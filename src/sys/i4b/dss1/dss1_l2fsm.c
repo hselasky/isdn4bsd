@@ -610,8 +610,8 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
   }
 
    /* update "pipe->state" before calling any functions
-   * that might use "pipe->state"!
-   */
+    * that might use "pipe->state"!
+    */
   pipe->state = newstate;
 
   /* stop timer */
@@ -621,7 +621,8 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
   {
 	if((pipe->refcount == 0) && _IF_QEMPTY(pipe))
 	{
-	    if(IS_POINT_TO_POINT(sc) || NT_MODE(sc))
+	    if(IS_POINT_TO_POINT(sc) ||
+	       (NT_MODE(sc) && (pipe_adapter->refcount)))
 	    {
 	        /* call transmit FIFO, 
 		 * to keep the pipe active 
@@ -634,6 +635,15 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
 		 * use the pipe, and there is nothing to
 		 * send through the pipe
 		 */
+		if(NT_MODE(sc) && 
+		  (!(IS_POINT_TO_POINT(sc))) &&
+		  (!(pipe == pipe_adapter)))
+		{
+		    dss1_cntl_tx_frame(sc,pipe,CR_COMMAND,
+				       (CNTL_DISC|CNTL_PF_BIT));
+		    dss1_cntl_tx_frame(sc,pipe,CR_COMMAND,
+				       (CNTL_DISC|CNTL_PF_BIT));
+		}
 	        pipe->state = ST_L2_PAUSE;
 	    }
 	}
@@ -726,9 +736,12 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
 	   (!(IS_POINT_TO_POINT(sc))) && 
 	   (!(pipe == pipe_adapter)))
 	{
-	    /* remove the TEI value */
-	    dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
-	    dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
+	    if(pipe->tei >= 0x80)
+	    {
+	        /* remove the TEI value */
+	        dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
+		dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
+	    }
 	}
 	goto done;
   }

@@ -442,8 +442,6 @@ typedef struct call_desc {
 	u_char b_link_want_active : 1;  /* set if B-channel should be connected */
 	u_char call_is_on_hold : 1;     /* set if call descriptor is on hold */
   
-	u_int8_t peer_responded_bitmask[4];
-
 	u_int8_t *tone_gen_ptr;
 	u_int8_t  tone_gen_state; /* current state of tone generator */
 	u_int8_t  setup_interleave;

@@ -628,10 +628,7 @@ dss1_l3_tx_message_complement(struct call_desc *cd,
 	      */
 	    if((pipe_curr != pipe_skip_1) &&
 	       (pipe_curr != pipe_skip_2) &&
-	       (pipe_curr->state != ST_L2_PAUSE) &&
-	       (PIPE_NO(pipe_curr) < (8*sizeof(cd->peer_responded_bitmask))) &&
-	       (cd->peer_responded_bitmask[PIPE_NO(pipe_curr)/8] & 
-		(1 << (PIPE_NO(pipe_curr) % 8))))
+	       (pipe_curr->state != ST_L2_PAUSE))
 	    {
 	        cd->pipe = pipe_curr;
 

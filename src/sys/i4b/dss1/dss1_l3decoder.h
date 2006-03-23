@@ -765,14 +765,6 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 	/* set peer responded flag */
 	cd->peer_responded = 1;
 
-	/* keep track of which pipes that 
-	 * responded to an [outgoing] call 
-	 */
-	if(PIPE_NO(pipe) < (8*sizeof(cd->peer_responded_bitmask)))
-	{
-	    cd->peer_responded_bitmask[PIPE_NO(pipe)/8] |= 1 << (PIPE_NO(pipe) % 8);
-	}
-
 	/* process information elements */
 
 	dss1_decode_ie(cd,msg_ptr,msg_end,
