@@ -892,8 +892,8 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int channel, u_int protocol,
 	  f2->L5_TX_INTERRUPT = NULL;
 	  f2->L5_ALLOC_MBUF = &i4b_default_alloc_mbuf; /* default */
 
-	  /* set mtx */
-	  f2->mtx = &cntl->L1_lock;
+	  /* set mutex */
+	  f2->mtx = CNTL_GET_LOCK(cntl);
 
 	  /* increase refcount in case
 	   * the disconnect happens while

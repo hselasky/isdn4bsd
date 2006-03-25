@@ -60,10 +60,11 @@ static void
 i4b_controller_setup(void *arg)
 {
   i4b_controller_t *cntl;
-  __typeof(cntl->unit)
-    unit = 0;
+  __typeof(cntl->unit) unit = 0;
+  __typeof(cntl->unit) mask;
 
-  mtx_init(&i4b_global_lock,"i4b_global_lock", NULL, MTX_DEF|MTX_RECURSE);
+  mtx_init(&i4b_global_lock, "i4b_global_lock", 
+	   NULL, MTX_DEF|MTX_RECURSE);
 
   for(cntl = &i4b_controller[0];
       cntl < &i4b_controller[MAX_CONTROLLERS];
@@ -72,8 +73,29 @@ i4b_controller_setup(void *arg)
 	cntl->unit = unit;
 	cntl->N_serial_number = unit + 0xABCD;
 
-	mtx_init(&cntl->L1_lock,"i4b_controller_lock", 
+	mtx_init(&cntl->L1_lock_data, "i4b_controller_lock", 
 		 NULL, MTX_DEF|MTX_RECURSE);
+
+#if (MAX_CONTROLLERS <= 8)
+	mask = -1;
+#else
+	if((unit < 8) ||
+	   (unit >= (MAX_CONTROLLERS-8))) 
+	{
+	    mask = -1;
+	}
+	else if((unit < 16) || 
+		(unit >= (MAX_CONTROLLERS-16)))
+	{
+	    mask = -4;
+	}
+	else
+	{
+	    mask = -8;
+	}
+#endif
+	cntl->L1_lock_ptr =
+	  &(i4b_controller[unit & mask].L1_lock_data);
 
 	unit++;
   }
@@ -111,60 +133,84 @@ i4b_controller_reset(i4b_controller_t *cntl)
 
 /*---------------------------------------------------------------------------*
  *	i4b_controller_allocate
+ *
+ * NOTE: all sub-controllers are under the same lock
  *---------------------------------------------------------------------------*/
 i4b_controller_t *
 i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers, 
 			u_int8_t *error)
 {
   i4b_controller_t *cntl;
+  i4b_controller_t *cntl_end;
+  i4b_controller_t *cntl_temp;
+  struct mtx *p_mtx;
+  u_int8_t x;
 
-  if(sub_controllers != 1)
+  if((sub_controllers == 0) ||
+     (sub_controllers > MAX_CONTROLLERS))
   {
-      printf("%s:%d: FIXME!\n", __FILE__, __LINE__);
-      return NULL;
+      ADD_ERROR(error, "%s: number of sub-controllers, "
+		"%d, is invalid!\n", __FUNCTION__, 
+		sub_controllers);
+      cntl = NULL;
+      goto done;
   }
+
+  cntl_end = &i4b_controller[MAX_CONTROLLERS-sub_controllers];
 
   if(portable)
-  {
-    for(cntl = &i4b_controller[MAX_CONTROLLERS-1];
-	cntl >= &i4b_controller[0];
-	cntl--)
-    {
-      CNTL_LOCK(cntl);
-      if(cntl->allocated == 0)
-      {
-	goto found;
-      }
-      CNTL_UNLOCK(cntl);
-    }
-  }
+    cntl = cntl_end;
   else
+    cntl = &i4b_controller[0];
+
+ repeat:
+
+  CNTL_LOCK(cntl);
+  p_mtx = CNTL_GET_LOCK(cntl);
+  cntl_temp = cntl;
+  x = sub_controllers;
+
+  while(x--)
   {
-    for(cntl = &i4b_controller[0];
-	cntl < &i4b_controller[MAX_CONTROLLERS];
-	cntl++)
-    {
-      CNTL_LOCK(cntl);
-      if(cntl->allocated == 0)
+      if(cntl_temp->allocated ||
+	 (CNTL_GET_LOCK(cntl_temp) != p_mtx))
       {
-      found:
-	cntl->allocated = 1;
+	  CNTL_UNLOCK(cntl);
 
-	i4b_controller_reset(cntl);
+	  if(portable)
+	    cntl--;
+	  else
+	    cntl++;
 
-	CNTL_UNLOCK(cntl);
+	  if((cntl <= cntl_end) &&
+	     (cntl >= &i4b_controller[0]))
+	  {
+	      goto repeat;
+	  }
 
-	goto done;
+	  ADD_ERROR(error, "%s: cannot handle more than %d devices!",
+		    __FUNCTION__, MAX_CONTROLLERS);
+
+	  cntl = NULL;
+	  goto done;
       }
-      CNTL_UNLOCK(cntl);
-    }
+      cntl_temp++;
   }
 
-  /* no controller found */
-  cntl = NULL;
+  cntl_temp = cntl;
+  x = sub_controllers;
 
-  ADD_ERROR(error, "%s: cannot handle more than %d devices!",
-	    __FUNCTION__ , MAX_CONTROLLERS);
+  while(x--)
+  {
+      cntl_temp->allocated = 1;
+
+      i4b_controller_reset(cntl_temp);
+
+      cntl_temp++;
+  }
+
+  CNTL_UNLOCK(cntl);
+
  done:
   return cntl;
 }
@@ -227,14 +273,14 @@ i4b_controller_detach(i4b_controller_t *cntl)
 void
 i4b_controller_free(i4b_controller_t *cntl, u_int8_t sub_controllers)
 {
-  if(cntl)
+  if(cntl && sub_controllers)
   {
       /* the sub-controllers should be 
        * all under the same lock!
        */
       CNTL_LOCK(cntl);
 
-      while(sub_controllers--)
+      while(1)
       {
 	  if(cntl->attached) {
 	      i4b_controller_detach(cntl);
@@ -244,8 +290,10 @@ i4b_controller_free(i4b_controller_t *cntl, u_int8_t sub_controllers)
 
 	  cntl->allocated = 0;
 
-	  if(sub_controllers) {
+	  if(--sub_controllers) {
 	      cntl++;
+	  } else {
+	      break;
 	  }
       }
       CNTL_UNLOCK(cntl);

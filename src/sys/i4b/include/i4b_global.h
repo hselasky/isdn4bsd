@@ -505,14 +505,14 @@ typedef struct i4b_controller {
 	/* ============ */
 
 	u_int16_t N_serial_number;
-	u_int	  N_protocol;		/* D-channel protocol        */
-	u_int	  N_driver_type;	/* D-channel driver type     */
+	u_int32_t N_protocol;		/* D-channel protocol        */
+	u_int32_t N_driver_type;	/* D-channel driver type     */
 #	define    N_driver_unit unit	/* D-channel driver unit     */
 
 	struct fifo_translator *
                   N_fifo_translator;	/* D-channel fifo translator */
-	u_int	  N_cdid_count;
-	u_int	  N_cdid_end;		/* exclusive */
+	u_int32_t N_cdid_count;
+	u_int32_t N_cdid_end;		/* exclusive */
 	u_int8_t  N_nt_mode;
 
 	struct lapdstat
@@ -579,7 +579,8 @@ GET_BIT((cntl)->N_channel_utilization,channel)	\
 	void *    L1_sc;		/* layer 1 softc */
 	void *    L1_fifo;		/* layer 1 FIFO */
 
-	struct mtx L1_lock;
+	struct mtx  L1_lock_data;
+	struct mtx *L1_lock_ptr;
 
 	u_int16_t L1_channel_end;	/* number of channels */
 	u_int8_t  L1_type;		/* layer 1 type	      */
@@ -602,10 +603,10 @@ extern struct mtx i4b_global_lock;
 extern u_int32_t i4b_open_refcount;
 
 #define CNTL_FIND(unit) (&i4b_controller[((unsigned)(unit)) % MAX_CONTROLLERS])
-#define CNTL_LOCK(cntl)        mtx_lock(&(cntl)->L1_lock)
-#define CNTL_LOCK_ASSERT(cntl) mtx_assert(&(cntl)->L1_lock, MA_OWNED)
-#define CNTL_UNLOCK(cntl)      mtx_unlock(&(cntl)->L1_lock)
-#define CNTL_GET_LOCK(cntl)    (&(cntl)->L1_lock)
+#define CNTL_LOCK(cntl)        mtx_lock((cntl)->L1_lock_ptr)
+#define CNTL_LOCK_ASSERT(cntl) mtx_assert((cntl)->L1_lock_ptr, MA_OWNED)
+#define CNTL_UNLOCK(cntl)      mtx_unlock((cntl)->L1_lock_ptr)
+#define CNTL_GET_LOCK(cntl)    ((cntl)->L1_lock_ptr)
 
 /*---------------------------------------------------------------------------*
  *	

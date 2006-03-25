@@ -397,7 +397,7 @@ const   struct resource_tab *ptr;
 	/* get the mutex to use, which should and must 
 	 * be the same for all sub-controllers:
 	 */
-	sc->sc_mtx_p = &sc->sc_resources.i4b_controller->L1_lock;
+	sc->sc_mtx_p = CNTL_GET_LOCK(sc->sc_resources.i4b_controller);
 
 	/* check size of o_RES */
 	if((sizeof(o_RES)*8) < IHFC_NRES)

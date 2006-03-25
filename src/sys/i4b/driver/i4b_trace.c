@@ -113,10 +113,10 @@ i4btrcattach(void *dummy)
 
 		sc = &i4b_trace_softc[i];
 
-		mtx_lock(&cntl->L1_lock);
+		CNTL_LOCK(cntl);
 
 		sc->sc_unit = i;
-		sc->sc_mtx = &cntl->L1_lock;
+		sc->sc_mtx = CNTL_GET_LOCK(cntl);
 		sc->sc_dev = dev;
 
 		if(dev)
@@ -127,7 +127,7 @@ i4btrcattach(void *dummy)
 		sc->sc_queue.ifq_maxlen = IFQ_MAXLEN;
 		sc->sc_flags = 0;
 
-		mtx_unlock(&cntl->L1_lock);
+		CNTL_UNLOCK(cntl);
 	}
 
 	printf("i4btrc: %d ISDN trace device(s) attached\n", 
