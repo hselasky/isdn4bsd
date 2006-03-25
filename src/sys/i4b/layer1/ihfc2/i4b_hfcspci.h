@@ -658,6 +658,10 @@ I4B_PCI_DRIVER(/* ASUSCOM HFC-S PCI A */
 I4B_PCI_DRIVER(/* Motorola MC145575 */
 	       .vid = 0x01001057);
 
+I4B_PCI_DRIVER(/* ISDN PCI DC-105V2 */
+	       .vid = 0x3069182d,
+	       .sub = 0x3069182d);
+
 #undef HFCSPCI_BUS_VAR
 #undef HFCSPCI_READ_1
 #undef HFCSPCI_WRITE_1
