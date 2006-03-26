@@ -445,21 +445,24 @@ i4b_rbch_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thre
 			}
 			break;
 
+			/* support the old VR_REQ to not
+			 * break "ppp":
+			 */
 		case _IOR('R', 2, int[3]):
-		  NDBGL4(L4_ERR, "unit %d, old ioctl command used: "
-			 "please recompile!", unit);
-		  /* XXX old VR_REQ XXX
-		   * (temporary to avoid breaking programs)
-		   */
-		case I4B_RBCH_VR_REQ:
                 {
 			msg_vr_req_t *mvr = (void *)data;
 
 			mvr->version = I4B_VERSION;
 			mvr->release = I4B_REL;
 			mvr->step = I4B_STEP;
+
+			NDBGL4(L4_MSG, "unit %d, old ioctl command used: "
+			       "please recompile application!", unit);
 			break;
 		}
+		case I4B_RBCH_VR_REQ:
+			i4b_version_request((void *)data);
+			break;
 
 		default:	/* Unknown stuff */
 			NDBGL4(L4_RBCHDBG, "unit %d, ioctl, unknown cmd %lx", unit, (u_long)cmd);

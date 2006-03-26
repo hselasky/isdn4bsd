@@ -52,6 +52,8 @@ struct i4b_controller;
 struct i4b_ai_softc;
 struct isdn_download_request;
 
+extern void i4b_version_request(msg_vr_req_t *mvr);
+
 extern int i4b_controller_download(struct i4b_controller *cntl, 
 				   struct isdn_download_request *req);
 

@@ -220,7 +220,7 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	    ihfc_fsm_update(sc, f, 2);
 	    break;
 
-	case CMR_SET_PROTOCOL:
+	case CMR_SET_LAYER1_PROTOCOL:
 	{
 	    i4b_debug_t *dbg = parm;
 
@@ -233,7 +233,7 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 
 	    dbg->chan *= 2;
 
-	    IHFC_MSG("CMR_SET_PROTOCOL: 0x%02x(#%d,#%d)\n",
+	    IHFC_MSG("CMR_SET_LAYER1_PROTOCOL: 0x%02x(#%d,#%d)\n",
 		     (dbg->value) & 0xff,
 		     (FIFO_NO(f) + dbg->chan + receive),
 		     (FIFO_NO(f) + dbg->chan + transmit));

@@ -287,6 +287,10 @@ typedef struct {
 #define I4B_CTL_SET_STANDARD_MODE   _IOW ('C',13, i4b_debug_t) /* set standard mode                    */
 #define I4B_CTL_SET_N_SERIAL_NUMBER _IOW ('C',14, i4b_debug_t)
 #define I4B_CTL_SET_N_DRIVER_TYPE   _IOW ('C',15, i4b_debug_t)
+#define I4B_CTL_SET_HI_PRIORITY     _IOW ('C',16, i4b_debug_t)
+#define I4B_CTL_SET_LO_PRIORITY     _IOW ('C',17, i4b_debug_t)
+#define I4B_CTL_SET_POWER_SAVE      _IOW ('C',18, i4b_debug_t)
+#define I4B_CTL_SET_POWER_ON        _IOW ('C',19, i4b_debug_t)
 
 #endif /* _I4B_DEBUG_H_ */
-/* EOF */
+

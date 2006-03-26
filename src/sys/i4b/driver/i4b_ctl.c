@@ -213,7 +213,7 @@ i4bctlioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 	    goto l1_command;
 
 	case I4B_CTL_SET_PROTOCOL:
-	    cmd = CMR_SET_PROTOCOL;
+	    cmd = CMR_SET_LAYER1_PROTOCOL;
 	    goto l1_command;
 
 	case I4B_CTL_SET_NT_MODE:

@@ -753,6 +753,20 @@ i4b_active_diagnostic(struct i4b_controller *cntl,
 }
 
 /*---------------------------------------------------------------------------*
+ *	i4b_version_request - get ISDN4BSD version
+ *---------------------------------------------------------------------------*/
+void
+i4b_version_request(msg_vr_req_t *mvr)
+{
+	mvr->max_controllers = MAX_CONTROLLERS;
+	mvr->max_channels = MAX_CHANNELS;
+	mvr->version = I4B_VERSION;
+	mvr->release = I4B_REL;
+	mvr->step = I4B_STEP;
+	return;
+}
+
+/*---------------------------------------------------------------------------*
  *	i4b_ioctl - device driver ioctl routine
  *---------------------------------------------------------------------------*/
 static int
@@ -1098,52 +1112,14 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 		/* set D-channel protocol for a controller */
 
 		case I4B_PROT_IND:
-		{
-			msg_prot_ind_t *mpi = (void *)data;
-
-			if(cntl->N_driver_type != mpi->driver_type)
-			{
-			  /* disconnect current
-			   * protocol
-			   */
-			  cntl->N_protocol = P_DISABLE;
-			  i4b_update_d_channel(cntl);
-
-			  /* cntl->N_protocol = mpi->protocol; */
-			  cntl->N_driver_type = mpi->driver_type;
-			  /* cntl->N_serial_number = mpi->serial_number; */
-
-			  /* connect new
-			   * protocol
-			   */
-			  cntl->N_protocol = P_D_CHANNEL;
-			  i4b_update_d_channel(cntl);
-			}
+			L1_COMMAND_REQ(cntl, CMR_SET_LAYER2_PROTOCOL, data);
 			break;
-		}
 
 		/* controller info request */
 
 		case I4B_CTRL_INFO_REQ:
-		{
-			msg_ctrl_info_req_t *mcir = (void *)data;
-
-			mcir->l1_type = cntl->L1_type;
-			mcir->l1_channels = cntl->L1_channel_end;
-			mcir->l1_serial = cntl->N_serial_number;
-
-			/* set default description */
-			snprintf(&mcir->l1_desc[0], 
-				 sizeof(mcir->l1_desc), "not present");
-
-			/* pass info request to layer 1 
-			 * and ignore any errors 
-			 */
-
-			(void) L1_COMMAND_REQ(cntl, CMR_INFO_REQUEST, mcir);
-
+			L1_COMMAND_REQ(cntl, CMR_INFO_REQUEST, data);
 			break;
-		}
 
 		/* response to user */
 
@@ -1175,17 +1151,9 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 		/* version/release number request */
 		
 		case I4B_VR_REQ:
-                {
-			msg_vr_req_t *mvr = (void *)data;
-
-			mvr->max_controllers = MAX_CONTROLLERS;
-			mvr->max_channels = MAX_CHANNELS;
-			mvr->version = I4B_VERSION;
-			mvr->release = I4B_REL;
-			mvr->step = I4B_STEP;
+			i4b_version_request((void *)data);
 			break;
-		}
-		
+
 		/* download request */
 
 		case I4B_CTRL_DOWNLOAD:

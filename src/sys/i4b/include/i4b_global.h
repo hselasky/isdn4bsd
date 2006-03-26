@@ -495,11 +495,18 @@ typedef struct call_desc {
  *---------------------------------------------------------------------------*/
 struct lapdstat;
 typedef struct i4b_controller {
-	u_int8_t unit;			/* controller unit number    */
-	u_int8_t allocated : 1;
-	u_int8_t no_layer1_dialtone : 1;
-	u_int8_t attached : 1;
-	u_int8_t no_power_save : 1; /* set to disable power saving */
+	u_int8_t  unit;			/* controller unit number    */
+
+	struct mtx  L1_lock_data;
+	struct mtx *L1_lock_ptr;
+
+	u_int8_t  dummy_zero_start[0];
+
+	u_int8_t  allocated : 1; /* set if controller is allocated */
+	u_int8_t  no_layer1_dialtone : 1; /* set if dialtone is not wanted */
+	u_int8_t  attached : 1; /* set if controller is attached */
+	u_int8_t  no_power_save : 1; /* set to disable power saving */
+	u_int8_t  N_nt_mode : 1;  /* set if NT-mode is used */
 
 	/*  --> Layer 2 */
 	/* ============ */
@@ -513,7 +520,6 @@ typedef struct i4b_controller {
                   N_fifo_translator;	/* D-channel fifo translator */
 	u_int32_t N_cdid_count;
 	u_int32_t N_cdid_end;		/* exclusive */
-	u_int8_t  N_nt_mode;
 
 	struct lapdstat
 		 *N_lapdstat;
@@ -579,9 +585,6 @@ GET_BIT((cntl)->N_channel_utilization,channel)	\
 	void *    L1_sc;		/* layer 1 softc */
 	void *    L1_fifo;		/* layer 1 FIFO */
 
-	struct mtx  L1_lock_data;
-	struct mtx *L1_lock_ptr;
-
 	u_int16_t L1_channel_end;	/* number of channels */
 	u_int8_t  L1_type;		/* layer 1 type	      */
 
@@ -593,6 +596,8 @@ GET_BIT((cntl)->N_channel_utilization,channel)	\
 	int 	(*L1_COMMAND_REQ)(struct i4b_controller *, int cmd, void *);
 #	define    L1_COMMAND_REQ(cntl,cmd,arg) \
 	      i4b_l1_command_req(cntl,cmd,arg)
+
+	u_int8_t  dummy_zero_end[0];
 
 } i4b_controller_t;
 
@@ -636,6 +641,8 @@ enum
   CMR_SET_DCH_LO_PRI,
   CMR_PH_ACTIVATE,
   CMR_PH_DEACTIVATE,
+  CMR_SET_POWER_SAVE,
+  CMR_SET_POWER_ON,
 
   /* CAPI specific requests */
 
@@ -646,12 +653,13 @@ enum
 
   /* other */
   CMR_INFO_REQUEST,
-  CMR_SET_PROTOCOL,
+  CMR_SET_LAYER1_PROTOCOL,
   CMR_SET_STANDARD_MODE,
   CMR_SET_POLLED_MODE,
   CMR_RESET,
   CMR_GET_CHIPSTAT,
   CMR_CLR_CHIPSTAT,
+  CMR_SET_LAYER2_PROTOCOL,
 
   /* Primary Rate */
   CMR_DECODE_CHANNEL,

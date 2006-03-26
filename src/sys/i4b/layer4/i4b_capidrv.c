@@ -2561,6 +2561,127 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 		break;
 
+	case I4B_CTRL_INFO_REQ:
+	{
+		msg_ctrl_info_req_t *mcir = (void *)data;
+
+		/* get controller */
+
+		cntl = CNTL_FIND(mcir->controller);
+
+		if(cntl == NULL)
+		{
+		    error = EINVAL;
+		    break;
+		}
+
+		/* forward IOCTL to layer 1 */
+		error = L1_COMMAND_REQ(cntl, CMR_INFO_REQUEST, mcir);
+		break;
+	}
+
+	case I4B_PROT_IND:
+	{
+		msg_prot_ind_t *mpi = (void *)data;
+
+		/* check credentials */
+
+		if(suser(curthread))
+		{
+		    error = EPERM;
+		    break;
+		}
+
+		/* get controller */
+
+		cntl = CNTL_FIND(mpi->controller);
+
+		if(cntl == NULL)
+		{
+		    error = EINVAL;
+		    break;
+		}
+
+		/* forward IOCTL to layer 1 */
+		error = L1_COMMAND_REQ(cntl, CMR_SET_LAYER2_PROTOCOL, mpi);
+		break;
+	}
+
+	case I4B_VR_REQ:
+		i4b_version_request((void *)data);
+		break;
+
+	case I4B_CTL_PH_ACTIVATE:
+		cmd = CMR_PH_ACTIVATE;
+		goto L1_command;
+
+	case I4B_CTL_PH_DEACTIVATE:
+		cmd = CMR_PH_DEACTIVATE;
+		goto L1_command;
+
+	case I4B_CTL_SET_NT_MODE:
+		cmd = CMR_SET_NT_MODE;
+		goto L1_command;
+
+	case I4B_CTL_SET_TE_MODE:
+		cmd = CMR_SET_TE_MODE;
+		goto L1_command;
+
+	case I4B_CTL_SET_STANDARD_MODE:
+		cmd = CMR_SET_STANDARD_MODE;
+		goto L1_command;
+
+	case I4B_CTL_SET_POLLED_MODE:
+		cmd = CMR_SET_POLLED_MODE;
+		goto L1_command;
+
+	case I4B_CTL_RESET:
+		cmd = CMR_RESET;
+		goto L1_command;
+
+	case I4B_CTL_SET_HI_PRIORITY:
+		cmd = CMR_SET_DCH_HI_PRI;
+		goto L1_command;
+
+	case I4B_CTL_SET_LO_PRIORITY:
+		cmd = CMR_SET_DCH_LO_PRI;
+		goto L1_command;
+
+	case I4B_CTL_SET_POWER_SAVE:
+		cmd = CMR_SET_POWER_SAVE;
+		goto L1_command;
+
+	case I4B_CTL_SET_POWER_ON:
+		cmd = CMR_SET_POWER_ON;
+		goto L1_command;
+
+	L1_command:
+	{
+		i4b_debug_t *dbg = (void *)data;
+
+		/* check credentials */
+
+		if(suser(curthread))
+		{
+		    error = EPERM;
+		    break;
+		}
+
+		/* get controller */
+
+		cntl = CNTL_FIND(dbg->unit);
+
+		if(cntl == NULL)
+		{
+		    error = EINVAL;
+		    break;
+		}
+
+		/* forward IOCTL to layer 1 */
+		error = L1_COMMAND_REQ(cntl, cmd, dbg);
+		break;
+	}
+
 	case FIONREAD:
 
 		mtx_lock(&sc->sc_mtx);

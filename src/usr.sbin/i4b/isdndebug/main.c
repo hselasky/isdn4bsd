@@ -175,7 +175,7 @@ i4b_print_events()
  *	i4b_ioctl
  *---------------------------------------------------------------------------*/
 static void
-i4b_ioctl(int cmdr, char *err_msg, void *arg)
+i4b_ioctl(int cmdr, const char *err_msg, void *arg)
 {
   if(ioctl(isdnfd, cmdr, arg) < 0)
   {

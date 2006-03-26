@@ -71,7 +71,6 @@ i4b_controller_setup(void *arg)
       cntl++)
   {
 	cntl->unit = unit;
-	cntl->N_serial_number = unit + 0xABCD;
 
 	mtx_init(&cntl->L1_lock_data, "i4b_controller_lock", 
 		 NULL, MTX_DEF|MTX_RECURSE);
@@ -111,22 +110,13 @@ SYSINIT(i4b_controller_setup, SI_SUB_LOCK, SI_ORDER_ANY,
 static void
 i4b_controller_reset(i4b_controller_t *cntl)
 {
+  bzero(&(cntl->dummy_zero_start[0]),
+	(&(cntl->dummy_zero_end[0])) -
+	(&(cntl->dummy_zero_start[0])));
+
   cntl->N_protocol = P_D_CHANNEL;
   cntl->N_driver_type = DRVR_D_CHANNEL;
-
-  cntl->N_nt_mode = 0;
-  cntl->N_cdid_end = 0;
-
-  cntl->L1_sc = NULL;
-  cntl->L1_fifo = NULL;
-  cntl->L1_channel_end = 0;
-
-  cntl->L1_type = L1_TYPE_UNKNOWN;
-
-  cntl->L1_GET_FIFO_TRANSLATOR = NULL;
-  cntl->L1_COMMAND_REQ = NULL;
-
-  cntl->no_layer1_dialtone = 0;
+  cntl->N_serial_number = cntl->unit + 0xABCD;
 
   return;
 }
@@ -202,9 +192,9 @@ i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers,
 
   while(x--)
   {
-      cntl_temp->allocated = 1;
-
       i4b_controller_reset(cntl_temp);
+
+      cntl_temp->allocated = 1;
 
       cntl_temp++;
   }
@@ -325,15 +315,61 @@ i4b_controller_by_cd(struct call_desc *cd)
  *	i4b_l1_command_req
  *---------------------------------------------------------------------------*/
 int
-i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *parm)
+i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
 {
-  int error;
+  int error = 0;
 
   CNTL_LOCK(cntl);
 
-  if((cntl)->L1_COMMAND_REQ)
+  if(cntl->L1_COMMAND_REQ)
   {
-    error = ((cntl)->L1_COMMAND_REQ)(cntl,cmd,parm);
+    switch(cmd) {
+    case CMR_SET_POWER_SAVE:
+        cntl->no_power_save = 0;
+	break;
+    case CMR_SET_POWER_ON:
+        cntl->no_power_save = 1;
+	break;
+    case CMR_INFO_REQUEST:
+    {
+        msg_ctrl_info_req_t *mcir = (void *)data;
+
+	mcir->l1_type = cntl->L1_type;
+	mcir->l1_channels = cntl->L1_channel_end;
+	mcir->l1_serial = cntl->N_serial_number;
+	mcir->l1_desc[0] = '\0';
+	mcir->l1_no_dialtone = cntl->no_layer1_dialtone;
+	mcir->l1_no_power_save = cntl->no_power_save;
+	mcir->l1_attached = cntl->attached;
+	mcir->l2_driver_type = cntl->N_driver_type;
+	break;
+    }
+    case CMR_SET_LAYER2_PROTOCOL:
+    {
+        msg_prot_ind_t *mpi = (void *)data;
+
+	if(cntl->N_driver_type != mpi->driver_type)
+	{
+	    /* disconnect current driver */
+
+	    cntl->N_protocol = P_DISABLE;
+	    i4b_update_d_channel(cntl);
+
+	    cntl->N_driver_type = mpi->driver_type;
+	    /* cntl->N_serial_number = mpi->serial_number; */
+
+	    /* connect new driver */
+
+	    cntl->N_protocol = P_D_CHANNEL;
+	    i4b_update_d_channel(cntl);
+	}
+	break;
+    }
+
+    default:
+      break;
+    }
+    error = (cntl->L1_COMMAND_REQ)(cntl,cmd,data);
   }
   else
   {

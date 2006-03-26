@@ -142,8 +142,8 @@ MAKE_ENUM(L1_TYPES,
 #define I4B_DRIVERS_RESPONSE_TO_USER(enum,value,setup_ft,response_to_user,desc,dev) response_to_user
 #define I4B_DRIVERS_SETUP_FT(        enum,value,setup_ft,response_to_user,desc,dev) setup_ft
 #define I4B_DRIVERS_NAME(            enum,value,setup_ft,response_to_user,desc,dev) #enum
-#define I4B_DRIVERS_LLIST(           enum,value,setup_ft,response_to_user,desc,dev) { #enum, enum },
-#define I4B_DRIVERS_LONG_DESC(       enum,value,setup_ft,response_to_user,desc,dev) #enum ": <" desc ">\n\n"
+#define I4B_DRIVERS_LLIST(           enum,value,setup_ft,response_to_user,desc,dev) { #enum, desc, enum },
+#define I4B_DRIVERS_DLIST(           enum,value,setup_ft,response_to_user,desc,dev) #enum ", "
 #define I4B_DRIVERS(m)				\
 	I4B_B_DRIVERS(m)			\
 	I4B_D_DRIVERS(m)			\
@@ -801,7 +801,11 @@ typedef struct {
 	u_char    l1_desc[64];	/* controller description, zero terminated */
 	u_char    l1_state[64]; /* controller state, zero terminated */
 	u_char    l1_active : 1;/* set if layer 1 is active */
-	u_char    l1_unused : 7;
+	u_char    l1_no_dialtone : 1; 
+	u_char    l1_no_power_save : 1;
+	u_char    l1_attached : 1;
+	u_char    l1_unused : 4;
+	u_int32_t l2_driver_type;
 } msg_ctrl_info_req_t;
 	
 #define	I4B_CTRL_INFO_REQ	_IOWR('4', 5, msg_ctrl_info_req_t)
@@ -884,17 +888,16 @@ typedef struct {
 
 /*---------------------------------------------------------------------------*
  *	request version and release info from kernel part
- *	(msg_vr_req_t is also used by tel & rbch drivers)
  *
- * NOTE: i4b writes the version over the cdid, and assumes that the kernel
+ * NOTE: I4B writes the version over the cdid, and assumes that the kernel
  *	 has pre-zeroed the read-only data!
  *---------------------------------------------------------------------------*/
 typedef struct {
-	cdid_t	version;	/* version number */
-	int	release;	/* release number */
-	int	step;		/* release step number */	
-	int	max_controllers;/* maximum number of controllers in system */
-	int	max_channels;	/* maximum number of channels in system */
+	cdid_t	  version;      /* version number */
+	u_int32_t release;      /* release number */
+	u_int32_t step;	        /* release step number */	
+	u_int32_t max_controllers; /* maximum number of controllers in system */
+	u_int32_t max_channels; /* maximum number of channels in system */
 } msg_vr_req_t;
 
 #define I4B_VR_REQ              _IOR('4',10, msg_vr_req_t)

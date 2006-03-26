@@ -656,14 +656,8 @@ i4b_tel_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct threa
 		break;
 
 	  case I4B_TEL_VR_REQ:
-	  {
-		msg_vr_req_t *mvr = (void *)data;
-
-		mvr->version = I4B_VERSION;
-		mvr->release = I4B_REL;
-		mvr->step = I4B_STEP;
+		i4b_version_request((void *)data);
 		break;
-	  }
 
 	  case I4B_TEL_TONES:
 		if(f)
