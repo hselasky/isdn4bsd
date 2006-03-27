@@ -402,7 +402,7 @@ main(int argc, char **argv)
 	}
     }
 
-    for(optind = 1; optind < argc; optind++)
+    for(optind = 1; optind < argc; )
     {
         c = getopt(argc, argv, "hu:E:p:ntraD");
 
@@ -458,7 +458,7 @@ main(int argc, char **argv)
 	    break;
 	}
 
-	if(optind < argc) {
+	if((optind < argc) && (c == -1)) {
 
 	  const char *ptr = argv[optind];
 
@@ -499,6 +499,7 @@ main(int argc, char **argv)
 	    err(1, "unrecognized parameter "
 		"'%s'!", ptr);
 	  }
+	  optind++;
 	}
     }
 
