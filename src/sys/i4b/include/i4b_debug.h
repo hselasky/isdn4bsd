@@ -291,6 +291,11 @@ typedef struct {
 #define I4B_CTL_SET_LO_PRIORITY     _IOW ('C',17, i4b_debug_t)
 #define I4B_CTL_SET_POWER_SAVE      _IOW ('C',18, i4b_debug_t)
 #define I4B_CTL_SET_POWER_ON        _IOW ('C',19, i4b_debug_t)
+#define I4B_CTL_SET_PCM_SPEED       _IOW ('C',20, i4b_debug_t)
+#define I4B_CTL_SET_PCM_MASTER      _IOW ('C',21, i4b_debug_t)
+#define I4B_CTL_SET_PCM_SLAVE       _IOW ('C',22, i4b_debug_t)
+#define I4B_CTL_SET_PCM_MAPPING     _IOW ('C',23, i4b_debug_t)
+#define I4B_CTL_SET_PCM_SLOT_END    _IOW ('C',24, i4b_debug_t)
 
 #endif /* _I4B_DEBUG_H_ */
 

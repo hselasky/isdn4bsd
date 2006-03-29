@@ -2528,9 +2528,8 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		req->profile.dwB3ProtocolSupport = 
 		  htole32((1 << CAPI_B3_TRANSPARENT));
 
-		/* forward ioctl to layer 1 
-		 * (and ignore any errors)
-		 */
+		/* forward ioctl to layer 1 (ignore any errors) */
+
 		(void) L1_COMMAND_REQ(cntl, CMR_CAPI_GET_PROFILE, data);
 
 		break;
@@ -2611,6 +2610,45 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		i4b_version_request((void *)data);
 		break;
 
+	case I4B_CTL_SET_PCM_SLOT_END:
+	{
+		i4b_debug_t *dbg = (void *)data;
+		struct i4b_pcm_cable *cable;
+
+		/* check credentials */
+
+		if(suser(curthread))
+		{
+		    error = EPERM;
+		    break;
+		}
+
+		/* check parameter range */
+
+		if(dbg->unit >= I4B_PCM_CABLE_MAX)
+		{
+		    error = EINVAL;
+		}
+		else
+		{
+		    if(dbg->value > I4B_PCM_SLOT_MAX)
+		    {
+		        error = EINVAL;
+		    }
+		    else
+		    {
+		        cable = &i4b_pcm_cable[dbg->unit];
+
+			mtx_lock(&i4b_global_lock);
+
+			cable->slot_end = dbg->value;
+
+			mtx_unlock(&i4b_global_lock);
+		    }
+		}
+		break;
+	}
+
 	case I4B_CTL_PH_ACTIVATE:
 		cmd = CMR_PH_ACTIVATE;
 		goto L1_command;
@@ -2653,6 +2691,22 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 	case I4B_CTL_SET_POWER_ON:
 		cmd = CMR_SET_POWER_ON;
+		goto L1_command;
+
+	case I4B_CTL_SET_PCM_SPEED:
+		cmd = CMR_SET_PCM_SPEED;
+		goto L1_command;
+
+	case I4B_CTL_SET_PCM_MASTER:
+		cmd = CMR_SET_PCM_MASTER;
+		goto L1_command;
+
+	case I4B_CTL_SET_PCM_SLAVE:
+		cmd = CMR_SET_PCM_SLAVE;
+		goto L1_command;
+
+	case I4B_CTL_SET_PCM_MAPPING:
+		cmd = CMR_SET_PCM_MAPPING;
 		goto L1_command;
 
 	L1_command:

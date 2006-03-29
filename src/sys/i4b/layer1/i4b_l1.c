@@ -49,7 +49,8 @@ unsigned int i4b_l2_debug = L2_DEBUG_DEFAULT;
 unsigned int i4b_l3_debug = L3_DEBUG_DEFAULT;
 unsigned int i4b_l4_debug = L4_DEBUG_DEFAULT;
 
-i4b_controller_t i4b_controller[MAX_CONTROLLERS]; /* controller description array */
+struct i4b_controller i4b_controller[MAX_CONTROLLERS]; /* controller description array */
+struct i4b_pcm_cable i4b_pcm_cable[I4B_PCM_CABLE_MAX]; /* PCM cable array */
 
 struct mtx i4b_global_lock;
 
@@ -59,7 +60,7 @@ struct mtx i4b_global_lock;
 static void
 i4b_controller_setup(void *arg)
 {
-  i4b_controller_t *cntl;
+  struct i4b_controller *cntl;
   __typeof(cntl->unit) unit = 0;
   __typeof(cntl->unit) mask;
 
@@ -108,7 +109,7 @@ SYSINIT(i4b_controller_setup, SI_SUB_LOCK, SI_ORDER_ANY,
  *	i4b_controller_reset
  *---------------------------------------------------------------------------*/
 static void
-i4b_controller_reset(i4b_controller_t *cntl)
+i4b_controller_reset(struct i4b_controller *cntl)
 {
   bzero(&(cntl->dummy_zero_start[0]),
 	(&(cntl->dummy_zero_end[0])) -
@@ -126,13 +127,13 @@ i4b_controller_reset(i4b_controller_t *cntl)
  *
  * NOTE: all sub-controllers are under the same lock
  *---------------------------------------------------------------------------*/
-i4b_controller_t *
+struct i4b_controller *
 i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers, 
 			u_int8_t *error)
 {
-  i4b_controller_t *cntl;
-  i4b_controller_t *cntl_end;
-  i4b_controller_t *cntl_temp;
+  struct i4b_controller *cntl;
+  struct i4b_controller *cntl_end;
+  struct i4b_controller *cntl_temp;
   struct mtx *p_mtx;
   u_int8_t x;
 
@@ -211,7 +212,7 @@ i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers,
  * TODO: could check that ``i4b_controller'' has been properly setup
  *---------------------------------------------------------------------------*/
 int
-i4b_controller_attach(i4b_controller_t *cntl, u_int8_t *error)
+i4b_controller_attach(struct i4b_controller *cntl, u_int8_t *error)
 {
   CNTL_LOCK(cntl);
 
@@ -237,7 +238,7 @@ i4b_controller_attach(i4b_controller_t *cntl, u_int8_t *error)
  *	i4b_controller_detach
  *---------------------------------------------------------------------------*/
 void
-i4b_controller_detach(i4b_controller_t *cntl)
+i4b_controller_detach(struct i4b_controller *cntl)
 {
   if(cntl)
   {
@@ -261,7 +262,7 @@ i4b_controller_detach(i4b_controller_t *cntl)
  *	i4b_controller_free
  *---------------------------------------------------------------------------*/
 void
-i4b_controller_free(i4b_controller_t *cntl, u_int8_t sub_controllers)
+i4b_controller_free(struct i4b_controller *cntl, u_int8_t sub_controllers)
 {
   if(cntl && sub_controllers)
   {
@@ -294,10 +295,10 @@ i4b_controller_free(i4b_controller_t *cntl, u_int8_t sub_controllers)
 /*---------------------------------------------------------------------------*
  *	i4b_controller_by_cd
  *---------------------------------------------------------------------------*/
-i4b_controller_t *
+struct i4b_controller *
 i4b_controller_by_cd(struct call_desc *cd)
 {
-  i4b_controller_t *cntl;
+  struct i4b_controller *cntl;
   for(cntl = &i4b_controller[0];
       cntl < &i4b_controller[MAX_CONTROLLERS];
       cntl++)
@@ -365,7 +366,26 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
 	}
 	break;
     }
+    case CMR_SET_PCM_MAPPING:
+    {
+        i4b_debug_t *dbg = (void *)data;
+	u_int8_t x = dbg->value;
 
+	if(x > (sizeof(dbg->desc)/sizeof(dbg->desc[0]))) {
+	   x = (sizeof(dbg->desc)/sizeof(dbg->desc[0]));
+	}
+
+	if(x > I4B_PCM_CABLE_MAX) {
+	   x = I4B_PCM_CABLE_MAX;
+	}
+
+	cntl->L1_pcm_cable_end = x;
+
+	while(x--) {
+	  cntl->L1_pcm_cable_map[x] = dbg->desc[x];
+	}
+        break;
+    }
     default:
       break;
     }

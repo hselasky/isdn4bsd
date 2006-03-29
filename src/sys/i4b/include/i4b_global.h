@@ -428,24 +428,30 @@ typedef struct call_desc {
 	u_int8_t ai_type; /* application interface type */
 	void *   ai_ptr; /* application interface private pointer */
 
-	u_char  is_sms : 1;		/* set if message is an SMS */
-	u_char	aocd_flag : 1;		/* AOCD used for unitlength calc */
-	u_char	channel_allocated : 1;  /* set if a B-channel is allocated */
-	u_char	dir_incoming : 1;	/* outgoing or incoming call */
-	u_char	need_release : 1;	/* need release */
-	u_char	peer_responded : 1;	/* got a message from the other end */
-	u_char  want_late_inband : 1;	/* user wants inband information
-					 * after the disconnect signal
-					 */
-	u_char  sending_complete : 1;   /* set if sending of telephone number 
-					 * is complete 
-					 */
-	u_char b_link_want_active : 1;  /* set if B-channel should be connected */
-	u_char call_is_on_hold : 1;     /* set if call descriptor is on hold */
-  
+	u_int8_t is_sms : 1;		 /* set if message is an SMS */
+	u_int8_t aocd_flag : 1;		 /* set if AOCD is used for unitlength calc. */
+	u_int8_t channel_allocated : 1;  /* set if a B-channel is allocated */
+	u_int8_t dir_incoming : 1;	 /* set if incoming call */
+	u_int8_t need_release : 1;	 /* set if needs to send release */
+	u_int8_t peer_responded : 1;	 /* set if got a message from the other end */
+	u_int8_t want_late_inband : 1;	 /* set if user wants inband information
+					  * after the disconnect signal
+					  */
+	u_int8_t sending_complete : 1;   /* set if sending of telephone number 
+					  * is complete 
+					  */
+	u_int8_t b_link_want_active : 1; /* set if B-channel should be connected */
+	u_int8_t call_is_on_hold : 1;    /* set if call descriptor is on hold */
+	u_int8_t pcm_slot_allocated : 1; /* set if PCM slot has 
+					  * been allocated 
+					  */
+	u_int8_t  setup_interleave; /* a counter */
+
+	u_int8_t  pcm_slot_cable;
+	u_int16_t pcm_slot_number;
+
 	u_int8_t *tone_gen_ptr;
 	u_int8_t  tone_gen_state; /* current state of tone generator */
-	u_int8_t  setup_interleave;
 	u_int16_t tone_gen_pos;   /* current sine table position */
 
 	struct  __callout idle_callout;
@@ -491,7 +497,20 @@ typedef struct call_desc {
 /**/
 
 /*---------------------------------------------------------------------------*
- *	i4b-controller definition
+ *	I4B-PCM-cable definition
+ *---------------------------------------------------------------------------*/
+struct i4b_pcm_cable {
+
+    /* this structure is protected by i4b_global_lock */
+
+    u_int16_t slot_end;
+    u_int32_t slot_bitmap[(I4B_PCM_SLOT_MAX + (4*8) -1)/(4*8)];
+};
+
+extern struct i4b_pcm_cable i4b_pcm_cable[I4B_PCM_CABLE_MAX];
+
+/*---------------------------------------------------------------------------*
+ *	I4B-controller definition
  *---------------------------------------------------------------------------*/
 struct lapdstat;
 typedef struct i4b_controller {
@@ -587,6 +606,8 @@ GET_BIT((cntl)->N_channel_utilization,channel)	\
 
 	u_int16_t L1_channel_end;	/* number of channels */
 	u_int8_t  L1_type;		/* layer 1 type	      */
+	u_int8_t  L1_pcm_cable_end;	/* exclusive */
+	u_int8_t  L1_pcm_cable_map[I4B_PCM_CABLE_MAX];
 
 	struct fifo_translator * 
 		(*L1_GET_FIFO_TRANSLATOR)(struct i4b_controller *, int channel);
@@ -665,6 +686,12 @@ enum
   CMR_DECODE_CHANNEL,
   CMR_ENCODE_CHANNEL,
   CMR_SET_CHANNEL_MAPPING,
+
+  /* PCM */
+  CMR_SET_PCM_SPEED,
+  CMR_SET_PCM_MASTER,
+  CMR_SET_PCM_SLAVE,
+  CMR_SET_PCM_MAPPING,
 };
 
 typedef u_int32_t L1_auto_activate_t;

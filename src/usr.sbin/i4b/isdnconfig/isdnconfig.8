@@ -42,6 +42,7 @@
 .Op Fl D
 .Op Fl E Ar enum
 .Op Fl h
+.Op Fl m Ar unit
 .Op parameters
 .Sh DESCRIPTION
 .Bd -filled
@@ -59,6 +60,8 @@ Set unit number. Default is zero.
 Set D-channel serial number. The serial number should be a uniqe
 16-bit number on a per S0-bus basis, greater than 0x7F. If not
 specified, the software will select some value.
+.It Fl m
+Set PCM cable unit number. Default is zero.
 .It Fl p
 Set D-channel protocol. Default is DRVR_D_CHANNEL.
 .It Fl E
@@ -87,6 +90,21 @@ Disable power saving.
 Set polled interrupt mode.
 .It intr_mode
 Set standard interrupt mode. (default)
+.It pcm_32
+Select 32-slot PCM mode.
+.It pcm_64
+Select 64-slot PCM mode.
+.It pcm_128
+Select 128-slot PCM mode.
+.It pcm_master
+Select PCM master mode. In this mode the ISDN device 
+generates its own clock.
+.It pcm_slave
+Select PCM slave mode. In this mode the ISDN device 
+gets its clock from another ISDN device, through a 
+direct cable connection.
+.It pcm_map
+Set PCM cable mapping.
 .El
 .Ed
 .Sh EXAMPLES
@@ -103,7 +121,18 @@ isdnconfig -u 0 -p DRVR_DSS1_NT pwr_on -u 1 -p DRVR_DSS1_NT pwr_on
 .Ed
 .Pp
 selects NT mode and the DSS1 multipoint to point driver, for passive
-ISDN controller 0 and 1, and disables power saving.
+ISDN controller 0 and 1, and disables power saving. The command:
+.
+.Bd -literal -offset indent
+isdnconfig -m 0 pcm_32 -m 1 pcm_64 -u 0 pcm_map 0 -1 1 end pcm_slave
+.Ed
+.Pp
+sets PCM cable 0 to a size of 32 PCM slots, 
+sets PCM cable 1 to a size of 64 PCM slots,
+sets PCM map to use PCM cable 0 for the first bi-directional pin,
+sets PCM map to use no PCM cable for the second bi-directional pin,
+sets PCM map to use PCM cable 1 for the third bi-directional pin and
+selects PCM slave mode for controller 0.
 .
 .Sh AUTHORS
 The

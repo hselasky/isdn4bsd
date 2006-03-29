@@ -57,11 +57,15 @@ struct options {
     u_int16_t unit;
     u_int32_t serial;
     u_int32_t driver_type;
+    u_int16_t pcm_slots;
+    u_int8_t  pcm_cable_end;
+    u_int8_t  pcm_cable_map[I4B_PCM_CABLE_MAX];
 
     u_int8_t  got_any : 1;
     u_int8_t  got_u : 1;
     u_int8_t  got_i : 1;
     u_int8_t  got_p : 1;
+    u_int8_t  got_m : 1;
     u_int8_t  got_nt_mode : 1;
     u_int8_t  got_te_mode : 1;
     u_int8_t  got_hi_pri : 1;
@@ -73,6 +77,9 @@ struct options {
     u_int8_t  got_poll_mode : 1;
     u_int8_t  got_intr_mode : 1;
     u_int8_t  got_reset : 1;
+    u_int8_t  got_pcm_master : 1;
+    u_int8_t  got_pcm_slave : 1;
+    u_int8_t  got_pcm_map : 1;
 };
 
 static const struct enum_desc 
@@ -163,6 +170,7 @@ usage(void)
        "\n	-t              set TE-mode"
        "\n	-n              set NT-mode"
        "\n	-r              reset device"
+       "\n	-m              set PCM cable unit (default is zero)"
        "\n	-E enum         display information about enum"
        "\n"
        "\nenums: "
@@ -245,6 +253,20 @@ flush_command(struct options *opt)
 	    "at the same time!");
     }
 
+    if(opt->got_pcm_master &&
+       opt->got_pcm_slave)
+    {
+        err(1, "cannot specify 'pcm_master' and 'pcm_slave' "
+	    "at the same time!");
+    }
+
+    if(opt->got_m &&
+       opt->got_u)
+    {
+        err(1, "cannot specify '-m' and '-u' "
+	    "at the same time!");
+    }
+
     if(opt->got_i &&
        (opt->got_p == 0))
     {
@@ -253,67 +275,102 @@ flush_command(struct options *opt)
 
     /* execute commands */
 
-    if(opt->got_p)
+    dbg.unit = opt->unit;
+
+    if(opt->got_u)
     {
-        msg_prot_ind_t mpi = { /* zero */ };
-
-	mpi.serial_number = 
-	  opt->got_i ? opt->serial : (opt->unit + 0xAB01);
-
-	mpi.driver_type = opt->driver_type;
-
-	mpi.controller = opt->unit;
-
-	if(ioctl(isdnfd, I4B_PROT_IND, &mpi) < 0)
+        if(opt->got_pcm_map)
 	{
-            err(1, "ioctl I4B_PROT_IND failed!");
+	    u_int16_t x;
+	    dbg.value = opt->pcm_cable_end;
+	    if(dbg.value > (sizeof(dbg.desc)/sizeof(dbg.desc[0]))) {
+	       dbg.value = (sizeof(dbg.desc)/sizeof(dbg.desc[0]));
+	       warn("truncating number of PCM cables");
+	    }
+	    for(x = 0; x < dbg.value; x++) {
+	      dbg.desc[x] = opt->pcm_cable_map[x];
+	    }
+	    i4b_ioctl(I4B_CTL_SET_PCM_MAPPING, "pcm_map", &dbg);
+	}
+
+        if(opt->got_p)
+	{
+	    msg_prot_ind_t mpi = { /* zero */ };
+
+	    mpi.serial_number = 
+	      opt->got_i ? opt->serial : (opt->unit + 0xAB01);
+
+	    mpi.driver_type = opt->driver_type;
+
+	    mpi.controller = opt->unit;
+
+	    i4b_ioctl(I4B_PROT_IND, "-p", &mpi);
+	}
+
+	if(opt->got_poll_mode) {
+	  i4b_ioctl(I4B_CTL_SET_POLLED_MODE, "poll_mode", &dbg);
+	}
+
+	if(opt->got_intr_mode) {
+	  i4b_ioctl(I4B_CTL_SET_STANDARD_MODE, "intr_mode", &dbg);
+	}
+
+	if(opt->got_reset) {
+	  i4b_ioctl(I4B_CTL_RESET, "reset", &dbg);
+	}
+
+	if(opt->got_te_mode) {
+	  i4b_ioctl(I4B_CTL_SET_TE_MODE, "te_mode", &dbg);
+	}
+
+	if(opt->got_nt_mode) {
+	  i4b_ioctl(I4B_CTL_SET_NT_MODE, "nt_mode", &dbg);
+	}
+
+	if(opt->got_up) {
+	  i4b_ioctl(I4B_CTL_PH_ACTIVATE, "up", &dbg);
+	}
+
+	if(opt->got_down) {
+	  i4b_ioctl(I4B_CTL_PH_DEACTIVATE, "down", &dbg);
+	}
+
+	if(opt->got_hi_pri) {
+	  i4b_ioctl(I4B_CTL_SET_HI_PRIORITY, "hi_pri", &dbg);
+	}
+
+	if(opt->got_lo_pri) {
+	  i4b_ioctl(I4B_CTL_SET_LO_PRIORITY, "lo_pri", &dbg);
+	}
+
+	if(opt->got_pwr_save) {
+	  i4b_ioctl(I4B_CTL_SET_POWER_SAVE, "pwr_save", &dbg);
+	}
+
+	if(opt->got_pwr_on) {
+	  i4b_ioctl(I4B_CTL_SET_POWER_ON, "pwr_on", &dbg);
+	}
+
+	if(opt->pcm_slots) {
+	  dbg.value = opt->pcm_slots;
+	  i4b_ioctl(I4B_CTL_SET_PCM_SPEED, "pcm_nnn", &dbg);
+	}
+
+	if(opt->got_pcm_master) {
+	  i4b_ioctl(I4B_CTL_SET_PCM_MASTER, "pcm_master", &dbg);
+	}
+
+	if(opt->got_pcm_slave) {
+	  i4b_ioctl(I4B_CTL_SET_PCM_SLAVE, "pcm_slave", &dbg);
 	}
     }
 
-    dbg.unit = opt->unit;
-
-    if(opt->got_poll_mode) {
-      i4b_ioctl(I4B_CTL_SET_POLLED_MODE, "poll_mode", &dbg);
-    }
-
-    if(opt->got_intr_mode) {
-      i4b_ioctl(I4B_CTL_SET_STANDARD_MODE, "intr_mode", &dbg);
-    }
-
-    if(opt->got_reset) {
-      i4b_ioctl(I4B_CTL_RESET, "reset", &dbg);
-    }
-
-    if(opt->got_te_mode) {
-      i4b_ioctl(I4B_CTL_SET_TE_MODE, "te_mode", &dbg);
-    }
-
-    if(opt->got_nt_mode) {
-      i4b_ioctl(I4B_CTL_SET_NT_MODE, "nt_mode", &dbg);
-    }
-
-    if(opt->got_up) {
-      i4b_ioctl(I4B_CTL_PH_ACTIVATE, "up", &dbg);
-    }
-
-    if(opt->got_down) {
-      i4b_ioctl(I4B_CTL_PH_DEACTIVATE, "down", &dbg);
-    }
-
-    if(opt->got_hi_pri) {
-      i4b_ioctl(I4B_CTL_SET_HI_PRIORITY, "hi_pri", &dbg);
-    }
-
-    if(opt->got_lo_pri) {
-      i4b_ioctl(I4B_CTL_SET_LO_PRIORITY, "lo_pri", &dbg);
-    }
-
-    if(opt->got_pwr_save) {
-      i4b_ioctl(I4B_CTL_SET_POWER_SAVE, "pwr_save", &dbg);
-    }
-
-    if(opt->got_pwr_on) {
-      i4b_ioctl(I4B_CTL_SET_POWER_ON, "pwr_on", &dbg);
+    if(opt->got_m)
+    {
+        if(opt->pcm_slots) {
+	  dbg.value = opt->pcm_slots;
+	  i4b_ioctl(I4B_CTL_SET_PCM_SLOT_END, "pcm_nnn", &dbg);
+	}
     }
 
     reset_options(opt);
@@ -404,7 +461,7 @@ main(int argc, char **argv)
 
     for(optind = 1; optind < argc; )
     {
-        c = getopt(argc, argv, "hu:E:p:ntraD");
+        c = getopt(argc, argv, "hu:E:p:m:ntraD");
 
         switch(c) {
 	case 'u':
@@ -433,6 +490,11 @@ main(int argc, char **argv)
 	case 'r':
 	    opt->got_reset = 1;
 	    opt->got_any = 1;
+	    break;
+	case 'm':
+	    flush_command(opt);
+	    opt->unit = atoi(optarg);
+	    opt->got_m = 1;
 	    break;
 	case 'n':
 	    opt->got_nt_mode = 1;
@@ -495,6 +557,38 @@ main(int argc, char **argv)
 	  } else if(strcmp(ptr, "reset") == 0) {
 	    opt->got_reset = 1;
 	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "pcm_128") == 0) {
+	    opt->pcm_slots = 128;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "pcm_64") == 0) {
+	    opt->pcm_slots = 64;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "pcm_32") == 0) {
+	    opt->pcm_slots = 32;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "pcm_master") == 0) {
+	    opt->got_pcm_master = 1;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "pcm_slave") == 0) {
+	    opt->got_pcm_slave = 1;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "pcm_map") == 0) {
+
+	    optind++;
+	    c = 0;
+	    while((optind < argc) && 
+		  (ptr = argv[optind]) &&
+		  (strcmp(ptr, "end")))
+	    {
+	        if(c < I4B_PCM_CABLE_MAX) {
+		    opt->pcm_cable_map[c] = atoi(ptr);
+		    opt->pcm_cable_end = ++c;
+		}
+ 		optind++;
+	    }
+	    opt->got_pcm_map = 1;
+	    opt->got_any = 1;
+
 	  } else {
 	    err(1, "unrecognized parameter "
 		"'%s'!", ptr);
@@ -504,7 +598,8 @@ main(int argc, char **argv)
     }
 
     if(opt->got_any == 0) {
-      if(opt->got_u) {
+      if(opt->got_m) {
+      } else if(opt->got_u) {
 	  controller_info(opt->unit);
       } else {
 

@@ -175,8 +175,54 @@ i4b_free_cd(struct call_desc *cd)
 void
 cd_allocate_channel(struct call_desc *cd)
 {
-	struct i4b_controller *cntl = 
-	  i4b_controller_by_cd(cd);
+	struct i4b_controller *cntl = i4b_controller_by_cd(cd);
+
+	if(cd->pcm_slot_allocated == 0)
+	{
+	    struct i4b_pcm_cable *cable;
+	    u_int32_t x;
+	    u_int16_t y;
+
+	    mtx_lock(&i4b_global_lock);
+
+	    for(y = 0;
+		y < cntl->L1_pcm_cable_end;
+		y++)
+	    {
+	        if(cntl->L1_pcm_cable_map[y] >= I4B_PCM_CABLE_MAX)
+		{
+		    continue;
+		}
+
+	        cable = &i4b_pcm_cable[cntl->L1_pcm_cable_map[y]];
+
+		for(x = 0; x < cable->slot_end; )
+		{
+		    if(cable->slot_bitmap[x / (4*8)] == 0xffffffff)
+		    {
+		        x += (4*8);
+			continue;
+		    }
+
+		    for( ;
+			 x < cable->slot_end;
+			 x ++)
+		    {
+		        if(GET_BIT(cable->slot_bitmap, x) == 0)
+			{
+			    SET_BIT(cable->slot_bitmap, x, 1);
+
+			    cd->pcm_slot_number = x;
+			    cd->pcm_slot_cable = y;
+			    cd->pcm_slot_allocated = 1;
+			    goto found_slot;
+			}
+		    }
+		}
+	    }
+	found_slot:
+	    mtx_unlock(&i4b_global_lock);
+	}
 
 	if(cd->channel_allocated == 0)
 	{
@@ -223,7 +269,6 @@ cd_allocate_channel(struct call_desc *cd)
 		}
 	    }
 	}
-
  done:
 	return;
 }
@@ -234,22 +279,38 @@ cd_allocate_channel(struct call_desc *cd)
 void
 cd_free_channel(struct call_desc *cd)
 {
-	struct i4b_controller *cntl =
-	  i4b_controller_by_cd(cd);
+	struct i4b_controller *cntl = i4b_controller_by_cd(cd);
+
+	if(cd->pcm_slot_allocated)
+	{
+	    struct i4b_pcm_cable *cable;
+
+	    cable = &i4b_pcm_cable[cd->pcm_slot_cable];
+
+	    mtx_lock(&i4b_global_lock);
+
+	    SET_BIT(cable->slot_bitmap, cd->pcm_slot_number, 0);
+
+	    mtx_unlock(&i4b_global_lock);
+
+	    cd->pcm_slot_number = 0;
+	    cd->pcm_slot_cable = 0;
+	    cd->pcm_slot_allocated = 0;
+	}
 
 	if(cd->channel_allocated)
 	{
-		__typeof(cntl->L1_channel_end)
-		  channel_end = cntl->L1_channel_end;
+	    __typeof(cntl->L1_channel_end)
+	      channel_end = cntl->L1_channel_end;
 
-		if((cd->channel_id >= 0) && 
-		   (cd->channel_id < channel_end))
-		{
-			SET_CHANNEL_UTILIZATION(cntl,cd->channel_id,0);
-		}
+	    if((cd->channel_id >= 0) && 
+	       (cd->channel_id < channel_end))
+	    {
+	        SET_CHANNEL_UTILIZATION(cntl,cd->channel_id,0);
+	    }
 
-		cd->channel_id = CHAN_ANY;
-		cd->channel_allocated = 0;
+	    cd->channel_id = CHAN_ANY;
+	    cd->channel_allocated = 0;
 	}
 	return;
 }
