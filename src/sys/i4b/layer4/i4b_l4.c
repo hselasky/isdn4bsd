@@ -797,8 +797,9 @@ i4b_default_alloc_mbuf(struct fifo_translator *f, u_int16_t def_len, u_int16_t t
  * returns 1 when disconnected and 0 when connected
  *---------------------------------------------------------------------------*/
 int
-i4b_setup_driver(i4b_controller_t *cntl, u_int channel, u_int protocol,
-		 u_int driver_type, u_int driver_unit, struct call_desc *cd)
+i4b_setup_driver(i4b_controller_t *cntl, u_int32_t channel, 
+		 struct i4b_protocol *pp, u_int32_t driver_type, 
+		 u_int32_t driver_unit, struct call_desc *cd)
 {
 	setup_ft_t *setup_ft;
 
@@ -834,13 +835,13 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int channel, u_int protocol,
 	{
 	  f2 = setup_ft(cntl,0,0,driver_type,driver_unit,cd);
 
-	  if(protocol == P_D_CHANNEL)
+	  if(pp->protocol_1 == P_D_CHANNEL)
 	  {
-	    protocol = (i4b_open_refcount) ? 
+	    pp->protocol_1 = (i4b_open_refcount) ? 
 	      P_HDLC : P_DISABLE;
 	  }
 
-	  if(protocol != P_DISABLE)
+	  if(pp->protocol_1 != P_DISABLE)
 	  {
 	    u_int8_t l1_in_use =
 	      f1->L5_sc || 
@@ -873,7 +874,7 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int channel, u_int protocol,
 	     * when disconnecting
 	     */
 	  unsetup_L1:
-	    L1_FIFO_SETUP(f1,protocol);
+	    L1_FIFO_SETUP(f1,pp);
 
 	  unsetup_ft:
 	    f1 = 0;
@@ -902,20 +903,20 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int channel, u_int protocol,
 	   */
 	  f2->refcount++;
 
-	  setup_ft(cntl,f1,&protocol,driver_type,driver_unit,cd);
+	  setup_ft(cntl,f1,pp,driver_type,driver_unit,cd);
 
 	  if(f1)
 	  {
-	    if(protocol != P_DISABLE)
+	    if(pp->protocol_1 != P_DISABLE)
 	    {
 	      /* call L1_FIFO_SETUP after setup_ft
 	       * so that L5_PUT_MBUF and L5_GET_MBUF is
 	       * not called before setup_ft is called,
 	       * when connecting
 	       */
-	      L1_FIFO_SETUP(f1,protocol);
+	      L1_FIFO_SETUP(f1,pp);
 
-	      if(protocol != P_DISABLE)
+	      if(pp->protocol_1 != P_DISABLE)
 	      {
 		error = 0;
 	      }
@@ -954,7 +955,7 @@ i4b_link_bchandrvr(call_desc_t *cd, int activate)
 {
 	static const u_int8_t
 	  MAKE_TABLE(I4B_B_PROTOCOLS,PROTOCOL,[]);
-	u_int32_t protocol;
+	struct i4b_protocol p = { /* zero */ };
 
 	if (activate) {
 
@@ -970,18 +971,18 @@ i4b_link_bchandrvr(call_desc_t *cd, int activate)
 	    cd->driver_type_copy = cd->driver_type;
 	    cd->driver_unit_copy = cd->driver_unit;
 	    cd->b_link_want_active = 1;
-	    protocol = I4B_B_PROTOCOLS_PROTOCOL[cd->channel_bprot];
+	    p.protocol_1 = I4B_B_PROTOCOLS_PROTOCOL[cd->channel_bprot];
 
 	} else {
 
 	    cd->b_link_want_active = 0;
-	    protocol = P_DISABLE;
+	    p.protocol_1 = P_DISABLE;
 	}
 
 	return
 	  (cd->channel_allocated) ?
 	  i4b_setup_driver(i4b_controller_by_cd(cd),
-			   cd->channel_id, protocol,
+			   cd->channel_id, &p,
 			   cd->driver_type_copy,
 			   cd->driver_unit_copy,
 			   cd) : 1;

@@ -27,12 +27,12 @@
  *	i4b_ihfc2_pnp.c - common ISA/PnP/PCI/USB-bus interface
  *	------------------------------------------------------
  *
+ * $FreeBSD: $
+ *
  *---------------------------------------------------------------------------*/
 
 #include <i4b/layer1/ihfc2/i4b_ihfc2.h>
 #include <i4b/layer1/ihfc2/i4b_ihfc2_ext.h>
-
-__FBSDID("$FreeBSD: $");
 
 #ifndef PCIR_BARS
 #define PCIR_BARS       0x10

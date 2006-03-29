@@ -747,12 +747,13 @@ i4bipr_connect_startio(struct ipr_softc *sc)
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
 fifo_translator_t *
-ipr_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
-	     u_int driver_type, u_int driver_unit, call_desc_t *cd)
+ipr_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
+	     struct i4b_protocol *pp, u_int32_t driver_type, 
+	     u_int32_t driver_unit, call_desc_t *cd)
 {
 	struct ipr_softc *sc = &ipr_softc[driver_unit];
 
-	if(!protocol)
+	if(!pp)
 	{
 	  return (driver_unit < NI4BIPR) ?
 	    sc->sc_fifo_translator : FT_INVALID;
@@ -767,7 +768,7 @@ ipr_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 			      driver_unit);
 #endif
 
-	if(*protocol)
+	if(pp->protocol_1)
 	{
 	  /* connected */
 

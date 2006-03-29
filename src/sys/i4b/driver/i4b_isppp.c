@@ -467,13 +467,14 @@ i4bisppp_get_mbuf(struct fifo_translator *__f)
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
 fifo_translator_t *
-i4bisppp_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
-		  u_int driver_type, u_int driver_unit, call_desc_t *cd)
+i4bisppp_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
+		  struct i4b_protocol *pp, u_int32_t driver_type,
+		  u_int32_t driver_unit, call_desc_t *cd)
 {
 	struct i4bisppp_softc *sc = &i4bisppp_softc[driver_unit];
 	struct sppp *sp = IFP2SP(sc->sc_ifp);
 
-	if(!protocol)
+	if(!pp)
 	{
 	  return (driver_unit < NI4BISPPP) ?
 	    sc->sc_fifo_translator : FT_INVALID;
@@ -488,7 +489,7 @@ i4bisppp_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 			      driver_unit);
 #endif
 
-	if(*protocol)
+	if(pp->protocol_1)
 	{
 	  /* connected */
 

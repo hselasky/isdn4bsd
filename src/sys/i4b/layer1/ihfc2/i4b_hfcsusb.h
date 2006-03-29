@@ -155,7 +155,7 @@ hfcsusb_callback_chip_read USBD_CALLBACK_T(xfer)
 	  /* F2 - counter */
 	  if(f->F_drvr != req->bData[0])
 	  {
-		if(!PROT_IS_HDLC(f->prot))
+		if(!PROT_IS_HDLC(&(f->prot_curr)))
 		{
 			IHFC_ERR("F1 != F2\n");
 
@@ -646,7 +646,7 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	  frlengths_end  =  frlengths + (HFCSUSB_TX_FRAMES),
 	  frlengths_adj  =  frlengths + (HFCSUSB_TX_ADJUST);
 
-	if(PROT_IS_HDLC(f->prot))
+	if(PROT_IS_HDLC(&(f->prot_curr)))
 	{
 	  hfcsusb_callback_isoc_tx_d_hdlc(xfer);
 	  goto done;
@@ -1091,7 +1091,7 @@ hfcsusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	  {
 	    ihfc_fifo_t *f = xfer[0]->priv_fifo;
 
-	    if((f->prot != P_DISABLE) &&
+	    if((f->prot_curr.protocol_1 != P_DISABLE) &&
 	       ((FIFO_NO(f) == d1r) || 
 		sc->sc_state[0].state.active))
 	    {
@@ -1327,7 +1327,7 @@ hfcsusb_chip_status_read(ihfc_sc_t *sc)
 	/* read STATES(reg=0x30) */
 	hfcsusb_chip_read(sc,0x30,NULL,1);
 
-	if(!PROT_IS_HDLC(sc->sc_fifo[d1t].prot))
+	if(!PROT_IS_HDLC(&(sc->sc_fifo[d1t].prot_curr)))
 	{
 	  /* check FIFO frame counters */
 
@@ -1369,20 +1369,20 @@ hfcsusb_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 
 	if(FIFO_NO(f) == d1t)
 	{
-	  if(PROT_IS_HDLC(f->prot))
+	  if(PROT_IS_HDLC(&(f->prot_curr)))
 	  {
-	    program = &hfcsusb_d1t_program;
+	      program = &hfcsusb_d1t_program;
 	  }
-	  if(PROT_IS_TRANSPARENT(f->prot))
+	  if(PROT_IS_TRANSPARENT(&(f->prot_curr)))
 	  {
-	    program = &i4b_unknown_program;
+	      program = &i4b_unknown_program;
 	  }
 	}
 	else
 	{
-	  if(PROT_IS_TRANSPARENT(f->prot))
+	  if(PROT_IS_TRANSPARENT(&(f->prot_curr)))
 	  {
-	    program = &i4b_unknown_program;
+	      program = &i4b_unknown_program;
 	  }
 	}
 	return program;

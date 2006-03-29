@@ -29,6 +29,8 @@
  *	i4b_l4mgmt.c - layer 4 calldescriptor management utilites
  *	---------------------------------------------------------
  *
+ * $FreeBSD: $
+ *
  *---------------------------------------------------------------------------*/
 
 #include <sys/param.h>
@@ -44,8 +46,6 @@
 #include <i4b/include/i4b_global.h>
 
 #include <i4b/layer4/i4b_l4.h>
-
-__FBSDID("$FreeBSD: $");
 
 /*---------------------------------------------------------------------------*
  *	get a new unique CDID value,
@@ -450,9 +450,13 @@ i4b_disconnect_by_appl_interface(u_int8_t ai_type, void *ai_ptr)
 void
 i4b_update_d_channel(struct i4b_controller *cntl)
 {
+	struct i4b_protocol p = { /* zero */ };
+
+	p.protocol_1 = cntl->N_protocol;
+
 	i4b_setup_driver(cntl,
 			 CHAN_D1,
-			 cntl->N_protocol,
+			 &p,
 			 cntl->N_driver_type,
 			 cntl->unit,
 			 0);

@@ -634,7 +634,7 @@ isac_hscx_generic_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 	if((FIFO_NO(f) == d1t) ||
 	   (FIFO_NO(f) == d1r))
 	{
-		if(PROT_IS_HDLC(f->prot))
+		if(PROT_IS_HDLC(&(f->prot_curr)))
 		{
 		  program = (FIFO_DIR(f) == transmit) ?
 		    &i4b_ipac_tx_program :
@@ -643,8 +643,8 @@ isac_hscx_generic_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 	}
 	else
 	{
-		if(PROT_IS_HDLC(f->prot) ||
-		   PROT_IS_TRANSPARENT(f->prot))
+		if(PROT_IS_HDLC(&(f->prot_curr)) ||
+		   PROT_IS_TRANSPARENT(&(f->prot_curr)))
 		{
 		  program = (FIFO_DIR(f) == transmit) ?
 		    &i4b_ipac_tx_program :

@@ -210,8 +210,9 @@ ihfc_dev_tx_interrupt RXTX_INTERRUPT_T(ft,buf)
 }
 
 fifo_translator_t *
-ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, u_int *protocol,
-		  u_int driver_type, u_int driver_unit, call_desc_t *cd)
+ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, 
+		  struct i4b_protocol *pp, u_int32_t driver_type,
+		  u_int32_t driver_unit, call_desc_t *cd)
 {
 	ihfc_sc_t *sc = cntl->L1_sc;
 	ihfc_fifo_t *f = cntl->L1_fifo;
@@ -222,7 +223,7 @@ ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, u_int *protocol
 
 	IHFC_MSG("\n");
 
-	if(!protocol)
+	if(!pp)
 	{
 	  return (driver_unit < IHFC_DEVICES) ?
 	    fifo_translator(dev) : FT_INVALID;
@@ -230,7 +231,7 @@ ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, u_int *protocol
 
 	fifo_translator(dev) = ft;
 
-	if(*protocol)
+	if(pp->protocol_1)
 	{
 	  /* connected */
 
@@ -243,7 +244,7 @@ ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, u_int *protocol
 	  ft->L5_RX_INTERRUPT = ihfc_dev_rx_interrupt;
 
 	  /* set protocol */
-	  *protocol = fifo_receive(ft)->default_prot;
+	  pp->protocol_1 = fifo_receive(ft)->default_prot;
 	}
 	else
 	{
@@ -256,7 +257,7 @@ ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, u_int *protocol
  * :ihfc io control
  *---------------------------------------------------------------------------*/
 static int
-ihfc_dioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *p)
+ihfc_dioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *td)
 {
 	ihfc_sc_t *sc = i4b_controller(dev)->L1_sc;
 	int error = 0;
@@ -369,16 +370,19 @@ ihfc_dioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
  * :ihfc open
  *---------------------------------------------------------------------------*/
 static int
-ihfc_dopen(struct cdev *dev, int oflags, int devtype, struct thread *p)
+ihfc_dopen(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
 	struct i4b_controller *cntl = i4b_controller(dev);
+	struct i4b_protocol p = { /* zero */ };
 	u_int32_t channel = channel(dev);
 #if DO_I4B_DEBUG
 	ihfc_sc_t *sc = cntl->L1_sc;
 #endif
 	IHFC_MSG("oflags=0x%x\n",oflags);
 
-	i4b_setup_driver(cntl, channel, P_HDLC/* overwritten by setup_ft */, 
+	p.protocol_1 = P_HDLC; /* overwritten by setup_ft */
+
+	i4b_setup_driver(cntl, channel, &p, 
 			 DRVR_IHFC_DEV, channel, NULL);
 
 	/*
@@ -395,7 +399,7 @@ ihfc_dopen(struct cdev *dev, int oflags, int devtype, struct thread *p)
  * :ihfc close
  *---------------------------------------------------------------------------*/
 static int
-ihfc_dclose(struct cdev *dev, int fflag, int devtype, struct thread *p)
+ihfc_dclose(struct cdev *dev, int fflag, int devtype, struct thread *td)
 {
 	struct i4b_controller *cntl = i4b_controller(dev);
 	u_int32_t channel = channel(dev);
@@ -476,7 +480,7 @@ ihfc_dread(struct cdev *dev, struct uio *uio, int ioflag)
 	  do {
 		int len;
 
-		if(f->prot == P_TRANS_RING)
+		if(f->prot_curr.protocol_1 == P_TRANS_RING)
 		{
 		  /*
 		   * Transparent ringbuffer routines
@@ -503,10 +507,10 @@ ihfc_dread(struct cdev *dev, struct uio *uio, int ioflag)
 		  /* release fifo space */
 		  f->buf.Dat_start += len;
 
-		} else if((f->prot == P_HDLC) ||
-			  (f->prot == P_HDLC_EMU) ||
-			  (f->prot == P_HDLC_EMU_D) ||
-			  (f->prot == P_TRANS)) {
+		} else if((f->prot_curr.protocol_1 == P_HDLC) ||
+			  (f->prot_curr.protocol_1 == P_HDLC_EMU) ||
+			  (f->prot_curr.protocol_1 == P_HDLC_EMU_D) ||
+			  (f->prot_curr.protocol_1 == P_TRANS)) {
 
 		  /*
 		   * HDLC(mbuf) routines
@@ -584,7 +588,7 @@ ihfc_dwrite(struct cdev *dev, struct uio *uio, int ioflag)
 	  do {
 		int len;
 
-		if(f->prot == P_TRANS_RING)
+		if(f->prot_curr.protocol_1 == P_TRANS_RING)
 		{
 		  /*
 		   * Transparent ringbuffer routines
@@ -613,10 +617,10 @@ ihfc_dwrite(struct cdev *dev, struct uio *uio, int ioflag)
 		  /* start TX fifo */
 		  ihfc_fifo_call(sc,f);
 
-		} else if((f->prot == P_HDLC) ||
-			  (f->prot == P_HDLC_EMU) ||
-			  (f->prot == P_HDLC_EMU_D) ||
-			  (f->prot == P_TRANS)) {
+		} else if((f->prot_curr.protocol_1 == P_HDLC) ||
+			  (f->prot_curr.protocol_1 == P_HDLC_EMU) ||
+			  (f->prot_curr.protocol_1 == P_HDLC_EMU_D) ||
+			  (f->prot_curr.protocol_1 == P_TRANS)) {
 		  /*
 		   * HDLC(mbuf) routines
 		   */

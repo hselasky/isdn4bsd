@@ -1684,20 +1684,21 @@ static l2softc_t l2_softc[MAX_CONTROLLERS];
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
 fifo_translator_t *
-dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol, 
-	      u_int driver_type, u_int driver_unit, call_desc_t *cd)
+dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
+	      struct i4b_protocol *pp, u_int32_t driver_type, 
+	      u_int32_t driver_unit, call_desc_t *cd)
 {
 	DSS1_TCP_pipe_t *pipe;
 	l2softc_t *sc = &l2_softc[driver_unit];
 	u_int16_t max_channels;
 
-	if(!protocol)
+	if(!pp)
 	{
 	  return (driver_unit < MAX_CONTROLLERS) ? 
 	    sc->sc_fifo_translator : FT_INVALID;
 	}
 
-	if(*protocol)
+	if(pp->protocol_1)
 	{
 #define BZERO(ptr) bzero(ptr,sizeof(*ptr))
 
@@ -1714,7 +1715,7 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 	cntl->N_fifo_translator =
 	  sc->sc_fifo_translator = f;
 
-	if(*protocol)
+	if(pp->protocol_1)
 	{
 	  /* connected */
 
@@ -1725,7 +1726,7 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 	  f->L5_GET_MBUF = &dss1_l2_get_mbuf;
 	  f->L5_PUT_MBUF = &dss1_l2_put_mbuf;
 
-	  *protocol = P_HDLC;
+	  pp->protocol_1 = P_HDLC;
 
 	  cntl->N_CONNECT_REQUEST = n_connect_request;
 	  cntl->N_INFORMATION_REQUEST = n_information_request;

@@ -1775,12 +1775,13 @@ tel_tx_interrupt(struct fifo_translator *f, struct buffer *out_buf)
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
 fifo_translator_t *
-tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
-	     u_int driver_type, u_int driver_unit, call_desc_t *cd)
+tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
+	     struct i4b_protocol *pp, u_int32_t driver_type, 
+	     u_int32_t driver_unit, call_desc_t *cd)
 {
 	tel_sc_t *sc = &tel_sc[driver_unit];
 
-	if(!protocol)
+	if(!pp)
 	{
 	  return (driver_unit < NI4BTEL) ?
 	    sc->sc_fifo_translator : FT_INVALID;
@@ -1803,7 +1804,7 @@ tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 	  sc->sc_fifo_translator = 0;
 	}
 
-	if(*protocol)
+	if(pp->protocol_1)
 	{
 	  /* connected */
 
@@ -1822,7 +1823,7 @@ tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 		if(snd_open(sc))
 		{
 		  /* force ringbuffers! */
-		  *protocol = P_TRANSPARENT_RING;
+		  pp->protocol_1 = P_TRANSPARENT_RING;
 		}
 		else
 		{
@@ -1830,7 +1831,7 @@ tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 		  /* see unsetup under
 		   * not connected
 		   */
-		  *protocol = P_DISABLE;
+		  pp->protocol_1 = P_DISABLE;
 		}
 	  }
 	}
@@ -2035,22 +2036,23 @@ tel_dial_get_mbuf(struct fifo_translator *f)
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
 fifo_translator_t *
-tel_dial_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
-		  u_int driver_type, u_int driver_unit, call_desc_t *cd)
+tel_dial_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
+		  struct i4b_protocol *pp, u_int32_t driver_type,
+		  u_int32_t driver_unit, call_desc_t *cd)
 {
 	if(!cd)
 	{
 		return FT_INVALID;
 	}
 
-	if(!protocol)
+	if(!pp)
 	{
 		return cd->fifo_translator_tone_gen;
 	}
 
 	cd->fifo_translator_tone_gen = f; 
 
-	if(*protocol)
+	if(pp->protocol_1)
 	{
 	    /* connected */
 

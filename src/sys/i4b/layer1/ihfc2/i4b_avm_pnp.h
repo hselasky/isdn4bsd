@@ -279,7 +279,7 @@ avm_pnp_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 
 	/* RME or RPF - B channel receive */
 	if(((f+receive)->i_ista & (I_ISTA_RPF|I_ISTA_ERR)) &&
-	   ((f+receive)->prot != P_DISABLE))
+	   ((f+receive)->prot_curr.protocol_1 != P_DISABLE))
 	{
 	    (f+receive)->i_ista &= ~(I_ISTA_RPF|I_ISTA_ERR);
 
@@ -304,7 +304,7 @@ avm_pnp_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 
 	/* XPR - B channel transmit */
 	if(((f+transmit)->i_ista & I_ISTA_XPR) &&
-	   ((f+transmit)->prot != P_DISABLE))
+	   ((f+transmit)->prot_curr.protocol_1 != P_DISABLE))
 	{
 	    if((f+transmit)->i_ista & I_ISTA_ERR)
 	    {
@@ -526,7 +526,7 @@ avm_pnp_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 	if((FIFO_NO(f) == d1t) ||
 	   (FIFO_NO(f) == d1r))
 	{
-		if(PROT_IS_HDLC(f->prot))
+		if(PROT_IS_HDLC(&(f->prot_curr)))
 		{
 		  program = (FIFO_DIR(f) == transmit) ?
 		    &i4b_ipac_tx_program :
@@ -535,7 +535,7 @@ avm_pnp_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 	}
 	else
 	{
-		if(PROT_IS_TRANSPARENT(f->prot))
+		if(PROT_IS_TRANSPARENT(&(f->prot_curr)))
 		{
 		    program = &i4b_unknown_program;
 		}

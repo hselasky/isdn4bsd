@@ -949,7 +949,7 @@ wibusb_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 {
 	ihfc_fifo_program_t *program = NULL;
 
-	if(PROT_IS_TRANSPARENT(f->prot))
+	if(PROT_IS_TRANSPARENT(&(f->prot_curr)))
 	{
 	  program = &i4b_unknown_program;
 	}

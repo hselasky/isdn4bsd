@@ -325,9 +325,9 @@ ihfc_fifo_program(ihfc_sc_t *sc)
 		/* get current fifo */
 		f = *(sc->sc_intr_list_curr - 1);
 
-		if(f->prot != P_DISABLE)
+		if(f->prot_curr.protocol_1 != P_DISABLE)
 		{
-		    IHFC_MSG("(#%d,prot=%d)\n", FIFO_NO(f), f->prot);
+		    IHFC_MSG("(#%d,prot=%d)\n", FIFO_NO(f), f->prot_curr.protocol_1);
 		}
 
 		/* limit amount of processing.
@@ -587,7 +587,7 @@ i4b_ipac_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	/* call filter */
 	(f->filter)(sc,f);
 
-	if(PROT_IS_HDLC(f->prot))
+	if(PROT_IS_HDLC(&(f->prot_curr)))
 	{
 	    if(f->state & ST_FRAME_END)
 	    {
@@ -612,7 +612,7 @@ i4b_ipac_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		 * but just in case, check the
 		 * protocol:
 		 */
-		if(PROT_IS_HDLC(f->prot) == 0)
+		if(PROT_IS_HDLC(&(f->prot_curr)) == 0)
 		{
 		    /* allocate a temporary buffer 
 		     * on the stack :
@@ -815,7 +815,7 @@ i4b_hfc_rx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	    /* call filter */
 	    (f->filter)(sc,f);
 
-	    if(PROT_IS_HDLC(f->prot))
+	    if(PROT_IS_HDLC(&(f->prot_curr)))
 	    {
 	        /* In HDLC mode leftover data must be dumped
 		 * to advance the FIFO pointer to the 
@@ -935,7 +935,7 @@ i4b_hfc_rx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 
 	    if(f->F_chip)
 	    {
-	        if(PROT_IS_HDLC(f->prot) == 0)
+	        if(PROT_IS_HDLC(&(f->prot_curr)) == 0)
 		{
 		    IHFC_ERR("(#%d) F_drvr != F_chip in [extended] "
 			     "transparent mode!\n",
@@ -1083,7 +1083,7 @@ i4b_hfc_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	    /* ST_FRAME_ERROR may not be valid any more */
 	    f->state &= ~(ST_FRAME_ERROR);
 
-	    if(PROT_IS_HDLC(f->prot))
+	    if(PROT_IS_HDLC(&(f->prot_curr)))
 	    {
 	        /* HDLC mode
 		 *
@@ -1178,7 +1178,7 @@ i4b_hfc_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 
 	    if(f->F_chip)
 	    {
-	        if(!(PROT_IS_HDLC(f->prot)))
+	        if(!(PROT_IS_HDLC(&(f->prot_curr))))
 		{
 		    IHFC_ERR("(#%d) F_drvr != F_chip in [extended] "
 			     "transparent mode!\n",
@@ -1203,7 +1203,7 @@ i4b_hfc_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		}
 	    }
 
-	    if(PROT_IS_HDLC(f->prot))
+	    if(PROT_IS_HDLC(&(f->prot_curr)))
 	    {
 	        /* increment the F-counter so that 
 		 * one is sure that an old frame is
@@ -1319,7 +1319,7 @@ i4b_hfc_tx_program_new(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	    /* ST_FRAME_ERROR may not be valid any more */
 	    f->state &= ~(ST_FRAME_ERROR);
 
-	    if(PROT_IS_HDLC(f->prot))
+	    if(PROT_IS_HDLC(&(f->prot_curr)))
 	    {
 	        /* HDLC mode
 		 *
@@ -1360,7 +1360,7 @@ i4b_unknown_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	 * f->filter(,) directly
 	 */
 
-	if(f->prot != P_DISABLE)
+	if(f->prot_curr.protocol_1 != P_DISABLE)
 	{
 	    IHFC_MSG("(#%d) << unsupported!\n", FIFO_NO(f));
 	}
@@ -1370,7 +1370,7 @@ i4b_unknown_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 static void
 unsupported FIFO_FILTER_T(sc,f)
 {
-	if(f->prot != P_DISABLE)
+	if(f->prot_curr.protocol_1 != P_DISABLE)
 	{
 	    IHFC_MSG("(FIFO #%d) << no filter!\n",FIFO_NO(f));
 	}

@@ -140,6 +140,8 @@ filter_rx FIFO_FILTER_T(sc,f)
         /* post decrement buf_len and Z_chip */
         (f->buf_len)     -= (io_len);
         (f->Z_chip)      -= (io_len);
+
+	return;
 }
 
 static void
@@ -167,6 +169,8 @@ get_mbuf_rx FIFO_FILTER_T(sc,f)
 	  f->buf_len  = 0;
 	  f->buf_ptr  = 0;
 	}
+
+	return;
 }
 
 static void
@@ -213,10 +217,10 @@ rx_transparent FIFO_FILTER_T(sc,f)
 	return;
 }
 
-I4B_FILTER_EXPORT() = {
-	.direction  = receive,
-	.protmask   = M(P_TRANS),
-	.filter     = &rx_transparent,
+I4B_FILTER_EXPORT()  = {
+	.direction   = receive,
+	.protocol[0] = P_TRANS,
+	.filter      = &rx_transparent,
 };
 
 static void
@@ -326,10 +330,10 @@ rx_hdlc FIFO_FILTER_T(sc,f)
 	return;
 }
 
-I4B_FILTER_EXPORT() = {
-	.direction  = receive,
-	.protmask   = M(P_HDLC),
-	.filter     = &rx_hdlc,
+I4B_FILTER_EXPORT()  = {
+	.direction   = receive,
+	.protocol[0] = P_HDLC,
+	.filter      = &rx_hdlc,
 };
 
 static void
@@ -385,9 +389,9 @@ rx_transparent_ring FIFO_FILTER_T(sc,f)
 	return;
 }
 
-I4B_FILTER_EXPORT() = {
+I4B_FILTER_EXPORT()     = {
 	.direction      = receive,
-	.protmask       = M(P_TRANS_RING),
+	.protocol[0]    = P_TRANS_RING,
 	.buffersize     = 2048,
 	.filter         = &rx_transparent_ring,
 	.rxtx_interrupt = NULL, /* must be set by driver */
@@ -530,10 +534,11 @@ rx_hdlc_emulation FIFO_FILTER_T(sc,f)
 	return;
 }
 
-I4B_FILTER_EXPORT() = {
-	.direction      = receive,
-	.protmask       = M(P_HDLC_EMU)|M(P_HDLC_EMU_D),
-	.filter         = &rx_hdlc_emulation,
+I4B_FILTER_EXPORT()  = {
+	.direction   = receive,
+	.protocol[0] = P_HDLC_EMU,
+	.protocol[1] = P_HDLC_EMU_D,
+	.filter      = &rx_hdlc_emulation,
 };
 
 /*
@@ -634,10 +639,10 @@ tx_transparent FIFO_FILTER_T(sc,f)
 	return;
 }
 
-I4B_FILTER_EXPORT() = {
-	.direction  = transmit,
-	.protmask   = M(P_TRANS),
-	.filter     = &tx_transparent,
+I4B_FILTER_EXPORT()  = {
+	.direction   = transmit,
+	.protocol[0] = P_TRANS,
+	.filter      = &tx_transparent,
 };
 
 static void
@@ -699,10 +704,10 @@ tx_hdlc FIFO_FILTER_T(sc,f)
 	return;
 }
 
-I4B_FILTER_EXPORT() = {
-	.direction  = transmit,
-	.protmask   = M(P_HDLC),
-	.filter     = &tx_hdlc,
+I4B_FILTER_EXPORT()  = {
+	.direction   = transmit,
+	.protocol[0] = P_HDLC,
+	.filter      = &tx_hdlc,
 };
 
 static void
@@ -784,9 +789,9 @@ tx_transparent_ring FIFO_FILTER_T(sc,f)
 	return;
 }
 
-I4B_FILTER_EXPORT() = {
+I4B_FILTER_EXPORT()     = {
 	.direction      = transmit,
-	.protmask       = M(P_TRANS_RING),
+	.protocol[0]    = P_TRANS_RING,
 	.buffersize     = 2048,
 	.filter         = &tx_transparent_ring,
 	.rxtx_interrupt = NULL, /* must be set by driver! */
@@ -918,10 +923,10 @@ tx_hdlc_emulation FIFO_FILTER_T(sc,f)
 	return;
 }
 
-I4B_FILTER_EXPORT() = {
-	.direction  = transmit,
-	.protmask   = M(P_HDLC_EMU),
-	.filter     = &tx_hdlc_emulation,
+I4B_FILTER_EXPORT()  = {
+	.direction   = transmit,
+	.protocol[0] = P_HDLC_EMU,
+	.filter      = &tx_hdlc_emulation,
 };
 
 #undef HDLC_ENCODE_TYPE
@@ -1058,10 +1063,10 @@ tx_hdlc_emulation_dchan FIFO_FILTER_T(sc,f)
 	return;
 }
 
-I4B_FILTER_EXPORT() = {
-	.direction  = transmit,
-	.protmask   = M(P_HDLC_EMU_D),
-	.filter     = &tx_hdlc_emulation_dchan,
+I4B_FILTER_EXPORT()  = {
+	.direction   = transmit,
+	.protocol[0] = P_HDLC_EMU_D,
+	.filter      = &tx_hdlc_emulation_dchan,
 };
 
 #endif /* _I4B_FILTER_H_ */

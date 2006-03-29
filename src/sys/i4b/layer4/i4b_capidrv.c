@@ -2948,25 +2948,26 @@ capi_alloc_mbuf(struct fifo_translator *f, u_int16_t def_len, u_int16_t tr_len)
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
 fifo_translator_t *
-capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
-	      u_int driver_type, u_int driver_unit, call_desc_t *cd)
+capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
+	      struct i4b_protocol *pp, u_int32_t driver_type, 
+	      u_int32_t driver_unit, call_desc_t *cd)
 {
 	if(!cd)
 	{
 		return FT_INVALID;
 	}
 
-	if(!protocol)
+	if(!pp)
 	{
 		return cd->fifo_translator_capi;
 	}
 
 	cd->fifo_translator_capi = f; 
 
-	NDBGL4(L4_MSG, "capi, cdid=%d, protocol=%d", 
-	       cd->cdid, *protocol);
+	NDBGL4(L4_MSG, "capi, cdid=%d, protocol_1=%d", 
+	       cd->cdid, pp->protocol_1);
 
-	if(*protocol)
+	if(pp->protocol_1)
 	{
 		/* connected */
 

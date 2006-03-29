@@ -169,8 +169,6 @@ memset_1(void *dst, u_int32_t fill, u_int32_t len)
 #define FIFO_DIR(f)			((f)->__fn & (transmit|receive))
 #define FIFO_CMP(f,op,no)	       (((f)->__fn) op (no))
 
-#define M(x)				(1<<(x))
-
 #define FIFO_FOREACH(f,sc)				\
 for((f) = (sc)->sc_fifo_end ? &(sc)->sc_fifo[0] : NULL;	\
     (f) < (sc)->sc_fifo_end;				\
@@ -1183,12 +1181,14 @@ struct sc_fifo {
 #define ST_FRAME_END 	(1<<3)		/* see ``framing rules'' (i4b_program.h)*/
 #define ST_FRAME_ERROR	(1<<4)		/* see ``framing rules'' (i4b_program.h)*/
 #define ST_RUNNING 	(1<<5)		/* set when fifo need not be called     */
-#define ST_I4B_TRACE 	(1<<6)		/* i4b trace enable                     */
+#define ST_I4B_TRACE 	(1<<6)		/* I4B trace enable                     */
 #define ST_FZ_LOADED	(1<<8)		/* set when Z-values have been loaded   */
 
 #define ST_PROGRAM_MASK (ST_FRAME_END|ST_FRAME_ERROR/*|ST_FILLED*/|ST_FZ_LOADED|ST_RUNNING)
 
-	u_int8_t	prot;		/* HDLC, trans, fax  ...  */
+	struct i4b_protocol prot_curr;	/* HDLC, trans, fax  ...  */
+	struct i4b_protocol prot_last;	/* HDLC, trans, fax  ...  */
+
 	u_int8_t	program_state;
 	ihfc_fifo_program_t *program;
 

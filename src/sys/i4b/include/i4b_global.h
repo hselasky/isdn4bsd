@@ -42,6 +42,11 @@
 #define min MIN
 #endif
 
+struct fifo_translator;
+struct i4b_protocol;
+struct buffer;
+struct mbuf;
+
 /*---------------------------------------------------------------------------*
  *	local mutex support for single CPU systems
  *
@@ -68,8 +73,6 @@ typedef struct bchan_statistics {
 	int outbytes;
 	int inbytes;
 } bchan_statistics_t;
-
-struct fifo_translator;
 
 /* connection-lifetime statistics-structure */
 struct i4b_accounting {
@@ -119,8 +122,6 @@ extern void i4b_accounting_timeout(struct i4b_accounting *sc);
 /*---------------------------------------------------------------------------*
  *	
  *---------------------------------------------------------------------------*/
-struct mbuf;
-
 #define struct_ifqueue				\
         struct  mbuf *ifq_head;			\
         struct  mbuf *ifq_tail;			\
@@ -178,7 +179,6 @@ struct mbuf *i4b_getmbuf( int, int );
 /*---------------------------------------------------------------------------*
  *	fifo-translator definition
  *---------------------------------------------------------------------------*/
-struct buffer;
 typedef struct fifo_translator
 {
   void  *L5_sc;
@@ -221,7 +221,7 @@ typedef struct fifo_translator
    */
 
   /* called from Layer 5 */
-  void (*L1_FIFO_SETUP)(struct fifo_translator *, int protocol);
+  void (*L1_FIFO_SETUP)(struct fifo_translator *, struct i4b_protocol *);
 # define L1_FIFO_SETUP(f,protocol)		\
    ((f)->L1_FIFO_SETUP)(f,protocol)
 
@@ -714,9 +714,9 @@ extern void i4b_l1_trace_ind(struct i4b_trace_hdr *hdr, struct mbuf *m);
 
 /* prototypes from i4b_l4.c */
 
-extern int i4b_setup_driver(struct i4b_controller *cntl,u_int channel,
-			    u_int protocol,u_int driver_type,
-			    u_int driver_unit,struct call_desc *cd);
+extern int i4b_setup_driver(struct i4b_controller *cntl, u_int32_t channel,
+			    struct i4b_protocol *pp, u_int32_t driver_type,
+			    u_int32_t driver_unit,struct call_desc *cd);
 
 /* prototypes from i4b_l4mgmt.c */
 

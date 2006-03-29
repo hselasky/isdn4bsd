@@ -98,7 +98,7 @@ ihfc_fifos_active(ihfc_sc_t *sc)
 	     */
 	    FIFO_FOREACH(f,sc)
 	    {
-	        if((f->prot != P_DISABLE) &&
+	        if((f->prot_curr.protocol_1 != P_DISABLE) &&
 		   (sc->sc_state[f->sub_unit].state.active ||
 		    (sc->sc_state[f->sub_unit].state.pending)))
 		{
@@ -618,7 +618,7 @@ struct filter_info {
 	u_int8_t  unused;
 	u_int8_t  direction;
 	u_int16_t buffersize; /* in bytes */
-	u_int32_t protmask;
+	u_int16_t protocol[4];
   void (*rxtx_interrupt) RXTX_INTERRUPT_T(,);
   void (*filter) FIFO_FILTER_T(,);
 };
@@ -696,7 +696,7 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
   const struct filter_info  *filt;
  __typeof(filt->buffersize)  buffersize;
  __typeof(filt->rxtx_interrupt) *rxtx_interrupt;
-	u_int32_t prot;
+	u_int16_t protocol;
 	u_int8_t direction;
 
 	IHFC_ASSERT_LOCKED(sc);
@@ -707,7 +707,7 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 
  reconfigure:
 
-	if(f->prot == P_HDLC_EMU)
+	if(f->prot_curr.protocol_1 == P_HDLC_EMU)
 	{
 	  /* NOTE: transmit channels that doesn't
 	   * repeat the last byte, or are shared,
@@ -716,32 +716,37 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	  if((FIFO_NO(f) == d1t) ||
 	     (!sc->sc_default.o_TRANSPARENT_BYTE_REPETITION))
 	  {
-	    f->prot = P_HDLC_EMU_D;
+	      f->prot_curr.protocol_1 = P_HDLC_EMU_D;
 	  }
 	}
 
 	/* search for program */
 	program = FIFO_GET_PROGRAM(sc,f);
 
-	/* setup masks */
-	prot = M(f->prot);
+	/* search for filter */
+	protocol = f->prot_curr.protocol_1;
 	direction = FIFO_DIR(f);
 
-	/* search for filter */
-	for(filt = &ihfc_filter_info_start[0];
-	    filt < &ihfc_filter_info_end[0];
-	    filt++)
+	if(protocol != 0)
 	{
-	  if((filt->protmask & prot) &&
-	     (filt->direction == direction))
-	  {
-		/* first match wins */
-		goto filt_found;
-	  }
+	    for(filt = &ihfc_filter_info_start[0];
+		filt < &ihfc_filter_info_end[0];
+		filt++)
+	    {
+	        if(((filt->protocol[0] == protocol) ||
+		    (filt->protocol[1] == protocol) ||
+		    (filt->protocol[2] == protocol) ||
+		    (filt->protocol[3] == protocol)) &&
+		   (filt->direction == direction))
+		{
+		    /* first match wins */
+		    goto filt_found;
+		}
+	    }
 	}
 
 	/* filter not found */ 
-	filt = 0;
+	filt = NULL;
 
  filt_found: 
 
@@ -757,7 +762,7 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		f->program = program;
 
 		/* select filter */
-		f->filter   = filt->filter;
+		f->filter  = filt->filter;
 
 		/* select rxtx_interrupt */
 		if(filt->rxtx_interrupt)
@@ -770,35 +775,34 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		/* allow HDLC fallback
 		 * to HDLC_EMU
 		 */
-		if(f->prot == P_HDLC)
+		if(f->prot_curr.protocol_1 == P_HDLC)
 		{
-		   f->prot = P_HDLC_EMU;
+		   f->prot_curr.protocol_1 = P_HDLC_EMU;
 		   goto reconfigure;
 		}
 
 		/* no match for this
 		 * combination
 		 */
-		if(f->prot != P_DISABLE)
+		if(f->prot_curr.protocol_1 != P_DISABLE)
 		{
 		error:
 		  IHFC_ERR("fifo(#%d) cannot be configured "
-			   "for protocol %d: %s-%s-%s-%s\n",
-			   FIFO_NO(f), f->prot,
+			   "for protocol %d: %s-%s-%s\n",
+			   FIFO_NO(f), f->prot_curr.protocol_1,
 			   !program ? "no program" : "",
 			   !filt ? "no filter" :  !filt->filter ? "invalid filter" : "",
-			   !prot ? "protocol >= max" : "",
 			   (direction == transmit) ? "(dir=tx)" : "(dir=rx)");
 		}
 
 		/* set defaults */
 
-		buffersize  = 0;
+		buffersize = 0;
 
-		f->program  = 0;
-		f->filter   = 0;
-		*rxtx_interrupt = 0;
-		f->prot     = P_DISABLE;
+		f->program = NULL;
+		f->filter = NULL;
+		*rxtx_interrupt = NULL;
+		f->prot_curr.protocol_1 = P_DISABLE;
 	}
 
 	/* setup buffer [if any] */
@@ -976,12 +980,12 @@ ihfc_fifo_call(ihfc_sc_t *sc, ihfc_fifo_t *f)
 #define c (&sc->sc_config) /* save some code */
 
 /*---------------------------------------------------------------------------*
- * : setup a fifo channel 					(ALL CHIPS)
+ * : ihfc_fifo_setup - setup a FIFO channel 			(ALL CHIPS)
  *
- * NOTE: The protocol is passed by setting ``f->prot'' before calling
- *	 this function.     ``f->prot'' may be set to ``disable'' during
- *	 setup to indicate failure.   This function returns true when
- *	 ``f->prot == disable''. Else it returns false.
+ * NOTE: The protocol is passed by setting "f->prot_curr" before calling
+ *	 this function.    "f->prot_curr" may be set to "disable" during
+ *	 setup to indicate failure.      This function returns true when
+ *	 "f->prot_curr" is disabled. Else it returns false.
  *
  * NOTE: When a channel(tx) is not in use only idle bytes (``0xff'')
  *	 should be transmitted.
@@ -1177,7 +1181,7 @@ ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 	 * Reset configuration
 	 */
 
-      	if(PROT_IS_TRANSPARENT(f->prot))
+      	if(PROT_IS_TRANSPARENT(&(f->prot_curr)))
 	{
 		/* Transparent mode */
 		c->s_ctmt_0   |= s_ctmt_mask;	         /* trans enable */
@@ -1194,8 +1198,8 @@ ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 		c->w_b1_mode  |=  w_b1_mode_mask;
 		c->w_b2_mode  |=  w_b2_mode_mask;
 
-		if((f->prot != P_HDLC_EMU) &&
-		   (f->prot != P_HDLC_EMU_D))
+		if((f->prot_curr.protocol_1 != P_HDLC_EMU) &&
+		   (f->prot_curr.protocol_1 != P_HDLC_EMU_D))
 		{
 		  /* default AUDIO limit == 100ms of data */
 
@@ -1212,7 +1216,7 @@ ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 		}
 	}
 
-	if(PROT_IS_HDLC(f->prot))
+	if(PROT_IS_HDLC(&(f->prot_curr)))
 	{
 		/* HDLC mode */
 		c->s_ctmt_0   &= ~s_ctmt_mask;	         /* HDLC enable */
@@ -1250,17 +1254,6 @@ ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 	   f->Z_min_free = 0;
 	}
 
-	/*
-	 * Example of new protocol:
-	 *
-	 * if(f->prot == switch_only) {
-	 *	f->prot = disable;
-	 * } else {
-	 *  disable switching
-	 * }
-	 *
-	 */
-
 	/* NOTE: D_SEND must be forced to 0xC0 using
 	 * D-reset-bit in register SCTRL_E, when
 	 * fifo[d1t] is disabled !
@@ -1268,7 +1261,7 @@ ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 
 	c->aux_data_0 ^= sc->sc_default.led_inverse_mask;
 
-	if(f->prot != P_DISABLE)
+	if(f->prot_curr.protocol_1 != P_DISABLE)
 	{
 		c->aux_data_0    |=  aux_data_0_mask;      /* led  enable */
 		c->a_lmr1        |=  a_lmr1_mask;          /* send enable */
@@ -1346,7 +1339,7 @@ ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 	IHFC_ASSERT_LOCKED(sc);
 
 	IHFC_MSG("fifo(#%d) prot(%d).\n",
-		 FIFO_NO(f), f->prot);
+		 FIFO_NO(f), f->prot_curr.protocol_1);
 
 	/*
 	 * Free f->mbuf if nonzero and
@@ -1392,7 +1385,7 @@ ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 
 	/*
 	 * Try linking the FIFO first
-	 * (f->prot may be changed!)
+	 * (f->prot_curr.protocol_1 may be changed!)
 	 *
 	 * NOTE: ihfc_config_write will 
 	 * reset the FIFO program!
@@ -1414,10 +1407,13 @@ ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 	c->w_cmdr1    &= ~0xC0;
 	c->w_cmdr2    &= ~0xCC;
 
+	/* update last protocol */
+	f->prot_last = f->prot_curr;
+
 	/* call fifo program */
 	ihfc_fifo_call(sc,f);
 
-	return (f->prot == P_DISABLE);
+	return (f->prot_curr.protocol_1 == P_DISABLE);
 }
 
 /*---------------------------------------------------------------------------*
@@ -1427,7 +1423,7 @@ ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
  * NOTE: The default config structure does not setup all registers.
  *	 Registers which are not listed will get the value zero.
  *---------------------------------------------------------------------------*/
-static struct sc_config ihfc_config_default =
+static const struct sc_config ihfc_config_default =
 {
 	.aux_data_0        = 0x00 | 0x00, /* common aux_data register used
 					   * for leds. This register should
@@ -1911,7 +1907,7 @@ ihfc_unsetup_softc(register ihfc_sc_t *sc)
            * when the CPU gets here, but this will
            * not block updating the configuration.
            */
-          f->prot = P_DISABLE;
+          f->prot_curr.protocol_1 = P_DISABLE;
           ihfc_fifo_setup(sc,f);
         }
 

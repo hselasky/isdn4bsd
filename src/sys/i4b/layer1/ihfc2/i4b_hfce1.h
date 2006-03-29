@@ -667,7 +667,7 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 
 	    hfce1_fifo_select(sc,f);
 
-	    if((f->prot == P_DISABLE) &&
+	    if((f->prot_curr.protocol_1 == P_DISABLE) &&
 	       (FIFO_DIR(f) == receive))
 	    {
 	        /* disable FIFO */
@@ -680,8 +680,8 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	    else 
 	        temp = 0; /* 0x7E inter frame fill */
 
-	    if(PROT_IS_TRANSPARENT(f->prot) || 
-	       (f->prot == P_DISABLE))
+	    if(PROT_IS_TRANSPARENT(&(f->prot_curr)) || 
+	       (f->prot_curr.protocol_1 == P_DISABLE))
 	    {
 	        temp |= 2; /* extended transparent mode */
 #if 0
@@ -1066,8 +1066,8 @@ hfce1_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 	 * D-channel mode is supported for
 	 * debugging purposes:
 	 */
-	if(PROT_IS_HDLC(f->prot) ||
-	   PROT_IS_TRANSPARENT(f->prot))
+	if(PROT_IS_HDLC(&(f->prot_curr)) ||
+	   PROT_IS_TRANSPARENT(&(f->prot_curr)))
 	{
 	    program = (FIFO_DIR(f) == transmit) ? 
 	      &i4b_hfc_tx_program_new :

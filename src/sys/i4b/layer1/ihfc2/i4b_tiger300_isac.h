@@ -990,7 +990,7 @@ tiger300_fifo_read FIFO_READ_T(sc,f,ptr,len)
 static void
 tiger300_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 {
-  if((FIFO_NO(f) == d1t) && PROT_IS_HDLC(f->prot))
+  if((FIFO_NO(f) == d1t) && PROT_IS_HDLC(&(f->prot_curr)))
   {
     IPAC_BUS_VAR(sc);
 
@@ -1439,15 +1439,15 @@ tiger300_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 
 	if(FIFO_NO(f) == d1t)
 	{
-	  if(PROT_IS_HDLC(f->prot))
+	  if(PROT_IS_HDLC(&(f->prot_curr)))
 	    program = &i4b_ipac_tx_program;
 	  else
-	    if(PROT_IS_TRANSPARENT(f->prot))
+	    if(PROT_IS_TRANSPARENT(&(f->prot_curr)))
 	      program = &i4b_hfc_tx_program;
 	}
 	else
 	{
-	  if(PROT_IS_TRANSPARENT(f->prot))
+	  if(PROT_IS_TRANSPARENT(&(f->prot_curr)))
 	  {
 	    program = (FIFO_DIR(f) == transmit) ? 
 			&i4b_hfc_tx_program :

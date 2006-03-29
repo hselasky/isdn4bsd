@@ -612,12 +612,13 @@ rbch_get_mbuf(struct fifo_translator *f)
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
 fifo_translator_t *
-rbch_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
-	      u_int driver_type, u_int driver_unit, call_desc_t *cd)
+rbch_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
+	      struct i4b_protocol *pp, u_int32_t driver_type, 
+	      u_int32_t driver_unit, call_desc_t *cd)
 {
 	struct rbch_softc *sc = &rbch_softc[driver_unit];
 
-	if(!protocol)
+	if(!pp)
 	{
 	  return (driver_unit < NI4BRBCH) ?
 	    sc->sc_fifo_translator : FT_INVALID;
@@ -625,13 +626,13 @@ rbch_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 
 	sc->sc_fifo_translator = f;
 
-	if(PROT_IS_HL_VBR(*protocol))
+	if(PROT_IS_HL_VBR(pp))
 	  sc->sc_flags |= ST_VBR;
 	else
 	  sc->sc_flags &= ~ST_VBR;
 
 #if I4B_ACCOUNTING
-	if((sc->sc_flags & ST_VBR) || (!*protocol))
+	if((sc->sc_flags & ST_VBR) || (!(pp->protocol_1)))
 	{
 	  I4B_ACCOUNTING_UPDATE(&sc->sc_accounting,
 				sc->sc_fifo_translator,
@@ -640,7 +641,7 @@ rbch_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 	}
 #endif
 
-	if(*protocol)
+	if(pp->protocol_1)
 	{
 	  /* connected */
 

@@ -493,20 +493,20 @@ ihfc_i4b_getmbuf (ihfc_sc_t *sc, ihfc_fifo_t *f)
  *	initialize rx/tx data structures
  *---------------------------------------------------------------------------*/
 static void
-ihfc_B_setup(fifo_translator_t *ft, int protocol)
+ihfc_B_setup(fifo_translator_t *ft, struct i4b_protocol *p)
 {
 	ihfc_sc_t  *sc = ft->L1_sc;
 	ihfc_fifo_t *f = ft->L1_fifo;
 
-	IHFC_MSG("fifo(#%d/#%d), protocol=%d\n",
-		 FIFO_NO(f)+transmit,FIFO_NO(f)+receive,protocol);
+	IHFC_MSG("fifo(#%d/#%d), protocol_1=%d\n",
+		 FIFO_NO(f)+transmit,FIFO_NO(f)+receive,p->protocol_1);
 
 	/*
 	 * Channels are setup in pairs(RX & TX) for I4B
 	 */
 
-	(f +  receive)->prot = protocol;
-	(f + transmit)->prot = protocol;
+	(f +  receive)->prot_curr = *p;
+	(f + transmit)->prot_curr = *p;
 
 	ihfc_fifo_setup(sc, f +  receive);
 	ihfc_fifo_setup(sc, f + transmit);

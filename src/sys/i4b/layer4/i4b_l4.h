@@ -134,8 +134,8 @@ extern void capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement);
 
 typedef void (response_to_user_t)(msg_response_to_user_t *);
 typedef struct fifo_translator * (setup_ft_t)(struct i4b_controller *cntl,
-	 struct fifo_translator *f, u_int *protocol, u_int driver_type,
-	 u_int driver_unit, struct call_desc *cd);
+	 struct fifo_translator *f, struct i4b_protocol *protocol, 
+	 u_int32_t driver_type, u_int32_t driver_unit, struct call_desc *cd);
 
 extern     response_to_user_t
        ibc_response_to_user,

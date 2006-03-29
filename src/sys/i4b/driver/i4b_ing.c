@@ -312,12 +312,13 @@ ing_get_mbuf(struct fifo_translator *__f)
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
 fifo_translator_t *
-ing_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
-	     u_int driver_type, u_int driver_unit, call_desc_t *cd)
+ing_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
+	     struct i4b_protocol *pp, u_int32_t driver_type, 
+	     u_int32_t driver_unit, call_desc_t *cd)
 {
 	struct ing_softc *sc = &ing_softc[driver_unit];
 
-	if(!protocol)
+	if(!pp)
 	{
 	  return (driver_unit < NI4BING) ? 
 	    sc->sc_fifo_translator : FT_INVALID;
@@ -331,7 +332,7 @@ ing_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, u_int *protocol,
 			      DRVR_ING,
 			      driver_unit);
 #endif
-	if(*protocol)
+	if(pp->protocol_1)
 	{
 	  /* connected */
 

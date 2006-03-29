@@ -220,6 +220,24 @@ m(DRVR_DSS1_P2P_NT,,dss1_setup_ft      ,NULL,\
   ""						,null)\
 /**/
 
+/*---------------------------------------------------------------------------*
+ *	I4B-protocol structure
+ *---------------------------------------------------------------------------*/
+struct i4b_protocol {
+
+    u_int16_t protocol_1;
+
+    union {
+        struct {
+	    u_int16_t rx_slot;
+	    u_int16_t tx_slot;
+
+	    u_int8_t  rx_cable;
+	    u_int8_t  tx_cable;
+	} bridge;
+    } u;
+};
+
 #define I4B_PROTOCOLS_DESC(enum,value,desc) #enum desc
 #define I4B_PROTOCOLS(m)\
 m(P_DISABLE              ,= 0,)\
@@ -268,12 +286,13 @@ m(P_D_CHANNEL            ,=32,)\
 /**/
 
 #define PROT_IS_HL_VBR(prot) \
-(((prot) != P_DISABLE) && \
- ((prot) != P_TRANSPARENT) && \
- ((prot) != P_TRANSPARENT_RING)) /* Higher Layer Variable Bit Rate */
+(((prot)->protocol_1 != P_DISABLE) && \
+ ((prot)->protocol_1 != P_TRANSPARENT) && \
+ ((prot)->protocol_1 != P_TRANSPARENT_RING)) /* Higher Layer Variable Bit Rate */
 
-#define PROT_IS_HDLC(prot) ((prot) == P_HDLC) /* hardware HDLC */
-#define PROT_IS_TRANSPARENT(prot) (((prot) >= 10) && ((prot) < 20)) /* software codecs */
+#define PROT_IS_HDLC(prot) ((prot)->protocol_1 == P_HDLC) /* hardware HDLC */
+#define PROT_IS_TRANSPARENT(prot) (((prot)->protocol_1 >= 10) && \
+				   ((prot)->protocol_1 < 20)) /* software codecs */
 
 #define I4B_B_PROTOCOLS_ISDND_RC_5(       enum,value,protocol,desc,dss1_conv) "IT(Ar " #enum ")" desc " "
 #define I4B_B_PROTOCOLS_ISDND_CONFIG_DESC(enum,value,protocol,desc,dss1_conv) #enum "\t\t#" desc
