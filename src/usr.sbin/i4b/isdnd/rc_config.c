@@ -88,8 +88,10 @@ set_config_defaults(void)
 	for(i=0; i < MAX_CONTROLLERS; i++)
 	{
 		msg_ctrl_info_req_t mcir;
+		bzero(&mcir, sizeof(mcir));
+
 		mcir.controller = i;
-		
+
 		if((ioctl(isdnfd, I4B_CTRL_INFO_REQ, &mcir)) < 0)
 		{
 			log(LL_ERR, "ioctl I4B_CTRL_INFO_REQ "
