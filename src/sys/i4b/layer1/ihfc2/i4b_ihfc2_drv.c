@@ -647,7 +647,7 @@ extern struct filter_info
 /*---------------------------------------------------------------------------*
  * : setup/unsetup a temporary data buffer
  *---------------------------------------------------------------------------*/
-static __inline u_int8_t
+static u_int8_t
 ihfc_buffer_setup(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int16_t buffersize)
 {
 	/* free old buffer */
@@ -692,10 +692,9 @@ ihfc_buffer_setup(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int16_t buffersize)
 static void
 ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
-	ihfc_fifo_program_t *program;
-  const struct filter_info  *filt;
- __typeof(filt->buffersize)  buffersize;
- __typeof(filt->rxtx_interrupt) *rxtx_interrupt;
+	const struct filter_info *filt;
+	__typeof(filt->rxtx_interrupt) *rxtx_interrupt;
+	__typeof(filt->buffersize) buffersize = 0;
 	u_int16_t protocol;
 	u_int8_t direction;
 
@@ -713,7 +712,7 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	   * repeat the last byte, or are shared,
 	   * should use the D-channel HDLC encoder(!)
 	   */
-	  if((FIFO_NO(f) == d1t) ||
+	  if((FIFO_LOGICAL_NO(f) == d1t) ||
 	     (!sc->sc_default.o_TRANSPARENT_BYTE_REPETITION))
 	  {
 	      f->prot_curr.protocol_1 = P_HDLC_EMU_D;
@@ -721,13 +720,30 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	}
 
 	/* search for program */
-	program = FIFO_GET_PROGRAM(sc,f);
+	f->program = FIFO_GET_PROGRAM(sc,f);
+
+	/* NOTE: some FIFO program setup has
+	 * been put in ihfc_config_write(,))
+	 */
+	if(f->program == NULL)
+	{
+	    /* allow HDLC fallback
+	     * to HDLC_EMU
+	     */
+	    if(f->prot_curr.protocol_1 == P_HDLC)
+	    {
+	        f->prot_curr.protocol_1 = P_HDLC_EMU;
+		goto reconfigure;
+	    }
+	    goto error;
+	}
 
 	/* search for filter */
 	protocol = f->prot_curr.protocol_1;
 	direction = FIFO_DIR(f);
+	f->filter = NULL;
 
-	if(protocol != 0)
+	if(protocol != P_DISABLE)
 	{
 	    for(filt = &ihfc_filter_info_start[0];
 		filt < &ihfc_filter_info_end[0];
@@ -739,78 +755,55 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		    (filt->protocol[3] == protocol)) &&
 		   (filt->direction == direction))
 		{
+		    /* set buffersize */
+		    buffersize = filt->buffersize;
+
+		    /* select filter */
+		    f->filter = filt->filter;
+
+		    /* select rxtx_interrupt */
+		    if(filt->rxtx_interrupt)
+		    {
+		        *rxtx_interrupt = filt->rxtx_interrupt;
+		    }
+
 		    /* first match wins */
-		    goto filt_found;
+		    break;
 		}
 	    }
-	}
-
-	/* filter not found */ 
-	filt = NULL;
-
- filt_found: 
-
-	if(program && 
-	   filt && filt->filter)
-	{
-		/* set buffersize */
-		buffersize = filt->buffersize;
-
-		/* select program (NOTE: some setup has
-		 * been put in ihfc_config_write(,))!!
-		 */
-		f->program = program;
-
-		/* select filter */
-		f->filter  = filt->filter;
-
-		/* select rxtx_interrupt */
-		if(filt->rxtx_interrupt)
-		{
-		  *rxtx_interrupt = filt->rxtx_interrupt;
-		}
-	}
-	else
-	{
-		/* allow HDLC fallback
-		 * to HDLC_EMU
-		 */
-		if(f->prot_curr.protocol_1 == P_HDLC)
-		{
-		   f->prot_curr.protocol_1 = P_HDLC_EMU;
-		   goto reconfigure;
-		}
-
-		/* no match for this
-		 * combination
-		 */
-		if(f->prot_curr.protocol_1 != P_DISABLE)
-		{
-		error:
-		  IHFC_ERR("fifo(#%d) cannot be configured "
-			   "for protocol %d: %s-%s-%s\n",
-			   FIFO_NO(f), f->prot_curr.protocol_1,
-			   !program ? "no program" : "",
-			   !filt ? "no filter" :  !filt->filter ? "invalid filter" : "",
-			   (direction == transmit) ? "(dir=tx)" : "(dir=rx)");
-		}
-
-		/* set defaults */
-
-		buffersize = 0;
-
-		f->program = NULL;
-		f->filter = NULL;
-		*rxtx_interrupt = NULL;
-		f->prot_curr.protocol_1 = P_DISABLE;
 	}
 
 	/* setup buffer [if any] */
 	if(ihfc_buffer_setup(sc,f,buffersize))
 	{
-	  goto error;
+	    goto error;
+	}
+	return;
+
+ error:
+	/* no match for this
+	 * combination
+	 */
+	if(f->prot_curr.protocol_1 != P_DISABLE)
+	{
+	    IHFC_ERR("fifo(#%d) cannot be configured "
+		     "for protocol %d: %s\n",
+		     FIFO_NO(f), f->prot_curr.protocol_1,
+		     !f->program ? "no program" : "");
 	}
 
+	/* set defaults */
+
+	*rxtx_interrupt = NULL;
+
+	f->program = NULL;
+	f->filter = NULL;
+	f->prot_curr.protocol_1 = P_DISABLE;
+
+	if(ihfc_buffer_setup(sc,f, 0))
+	{
+	    /* ignore */
+	}
 	return;
 }
 

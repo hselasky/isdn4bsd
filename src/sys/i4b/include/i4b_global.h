@@ -42,6 +42,7 @@
 #define min MIN
 #endif
 
+struct i4b_line_interconnect;
 struct fifo_translator;
 struct i4b_protocol;
 struct buffer;
@@ -422,7 +423,8 @@ typedef struct call_desc {
 	u_char	state;			/* state of call descriptor */
 	u_char	status_enquiry_timeout;
 
-	struct fifo_translator * fifo_translator_capi; /* CAPI2.0 FIFO-translator */
+	struct fifo_translator * fifo_translator_capi_std; /* CAPI2.0 FIFO-translator */
+	struct fifo_translator * fifo_translator_capi_bridge; /* CAPI2.0 FIFO-translator */
 	struct fifo_translator * fifo_translator_tone_gen; /* tone gen. FIFO-translator */
 
 	u_int8_t ai_type; /* application interface type */
@@ -442,13 +444,14 @@ typedef struct call_desc {
 					  */
 	u_int8_t b_link_want_active : 1; /* set if B-channel should be connected */
 	u_int8_t call_is_on_hold : 1;    /* set if call descriptor is on hold */
-	u_int8_t pcm_slot_allocated : 1; /* set if PCM slot has 
-					  * been allocated 
-					  */
+
 	u_int8_t  setup_interleave; /* a counter */
 
-	u_int8_t  pcm_slot_cable;
-	u_int16_t pcm_slot_number;
+	/* line interconnect fields */
+
+	cdid_t li_cdid; /* cdid of peer */
+	cdid_t li_cdid_last; /* cdid of peer */
+	struct i4b_line_interconnect *li_data_ptr;
 
 	u_int8_t *tone_gen_ptr;
 	u_int8_t  tone_gen_state; /* current state of tone generator */
@@ -497,17 +500,30 @@ typedef struct call_desc {
 /**/
 
 /*---------------------------------------------------------------------------*
- *	I4B-PCM-cable definition
+ *	I4B-PCM-cable structure
+ *
+ * i4b_global_lock held: READ+WRITE
  *---------------------------------------------------------------------------*/
 struct i4b_pcm_cable {
-
-    /* this structure is protected by i4b_global_lock */
-
     u_int16_t slot_end;
-    u_int32_t slot_bitmap[(I4B_PCM_SLOT_MAX + (4*8) -1)/(4*8)];
+    u_int32_t slot_bitmap[(I4B_PCM_SLOT_MAX + ((4*8)-1))/(4*8)];
 };
 
 extern struct i4b_pcm_cable i4b_pcm_cable[I4B_PCM_CABLE_MAX];
+
+/*---------------------------------------------------------------------------*
+ *	I4B-line-interconnect structure
+ *
+ * i4b_global_lock held: READ+WRITE
+ * CNTL_LOCK() held    : READ
+ *---------------------------------------------------------------------------*/
+struct i4b_line_interconnect {
+    cdid_t    cdid;
+    u_int8_t  pcm_cable;
+    u_int8_t  pcm_unused;
+    u_int16_t pcm_slot_rx;
+    u_int16_t pcm_slot_tx;
+};
 
 /*---------------------------------------------------------------------------*
  *	I4B-controller definition
@@ -608,6 +624,8 @@ GET_BIT((cntl)->N_channel_utilization,channel)	\
 	u_int8_t  L1_type;		/* layer 1 type	      */
 	u_int8_t  L1_pcm_cable_end;	/* exclusive */
 	u_int8_t  L1_pcm_cable_map[I4B_PCM_CABLE_MAX];
+
+	struct i4b_line_interconnect L1_interconnect[MAX_CHANNELS];
 
 	struct fifo_translator * 
 		(*L1_GET_FIFO_TRANSLATOR)(struct i4b_controller *, int channel);

@@ -165,6 +165,7 @@ memset_1(void *dst, u_int32_t fill, u_int32_t len)
 #define IHFC_ADD_ERR ADD_ERROR
 #define IHFC_IS_ERR IS_ERROR
 
+#define FIFO_LOGICAL_NO(f)		((f)->__flogical)
 #define FIFO_NO(f)			((f)->__fn)
 #define FIFO_DIR(f)			((f)->__fn & (transmit|receive))
 #define FIFO_CMP(f,op,no)	       (((f)->__fn) op (no))
@@ -1203,6 +1204,7 @@ struct sc_fifo {
  * words it is slow on most CPU's ...
  */
 	u_int8_t	__fn;
+	u_int8_t	__flogical;
 
 /*
  * Save some I/O-reads by having counters

@@ -51,6 +51,7 @@ struct call_desc;
 struct i4b_controller;
 struct i4b_ai_softc;
 struct isdn_download_request;
+struct i4b_line_interconnect;
 
 extern void i4b_version_request(msg_vr_req_t *mvr);
 
@@ -120,6 +121,12 @@ extern void i4b_update_all_d_channels(int);
 
 extern u_int8_t i4b_make_q850_cause(cause_t cause);
 
+extern struct i4b_line_interconnect * 
+i4b_slot_li_alloc(cdid_t cdid_src, cdid_t cdid_dst);
+
+extern void
+i4b_slot_li_free(struct i4b_line_interconnect *li);
+
 /* prototypes from i4b_capidrv.c */
 
 struct capi_ai_softc;
@@ -146,24 +153,24 @@ extern     response_to_user_t
        tel_response_to_user,
   ihfc_dev_response_to_user,
       dss1_response_to_user,
-      capi_response_to_user,
      diehl_response_to_user,
    tina_dd_response_to_user,
     amv_b1_response_to_user;
 
-extern     setup_ft_t
-       ibc_setup_ft,
-       ing_setup_ft,
-       ipr_setup_ft,
-  i4bisppp_setup_ft,
-      rbch_setup_ft,
-       tel_setup_ft,
-  tel_dial_setup_ft,
-  ihfc_dev_setup_ft,
-      dss1_setup_ft,
-      capi_setup_ft,
-     diehl_setup_ft,
-   tina_dd_setup_ft,
-    amv_b1_setup_ft;
+extern       setup_ft_t
+         ibc_setup_ft,
+         ing_setup_ft,
+         ipr_setup_ft,
+    i4bisppp_setup_ft,
+        rbch_setup_ft,
+         tel_setup_ft,
+    tel_dial_setup_ft,
+    ihfc_dev_setup_ft,
+        dss1_setup_ft,
+        capi_setup_ft,
+ capi_bridge_setup_ft,
+       diehl_setup_ft,
+     tina_dd_setup_ft,
+      amv_b1_setup_ft;
 
 #endif /* _I4B_L4_H_ */

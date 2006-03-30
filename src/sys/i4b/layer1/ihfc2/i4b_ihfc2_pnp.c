@@ -963,6 +963,7 @@ __ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	    n = f - &sc->sc_fifo[0];
 
 	    f->__fn = n;
+	    f->__flogical = n;
 
 	    f->default_prot = P_TRANS_RING;
 

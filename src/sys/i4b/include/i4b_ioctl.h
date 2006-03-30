@@ -172,10 +172,12 @@ m(DRVR_TEL        ,,tel_setup_ft       ,tel_response_to_user,\
   "telephone or speech interface driver"	, tel)\
 m(DRVR_IHFC_DEV   ,,ihfc_dev_setup_ft  ,NULL,\
   "ihfc interface driver"			, null)\
-m(DRVR_CAPI_B3    ,,capi_setup_ft      ,capi_response_to_user,\
+m(DRVR_CAPI_B3    ,,capi_setup_ft      ,NULL,\
   "CAPI application interface driver"           , null)\
 m(DRVR_DIAL_GEN   ,,tel_dial_setup_ft  ,NULL,\
   "I4B dialtone generator"		       	, null)\
+m(DRVR_CAPI_BRIDGE,,capi_bridge_setup_ft, NULL,\
+  "CAPI bridge driver"           , null)\
 /**/
 
 /* D-channel drivers */
@@ -265,18 +267,8 @@ m(P_HDLC_EMU_D           ,=17,)\
 \
 /* external switching */\
 \
-m(P_EXT_TEL_0            ,=20,)\
-m(P_EXT_TEL_1            ,=21,)\
-m(P_EXT_CODEC_0          ,=22,)\
-m(P_EXT_CODEC_1          ,=23,)\
-m(P_CONFERENCE_0         ,=24,)\
-m(P_CONFERENCE_1         ,=25,)\
-m(P_CONFERENCE_2         ,=26,)\
-m(P_CONFERENCE_3         ,=27,)\
-m(P_CONFERENCE_4         ,=28,)\
-m(P_CONFERENCE_5         ,=29,)\
-m(P_CONFERENCE_6         ,=30,)\
-m(P_CONFERENCE_7         ,=31,)\
+m(P_BRIDGE               ,=20,)\
+m(P_CONFERENCE           ,=21,)\
 \
 /* virtual protocols,			\
  * cannot be used with FIFO_SETUP(,)	\

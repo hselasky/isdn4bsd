@@ -1482,6 +1482,71 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
 
 /* definition of "wChannel": (see previous) */
 
+/* ================================================ 
+ *
+ * FACILITY: Line interconnect structures
+ */
+#define CAPI_LI_CONN_REQ_PART(m,n) \
+  m(n, DWORD, dwCid,)\
+  m(n, DWORD, dwDataPath,)\
+  END
+
+#define CAPI_LI_CONN_CONF_PART(m,n) \
+  m(n, DWORD, dwCid,)\
+  m(n, WORD , wInfo,)\
+  END
+
+#define CAPI_LI_DISC_REQ_PART(m,n) \
+  m(n, DWORD, dwCid,)\
+  END
+
+#define CAPI_LI_DISC_CONF_PART(m,n) \
+  m(n, DWORD, dwCid,)\
+  m(n, WORD , wInfo,)\
+  END
+
+#define CAPI_LI_CONN_REQ_PARAM(m,n) \
+  m(n, DWORD , dwDataPath,)\
+  m(n, STRUCT, conn_req_part,)\
+  END
+
+#define CAPI_LI_DISC_REQ_PARAM(m,n) \
+  m(n, STRUCT, disc_req_part,)\
+  END
+
+#define CAPI_LI_SUPP_CONF_PARAM(m,n) \
+  m(n, WORD , wInfo,)\
+  m(n, DWORD, dwSupportedServices,)\
+  m(n, DWORD, dwInterconnectsCtrl,)\
+  m(n, DWORD, dwParticipantsCtrl,)\
+  m(n, DWORD, dwInterconnectsGlobal,)\
+  m(n, DWORD, dwParticipantsGlobal,)\
+  END
+
+#define CAPI_LI_CONN_CONF_PARAM(m,n) \
+  m(n, WORD  , wInfo,)\
+  m(n, STRUCT, conn_conf_part,)\
+  END
+
+#define CAPI_LI_DISC_CONF_PARAM(m,n) \
+  m(n, WORD  , wInfo,)\
+  m(n, STRUCT, disc_conf_part,)\
+  END
+
+#define CAPI_LI_CONN_IND_PARAM(m,n) \
+  m(n, DWORD , dwCid,)\
+  END
+
+#define CAPI_LI_DISC_IND_PARAM(m,n) \
+  m(n, DWORD, dwCid,)\
+  m(n, WORD , wServiceReason,)\
+  END
+
+#define CAPI_LINE_INTERCONNECT_PARAM(m,n)\
+  m(n, WORD  , wFunction,)\
+  m(n, STRUCT, Param,)\
+  END
+
 /*---------------------------------------------------------------------------*
  *	declare all CAPI structures and some enums
  *---------------------------------------------------------------------------*/
@@ -1514,6 +1579,18 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, B_CHANNEL_INFO_ANY)\
   m(n, B_CHANNEL_INFO_LEASED_ALLOC)\
   m(n, B_CHANNEL_INFO_CHANNEL_ID)\
+  m(n, LI_CONN_REQ_PART)\
+  m(n, LI_CONN_CONF_PART)\
+  m(n, LI_DISC_REQ_PART)\
+  m(n, LI_DISC_CONF_PART)\
+  m(n, LI_CONN_REQ_PARAM)\
+  m(n, LI_DISC_REQ_PARAM)\
+  m(n, LI_SUPP_CONF_PARAM)\
+  m(n, LI_CONN_CONF_PARAM)\
+  m(n, LI_DISC_CONF_PARAM)\
+  m(n, LI_CONN_IND_PARAM)\
+  m(n, LI_DISC_IND_PARAM)\
+  m(n, LINE_INTERCONNECT_PARAM)\
 
 /* for each command generate eight structures */
 CAPI_COMMANDS(CAPI_MAKE_DEF_1,);

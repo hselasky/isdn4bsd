@@ -111,9 +111,14 @@ SYSINIT(i4b_controller_setup, SI_SUB_LOCK, SI_ORDER_ANY,
 static void
 i4b_controller_reset(struct i4b_controller *cntl)
 {
+
+  mtx_lock(&i4b_global_lock);
+
   bzero(&(cntl->dummy_zero_start[0]),
 	(&(cntl->dummy_zero_end[0])) -
 	(&(cntl->dummy_zero_start[0])));
+
+  mtx_unlock(&i4b_global_lock);
 
   cntl->N_protocol = P_D_CHANNEL;
   cntl->N_driver_type = DRVR_D_CHANNEL;

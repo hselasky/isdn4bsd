@@ -345,31 +345,27 @@ hfce1_chip_reset CHIP_RESET_T(sc,error)
 
 	HFCE1_WRITE_1(REG_hfce1_fifo_md, 0x00);
 
-#if 0
-	/* reset internal data */
+	/* initialize internal data */
 
 	if(sc->sc_default.o_EXTERNAL_RAM)
 	  temp = 0x2800;
 	else
 	  temp = 0x1800;
 
-	/* initialize internal data */
-
 	do {
-	    bus_space_write_1(t,h,REG_hfce1_ram_addr0, (temp & 0xFF));
-	    bus_space_write_1(t,h,REG_hfce1_ram_addr1, (temp >> 8));
-	    bus_space_write_1(t,h,REG_hfce1_ram_addr2, (0x00));
-	    bus_space_write_1(t,h,REG_hfce1_ram_data, 0xFF);
+	    HFCE1_WRITE_1(REG_hfce1_ram_addr0, (temp & 0xFF));
+	    HFCE1_WRITE_1(REG_hfce1_ram_addr1, (temp >> 8));
+	    HFCE1_WRITE_1(REG_hfce1_ram_addr2, (0x00));
+	    HFCE1_WRITE_1(REG_hfce1_ram_data, 0xFF);
 
 	    temp++;
 	} while(temp & 0xFF);
-#endif
 
 	/* 1. PCM interface */
 
 	/* disable all time slots */
 
-	for(temp = 0; temp < 128; temp++)
+	for(temp = 0; temp < 256; temp++)
 	{
 	    HFCE1_WRITE_1(REG_hfce1_slot, temp);
 	    HFCE1_WRITE_1(REG_hfce1_sl_cfg, 0x00);
@@ -639,6 +635,7 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	HFCE1_BUS_VAR(sc);
 
 	u_int8_t temp;
+	u_int8_t cable;
 
 	if((f == CONFIG_WRITE_UPDATE) ||
 	   (f == CONFIG_WRITE_RELOAD))
@@ -663,9 +660,18 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	}
 	else
 	{
-	    f->s_fifo_sel &= ~0x80; /* no bitreverse (default) */
-
 	    hfce1_fifo_select(sc,f);
+
+	    if(f->prot_last.protocol_1 == P_BRIDGE)
+	    {
+	        temp = (FIFO_DIR(f) == transmit) ?
+		  ((f->prot_last.u.bridge.tx_slot << 1)|transmit) :
+		  ((f->prot_last.u.bridge.rx_slot << 1)|receive);
+
+		/* disable time slot */
+		HFCE1_WRITE_1(REG_hfce1_slot, temp);
+		HFCE1_WRITE_1(REG_hfce1_sl_cfg, 0x00);
+	    }
 
 	    if((f->prot_curr.protocol_1 == P_DISABLE) &&
 	       (FIFO_DIR(f) == receive))
@@ -680,13 +686,11 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	    else 
 	        temp = 0; /* 0x7E inter frame fill */
 
-	    if(PROT_IS_TRANSPARENT(&(f->prot_curr)) || 
+	    if(PROT_IS_TRANSPARENT(&(f->prot_curr)) ||
+	       (f->prot_curr.protocol_1 == P_BRIDGE) ||
 	       (f->prot_curr.protocol_1 == P_DISABLE))
 	    {
 	        temp |= 2; /* extended transparent mode */
-#if 0
-		f->s_fifo_sel |= 0x80; /* bit reverse data */
-#endif
 	    }
 	    else
 	    {
@@ -722,6 +726,23 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 		 * to the bus:
 		 */
 	        HFCE1_WRITE_1(REG_hfce1_fifo_data_noinc, 0xff);
+	    }
+
+	    if(f->prot_curr.protocol_1 == P_BRIDGE)
+	    {
+	        temp = (FIFO_DIR(f) == transmit) ?
+		  ((f->prot_curr.u.bridge.tx_slot << 1)|transmit) :
+		  ((f->prot_curr.u.bridge.rx_slot << 1)|receive);
+
+		cable = (FIFO_DIR(f) == transmit) ? 
+		  f->prot_curr.u.bridge.tx_cable :
+		  f->prot_curr.u.bridge.rx_cable;
+
+		cable = ((cable << 6) | 0x80 | f->s_fifo_sel);
+
+		/* enable time slot */
+		HFCE1_WRITE_1(REG_hfce1_slot, temp);
+		HFCE1_WRITE_1(REG_hfce1_sl_cfg, cable);
 	    }
 	}
 	return;
@@ -1072,6 +1093,11 @@ hfce1_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 	    program = (FIFO_DIR(f) == transmit) ? 
 	      &i4b_hfc_tx_program_new :
 	      &i4b_hfc_rx_program;
+	}
+
+	if(f->prot_curr.protocol_1 == P_BRIDGE)
+	{
+	    program = &i4b_unknown_program;
 	}
 	return program;
 }

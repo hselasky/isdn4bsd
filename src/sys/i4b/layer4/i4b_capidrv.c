@@ -703,8 +703,7 @@ capi_make_conf(struct capi_message_encoded *msg, u_int16_t wCmd,
  *---------------------------------------------------------------------------*/
 static struct mbuf *
 capi_make_facility_conf(struct capi_message_encoded *pmsg, 
-			u_int16_t wSelector, 
-			u_int16_t wInfo)
+			u_int16_t wSelector, u_int16_t wInfo, void *param)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
@@ -716,6 +715,12 @@ capi_make_facility_conf(struct capi_message_encoded *pmsg,
 
 	fac_conf.wInfo = wInfo;
 	fac_conf.wSelector = wSelector;
+
+	if(param)
+	{
+	    fac_conf.Param.ptr = param;
+	    fac_conf.Param_STRUCT = IE_STRUCT_DECODED;
+	}
 
 	len = capi_encode(&msg.data, sizeof(msg.data), &fac_conf);
 	len += sizeof(msg.head);
@@ -733,6 +738,106 @@ capi_make_facility_conf(struct capi_message_encoded *pmsg,
 	    bcopy(&msg, m->m_data, m->m_len);
 	}
 	return m;
+}
+
+/*---------------------------------------------------------------------------*
+ *	generate line interface support confirmation message
+ *---------------------------------------------------------------------------*/
+static struct mbuf *
+capi_make_li_supp_conf(struct capi_message_encoded *pmsg)
+{
+	struct CAPI_LI_SUPP_CONF_PARAM_DECODED li_supp_conf;
+	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm;
+
+	bzero(&li_supp_conf, sizeof(li_supp_conf));
+	CAPI_INIT(CAPI_LI_SUPP_CONF_PARAM, &li_supp_conf);
+
+	bzero(&li_parm, sizeof(li_parm));
+	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
+
+	li_parm.wFunction = 0x0000;
+	li_parm.Param.ptr = &li_supp_conf;
+	li_parm.Param_STRUCT = IE_STRUCT_DECODED;
+
+	li_supp_conf.wInfo = 0x0000;
+	li_supp_conf.dwSupportedServices = 0x00000001;
+	li_supp_conf.dwInterconnectsCtrl = 1;
+	li_supp_conf.dwParticipantsCtrl = 1;
+	li_supp_conf.dwInterconnectsGlobal = 1;
+	li_supp_conf.dwParticipantsGlobal = 1;
+
+	return capi_make_facility_conf
+	  (pmsg, 0x0005, 0x0000, &li_parm);
+}
+
+/*---------------------------------------------------------------------------*
+ *	generate line interface connect confirmation message
+ *---------------------------------------------------------------------------*/
+static struct mbuf *
+capi_make_li_conn_conf(struct capi_message_encoded *pmsg, 
+		       u_int16_t wInfo, u_int32_t dwCid)
+{
+	struct CAPI_LI_CONN_CONF_PART_DECODED li_conn_conf_part;
+	struct CAPI_LI_CONN_CONF_PARAM_DECODED li_conn_conf;
+	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm;
+
+	bzero(&li_conn_conf_part, sizeof(li_conn_conf_part));
+	CAPI_INIT(CAPI_LI_CONN_CONF_PART, &li_conn_conf_part);
+
+	bzero(&li_conn_conf, sizeof(li_conn_conf));
+	CAPI_INIT(CAPI_LI_CONN_CONF_PARAM, &li_conn_conf);
+
+	bzero(&li_parm, sizeof(li_parm));
+	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
+
+	li_parm.wFunction = 0x0001;
+	li_parm.Param.ptr = &li_conn_conf;
+	li_parm.Param_STRUCT = IE_STRUCT_DECODED;
+
+	li_conn_conf.wInfo = wInfo;
+	li_conn_conf.conn_conf_part.ptr = &li_conn_conf_part;
+	li_conn_conf.conn_conf_part_STRUCT = IE_STRUCT_DECODED;
+
+	li_conn_conf_part.wInfo = wInfo;
+	li_conn_conf_part.dwCid = dwCid;
+
+	return capi_make_facility_conf
+	  (pmsg, 0x0005, 0x0000, &li_parm);
+}
+
+/*---------------------------------------------------------------------------*
+ *	generate line interface disconnect confirmation message
+ *---------------------------------------------------------------------------*/
+static struct mbuf *
+capi_make_li_disc_conf(struct capi_message_encoded *pmsg, 
+		       u_int16_t wInfo, u_int32_t dwCid)
+{
+	struct CAPI_LI_DISC_CONF_PART_DECODED li_disc_conf_part;
+	struct CAPI_LI_DISC_CONF_PARAM_DECODED li_disc_conf;
+	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm;
+
+	bzero(&li_disc_conf_part, sizeof(li_disc_conf_part));
+	CAPI_INIT(CAPI_LI_DISC_CONF_PART, &li_disc_conf_part);
+
+	bzero(&li_disc_conf, sizeof(li_disc_conf));
+	CAPI_INIT(CAPI_LI_DISC_CONF_PARAM, &li_disc_conf);
+
+	bzero(&li_parm, sizeof(li_parm));
+	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
+
+	li_parm.wFunction = 0x0002;
+	li_parm.Param.ptr = &li_disc_conf;
+	li_parm.Param_STRUCT = IE_STRUCT_DECODED;
+
+	li_disc_conf.wInfo = wInfo;
+	li_disc_conf.disc_conf_part.ptr = &li_disc_conf_part;
+	li_disc_conf.disc_conf_part_STRUCT = IE_STRUCT_DECODED;
+
+	li_disc_conf_part.wInfo = wInfo;
+	li_disc_conf_part.dwCid = dwCid;
+
+	return capi_make_facility_conf
+	  (pmsg, 0x0005, 0x0000, &li_parm);
 }
 
 /*---------------------------------------------------------------------------*
@@ -1084,6 +1189,218 @@ capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement)
 	return;
 }
 
+/*---------------------------------------------------------------------------*
+ *	send CAPI inter-connect indication
+ *---------------------------------------------------------------------------*/
+static void
+capi_ai_line_inter_connect_ind(struct call_desc *cd)
+{
+	struct mbuf *m;
+	struct capi_message_encoded msg;
+	struct CAPI_FACILITY_IND_DECODED fac_ind = { /* zero */ };
+	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm = { /* zero */ };
+	struct CAPI_LI_CONN_IND_PARAM_DECODED li_conn_ind = { /* zero */ };
+
+	u_int16_t len;
+
+	__KASSERT(((cd->ai_ptr == NULL) || 
+		   (cd->ai_type == I4B_AI_CAPI)), 
+		  ("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
+
+	CAPI_INIT(CAPI_FACILITY_IND, &fac_ind);
+	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
+	CAPI_INIT(CAPI_LI_CONN_IND_PARAM, &li_conn_ind);
+
+	fac_ind.wSelector = 0x0005; /* line interconnect */
+	fac_ind.Param.ptr = &li_parm;
+	fac_ind.Param_STRUCT = IE_STRUCT_DECODED;
+
+	li_parm.wFunction = 0x0001; /* connect active */
+	li_parm.Param.ptr = &li_conn_ind;
+	li_parm.Param_STRUCT = IE_STRUCT_DECODED;
+
+	li_conn_ind.dwCid = CDID2CAPI_ID(cd->li_cdid_last);
+
+	len = capi_encode(&msg.data, sizeof(msg.data), &fac_ind);
+	len += sizeof(msg.head);
+
+	/* fill out CAPI header */
+
+	msg.head.wLen = htole16(len);
+	msg.head.wApp = htole16(0);
+	msg.head.wCmd = htole16(CAPI_IND(FACILITY));
+	msg.head.wNum = htole16(0);
+	msg.head.dwCid = htole32(CDID2CAPI_ID(cd->cdid));
+
+	if((m = i4b_getmbuf(len, M_NOWAIT)))
+	{
+	    bcopy(&msg, m->m_data, m->m_len);
+	}
+
+	capi_ai_putqueue(cd->ai_ptr,0,m);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	send CAPI inter-disconnect indication
+ *---------------------------------------------------------------------------*/
+static void
+capi_ai_line_inter_disconnect_ind(struct call_desc *cd)
+{
+	struct mbuf *m;
+	struct capi_message_encoded msg;
+	struct CAPI_FACILITY_IND_DECODED fac_ind = { /* zero */ };
+	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm = { /* zero */ };
+	struct CAPI_LI_DISC_IND_PARAM_DECODED li_disc_ind = { /* zero */ };
+
+	u_int16_t len;
+
+	__KASSERT(((cd->ai_ptr == NULL) || 
+		   (cd->ai_type == I4B_AI_CAPI)), 
+		  ("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
+
+	CAPI_INIT(CAPI_FACILITY_IND, &fac_ind);
+	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
+	CAPI_INIT(CAPI_LI_DISC_IND_PARAM, &li_disc_ind);
+
+	fac_ind.wSelector = 0x0005; /* line interconnect */
+	fac_ind.Param.ptr = &li_parm;
+	fac_ind.Param_STRUCT = IE_STRUCT_DECODED;
+
+	li_parm.wFunction = 0x0002; /* disconnect */
+	li_parm.Param.ptr = &li_disc_ind;
+	li_parm.Param_STRUCT = IE_STRUCT_DECODED;
+
+	li_disc_ind.dwCid = CDID2CAPI_ID(cd->li_cdid_last);
+	li_disc_ind.wServiceReason = 0x0000; /* user initiated */
+
+	len = capi_encode(&msg.data, sizeof(msg.data), &fac_ind);
+	len += sizeof(msg.head);
+
+	/* fill out CAPI header */
+
+	msg.head.wLen = htole16(len);
+	msg.head.wApp = htole16(0);
+	msg.head.wCmd = htole16(CAPI_IND(FACILITY));
+	msg.head.wNum = htole16(0);
+	msg.head.dwCid = htole32(CDID2CAPI_ID(cd->cdid));
+
+	if((m = i4b_getmbuf(len, M_NOWAIT)))
+	{
+	    bcopy(&msg, m->m_data, m->m_len);
+	}
+
+	capi_ai_putqueue(cd->ai_ptr,0,m);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	capi_disconnect_broadcast - disconnect all broadcast applications
+ *---------------------------------------------------------------------------*/
+static void
+capi_disconnect_broadcast(struct call_desc *cd, void *sc)
+{
+	if(cd->ai_type == I4B_AI_BROADCAST)
+	{
+	    /* set application interface before 
+	     * disconnect indication
+	     */
+	    cd_set_appl_interface(cd,I4B_AI_CAPI,sc);
+
+	    /* send disconnect indication
+	     * to all other application interfaces
+	     */
+	    i4b_l4_disconnect_ind(cd,1);
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	capi_connect_bridge - connect a call descriptor to a bridge
+ *---------------------------------------------------------------------------*/
+static void
+capi_connect_bridge(struct call_desc *cd, void *sc, cdid_t dst_cdid)
+{
+    if(dst_cdid == CDID_UNUSED)
+    {
+        return;
+    }
+
+    if(cd && 
+       (cd->li_cdid == CDID_UNUSED) &&
+       (cd->li_data_ptr == NULL))
+    {
+        capi_disconnect_broadcast(cd, sc);
+
+	cd->li_cdid = dst_cdid;
+	cd->driver_type = DRVR_CAPI_BRIDGE;
+	cd->driver_unit = 0;
+
+	if(cd->channel_allocated)
+	{
+	    /* only do a bridge if there 
+	     * is a channel allocated. Else
+	     * the channel is maybe on hold.
+	     */
+	    mtx_lock(&i4b_global_lock);
+
+	    cd->li_data_ptr = 
+	      i4b_slot_li_alloc(cd->cdid, cd->li_cdid);
+
+	    mtx_unlock(&i4b_global_lock);
+
+	    if(i4b_link_bchandrvr(cd, 1))
+	    {
+	        NDBGL4(L4_MSG, "cdid=%d: could "
+		       "not connect B-channel bridge "
+		       "(maybe on hold)!", cd->cdid);
+	    }
+	}
+    }
+    return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	capi_disconnect_bridge - disconnect a call descriptor from a bridge
+ *---------------------------------------------------------------------------*/
+static void
+capi_disconnect_bridge(struct call_desc *cd, void *sc, cdid_t dst_cdid)
+{
+    if(dst_cdid == CDID_UNUSED)
+    {
+        return;
+    }
+
+    if(cd && (cd->li_cdid == dst_cdid))
+    {
+        capi_disconnect_broadcast(cd, sc);
+
+        if(cd->li_data_ptr)
+	{
+	    mtx_lock(&i4b_global_lock);
+
+	    i4b_slot_li_free(cd->li_data_ptr);
+
+	    mtx_unlock(&i4b_global_lock);
+
+	    cd->li_data_ptr = NULL;
+	}
+
+	cd->li_cdid = CDID_UNUSED;
+	cd->driver_type = DRVR_CAPI_B3;
+	cd->driver_unit = 0;
+
+	/* try to re-connect B-channel */
+
+	if(i4b_link_bchandrvr(cd, 1))
+        {
+	    NDBGL4(L4_MSG, "cdid=%d: could "
+		   "not connect B-channel bridge "
+		   "(maybe on hold)!", cd->cdid);
+	}
+    }
+    return;
+}
 
 /*---------------------------------------------------------------------------*
  *	capi_open - device driver open routine
@@ -1300,6 +1617,14 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	struct CAPI_ADDITIONAL_INFO_DECODED add_info;
 	struct CAPI_SENDING_COMPLETE_DECODED sending_complete;
 	struct CAPI_B_PROTOCOL_DECODED b_protocol;
+
+	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_param;
+
+	struct CAPI_LI_CONN_REQ_PARAM_DECODED li_conn_req_param;
+	struct CAPI_LI_CONN_REQ_PART_DECODED li_conn_req_part;
+
+	struct CAPI_LI_DISC_REQ_PARAM_DECODED li_disc_req_param;
+	struct CAPI_LI_DISC_REQ_PART_DECODED li_disc_req_part;
 
 	struct capi_message_encoded msg;
 
@@ -1676,7 +2001,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      /* check that the B-channel is connected */
 
-	      if((cd->fifo_translator_capi == NULL) || 
+	      if((cd->fifo_translator_capi_std == NULL) || 
 		 (cd->ai_type == I4B_AI_BROADCAST))
 	      {
 		  NDBGL4(L4_MSG, "cdid=%d: B-channel data sent "
@@ -1702,7 +2027,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      /* check queue length */
 
-	      if(_IF_QFULL(&cd->fifo_translator_capi->tx_queue))
+	      if(_IF_QFULL(&cd->fifo_translator_capi_std->tx_queue))
 	      {
 		  m2 = capi_make_b3_conf
 		    (&msg, data_b3_req.wHandle, 0x1008);
@@ -1731,9 +2056,9 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      m2->m_next = m1;
 	      m1 = NULL;
 
-	      _IF_ENQUEUE(&cd->fifo_translator_capi->tx_queue, m2);
+	      _IF_ENQUEUE(&cd->fifo_translator_capi_std->tx_queue, m2);
 
-	      L1_FIFO_START(cd->fifo_translator_capi);
+	      L1_FIFO_START(cd->fifo_translator_capi_std);
 	      break;
 
 
@@ -1744,21 +2069,10 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(CONNECT_B3): /* =========================== */
 
-	      if(cd->ai_type == I4B_AI_BROADCAST)
-	      {
-		  /* early B3 for incoming calls */
+	      capi_disconnect_broadcast(cd, sc);
 
-		  /* set application interface */
-		  cd_set_appl_interface(cd,I4B_AI_CAPI,sc);
-
-		  /* send disconnect indication
-		   * to all other application interfaces
-		   */
-		  i4b_l4_disconnect_ind(cd,1);
-
-		  cd->driver_type = DRVR_CAPI_B3;
-		  cd->driver_unit = 0;
-	      }
+	      cd->driver_type = DRVR_CAPI_B3;
+	      cd->driver_unit = 0;
 
 	      /* update CID value first */
 
@@ -1943,21 +2257,10 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		   */
 	      }
 
-	      if(cd->ai_type == I4B_AI_BROADCAST)
-	      {
-		  /* early B3 for incoming calls */
+	      capi_disconnect_broadcast(cd, sc);
 
-		  /* set application interface */
-		  cd_set_appl_interface(cd,I4B_AI_CAPI,sc);
-
-		  /* send disconnect indication
-		   * to all other application interfaces
-		   */
-		  i4b_l4_disconnect_ind(cd,1);
-
-		  cd->driver_type = DRVR_CAPI_B3;
-		  cd->driver_unit = 0;
-	      }
+	      cd->driver_type = DRVR_CAPI_B3;
+	      cd->driver_unit = 0;
 
 	      m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
 				  0x0000);
@@ -1977,10 +2280,111 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      capi_decode(&msg.data, msg.head.wLen, &facility_req);
 
+	      if(facility_req.wSelector == 0x0005)
+	      {
+		  /* line interconnect */
+
+		  CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_param);
+		  capi_decode(facility_req.Param.ptr, facility_req.Param.len, 
+			      &li_param);
+
+		  switch(li_param.wFunction) {
+		  case 0x0000:
+		      /* get supported services */
+		      m2 = capi_make_li_supp_conf(&msg);
+		      goto send_confirmation;
+
+		  case 0x0001:
+		      /* connect */
+		      CAPI_INIT(CAPI_LI_CONN_REQ_PARAM, &li_conn_req_param);
+		      capi_decode(li_param.Param.ptr, li_param.Param.len, 
+				  &li_conn_req_param);
+
+		      CAPI_INIT(CAPI_LI_CONN_REQ_PART, &li_conn_req_part);
+		      capi_decode(li_conn_req_param.conn_req_part.ptr,
+				  li_conn_req_param.conn_req_part.len,
+				  &li_conn_req_part);
+
+		      if((li_conn_req_param.dwDataPath != 0x00000000) ||
+			 (li_conn_req_param.conn_req_part.len > 4))
+		      {
+			  m2 = capi_make_li_conn_conf(&msg, 0x2008, 
+						      li_conn_req_part.dwCid);
+			  goto send_confirmation;
+		      }
+
+		      m2 = capi_make_li_conn_conf(&msg, 0x0000,
+						  li_conn_req_part.dwCid);
+		      capi_ai_putqueue(sc, 0, m2);
+
+		      capi_connect_bridge(cd, sc, 
+					  CAPI_ID2CDID(li_conn_req_part.dwCid));
+		      CNTL_UNLOCK(cntl);
+
+		      cntl = CNTL_FIND(CAPI_ID2CONTROLLER(li_conn_req_part.dwCid));
+
+		      if(cntl)
+		      {
+			  CNTL_LOCK(cntl);
+
+			  cd = cd_by_cdid(cntl, CAPI_ID2CDID(li_conn_req_part.dwCid));
+
+			  capi_connect_bridge(cd, sc,
+					      CAPI_ID2CDID(msg.head.dwCid));
+		      }
+		      break;
+
+		  case 0x0002:
+		      /* disconnect */
+		      CAPI_INIT(CAPI_LI_DISC_REQ_PARAM, &li_disc_req_param);
+		      capi_decode(li_param.Param.ptr, li_param.Param.len, 
+				  &li_disc_req_param);
+
+		      CAPI_INIT(CAPI_LI_DISC_REQ_PART, &li_disc_req_part);
+		      capi_decode(li_disc_req_param.disc_req_part.ptr,
+				  li_disc_req_param.disc_req_part.len,
+				  &li_disc_req_part);
+
+		      if(li_disc_req_param.disc_req_part.len > 4)
+		      {
+			  m2 = capi_make_li_disc_conf(&msg, 0x2001,
+						      li_disc_req_part.dwCid);
+			  goto send_confirmation;
+		      }
+
+		      m2 = capi_make_li_disc_conf(&msg, 0x0000,
+						  li_disc_req_part.dwCid);
+		      capi_ai_putqueue(sc, 0, m2);
+
+		      capi_disconnect_bridge(cd, sc,
+					     CAPI_ID2CDID(li_disc_req_part.dwCid));
+		      CNTL_UNLOCK(cntl);
+
+		      cntl = CNTL_FIND(CAPI_ID2CONTROLLER(li_disc_req_part.dwCid));
+
+		      if(cntl)
+		      {
+			  CNTL_LOCK(cntl);
+
+			  cd = cd_by_cdid(cntl, CAPI_ID2CDID(li_disc_req_part.dwCid));
+		      
+			  capi_disconnect_bridge(cd, sc, 
+						 CAPI_ID2CDID(msg.head.dwCid));
+		      }
+		      break;
+
+		  default:
+		      m2 = capi_make_facility_conf
+			(&msg, facility_req.wSelector, 0x3011, NULL);
+		      goto send_confirmation;
+		  }
+		  break;
+	      }
+
 	      /* not supported */
 
 	      m2 = capi_make_facility_conf
-		(&msg, facility_req.wSelector, 0x300B);
+		(&msg, facility_req.wSelector, 0x300B, NULL);
 
 	      goto send_confirmation;
 
@@ -2081,21 +2485,10 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		  }
 	      }
 
-	      if(cd->ai_type == I4B_AI_BROADCAST)
-	      {
-		  /* set application interface before 
-		   * disconnect indication
-		   */
-		  cd_set_appl_interface(cd,I4B_AI_CAPI,sc);
+	      capi_disconnect_broadcast(cd, sc);
 
-		  /* send disconnect indication
-		   * to all other application interfaces
-		   */
-		  i4b_l4_disconnect_ind(cd,1);
-
-		  cd->driver_type = DRVR_CAPI_B3;
-		  cd->driver_unit = 0;
-	      }
+	      cd->driver_type = DRVR_CAPI_B3;
+	      cd->driver_unit = 0;
 
 	      cd->shorthold_data.shorthold_algorithm = SHA_FIXU;
 	      cd->shorthold_data.unitlen_time = 0;
@@ -2122,7 +2515,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		   *      connect b3 active resp --->
 		   */
 
-		  if(cd->fifo_translator_capi == NULL)
+		  if(cd->fifo_translator_capi_std == NULL)
 		  {
 		      m2 = capi_make_connect_b3_ind(cd);
 		      goto send_confirmation;
@@ -2625,27 +3018,22 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 		/* check parameter range */
 
-		if(dbg->unit >= I4B_PCM_CABLE_MAX)
+		if((dbg->unit >= I4B_PCM_CABLE_MAX) ||
+		   (dbg->value > I4B_PCM_SLOT_MAX) ||
+		   (dbg->value & 1))
 		{
 		    error = EINVAL;
+		    break;
 		}
-		else
-		{
-		    if(dbg->value > I4B_PCM_SLOT_MAX)
-		    {
-		        error = EINVAL;
-		    }
-		    else
-		    {
-		        cable = &i4b_pcm_cable[dbg->unit];
 
-			mtx_lock(&i4b_global_lock);
+		cable = &i4b_pcm_cable[dbg->unit];
 
-			cable->slot_end = dbg->value;
+		mtx_lock(&i4b_global_lock);
 
-			mtx_unlock(&i4b_global_lock);
-		    }
-		}
+		cable->slot_end = dbg->value;
+
+		mtx_unlock(&i4b_global_lock);
+
 		break;
 	}
 
@@ -2818,15 +3206,6 @@ capi_poll(struct cdev *dev, int events, struct thread *td)
 }
 
 /*---------------------------------------------------------------------------*
- *	feedback from daemon in case of dial problems
- *---------------------------------------------------------------------------*/
-void
-capi_response_to_user(msg_response_to_user_t *mrtu)
-{
-	return;
-}
-
-/*---------------------------------------------------------------------------*
  *	this routine is called from the HSCX interrupt handler
  *	when a new frame (mbuf) has been received
  *---------------------------------------------------------------------------*/
@@ -2945,7 +3324,7 @@ capi_alloc_mbuf(struct fifo_translator *f, u_int16_t def_len, u_int16_t tr_len)
 }
 
 /*---------------------------------------------------------------------------*
- *	setup the FIFO-translator for this driver
+ *	setup the FIFO-translator for I4B-CAPI
  *---------------------------------------------------------------------------*/
 fifo_translator_t *
 capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
@@ -2959,10 +3338,10 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	if(!pp)
 	{
-		return cd->fifo_translator_capi;
+		return cd->fifo_translator_capi_std;
 	}
 
-	cd->fifo_translator_capi = f; 
+	cd->fifo_translator_capi_std = f; 
 
 	NDBGL4(L4_MSG, "capi, cdid=%d, protocol_1=%d", 
 	       cd->cdid, pp->protocol_1);
@@ -2984,6 +3363,64 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 		/* disconnected */
 
 		capi_ai_disconnect_b3_ind(cd);
+	}
+	return f;
+}
+
+
+/*---------------------------------------------------------------------------*
+ *	setup the FIFO-translator for I4B-CAPI-BRIDGE
+ *---------------------------------------------------------------------------*/
+fifo_translator_t *
+capi_bridge_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
+		     struct i4b_protocol *pp, u_int32_t driver_type, 
+		     u_int32_t driver_unit, call_desc_t *cd)
+{
+	struct i4b_line_interconnect *li;
+
+	if(!cd)
+	{
+		return FT_INVALID;
+	}
+
+	if(!pp)
+	{
+		return cd->fifo_translator_capi_bridge;
+	}
+
+	cd->fifo_translator_capi_bridge = f; 
+
+	NDBGL4(L4_MSG, "capi, cdid=%d, protocol_1=%d", 
+	       cd->cdid, pp->protocol_1);
+
+	if(pp->protocol_1)
+	{
+		/* connected */
+
+		cd->li_cdid_last = cd->li_cdid;
+
+		li = cd->li_data_ptr;
+
+		if(li)
+		{
+		    pp->protocol_1 = P_BRIDGE;
+		    pp->u.bridge.rx_slot = li->pcm_slot_rx;
+		    pp->u.bridge.tx_slot = li->pcm_slot_tx;
+		    pp->u.bridge.rx_cable = li->pcm_cable;
+		    pp->u.bridge.tx_cable = li->pcm_cable;
+
+		    capi_ai_line_inter_connect_ind(cd);
+		}
+		else
+		{
+		    pp->protocol_1 = P_DISABLE;
+		}
+	}
+	else
+	{
+		/* disconnected */
+
+		capi_ai_line_inter_disconnect_ind(cd);
 	}
 	return f;
 }

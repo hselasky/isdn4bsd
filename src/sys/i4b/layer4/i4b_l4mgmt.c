@@ -177,50 +177,15 @@ cd_allocate_channel(struct call_desc *cd)
 {
 	struct i4b_controller *cntl = i4b_controller_by_cd(cd);
 
-	if(cd->pcm_slot_allocated == 0)
-	{
-	    struct i4b_pcm_cable *cable;
-	    u_int32_t x;
-	    u_int16_t y;
+	CNTL_LOCK_ASSERT(cntl);
 
+	if((cd->li_cdid) && (cd->li_data_ptr == NULL))
+	{
 	    mtx_lock(&i4b_global_lock);
 
-	    for(y = 0;
-		y < cntl->L1_pcm_cable_end;
-		y++)
-	    {
-	        if(cntl->L1_pcm_cable_map[y] >= I4B_PCM_CABLE_MAX)
-		{
-		    continue;
-		}
+	    cd->li_data_ptr = 
+	      i4b_slot_li_alloc(cd->cdid, cd->li_cdid);
 
-	        cable = &i4b_pcm_cable[cntl->L1_pcm_cable_map[y]];
-
-		for(x = 0; x < cable->slot_end; )
-		{
-		    if(cable->slot_bitmap[x / (4*8)] == 0xffffffff)
-		    {
-		        x += (4*8);
-			continue;
-		    }
-
-		    for( ;
-			 x < cable->slot_end;
-			 x ++)
-		    {
-		        if(GET_BIT(cable->slot_bitmap, x) == 0)
-			{
-			    SET_BIT(cable->slot_bitmap, x, 1);
-
-			    cd->pcm_slot_number = x;
-			    cd->pcm_slot_cable = y;
-			    cd->pcm_slot_allocated = 1;
-			    goto found_slot;
-			}
-		    }
-		}
-	    }
-	found_slot:
 	    mtx_unlock(&i4b_global_lock);
 	}
 
@@ -281,21 +246,17 @@ cd_free_channel(struct call_desc *cd)
 {
 	struct i4b_controller *cntl = i4b_controller_by_cd(cd);
 
-	if(cd->pcm_slot_allocated)
+	CNTL_LOCK_ASSERT(cntl);
+
+	if(cd->li_data_ptr)
 	{
-	    struct i4b_pcm_cable *cable;
-
-	    cable = &i4b_pcm_cable[cd->pcm_slot_cable];
-
 	    mtx_lock(&i4b_global_lock);
 
-	    SET_BIT(cable->slot_bitmap, cd->pcm_slot_number, 0);
+	    i4b_slot_li_free(cd->li_data_ptr);
 
 	    mtx_unlock(&i4b_global_lock);
 
-	    cd->pcm_slot_number = 0;
-	    cd->pcm_slot_cable = 0;
-	    cd->pcm_slot_allocated = 0;
+	    cd->li_data_ptr = NULL;
 	}
 
 	if(cd->channel_allocated)
@@ -557,3 +518,262 @@ i4b_make_q850_cause(cause_t cause)
 	}
 	return(ret);
 }
+
+/*===========================================================================*
+ *	line interconnect routines
+ *===========================================================================*/
+
+static struct i4b_line_interconnect *
+i4b_li_alloc(cdid_t cdid)
+{
+    struct i4b_controller *cntl = CNTL_FIND(cdid);
+    struct i4b_line_interconnect *li;
+    u_int32_t x;
+
+    mtx_assert(&i4b_global_lock, MA_OWNED);
+
+    if((cdid == CDID_UNUSED) ||
+       (cntl == NULL))
+    {
+        li = NULL;
+	goto done;
+    }
+
+    li = &(cntl->L1_interconnect[0]);
+    x = MAX_CHANNELS;
+
+    while(x--)
+    {
+        if(li->cdid == CDID_UNUSED)
+	{
+	    li->cdid = cdid;
+	    goto done;
+	}
+        li++;
+    }
+
+    li = NULL;
+
+ done:
+    return li;
+}
+
+static struct i4b_line_interconnect *
+i4b_li_search(cdid_t cdid)
+{
+    struct i4b_controller *cntl = CNTL_FIND(cdid);
+    struct i4b_line_interconnect *li;
+    u_int32_t x;
+
+    mtx_assert(&i4b_global_lock, MA_OWNED);
+
+    if((cdid == CDID_UNUSED) ||
+       (cntl == NULL))
+    {
+        li = NULL;
+	goto done;
+    }
+
+    li = &(cntl->L1_interconnect[0]);
+    x = MAX_CHANNELS;
+
+    while(x--)
+    {
+        if(li->cdid == cdid)
+	{
+	    goto done;
+	}
+        li++;
+    }
+    li = NULL;
+
+ done:
+    return li;
+}
+
+static void
+i4b_li_free(struct i4b_line_interconnect *li)
+{
+    mtx_assert(&i4b_global_lock, MA_OWNED);
+
+    bzero(li, sizeof(*li));
+
+    return;
+}
+
+static struct i4b_line_interconnect *
+__i4b_slot_li_alloc(cdid_t cdid, u_int8_t pcm_cable, u_int16_t pcm_slot_rx)
+{
+    static struct i4b_line_interconnect *li;
+    struct i4b_pcm_cable *cable;
+    u_int16_t pcm_end;
+    u_int16_t pcm_slot_tx;
+
+    mtx_assert(&i4b_global_lock, MA_OWNED);
+
+    cable = &i4b_pcm_cable[pcm_cable];
+    pcm_end = (cable->slot_end / 2);
+    pcm_slot_tx = pcm_slot_rx;
+
+    /* get the peer slot */
+
+    if(pcm_slot_rx < pcm_end)
+       pcm_slot_rx += pcm_end;
+    else
+       pcm_slot_rx -= pcm_end;
+
+    if(GET_BIT(cable->slot_bitmap, pcm_slot_rx))
+    {
+        /* full */
+        li = NULL;
+	goto done;
+    }
+
+    li = i4b_li_alloc(cdid);
+
+    if(li == NULL)
+    {
+        /* full */
+        goto done;
+    }
+
+    SET_BIT(cable->slot_bitmap, pcm_slot_rx, 1);
+    li->pcm_cable = pcm_cable;
+    li->pcm_slot_rx = pcm_slot_rx;
+    li->pcm_slot_tx = pcm_slot_tx;
+
+ done:
+    return li;
+}
+
+static u_int32_t
+get_dword(u_int32_t *ptr, u_int16_t bit_offset)
+{
+    u_int32_t temp;
+    u_int16_t dword_offset;
+
+    dword_offset = bit_offset / (4*8);
+    bit_offset %= (4*8);
+
+    temp = (ptr[dword_offset] >> (bit_offset));
+
+    if(bit_offset) {
+      temp |= (ptr[dword_offset+1] << (32-bit_offset));
+    }
+    return temp;
+}
+
+struct i4b_line_interconnect *
+i4b_slot_li_alloc(cdid_t cdid_src, cdid_t cdid_dst)
+{
+    struct i4b_controller *cntl_src = CNTL_FIND(cdid_src);
+    struct i4b_controller *cntl_dst = CNTL_FIND(cdid_dst);
+    struct i4b_pcm_cable *cable;
+    struct i4b_line_interconnect *li_src = NULL;
+    struct i4b_line_interconnect *li_dst;
+    u_int32_t x;
+    u_int32_t y;
+    u_int32_t z;
+    u_int32_t t;
+    u_int16_t pcm_end;
+
+    mtx_assert(&i4b_global_lock, MA_OWNED);
+
+    if((cntl_src == NULL) ||
+       (cntl_dst == NULL))
+    {
+	goto done;
+    }
+
+    /*
+     * 1. see if the other end
+     * has already allocated a
+     * cable:
+     */
+
+    li_dst = i4b_li_search(cdid_dst);
+
+    if(li_dst)
+    {
+	  li_src = __i4b_slot_li_alloc
+	    (cdid_src, li_dst->pcm_cable, li_dst->pcm_slot_rx);
+	  goto done;
+    }
+
+    /* 
+     * 2. try to allocate a common slot 
+     * on a common cable
+     */
+
+    for(x = 0; x < cntl_src->L1_pcm_cable_end; x++)
+    {
+        if(cntl_src->L1_pcm_cable_map[x] >= I4B_PCM_CABLE_MAX)
+	{
+	    /* invalid cable number */
+	    continue;
+	}
+
+	for(y = 0; y < cntl_dst->L1_pcm_cable_end; y++)
+	{
+	    if(cntl_dst->L1_pcm_cable_map[y] != 
+	       cntl_dst->L1_pcm_cable_map[x])
+	    {
+	        /* not the same cable */
+	        continue;
+	    }
+
+	    z = cntl_dst->L1_pcm_cable_map[x];
+
+	    cable = &i4b_pcm_cable[z];
+	    pcm_end = (cable->slot_end/2);
+
+	    for(y = 0; y < pcm_end; y += (4*8))
+	    {
+	        t = 
+		  get_dword(cable->slot_bitmap, y) |
+		  get_dword(cable->slot_bitmap, y + pcm_end);
+
+		if(t == 0xffffffff)
+		{
+		    /* no slots free */
+		    continue;
+		}
+
+		for( ; y < pcm_end; y++)
+		{
+		    if(t & (1 << (y % (4*8))))
+		    {
+		        /* no slot free */
+		        continue;
+		    }
+
+		    li_src = __i4b_slot_li_alloc(cdid_src, z, y);
+		    goto done;
+		}
+		break;
+	    }
+	    break;
+	}
+    }
+
+ done:
+    return li_src;
+}
+
+void
+i4b_slot_li_free(struct i4b_line_interconnect *li)
+{
+    struct i4b_pcm_cable *cable;
+
+    mtx_assert(&i4b_global_lock, MA_OWNED);
+
+    cable = &i4b_pcm_cable[li->pcm_cable];
+
+    SET_BIT(cable->slot_bitmap, li->pcm_slot_rx, 0);
+
+    i4b_li_free(li);
+
+    return;
+
+}
+
