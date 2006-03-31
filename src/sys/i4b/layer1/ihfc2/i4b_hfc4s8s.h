@@ -424,10 +424,14 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 	    HFC4S8S_WRITE_1(REG_hfc4s8s_a_conf_write, 0x00);
 	}
 
-	/* PCM slave or master with 4Mbit/s PCM64 */
+	/* PCM slave or master */
 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_pcm_md0_write, 
 			sc->sc_default.o_PCM_SLAVE ? 0x90 : 0x91);
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_pcm_md1_write, 0x10);
+
+	/* set PCM speed */
+ 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_pcm_md1_write, 
+			sc->sc_default.o_PCM_SPEED_128 ? 0x20 :
+			sc->sc_default.o_PCM_SPEED_64 ? 0x10 : 0x00);
 
 	/* PCM is synchronized to E1 receive */
 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_pcm_md2_write, 0x00);
@@ -1008,6 +1012,14 @@ I4B_DBASE(hfc4s8s_dbase_root)
   I4B_DBASE_ADD(o_RES_MEMORY_0       , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
   I4B_DBASE_ADD(o_NTMODE_VARIABILITY , 1); /* enable */
+
+  I4B_DBASE_ADD(o_PCM_SLAVE          , 1); /* enable */
+  I4B_DBASE_ADD(o_PCM_SLAVE_VARIABILITY, 1); /* enable */
+
+  I4B_DBASE_ADD(o_PCM_SPEED_64       , 1); /* enable */
+  I4B_DBASE_ADD(o_PCM_SPEED_32_VARIABILITY, 1); /* enable */
+  I4B_DBASE_ADD(o_PCM_SPEED_64_VARIABILITY, 1); /* enable */
+  I4B_DBASE_ADD(o_PCM_SPEED_128_VARIABILITY, 1); /* enable */
 
 #if 0
   I4B_DBASE_ADD(o_EXTERNAL_RAM       , 1); /* enable */

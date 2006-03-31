@@ -862,6 +862,9 @@ struct sc_default {
   u_int32_t o_PRIVATE_FLAG_0     : 1; /* private driver flag */
   u_int32_t o_PRIVATE_FLAG_1     : 1; /* private driver flag */
   u_int32_t o_PCM_SLAVE          : 1; /* set if PCM slave mode is used */
+  u_int32_t o_PCM_SLAVE_VARIABILITY : 1; /* set if o_PCM_SLAVE can be changed.
+					  * Else o_PCM_SLAVE is a constant.
+					  */
   u_int32_t o_ISAC_NT            : 1; /* set if ISAC supports NT-mode */
   u_int32_t o_IPAC               : 1; /* set if IPAC is present. 
 				       * Else ISAC/HSCX is present.
@@ -871,6 +874,12 @@ struct sc_default {
 						* mode
 						*/
   u_int32_t o_T125_WAIT          : 1; /* set if waiting for 125us timeout */
+  u_int32_t o_PCM_SPEED_32_VARIABILITY : 1;
+  u_int32_t o_PCM_SPEED_64_VARIABILITY : 1;
+  u_int32_t o_PCM_SPEED_128_VARIABILITY : 1;
+  u_int32_t o_PCM_SPEED_32 : 1;
+  u_int32_t o_PCM_SPEED_64 : 1;
+  u_int32_t o_PCM_SPEED_128 : 1;
 
   u_int8_t                      cookie;
   u_int8_t                      stdel_nt;  /* S/T delay for NT-mode */

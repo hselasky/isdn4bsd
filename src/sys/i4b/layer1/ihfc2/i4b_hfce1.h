@@ -372,10 +372,14 @@ hfce1_chip_reset CHIP_RESET_T(sc,error)
 	    HFCE1_WRITE_1(REG_hfce1_conf, 0x00);
 	}
 
-	/* PCM slave or master with 4Mbit/s PCM64 */
+	/* PCM slave or master */
 	HFCE1_WRITE_1(REG_hfce1_pcm_md0, 
 		      sc->sc_default.o_PCM_SLAVE ? 0x90 : 0x91);
-	HFCE1_WRITE_1(REG_hfce1_pcm_md1, 0x10);
+
+	/* set PCM speed */
+	HFCE1_WRITE_1(REG_hfce1_pcm_md1, 
+		      sc->sc_default.o_PCM_SPEED_128 ? 0x20 :
+		      sc->sc_default.o_PCM_SPEED_64 ? 0x10 : 0x00);
 
 	/* PCM is synchronized to E1 receive */
 	HFCE1_WRITE_1(REG_hfce1_pcm_md2, 0x00);
@@ -1152,6 +1156,14 @@ I4B_DBASE(hfce1_dbase_root)
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
   I4B_DBASE_ADD(o_NTMODE_VARIABILITY , 1); /* enable */
   I4B_DBASE_ADD(o_DLOWPRI_FIXED      , 1); /* enable */
+
+  I4B_DBASE_ADD(o_PCM_SLAVE          , 1); /* enable */
+  I4B_DBASE_ADD(o_PCM_SLAVE_VARIABILITY, 1); /* enable */
+
+  I4B_DBASE_ADD(o_PCM_SPEED_64       , 1); /* enable */
+  I4B_DBASE_ADD(o_PCM_SPEED_32_VARIABILITY, 1); /* enable */
+  I4B_DBASE_ADD(o_PCM_SPEED_64_VARIABILITY, 1); /* enable */
+  I4B_DBASE_ADD(o_PCM_SPEED_128_VARIABILITY, 1); /* enable */
 
 #if 0
   I4B_DBASE_ADD(o_EXTERNAL_RAM       , 1); /* enable */

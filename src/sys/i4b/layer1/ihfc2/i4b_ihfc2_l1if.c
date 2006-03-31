@@ -46,6 +46,7 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	ihfc_sc_t *sc = cntl->L1_sc;
 	ihfc_fifo_t *f = cntl->L1_fifo;
 	struct sc_state *st = &(sc->sc_state[f->sub_unit]);
+	i4b_debug_t *dbg;
 	u_int32_t temp;
 	u_int16_t n;
 	u_int8_t error[IHFC_MAX_ERR];
@@ -186,6 +187,91 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	    }
 	    break;
 
+	case CMR_SET_PCM_MASTER:
+	    IHFC_MSG("CMR_SET_PCM_MASTER\n");
+
+	    if((sc->sc_default.o_PCM_SLAVE_VARIABILITY) &&
+	       (sc->sc_default.o_PCM_SLAVE))
+	    {
+	        sc->sc_default.o_PCM_SLAVE = 0;
+		ihfc_setup_softc(sc, &error[0]);
+	    }
+
+	    if(sc->sc_default.o_PCM_SLAVE)
+	    {
+	        IHFC_ADD_ERR(error, "PCM slave mode is fixed!");
+	    }
+	    break;
+
+	case CMR_SET_PCM_SLAVE:
+	    IHFC_MSG("CMR_SET_PCM_SLAVE\n");
+
+	    if((sc->sc_default.o_PCM_SLAVE_VARIABILITY) &&
+	       (sc->sc_default.o_PCM_SLAVE == 0))
+	    {
+	        sc->sc_default.o_PCM_SLAVE = 1;
+		ihfc_setup_softc(sc, &error[0]);
+	    }
+	    if(sc->sc_default.o_PCM_SLAVE == 0)
+	    {
+	        IHFC_ADD_ERR(error, "PCM master mode is fixed!");
+	    }
+	    break;
+
+	case CMR_SET_PCM_SPEED:
+	{
+	    dbg = parm;
+
+	    IHFC_MSG("CMR_SET_PCM_SPEED %d\n", dbg->value);
+
+	    switch(dbg->value) {
+	    case 128:
+	      if((sc->sc_default.o_PCM_SPEED_128_VARIABILITY) &&
+		 (sc->sc_default.o_PCM_SPEED_128 == 0))
+	      {
+		  sc->sc_default.o_PCM_SPEED_128 = 1;
+		  sc->sc_default.o_PCM_SPEED_64 = 0;
+		  sc->sc_default.o_PCM_SPEED_32 = 0;
+		  ihfc_setup_softc(sc, &error[0]);
+	      }
+	      if(sc->sc_default.o_PCM_SPEED_128 == 0)
+	      {
+		  IHFC_ADD_ERR(error, "Cannot set PCM_SPEED_128!");
+	      }
+	      break;
+
+	    case 64:
+	      if((sc->sc_default.o_PCM_SPEED_64_VARIABILITY) &&
+		 (sc->sc_default.o_PCM_SPEED_64 == 0))
+	      {
+		  sc->sc_default.o_PCM_SPEED_128 = 0;
+		  sc->sc_default.o_PCM_SPEED_64 = 1;
+		  sc->sc_default.o_PCM_SPEED_32 = 0;
+		  ihfc_setup_softc(sc, &error[0]);
+	      }
+	      if(sc->sc_default.o_PCM_SPEED_64 == 0)
+	      {
+		  IHFC_ADD_ERR(error, "Cannot set PCM_SPEED_64!");
+	      }
+	      break;
+
+	    default: /* 32 */
+	      if((sc->sc_default.o_PCM_SPEED_32_VARIABILITY) &&
+		 (sc->sc_default.o_PCM_SPEED_32 == 0))
+	      {
+		  sc->sc_default.o_PCM_SPEED_128 = 0;
+		  sc->sc_default.o_PCM_SPEED_64 = 0;
+		  sc->sc_default.o_PCM_SPEED_32 = 1;
+		  ihfc_setup_softc(sc, &error[0]);
+	      }
+	      if(sc->sc_default.o_PCM_SPEED_32 == 0)
+	      {
+		  IHFC_ADD_ERR(error, "Cannot set PCM_SPEED_32!");
+	      }
+	      break;
+	    }
+	    break;
+	}
 	case CMR_SET_L1_AUTO_ACTIVATE_VARIABLE:
 	    if(parm == NULL)
 	    {
@@ -222,7 +308,7 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 
 	case CMR_SET_LAYER1_PROTOCOL:
 	{
-	    i4b_debug_t *dbg = parm;
+	    dbg = parm;
 
 	    if(dbg->chan >= cntl->L1_channel_end)
 	    {
@@ -577,7 +663,7 @@ ihfc_B_get_fifo_translator(struct i4b_controller *cntl, int channel)
 }
 
 /*---------------------------------------------------------------------------*
- *	default i4b interface init
+ *	default I4B interface init
  *---------------------------------------------------------------------------*/
 void
 ihfc_init_i4b(ihfc_sc_t *sc, struct i4b_controller *cntl)
@@ -599,7 +685,7 @@ ihfc_init_i4b(ihfc_sc_t *sc, struct i4b_controller *cntl)
 }
  
 /*---------------------------------------------------------------------------*
- *	default i4b interface setup
+ *	default I4B interface setup
  *---------------------------------------------------------------------------*/
 u_int8_t
 ihfc_setup_i4b(ihfc_sc_t *sc, u_int8_t *error)
@@ -610,7 +696,9 @@ ihfc_setup_i4b(ihfc_sc_t *sc, u_int8_t *error)
 
 	while(sub_controllers--) {
 	    device_printf(sc->sc_device, "Attaching I4B "
-			  "controller %d.\n", cntl->unit);
+			  "controller %d%s.\n", cntl->unit,
+			  (sc->sc_default.o_PCM_SLAVE ? 
+			   " (PCM slave mode)" : ""));
 
 	    retval |= i4b_controller_attach(cntl,error);
 	    cntl++;
@@ -619,7 +707,7 @@ ihfc_setup_i4b(ihfc_sc_t *sc, u_int8_t *error)
 }
 
 /*---------------------------------------------------------------------------*
- *	default i4b interface unsetup
+ *	default I4B interface unsetup
  *---------------------------------------------------------------------------*/
 void
 ihfc_unsetup_i4b(ihfc_sc_t *sc)
