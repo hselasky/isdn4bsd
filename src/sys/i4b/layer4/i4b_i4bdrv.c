@@ -884,10 +884,10 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 			cd->cunits = 0;
 
 			strlcpy(cd->dst_telno, mcr->dst_telno, sizeof(cd->dst_telno));
-			strlcpy(cd->src_telno, mcr->src_telno, sizeof(cd->src_telno));
+			strlcpy(cd->src[0].telno, mcr->src_telno, sizeof(cd->src[0].telno));
 
 			strlcpy(cd->dst_subaddr, mcr->dst_subaddr, sizeof(cd->dst_subaddr));
-			strlcpy(cd->src_subaddr, mcr->src_subaddr, sizeof(cd->src_subaddr));
+			strlcpy(cd->src[0].subaddr, mcr->src_subaddr, sizeof(cd->src[0].subaddr));
 
 			strlcpy(cd->keypad, mcr->keypad, sizeof(cd->keypad));
 

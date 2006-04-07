@@ -130,6 +130,7 @@ static void
 dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 {
 	call_desc_t *cd = arg;
+	struct i4b_src_telno *p_src;
 	u_int8_t temp = get_1(src,2);
 	u_int8_t msg_type = get_1(src,0);
 
@@ -337,35 +338,43 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	        break;
 	    }
 
+	    if(cd->received_src_telno_1) {
+	      cd->received_src_telno_2 = 1;
+	      p_src = &(cd->src[1]);
+	    } else {
+	      cd->received_src_telno_1 = 1;
+	      p_src = &(cd->src[0]);
+	    }
+
 	    /* type of number (source) */
 	    switch ((temp & 0x70) >> 4) {
 	    case 1:
-	      cd->src_ton = TON_INTERNAT;
+	      p_src->ton = TON_INTERNAT;
 	      break;
 	    case 2:
-	      cd->src_ton = TON_NATIONAL;
+	      p_src->ton = TON_NATIONAL;
 	      break;
 	    default:
-	      cd->src_ton = TON_OTHER;
+	      p_src->ton = TON_OTHER;
 	      break;
 	    }
 
 	    if(temp & 0x80) /* no presentation/screening indicator ? */
 	    {
-		cd->scr_ind = SCR_NONE;
-		cd->prs_ind = PRS_NONE;				
+		p_src->scr_ind = SCR_NONE;
+		p_src->prs_ind = PRS_NONE;				
 
-	        get_multi_1(src,3,&(cd->src_telno[0]),sizeof(cd->src_telno),1);
+		get_multi_1(src,3,&(p_src->telno[0]),sizeof(p_src->telno),1);
 	    }
 	    else
 	    {
 		temp = get_1(src,3);
-		cd->scr_ind = (temp & 0x03) + SCR_USR_NOSC;
-		cd->prs_ind = ((temp >> 5) & 0x03) + PRS_ALLOWED;
+		p_src->scr_ind = (temp & 0x03) + SCR_USR_NOSC;
+		p_src->prs_ind = ((temp >> 5) & 0x03) + PRS_ALLOWED;
 
-	        get_multi_1(src,4,&(cd->src_telno[0]),sizeof(cd->src_telno),1);
+	        get_multi_1(src,4,&(p_src->telno[0]),sizeof(p_src->telno),1);
 	    }
-	    NDBGL3(L3_P_MSG, "IEI_CALLINGPN = %s", &(cd->src_telno[0]));
+	    NDBGL3(L3_P_MSG, "IEI_CALLINGPN = %s", &(p_src->telno[0]));
 	    break;
 	
 	case IEI_CALLINGPS:	/* calling party subaddress */
@@ -374,8 +383,15 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	        /* invalid */
 	        break;
 	    }
-	    get_multi_1(src,3,&(cd->src_subaddr[0]),sizeof(cd->src_subaddr),1);
-	    NDBGL3(L3_P_MSG, "IEI_CALLINGPS = %s", &(cd->src_subaddr[0]));
+
+	    if(cd->received_src_telno_2) {
+	      p_src = &(cd->src[1]);
+	    } else {
+	      p_src = &(cd->src[0]);
+	    }
+
+	    get_multi_1(src,3,&(p_src->subaddr[0]),sizeof(p_src->subaddr),1);
+	    NDBGL3(L3_P_MSG, "IEI_CALLINGPS = %s", &(p_src->subaddr[0]));
 	    break;
 			
 	case IEI_CALLEDPN:	/* called party number */

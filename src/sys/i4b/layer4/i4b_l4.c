@@ -417,6 +417,13 @@ i4b_accounting_timeout(struct i4b_accounting *sc)
 }
 #endif
 
+static void
+telno_copy(char *dst, const char *src, u_int16_t len)
+{
+    strlcpy(dst, src[0] ? src : TELNO_EMPTY, len);
+    return;
+}
+
 /*---------------------------------------------------------------------------*
  *	send MSG_CONNECT_IND message to userland
  *---------------------------------------------------------------------------*/
@@ -436,14 +443,6 @@ i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ai_ptr)
 		mp->channel = cd->channel_id;
 		mp->bprot = cd->channel_bprot;
 
-#define TELNO_COPY(cd,mp,what)					\
-		strlcpy((mp)->what,				\
-			(cd)->what[0] ?				\
-			(const char *)(&(cd)->what[0]) :	\
-			(const char *)(TELNO_EMPTY),		\
-			sizeof((mp)->what))			\
-		/**/
-
 		/* store wether the number is complete or not */
 
 		mp->sending_complete = cd->sending_complete;
@@ -458,10 +457,15 @@ i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ai_ptr)
 		strlcpy(mp->dst_subaddr, cd->dst_subaddr,
 			sizeof(mp->dst_subaddr));
 
-		TELNO_COPY(cd,mp,src_telno);
-		TELNO_COPY(cd,mp,src_subaddr);
+		telno_copy(mp->src_telno,
+			   cd->src[0].telno,
+			   sizeof(mp->src_telno));
 
-		mp->src_ton = cd->src_ton;
+		telno_copy(mp->src_subaddr,
+			   cd->src[0].subaddr,
+			   sizeof(mp->src_subaddr));
+
+		mp->src_ton = cd->src[0].ton;
 		mp->dst_ton = cd->dst_ton;
 
 		strlcpy(mp->display, cd->display,
@@ -470,8 +474,8 @@ i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ai_ptr)
 		strlcpy(mp->user_user, cd->user_user,
 			sizeof(mp->user_user));
 
-		mp->scr_ind = cd->scr_ind;
-		mp->prs_ind = cd->prs_ind;
+		mp->scr_ind = cd->src[0].scr_ind;
+		mp->prs_ind = cd->src[0].prs_ind;
 
 		i4b_ai_putqueue(ai_ptr,0,m);
 	}

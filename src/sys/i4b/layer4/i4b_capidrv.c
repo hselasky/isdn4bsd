@@ -535,28 +535,29 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
  *---------------------------------------------------------------------------*/
 static void
 capi_get_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len, 
-	       u_int8_t *dst, u_int16_t max_length, u_int8_t flag)
+	       u_int8_t *dst, u_int16_t max_length, 
+	       struct i4b_src_telno *p_src)
 {
 	u_int8_t temp;
 
-	if(flag & 1)
+	if(p_src)
 	{
-		cd->scr_ind = SCR_NONE;
-		cd->src_ton = TON_OTHER;
-		cd->prs_ind = PRS_NONE;
+		p_src->scr_ind = SCR_NONE;
+		p_src->prs_ind = PRS_NONE;
+		p_src->ton = TON_OTHER;
 	}
 
 	if(len)
 	{
 		NDBGL4(L4_MSG, "cdid=%d: numbering "
-		       "plan=0x%02x, flag=%d (ignored)",
-		       cd->cdid, src[0], flag);
+		       "plan=0x%02x, p_src=%d (ignored)",
+		       cd->cdid, src[0], p_src != NULL);
 
-		if(flag & 1)
+		if(p_src)
 		{
 		    temp = (src[0] & 0x70) >> 4;
 
-		    cd->src_ton = 
+		    p_src->ton = 
 		      (temp == 1) ? TON_INTERNAT :
 		      (temp == 2) ? TON_NATIONAL :
 		      TON_OTHER;
@@ -565,9 +566,9 @@ capi_get_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len,
 		src++;
 		len--;
 
-		if(len && (flag & 1))
+		if(len && p_src)
 		{
-		    cd->prs_ind = 
+		    p_src->prs_ind = 
 		      ((src[0] & 0x60) == 0x20) ? PRS_RESTRICT : PRS_ALLOWED;
 
 		    src++;
@@ -578,8 +579,8 @@ capi_get_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len,
 	if(len > max_length)
 	{
 		NDBGL4(L4_ERR, "cdid=%d: truncating telephone "
-		       "number from %d to %d bytes, flag=%d", 
-		       cd->cdid, flag, len, max_length);
+		       "number from %d to %d bytes, p_src=%d", 
+		       cd->cdid, p_src != NULL, len, max_length);
 		len = max_length;
 	}
 	bcopy(src, dst, len);
@@ -592,7 +593,7 @@ capi_get_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len,
  *---------------------------------------------------------------------------*/
 static u_int16_t
 capi_put_telno(struct call_desc *cd, const u_int8_t *src, u_int8_t *dst, 
-	       u_int16_t len, u_int8_t type, u_int8_t flag)
+	       u_int16_t len, u_int8_t type, struct i4b_src_telno *p_src)
 {
 	u_int8_t *dst_end;
 
@@ -606,12 +607,12 @@ capi_put_telno(struct call_desc *cd, const u_int8_t *src, u_int8_t *dst,
 
 	*dst++ = type; /* number PLAN */
 
-	if(flag & 1)
+	if(p_src)
 	{
 	    /* add presentation and screening indicator */
 	    *dst++ = 
-	      (cd->prs_ind == PRS_RESTRICT) ? 0xA0 :
-	      (cd->prs_ind == PRS_NNINTERW) ? 0xC0 : 0x80;
+	      (p_src->prs_ind == PRS_RESTRICT) ? 0xA0 :
+	      (p_src->prs_ind == PRS_NNINTERW) ? 0xC0 : 0x80;
 	}
 
 	while(*src)
@@ -968,7 +969,8 @@ capi_ai_connect_ind(struct call_desc *cd)
 	struct CAPI_ADDITIONAL_INFO_DECODED add_info;
 
 	u_int8_t dst_telno[TELNO_MAX];
-	u_int8_t src_telno[TELNO_MAX];
+	u_int8_t src_telno_1[TELNO_MAX];
+	u_int8_t src_telno_2[TELNO_MAX];
 	u_int8_t dst_subaddr[SUBADDR_MAX];
 	u_int8_t src_subaddr[SUBADDR_MAX];
 
@@ -1021,24 +1023,35 @@ capi_ai_connect_ind(struct call_desc *cd)
 	connect_ind.dst_telno.ptr = &dst_telno[0];
 	connect_ind.dst_telno.len = capi_put_telno
 	  (cd, &cd->dst_telno[0], &dst_telno[0], 
-	   sizeof(dst_telno), 0x80, 0);
+	   sizeof(dst_telno), 0x80, NULL);
 
-	connect_ind.src_telno.ptr = &src_telno[0];
+	/* first calling party number */
+
+	connect_ind.src_telno.ptr = &src_telno_1[0];
 	connect_ind.src_telno.len = capi_put_telno
-	  (cd, &cd->src_telno[0], &src_telno[0], 
-	   sizeof(src_telno), 
-	   (cd->src_ton == TON_INTERNAT) ? 0x10 :
-	   (cd->src_ton == TON_NATIONAL) ? 0x20 : 0x00, 1);
+	  (cd, &cd->src[0].telno[0], &src_telno_1[0], 
+	   sizeof(src_telno_1), 
+	   (cd->src[0].ton == TON_INTERNAT) ? 0x10 :
+	   (cd->src[0].ton == TON_NATIONAL) ? 0x20 : 0x00, &(cd->src[0]));
+
+	/* second calling party number */
+
+	connect_ind.src_telno_2.ptr = &src_telno_2[0];
+	connect_ind.src_telno_2.len = capi_put_telno
+	  (cd, &cd->src[1].telno[0], &src_telno_2[0], 
+	   sizeof(src_telno_2), 
+	   (cd->src[1].ton == TON_INTERNAT) ? 0x10 :
+	   (cd->src[1].ton == TON_NATIONAL) ? 0x20 : 0x00, &(cd->src[1]));
 
 	connect_ind.dst_subaddr.ptr = &dst_subaddr[0];
 	connect_ind.dst_subaddr.len = capi_put_telno
 	  (cd, &cd->dst_subaddr[0], &dst_subaddr[0], 
-	   sizeof(dst_subaddr), 0x80, 0);
+	   sizeof(dst_subaddr), 0x80, NULL);
 
 	connect_ind.src_subaddr.ptr = &src_subaddr[0];
 	connect_ind.src_subaddr.len = capi_put_telno
-	  (cd, &cd->src_subaddr[0], &src_subaddr[0], 
-	   sizeof(src_subaddr), 0x80, 0);
+	  (cd, &cd->src[0].subaddr[0], &src_subaddr[0], 
+	   sizeof(src_subaddr), 0x80, NULL);
 
 	/* link in the additional info */
 	connect_ind.add_info_STRUCT = IE_STRUCT_DECODED;
@@ -1870,29 +1883,47 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      cd->cunits = 0;
 
+	      /* get first destination party number */
+
 	      capi_get_telno
 		(cd, 
 		 connect_req.dst_telno.ptr,
 		 connect_req.dst_telno.len,
-		 &cd->dst_telno[0], sizeof(cd->dst_telno)-1, 0);
+		 &(cd->dst_telno[0]), sizeof(cd->dst_telno)-1, NULL);
+
+	      /* get first calling party number */
 
 	      capi_get_telno
 		(cd,
 		 connect_req.src_telno.ptr,
 		 connect_req.src_telno.len,
-		 &cd->src_telno[0], sizeof(cd->src_telno)-1, 1);
+		 &(cd->src[0].telno[0]), sizeof(cd->src[0].telno)-1, 
+		 &(cd->src[0]));
+
+	      /* get second calling party number */
+
+	      capi_get_telno
+		(cd,
+		 connect_req.src_telno_2.ptr,
+		 connect_req.src_telno_2.len,
+		 &(cd->src[1].telno[0]), sizeof(cd->src[1].telno)-1, 
+		 &(cd->src[1]));
+
+	      /* get first destination party subaddress */
 
 	      capi_get_telno
 		(cd,
 		 connect_req.dst_subaddr.ptr,
 		 connect_req.dst_subaddr.len,
-		 &cd->dst_subaddr[0], sizeof(cd->dst_subaddr)-1, 0);
+		 &(cd->dst_subaddr[0]), sizeof(cd->dst_subaddr)-1, NULL);
+
+	      /* get first calling party subaddress */
 
 	      capi_get_telno
 		(cd,
 		 connect_req.src_subaddr.ptr,
 		 connect_req.src_subaddr.len,
-		 &cd->src_subaddr[0], sizeof(cd->src_subaddr)-1, 0);
+		 &(cd->src[0].subaddr[0]), sizeof(cd->src[0].subaddr)-1, NULL);
 
 	      /* XXX if there is user-user info or a keypad-string
 	       * in "add_info" one could have added that to 

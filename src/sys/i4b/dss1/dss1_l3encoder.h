@@ -157,6 +157,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 {
 	struct mbuf *m;
 	u_char *ptr, *str;
+	struct i4b_src_telno *p_src;
 	int len;
 
 	NDBGL3(L3_PRIM, "cdid=%d, cr=%d",
@@ -213,8 +214,12 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		bcopy(str, ptr, len);
 		ptr += len;
 	  }
+
+	  p_src = &(cd->src[0]);
+
+	repeat_src_telno:
 	
-	  str = &(cd->src_telno[0]);
+	  str = &(p_src->telno[0]);
 
 	  if(str[0] != 0)
 	  {
@@ -225,11 +230,11 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		/* type of number, number plan id */
 
 		ptr[1] = 
-		  (cd->src_ton == TON_INTERNAT) ? (NUMBER_TYPE_PLAN | 0x10) :
-		  (cd->src_ton == TON_NATIONAL) ? (NUMBER_TYPE_PLAN | 0x20) :
+		  (p_src->ton == TON_INTERNAT) ? (NUMBER_TYPE_PLAN | 0x10) :
+		  (p_src->ton == TON_NATIONAL) ? (NUMBER_TYPE_PLAN | 0x20) :
 		  NUMBER_TYPE_PLAN;
 
-		if(cd->prs_ind != PRS_NONE)
+		if(p_src->prs_ind != PRS_NONE)
 		{
 		    /* presentation indicator */
 
@@ -237,7 +242,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		    ptr[1] &= ~0x80;
 
 		    ptr[2] =
-		      (cd->prs_ind == PRS_RESTRICT) ? 
+		      (p_src->prs_ind == PRS_RESTRICT) ? 
 		      (0x20|0x80) : (0x80);
 
 		    ptr[0] += 2;
@@ -253,7 +258,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		ptr += len;
 	  }
 
-	  str = &(cd->src_subaddr[0]);
+	  str = &(p_src->subaddr[0]);
 
 	  if(str[0] != 0)
 	  {
@@ -264,6 +269,14 @@ dss1_l3_tx_setup(call_desc_t *cd)
 
 		bcopy(str, ptr, len);
 		ptr += len;
+	  }
+
+	  p_src++;
+
+	  if((p_src >= &(cd->src[0])) &&
+	     (p_src < &(cd->src[2])))
+	  {
+	      goto repeat_src_telno;
 	  }
 
 	  /*
@@ -339,11 +352,11 @@ dss1_l3_tx_setup(call_desc_t *cd)
     2               +\
     KEYPAD_MAX      +\
                 \
-    3               +\
-    TELNO_MAX       +\
+    (2*3)           +\
+    (2*TELNO_MAX)   +\
                 \
-    3               +\
-    SUBADDR_MAX     +\
+    (2*3)           +\
+    (2*SUBADDR_MAX) +\
                 \
     3               +\
     1               +\

@@ -381,6 +381,18 @@ f##unlock:					\
 /**/
 
 /*---------------------------------------------------------------------------*
+ *	definition of source telephone number
+ *---------------------------------------------------------------------------*/
+struct i4b_src_telno {
+	u_int8_t ton;      /* source type of number */
+	u_int8_t scr_ind;  /* screening ind for incoming call */
+	u_int8_t prs_ind;  /* presentation ind for incoming call */
+
+	u_char	telno[TELNO_MAX];     /* source number */
+	u_char	subaddr[SUBADDR_MAX]; /* source subaddr */
+};
+
+/*---------------------------------------------------------------------------*
  *	definition of a call and all its parameters
  *---------------------------------------------------------------------------*/
 typedef struct call_desc {
@@ -411,14 +423,10 @@ typedef struct call_desc {
 	u_char  dst_telno_part[TELNO_MAX]; /* destination number (last part received) */
 
 	u_char	dst_subaddr[SUBADDR_MAX]; /* destination subaddr */
-	u_char	src_telno[TELNO_MAX];	  /* source number */
-	u_char	src_subaddr[SUBADDR_MAX]; /* source subaddr */
+
+	struct i4b_src_telno src[2];
 
 	u_char	dst_ton;		/* destination type of number */
-	u_char	src_ton;		/* source type of number */
-
-	u_char  scr_ind;		/* screening ind for incoming call */
-	u_char	prs_ind;		/* presentation ind for incoming call */
 
 	u_char	state;			/* state of call descriptor */
 	u_char	status_enquiry_timeout;
@@ -444,6 +452,8 @@ typedef struct call_desc {
 					  */
 	u_int8_t b_link_want_active : 1; /* set if B-channel should be connected */
 	u_int8_t call_is_on_hold : 1;    /* set if call descriptor is on hold */
+	u_int8_t received_src_telno_1 : 1; /* set if calling party number is received */
+	u_int8_t received_src_telno_2 : 1; /* set if second calling party number is received */
 
 	u_int8_t  setup_interleave; /* a counter */
 
