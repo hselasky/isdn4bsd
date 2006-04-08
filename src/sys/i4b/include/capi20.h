@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2002-2005 Thomas Wintergerst. All rights reserved.
  *
- * Copyright (c) 2005 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2005-2006 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -1085,6 +1085,27 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
 
 /* ================================================ */
 
+#define CAPI_FACILITY_REQ_CALL_DEFL_PARAM(m,n) \
+  m(n, WORD   , wPresentation,)\
+  m(n, STRUCT , dst_telno,)\
+  m(n, STRUCT , dst_subaddr,)\
+  END
+
+#define CAPI_FACILITY_CONF_CALL_DEFL_PARAM(m,n) \
+  m(n, WORD   , wResult,)\
+  END
+
+#define CAPI_FACILITY_IND_CALL_DEFL_PARAM(m,n) \
+  m(n, WORD   , wReason,)\
+  m(n, STRUCT , dst_telno,)\
+  m(n, STRUCT , dst_subaddr,)\
+  END
+
+#define CAPI_FACILITY_RESP_CALL_DEFL_PARAM(m,n) \
+  END
+
+/* ================================================ */
+
 #define CAPI_FACILITY_REQ_DTMF_PARAM(m,n) \
   m(n, WORD  , wFunction,)\
   m(n, WORD  , wToneDuration,)\
@@ -1543,9 +1564,18 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, WORD , wServiceReason,)\
   END
 
-#define CAPI_LINE_INTERCONNECT_PARAM(m,n)\
+#define CAPI_LINE_INTERCONNECT_PARAM(m,n) \
   m(n, WORD  , wFunction,)\
   m(n, STRUCT, Param,)\
+  END
+
+/* ================================================  
+ *
+ * FACILITY: supplementary services
+ */
+#define CAPI_SUPPL_PARAM(m,n) \
+  m(n, WORD   , wFunction,)\
+  m(n, STRUCT , Param,)\
   END
 
 /*---------------------------------------------------------------------------*
@@ -1555,6 +1585,10 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, B_PROTOCOL)\
   m(n, ADDITIONAL_INFO)\
   m(n, SENDING_COMPLETE)\
+  m(n, FACILITY_REQ_CALL_DEFL_PARAM)\
+  m(n, FACILITY_CONF_CALL_DEFL_PARAM)\
+  m(n, FACILITY_IND_CALL_DEFL_PARAM)\
+  m(n, FACILITY_RESP_CALL_DEFL_PARAM)\
   m(n, FACILITY_REQ_DTMF_PARAM)\
   m(n, FACILITY_CONF_DTMF_PARAM)\
   m(n, FACILITY_IND_DTMF_PARAM)\
@@ -1592,6 +1626,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, LI_CONN_IND_PARAM)\
   m(n, LI_DISC_IND_PARAM)\
   m(n, LINE_INTERCONNECT_PARAM)\
+  m(n, SUPPL_PARAM)\
 
 /* for each command generate eight structures */
 CAPI_COMMANDS(CAPI_MAKE_DEF_1,);

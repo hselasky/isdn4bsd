@@ -1639,6 +1639,10 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	struct CAPI_LI_DISC_REQ_PARAM_DECODED li_disc_req_param;
 	struct CAPI_LI_DISC_REQ_PART_DECODED li_disc_req_part;
 
+	struct CAPI_SUPPL_PARAM_DECODED suppl_param;
+
+	struct CAPI_FACILITY_REQ_CALL_DEFL_PARAM_DECODED cd_req;
+
 	struct capi_message_encoded msg;
 
 	/* NOTE: one has got to read all data into 
@@ -2310,6 +2314,24 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      CAPI_INIT(CAPI_FACILITY_REQ, &facility_req);
 
 	      capi_decode(&msg.data, msg.head.wLen, &facility_req);
+
+	      if(facility_req.wSelector == 0x0003)
+	      {
+		  /* supplementary services */
+		  CAPI_INIT(CAPI_SUPPL_PARAM, &suppl_param);
+		  capi_decode(facility_req.Param.ptr,
+			      facility_req.Param.len,
+			      &suppl_param);
+
+		  if(suppl_param.wFunction == 0x000D)
+		  {
+		      /* call deflection */
+		      CAPI_INIT(CAPI_FACILITY_REQ_CALL_DEFL_PARAM, &cd_req);
+		      capi_decode(suppl_param.Param.ptr,
+				  suppl_param.Param.len,
+				  &cd_req);
+		  }
+	      }
 
 	      if(facility_req.wSelector == 0x0005)
 	      {
