@@ -1388,7 +1388,7 @@ tiger300_chip_status_read CHIP_STATUS_READ_T(sc)
 	tmp = bus_space_read_1(t, h, 6);
 	bus_space_write_1(t, h, 6, (tmp & T_INT0_MASK));
 
-	if((tmp & T_INT0_MASK) || (sc->sc_default.o_POLLED_MODE))
+	if((tmp & T_INT0_MASK) || IS_POLLED_MODE(sc,0))
 	{
 	  /* generate interrupt for
 	   * B1-channel and B2-channel
@@ -1474,6 +1474,10 @@ I4B_DBASE(tiger300_dbase_root)
   I4B_DBASE_ADD(d_channels         , 6);
 
   I4B_DBASE_ADD(o_BUS_TYPE_IOM2    , 1); /* enable */
+
+  I4B_DBASE_ADD(i4b_option_mask      , (I4B_OPTION_POLLED_MODE|
+					I4B_OPTION_DLOWPRI));
+  I4B_DBASE_ADD(i4b_option_value     , 0);
 
   /* ISAC/AMD - functions
    *

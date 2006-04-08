@@ -196,47 +196,35 @@ i4bctlioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 	     * These IOCTL's are optional and
 	     * may not be implemented:
 	     */
+	case I4B_CTL_SET_I4B_OPTIONS:
+	    cmd = CMR_SET_I4B_OPTIONS;
+	    goto L1_command;
+
 	case I4B_CTL_GET_CHIPSTAT:
 	    cmd = CMR_GET_CHIPSTAT;
-	    goto l1_command;
+	    goto L1_command;
 
 	case I4B_CTL_CLR_CHIPSTAT:
 	    cmd = CMR_CLR_CHIPSTAT;
-	    goto l1_command;
+	    goto L1_command;
 
 	case I4B_CTL_PH_ACTIVATE:
 	    cmd = CMR_PH_ACTIVATE;
-	    goto l1_command;
+	    goto L1_command;
 
 	case I4B_CTL_PH_DEACTIVATE:
 	    cmd = CMR_PH_DEACTIVATE;
-	    goto l1_command;
+	    goto L1_command;
 
 	case I4B_CTL_SET_PROTOCOL:
 	    cmd = CMR_SET_LAYER1_PROTOCOL;
-	    goto l1_command;
-
-	case I4B_CTL_SET_NT_MODE:
-	    cmd = CMR_SET_NT_MODE;
-	    goto l1_command;
-
-	case I4B_CTL_SET_TE_MODE:
-	    cmd = CMR_SET_TE_MODE;
-	    goto l1_command;
-
-	case I4B_CTL_SET_STANDARD_MODE:
-	    cmd = CMR_SET_STANDARD_MODE;
-	    goto l1_command;
-
-	case I4B_CTL_SET_POLLED_MODE:
-	    cmd = CMR_SET_POLLED_MODE;
-	    goto l1_command;
+	    goto L1_command;
 
 	case I4B_CTL_RESET:
 	    cmd = CMR_RESET;
-	    goto l1_command;
+	    goto L1_command;
 
-	l1_command:
+	L1_command:
 
 	    /* forward IOCTL to lower layers */
 	    L1_COMMAND_REQ(cntl, cmd, dbg);

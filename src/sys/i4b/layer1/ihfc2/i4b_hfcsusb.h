@@ -1408,7 +1408,6 @@ I4B_DBASE(hfcsusb_dbase_root)
   I4B_DBASE_ADD(c_chip_status_read      , &hfcsusb_chip_status_read);
   I4B_DBASE_ADD(c_chip_status_check     , &hfcsusb_chip_status_check);
   I4B_DBASE_ADD(d_interrupt_delay       , hz / 2);
-  I4B_DBASE_ADD(o_POLLED_MODE           , 1);
 
   I4B_DBASE_ADD(c_fsm_read              , &hfcsusb_fsm_read);
   I4B_DBASE_ADD(c_fsm_write             , &hfcsusb_fsm_write);
@@ -1430,7 +1429,10 @@ I4B_DBASE(hfcsusb_dbase_root)
 
   I4B_DBASE_ADD(o_PORTABLE              , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
-  I4B_DBASE_ADD(o_NTMODE_VARIABILITY, 1); /* enable */
+
+  I4B_DBASE_ADD(i4b_option_mask         , (I4B_OPTION_NT_MODE|
+					   I4B_OPTION_DLOWPRI));
+  I4B_DBASE_ADD(i4b_option_value        , (I4B_OPTION_POLLED_MODE));
 }
 
 I4B_USB_DRIVER(/* Generic HFC-S USB

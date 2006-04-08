@@ -684,14 +684,11 @@ enum
   CMR_SETTRACE,	/* set D-channel and B-channel trace */
   CMR_SET_L1_AUTO_ACTIVATE_VARIABLE,
   CMR_SET_L1_ACTIVITY_VARIABLE,
-  CMR_SET_NT_MODE,
-  CMR_SET_TE_MODE,
-  CMR_SET_DCH_HI_PRI,
-  CMR_SET_DCH_LO_PRI,
   CMR_PH_ACTIVATE,
   CMR_PH_DEACTIVATE,
   CMR_SET_POWER_SAVE,
   CMR_SET_POWER_ON,
+  CMR_SET_I4B_OPTIONS,
 
   /* CAPI specific requests */
 
@@ -703,8 +700,6 @@ enum
   /* other */
   CMR_INFO_REQUEST,
   CMR_SET_LAYER1_PROTOCOL,
-  CMR_SET_STANDARD_MODE,
-  CMR_SET_POLLED_MODE,
   CMR_RESET,
   CMR_GET_CHIPSTAT,
   CMR_CLR_CHIPSTAT,
@@ -716,9 +711,6 @@ enum
   CMR_SET_CHANNEL_MAPPING,
 
   /* PCM */
-  CMR_SET_PCM_SPEED,
-  CMR_SET_PCM_MASTER,
-  CMR_SET_PCM_SLAVE,
   CMR_SET_PCM_MAPPING,
 };
 
@@ -730,6 +722,7 @@ typedef u_int8_t L1_activity_t;
 extern struct i4b_controller * i4b_controller_by_cd(struct call_desc *cd);
 extern struct i4b_controller * i4b_controller_allocate(u_int8_t portable, u_int8_t, u_int8_t *);
 extern int i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *parm);
+extern int i4b_l1_set_options(struct i4b_controller *cntl, u_int32_t mask, u_int32_t value);
 extern int i4b_l1_bchan_tel_silence(unsigned char *data, int len);
 extern int i4b_controller_attach(struct i4b_controller *cntl, u_int8_t *error);
 extern void i4b_controller_detach(struct i4b_controller *cntl);

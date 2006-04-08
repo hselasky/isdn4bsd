@@ -408,6 +408,22 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
 }
 
 /*---------------------------------------------------------------------------*
+ *	i4b_l1_set_options
+ *---------------------------------------------------------------------------*/
+int
+i4b_l1_set_options(struct i4b_controller *cntl, 
+		   u_int32_t mask, u_int32_t value)
+{
+   i4b_debug_t dbg;
+
+   bzero(&dbg, sizeof(dbg));
+
+   dbg.value = value;
+   dbg.mask = mask;
+   return L1_COMMAND_REQ(cntl,CMR_SET_I4B_OPTIONS,&dbg);
+}
+
+/*---------------------------------------------------------------------------*
  *	telephony silence detection
  *
  * returns 1 when silence and 0 when activity

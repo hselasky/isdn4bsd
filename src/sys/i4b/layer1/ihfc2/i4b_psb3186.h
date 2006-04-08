@@ -359,6 +359,10 @@ I4B_DBASE(psb1_dbase_root)
   I4B_DBASE_ADD(o_BUS_TYPE_IOM2    , 1); /* enable */
   I4B_DBASE_ADD(o_IPAC             , 0); /* disable */
 
+  I4B_DBASE_ADD(i4b_option_mask    , (I4B_OPTION_POLLED_MODE|
+				      I4B_OPTION_DLOWPRI));
+  I4B_DBASE_ADD(i4b_option_value   , 0);
+
   I4B_DBASE_ADD(d_fifo_map[d1t]    , FM2OFF (psb3186_fifo_map[0]));
   I4B_DBASE_ADD(d_fifo_map[d1r]    , FM2OFF (psb3186_fifo_map[0]));
 

@@ -863,7 +863,7 @@ __ihfc_chip_interrupt(ihfc_sc_t *sc)
 	    /*
 	     * Check if polling is active
 	     */
-	    if(sc->sc_default.o_POLLED_MODE)
+	    if(IS_POLLED_MODE(sc,0))
 	    {
 	      if(SC_T125_WAIT(sc))
 	      {
@@ -1110,7 +1110,7 @@ ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 		break;
 	}
 
-	if(sc->sc_state[0].o_LOCAL_LOOP)
+	if(IS_LOCAL_LOOP(sc,0))
 	{
 	  f->s_con_hdlc  |=  0xC0;
 	  c->s_connect   |=  0x36;
@@ -1753,7 +1753,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
           c->s_cirm         |= 0x10; /* 8K fifo mode */
         }
 
-        if(sc->sc_state[0].o_LOCAL_LOOP)
+        if(IS_LOCAL_LOOP(sc,0))
         {
           c->a_lmr2         |= 0x02; /* D-CH */
           c->i_spcr         |= 0x10;
@@ -1761,7 +1761,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
           c->w_d_mode       |= 0x02;
         }
 
-        if(sc->sc_state[0].o_REMOTE_LOOP)
+        if(IS_REMOTE_LOOP(sc,0))
         {
           c->a_lmr2         |= 0x01; /* D-CH */
           c->w_cmdr1        |= 0x01;
@@ -1771,7 +1771,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
         /*
          * The hardware interrupt signal should be
          * switched to an unused pin, when
-         * enabling o_POLLED_MODE.
+         * enabling POLLED_MODE.
          *
          * NOTE: in polled mode all interrupt
          *       masks must remain. Currently
@@ -1788,7 +1788,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
          *       no routines for this (TODO)
          */
 
-        if(sc->sc_default.o_POLLED_MODE)
+        if(IS_POLLED_MODE(sc,0))
         {
                 c->s_cirm_0     &= ~0x07; /* switch intr. to unused pin */
                 c->s_cirm       &= ~0x07; /* switch intr. to unused pin */
@@ -1805,7 +1805,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
          *       (TErminal-mode is default)
          */
 
-        if(sc->sc_state[0].o_NTMODE)
+        if(IS_NT_MODE(sc,0))
         {
                 c->s_sctrl         |= 0x44; /* NT+non-cap line mode */
                 c->s_clkdel        &= ~0x7f;
@@ -1855,7 +1855,7 @@ ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
          * line.
          */
 
-        if(sc->sc_state[0].o_DLOWPRI)
+        if(IS_DLOWPRI(sc,0))
         {
                 c->a_lpr        |=  0x01;
                 c->b_cir0       |=  0x10;

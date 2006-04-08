@@ -47,13 +47,9 @@
 .Op Fl u Ar mux unit
 .Op Fl a
 .Op Fl D
-.Op Fl t
-.Op Fl n
 .Op Fl r
 .Op Fl b Ar channel
 .Op Fl p Ar protocol
-.Op Fl P
-.Op Fl S
 .Op Fl z
 .Op Fl C
 .Op Fl Q
@@ -74,9 +70,9 @@ and
 .Op Fl q Q
 for more information.  Besides from displaying information
 .Nm
-can also be used to execute a set of layer 1 commands, like chip reset
-and switching of NT-/TE- mode. Please see options
-.Op Fl r n t
+can also be used to execute a set of layer 1 commands like chip reset,
+line-activation and deactivation. Please see options
+.Op Fl r a D
 for more information.
 .Pp
 The following options are available:
@@ -85,12 +81,8 @@ The following options are available:
 Reset the chipset specific statistics and/or error counters to zero.
 .It Fl D
 Deactivate PH-line.
-.It Fl P
-Set polled mode (if interrupt does not work)
 .It Fl Q
 Reset the Q.921 (D-channel layer 2) frame receive/transmit statistics to zero.
-.It Fl S
-Set standard mode (if interrupt works)
 .
 .
 .
@@ -115,8 +107,6 @@ Select layer for the following options(s), usually
 .It Fl m
 Set debugging mask to 
 .Ar maximum output.
-.It Fl n
-Set NT- or network-mode.
 .It Fl p
 Set protocol number.
 .It Fl q
@@ -130,8 +120,6 @@ Set or clear debugging mask bit(s). "-keyword" will clear bits, and
 to get a list of valid keywords. For example
 .Nm Fl s-1 s+2 g
 will clear all Layer1 debugging bit(s) and set all Layer2 debugging bit(s).
-.It Fl t
-Set TE- or terminal-mode.
 .It Fl u
 Set mux unit number. Default is mux unit 0.
 .It Fl z

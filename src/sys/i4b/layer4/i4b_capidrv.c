@@ -3068,6 +3068,10 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		break;
 	}
 
+	case I4B_CTL_SET_I4B_OPTIONS:
+		cmd = CMR_SET_I4B_OPTIONS;
+		goto L1_command;
+
 	case I4B_CTL_PH_ACTIVATE:
 		cmd = CMR_PH_ACTIVATE;
 		goto L1_command;
@@ -3076,32 +3080,8 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		cmd = CMR_PH_DEACTIVATE;
 		goto L1_command;
 
-	case I4B_CTL_SET_NT_MODE:
-		cmd = CMR_SET_NT_MODE;
-		goto L1_command;
-
-	case I4B_CTL_SET_TE_MODE:
-		cmd = CMR_SET_TE_MODE;
-		goto L1_command;
-
-	case I4B_CTL_SET_STANDARD_MODE:
-		cmd = CMR_SET_STANDARD_MODE;
-		goto L1_command;
-
-	case I4B_CTL_SET_POLLED_MODE:
-		cmd = CMR_SET_POLLED_MODE;
-		goto L1_command;
-
 	case I4B_CTL_RESET:
 		cmd = CMR_RESET;
-		goto L1_command;
-
-	case I4B_CTL_SET_HI_PRIORITY:
-		cmd = CMR_SET_DCH_HI_PRI;
-		goto L1_command;
-
-	case I4B_CTL_SET_LO_PRIORITY:
-		cmd = CMR_SET_DCH_LO_PRI;
 		goto L1_command;
 
 	case I4B_CTL_SET_POWER_SAVE:
@@ -3110,18 +3090,6 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 	case I4B_CTL_SET_POWER_ON:
 		cmd = CMR_SET_POWER_ON;
-		goto L1_command;
-
-	case I4B_CTL_SET_PCM_SPEED:
-		cmd = CMR_SET_PCM_SPEED;
-		goto L1_command;
-
-	case I4B_CTL_SET_PCM_MASTER:
-		cmd = CMR_SET_PCM_MASTER;
-		goto L1_command;
-
-	case I4B_CTL_SET_PCM_SLAVE:
-		cmd = CMR_SET_PCM_SLAVE;
 		goto L1_command;
 
 	case I4B_CTL_SET_PCM_MAPPING:

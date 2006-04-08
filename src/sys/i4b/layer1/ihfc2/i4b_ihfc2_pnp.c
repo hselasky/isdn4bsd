@@ -663,7 +663,7 @@ ihfc_post_setup(ihfc_sc_t *sc, device_t dev, u_int8_t *error)
 	 * that interrupt doesn't occur before
 	 * the softc has been setup.
 	 */
-	if(rid->res && !sc->sc_default.o_POLLED_MODE)
+	if(rid->res && (!IS_POLLED_MODE(sc,0)))
 	{
 	    IHFC_MSG("Setting up IRQ\n");
 
@@ -1015,6 +1015,8 @@ __ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 
 	    __callout_init_mtx(&st->T3callout, sc->sc_mtx_p, 0);
 
+	    st->i4b_option_value = sc->sc_default.i4b_option_value;
+
 	    ihfc_init_i4b(sc, cntl);
 	}
 
@@ -1071,7 +1073,7 @@ ihfc_pnp_probe(device_t dev)
 	  return ENOMEM;
 	}
 
-	/*
+ 	/*
 	 * For ISA cards the value returned by
 	 * "device_get_flag()" is defined as follows:
 	 *

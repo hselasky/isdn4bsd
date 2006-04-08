@@ -264,6 +264,7 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 {
 	HFC4S8S_BUS_VAR(sc);
 	u_int16_t temp;
+	u_int16_t unit;
 	u_int16_t Z_min; /* inclusive */
 	u_int16_t Z_max; /* exclusive */
 	u_int8_t F_min; /* inclusive */
@@ -426,12 +427,12 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 
 	/* PCM slave or master */
 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_pcm_md0_write, 
-			sc->sc_default.o_PCM_SLAVE ? 0x90 : 0x91);
+			IS_PCM_SLAVE(sc,0) ? 0x90 : 0x91);
 
 	/* set PCM speed */
  	HFC4S8S_WRITE_1(REG_hfc4s8s_r_pcm_md1_write, 
-			sc->sc_default.o_PCM_SPEED_128 ? 0x20 :
-			sc->sc_default.o_PCM_SPEED_64 ? 0x10 : 0x00);
+			IS_PCM_SPEED_128(sc,0) ? 0x20 :
+			IS_PCM_SPEED_64(sc,0) ? 0x10 : 0x00);
 
 	/* PCM is synchronized to E1 receive */
 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_pcm_md2_write, 0x00);
@@ -441,18 +442,18 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 
 	hfc4s8s_chip_slots_init(sc);
 
-	for(temp = 0; temp < sc->sc_default.d_sub_controllers; temp++)
+	for(unit = 0; unit < sc->sc_default.d_sub_controllers; unit++)
 	{
 	    /* select S/T interface */
-	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_st_sel_write, temp);
+	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_st_sel_write, unit);
 
-	    temp = (sc->sc_state[temp].o_NTMODE) ? 0x6C : 0x0E;
+	    temp = IS_NT_MODE(sc,unit) ? 0x6C : 0x0E;
 	    HFC4S8S_WRITE_1(REG_hfc4s8s_a_st_clk_dly_write, 0x6C);
 
 	    temp = 0x03; /* enable B-transmit-channels */
 
-	    if(sc->sc_state[temp].o_DLOWPRI) temp |= 0x08;
-	    if(sc->sc_state[temp].o_NTMODE) temp |= 0x04;
+	    if(IS_DLOWPRI(sc,unit)) temp |= 0x08;
+	    if(IS_NT_MODE(sc,unit)) temp |= 0x04;
 
 	    HFC4S8S_WRITE_1(REG_hfc4s8s_a_st_ctrl0_write, temp);
 
@@ -473,7 +474,7 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 	 * - low is active
 	 */
 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_irq_ctrl_write, 
-			sc->sc_default.o_POLLED_MODE ? 0x00 : 0x08);
+			IS_POLLED_MODE(sc,0) ? 0x00 : 0x08);
 	return;
 }
 
@@ -735,7 +736,6 @@ static void
 hfc4s8s_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	HFC4S8S_BUS_VAR(sc);
-	u_int8_t nt_mode = sc->sc_state[f->sub_unit].o_NTMODE;
 	u_int8_t temp;
 
 	/* select S/T */
@@ -744,7 +744,9 @@ hfc4s8s_fsm_read FSM_READ_T(sc,f,ptr)
 	/* read STATES */
 	HFC4S8S_READ_1(REG_hfc4s8s_a_st_sta_read, temp);
 	*ptr = (temp +
-		(nt_mode ? HFC_NT_OFFSET : HFC_TE_OFFSET)) & 0xf;
+		(IS_NT_MODE(sc,f->sub_unit) ? 
+		 HFC_NT_OFFSET : 
+		 HFC_TE_OFFSET)) & 0xf;
 	return;
 }
 
@@ -1011,16 +1013,16 @@ I4B_DBASE(hfc4s8s_dbase_root)
   I4B_DBASE_ADD(o_RES_IRQ_0          , 1); /* enable */
   I4B_DBASE_ADD(o_RES_MEMORY_0       , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
-  I4B_DBASE_ADD(o_NTMODE_VARIABILITY , 1); /* enable */
 
-  I4B_DBASE_ADD(o_PCM_SLAVE          , 1); /* enable */
-  I4B_DBASE_ADD(o_PCM_SLAVE_VARIABILITY, 1); /* enable */
-
-  I4B_DBASE_ADD(o_PCM_SPEED_64       , 1); /* enable */
-  I4B_DBASE_ADD(o_PCM_SPEED_32_VARIABILITY, 1); /* enable */
-  I4B_DBASE_ADD(o_PCM_SPEED_64_VARIABILITY, 1); /* enable */
-  I4B_DBASE_ADD(o_PCM_SPEED_128_VARIABILITY, 1); /* enable */
-
+  I4B_DBASE_ADD(i4b_option_mask      , (I4B_OPTION_POLLED_MODE|
+					I4B_OPTION_NT_MODE|
+					I4B_OPTION_DLOWPRI|
+					I4B_OPTION_PCM_SLAVE|
+					I4B_OPTION_PCM_SPEED_32|
+					I4B_OPTION_PCM_SPEED_64|
+					I4B_OPTION_PCM_SPEED_128));
+  I4B_DBASE_ADD(i4b_option_value     , (I4B_OPTION_PCM_SLAVE|
+					I4B_OPTION_PCM_SPEED_64));
 #if 0
   I4B_DBASE_ADD(o_EXTERNAL_RAM       , 1); /* enable */
   I4B_DBASE_ADD(o_512KFIFO           , 1); /* enable */

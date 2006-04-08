@@ -374,12 +374,12 @@ hfce1_chip_reset CHIP_RESET_T(sc,error)
 
 	/* PCM slave or master */
 	HFCE1_WRITE_1(REG_hfce1_pcm_md0, 
-		      sc->sc_default.o_PCM_SLAVE ? 0x90 : 0x91);
+		      IS_PCM_SLAVE(sc,0) ? 0x90 : 0x91);
 
 	/* set PCM speed */
 	HFCE1_WRITE_1(REG_hfce1_pcm_md1, 
-		      sc->sc_default.o_PCM_SPEED_128 ? 0x20 :
-		      sc->sc_default.o_PCM_SPEED_64 ? 0x10 : 0x00);
+		      IS_PCM_SPEED_128(sc,0) ? 0x20 :
+		      IS_PCM_SPEED_64(sc,0) ? 0x10 : 0x00);
 
 	/* PCM is synchronized to E1 receive */
 	HFCE1_WRITE_1(REG_hfce1_pcm_md2, 0x00);
@@ -389,7 +389,7 @@ hfce1_chip_reset CHIP_RESET_T(sc,error)
 
 	hfce1_chip_slots_init(sc);
 
-	if(sc->sc_state[0].o_NTMODE)
+	if(IS_NT_MODE(sc,0))
 	{
 	    /* NT-mode */
 
@@ -615,7 +615,7 @@ hfce1_chip_reset CHIP_RESET_T(sc,error)
 	 * - low is active
 	 */
 	HFCE1_WRITE_1(REG_hfce1_irq_ctrl, 
-		      sc->sc_default.o_POLLED_MODE ? 0x00 : 0x08);
+		      IS_POLLED_MODE(sc,0) ? 0x00 : 0x08);
 	return;
 }
 
@@ -872,7 +872,7 @@ hfce1_fsm_read FSM_READ_T(sc,f,ptr)
 	/* read STATES */
 	HFCE1_READ_1(REG_hfce1_states, temp);
 	*ptr = ((temp & 7) +
-		(sc->sc_state[0].o_NTMODE ?
+		(IS_NT_MODE(sc,0) ?
 		 HFC_NT_OFFSET : HFC_TE_OFFSET)) & 0xf;
 	return;
 }
@@ -1154,16 +1154,15 @@ I4B_DBASE(hfce1_dbase_root)
   I4B_DBASE_ADD(o_RES_IRQ_0          , 1); /* enable */
   I4B_DBASE_ADD(o_RES_MEMORY_0       , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
-  I4B_DBASE_ADD(o_NTMODE_VARIABILITY , 1); /* enable */
-  I4B_DBASE_ADD(o_DLOWPRI_FIXED      , 1); /* enable */
 
-  I4B_DBASE_ADD(o_PCM_SLAVE          , 1); /* enable */
-  I4B_DBASE_ADD(o_PCM_SLAVE_VARIABILITY, 1); /* enable */
-
-  I4B_DBASE_ADD(o_PCM_SPEED_64       , 1); /* enable */
-  I4B_DBASE_ADD(o_PCM_SPEED_32_VARIABILITY, 1); /* enable */
-  I4B_DBASE_ADD(o_PCM_SPEED_64_VARIABILITY, 1); /* enable */
-  I4B_DBASE_ADD(o_PCM_SPEED_128_VARIABILITY, 1); /* enable */
+  I4B_DBASE_ADD(i4b_option_mask      , (I4B_OPTION_POLLED_MODE|
+					I4B_OPTION_NT_MODE|
+					I4B_OPTION_PCM_SLAVE|
+					I4B_OPTION_PCM_SPEED_32|
+					I4B_OPTION_PCM_SPEED_64|
+					I4B_OPTION_PCM_SPEED_128));
+  I4B_DBASE_ADD(i4b_option_value     , (I4B_OPTION_PCM_SLAVE|
+					I4B_OPTION_PCM_SPEED_64));
 
 #if 0
   I4B_DBASE_ADD(o_EXTERNAL_RAM       , 1); /* enable */

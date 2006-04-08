@@ -215,7 +215,7 @@ avm_pci_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	u_int8_t temp = ((*ptr) << 2) | 0x0E;
 
-	if(sc->sc_state[0].o_DLOWPRI)
+	if(IS_DLOWPRI(sc,0))
         {
 	    temp |=  0x10;
 	}
@@ -613,6 +613,10 @@ I4B_DBASE(avm_pci_dbase_root)
 
   I4B_DBASE_ADD(o_BUS_TYPE_IOM2    , 1); /* enable */
   I4B_DBASE_ADD(o_IPAC             , 0); /* disable */
+
+  I4B_DBASE_ADD(i4b_option_mask    , (I4B_OPTION_POLLED_MODE|
+				      I4B_OPTION_DLOWPRI));
+  I4B_DBASE_ADD(i4b_option_value   , 0);
 
   I4B_DBASE_ADD(d_fifo_map[d1t]    , FM2OFF (isac_fifo_map[0]));
   I4B_DBASE_ADD(d_fifo_map[d1r]    , FM2OFF (isac_fifo_map[0]));

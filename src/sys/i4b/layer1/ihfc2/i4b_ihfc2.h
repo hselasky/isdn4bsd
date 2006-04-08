@@ -847,24 +847,13 @@ struct sc_default {
 				       * Else HFC 128k FIFO mode selected.
 				       */
   u_int32_t o_PCI_DEVICE         : 1; /* set if device uses PCI ctrl. */
-  u_int32_t o_POLLED_MODE        : 1; /* set if POLLING is enabled    */
   u_int32_t o_POST_SETUP         : 1; /* set if post setup is done    */
   u_int32_t o_PORTABLE           : 1; /* set if device is portable    */
   u_int32_t o_EXTERNAL_RAM       : 1; /* set if the chip should use
 				       * external RAM
 				       */
-  u_int32_t o_NTMODE_VARIABILITY : 1; /* set if o_NTMODE can be changed.
-				       * Else o_NTMODE is a constant.
-				       */
-  u_int32_t o_DLOWPRI_FIXED      : 1; /* set if o_DLOWPRI is fixed.
-				       * Else o_DLOWPRI can be changed.
-				       */
   u_int32_t o_PRIVATE_FLAG_0     : 1; /* private driver flag */
   u_int32_t o_PRIVATE_FLAG_1     : 1; /* private driver flag */
-  u_int32_t o_PCM_SLAVE          : 1; /* set if PCM slave mode is used */
-  u_int32_t o_PCM_SLAVE_VARIABILITY : 1; /* set if o_PCM_SLAVE can be changed.
-					  * Else o_PCM_SLAVE is a constant.
-					  */
   u_int32_t o_ISAC_NT            : 1; /* set if ISAC supports NT-mode */
   u_int32_t o_IPAC               : 1; /* set if IPAC is present. 
 				       * Else ISAC/HSCX is present.
@@ -874,12 +863,20 @@ struct sc_default {
 						* mode
 						*/
   u_int32_t o_T125_WAIT          : 1; /* set if waiting for 125us timeout */
-  u_int32_t o_PCM_SPEED_32_VARIABILITY : 1;
-  u_int32_t o_PCM_SPEED_64_VARIABILITY : 1;
-  u_int32_t o_PCM_SPEED_128_VARIABILITY : 1;
-  u_int32_t o_PCM_SPEED_32 : 1;
-  u_int32_t o_PCM_SPEED_64 : 1;
-  u_int32_t o_PCM_SPEED_128 : 1;
+
+#define IS_NT_MODE(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_NT_MODE)
+#define IS_T1_MODE(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_T1_MODE)
+#define IS_DLOWPRI(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_DLOWPRI)
+#define IS_PCM_SLAVE(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SLAVE)
+#define IS_PCM_SPEED_32(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SPEED_32)
+#define IS_PCM_SPEED_64(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SPEED_64)
+#define IS_PCM_SPEED_128(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SPEED_128)
+#define IS_POLLED_MODE(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_POLLED_MODE)
+#define IS_LOCAL_LOOP(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_LOCAL_LOOP)
+#define IS_REMOTE_LOOP(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_REMOTE_LOOP)
+
+  u_int32_t i4b_option_mask;
+  u_int32_t i4b_option_value;
 
   u_int8_t                      cookie;
   u_int8_t                      stdel_nt;  /* S/T delay for NT-mode */
@@ -2501,14 +2498,7 @@ struct fsm_table {
 
 struct sc_state {
 
-  u_int32_t o_NTMODE             : 1; /* set if NT-mode is selected.
-				       * Else TE-mode is selected.
-				       */
-  u_int32_t o_DLOWPRI            : 1; /* set if D-channel low priority selected.
-				       * Else D-channel high priority selected.
-				       */
-  u_int32_t o_LOCAL_LOOP         : 1; /* set if local loop is enabled */
-  u_int32_t o_REMOTE_LOOP        : 1; /* set if remote loop is enabled*/
+  u_int32_t i4b_option_value;
 
   L1_auto_activate_t *L1_auto_activate_ptr;
   L1_auto_activate_t L1_auto_activate_variable;

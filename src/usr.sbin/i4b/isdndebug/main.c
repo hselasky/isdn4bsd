@@ -114,8 +114,6 @@ usage(void)
   "\n	isdndebug -u 0 -ta -r -b1 -p11 -l1 -g -l2 -g" 
   "\n	-a		activate PH-line" 
   "\n	-D		deactivate PH-line" 
-  "\n	-t		set TE-mode" 
-  "\n	-n		set NT-mode" 
   "\n	-r		reset device" 
   "\n	-p value	set protocol (P_XXX)" 
   "\n	-b value	set channel(0..2) for protocol(default=all channels)"
@@ -133,8 +131,6 @@ usage(void)
   "\n	-q		get Q.921 statistics" 
   "\n	-C		reset chipset statistics" 
   "\n	-Q		reset Q.921 statistics" 
-  "\n	-P		set polled mode" 
-  "\n	-S		set standard mode" 
   "\n	-u mux unit	mux unit number(0..,default=0)" 
   "\n" 
   "\nenums: "
@@ -433,11 +429,11 @@ main(int argc, char **argv)
 	      break;
 
 	    case 'P':
-	      i4b_ioctl(I4B_CTL_SET_POLLED_MODE, &dbg);
-	      break;
-
 	    case 'S':
-	      i4b_ioctl(I4B_CTL_SET_STANDARD_MODE, &dbg);
+	    case 't':
+	    case 'n':
+	      warn("option '-%c' is obsolete. "
+		   "Use 'isdnconfig' instead!", c);
 	      break;
 
 	    case 'a':
@@ -450,14 +446,6 @@ main(int argc, char **argv)
 
 	    case 'r':
 	      i4b_ioctl(I4B_CTL_RESET, &dbg);
-	      break;
-
-	    case 't':
-	      i4b_ioctl(I4B_CTL_SET_TE_MODE, &dbg);
-	      break;
-
-	    case 'n':
-	      i4b_ioctl(I4B_CTL_SET_NT_MODE, &dbg);
 	      break;
 
 	    case 'd':

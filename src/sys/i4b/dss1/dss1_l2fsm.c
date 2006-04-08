@@ -1769,7 +1769,9 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	     (driver_type == DRVR_DSS1_P2P_NT))
 	  {
 	    /* set NT-mode */
-	    L1_COMMAND_REQ(cntl,CMR_SET_NT_MODE,0);
+	    i4b_l1_set_options(cntl, 
+			       I4B_OPTION_NT_MODE, 
+			       I4B_OPTION_NT_MODE);
 
 	    cntl->N_nt_mode = 1;
 	    sc->sc_nt_mode = 1;
@@ -1783,7 +1785,9 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	  else
 	  {
 	    /* set TE-mode */
-	    L1_COMMAND_REQ(cntl,CMR_SET_TE_MODE,0);
+	    i4b_l1_set_options(cntl, 
+			       I4B_OPTION_NT_MODE, 
+			       0);
 
 	    cntl->N_nt_mode = 0;
 	    sc->sc_nt_mode = 0;

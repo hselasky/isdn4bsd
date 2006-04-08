@@ -105,173 +105,47 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	    ihfc_reset(sc, &error[0]);
 	    break;
 
-	case CMR_SET_POLLED_MODE:
-	    IHFC_MSG("CMR_SET_POLLED_MODE\n");
+	case CMR_SET_I4B_OPTIONS:
+	    IHFC_MSG("CMR_SET_I4B_OPTIONS\n");
 
-	    if(sc->sc_default.o_POLLED_MODE == 0) {
-	        sc->sc_default.o_POLLED_MODE = 1;
-		ihfc_setup_softc(sc, &error[0]);
-	    }
-	    break;
-
-	case CMR_SET_STANDARD_MODE:
-	    IHFC_MSG("CMR_SET_STANDARD_MODE\n");
-
-	    if(sc->sc_default.o_POLLED_MODE) {
-	        sc->sc_default.o_POLLED_MODE = 0;
-		ihfc_setup_softc(sc, &error[0]);
-	    }
-	    break;
-
-	case CMR_SET_NT_MODE:
-	    IHFC_MSG("CMR_SET_NT_MODE\n");
-
-	    if((sc->sc_default.o_NTMODE_VARIABILITY) &&
-	       (st->o_NTMODE == 0))
-	    {
-	        st->o_NTMODE = 1;
-		ihfc_setup_softc(sc, &error[0]);
-	    }
-	    if(st->o_NTMODE == 0)
-	    {
-	        IHFC_ADD_ERR(error, "NT-mode is not "
-			     "supported by hardware!");
-	    }
-	    break;
-
-	case CMR_SET_TE_MODE:
-	    IHFC_MSG("CMR_SET_TE_MODE\n");
-
-	    if((sc->sc_default.o_NTMODE_VARIABILITY) &&
-	       (st->o_NTMODE))
-	    {
-	        st->o_NTMODE = 0;
-		ihfc_setup_softc(sc, &error[0]);
-	    }
-	    if(st->o_NTMODE)
-	    {
-	        IHFC_ADD_ERR(error, "TE-mode is not "
-			     "supported by hardware!");
-	    }
-	    break;
-
-	case CMR_SET_DCH_HI_PRI:
-	    IHFC_MSG("CMR_SET_DCH_HI_PRI\n");
-
-	    if((!(sc->sc_default.o_DLOWPRI_FIXED)) &&
-	       (st->o_DLOWPRI))
-	    {
-	        st->o_DLOWPRI = 0;
-		ihfc_setup_softc(sc, &error[0]);
-	    }
-	    if(st->o_DLOWPRI)
-	    {
-	        IHFC_ADD_ERR(error, "D-channel priority "
-			     "is fixed!");
-	    }
-	    break;
-
-	case CMR_SET_DCH_LO_PRI:
-	    IHFC_MSG("CMR_SET_DCH_LO_PRI\n");
-
-	    if((!(sc->sc_default.o_DLOWPRI_FIXED)) &&
-	       (st->o_DLOWPRI == 0))
-	    {
-	        st->o_DLOWPRI = 1;
-		ihfc_setup_softc(sc, &error[0]);
-	    }
-	    if(st->o_DLOWPRI == 0)
-	    {
-	        IHFC_ADD_ERR(error, "D-channel priority "
-			     "is fixed!");
-	    }
-	    break;
-
-	case CMR_SET_PCM_MASTER:
-	    IHFC_MSG("CMR_SET_PCM_MASTER\n");
-
-	    if((sc->sc_default.o_PCM_SLAVE_VARIABILITY) &&
-	       (sc->sc_default.o_PCM_SLAVE))
-	    {
-	        sc->sc_default.o_PCM_SLAVE = 0;
-		ihfc_setup_softc(sc, &error[0]);
-	    }
-
-	    if(sc->sc_default.o_PCM_SLAVE)
-	    {
-	        IHFC_ADD_ERR(error, "PCM slave mode is fixed!");
-	    }
-	    break;
-
-	case CMR_SET_PCM_SLAVE:
-	    IHFC_MSG("CMR_SET_PCM_SLAVE\n");
-
-	    if((sc->sc_default.o_PCM_SLAVE_VARIABILITY) &&
-	       (sc->sc_default.o_PCM_SLAVE == 0))
-	    {
-	        sc->sc_default.o_PCM_SLAVE = 1;
-		ihfc_setup_softc(sc, &error[0]);
-	    }
-	    if(sc->sc_default.o_PCM_SLAVE == 0)
-	    {
-	        IHFC_ADD_ERR(error, "PCM master mode is fixed!");
-	    }
-	    break;
-
-	case CMR_SET_PCM_SPEED:
-	{
 	    dbg = parm;
 
-	    IHFC_MSG("CMR_SET_PCM_SPEED %d\n", dbg->value);
+	    dbg->mask &= sc->sc_default.i4b_option_mask;
+	    dbg->value &= sc->sc_default.i4b_option_mask;
 
-	    switch(dbg->value) {
-	    case 128:
-	      if((sc->sc_default.o_PCM_SPEED_128_VARIABILITY) &&
-		 (sc->sc_default.o_PCM_SPEED_128 == 0))
-	      {
-		  sc->sc_default.o_PCM_SPEED_128 = 1;
-		  sc->sc_default.o_PCM_SPEED_64 = 0;
-		  sc->sc_default.o_PCM_SPEED_32 = 0;
-		  ihfc_setup_softc(sc, &error[0]);
-	      }
-	      if(sc->sc_default.o_PCM_SPEED_128 == 0)
-	      {
-		  IHFC_ADD_ERR(error, "Cannot set PCM_SPEED_128!");
-	      }
-	      break;
+	    temp = st->i4b_option_value;
+	    temp &= ~(dbg->mask);
+	    temp |= dbg->value;
 
-	    case 64:
-	      if((sc->sc_default.o_PCM_SPEED_64_VARIABILITY) &&
-		 (sc->sc_default.o_PCM_SPEED_64 == 0))
-	      {
-		  sc->sc_default.o_PCM_SPEED_128 = 0;
-		  sc->sc_default.o_PCM_SPEED_64 = 1;
-		  sc->sc_default.o_PCM_SPEED_32 = 0;
-		  ihfc_setup_softc(sc, &error[0]);
-	      }
-	      if(sc->sc_default.o_PCM_SPEED_64 == 0)
-	      {
-		  IHFC_ADD_ERR(error, "Cannot set PCM_SPEED_64!");
-	      }
-	      break;
+	    if(st->i4b_option_value != temp)
+	    {
+	        const u_int32_t global_options =
+		  (I4B_OPTION_PCM_SLAVE|
+		   I4B_OPTION_PCM_SPEED_32|
+		   I4B_OPTION_PCM_SPEED_64|
+		   I4B_OPTION_PCM_SPEED_128|
+		   I4B_OPTION_POLLED_MODE);
 
-	    default: /* 32 */
-	      if((sc->sc_default.o_PCM_SPEED_32_VARIABILITY) &&
-		 (sc->sc_default.o_PCM_SPEED_32 == 0))
-	      {
-		  sc->sc_default.o_PCM_SPEED_128 = 0;
-		  sc->sc_default.o_PCM_SPEED_64 = 0;
-		  sc->sc_default.o_PCM_SPEED_32 = 1;
-		  ihfc_setup_softc(sc, &error[0]);
-	      }
-	      if(sc->sc_default.o_PCM_SPEED_32 == 0)
-	      {
-		  IHFC_ADD_ERR(error, "Cannot set PCM_SPEED_32!");
-	      }
-	      break;
+	        st->i4b_option_value = temp;
+
+		IHFC_MSG("setting new options "
+			 "value: 0x%08x\n", temp);
+
+		temp &= global_options;
+
+		for(n = 0; 
+		    n < sc->sc_default.d_sub_controllers;
+		    n++)
+		{
+		    st = &sc->sc_state[n];
+
+		    st->i4b_option_value &= ~global_options;
+		    st->i4b_option_value |=  temp;
+		}
+		ihfc_setup_softc(sc, &error[0]);
 	    }
 	    break;
-	}
+
 	case CMR_SET_L1_AUTO_ACTIVATE_VARIABLE:
 	    if(parm == NULL)
 	    {
@@ -443,7 +317,7 @@ static void
 ihfc_trace(ihfc_sc_t *sc, ihfc_fifo_t *f, int type, struct mbuf *m)
 {
 	struct i4b_controller *cntl = sc->sc_state[f->sub_unit].i4b_controller;
-	u_int8_t from_te = sc->sc_state[f->sub_unit].o_NTMODE;
+	u_int8_t from_te = (IS_NT_MODE(sc,f->sub_unit) != 0);
 	ihfc_fifo_t *f_start = cntl->L1_fifo;
 
 	if(type == TRC_CH_D) {
@@ -697,8 +571,8 @@ ihfc_setup_i4b(ihfc_sc_t *sc, u_int8_t *error)
 	while(sub_controllers--) {
 	    device_printf(sc->sc_device, "Attaching I4B "
 			  "controller %d%s.\n", cntl->unit,
-			  (sc->sc_default.o_PCM_SLAVE ? 
-			   " (PCM slave mode)" : ""));
+			  IS_PCM_SLAVE(sc,0) ? 
+			  " (PCM slave mode)" : "");
 
 	    retval |= i4b_controller_attach(cntl,error);
 	    cntl++;

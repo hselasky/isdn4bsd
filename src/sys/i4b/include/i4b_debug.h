@@ -259,12 +259,13 @@ typedef struct lapdstat {
  *	I4B debug IOCTL structure
  *---------------------------------------------------------------------------*/
 typedef struct {
-	u_int unit;
-	u_int chan;
-	u_int value;
-	u_int debug[5]; /* used to get/set debug bits;
-			 * debug[0] is not used
-			 */
+	u_int32_t unit;
+	u_int32_t chan;
+	u_int32_t value;
+	u_int32_t mask;
+	u_int32_t debug[5]; /* used to get/set debug bits;
+			     * debug[0] is not used
+			     */
 	u_char desc[64];
 
 	lapdstat_t lapdstat;
@@ -278,24 +279,26 @@ typedef struct {
 #define I4B_CTL_GET_LAPDSTAT        _IOWR('C', 4, i4b_debug_t) 
 #define I4B_CTL_CLR_LAPDSTAT        _IOW ('C', 5, i4b_debug_t) 
 #define I4B_CTL_RESET               _IOW ('C', 6, i4b_debug_t) /* chipset reset                        */
-#define I4B_CTL_SET_NT_MODE         _IOW ('C', 7, i4b_debug_t) /* set NT-linemode                      */
-#define I4B_CTL_SET_TE_MODE         _IOW ('C', 8, i4b_debug_t) /* set TE-linemode (default)            */
 #define I4B_CTL_PH_ACTIVATE         _IOW ('C', 9, i4b_debug_t) /* activate PH-line                     */
 #define I4B_CTL_PH_DEACTIVATE       _IOW ('C',10, i4b_debug_t) /* deactivate PH-line                   */
 #define I4B_CTL_SET_PROTOCOL        _IOW ('C',11, i4b_debug_t) /* set default protocol for a channel   */
-#define I4B_CTL_SET_POLLED_MODE     _IOW ('C',12, i4b_debug_t) /* set polled mode                      */
-#define I4B_CTL_SET_STANDARD_MODE   _IOW ('C',13, i4b_debug_t) /* set standard mode                    */
 #define I4B_CTL_SET_N_SERIAL_NUMBER _IOW ('C',14, i4b_debug_t)
 #define I4B_CTL_SET_N_DRIVER_TYPE   _IOW ('C',15, i4b_debug_t)
-#define I4B_CTL_SET_HI_PRIORITY     _IOW ('C',16, i4b_debug_t)
-#define I4B_CTL_SET_LO_PRIORITY     _IOW ('C',17, i4b_debug_t)
 #define I4B_CTL_SET_POWER_SAVE      _IOW ('C',18, i4b_debug_t)
 #define I4B_CTL_SET_POWER_ON        _IOW ('C',19, i4b_debug_t)
-#define I4B_CTL_SET_PCM_SPEED       _IOW ('C',20, i4b_debug_t)
-#define I4B_CTL_SET_PCM_MASTER      _IOW ('C',21, i4b_debug_t)
-#define I4B_CTL_SET_PCM_SLAVE       _IOW ('C',22, i4b_debug_t)
 #define I4B_CTL_SET_PCM_MAPPING     _IOW ('C',23, i4b_debug_t)
 #define I4B_CTL_SET_PCM_SLOT_END    _IOW ('C',24, i4b_debug_t)
+#define I4B_CTL_SET_I4B_OPTIONS     _IOWR('C',25, i4b_debug_t)
+#define  I4B_OPTION_NT_MODE           0x0001 /* If set, else TE-mode */
+#define  I4B_OPTION_T1_MODE           0x0002 /* If set, else E1-mode */
+#define  I4B_OPTION_DLOWPRI           0x0004 /* If set, else D-HI-PRI */
+#define  I4B_OPTION_PCM_SLAVE         0x0008 /* If set, else PCM master */
+#define  I4B_OPTION_PCM_SPEED_32      0x0010
+#define  I4B_OPTION_PCM_SPEED_64      0x0020
+#define  I4B_OPTION_PCM_SPEED_128     0x0040
+#define  I4B_OPTION_POLLED_MODE       0x0080 /* If set, else standard mode */
+#define  I4B_OPTION_LOCAL_LOOP        0x0100 /* If set, else disabled */
+#define  I4B_OPTION_REMOTE_LOOP       0x0200 /* If set, else disabled */
 
 #endif /* _I4B_DEBUG_H_ */
 

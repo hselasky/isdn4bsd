@@ -1149,6 +1149,9 @@ I4B_DBASE(wibusb_dbase_root)
   I4B_DBASE_ADD(o_PORTABLE              , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
 
+  I4B_DBASE_ADD(i4b_option_mask         , (I4B_OPTION_DLOWPRI));
+  I4B_DBASE_ADD(i4b_option_value        , 0);
+
 #undef LED_SCHEME
 #define LED_SCHEME(m)				\
   m(p1, 0x00,YES) /* non-existent */		\

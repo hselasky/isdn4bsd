@@ -473,7 +473,11 @@ I4B_DBASE(hfcsp_dbase_root)
   I4B_DBASE_ADD(o_RES_IRQ_0         , 1); /* enable */
   I4B_DBASE_ADD(o_RES_IOPORT_0      , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
-  I4B_DBASE_ADD(o_NTMODE_VARIABILITY, 1); /* enable */
+
+  I4B_DBASE_ADD(i4b_option_mask      , (I4B_OPTION_POLLED_MODE|
+					I4B_OPTION_NT_MODE|
+					I4B_OPTION_DLOWPRI));
+  I4B_DBASE_ADD(i4b_option_value     , 0);
 
 #if 1  /* (sc->sc_config.s_cirm & 0x10) */
 

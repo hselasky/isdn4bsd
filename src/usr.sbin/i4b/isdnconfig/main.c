@@ -68,6 +68,8 @@ struct options {
     u_int8_t  got_m : 1;
     u_int8_t  got_nt_mode : 1;
     u_int8_t  got_te_mode : 1;
+    u_int8_t  got_e1_mode : 1;
+    u_int8_t  got_t1_mode : 1;
     u_int8_t  got_hi_pri : 1;
     u_int8_t  got_lo_pri : 1;
     u_int8_t  got_up : 1;
@@ -202,8 +204,8 @@ i4b_ioctl(int cmdr, const char *msg, void *arg)
 {
     if(ioctl(isdnfd, cmdr, arg) < 0)
     {
-        err(1, "parameter '%s' failed! "
-	    "(maybe it is not supported)", msg);
+        warn("parameter '%s' failed! "
+	     "(ignored)", msg);
     }
     return;
 }
@@ -260,6 +262,13 @@ flush_command(struct options *opt)
 	    "at the same time!");
     }
 
+    if(opt->got_t1_mode &&
+       opt->got_e1_mode)
+    {
+        err(1, "cannot specify 't1_mode' and 'e1_mode' "
+	    "at the same time!");
+    }
+
     if(opt->got_m &&
        opt->got_u)
     {
@@ -293,6 +302,100 @@ flush_command(struct options *opt)
 	    i4b_ioctl(I4B_CTL_SET_PCM_MAPPING, "pcm_map", &dbg);
 	}
 
+	if(opt->got_reset) {
+	  i4b_ioctl(I4B_CTL_RESET, "reset", &dbg);
+	}
+
+	if(opt->got_up) {
+	  i4b_ioctl(I4B_CTL_PH_ACTIVATE, "up", &dbg);
+	}
+
+	if(opt->got_down) {
+	  i4b_ioctl(I4B_CTL_PH_DEACTIVATE, "down", &dbg);
+	}
+
+	if(opt->got_pwr_save) {
+	  i4b_ioctl(I4B_CTL_SET_POWER_SAVE, "pwr_save", &dbg);
+	}
+
+	if(opt->got_pwr_on) {
+	  i4b_ioctl(I4B_CTL_SET_POWER_ON, "pwr_on", &dbg);
+	}
+
+	dbg.mask = 0;
+	dbg.value = 0;
+
+	if(opt->pcm_slots) {
+	  dbg.mask |= (I4B_OPTION_PCM_SPEED_32|
+		       I4B_OPTION_PCM_SPEED_64|
+		       I4B_OPTION_PCM_SPEED_128);
+	  dbg.value |= 
+	    (opt->pcm_slots == 128) ? I4B_OPTION_PCM_SPEED_128 :
+	    (opt->pcm_slots == 64) ? I4B_OPTION_PCM_SPEED_64 :
+	    I4B_OPTION_PCM_SPEED_32;
+	}
+
+	if(opt->got_poll_mode) {
+	  dbg.mask |= I4B_OPTION_POLLED_MODE;
+	  dbg.value |= I4B_OPTION_POLLED_MODE;
+	}
+
+	if(opt->got_intr_mode) {
+	  dbg.mask |= I4B_OPTION_POLLED_MODE;
+	}
+
+	if(opt->got_nt_mode) {
+	  dbg.mask |= I4B_OPTION_NT_MODE;
+	  dbg.value |= I4B_OPTION_NT_MODE;
+	}
+
+	if(opt->got_te_mode) {
+	  dbg.mask |= I4B_OPTION_NT_MODE;
+	}
+
+	if(opt->got_lo_pri) {
+	  dbg.mask |= I4B_OPTION_DLOWPRI;
+	  dbg.value |= I4B_OPTION_DLOWPRI;
+	}
+
+	if(opt->got_hi_pri) {
+	  dbg.mask |= I4B_OPTION_DLOWPRI;
+	}
+
+	if(opt->got_pcm_slave) {
+	  dbg.mask |= I4B_OPTION_PCM_SLAVE;
+	  dbg.value |= I4B_OPTION_PCM_SLAVE;
+	}
+
+	if(opt->got_pcm_master) {
+	  dbg.mask |= I4B_OPTION_PCM_SLAVE;
+	}
+
+	if(opt->got_t1_mode) {
+	  dbg.mask |= I4B_OPTION_T1_MODE;
+	  dbg.value |= I4B_OPTION_T1_MODE;
+	}
+
+	if(opt->got_e1_mode) {
+	  dbg.mask |= I4B_OPTION_T1_MODE;
+	}
+
+	if(dbg.mask) {
+
+	  u_int32_t mask_copy = dbg.mask;
+
+	  i4b_ioctl(I4B_CTL_SET_I4B_OPTIONS, "SET_I4B_OPTIONS", &dbg);
+
+	  mask_copy ^= dbg.mask;
+
+	  if(mask_copy) {
+	    warn("Hardware does not support options "
+		 "0x%08x (ignored)", mask_copy);
+	  }
+	}
+
+	/* set D-channel protocol last */
+
         if(opt->got_p)
 	{
 	    msg_prot_ind_t mpi = { /* zero */ };
@@ -305,63 +408,6 @@ flush_command(struct options *opt)
 	    mpi.controller = opt->unit;
 
 	    i4b_ioctl(I4B_PROT_IND, "-p", &mpi);
-	}
-
-	if(opt->got_poll_mode) {
-	  i4b_ioctl(I4B_CTL_SET_POLLED_MODE, "poll_mode", &dbg);
-	}
-
-	if(opt->got_intr_mode) {
-	  i4b_ioctl(I4B_CTL_SET_STANDARD_MODE, "intr_mode", &dbg);
-	}
-
-	if(opt->got_reset) {
-	  i4b_ioctl(I4B_CTL_RESET, "reset", &dbg);
-	}
-
-	if(opt->got_te_mode) {
-	  i4b_ioctl(I4B_CTL_SET_TE_MODE, "te_mode", &dbg);
-	}
-
-	if(opt->got_nt_mode) {
-	  i4b_ioctl(I4B_CTL_SET_NT_MODE, "nt_mode", &dbg);
-	}
-
-	if(opt->got_up) {
-	  i4b_ioctl(I4B_CTL_PH_ACTIVATE, "up", &dbg);
-	}
-
-	if(opt->got_down) {
-	  i4b_ioctl(I4B_CTL_PH_DEACTIVATE, "down", &dbg);
-	}
-
-	if(opt->got_hi_pri) {
-	  i4b_ioctl(I4B_CTL_SET_HI_PRIORITY, "hi_pri", &dbg);
-	}
-
-	if(opt->got_lo_pri) {
-	  i4b_ioctl(I4B_CTL_SET_LO_PRIORITY, "lo_pri", &dbg);
-	}
-
-	if(opt->got_pwr_save) {
-	  i4b_ioctl(I4B_CTL_SET_POWER_SAVE, "pwr_save", &dbg);
-	}
-
-	if(opt->got_pwr_on) {
-	  i4b_ioctl(I4B_CTL_SET_POWER_ON, "pwr_on", &dbg);
-	}
-
-	if(opt->pcm_slots) {
-	  dbg.value = opt->pcm_slots;
-	  i4b_ioctl(I4B_CTL_SET_PCM_SPEED, "pcm_nnn", &dbg);
-	}
-
-	if(opt->got_pcm_master) {
-	  i4b_ioctl(I4B_CTL_SET_PCM_MASTER, "pcm_master", &dbg);
-	}
-
-	if(opt->got_pcm_slave) {
-	  i4b_ioctl(I4B_CTL_SET_PCM_SLAVE, "pcm_slave", &dbg);
 	}
     }
 
@@ -542,10 +588,12 @@ main(int argc, char **argv)
 	  } else if(strcmp(ptr, "down") == 0) {
 	    opt->got_down = 1;
 	    opt->got_any = 1;
-	  } else if(strcmp(ptr, "pwr_save") == 0) {
+	  } else if((strcmp(ptr, "pwr_save") == 0) ||
+		    (strcmp(ptr, "power_save") == 0)) {
 	    opt->got_pwr_save = 1;
 	    opt->got_any = 1;
-	  } else if(strcmp(ptr, "pwr_on") == 0) {
+	  } else if((strcmp(ptr, "pwr_on") == 0) ||
+		    (strcmp(ptr, "power_on") == 0)) {
 	    opt->got_pwr_on = 1;
 	    opt->got_any = 1;
 	  } else if(strcmp(ptr, "poll_mode") == 0) {
@@ -556,6 +604,12 @@ main(int argc, char **argv)
 	    opt->got_any = 1;
 	  } else if(strcmp(ptr, "reset") == 0) {
 	    opt->got_reset = 1;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "t1_mode") == 0) {
+	    opt->got_t1_mode = 1;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "e1_mode") == 0) {
+	    opt->got_e1_mode = 1;
 	    opt->got_any = 1;
 	  } else if(strcmp(ptr, "pcm_128") == 0) {
 	    opt->pcm_slots = 128;
