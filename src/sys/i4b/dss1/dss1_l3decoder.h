@@ -33,57 +33,37 @@
  *
  *---------------------------------------------------------------------------*/
 
-struct buf_range {
-  u_int8_t *start;
-  u_int8_t *end;
-};
-
-static __inline u_int8_t
-get_1(struct buf_range *buf, u_int8_t offset)
-{
-    u_int8_t *ptr = buf->start + offset;
-    return ((ptr < buf->start) || (ptr >= buf->end)) ? 0x00 : ptr[0];
-}
-
-static __inline u_int8_t
-get_valid(struct buf_range *buf, u_int8_t offset)
-{
-    u_int8_t *ptr = buf->start + offset;
-    return ((ptr < buf->start) || (ptr >= buf->end)) ? 0 : 1;
-}
-
 static u_int16_t
-get_multi_1(struct buf_range *buf, u_int8_t offset, 
+get_multi_1(struct dss1_buffer *buf, u_int16_t offset, 
 	    u_int8_t *dst, u_int16_t len, u_int8_t filter)
 {
-    u_int8_t *ptr = buf->start + offset;
-    u_int16_t max;
+    u_int8_t *dst_end = (dst + len);
+    u_int8_t *dst_old = dst;
 
-    if((ptr < buf->start) ||
-       (ptr >= buf->end) || (len == 0))
+    if(dst_end == dst)
     {
-        if(len)
-	  dst[0] = 0;
-	return 0;
+       return 0;
     }
 
-    /* reserve the last byte for NUL */
+    /* reserve the last byte for NULL */
 
-    len--;
+    dst_end--;
 
-    max = buf->end - ptr;
-
-    if(len > max)
+    while((dst < dst_end) && dss1_get_valid(buf,offset))
     {
-        len = max;
+        *dst = dss1_get_1(buf,offset);
+
+	dst++;
+	offset++;
     }
 
-    bcopy(ptr, dst, len);
-    dst[len] = 0;
+    *dst = '\0';
 
     if(filter)
     {
-        while(dst[0])
+        for(dst = dst_old;
+	    dst[0];
+	    dst++)
 	{
 	    /* if you don't understand why this filter is here,
 	     * then you should never write PBX software
@@ -98,12 +78,10 @@ get_multi_1(struct buf_range *buf, u_int8_t offset,
 	    } else {
 
 		dst[0] = '_';
-
 	    }
-	    dst++;
 	}
     }
-    return len;
+    return (dst-dst_old);
 }
 
 /*---------------------------------------------------------------------------*
@@ -111,13 +89,13 @@ get_multi_1(struct buf_range *buf, u_int8_t offset,
  *      indication byte
  *---------------------------------------------------------------------------*/
 static void
-dss1_decode_q931_cs0_ie_restart(void *arg, struct buf_range *src)
+dss1_decode_q931_cs0_ie_restart(void *arg, struct dss1_buffer *buf)
 {
 	u_int8_t *p_restart_ind = arg;
 
-	if(get_1(src,0) == IEI_RESTARTI)
+	if(dss1_get_1(buf,0) == IEI_RESTARTI)
 	{
-	    p_restart_ind[0] = get_1(src,2);
+	    p_restart_ind[0] = dss1_get_1(buf,2);
 	    NDBGL3(L3_P_MSG, "restart indication = 0x%02x", p_restart_ind[0]);
 	}
 	return;
@@ -127,12 +105,12 @@ dss1_decode_q931_cs0_ie_restart(void *arg, struct buf_range *src)
  *	decode a Q.931 codeset 0 information element to a call descriptor
  *---------------------------------------------------------------------------*/
 static void
-dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
+dss1_decode_q931_cs0_ie_cd(void *arg, struct dss1_buffer *buf)
 {
 	call_desc_t *cd = arg;
 	struct i4b_src_telno *p_src;
-	u_int8_t temp = get_1(src,2);
-	u_int8_t msg_type = get_1(src,0);
+	u_int8_t temp = dss1_get_1(buf,2);
+	u_int8_t msg_type = dss1_get_1(buf,0);
 
 	if(msg_type & 0x80)
 	{
@@ -186,7 +164,7 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    break;
 	
 	case IEI_CAUSE:		/* cause */
-	    cd->cause_in = get_1(src,(temp & 0x80) ? 3 : 4) & 0x7f;
+	    cd->cause_in = dss1_get_1(buf,(temp & 0x80) ? 3 : 4) & 0x7f;
 	    NDBGL3(L3_P_MSG, "IEI_CAUSE = %d", cd->cause_in);
 	    break;
 	
@@ -233,11 +211,11 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 			else if(temp == 1)
 			{
 			    /* time-slot follows */
-			    temp = get_1(src,iid ? 4 : 3);
+			    temp = dss1_get_1(buf,iid ? 4 : 3);
 
 			    if((temp & 0x2F) == 0x03)
 			    {
-			        temp = get_1(src,iid ? 5 : 4);
+			        temp = dss1_get_1(buf,iid ? 5 : 4);
 
 				if(exclusive)
 				{
@@ -291,7 +269,7 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    break;
 			
 	case IEI_DISPLAY:	/* display */
-	    get_multi_1(src,2,&(cd->display[0]),sizeof(cd->display[0]),1);
+	    get_multi_1(buf,2,&(cd->display[0]),sizeof(cd->display[0]),1);
 
 	    NDBGL3(L3_P_MSG, "IEI_DISPLAY = %s", &(cd->display[0]));
 	    break;
@@ -300,17 +278,18 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    cd->datetime[0] = '\0';
 	    temp = 0;
 
-	    src->start += 2;
-	    while(get_valid(src,0))
+	    buf->offset += 2;
+
+	    while(dss1_get_valid(buf,0))
 	    {
 	        temp += snprintf(&(cd->datetime[temp]), DATETIME_MAX-temp, 
-				 "%02d", get_1(src,0));
+				 "%02d", dss1_get_1(buf,0));
 
 		if(temp >= DATETIME_MAX)
 		{
 		    break;
 		}
-		src->start++;
+		buf->offset++;
 	    }
 	    NDBGL3(L3_P_MSG, "IEI_DATETIME = %s", &(cd->datetime[0]));
 	    break;
@@ -364,15 +343,15 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 		p_src->scr_ind = SCR_NONE;
 		p_src->prs_ind = PRS_NONE;				
 
-		get_multi_1(src,3,&(p_src->telno[0]),sizeof(p_src->telno),1);
+		get_multi_1(buf,3,&(p_src->telno[0]),sizeof(p_src->telno),1);
 	    }
 	    else
 	    {
-		temp = get_1(src,3);
+		temp = dss1_get_1(buf,3);
 		p_src->scr_ind = (temp & 0x03) + SCR_USR_NOSC;
 		p_src->prs_ind = ((temp >> 5) & 0x03) + PRS_ALLOWED;
 
-	        get_multi_1(src,4,&(p_src->telno[0]),sizeof(p_src->telno),1);
+	        get_multi_1(buf,4,&(p_src->telno[0]),sizeof(p_src->telno),1);
 	    }
 	    NDBGL3(L3_P_MSG, "IEI_CALLINGPN = %s", &(p_src->telno[0]));
 	    break;
@@ -390,7 +369,7 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	      p_src = &(cd->src[0]);
 	    }
 
-	    get_multi_1(src,3,&(p_src->subaddr[0]),sizeof(p_src->subaddr),1);
+	    get_multi_1(buf,3,&(p_src->subaddr[0]),sizeof(p_src->subaddr),1);
 	    NDBGL3(L3_P_MSG, "IEI_CALLINGPS = %s", &(p_src->subaddr[0]));
 	    break;
 			
@@ -412,11 +391,11 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 		}
 
 		cd->dst_telno_ptr +=
-		  get_multi_1(src,3,cd->dst_telno_ptr,
+		  get_multi_1(buf,3,cd->dst_telno_ptr,
 			      &(cd->dst_telno[TELNO_MAX])-cd->dst_telno_ptr,1);
 	    }
 
-	    get_multi_1(src,3,&(cd->dst_telno_part[0]), 
+	    get_multi_1(buf,3,&(cd->dst_telno_part[0]), 
 			sizeof(cd->dst_telno_part),1);
 
 	    NDBGL3(L3_P_MSG, "IEI_CALLED = %s", &(cd->dst_telno_part[0])); 
@@ -429,7 +408,7 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	        break;
 	    }
 
-	    get_multi_1(src,3,&(cd->dst_subaddr[0]),sizeof(cd->dst_subaddr),1);
+	    get_multi_1(buf,3,&(cd->dst_subaddr[0]),sizeof(cd->dst_subaddr),1);
 
 	    NDBGL3(L3_P_MSG, "IEI_CALLEDPS = %s", &(cd->dst_subaddr[0]));
 	    break;
@@ -450,7 +429,7 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    break;
 			
 	case IEI_USERUSER:	/* user-user */
-	    get_multi_1(src,2,&(cd->user_user[0]),sizeof(cd->user_user),0);
+	    get_multi_1(buf,2,&(cd->user_user[0]),sizeof(cd->user_user),0);
 	    NDBGL3(L3_P_MSG, "IEI_USERUSER = %s", &(cd->user_user[0]));
 	    break;
 			
@@ -461,12 +440,7 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 
 	case IEI_FACILITY:	/* facility */
 #if 0
-	    XXX should this be accepted in TE-mode only ?
-
-	    if(dss1_aoc(cd, src) == 0)
-	    {
-	        i4b_l4_charging_ind(cd);
-	    }
+	    dss1_facility_decode(cd, buf);
 #endif
 	    break;
 
@@ -476,13 +450,7 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
 	    break;
 
 	default:
-	    NDBGL3(L3_P_MSG, "Unknown IE 0x%02x = ", get_1(src,0));
-#if DO_I4B_DEBUG
-	    if(i4b_l3_debug & L3_P_MSG)
-	    {
-	        dss1_dump_buf(__FUNCTION__, src->start, src->end - src->start);
-	    }
-#endif
+	    NDBGL3(L3_P_MSG, "Unknown IE 0x%02x = ", dss1_get_1(buf,0));
 	    break;
 	}
  done:
@@ -493,25 +461,25 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct buf_range *src)
  *	dummy decoder
  *---------------------------------------------------------------------------*/
 static void
-dss1_decode_dummy(void *arg, struct buf_range *src)
+dss1_decode_dummy(void *arg, struct dss1_buffer *buf)
 {
 	return;
 }
 
-typedef void dss1_decode_ie_t(void *arg, struct buf_range *src);
+typedef void dss1_decode_ie_t(void *arg, struct dss1_buffer *src);
 
 /*---------------------------------------------------------------------------*
  *	generic information element decode
  *---------------------------------------------------------------------------*/
 static void
-dss1_decode_ie(void *arg, u_int8_t *msg_ptr, u_int8_t *msg_end, 
+dss1_decode_ie(void *arg, struct dss1_buffer *buf,
 	       dss1_decode_ie_t *q931_func)
 {
-	struct buf_range buf_range;
 	u_int8_t codeset = CODESET_0;
 	u_int8_t codeset_next = CODESET_0;
 	u_int8_t msg_type;
-	u_int8_t *msg_start;
+	u_int16_t old_len;
+	u_int16_t msg_len;
 
 	if(q931_func == NULL)
 	{
@@ -519,66 +487,37 @@ dss1_decode_ie(void *arg, u_int8_t *msg_ptr, u_int8_t *msg_end,
 	}
 
 	/* check length */
-	while(msg_ptr < msg_end)
+	while(dss1_get_valid(buf,0))
 	{
-	    /* store start of message */
-	    msg_start = msg_ptr;
-
-	    /* get message type */
-	    msg_type = *msg_ptr;
-
-	    /* skip to next byte */
-	    msg_ptr++;
+	    msg_type = dss1_get_1(buf, 0);
 
 	    if(!(msg_type & 0x80))
 	    {
 	        /* multi byte IE */
-
-	        /* process one IE for the selected codeset */
-
-	        if(msg_ptr >= msg_end)
-		{
-		    /* a multi byte IE should 
-		     * contain at least the length
-		     * field, else one has reached
-		     * the end
-		     */
-		    break;
-		}
-
-		/* compute message end */
-
-		msg_ptr += msg_ptr[0] + 1;
+	        msg_len = ((u_int16_t)dss1_get_1(buf, 1)) + 2;
 	    }
-	    /* else single byte IE */
-
-	    /* check length again */
-
-	    if(msg_ptr > msg_end)
+	    else
 	    {
-	        break;
+		/* single byte IE */
+	        msg_len = 1;
 	    }
+
+	    old_len = dss1_set_length(buf, buf->offset + msg_len);
 
 	    switch(codeset) {
 	    case CODESET_0:
-	        buf_range.start = msg_start;
-		buf_range.end = msg_ptr;
-		q931_func(arg, &buf_range);
+	        q931_func(arg, buf);
 		break;
-				
+
 	    default:
-	        NDBGL3(L3_P_MSG, "unknown codeset %d, IE = ",
-		       codeset);
-#if DO_I4B_DEBUG
-		if(i4b_l3_debug & L3_P_MSG)
-		{
-		    dss1_dump_buf(__FUNCTION__, msg_start,
-				  msg_ptr - msg_start);
-		}
-#endif
+	        NDBGL3(L3_P_MSG, "unknown codeset %d, "
+		       "IE = ", codeset);
 		break;
 	    }
 
+	    buf->offset = buf->len; /* set new offset */
+	    buf->len = old_len; /* restore length */
+	    
 	    /* check for codeset shift */
 
 	    if((msg_type & 0xf0) == IEI_SHIFT)
@@ -608,77 +547,79 @@ dss1_pipe_reset_ind(DSS1_TCP_pipe_t *pipe);
  *	PIPE DATA INDICATION from Layer 2
  *---------------------------------------------------------------------------*/
 static void
-dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
-		  u_int broadcast)
+dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, struct dss1_buffer *buf,
+		   u_int8_t broadcast)
 {
+	static const u_int8_t
+	  MAKE_TABLE(Q931_MESSAGE_TYPES,EVENT,[0x80]);
+
         l2softc_t *sc = pipe->L5_sc;
-	u_int8_t *msg_end, *msg_tmp;
 	call_desc_t *cd;
 	u_int32_t crval;
 	u_int8_t event;
+	u_int8_t pd;
+	u_int8_t mt;
+	u_int8_t cr_temp[5];
 
-	msg_end = msg_ptr + msg_len;
-
-	if(msg_len < 4)
+	if(dss1_get_valid(buf,0) == 0)
 	{
-	  NDBGL3(L3_P_MSG, "frame too short");
-	  goto done;
+	    NDBGL3(L3_P_MSG, "frame too short");
+	    goto done;
 	}
 
 	if(NT_MODE(sc) && broadcast)
 	{
-	  /* disallow broadcast-NT connecting to
-	   * broadcast-NT, because then there is
-	   * no frame-number-check, hence NT
-	   * replies to the same pipe that
-	   * a message was received through
-	   */
-	  NDBGL3(L3_P_MSG, "broadcast I-frame in NT-mode");
-	  goto done;
+	    /* disallow broadcast-NT connecting to
+	     * broadcast-NT, because then there is
+	     * no frame-number-check, hence NT
+	     * replies to the same pipe that
+	     * a message was received through
+	     */
+	    NDBGL3(L3_P_MSG, "broadcast I-frame in NT-mode");
+	    goto done;
 	}
 
 	/* check protocol discriminator */
+
+	pd = dss1_get_1(buf,0);
 	
-	if(*msg_ptr != PD_Q931)
+	if(pd != PD_Q931)
 	{
-	  NDBGL3(L3_P_MSG, "unknown protocol "
-		 "discriminator 0x%02x!", *msg_ptr);
-	  goto done;
-	}
-	msg_ptr++;
-
-	/* store a copy of "msg_ptr" */
-
-	msg_tmp  = msg_ptr;
-
-	/* extract call reference */
-
-	msg_ptr += (msg_ptr[0] & CRLENGTH_MASK) + 1;
-
-	/* check length (includes message-type byte!) */
-	if(msg_ptr >= msg_end)
-	{
-	  NDBGL3(L3_P_MSG, "frame too short");
-	  goto done;
+	    NDBGL3(L3_P_MSG, "unknown protocol "
+		   "discriminator 0x%02x!", pd);
+	    goto done;
 	}
 
-	crval = get_callreference(msg_tmp);
+	buf->offset++;
+
+	cr_temp[0] = dss1_get_1(buf,0) & CRLENGTH_MASK;
+	cr_temp[1] = dss1_get_1(buf,1);
+	cr_temp[2] = dss1_get_1(buf,2);
+	cr_temp[3] = dss1_get_1(buf,3);
+	cr_temp[4] = dss1_get_1(buf,4);
+
+	buf->offset += cr_temp[0] + 1;
+
+	if(cr_temp[0] > 4) {
+	   cr_temp[0] = 4;
+	}
+
+	crval = get_callreference(cr_temp);
 
 	/* incoming CR-flag is inverted */
 	crval ^= 0x80;
 
+	mt = dss1_get_1(buf,0) & 0x7F;
+
 	/* decode message-type */
 
-	static const u_int8_t
-	  MAKE_TABLE(Q931_MESSAGE_TYPES,EVENT,[0x80]);
-
-	event = Q931_MESSAGE_TYPES_EVENT[*msg_ptr & 0x7F];
+	event = Q931_MESSAGE_TYPES_EVENT[mt];
 
 	NDBGL3(L3_PRIM|L3_P_MSG, "unit=%x, crlen=%d crval=0x%04x, "
 	       "message_type=0x%02x", sc->sc_unit, 
-	       (msg_tmp[0] & CRLENGTH_MASK), crval, *msg_ptr);
+	       cr_temp[0], crval, mt);
 
-	msg_ptr++;
+	buf->offset++;
 
 	/* find call-descriptor */
 
@@ -701,7 +642,7 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 
 			u_int8_t restart_ind;
 
-			dss1_decode_ie(&restart_ind,msg_ptr,msg_end,
+			dss1_decode_ie(&restart_ind,buf,
 				       &dss1_decode_q931_cs0_ie_restart);
 
 			if(event == EV_L3_RESTART_IND)
@@ -783,7 +724,7 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, u_int8_t *msg_ptr, u_int msg_len,
 
 	/* process information elements */
 
-	dss1_decode_ie(cd,msg_ptr,msg_end,
+	dss1_decode_ie(cd,buf,
 		       &dss1_decode_q931_cs0_ie_cd);
 
 	if(NT_MODE(sc) &&

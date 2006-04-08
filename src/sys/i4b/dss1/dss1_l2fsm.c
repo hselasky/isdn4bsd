@@ -99,10 +99,61 @@ __FBSDID("$FreeBSD: $");
 static void
 dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate);
 
-#if DO_I4B_DEBUG
-static void
-dss1_dump_buf(const u_int8_t *where, const u_int8_t *src, u_int16_t src_len);
-#endif
+/*---------------------------------------------------------------------------*
+ *	a safe way to read a byte
+ *---------------------------------------------------------------------------*/
+u_int8_t
+dss1_get_1(struct dss1_buffer *src, u_int16_t offset)
+{
+	offset += src->offset;
+	return
+	  ((offset < src->offset) || 
+	   (offset >= src->len)) ? 0 : src->start[offset];
+}
+
+/*---------------------------------------------------------------------------*
+ *	check if a offset is valid
+ *
+ * returns 1 if valid else 0
+ *---------------------------------------------------------------------------*/
+u_int8_t
+dss1_get_valid(struct dss1_buffer *src, u_int16_t offset)
+{
+	offset += src->offset;
+	return ((offset >= src->offset) &&
+		(offset < src->len));
+}
+
+/*---------------------------------------------------------------------------*
+ *	set new length for a buffer
+ *
+ * returns the old length
+ *---------------------------------------------------------------------------*/
+u_int16_t
+dss1_set_length(struct dss1_buffer *src, u_int16_t new_len)
+{
+	u_int16_t old_len = src->len;
+
+	if(new_len < old_len)
+	{
+	    src->len = new_len;
+	}
+	return old_len;
+}
+
+/*---------------------------------------------------------------------------*
+ *	initialize a buffer
+ *---------------------------------------------------------------------------*/
+void
+dss1_buf_init(struct dss1_buffer *dst, void *start, u_int16_t len)
+{
+	bzero(dst, sizeof(*dst));
+
+	dst->start = start;
+	dst->len = len;
+	dst->offset = 0;
+	return;
+}
 
 /*---------------------------------------------------------------------------*
  *	PIPE ACTIVATE REQUEST from Layer 3
@@ -233,8 +284,6 @@ dss1_cntl_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe, u_int8_t sapi,
 
 	if(L2_STATE_IS_TEI_ASSIGNED(pipe->state))
 	{
-	  sc->sc_stat.tx_cntl++; /* update statistics */
-
 	  NDBGL2(L2_S_MSG|L2_U_MSG,"");
 
 	  m = i4b_getmbuf(max(S_FRAME_LEN,U_FRAME_LEN), M_NOWAIT);
@@ -287,25 +336,25 @@ dss1_cntl_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe, u_int8_t sapi,
 static DSS1_TCP_pipe_t *
 dss1_get_unused_pipe(l2softc_t *sc)
 {
-  DSS1_TCP_pipe_t *pipe;
-  DSS1_TCP_pipe_t *pipe_adapter = &sc->sc_pipe[0];
+	DSS1_TCP_pipe_t *pipe;
+	DSS1_TCP_pipe_t *pipe_adapter = &sc->sc_pipe[0];
 
-  PIPE_FOREACH(pipe,&sc->sc_pipe[0])
-  {
-      if((pipe->state == ST_L2_PAUSE) &&
-	 (pipe != pipe_adapter))
-      {
-	  goto found;
-      }
-  }
-  return 0;
+	PIPE_FOREACH(pipe,&sc->sc_pipe[0])
+	{
+	    if((pipe->state == ST_L2_PAUSE) &&
+	       (pipe != pipe_adapter))
+	    {
+	        goto found;
+	    }
+	}
+	return 0;
 
  found:
-  /* pipe is initialized when
-   * "dss1_pipe_set_state(pipe,ST_L2_PAUSE)"
-   * is called
-   */
-  return pipe;
+	/* pipe is initialized when
+	 * "dss1_pipe_set_state(pipe,ST_L2_PAUSE)"
+	 * is called
+	 */
+	return pipe;
 }
 
 /*---------------------------------------------------------------------------*
@@ -314,19 +363,19 @@ dss1_get_unused_pipe(l2softc_t *sc)
 static u_int16_t
 dss1_count_unused_pipes(l2softc_t *sc)
 {
-  DSS1_TCP_pipe_t *pipe;
-  DSS1_TCP_pipe_t *pipe_adapter = &sc->sc_pipe[0];
-  u_int16_t unused = 0;
+	DSS1_TCP_pipe_t *pipe;
+	DSS1_TCP_pipe_t *pipe_adapter = &sc->sc_pipe[0];
+	u_int16_t unused = 0;
 
-  PIPE_FOREACH(pipe,&sc->sc_pipe[0])
-  {
-      if((pipe->state == ST_L2_PAUSE) &&
-	 (pipe != pipe_adapter))
-      {
-	  unused++;
-      }
-  }
-  return unused;
+	PIPE_FOREACH(pipe,&sc->sc_pipe[0])
+	{
+	    if((pipe->state == ST_L2_PAUSE) &&
+	       (pipe != pipe_adapter))
+	    {
+	        unused++;
+	    }
+	}
+	return unused;
 }
 
 /*---------------------------------------------------------------------------*
@@ -336,24 +385,24 @@ dss1_count_unused_pipes(l2softc_t *sc)
 static u_int8_t
 dss1_get_unused_TEI(l2softc_t *sc)
 {
-  DSS1_TCP_pipe_t *pipe;
+	DSS1_TCP_pipe_t *pipe;
 
  repeat:
-  M128INC(sc->sc_tei_last);
-          sc->sc_tei_last |= 0x80 DSS1_TEI_IS_ODD(|1);
+	M128INC(sc->sc_tei_last);
+	        sc->sc_tei_last |= 0x80 DSS1_TEI_IS_ODD(|1);
 
-  PIPE_FOREACH(pipe,&sc->sc_pipe[0])
-  {
-      if(pipe->tei == sc->sc_tei_last)
-      {
-	  goto repeat;
-      }
-  }
+	PIPE_FOREACH(pipe,&sc->sc_pipe[0])
+	{
+	    if(pipe->tei == sc->sc_tei_last)
+	    {
+	        goto repeat;
+	    }
+	}
 
-  /* NOTE: this routine cannot return TEI_BROADCAST,
-   * because in NT-mode "sc->sc_pipe[0].tei = TEI_BROADCAST"
-   */
-  return sc->sc_tei_last;
+	/* NOTE: this routine cannot return TEI_BROADCAST,
+	 * because in NT-mode "sc->sc_pipe[0].tei = TEI_BROADCAST"
+	 */
+	return sc->sc_tei_last;
 }
 
 /*---------------------------------------------------------------------------*
@@ -406,8 +455,6 @@ dss1_tei_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe,
           ptr[OFF_MT]   = type;			/* Message Type      */
 	  ptr[OFF_AI]   = pipe->tei;		/* Action indicator  */
 
-	  sc->sc_stat.tx_tei++;
-
 	  dss1_l2_data_req(sc,m);
 	}
 	else
@@ -432,9 +479,12 @@ ID_REQUEST_timeout(void *sc)
 }
 
 static void
-dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
+dss1_tei_rx_frame(l2softc_t *sc, struct dss1_buffer *buf)
 {
 	DSS1_TCP_pipe_t *pipe = &sc->sc_pipe[0];
+	u_int8_t mt;
+	u_int8_t ai;
+	u_int8_t ri[2];
 
 	if(IS_POINT_TO_POINT(sc))
 	{
@@ -442,13 +492,18 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 	    return;
 	}
 
-	NDBGL2(L2_TEI_MSG, "type=0x%02x", ptr[OFF_MT]);
+	mt = dss1_get_1(buf, OFF_MT);
+	ai = dss1_get_1(buf, OFF_AI);
+	ri[0] = dss1_get_1(buf, OFF_RI+0);
+	ri[1] = dss1_get_1(buf, OFF_RI+1);
 
- 	switch(ptr[OFF_MT]) {
+	NDBGL2(L2_TEI_MSG, "type=0x%02x", mt);
+
+ 	switch(mt) {
 	case MT_ID_ASSIGN:
 		  if(TE_MODE(sc))
 		  {
-		    if(pipe->tei == ptr[OFF_AI])
+		    if(pipe->tei == ai)
 		    {
 		      /* TEI-value is assigned to another unit  */
 		      dss1_pipe_set_state(pipe,ST_L2_PAUSE);
@@ -456,10 +511,10 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 
 		    if(pipe->state == ST_L2_SEND_TEI)
 		    {
-		      if(pipe->serial_number == ((ptr[OFF_RI+0]) | 
-						 (ptr[OFF_RI+1] << 8)))
+		      if(pipe->serial_number == ((ri[0]) | 
+						 (ri[1] << 8)))
 		      {
-			pipe->tei = ptr[OFF_AI];
+			pipe->tei = ai;
 
 			i4b_l4_teiasg(sc->sc_unit,pipe->tei);
 
@@ -483,8 +538,8 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 		  /* NOTE: there is no ID_CHECK_REQUEST_ACK */
 		  if(L2_STATE_IS_TEI_ASSIGNED(pipe->state)) /* both modes */
 		  {
-		    if((ptr[OFF_AI] == pipe->tei) ||
-		       (ptr[OFF_AI] == TEI_BROADCAST))
+		    if((ai == pipe->tei) ||
+		       (ai == TEI_BROADCAST))
 		    {
 		      dss1_tei_tx_frame(sc,pipe,MT_ID_CHECK_RESPONSE);
 		    }
@@ -494,8 +549,8 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 	case MT_ID_REMOVE:
 		  if(L2_STATE_IS_TEI_ASSIGNED(pipe->state)) /* both modes */
 		  {
-		    if((ptr[OFF_AI] == pipe->tei) ||
-		       (ptr[OFF_AI] == TEI_BROADCAST))
+		    if((ai == pipe->tei) ||
+		       (ai == TEI_BROADCAST))
 		    {
 		      /* lost TEI-value */
 		      dss1_pipe_set_state(pipe,ST_L2_PAUSE);
@@ -528,16 +583,14 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 		      if(pipe)
 		      {
 			pipe->serial_number = 
-			  (ptr[OFF_RI+0]) | 
-			  (ptr[OFF_RI+1] << 8);
+			  (ri[0]) | 
+			  (ri[1] << 8);
 			pipe->tei           = dss1_get_unused_TEI(sc);
 
 			dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
 			dss1_tei_tx_frame(sc,pipe,MT_ID_REMOVE);
 
 			dss1_tei_tx_frame(sc,pipe,MT_ID_ASSIGN);
-
-			sc->sc_teiused[pipe->tei / 8] |= 1 << (pipe->tei % 8);
 
 			/* activate the pipe */
 			dss1_pipe_activate_req(pipe);
@@ -557,8 +610,8 @@ dss1_tei_rx_frame(l2softc_t *sc, u_int8_t *ptr, u_int len)
 		  break;
 
 	default:
-		  NDBGL2(L2_TEI_ERR, "unknown Message Type: 0x%02x",
-			 ptr[OFF_MT]);
+		  NDBGL2(L2_TEI_ERR, "unknown Message "
+			 "Type: 0x%02x", mt);
 		  break;
 	}
 	return;
@@ -770,118 +823,6 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
 }
 
 /*---------------------------------------------------------------------------*
- *	debugging support
- *---------------------------------------------------------------------------*/
-#if DO_I4B_DEBUG
-static void
-dss1_dump_buf(const u_int8_t *where, const u_int8_t *src, u_int16_t src_len)
-{
-    printf("%s: %d bytes: ", where, src_len);
-    while(src_len--)
-    {
-        printf("0x%02x ", src[0]);
-
-	src++;
-    }
-    printf("\n");
-    return;
-}
-#endif
-
-#if DO_I4B_DEBUG
-static void
-dss1_l2_frame_debug(l2softc_t *sc, DSS1_TCP_pipe_t *pipe,
-		    u_int8_t *ptr, u_int16_t len, u_int8_t dir_receive)
-{
-  u_int8_t tei;
-  u_int8_t pf;
-  u_int8_t crbit;
-  u_int8_t cntl;
-  u_int8_t *desc;
-
-  static const struct { u_int8_t value, * const desc; }
-  MAKE_TABLE(CNTLS,DESC,[],{ 0, 0 }), *item = &CNTLS_DESC[0];
-
-  if(i4b_l2_debug & (L2_I_MSG|L2_U_MSG|L2_S_MSG))
-  {
-    tei   = GET_TEI(ptr[OFF_TEI ]);
-    pf    = (ptr[OFF_CNTL] & CNTL_PF_BIT) != 0;
-    crbit = GET_CR_BIT(ptr[OFF_SAPI]);
-    cntl  = ptr[OFF_CNTL] & ~CNTL_PF_BIT;
-
-    DSS1_CR_IS_INVERTED 
-    (
-	/* TE must invert input C/R-bit */
-	if(TE_MODE(sc) && dir_receive)
-	{
-	  crbit ^= (CR_COMMAND|CR_RESPONSE);
-	}
-    )
-
-    while(item->desc && (item->value != cntl))
-    {
-      item++;
-    }
-
-    if(item->desc)
-    {
-      desc = item->desc;
-    }
-    else
-    {
-      if(cntl & 1)
-      {
-	if(!(cntl & 2))
-	{
-	  desc = "unknown S-frame";
-	}
-	else
-	{
-	  desc = "unknown frame";
-	}
-      }
-      else
-      {
-	desc = "I-frame";
-      }
-    }
-
-    if((cntl == CNTL_UI) &&
-       (ptr[OFF_MEI] == MEI_TEI_MANAGEMENT))
-    {
-      desc = "TEI-frame";
-    }
-
-    printf("%s: "
-	   "unit=0x%x, "
-	   "pipe=0x%x, "
-	   "%s-frame, "
-	   "tei=0x%02x, "
-	   "cntl=0x%02x=%s, "
-	   "P/F=%d, "
-	   "C/R=%s, "
-	   "%s"
-	   "frame: \n",
-	   __FUNCTION__,
-	   sc->sc_unit,
-	   PIPE_NO(pipe),
-	   dir_receive ? "RX" : "TX",
-	   tei,
-	   cntl,
-	   desc,
-	   pf,
-	   (crbit == CR_COMMAND) ? "COMMAND" : "RESPONSE",
-	   (tei == TEI_BROADCAST) ? "broadcast, " : "");
-
-    dss1_dump_buf(__FUNCTION__, ptr, len);
-  }
-  return;
-}
-#else
-#define dss1_l2_frame_debug(args...)
-#endif
-
-/*---------------------------------------------------------------------------*
  *	dss1_l2_put_mbuf - process frame from Layer 1
  *---------------------------------------------------------------------------*/
 static void
@@ -890,13 +831,14 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
   DSS1_TCP_pipe_t *pipe;
   __typeof(pipe->tx_nr) __nr;
   l2softc_t *sc = f->L5_sc;
-  u_int8_t *ptr = m->m_data;
-  u_int len = m->m_len;
+  struct dss1_buffer buf;
   u_int8_t broadcast;
   u_int8_t resp;
   u_int8_t sapi;
   u_int8_t crbit;
   u_int8_t tei;
+  u_int8_t cntl;
+  u_int8_t mei;
 
   /* Frame structure:
    * (bits are transmitted from LSB to MSB)
@@ -938,13 +880,9 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
    * and is not supported, because the software is too slow.
    */
 
-  sc->sc_received_frame = 1;
+  dss1_buf_init(&buf, m->m_data, m->m_len);
 
-  /* check U-frame length (smallest) */
-  if(len < min(3,U_FRAME_LEN)) /* 5 oct minus 2 checksum oct == 3 oct */
-  {
-    goto error;
-  }
+  sc->sc_received_frame = 1;
 
   if(0 /* receiver not ready */)
   {
@@ -957,17 +895,17 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
   }
 
   /* get type bits */
-  sapi  = GET_SAPI  (ptr[OFF_SAPI]);
-  crbit = GET_CR_BIT(ptr[OFF_SAPI]);
-  tei   = GET_TEI   (ptr[OFF_TEI ]);
+  sapi  = GET_SAPI  (dss1_get_1(&buf,OFF_SAPI));
+  crbit = GET_CR_BIT(dss1_get_1(&buf,OFF_SAPI));
+  tei   =            dss1_get_1(&buf,OFF_TEI);
 
   DSS1_CR_IS_INVERTED
   (
-	/* TE must invert input C/R-bit */
-	if(TE_MODE(sc))
-	{
-	  crbit ^= (CR_COMMAND|CR_RESPONSE);
-	}
+     /* TE must invert input C/R-bit */
+     if(TE_MODE(sc))
+     {
+         crbit ^= (CR_COMMAND|CR_RESPONSE);
+     }
   )
 
   /* get default pipe */
@@ -975,9 +913,6 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
   /* check TEI value(s) */
 
   pipe = &sc->sc_pipe[0];
-
-  /* update TEI statistics */
-  sc->sc_teiused[tei / 8] |= 1 << (tei % 8);
 
   if(tei == TEI_BROADCAST)
   {
@@ -1044,15 +979,15 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
     }
   }
 
-  /* debugging */
-  dss1_l2_frame_debug(sc,pipe,ptr,len,1);
+  cntl = dss1_get_1(&buf,OFF_CNTL);
+  mei = dss1_get_1(&buf,OFF_MEI);
 
-  if(ptr[OFF_CNTL] & 1)
+  if(cntl & 1)
   {
 	/*
 	 * decode S- and U-frame(s)
 	 */
-	switch(ptr[OFF_CNTL] & ~CNTL_PF_BIT) {
+	switch(cntl & ~CNTL_PF_BIT) {
 	    /*
 	     * Unnumbered-command(s)
 	     */
@@ -1060,51 +995,35 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 	    /*
 	     * decode SAPI
 	     *
-	     * It is assumed that "(ptr[OFF_CNTL] & 
+	     * It is assumed that "(cntl & 
 	     *  ~CNTL_PF_BIT) == CNTL_UI" for all SAPI services
 	     */
 	    switch(sapi) {
 	    case SAPI_L2M:
-	        /* layer 2 management (SAPI = 63)
-		 *
-		 * check length before
-		 * accessing data and ptr[OFF_MEI]
-		 */
-	      if(len >= TEI_FRAME_LEN)
-	      {
-		  if(ptr[OFF_MEI] == MEI_TEI_MANAGEMENT)
-		  {
-		      sc->sc_stat.rx_tei++;
+	        /* layer 2 management (SAPI = 63) */
 
-		      dss1_tei_rx_frame(sc, ptr, len);
-		  }
-	      }
-	      break;
-
-	    case SAPI_CCP:
-	        /* call control (SAPI = 0)
-		 *
-		 * check length before
-		 * accessing data
-		 */
-#if U_FRAME_LEN != 3
-#error "U_FRAME_LEN != 3"
-#endif
-	        if(len >= U_FRAME_LEN)
+	        if(mei == MEI_TEI_MANAGEMENT)
 		{
-		    sc->sc_stat.rx_ui++;
-
-		    /* skip header and pass 
-		     * unnumbered I-frame to Layer3
-		     */
-		    dss1_pipe_data_ind(pipe,
-				       (ptr + U_FRAME_LEN),
-				       (len - U_FRAME_LEN), broadcast);
+		    dss1_tei_rx_frame(sc, &buf);
 		}
 		break;
 
+	    case SAPI_CCP:
+	        /* call control (SAPI = 0) */
+
+	        /* skip header and pass 
+		 * unnumbered I-frame to Layer3
+		 */
+	        buf.offset = U_FRAME_LEN;
+
+		dss1_pipe_data_ind(pipe, &buf, broadcast);
+
+		buf.offset = 0;
+
+		break;
+
 	    default:
-	        goto error;
+	        goto done;
 	    }
 
 	    break;
@@ -1112,90 +1031,36 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 	case CNTL_SABME:
 	    /* echo-back CNTL_PF_BIT */
 	    dss1_cntl_tx_frame(sc,pipe,CR_RESPONSE,
-			       CNTL_UA|(ptr[OFF_CNTL] & CNTL_PF_BIT));
+			       CNTL_UA|(cntl & CNTL_PF_BIT));
 
 	    /* set state after transmit */
 	    dss1_pipe_set_state(pipe,ST_L2_SEND_UA);
 
 	    pipe->rx_nr = 0;
-
-	    sc->sc_stat.rx_sabme++;
 	    break;
 
 	case CNTL_DISC:
 	    /* echo-back CNTL_PF_BIT */
 #if 1
 	    dss1_cntl_tx_frame(sc,pipe,CR_RESPONSE,
-			       CNTL_UA|(ptr[OFF_CNTL] & CNTL_PF_BIT));
+			       CNTL_UA|(cntl & CNTL_PF_BIT));
 #else
 	    dss1_cntl_tx_frame(sc,pipe,CR_RESPONSE,
-			       CNTL_DM|(ptr[OFF_CNTL] & CNTL_PF_BIT));
+			       CNTL_DM|(cntl & CNTL_PF_BIT));
 #endif
 	    /* remove pipe */
 	    dss1_pipe_set_state(pipe,ST_L2_PAUSE);
-
-	    sc->sc_stat.rx_disc++;
-	    break;
-
-	case CNTL_XID:
-	    /* XID is not decoded, but
-	     * it is no error either
-	     */
-	    sc->sc_stat.rx_xid++;
-	    break;
-			
-	    /*
-	     * Unnumbered-respons(es)
-	     */
-	case CNTL_UA:
-	    /* ignored - waiting for NR acknowledge instead */
-	    sc->sc_stat.rx_ua++;
-	    break;
-
-	case CNTL_DM:
-	    /* ignored - waiting for NR acknowledge instead */
-	    sc->sc_stat.rx_dm++;
-	    break;
-
-	case CNTL_FRMR:
-	    /**/
-	    sc->sc_stat.rx_frmr++;
-	    break;
-
-	    /*
-	     * Supervisory-respons(es)
-	     */
-	case CNTL_RNR:			/* receiver not ready */
-	    sc->sc_stat.rx_rnr++;	/* update statistics */
-	    /* ignored */
-	    break;
-
-	case CNTL_RR:			/* receiver ready */
-	    sc->sc_stat.rx_rr++;	/* update statistics */
-	    /* ignored */
-	    break;
-
-	case CNTL_REJ:			/* reject */
-	    sc->sc_stat.rx_rej++;	/* update statistics */
-	    /* ignored */
 	    break;
 
 	default:
-	    NDBGL2(L2_I_ERR|L2_U_ERR|L2_S_ERR,
-		   "unit=%x, unknown cntl:0x%02x, frame: ",
-		   sc->sc_unit,
-		   ptr[OFF_CNTL]);
-#if DO_I4B_DEBUG
-	    if(i4b_l2_debug & (L2_I_ERR|L2_U_ERR|L2_S_ERR))
-	    {
-	        dss1_dump_buf(__FUNCTION__, ptr, len);
-	    }
-#endif
+	    NDBGL2(L2_I_MSG|L2_U_MSG|L2_S_MSG,
+		   "unit=%x, not decoded cntl:0x%02x, frame: ",
+		   sc->sc_unit, cntl);
 	    break;
 	}
 
 	/* assuming that all S-frames have NR */
-	if(!(ptr[OFF_CNTL] & 2))
+	if(!(cntl & 2))
 	{
 	    goto check_NR;
 	}
@@ -1204,18 +1069,10 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
   {
 	/*
 	 * decode Information-frame(s)
-	 *
-	 *
-	 * check length before accessing
-	 * any data:
 	 */
-	if(len < min(4,I_HEADER_LEN))  /* 6 oct minus 2 checksum oct == 4 oct */
-	{
-	  goto error;
-	}
  
 	/* get remote tx_nr */
-	__nr = GET_NR(ptr[OFF_TX_NR]);
+	__nr = GET_NR(dss1_get_1(&buf,OFF_TX_NR));
 
 	/* check __nr */
 	if(pipe->rx_nr == __nr)
@@ -1223,15 +1080,14 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 	  /* acknowledge rx_nr */
 	  M128INC(pipe->rx_nr);
 
-	  /* update frame count */
-	  sc->sc_stat.rx_i++;
-
 	  /* skip header and pass 
 	   * numbered I-frame to Layer3
 	   */
-	  dss1_pipe_data_ind(pipe,
-			    (ptr + I_HEADER_LEN),
-			    (len - I_HEADER_LEN), broadcast);
+	  buf.offset = I_HEADER_LEN;
+
+	  dss1_pipe_data_ind(pipe, &buf, broadcast);
+
+	  buf.offset = 0;
 	}
 	else
 	{
@@ -1240,17 +1096,11 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 
     check_NR:
 
-	/* check length (both S-frames and I-frames) */
-	if(len < min(4,I_HEADER_LEN))  /* 6 oct minus 2 checksum oct == 4 oct */
-	{
-	  goto error;
-	}
-
 	/* store old NR */
 	__nr = pipe->tx_nr;
 
 	/* take new NR */
-	       pipe->tx_nr = GET_NR(ptr[OFF_RX_NR]);
+	       pipe->tx_nr = GET_NR(dss1_get_1(&buf,OFF_RX_NR));
 
 	/* get NR difference */
 	__nr = pipe->tx_nr - __nr;
@@ -1296,8 +1146,8 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 	 * when sending I-frames, but still expects
 	 * a response.
 	 */
-	if((((~ptr[OFF_CNTL]) & 1) && 
-	    ((ptr[OFF_RX_NR] & 1) || NT_MODE(sc))) || (resp == CNTL_REJ))
+	if((((~cntl) & 1) && 
+	    ((dss1_get_1(&buf,OFF_RX_NR) & 1) || NT_MODE(sc))) || (resp == CNTL_REJ))
 	{
 	  dss1_cntl_tx_frame(sc,pipe,CR_COMMAND,resp);
 	}
@@ -1306,7 +1156,7 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 	 *
 	 * (CR_COMMAND) and (P == 1) and (S-frame)
 	 */
-	if((crbit == CR_COMMAND) && (ptr[OFF_CNTL] & ptr[OFF_RX_NR] & 1))
+	if((crbit == CR_COMMAND) && (cntl & dss1_get_1(&buf,OFF_RX_NR) & 1))
 	{
 	  dss1_cntl_tx_frame(sc,pipe,CR_RESPONSE,CNTL_RR /* or "resp" */); 
 	}
@@ -1317,29 +1167,6 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
   /* make sure that the mbuf is freed */
   m_freem(m);
   return;
-
- error:
-
-  /* update statistics */
-  sc->sc_stat.err_rx++;
-
-  NDBGL2(L2_ERROR|L2_I_ERR|L2_U_ERR|L2_S_ERR,
-	 "Cannot decode frame%s. Turn on debugging support "
-	 "to get more information, unit=0x%x, frame: ",
-	 (len < 3) ? " - frame too small" : "",
-	 sc->sc_unit);
-
-#if DO_I4B_DEBUG
-  if(i4b_l2_debug & (L2_ERROR|L2_I_ERR|L2_U_ERR|L2_S_ERR))
-  {
-      dss1_dump_buf(__FUNCTION__, ptr, len);
-  }
-#endif
-
-  /* could have decoded some fields if
-   * the length is sufficient ??
-   */
-  goto done;
 }
 
 /*---------------------------------------------------------------------------*
@@ -1561,8 +1388,6 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 		  }
 		}
 
-		sc->sc_stat.tx_i++;	/* update frame counter */
-
 		sc->sc_current_mbuf = m->m_nextpkt;
 
 		sc->sc_current_length--;
@@ -1618,7 +1443,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 
 		if(!m)
 		{
-		  NDBGL2(L2_ERROR, "out of mbufs!");
+		    NDBGL2(L2_ERROR, "out of mbufs!");
 		}
       }
     }
@@ -1662,10 +1487,6 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 
   if(m)
   {
-    /* debugging */
-    dss1_l2_frame_debug(sc,sc->sc_current_pipe,
-		       m->m_data,m->m_len,0);
-
     DSS1_CR_IS_INVERTED
     (
 	  /* NT must invert output C/R-bit */
@@ -1740,7 +1561,7 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	  cntl->N_cdid_end = 0x7F; /* exclusive */
 	  /* cntl->N_cdid_count = use last value */
 
-	  cntl->N_lapdstat = &sc->sc_stat;
+	  cntl->N_lapdstat = NULL;
 
 #define MAX_QUEUE_PER_CHANNEL 16
 

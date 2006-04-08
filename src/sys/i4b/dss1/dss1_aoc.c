@@ -27,6 +27,8 @@
  *	dss1_aoc.c - Advice Of Charge support
  *	-------------------------------------
  *
+ * $FreeBSD: $
+ *
  *---------------------------------------------------------------------------*/
 
 #include <sys/param.h>
@@ -38,51 +40,45 @@
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_global.h>
 
+#include <i4b/dss1/dss1_l2.h>
 #include <i4b/dss1/dss1_l3.h>
 #include <i4b/dss1/dss1_aoc.h>
 
-__FBSDID("$FreeBSD: $");
-
-struct aoc_state {
-  u_int8_t   state;
-  u_int8_t * byte_ptr;
-  u_int8_t * byte_ptr_end;
-  u_int8_t   operation_value;
-  int32_t    units;
-};
-
-static void do_component(struct aoc_state *sc, u_int8_t *end);
-static void next_state(struct aoc_state *sc, u_int8_t class, u_int8_t form, u_int8_t code, int32_t val);
+static void do_component(struct dss1_buffer *sc, u_int8_t *end);
+static void next_state(struct dss1_buffer *sc, u_int8_t class, u_int8_t form, u_int8_t code, int32_t val);
 
 static u_int8_t
-get_byte(struct aoc_state *sc)
+get_byte(struct dss1_buffer *buf)
 {
-    u_int8_t temp = (sc->byte_ptr < sc->byte_ptr_end) ? sc->byte_ptr[0] : 0;
-    sc->byte_ptr ++;
+    u_int8_t temp = dss1_get_1(buf,0);
+    buf->offset++;
     return temp;
 }
 
 static u_int32_t
-get_value(struct aoc_state *sc, u_int32_t len, u_int32_t max)
+get_value(struct dss1_buffer *buf, u_int32_t len, u_int32_t max)
 {
     u_int32_t temp = 0;
     u_int8_t shift = 0;
 
+    if(len > 255) {
+       len = 255;
+    }
+
     while(len--)
     {
-        temp |= get_byte(sc) << shift;
+        temp |= get_byte(buf) << shift;
 	shift += 8;
 
 	if(shift >= 32)
 	{
 	    /* skip rest */
-	    sc->byte_ptr += len;
+	    buf->offset += len;
 	    break;
 	}
     }
 
-    if(temp > max)
-    {
+    if(temp > max) {
        temp = max;
     }
 
@@ -91,101 +87,93 @@ get_value(struct aoc_state *sc, u_int32_t len, u_int32_t max)
 
 /*---------------------------------------------------------------------------*
  *	decode Q.931/Q.932 facility info element
- *
- * returns 0 on success
- * returns 1 on error
  *---------------------------------------------------------------------------*/
-u_int8_t
-dss1_aoc(u_int8_t *buf, call_desc_t *cd)
+void
+dss1_facility_decode(call_desc_t *cd, struct dss1_buffer *buf)
 {
-	u_int8_t len;
-	struct aoc_state sc;
-
-	bzero(&sc, sizeof(sc));
-
 	cd->units_type = CHARGE_INVALID;
 	cd->units = -1;			
+
+	src->offset += 2;
 	
-	buf++;		/* length */
+	switch(dss1_get_1(buf,0) & 0x1f) {
+	case FAC_PROTO_ROP:
+	    break;
 
-	len = *buf;
+	case FAC_PROTO_CMIP:
+	    NDBGL3(L3_A_MSG, "CMIP Protocol (Q.941), UNSUPPORTED");
+	    goto done;
 
-	buf++;		/* protocol profile */
+	case FAC_PROTO_ACSE:
+	    NDBGL3(L3_A_MSG, "ACSE Protocol (X.217/X.227), UNSUPPORTED!");
+	    goto done;
 
-	switch(*buf & 0x1f)
-	{
-		case FAC_PROTO_ROP:
-			break;
-
-		case FAC_PROTO_CMIP:
-			NDBGL3(L3_A_MSG, "CMIP Protocol (Q.941), UNSUPPORTED");
-			return 1;
-			break;
-
-		case FAC_PROTO_ACSE:
-			NDBGL3(L3_A_MSG, "ACSE Protocol (X.217/X.227), UNSUPPORTED!");
-			return 1;
-			break;
-
-		default:
-			NDBGL3(L3_A_ERR, "Unknown Protocol, UNSUPPORTED!");
-			return 1;
-			break;
+	default:
+	    NDBGL3(L3_A_ERR, "Unknown Protocol, UNSUPPORTED!");
+	    goto done;
 	}
 
 	NDBGL3(L3_A_MSG, "Remote Operations Protocol");
 
 	/* next byte */
 	
-	buf++;
-	if(len)
-	  len--;
+	src->offset++;
 
 	/* initialize variables for do_component */
-	
-	sc.byte_ptr = buf;
-	sc.byte_ptr_end = buf + len;
-	sc.state = ST_EXP_COMP_TYP;	
+
+	src->state = ST_EXP_COMP_TYP;
+	src->op_value = -1;
+	src->units = 0;
 
 	/* decode facility */
 	
-	do_component(&sc, buf + len);
+	do_component(cd, src);
 
-	switch(sc.operation_value)
-	{
-		case FAC_OPVAL_AOC_D_CUR:
-			cd->units_type = CHARGE_AOCD;
-			cd->units = 0;
-			break;
-			
-		case FAC_OPVAL_AOC_D_UNIT:
-			cd->units_type = CHARGE_AOCD;
-			cd->units = sc.units;
-			break;
-			
-		case FAC_OPVAL_AOC_E_CUR:
-			cd->units_type = CHARGE_AOCE;
-			cd->units = 0;
-			break;
-			
-		case FAC_OPVAL_AOC_E_UNIT:
-			cd->units_type = CHARGE_AOCE;
-			cd->units = sc.units;
-			break;
+	switch(src->op_value) {
 
-		default:
-			cd->units_type = CHARGE_INVALID;
-			cd->units = -1;
-			return 1;
+	case FAC_OPVAL_AOC_D_CUR:
+	    cd->units_type = CHARGE_AOCD;
+	    cd->units = 0;
+	    i4b_l4_charging_ind(cd);
+	    break;
+			
+	case FAC_OPVAL_AOC_D_UNIT:
+	    cd->units_type = CHARGE_AOCD;
+	    cd->units = buf->units;
+	    i4b_l4_charging_ind(cd);
+	    break;
+			
+	case FAC_OPVAL_AOC_E_CUR:
+	    cd->units_type = CHARGE_AOCE;
+	    cd->units = 0;
+	    i4b_l4_charging_ind(cd);
+	    break;
+			
+	case FAC_OPVAL_AOC_E_UNIT:
+	    cd->units_type = CHARGE_AOCE;
+	    cd->units = buf->units;
+	    i4b_l4_charging_ind(cd);
+	    break;
+
+	case FAC_OPVAL_MCID:
+	    break;
+
+	case FAC_OPVAL_DIV_CALLDEF:
+	    break;
+
+	default:
+	    break;
 	}
-	return 0;
+
+ done:
+	return;
 }
 
 /*---------------------------------------------------------------------------*
  *	handle a component recursively
  *---------------------------------------------------------------------------*/
 static void
-do_component(struct aoc_state *sc, u_int8_t *end)
+do_component(struct call_desc *cd, struct dss1_buffer *buf)
 {
 	u_int8_t comp_tag_class; /* component tag class */
 	u_int8_t comp_tag_form;  /* component form: constructor or primitive */
@@ -193,26 +181,27 @@ do_component(struct aoc_state *sc, u_int8_t *end)
 	u_int8_t comp_length;    /* component length */
 	u_int8_t temp;
 
-again:
-	/*----------------------------------------*
-	 * first component element: component tag *
-	 *----------------------------------------*/
-
-	temp = get_byte(sc);
-
-	comp_tag_class = (temp & 0xc0) >> 6;
-	
-	comp_tag_form = (temp & 0x20) >> 5;
-	
-	comp_tag_code = (temp & 0x1f);
-	
-	if(comp_tag_code == 0x1f)
+	while(dss1_get_valid(buf,0))
 	{
+	    /*----------------------------------------*
+	     * first component element: component tag *
+	     *----------------------------------------*/
+
+	    temp = get_byte(buf);
+
+	    comp_tag_class = (temp & 0xc0) >> 6;
+	
+	    comp_tag_form = (temp & 0x20) >> 5;
+	
+	    comp_tag_code = (temp & 0x1f);
+	
+	    if(comp_tag_code == 0x1f)
+	    {
 		u_int32_t value = 0;
 		u_int8_t shift = 0;
 
 		do {
-		  temp = get_byte(sc);
+		  temp = get_byte(buf);
 
 		  if(shift < 32)
 		  {
@@ -228,77 +217,67 @@ again:
 		}
 
 		comp_tag_code = value;
-	}
+	    }
 
-	/*--------------------------------------------*
-	 * second component element: component length *
-	 *--------------------------------------------*/
+	    /*--------------------------------------------*
+	     * second component element: component length *
+	     *--------------------------------------------*/
 
-	temp = get_byte(sc);
+	    temp = get_byte(buf);
 
-	if(temp & 0x80)
-	{
-		comp_length = get_value(sc, temp & 0x7f, 0xFF);
-	}
-	else
-	{
+	    if(temp & 0x80)
+	    {
+	        comp_length = get_value(buf, temp & 0x7f, 0xFF);
+	    }
+	    else
+	    {
 		comp_length = temp & 0x7f;
-	}
+	    }
 
-	next_state(sc, comp_tag_class, comp_tag_form, comp_tag_code, -1);
+	    next_state(buf, comp_tag_class, comp_tag_form, comp_tag_code, -1);
 	
-	/*---------------------------------------------*
-	 * third component element: component contents *
-	 *---------------------------------------------*/
+	    /*---------------------------------------------*
+	     * third component element: component contents *
+	     *---------------------------------------------*/
 
-	if(comp_tag_form)
-	{
+	    if(comp_tag_form)
+	    {
 		/* constructor */
+	        u_int16_t old_len;
+		old_len = set_length(buf, buf->offset + comp_length);
 
-		do_component(sc, sc->byte_ptr + comp_length);
-	}
-	else
-	{
+		do_component(cd, buf);
+
+		buf->offset = buf->len; /* set new offset */
+		buf->len = old_len; /* set new length */
+	    }
+	    else
+	    {
 		u_int32_t value = 0;
 
 		if(comp_tag_class == FAC_TAGCLASS_UNI)
 		{
-			switch(comp_tag_code)
-			{
-				case FAC_CODEUNI_INT:
-				case FAC_CODEUNI_ENUM:
-				case FAC_CODEUNI_BOOL:
+			switch(comp_tag_code) {
+			case FAC_CODEUNI_INT:
+			case FAC_CODEUNI_ENUM:
+			case FAC_CODEUNI_BOOL:
+			    value = get_value(buf, comp_length, -1);
+			    break;
 
-					value = get_value(sc, comp_length, -1);
-					break;
-
-				default:
-					/* skip */
-					sc->byte_ptr += comp_length;
-					break;
+			default:
+			    /* skip */
+			    buf->offset += comp_length;
+			    break;
 			}
 		}
 		else
 		{
-			value = get_value(sc, comp_length, -1);
+			value = get_value(buf, comp_length, -1);
 		}
 
-		next_state(sc, comp_tag_class, comp_tag_form, comp_tag_code, value);
+		next_state(buf, comp_tag_class, comp_tag_form, comp_tag_code, value);
+	    }
 	}
-
-	if(sc->byte_ptr < end)
-	{
-	    goto again;
-	}
-
-	if(sc->byte_ptr != end)
-	{
-	    NDBGL3(L3_A_ERR, "pointer offset from end: %d bytes",
-		   sc->byte_ptr - end);
-	}
-
-	sc->byte_ptr = end;
-
 	return;
 }
 
@@ -306,11 +285,11 @@ again:
  *	invoke component
  *---------------------------------------------------------------------------*/
 static void
-F_1_1(struct aoc_state *sc, int32_t val)
+F_1_1(struct dss1_buffer *buf, int32_t val)
 {
 	if(val == -1)
 	{
-		sc->state = ST_EXP_INV_ID;
+		buf->state = ST_EXP_INV_ID;
 	}
 	return;
 }
@@ -319,11 +298,11 @@ F_1_1(struct aoc_state *sc, int32_t val)
  *	return result
  *---------------------------------------------------------------------------*/
 static void
-F_1_2(struct aoc_state *sc, int32_t val)
+F_1_2(struct dss1_buffer *buf, int32_t val)
 {
 	if(val == -1)
 	{
-		sc->state = ST_EXP_NIX;
+		buf->state = ST_EXP_NIX;
 	}
 	return;
 }
@@ -332,11 +311,11 @@ F_1_2(struct aoc_state *sc, int32_t val)
  *	return error
  *---------------------------------------------------------------------------*/
 static void
-F_1_3(struct aoc_state *sc, int32_t val)
+F_1_3(struct dss1_buffer *buf, int32_t val)
 {
 	if(val == -1)
 	{
-		sc->state = ST_EXP_NIX;
+		buf->state = ST_EXP_NIX;
 	}
 	return;
 }
@@ -345,11 +324,11 @@ F_1_3(struct aoc_state *sc, int32_t val)
  *	reject
  *---------------------------------------------------------------------------*/
 static void
-F_1_4(struct aoc_state *sc, int32_t val)
+F_1_4(struct dss1_buffer *buf, int32_t val)
 {
 	if(val == -1)
 	{
-		sc->state = ST_EXP_NIX;
+		buf->state = ST_EXP_NIX;
 	}
 	return;
 }
@@ -358,12 +337,12 @@ F_1_4(struct aoc_state *sc, int32_t val)
  *	invoke id
  *---------------------------------------------------------------------------*/
 static void
-F_2(struct aoc_state *sc, int32_t val)
+F_2(struct dss1_buffer *buf, int32_t val)
 {
 	if(val != -1)
 	{
 		NDBGL3(L3_A_MSG, "Invoke ID = %d", val);
-		sc->state = ST_EXP_OP_VAL;
+		buf->state = ST_EXP_OP_VAL;
 	}
 	return;
 }
@@ -372,23 +351,23 @@ F_2(struct aoc_state *sc, int32_t val)
  *	operation value
  *---------------------------------------------------------------------------*/
 static void
-F_3(struct aoc_state *sc, int32_t val)
+F_3(struct dss1_buffer *buf, int32_t val)
 {
 	if(val != -1)
 	{
 		NDBGL3(L3_A_MSG, "Operation Value = %d", val);
 	
-		sc->operation_value = val;
+		buf->op_value = val;
 		
 		if((val == FAC_OPVAL_AOC_D_UNIT) || 
 		   (val == FAC_OPVAL_AOC_E_UNIT))
 		{
-			sc->units = 0;
-			sc->state = ST_EXP_INFO;
+			buf->units = 0;
+			buf->state = ST_EXP_INFO;
 		}
 		else
 		{
-			sc->state = ST_EXP_NIX;
+			buf->state = ST_EXP_NIX;
 		}
 	}
 	return;
@@ -398,11 +377,11 @@ F_3(struct aoc_state *sc, int32_t val)
  *	specific charging units
  *---------------------------------------------------------------------------*/
 static void
-F_4(struct aoc_state *sc, int32_t val)
+F_4(struct dss1_buffer *buf, int32_t val)
 {
 	if(val == -1)
 	{
-		sc->state = ST_EXP_RUL;
+		buf->state = ST_EXP_RUL;
 	}
 	return;
 }
@@ -411,13 +390,13 @@ F_4(struct aoc_state *sc, int32_t val)
  *	free of charge
  *---------------------------------------------------------------------------*/
 static void
-F_4_1(struct aoc_state *sc, int32_t val)
+F_4_1(struct dss1_buffer *buf, int32_t val)
 {
 	if(val == -1)
 	{
 		NDBGL3(L3_A_MSG, "Free of Charge");
-		/* XXX sc->units = 0; */
-		sc->state = ST_EXP_NIX;
+		/* XXX buf->units = 0; */
+		buf->state = ST_EXP_NIX;
 	}
 	return;
 }
@@ -426,13 +405,13 @@ F_4_1(struct aoc_state *sc, int32_t val)
  *	charge not available
  *---------------------------------------------------------------------------*/
 static void
-F_4_2(struct aoc_state *sc, int32_t val)
+F_4_2(struct dss1_buffer *buf, int32_t val)
 {
 	if(val == -1)
 	{
 		NDBGL3(L3_A_MSG, "Charge not available");
-		/* XXX sc->units = -1; */
-		sc->state = ST_EXP_NIX;
+		/* XXX buf->units = -1; */
+		buf->state = ST_EXP_NIX;
 	}
 	return;
 }
@@ -441,11 +420,11 @@ F_4_2(struct aoc_state *sc, int32_t val)
  *	recorded units list
  *---------------------------------------------------------------------------*/
 static void
-F_5(struct aoc_state *sc, int32_t val)
+F_5(struct dss1_buffer *buf, int32_t val)
 {
 	if(val == -1)
 	{
-		sc->state = ST_EXP_RU;
+		buf->state = ST_EXP_RU;
 	}
 	return;
 }
@@ -454,11 +433,11 @@ F_5(struct aoc_state *sc, int32_t val)
  *	recorded units
  *---------------------------------------------------------------------------*/
 static void
-F_6(struct aoc_state *sc, int32_t val)
+F_6(struct dss1_buffer *buf, int32_t val)
 {
 	if(val == -1)
 	{
-		sc->state = ST_EXP_RNOU;
+		buf->state = ST_EXP_RNOU;
 	}
 	return;
 }
@@ -467,13 +446,13 @@ F_6(struct aoc_state *sc, int32_t val)
  *	number of units
  *---------------------------------------------------------------------------*/
 static void
-F_7(struct aoc_state *sc, int32_t val)
+F_7(struct dss1_buffer *buf, int32_t val)
 {
 	if(val != -1)
 	{
 		NDBGL3(L3_A_MSG, "Number of Units = %d", val);
-		sc->units = val;
-		sc->state = ST_EXP_TOCI;
+		buf->units = val;
+		buf->state = ST_EXP_TOCI;
 	}
 	return;
 }
@@ -482,12 +461,12 @@ F_7(struct aoc_state *sc, int32_t val)
  *	subtotal/total
  *---------------------------------------------------------------------------*/
 static void
-F_8(struct aoc_state *sc, int32_t val)
+F_8(struct dss1_buffer *buf, int32_t val)
 {
 	if(val != -1)
 	{
 		NDBGL3(L3_A_MSG, "Subtotal/Total = %d", val);
-		sc->state = ST_EXP_DBID;
+		buf->state = ST_EXP_DBID;
 	}
 	return;
 }
@@ -496,12 +475,12 @@ F_8(struct aoc_state *sc, int32_t val)
  *	billing_id
  *---------------------------------------------------------------------------*/
 static void
-F_9(struct aoc_state *sc, int32_t val)
+F_9(struct dss1_buffer *buf, int32_t val)
 {
 	if(val != -1)
 	{
 		NDBGL3(L3_A_MSG, "Billing ID = %d", val);
-		sc->state = ST_EXP_NIX;
+		buf->state = ST_EXP_NIX;
 	}
 	return;
 }
@@ -514,7 +493,7 @@ static const struct statetab {
 	u_int8_t form;		/* input: current tag form */
 	u_int8_t class;		/* input: current tag class */
 	u_int8_t code;		/* input: current tag code */
-	void (*func)(struct aoc_state *, int32_t); /* output: func to exec */
+	void (*func)(struct dss1_buffer *, int32_t); /* output: func to exec */
 } statetab[] = {
 
 /*	 current state		tag form		tag class		tag code		function	*/
@@ -539,7 +518,7 @@ static const struct statetab {
  *	state decode for do_component
  *---------------------------------------------------------------------------*/
 static void
-next_state(struct aoc_state *sc, u_int8_t class, u_int8_t form, u_int8_t code, int32_t val)
+next_state(struct dss1_buffer *buf, u_int8_t class, u_int8_t form, u_int8_t code, int32_t val)
 {
 	const struct statetab *st = &statetab[0];
 	const struct statetab *st_end = &statetab[sizeof(statetab)/sizeof(statetab[0])];
@@ -547,14 +526,14 @@ next_state(struct aoc_state *sc, u_int8_t class, u_int8_t form, u_int8_t code, i
 	while(1)
 	{
 		if(st >= st_end) break;
-		if(st->currstate > sc->state) break;
+		if(st->currstate > buf->state) break;
 
-		if((st->currstate == sc->state) &&
+		if((st->currstate == buf->state) &&
 		   (st->form == form)           &&
 		   (st->class == class)         &&
 		   (st->code == code))
 		{
-			(st->func)(sc, val);
+			(st->func)(buf, val);
 			break;
 		}
 		st++;

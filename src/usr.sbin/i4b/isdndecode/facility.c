@@ -73,29 +73,25 @@ q932_facility(struct buffer *dst, struct buffer *src)
 
 	bsprintf(dst, "Protocol=");
 	
-	switch(get_1(src,0) & 0x1f)
-	{
-		case FAC_PROTO_ROP:
-			bsprintf(dst, "Remote Operations Protocol\n");
-			break;
+	switch(get_1(src,0) & 0x1f) {
+	case FAC_PROTO_ROP:
+	    bsprintf(dst, "Remote Operations Protocol\n");
+	    break;
 
-		case FAC_PROTO_CMIP:
-			bsprintf(dst, "CMIP Protocol (Q.941), "
-				 "UNSUPPORTED!]\n");
-			return;
-			break;
+	case FAC_PROTO_CMIP:
+	    bsprintf(dst, "CMIP Protocol (Q.941), "
+		     "UNSUPPORTED!]\n");
+	    return;
 
-		case FAC_PROTO_ACSE:
-			bsprintf(dst, "ACSE Protocol (X.217/X.227), "
-				 "UNSUPPORTED!]\n");
-			return;
-			break;
+	case FAC_PROTO_ACSE:
+	    bsprintf(dst, "ACSE Protocol (X.217/X.227), "
+		     "UNSUPPORTED!]\n");
+	    return;
 
-		default:
-			bsprintf(dst, "Unknown Protocol (val = 0x%x), "
-				 "UNSUPPORTED!]\n", get_1(src,0) & 0x1f);
-			return;
-			break;
+	default:
+	    bsprintf(dst, "Unknown Protocol (val = 0x%x), "
+		     "UNSUPPORTED!]\n", get_1(src,0) & 0x1f);
+	    return;
 	}
 
 	/* next byte */
@@ -307,9 +303,9 @@ do_component(struct buffer *dst, struct buffer *src)
 							{
 							    j = get_1(src,0);
 
-							      bsprintf(dst, "0x%02x = %d (%c)", j, j, 
-								       isprint(j) ? j : '.');
-							      src->offset++;
+							    bsprintf(dst, "0x%02x = %d (%c)", j, j, 
+								     isprint(j) ? j : '.');
+							    src->offset++;
 							}
 							bsprintf(dst, "\n");
 
@@ -330,7 +326,7 @@ do_component(struct buffer *dst, struct buffer *src)
 					{
 						j = get_1(src,0);
 
-						bsprintf(dst, "0x%02x", j);
+						bsprintf(dst, "0x%02x ", j);
 						val |= j << shift;
 						src->offset++;
 						shift += 8;

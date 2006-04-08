@@ -163,8 +163,11 @@ MAKE_ENUM(L3_STATES,
 MAKE_ENUM(L3_EVENTS,
 	N_L3_EVENTS);
 
+#ifdef _KERNEL
 struct call_desc;
-extern u_int8_t dss1_aoc ( u_int8_t *, struct call_desc *cd );
+struct dss1_buffer;
+extern void dss1_facility_decode(call_desc_t *cd, struct dss1_buffer *buf);
+#endif
 
 /* extension bit */
 #define EXT_LAST		0x80	/* last octett */

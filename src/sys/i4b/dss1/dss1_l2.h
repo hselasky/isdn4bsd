@@ -155,8 +155,7 @@ MAKE_ENUM(CNTLS);
 
 #define MAKE_SAPI(sapi,cr)	((((sapi) << 2) & 0xfc) | (((cr) & 0x01) << 1))
 
-#define PUT_TEI(var, tei)	GET_TEI(var) = (tei)
-#define GET_TEI(var)		(*(u_int8_t *)&(var))
+#define PUT_TEI(var, tei)	(*(u_int8_t *)&(var)) = (tei)
 
 /* S-frame */
 #define S_FRAME_LEN	4	/* length of a S-frame */
@@ -235,14 +234,11 @@ typedef struct DSS1_TCP_pipe {
   u_int8_t	tx_nr;
 } DSS1_TCP_pipe_t;
 
-typedef struct
-{
+typedef struct {
 	u_int32_t	sc_unit;	/* unit number for this entry */
 
 	i4b_controller_t *
 			sc_cntl;
-
-	u_int8_t	sc_teiused[(256+7)/8];
 
 	u_int8_t	sc_tei_last;	/* last TEI value assigned to 
 					 * a remote Terminal 
@@ -268,8 +264,6 @@ typedef struct
 
 	/* statistics */
 
-	lapdstat_t	sc_stat; /* lapd protocol statistics */
-
 #define PIPE_MAX     0x10
 	struct DSS1_TCP_pipe sc_pipe[PIPE_MAX];
 	/* pipe_adapter is ``sc_pipe[0]'' */
@@ -289,5 +283,18 @@ typedef struct
 
 } l2softc_t;
 
-#endif /* _DSS1_L2_H_ */
+struct dss1_buffer {
+  u_int8_t *start;      /* inclusive */
+  u_int16_t offset;     /* offset from start */
+  u_int16_t len;        /* length from start */
+  u_int8_t  state;      /* used by Facility Decode */
+  u_int8_t  op_value;   /* used by Facility Decode */
+  int32_t   units;      /* used by Facility Decode */
+};
 
+extern u_int8_t  dss1_get_1(struct dss1_buffer *src, u_int16_t offset);
+extern u_int8_t  dss1_get_valid(struct dss1_buffer *src, u_int16_t offset);
+extern u_int16_t dss1_set_length(struct dss1_buffer *src, u_int16_t new_len);
+extern void      dss1_buf_init(struct dss1_buffer *dst, void *start, u_int16_t len);
+
+#endif /* _DSS1_L2_H_ */
