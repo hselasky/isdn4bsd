@@ -402,13 +402,16 @@ static int
 ihfc_dclose(struct cdev *dev, int fflag, int devtype, struct thread *td)
 {
 	struct i4b_controller *cntl = i4b_controller(dev);
+	struct i4b_protocol p = { /* zero */ };
 	u_int32_t channel = channel(dev);
 #if DO_I4B_DEBUG
 	ihfc_sc_t *sc = cntl->L1_sc;
 #endif
 	IHFC_MSG("fflag = 0x%x\n", (u_int32_t)fflag);
 
-	i4b_setup_driver(cntl, channel, P_DISABLE, 
+	p.protocol_1 = P_DISABLE;
+
+	i4b_setup_driver(cntl, channel, &p,
 			 DRVR_IHFC_DEV, channel, NULL);
 
 	return 0;
