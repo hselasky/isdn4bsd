@@ -589,6 +589,49 @@ capi_get_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len,
 }
 
 /*---------------------------------------------------------------------------*
+ *	extract CAPI facility telephone number
+ *---------------------------------------------------------------------------*/
+static void
+capi_get_fac_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len, 
+		   u_int8_t *dst, u_int16_t max_length)
+{
+	if(len)
+	{
+	    /* type of facility number */
+
+	    src++;
+	    len--;
+
+	    if(len)
+	    {
+	        /* type of number and numbering plan */
+
+	        src++;
+		len--;
+
+		if(len)
+		{
+		    /* presentation and screening indicator */
+
+		    src++;
+		    len--;
+		}
+	    }
+	}
+
+	if(len > max_length)
+	{
+		NDBGL4(L4_ERR, "cdid=%d: truncating telephone "
+		       "number from %d to %d bytes", 
+		       cd->cdid, len, max_length);
+		len = max_length;
+	}
+	bcopy(src, dst, len);
+	dst[len] = '\0'; /* zero terminate string ! */
+	return;
+}
+
+/*---------------------------------------------------------------------------*
  *	compile CAPI telephone number and presentation
  *---------------------------------------------------------------------------*/
 static u_int16_t
@@ -739,6 +782,44 @@ capi_make_facility_conf(struct capi_message_encoded *pmsg,
 	    bcopy(&msg, m->m_data, m->m_len);
 	}
 	return m;
+}
+
+/*---------------------------------------------------------------------------*
+ *	generate supplementary facility confirmation message
+ *---------------------------------------------------------------------------*/
+static struct mbuf *
+capi_make_fac_suppl_conf(struct capi_message_encoded *pmsg, 
+			 u_int16_t wFunction, void *param)
+{
+	struct CAPI_SUPPL_PARAM_DECODED suppl = { /* zero */ };
+
+	CAPI_INIT(CAPI_SUPPL_PARAM, &suppl);
+
+	suppl.wFunction = wFunction;
+
+	if(param)
+	{
+	    suppl.Param.ptr = param;
+	    suppl.Param_STRUCT = IE_STRUCT_DECODED;
+	}
+	return capi_make_facility_conf(pmsg, 0x0003, 0x0000, &suppl);
+}
+
+/*---------------------------------------------------------------------------*
+ *	generate supplementary facility confirmation message (type 1)
+ *---------------------------------------------------------------------------*/
+static struct mbuf *
+capi_make_fac_suppl_conf_type1(struct capi_message_encoded *pmsg, 
+				    u_int16_t wFunction, u_int16_t wResult)
+{
+	struct CAPI_FACILITY_CONF_CALL_DEFL_PARAM_DECODED 
+	  conf = { /* zero */ };
+
+	CAPI_INIT(CAPI_FACILITY_CONF_CALL_DEFL_PARAM, &conf);
+
+	conf.wResult = wResult;
+
+	return capi_make_fac_suppl_conf(pmsg, wFunction, &conf);
 }
 
 /*---------------------------------------------------------------------------*
@@ -2330,6 +2411,29 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		      capi_decode(suppl_param.Param.ptr,
 				  suppl_param.Param.len,
 				  &cd_req);
+
+		      capi_get_fac_telno
+			(cd, 
+			 cd_req.dst_telno.ptr,
+			 cd_req.dst_telno.len,
+			 &(cd->dst_telno_part[0]), 
+			 sizeof(cd->dst_telno_part)-1);
+
+		      N_DEFLECT_REQUEST(cd);
+
+		      m2 = capi_make_fac_suppl_conf_type1
+			(&msg, 0x000D, 0x0000);
+		      goto send_confirmation;
+		  }
+		  else if(suppl_param.wFunction == 0x000E)
+		  {
+		      /* MCID */
+
+		      N_MCID_REQUEST(cd);
+
+		      m2 = capi_make_fac_suppl_conf
+			(&msg, 0x000E, NULL);
+		      goto send_confirmation;
 		  }
 	      }
 

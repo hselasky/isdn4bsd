@@ -631,11 +631,13 @@ const   struct resource_tab *ptr;
 
 		/* set wanted alternate config
 		 */
-		err = usbreq_set_interface(udev, def->usb_iface_no, def->usb_alt_iface_no);
+		err = usbreq_set_interface(udev, def->usb_iface_no, 
+					   def->usb_alt_iface_no);
 		if(err) goto usb_err;
 
 		/* setup transfers */
-		err = usbd_transfer_setup(udev, def->usb_iface_no, &sc->sc_resources.usb_xfer[0],
+		err = usbd_transfer_setup(udev, def->usb_iface_no, 
+					  &sc->sc_resources.usb_xfer[0],
 					  &def->usb[0], def->usb_length,
 					  sc, sc->sc_mtx_p, NULL);
 		if(err)

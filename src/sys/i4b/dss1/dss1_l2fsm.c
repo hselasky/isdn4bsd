@@ -1549,6 +1549,8 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	  pp->protocol_1 = P_HDLC;
 
+	  cntl->N_DEFLECT_REQUEST = n_deflect_request;
+	  cntl->N_MCID_REQUEST = n_mcid_request;
 	  cntl->N_CONNECT_REQUEST = n_connect_request;
 	  cntl->N_INFORMATION_REQUEST = n_information_request;
 	  cntl->N_CONNECT_RESPONSE = n_connect_response;

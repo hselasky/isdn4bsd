@@ -1,6 +1,8 @@
 /*-
  * Copyright (c) 1997, 2002 Hellmuth Michaelis. All rights reserved.
  *
+ * Copyright (c) 2006 Hans Petter Selasky. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -24,8 +26,8 @@
  *
  *---------------------------------------------------------------------------
  *
- *	dss1_aoc.c - Advice Of Charge support
- *	-------------------------------------
+ *	dss1_aoc.c - Advice Of Charge support / Facility support
+ *	--------------------------------------------------------
  *
  * $FreeBSD: $
  *
@@ -45,7 +47,8 @@
 #include <i4b/dss1/dss1_aoc.h>
 
 static void do_component(struct dss1_buffer *sc, u_int8_t *end);
-static void next_state(struct dss1_buffer *sc, u_int8_t class, u_int8_t form, u_int8_t code, int32_t val);
+static void next_state(struct dss1_buffer *sc, u_int8_t class, 
+		       u_int8_t form, u_int8_t code, int32_t val);
 
 static u_int8_t
 get_byte(struct dss1_buffer *buf)
@@ -98,6 +101,7 @@ dss1_facility_decode(call_desc_t *cd, struct dss1_buffer *buf)
 	
 	switch(dss1_get_1(buf,0) & 0x1f) {
 	case FAC_PROTO_ROP:
+	    NDBGL3(L3_A_MSG, "Remote Operations Protocol");
 	    break;
 
 	case FAC_PROTO_CMIP:
@@ -112,8 +116,6 @@ dss1_facility_decode(call_desc_t *cd, struct dss1_buffer *buf)
 	    NDBGL3(L3_A_ERR, "Unknown Protocol, UNSUPPORTED!");
 	    goto done;
 	}
-
-	NDBGL3(L3_A_MSG, "Remote Operations Protocol");
 
 	/* next byte */
 	

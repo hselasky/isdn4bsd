@@ -829,6 +829,26 @@ dss1_pipe_reset_ind(DSS1_TCP_pipe_t *pipe)
 }
 
 /*---------------------------------------------------------------------------*
+ *	handle deflect request message from userland
+ *---------------------------------------------------------------------------*/
+static void
+n_deflect_request(call_desc_t *cd)
+{
+	cd_update(cd, NULL, EV_L3_DEFLECTRQ);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	handle Malicious Call IDentification request message from userland
+ *---------------------------------------------------------------------------*/
+static void
+n_mcid_request(call_desc_t *cd)
+{
+	cd_update(cd, NULL, EV_L3_MCIDRQ);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
  *	handle connect request message from userland
  *---------------------------------------------------------------------------*/
 static void

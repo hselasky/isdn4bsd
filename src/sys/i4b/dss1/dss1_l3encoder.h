@@ -481,6 +481,14 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	dss1_l3_tx_message(cd,RETRIEVE_ACKNOWLEDGE,	\
 			   L3_TX_HEADER|L3_TX_CHANNELID)
 
+#define dss1_l3_tx_deflect_call(cd)			\
+	dss1_l3_tx_message(cd,FACILITY,			\
+			   L3_TX_HEADER|L3_TX_DEFLECT)
+
+#define dss1_l3_tx_mcid_call(cd)			\
+	dss1_l3_tx_message(cd,FACILITY,			\
+			   L3_TX_HEADER|L3_TX_MCID_REQ)
+
 #define dss1_l3_tx_retrieve_reject(cd,q850cause)	\
 {							\
 	(cd)->cause_out = (q850cause);			\
@@ -496,6 +504,9 @@ dss1_l3_tx_setup(call_desc_t *cd)
 #define L3_TX_CALLEDPN   0x08
 #define L3_TX_PROGRESSI  0x10
 #define L3_TX_RESTARTI   0x20
+#define L3_TX_DEFLECT    0x40
+#define L3_TX_MCID_REQ   0x80
+
 /*---------------------------------------------------------------------------*
  *	send message
  *---------------------------------------------------------------------------*/
@@ -580,6 +591,62 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 	    }
 	  }
 
+	  if(flag & L3_TX_DEFLECT)
+	  {
+	    str = &(cd->dst_telno_part[0]);
+
+	    if(str[0] != 0)
+	    {
+	        len = strlen(str);
+
+		*ptr++ = IEI_FACILITY; /* Facility IE */
+		*ptr++ = 0x10 + len;  /* Length */
+		*ptr++ = 0x91; /* Remote Operations Protocol */
+		*ptr++ = 0xa1; /* Tag: context specific */
+
+		*ptr++ = 0x0D + len; /* Length */
+		*ptr++ = 0x02; /* Tag: Universal, Primitive, INTEGER */ 
+		*ptr++ = 0x02; /* Length */
+		*ptr++ = 0x22; /* Data: Invoke Identifier = 34 */
+
+		*ptr++ = 0x00; /* Data */
+		*ptr++ = 0x02; /* Tag: Universal, Primitive, INTEGER */
+		*ptr++ = 0x01; /* Length */
+		*ptr++ = 0x0d; /* Data: Operation Value = Call Deflection */
+
+		*ptr++ = 0x30; /* Tag: Universal, Constructor, SEQUENCE */
+		*ptr++ = 0x04 + len; /* Length */
+		*ptr++ = 0x30; /* Tag: Universal, Constructor, SEQUENCE */
+		*ptr++ = 0x02 + len;  /* Length */
+
+		*ptr++ = 0x80; /* Tag: Context specific, Primitive, code = 0 */
+		*ptr++ = 0x00 + len; 
+
+		while(len--)
+		{
+		    *ptr++ = *str++;
+		}
+	    }
+	  }
+
+	  if(flag & L3_TX_MCID_REQ)
+	  {
+	    *ptr++ = IEI_FACILITY; /* Facility IE */
+	    *ptr++ = 0x0a; /* Length */
+	    *ptr++ = 0x91; /* Remote Operations Protocol */
+	    *ptr++ = 0xa1; /* Tag: Context-specific */
+
+	    *ptr++ = 0x07; /* Length */
+	    *ptr++ = 0x02; /* Tag: Universal, Primitive, INTEGER */
+	    *ptr++ = 0x02; /* Length */
+	    *ptr++ = 0x22; /* Data: Invoke Identifier = 34 */
+
+	    *ptr++ = 0x00; /* Data */
+	    *ptr++ = 0x02; /* Tag: Universal, Primitive, INTEGER */
+	    *ptr++ = 0x01; /* Length */
+	    *ptr++ = 0x03; /* Data: Operation Value = MCID request */
+	  }
+
 	  /* check length */
 #if (I_HEADER_LEN   +\
     3               +\
@@ -595,6 +662,11 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
                 \
     3               +\
     TELNO_MAX       +\
+		\
+    18              +\
+    TELNO_MAX       +\
+     	        \
+    8		    +\
                 \
     0) > DCH_MAX_DATALEN
 #error " > DCH_MAX_DATALEN"

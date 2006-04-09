@@ -872,12 +872,24 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	      break;
 	    }
 
-	    /* cleanup L2 ? */
-
 	    /* set state before indication */
 	    cd_set_state(cd,ST_L3_UA);
 
 	    i4b_l4_connect_active_ind(cd);
+	  }
+	  break;
+
+	case EV_L3_DEFLECTRQ:
+	  if(TE_MODE(sc))
+	  {
+	      dss1_l3_tx_deflect_call(cd);
+	  }
+	  break;
+
+	case EV_L3_MCIDRQ:
+	  if(TE_MODE(sc))
+	  {
+	      dss1_l3_tx_mcid_call(cd);
 	  }
 	  break;
 

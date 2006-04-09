@@ -569,6 +569,14 @@ typedef struct i4b_controller {
 	struct lapdstat
 		 *N_lapdstat;
   
+	void	(*N_DEFLECT_REQUEST)(struct call_desc *);
+#	define    N_DEFLECT_REQUEST(cd)		\
+         ((i4b_controller_by_cd(cd))->N_DEFLECT_REQUEST)(cd)
+
+	void	(*N_MCID_REQUEST)(struct call_desc *);
+#	define    N_MCID_REQUEST(cd)		\
+         ((i4b_controller_by_cd(cd))->N_MCID_REQUEST)(cd)
+
 	void	(*N_CONNECT_REQUEST)(struct call_desc *);
 #	define    N_CONNECT_REQUEST(cd)		\
          ((i4b_controller_by_cd(cd))->N_CONNECT_REQUEST)(cd)
