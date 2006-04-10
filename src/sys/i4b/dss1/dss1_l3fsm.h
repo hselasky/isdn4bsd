@@ -421,7 +421,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  }
 	  break;
 
-	case EV_L3_HOLD_REQ:
+	case EV_L3_HOLD_IND:
 	  if(((cd->state == ST_L3_UA) ||
 	      (cd->state == ST_L3_UA_TO) ||
 	      ((cd->state >= ST_L3_U6) &&
@@ -456,9 +456,9 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  }
 	  break;
 
-	case EV_L3_RETRIEVE_REQ:
+	case EV_L3_RETRIEVE_IND:
 
-	  if(cd->call_is_on_hold)
+	  if(cd->call_is_on_hold && NT_MODE(sc))
 	  {
 	      /* reserve channel */
 	      cd_allocate_channel(cd);
@@ -492,6 +492,64 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  }
 	  break;
 
+
+	case EV_L3_HOLD_REQ:
+	  if(((cd->state == ST_L3_UA) ||
+	      (cd->state == ST_L3_UA_TO) ||
+	      ((cd->state >= ST_L3_U2_ACK) &&
+	       (cd->state <= ST_L3_U4_TO))) &&
+	     (!cd->call_is_on_hold) && TE_MODE(sc))
+	    {
+	      if(cd->b_link_want_active)
+	      {
+		  /* disconnect B-channel if any */
+		  i4b_link_bchandrvr(cd, 0);
+
+		  /* still want the link active */
+		  cd->b_link_want_active = 1;
+	      }
+
+	      /* free allocated channel if any */
+	      cd_free_channel(cd);
+
+	      /* send hold request */
+	      dss1_l3_tx_hold(cd);
+
+	      /**/
+	      cd->call_is_on_hold = 1;
+	      cd->call_is_retrieving = 0;
+	  }
+	  break;
+
+	case EV_L3_RETRIEVE_REQ:
+
+	  if(cd->call_is_on_hold && TE_MODE(sc))
+	  {
+	      /* send retrive request */
+	      dss1_l3_tx_retrieve(cd);
+
+	      /**/
+	      cd->call_is_on_hold = 0;
+	      cd->call_is_retrieving = 1;
+	  }
+	  break;
+
+	case EV_L3_RETRIEVE_ACK:
+
+	  if(cd->call_is_retrieving && TE_MODE(sc))
+	  {
+	      /* reserve channel */
+	      cd_allocate_channel(cd);
+
+	      /**/
+	      cd->call_is_retrieving = 0;
+
+	      if(cd->b_link_want_active)
+	      {
+		  i4b_link_bchandrvr(cd, 1);
+	      }
+	  }
+	  break;
 
 /*
  * outgoing calls

@@ -452,6 +452,7 @@ typedef struct call_desc {
 					  */
 	u_int8_t b_link_want_active : 1; /* set if B-channel should be connected */
 	u_int8_t call_is_on_hold : 1;    /* set if call descriptor is on hold */
+	u_int8_t call_is_retrieving : 1; /* set if retrieve is in progress */
 	u_int8_t received_src_telno_1 : 1; /* set if calling party number is received */
 	u_int8_t received_src_telno_2 : 1; /* set if second calling party number is received */
 
@@ -568,6 +569,14 @@ typedef struct i4b_controller {
 
 	struct lapdstat
 		 *N_lapdstat;
+
+	void	(*N_RETRIEVE_REQUEST)(struct call_desc *);
+#	define    N_RETRIEVE_REQUEST(cd)		\
+         ((i4b_controller_by_cd(cd))->N_RETRIEVE_REQUEST)(cd)
+
+	void	(*N_HOLD_REQUEST)(struct call_desc *);
+#	define    N_HOLD_REQUEST(cd)		\
+         ((i4b_controller_by_cd(cd))->N_HOLD_REQUEST)(cd)
   
 	void	(*N_DEFLECT_REQUEST)(struct call_desc *);
 #	define    N_DEFLECT_REQUEST(cd)		\

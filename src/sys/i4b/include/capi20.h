@@ -1573,6 +1573,11 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
  *
  * FACILITY: supplementary services
  */
+#define CAPI_FACILITY_CONF_GET_SUPPL(m,n) \
+  m(n, WORD   , wResult,)\
+  m(n, DWORD  , dwServices,)\
+  END
+
 #define CAPI_SUPPL_PARAM(m,n) \
   m(n, WORD   , wFunction,)\
   m(n, STRUCT , Param,)\
@@ -1626,6 +1631,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, LI_CONN_IND_PARAM)\
   m(n, LI_DISC_IND_PARAM)\
   m(n, LINE_INTERCONNECT_PARAM)\
+  m(n, FACILITY_CONF_GET_SUPPL)\
   m(n, SUPPL_PARAM)\
 
 /* for each command generate eight structures */

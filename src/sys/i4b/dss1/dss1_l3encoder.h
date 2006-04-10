@@ -435,7 +435,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
  */
 #define dss1_l3_tx_release_complete(cd,send_cause_flag)			\
 	dss1_l3_tx_message(cd,RELEASE_COMPLETE,(send_cause_flag) ? 	\
-			  L3_TX_HEADER|L3_TX_CAUSE : L3_TX_HEADER)
+			   L3_TX_HEADER|L3_TX_CAUSE : L3_TX_HEADER)
 
 #define dss1_l3_tx_release_complete_complement(cd,p1,p2)		\
 	dss1_l3_tx_message_complement(cd,p1,p2,RELEASE_COMPLETE,	\
@@ -445,7 +445,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 {									\
 	(cd)->cause_out = (q850cause);					\
 	dss1_l3_tx_message(cd,STATUS,					\
-			  L3_TX_HEADER|L3_TX_CAUSE|L3_TX_CALLSTATE);	\
+			   L3_TX_HEADER|L3_TX_CAUSE|L3_TX_CALLSTATE);	\
 	(cd)->cause_out = 0;						\
 }
 
@@ -469,7 +469,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 {							\
 	(cd)->cause_out = (q850cause);			\
 	dss1_l3_tx_message(cd,HOLD_REJECT,		\
-			  L3_TX_HEADER|L3_TX_CAUSE);	\
+			   L3_TX_HEADER|L3_TX_CAUSE);	\
 	(cd)->cause_out = 0;				\
 }
 

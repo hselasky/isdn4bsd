@@ -829,6 +829,26 @@ dss1_pipe_reset_ind(DSS1_TCP_pipe_t *pipe)
 }
 
 /*---------------------------------------------------------------------------*
+ *	handle retrieve request message from userland
+ *---------------------------------------------------------------------------*/
+static void
+n_retrieve_request(call_desc_t *cd)
+{
+	cd_update(cd, NULL, EV_L3_RETRIEVE_REQ);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	handle hold request message from userland
+ *---------------------------------------------------------------------------*/
+static void
+n_hold_request(call_desc_t *cd)
+{
+	cd_update(cd, NULL, EV_L3_HOLD_REQ);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
  *	handle deflect request message from userland
  *---------------------------------------------------------------------------*/
 static void

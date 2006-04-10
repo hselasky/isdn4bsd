@@ -853,6 +853,27 @@ capi_make_li_supp_conf(struct capi_message_encoded *pmsg)
 }
 
 /*---------------------------------------------------------------------------*
+ *	generate supplementary support confirmation message
+ *---------------------------------------------------------------------------*/
+static struct mbuf *
+capi_make_suppl_supp_conf(struct capi_message_encoded *pmsg)
+{
+	struct CAPI_FACILITY_CONF_GET_SUPPL_DECODED 
+	  suppl_conf = { /* zero */ };
+
+
+	CAPI_INIT(CAPI_FACILITY_CONF_GET_SUPPL, &suppl_conf);
+
+	suppl_conf.dwServices = 
+	  0x00000020 /* Call deflection */ |
+	  0x00000040 /* MCID */ |
+	  0x00000001 /* HOLD/RETRIEVE */;
+
+	return capi_make_fac_suppl_conf
+	  (pmsg, 0x0000, &suppl_conf);
+}
+
+/*---------------------------------------------------------------------------*
  *	generate line interface connect confirmation message
  *---------------------------------------------------------------------------*/
 static struct mbuf *
@@ -2393,8 +2414,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	    case CAPI_P_REQ(FACILITY): /* ============================= */
 
 	      CAPI_INIT(CAPI_FACILITY_REQ, &facility_req);
-
-	      capi_decode(&msg.data, msg.head.wLen, &facility_req);
+ 	      capi_decode(&msg.data, msg.head.wLen, &facility_req);
 
 	      if(facility_req.wSelector == 0x0003)
 	      {
@@ -2404,9 +2424,37 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 			      facility_req.Param.len,
 			      &suppl_param);
 
-		  if(suppl_param.wFunction == 0x000D)
+		  if(suppl_param.wFunction == 0x0000)
+		  {
+		      /* get supplementary services */
+
+		      m2 = capi_make_suppl_supp_conf(&msg);
+		      goto send_confirmation;
+		  }
+		  else if(suppl_param.wFunction == 0x0002)
+		  {
+		      /* HOLD request */
+
+		      N_HOLD_REQUEST(cd);
+
+		      m2 = capi_make_fac_suppl_conf
+			(&msg, 0x0002, NULL);
+		      goto send_confirmation;
+		  }
+		  else if(suppl_param.wFunction == 0x0003)
+		  {
+		      /* RETRIEVE request */
+
+		      N_RETRIEVE_REQUEST(cd);
+
+		      m2 = capi_make_fac_suppl_conf
+			(&msg, 0x0003, NULL);
+		      goto send_confirmation;
+		  }
+		  else if(suppl_param.wFunction == 0x000D)
 		  {
 		      /* call deflection */
+
 		      CAPI_INIT(CAPI_FACILITY_REQ_CALL_DEFL_PARAM, &cd_req);
 		      capi_decode(suppl_param.Param.ptr,
 				  suppl_param.Param.len,
@@ -2792,6 +2840,45 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      goto send_confirmation;
 
+	    case CAPI_P_REQ(FACILITY):
+
+	      CAPI_INIT(CAPI_FACILITY_REQ, &facility_req);
+ 	      capi_decode(&msg.data, msg.head.wLen, 
+			  &facility_req);
+
+	      if(facility_req.wSelector == 0x0003)
+	      {
+		  /* supplementary services */
+		  CAPI_INIT(CAPI_SUPPL_PARAM, &suppl_param);
+		  capi_decode(facility_req.Param.ptr,
+			      facility_req.Param.len,
+			      &suppl_param);
+
+		  if(suppl_param.wFunction == 0x0000)
+		  {
+		      /* get supplementary services */
+
+		      m2 = capi_make_suppl_supp_conf(&msg);
+		      goto send_confirmation;
+		  }
+	      }
+	      if(facility_req.wSelector == 0x0005)
+	      {
+		  /* line interconnect */
+
+		  CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_param);
+		  capi_decode(facility_req.Param.ptr, facility_req.Param.len, 
+			      &li_param);
+
+		  if(li_param.wFunction == 0x0000)
+		  {
+		      /* get supported services */
+		      m2 = capi_make_li_supp_conf(&msg);
+		      goto send_confirmation;
+		  }
+	      }
+	      break;
+
 	    case CAPI_P_RESP(CONNECT):
 	    case CAPI_P_RESP(DISCONNECT_B3):
 	    case CAPI_P_REQ(DISCONNECT_B3):
@@ -2809,7 +2896,6 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	    case CAPI_P_RESP(RESET_B3):
 	    case CAPI_P_REQ(SELECT_B_PROTOCOL):
 	    case CAPI_P_RESP(SELECT_B_PROTOCOL):
-	    case CAPI_P_REQ(FACILITY):
 	    case CAPI_P_RESP(FACILITY):
 	    case CAPI_P_REQ(CONNECT_ACTIVE):
 	    case CAPI_P_RESP(CONNECT_ACTIVE):
@@ -3065,7 +3151,20 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		req->profile.wNumCtlr = htole16(MAX_CONTROLLERS);
 		req->profile.wNumBChannels = htole16(MAX_CHANNELS);
 		req->profile.dwGlobalOptions = 
-		  htole32(CAPI_PROFILE_INTERNAL_CTLR_SUPPORT);
+		  htole32(CAPI_PROFILE_INTERNAL_CTLR_SUPPORT|
+			  CAPI_PROFILE_SUPPLEMENTARY_SERVICES);
+
+		CNTL_LOCK(cntl);
+		if(cntl->L1_pcm_cable_end != 0)
+		{
+		    /* if line interconnect is configured,
+		     * it is supported, though really one
+		     * should also check layer 1:
+		     */
+		    req->profile.dwGlobalOptions |= 
+		      htole32(CAPI_PROFILE_LINE_INTERCONNECT);
+		}
+		CNTL_UNLOCK(cntl);
 
 		req->profile.dwB1ProtocolSupport = 
 		  htole32((1 << CAPI_B1_HDLC_64) |

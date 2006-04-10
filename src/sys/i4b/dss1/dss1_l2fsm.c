@@ -29,6 +29,9 @@
  *	dss1_l2fsm.c - layer 2 FSM
  *	--------------------------
  *
+ * $FreeBSD: $
+ *
+ *
  * existing-implementations:
  * -------------------------
  *
@@ -91,8 +94,6 @@
 
 #include <i4b/dss1/dss1_l2.h>
 #include <i4b/dss1/dss1_l3.h>
-
-__FBSDID("$FreeBSD: $");
 
 #define L1_ACTIVATION_TIME (4*hz)
 
@@ -1549,6 +1550,8 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	  pp->protocol_1 = P_HDLC;
 
+	  cntl->N_RETRIEVE_REQUEST = n_retrieve_request;
+	  cntl->N_HOLD_REQUEST = n_hold_request;
 	  cntl->N_DEFLECT_REQUEST = n_deflect_request;
 	  cntl->N_MCID_REQUEST = n_mcid_request;
 	  cntl->N_CONNECT_REQUEST = n_connect_request;
