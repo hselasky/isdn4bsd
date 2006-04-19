@@ -1,5 +1,5 @@
-VERSION=1_5_10_r2
-DATE=March 2006
+VERSION=1_6_0_r2
+DATE=April 2006
 
 FILTER= grep -v "temp"   |\
 	grep -v "~"      |\
@@ -167,6 +167,10 @@ ${N}\#    KERNCONF=custom -DNO_MODULES -DNOCLEAN -DNO_CLEAN\" \
 ${N}\# \
 ${N}\#    The second time you run make \
 ${N}\#    you can add -DNO_KERNELDEPEND \
+${N}\# \
+${N}\#    If the system does not boot, you \
+${N}\#    might want to compile the kernel without \
+${N}\#    \"-DNO_MODULES\" \
 ${N}\# \
 ${N}\# 5. Write down the kernel backup location, \
 ${N}\#    \"${.CURDIR}/kernel\", and reboot. \

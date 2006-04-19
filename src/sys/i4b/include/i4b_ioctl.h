@@ -38,8 +38,8 @@
  *	version and release number for ISDN4BSD package
  *---------------------------------------------------------------------------*/
 #define I4B_VERSION    1                /* version number */
-#define I4B_REL        5                /* release number */
-#define I4B_STEP      10                /* release step   */
+#define I4B_REL        6                /* release number */
+#define I4B_STEP       0                /* release step   */
 
 /*---------------------------------------------------------------------------*
  * date/time format in I4B log messages
