@@ -299,6 +299,8 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 	}
 #endif
 
+	temp |= (sc->sc_default.st_clock << 6);
+
 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ctrl_write, temp);
 
 	/* NOTE: counter maximum values are exclusive here,
@@ -1001,15 +1003,11 @@ I4B_DBASE(hfc4s8s_dbase_root)
   I4B_DBASE_ADD(c_fifo_frame_check   , &hfc4s8s_fifo_frame_check);
 
   I4B_DBASE_ADD(d_register_list      , &hfc4s8s_register_list[0]);
-  I4B_DBASE_ADD(d_channels           , 6*4);
-  I4B_DBASE_ADD(d_sub_controllers    , 4);
   I4B_DBASE_ADD(d_L1_type            , L1_TYPE_ISDN_BRI);
 
   /* delay 25 milliseconds */ 
   I4B_DBASE_ADD(d_interrupt_delay    , hz / 40);
  
-  I4B_DBASE_ADD(desc                 , "HFC-4S PCI ISDN adapter");
-
   I4B_DBASE_ADD(o_RES_IRQ_0          , 1); /* enable */
   I4B_DBASE_ADD(o_RES_MEMORY_0       , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
@@ -1032,24 +1030,99 @@ I4B_DBASE(hfc4s8s_dbase_root)
   I4B_DBASE_ADD(mem_rid[0]           , PCIR_BAR(1));
 }
 
-I4B_PCI_DRIVER(/* generic ID */
-	       .vid = 0x08B41397);
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
+I4B_DBASE(hfc4s_dbase_root)
+{
+  I4B_DBASE_IMPORT(hfc4s8s_dbase_root);
+
+  I4B_DBASE_ADD(d_channels           , 6*4);
+  I4B_DBASE_ADD(d_sub_controllers    , 4);
+  I4B_DBASE_ADD(desc                 , "HFC-4S PCI ISDN adapter");
+}
 
 #include <i4b/layer1/ihfc2/i4b_count.h>
 
 I4B_DBASE(COUNT())
 {
-  I4B_DBASE_IMPORT(hfc4s8s_dbase_root);
+  I4B_DBASE_IMPORT(hfc4s_dbase_root);
+  I4B_DBASE_ADD(st_clock, 0);
+}
 
-  /* override */
+I4B_PCI_DRIVER(/* HFC-4S generic */
+	       .vid = 0x08b41397,
+	       .sub = 0x08b41397);
+
+I4B_PCI_DRIVER(/* HFC-4S */
+	       .vid = 0x903010b5,
+	       .sub = 0x31361397);
+
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
+I4B_DBASE(COUNT())
+{
+  I4B_DBASE_IMPORT(hfc4s_dbase_root);
+  I4B_DBASE_ADD(st_clock, 1);
+}
+
+I4B_PCI_DRIVER(/* HFC-4S */
+	       .vid = 0x08b41397,
+	       .sub = 0xb5201397);
+
+I4B_PCI_DRIVER(/* HFC-4S */
+	       .vid = 0x08b41397,
+	       .sub = 0xb6201397);
+
+I4B_PCI_DRIVER(/* HFC-4S Beronet card */
+	       .vid = 0x08b41397,
+	       .sub = 0xb5601397);
+
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
+I4B_DBASE(hfc8s_dbase_root)
+{
+  I4B_DBASE_IMPORT(hfc4s8s_dbase_root);
 
   I4B_DBASE_ADD(d_channels           , 6*8);
   I4B_DBASE_ADD(d_sub_controllers    , 8);
   I4B_DBASE_ADD(desc                 , "HFC-8S PCI ISDN adapter");
 }
 
-I4B_PCI_DRIVER(/* generic ID */
-	       .vid = 0x16B81397);
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
+I4B_DBASE(COUNT())
+{
+  I4B_DBASE_IMPORT(hfc8s_dbase_root);
+  I4B_DBASE_ADD(st_clock, 0);
+}
+
+I4B_PCI_DRIVER(/* HFC-8S generic */
+	       .vid = 0x16b81397,
+	       .sub = 0x16b81397);
+
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
+I4B_DBASE(COUNT())
+{
+  I4B_DBASE_IMPORT(hfc8s_dbase_root);
+  I4B_DBASE_ADD(st_clock, 1);
+}
+
+I4B_PCI_DRIVER(/* HFC-8S */
+	       .vid = 0x16b81397,
+	       .sub = 0xb5211397);
+
+I4B_PCI_DRIVER(/* HFC-8S */
+	       .vid = 0x16b81397,
+	       .sub = 0xb5221397);
+
+I4B_PCI_DRIVER(/* HFC-8S */
+	       .vid = 0x16b81397,
+	       .sub = 0xb6221397);
+
+I4B_PCI_DRIVER(/* HFC-8S Beronet card */
+	       .vid = 0x16b81397,
+	       .sub = 0xb5621397);
 
 /* cleanup */
 

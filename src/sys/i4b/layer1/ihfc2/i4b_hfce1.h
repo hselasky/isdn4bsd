@@ -1173,8 +1173,8 @@ I4B_DBASE(hfce1_dbase_root)
   I4B_DBASE_ADD(mem_rid[0]           , PCIR_BAR(1));
 }
 
-I4B_PCI_DRIVER(/* generic ID */
-	       .vid = 0x30B11397);
+I4B_PCI_DRIVER(/* HFC-E1 generic */
+	       .vid = 0x30b11397);
 
 /* cleanup */
 

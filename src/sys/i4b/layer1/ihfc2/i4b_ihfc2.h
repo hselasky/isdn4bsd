@@ -864,16 +864,26 @@ struct sc_default {
 						*/
   u_int32_t o_T125_WAIT          : 1; /* set if waiting for 125us timeout */
 
-#define IS_NT_MODE(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_NT_MODE)
-#define IS_T1_MODE(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_T1_MODE)
-#define IS_DLOWPRI(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_DLOWPRI)
-#define IS_PCM_SLAVE(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SLAVE)
-#define IS_PCM_SPEED_32(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SPEED_32)
-#define IS_PCM_SPEED_64(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SPEED_64)
-#define IS_PCM_SPEED_128(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SPEED_128)
-#define IS_POLLED_MODE(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_POLLED_MODE)
-#define IS_LOCAL_LOOP(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_LOCAL_LOOP)
-#define IS_REMOTE_LOOP(sc,su) ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_REMOTE_LOOP)
+#define IS_NT_MODE(sc,su) \
+  ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_NT_MODE)
+#define IS_T1_MODE(sc,su) \
+  ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_T1_MODE)
+#define IS_DLOWPRI(sc,su) \
+  ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_DLOWPRI)
+#define IS_PCM_SLAVE(sc,su) \
+  ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SLAVE)
+#define IS_PCM_SPEED_32(sc,su) \
+  ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SPEED_32)
+#define IS_PCM_SPEED_64(sc,su) \
+  ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SPEED_64)
+#define IS_PCM_SPEED_128(sc,su) \
+  ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_PCM_SPEED_128)
+#define IS_POLLED_MODE(sc,su) \
+  ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_POLLED_MODE)
+#define IS_LOCAL_LOOP(sc,su) \
+  ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_LOCAL_LOOP)
+#define IS_REMOTE_LOOP(sc,su) \
+  ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_REMOTE_LOOP)
 
   u_int32_t i4b_option_mask;
   u_int32_t i4b_option_value;
@@ -881,6 +891,7 @@ struct sc_default {
   u_int8_t                      cookie;
   u_int8_t                      stdel_nt;  /* S/T delay for NT-mode */
   u_int8_t                      stdel_te;  /* S/T delay for TE-mode */
+  u_int8_t                      st_clock;  /* S/T clock selection */
   u_int8_t                      usb_length;
   u_int8_t                      usb_conf_no;
   u_int8_t                      usb_iface_no;
