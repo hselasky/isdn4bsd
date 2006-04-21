@@ -132,19 +132,11 @@ i4bctlioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 	     * apply for all units:
 	     */
 	case I4B_CTL_GET_DEBUG:
-	    dbg->debug[0] = 0;
-	    dbg->debug[1] = i4b_l1_debug;
-	    dbg->debug[2] = i4b_l2_debug;
-	    dbg->debug[3] = i4b_l3_debug;
-	    dbg->debug[4] = i4b_l4_debug;
+	    dbg->debug = i4b_debug_mask;
 	    break;
 
 	case I4B_CTL_SET_DEBUG:
-	    /* i4b_l0_debug = dbg->debug[0]; */
-	    i4b_l1_debug = dbg->debug[1];
-	    i4b_l2_debug = dbg->debug[2];
-	    i4b_l3_debug = dbg->debug[3];
-	    i4b_l4_debug = dbg->debug[4];
+	    i4b_debug_mask = dbg->debug;
 	    break;
 
 	case I4B_CTL_SET_N_SERIAL_NUMBER:

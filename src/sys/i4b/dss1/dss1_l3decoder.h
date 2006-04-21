@@ -615,7 +615,7 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, struct dss1_buffer *buf,
 
 	event = Q931_MESSAGE_TYPES_EVENT[mt];
 
-	NDBGL3(L3_PRIM|L3_P_MSG, "unit=%x, crlen=%d crval=0x%04x, "
+	NDBGL3(L3_PRIM, "unit=%x, crlen=%d crval=0x%04x, "
 	       "message_type=0x%02x", sc->sc_unit, 
 	       cr_temp[0], crval, mt);
 

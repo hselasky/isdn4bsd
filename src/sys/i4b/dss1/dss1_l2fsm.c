@@ -285,13 +285,13 @@ dss1_cntl_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe, u_int8_t sapi,
 
 	if(L2_STATE_IS_TEI_ASSIGNED(pipe->state))
 	{
-	  NDBGL2(L2_S_MSG|L2_U_MSG,"");
+	  NDBGL2(L2_S_MSG, "");
 
 	  m = i4b_getmbuf(max(S_FRAME_LEN,U_FRAME_LEN), M_NOWAIT);
 
 	  if(m == NULL)
 	  {
-	    NDBGL2(L2_S_ERR|L2_U_ERR, "out of mbufs!");
+	    NDBGL2(L2_S_ERR, "out of mbufs!");
 	    goto done;
 	  }
 	  else
@@ -1054,8 +1054,8 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 	    break;
 
 	default:
-	    NDBGL2(L2_I_MSG|L2_U_MSG|L2_S_MSG,
-		   "unit=%x, not decoded cntl:0x%02x, frame: ",
+	    NDBGL2(L2_PRIM,
+		   "unit=0x%x, not decoded cntl:0x%02x, frame: ",
 		   sc->sc_unit, cntl);
 	    break;
 	}

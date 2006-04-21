@@ -44,11 +44,7 @@
 #include <i4b/include/i4b_trace.h>
 #include <i4b/include/i4b_global.h>
 
-unsigned int i4b_l1_debug = L1_DEBUG_DEFAULT;
-unsigned int i4b_l2_debug = L2_DEBUG_DEFAULT;
-unsigned int i4b_l3_debug = L3_DEBUG_DEFAULT;
-unsigned int i4b_l4_debug = L4_DEBUG_DEFAULT;
-
+struct i4b_debug_mask i4b_debug_mask;
 struct i4b_controller i4b_controller[MAX_CONTROLLERS]; /* controller description array */
 struct i4b_pcm_cable i4b_pcm_cable[I4B_PCM_CABLE_MAX]; /* PCM cable array */
 
@@ -63,6 +59,15 @@ i4b_controller_setup(void *arg)
   struct i4b_controller *cntl;
   __typeof(cntl->unit) unit = 0;
   __typeof(cntl->unit) mask;
+
+#if DO_I4B_DEBUG
+  i4b_debug_mask = 
+#ifdef DO_I4B_MAXDEBUG
+    i4b_debug_max;
+#else
+    i4b_debug_err;
+#endif
+#endif
 
   mtx_init(&i4b_global_lock, "i4b_global_lock", 
 	   NULL, MTX_DEF|MTX_RECURSE);

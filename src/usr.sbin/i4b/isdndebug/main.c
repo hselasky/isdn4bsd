@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 1997, 2001 Hellmuth Michaelis. All rights reserved.
  *
- * Copyright (c) 2004 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2004-2006 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,18 +26,17 @@
  *
  *---------------------------------------------------------------------------
  *
- *	main.c - i4b set debug options
+ *	main.c - I4B set debug options
  *	------------------------------
  *
- * $FreeBSD: src/usr.sbin/i4b/isdndebug/main.c,v 1.11 2001/05/25 08:36:45 hm Exp $
- *
- *      last edit-date: [Mon May 21 10:09:23 2001]
+ * $FreeBSD: src/usr.sbin/i4b/isdndebug/main.c $
  *
  *---------------------------------------------------------------------------*/
 
 #include <stdio.h>
 #include <signal.h>
 #include <errno.h>
+#include <err.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -52,60 +51,52 @@
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
 
-static int isdnfd;
-
 #define I4BCTLDEVICE	"/dev/i4bctl"
 
-u_int opt_layer = -1;
-u_int opt_chan = -1;
-u_int opt_unit = 0;
+static int isdnfd;
+static u_int opt_layer = -1;
+static u_int opt_chan = -1;
+static u_int opt_unit = 0;
 
-i4b_debug_t dbg;
+static i4b_debug_t dbg;
 
-static const struct
-{
+static const struct enum_list {
   u_int8_t *name;
   u_int8_t value;
 }
 	enum_list[] =
 {
-#define MACRO_0(enum,args...) { #enum, enum },
+#define MACRO_0(enum,...) { #enum, enum },
     I4B_PROTOCOLS(MACRO_0)
     I4B_DRIVERS(MACRO_0)
+    { NULL, 0 }
 };
 
 static int
-_atoi(u_int8_t *optarg)
+__atoi(const u_int8_t *optarg)
 {
-  static const typeof(enum_list[0]) *item;
-  u_int8_t n;
+    const struct enum_list *item = &enum_list[0];
 
-  item = &enum_list[0];
-  n = INDEXES(enum_list);
-
-  while(n--)
-  {
-    if(strcmp(item->name,optarg) == 0)
+    while(item->value)
     {
-      return(item->value);
+        if(strcmp(item->name,optarg) == 0)
+	{
+	    return(item->value);
+	}
+	item++;
     }
-    item++;
-  }
-
-  return(atoi(optarg));
+    return(atoi(optarg));
 }
-
-#define atoi _atoi
 
 /*---------------------------------------------------------------------------*
  *	usage display and exit
  *
- * NOTE: the text below use tabs
+ * NOTE: the text below uses tabs
  *---------------------------------------------------------------------------*/
 static void
 usage(void)
 {
-#define MACRO_1(enum,args...) #enum ", "
+#define MACRO_1(enum,...) #enum ", "
 
   fprintf(stdout,
   """isdndebug - i4b set debug level, version %d.%d.%d, compiled %s %s"
@@ -148,23 +139,24 @@ usage(void)
 static void
 i4b_print_events()
 {
-  printf("\n"
-	 "Chip statistics for unit %2d, chan %2d:\n"
-	 "    VFR"
-	 "    RDO"
-	 "    CRC"
-	 "    RAB"
-	 "    XDU"
-	 "    RFO\n"
-	 "%7d%7d%7d%7d%7d%7d\n\n",
-	 dbg.unit,
-	 dbg.chan,
-	 dbg.chanstat.vfr,
-	 dbg.chanstat.rdo,
-	 dbg.chanstat.crc,
-	 dbg.chanstat.rab,
-	 dbg.chanstat.xdu,
-	 dbg.chanstat.rfo);
+    printf("\n"
+	   "Chip statistics for unit %2d, chan %2d:\n"
+	   "    VFR"
+	   "    RDO"
+	   "    CRC"
+	   "    RAB"
+	   "    XDU"
+	   "    RFO\n"
+	   "%7d%7d%7d%7d%7d%7d\n\n",
+	   dbg.unit,
+	   dbg.chan,
+	   dbg.chanstat.vfr,
+	   dbg.chanstat.rdo,
+	   dbg.chanstat.crc,
+	   dbg.chanstat.rab,
+	   dbg.chanstat.xdu,
+	   dbg.chanstat.rfo);
+    return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -173,221 +165,149 @@ i4b_print_events()
 static void
 i4b_ioctl(int cmdr, const char *err_msg, void *arg)
 {
-  if(ioctl(isdnfd, cmdr, arg) < 0)
-  {
-    fprintf(stderr, "ioctl %s failed: %s.\n",
-	    err_msg, strerror(errno));
-    exit(1);
-  }
+    if(ioctl(isdnfd, cmdr, arg) < 0)
+    {
+        err(1, "ioctl %s failed!", err_msg);
+    }
+    return;
 }
 
-#define i4b_ioctl(cmdr,arg) i4b_ioctl(cmdr,#cmdr,arg)
+#define i4b_ioctl(cmdr,arg) \
+        i4b_ioctl(cmdr,#cmdr,arg)
 
-#define START      0xff
-#define END        0x00
+enum {
+    I4B_DEBUG_FIELDS(I4B_DEBUG_MAKE_ENUM,)
+    I4B_DEBUG_ENUMS
+};
 
-#define PRINT 8
-#define RESET 4
-#define ADD   2
-#define REM   1
-
-#define DEBUG_DESC_1(layer, name, group, desc, first, last)	\
-first ("") #name ") " desc "\000" last ("\377" /*0xff*/)
-
-#define DEBUG_DESC_2(layer, name, group, desc, first, last)	\
-first (L##layer##_DEBUG_ERR,)
-
-#define DEBUG_DESC_3(layer, name, group, desc, first, last)	\
-first (L##layer##_DEBUG_MAX,)
-
-#define DEBUG_DESC_4(layer, name, group, desc, first, last)	\
-first (L##layer##_DEBUG_DEFAULT,)
-
-#define DEBUG_DESC_5(layer, name, group, desc, first, last)	\
-first (-1,)
-
-/*
- * Format of layer_start[]:
- * ========================
- *
- * +--- - - - ---+------+--- - - - ---+------+-------+
- * | description | END  | description | END  | START |
- * +--- - - - ---+------+--- - - - ---+------+-------+
- * |     ...     | 0x00 |     ...     | 0x00 |  0xff |
- * +--- - - - ---+------+--- - - - ---+------+-------+
- *
- */
-
-static const u_int8_t layer_start[] = I4B_DEBUG_MASKS(DEBUG_DESC_1);
-
-typedef __typeof(dbg.debug[0]) mask_t;
-
-static const mask_t
-
-group_err[] =
-{
-  I4B_DEBUG_MASKS(DEBUG_DESC_2)
-},
-
-group_max[] =
-{
-  I4B_DEBUG_MASKS(DEBUG_DESC_3)
-},
-
-group_def[] =
-{
-  I4B_DEBUG_MASKS(DEBUG_DESC_4)
-},
-
-group_all[] =
-{
-  I4B_DEBUG_MASKS(DEBUG_DESC_5)
+static const char *i4b_debug_desc[I4B_DEBUG_ENUMS] = {
+    I4B_DEBUG_FIELDS(I4B_DEBUG_MAKE_TABLE_0, )
 };
 
 /*---------------------------------------------------------------------------*
- *	update debugging masks
+ *	get a debug bit by number
+ *---------------------------------------------------------------------------*/
+static u_int8_t
+i4b_debug_get_bit(struct i4b_debug_mask *pmask, u_int16_t n)
+{
+    switch(n) {
+      I4B_DEBUG_FIELDS(I4B_DEBUG_MAKE_CASE_GET, pmask);
+    }
+    return 0;
+ one:
+    return 1;
+}
+
+/*---------------------------------------------------------------------------*
+ *	set a debug bit by number
  *---------------------------------------------------------------------------*/
 static void
-debug_mask_update(const mask_t *group, u_int8_t *str, u_int8_t _cmd)
+i4b_debug_set_bit(struct i4b_debug_mask *pmask, 
+		  u_int16_t n, u_int8_t value)
 {
-  u_int8_t buf[256];
+    switch(n) {
+      I4B_DEBUG_FIELDS(I4B_DEBUG_MAKE_CASE_SET, pmask);
+    }
+    return;
+}
 
-  __typeof(_cmd) cmd;
+#define PRINT 4
+#define ADD   2
+#define REM   1
 
-  mask_t          mask;
-  u_int          layer = 1;
-  mask_t          *var = &dbg.debug[1];
-  const mask_t    *err = &group_err[0];
-  const u_int8_t *desc = &layer_start[0];
+/*---------------------------------------------------------------------------*
+ *	update debugging bits
+ *---------------------------------------------------------------------------*/
+static void
+i4b_debug_mask_update(u_int8_t *str, u_int8_t cmd)
+{
+    u_int8_t buf[256];
+    u_int8_t layer[8];
+    u_int16_t n;
+    u_int8_t c;
 
-	i4b_ioctl(I4B_CTL_GET_DEBUG, &dbg);
+    i4b_ioctl(I4B_CTL_GET_DEBUG, &dbg);
 
- start_layer:
-	/* check if end of
-	 * layer
+    if(opt_layer == ((__typeof(opt_layer))-1))
+    {
+        layer[0] = 0; /* all layers */
+    }
+    else
+    {
+        snprintf(layer, sizeof(layer), 
+		 "(L%d_", opt_layer);
+    }
+
+    for(n = 0; n < I4B_DEBUG_ENUMS; n++)
+    {
+        c = i4b_debug_get_bit(&dbg.debug, n);
+
+        /* print out the full 
+	 * description to a buffer:
 	 */
-	if(desc[0] == END)
+        snprintf(buf, sizeof(buf), "	[%c] %s\n",
+		 (c ? 'X' : '-'), i4b_debug_desc[n]);
+
+	/* check if keyword does not match */
+
+	if(strstr(buf, str) == NULL)
 	{
-	  goto done;
+	    continue;
 	}
 
-	/* disable commands */
-	cmd = 0;
+	/* check if layer does not match */
 
-	/* reset mask */
-	mask = 1;
-
-	/* check if layer
-	 * matches
-	 */
-	if((opt_layer == (__typeof(opt_layer))-1) ||
-	   (opt_layer == layer))
+	if(strstr(buf, layer) == NULL)
 	{
-	  /* enable commands, if any */
-	  cmd = _cmd;
-
-	  if(cmd & PRINT)
-	  {
-	    printf("\nLayer%d messages (0x%08x):\n\n",
-		   layer, *var);
-	  }
+	    continue;
 	}
 
- start_mask:
-	/* check for matching
-	 * group
-	 */
-	if((*group) & mask)
-	{
-	  /* print out full description
-	   * to buffer
-	   */
-	  snprintf(&buf[0], sizeof(buf), "	[%s] (L%d_%s %s\n",
-		   ((*var) & mask) ? "X" : "-",
-		   layer, desc, ((*err) & mask) ? "errors" : "messages");
+	/* add bit */
 
-	  /* check if keyword, pointed to
-	   * by str, has a match in the
-	   * full description
-	   */
-	  if(strstr(&buf[0], str))
-	  {
-	    /* add bit */
-	    if(cmd & (ADD|RESET))
-	    {
-	      (*var) |= (mask);
-	    }
-
-	    /* remove bit */
-	    if(cmd & (REM))
-	    {
-	    remove_bit:
-	      (*var) &= ~(mask);
-	    }
-#if 0
-	    printf("(0x%08x 0x%08x)", mask, (*group));
-#endif
-	    /* print */
-	    if(cmd & (PRINT))
-	    {
-	      printf(&buf[0]);
-	    }
-	  }
-	}
-	else
+	if(cmd & ADD)
 	{
-	    if(cmd & (RESET))
-	    {
-	      /* force bits to have
-	       * the same value as
-	       * the selected group,
-	       * in case of RESET
-	       */
-	      goto remove_bit;
-	    }
+	    c = 1;
 	}
 
-	/* update mask */
-	mask <<= 1;
+	/* remove bit */
 
- search:
-	/* new layer or new mask */
-	if(desc[0] == END)
+	if(cmd & REM)
 	{
-	  /* get next byte */
-	  desc++;
-
-	  /* new layer */
-	  if(desc[0] == START)
-	  {
-	    /* get next byte */
-	    desc  ++;
-
-	    /* increment
-	     * layer number
-	     */
-	    group ++;
-	    layer ++;
-	    var   ++;
-	    err   ++;
-
-	    goto start_layer;
-	  }
-	  else
-	  {
-	    goto start_mask;
-	  }
+	    c = 0;
 	}
 
-	/* get next byte */
-	desc++;
+	/* print bit */
 
-	goto search;
+	if(cmd & PRINT)
+	{
+	   if(n == L1_ERROR_ENUM)
+	   {
+	       printf("\nLayer 1 messages:\n\n");
+	   }
 
- done:
-	i4b_ioctl(I4B_CTL_SET_DEBUG, &dbg);
+	   if(n == L2_ERROR_ENUM)
+	   {
+	       printf("\nLayer 2 messages:\n\n");
+	   }
 
-	return;
+	   if(n == L3_ERR_ENUM)
+	   {
+	       printf("\nLayer 3 messages:\n\n");
+	   }
+
+	   if(n == L4_ERR_ENUM)
+	   {
+	       printf("\nLayer 4 messages:\n\n");
+	   }
+
+	   printf("%s", &buf[0]);
+	}
+
+	i4b_debug_set_bit(&dbg.debug, n, c);
+    }
+
+    i4b_ioctl(I4B_CTL_SET_DEBUG, &dbg);
+    return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -396,35 +316,34 @@ debug_mask_update(const mask_t *group, u_int8_t *str, u_int8_t _cmd)
 int
 main(int argc, char **argv)
 {
-	register int c;
+    register int c;
 
-	if(argc <= 1)
-	  usage();
+    if(argc <= 1)
+    {
+        usage();
+    }
 
-	if((isdnfd = open(I4BCTLDEVICE, O_RDWR)) < 0)
-	{
-		fprintf(stderr, "i4bctl: cannot open %s: %s\n",
-			I4BCTLDEVICE, strerror(errno));
-		exit(1);
-	}
+    if((isdnfd = open(I4BCTLDEVICE, O_RDWR)) < 0)
+    {
+        err(1, "cannot open %s", I4BCTLDEVICE);
+    }
 
-	while ((c = getopt(argc, argv, "ab:cdeE:ghi:l:mnp:qrtT:s:u:zCDHPQS")) != -1)
-	{
-	  /* zero is default */
-	  bzero(&dbg, sizeof(dbg));
+    while ((c = getopt(argc, argv, "ab:cdeE:ghi:l:mnp:qrtT:s:u:zCDHPQS")) != -1)
+    {
+	    /* zero is default */
+	    bzero(&dbg, sizeof(dbg));
 
-	  /* setup unit number */
-	  dbg.unit = opt_unit;
+	    /* setup unit number */
+	    dbg.unit = opt_unit;
 
-	  switch(c)
-	  {
+	    switch(c) {
 	    case 'T':
-	      dbg.value = atoi(optarg);
+	      dbg.value = __atoi(optarg);
 	      i4b_ioctl(I4B_CTL_SET_N_DRIVER_TYPE, &dbg);
 	      break;
 
 	    case 'i':
-	      dbg.value = atoi(optarg);
+	      dbg.value = __atoi(optarg);
 	      i4b_ioctl(I4B_CTL_SET_N_SERIAL_NUMBER, &dbg);
 	      break;
 
@@ -448,29 +367,29 @@ main(int argc, char **argv)
 	      i4b_ioctl(I4B_CTL_RESET, &dbg);
 	      break;
 
-	    case 'd':
-	      debug_mask_update(&group_def[0], "", RESET);
-	      break;
-
 	    case 'E':
 	      printf("enum ``%s'' has value 0x%02x\n",
-		     optarg, atoi(optarg));
+		     optarg, __atoi(optarg));
 	      break;
 
+	    case 'd':
 	    case 'e':
-	      debug_mask_update(&group_err[0], "", RESET);
+	      dbg.debug = i4b_debug_err;
+	      i4b_ioctl(I4B_CTL_SET_DEBUG, &dbg);
 	      break;
 
 	    case 'g': 
-	      debug_mask_update(&group_all[0], "", PRINT);
+	      i4b_debug_mask_update("", PRINT);
 	      break;
 
 	    case 'm':
-	      debug_mask_update(&group_max[0], "", RESET);
+	      dbg.debug = i4b_debug_max;
+	      i4b_ioctl(I4B_CTL_SET_DEBUG, &dbg);
 	      break;
 
 	    case 'z':
-	      debug_mask_update(&group_all[0], "", REM);
+	      dbg.debug = i4b_debug_zero;
+	      i4b_ioctl(I4B_CTL_SET_DEBUG, &dbg);
 	      break;
 
 	    case 's':
@@ -478,7 +397,7 @@ main(int argc, char **argv)
 	      if(optarg[0] == '-')
 	      {
 		  /* remove ``bits'' that match keyword */
-		  debug_mask_update(&group_all[0], optarg+1, REM);
+		  i4b_debug_mask_update(optarg+1, REM);
 	      }
 	      else
 	      {
@@ -491,20 +410,20 @@ main(int argc, char **argv)
 		  }
 
 		  /* add ``bits'' that match keyword */
-		  debug_mask_update(&group_all[0], optarg, ADD);
+		  i4b_debug_mask_update(optarg, ADD);
 	      }
 	      break;
 
 	    case 'u':
 	      /* get unit */
-	      opt_unit = atoi(optarg);
+	      opt_unit = __atoi(optarg);
 	      opt_layer = -1;
 	      opt_chan = -1;
 	      break;
 
 	    case 'l':
 	      /* get layer */
-	          opt_layer = atoi(optarg);
+	          opt_layer = __atoi(optarg);
 	      if((opt_layer < 1) ||
 		 (opt_layer > 4))
 	      {
@@ -514,7 +433,7 @@ main(int argc, char **argv)
 
 	    case 'b':
 	      /* get channel */
-	         opt_chan = (1 << atoi(optarg));
+	         opt_chan = (1 << __atoi(optarg));
 	      if(opt_chan == 0)
 	      {
 		  usage();
@@ -547,7 +466,7 @@ main(int argc, char **argv)
 
 	    case 'p':
 	      /* set protocol(s) */
-	      dbg.value = atoi(optarg);
+	      dbg.value = __atoi(optarg);
 
 	      for(c = 1; c; c <<= 1)
 	      {
@@ -621,11 +540,9 @@ main(int argc, char **argv)
 	      usage();
 	      break;
 
-	  } /* end of switch(c) */
+	    } /* end of switch(c) */
 
-	} /* end of while((c = ...)) */
+    } /* end of while((c = ...)) */
 
-	return 0;
+    return 0;
 }
-
-/* EOF */

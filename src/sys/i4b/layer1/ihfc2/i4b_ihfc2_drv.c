@@ -835,7 +835,7 @@ __ihfc_chip_interrupt(ihfc_sc_t *sc)
 	    CHIP_STATUS_READ(sc);
 
 #if DO_I4B_DEBUG
-	    if(i4b_l1_debug & L1_HFC_DBG)
+	    if(i4b_debug_mask.L1_HFC_DBG)
 	    {
 	      microtime(&sc->sc_stack.tv);
 	      IHFC_MSG("del=%08d ista=0x%04x, exir=0x%04x, "

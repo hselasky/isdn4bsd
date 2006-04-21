@@ -148,12 +148,13 @@ memset_1(void *dst, u_int32_t fill, u_int32_t len)
  * : global stuff
  *---------------------------------------------------------------------------*/
 #if DO_I4B_DEBUG
-#define IHFC_DEBUG(bits,fmt,args...) {			\
-	if(i4b_l1_debug & (bits))				\
-                printf("i4b-L1 %s: %s: "		\
-                       fmt, sc->sc_nametmp, __FUNCTION__ ,## args); }
+#define IHFC_DEBUG(what,fmt,...)		\
+  if(i4b_debug_mask.what)			\
+    { printf("i4b-L1 %s: %s: "			\
+	       fmt, sc->sc_nametmp,		\
+	       __FUNCTION__ ,## __VA_ARGS__); }
 #else
-#define IHFC_DEBUG(args...) 
+#define IHFC_DEBUG(...) { }
 #endif
 
 #define IHFC_MSG(args...)	IHFC_DEBUG(L1_HFC_DBG,args)

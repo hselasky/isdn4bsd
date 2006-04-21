@@ -1,6 +1,8 @@
 /*-
  * Copyright (c) 1997, 2002 Hellmuth Michaelis. All rights reserved.
  *
+ * Copyright (c) 2006 Hans Petter Selasky. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -33,45 +35,15 @@
 #ifndef _I4B_DEBUG_H_
 #define _I4B_DEBUG_H_
 
-#define DO_I4B_DEBUG 1
-
-#if (defined(DO_I4B_DEBUG) && (DO_I4B_DEBUG != 0))
-#undef DO_I4B_DEBUG
-#define DO_I4B_DEBUG 1
-#else
-#undef DO_I4B_DEBUG
-#define DO_I4B_DEBUG 0
+#ifndef DO_I4B_DEBUG
+#define DO_I4B_DEBUG 1	/* default: do debugging */
 #endif
 
-#undef DO_I4B_MAXDEBUG		/* default = disable ALL debug messages */
+#undef  DO_I4B_MAXDEBUG
 
-#if DO_I4B_DEBUG
-
-extern unsigned int i4b_l1_debug;
-extern unsigned int i4b_l2_debug;
-extern unsigned int i4b_l3_debug;
-extern unsigned int i4b_l4_debug;
-
-#define _NDBG(layer, bits, fmt, args...)					\
-	if(i4b_l##layer##_debug & (bits))					\
-	{ printf("i4b-L" #layer " %s: " fmt "\n", __FUNCTION__ ,## args ); }
-
-#else /* !DO_I4B_DEBUG */
-
-#define _NDBG(args...)
-
-#endif
-
-#define NDBGL1(args...) _NDBG(1, args)
-#define NDBGL2(args...) _NDBG(2, args)
-#define NDBGL3(args...) _NDBG(3, args)
-#define NDBGL4(args...) _NDBG(4, args)
-
-#define YES(args...) args
-#define NO(...)
-
-/* NOTE: ``kernel'' and ``/usr/src/usr.sbin/i4b'' must be
- * recompiled if debug masks are added or removed
+/* NOTE: the "kernel" and "/usr/src/usr.sbin/i4b" 
+ * must be recompiled if debug masks are added 
+ * or removed
  *
  * group | meaning
  * ------+--------------------------------
@@ -81,132 +53,172 @@ extern unsigned int i4b_l4_debug;
  *     4 | debug errors *
  *       |
  *
- * *console overflow danger: ``syslogd'' should not
+ * *console overflow danger: "syslogd" should not
  *  be running when enabling these
  */
+#define I4B_DEBUG_FIELDS(m,n)\
+\
+    /* Layer 1 */\
+\
+m(n, L1_ERROR,     2, "general")\
+m(n, L1_PRIM,      1, "PH primitive exchange")\
+m(n, L1_BCHAN,     1, "B channel action")\
+m(n, L1_H_ERR,     2, "HSCX")\
+m(n, L1_H_IRQ,     0, "HSCX IRQ")\
+m(n, L1_I_ERR,     2, "ISAC")\
+m(n, L1_I_MSG,     1, "ISAC")\
+m(n, L1_I_SETUP,   1, "ISAC setup")\
+m(n, L1_F_MSG,     1, "FSM ")\
+m(n, L1_F_ERR,     2, "FSM")\
+m(n, L1_T_MSG,     1, "timer")\
+m(n, L1_T_ERR,     2, "timer")\
+m(n, L1_H_XFRERR,  4, "HSCX data xfer")\
+m(n, L1_I_CICO,    1, "ISAC CICO")\
+m(n, L1_S_MSG,     1, "soft-HDLC")\
+m(n, L1_S_ERR,     4, "soft-HDLC")\
+m(n, L1_HFC_DBG,   0, "HFC-S IRQ")\
+m(n, L1_UNKNOWN0,  1, "unknown")\
+m(n, L1_UNKNOWN1,  1, "unknown")\
+m(n, L1_UNKNOWN2,  1, "unknown")\
+m(n, L1_UNKNOWN3,  1, "unknown")\
+\
+    /* Layer 2 */\
+\
+m(n, L2_ERROR,     2, "general")\
+m(n, L2_PRIM,      1, "DL primitive exchange")\
+m(n, L2_U_MSG,     1, "U frame")\
+m(n, L2_U_ERR,     2, "U frame")\
+m(n, L2_S_MSG,     1, "S frame")\
+m(n, L2_S_ERR,     2, "S frame")\
+m(n, L2_I_MSG,     1, "I frame")\
+m(n, L2_I_ERR,     2, "I frame")\
+m(n, L2_F_MSG,     1, "FSM")\
+m(n, L2_F_ERR,     2, "FSM")\
+m(n, L2_T_MSG,     1, "timer")\
+m(n, L2_T_ERR,     2, "timer")\
+m(n, L2_TEI_MSG,   1, "TEI")\
+m(n, L2_TEI_ERR,   2, "TEI")\
+m(n, L2_UNKNOWN0,  1, "unknown")\
+m(n, L2_UNKNOWN1,  1, "unknown")\
+m(n, L2_UNKNOWN2,  1, "unknown")\
+m(n, L2_UNKNOWN3,  1, "unknown")\
+\
+    /* Layer 3 */\
+\
+m(n, L3_ERR,       2, "general")\
+m(n, L3_MSG,       1, "general")\
+m(n, L3_F_MSG,     1, "FSM")\
+m(n, L3_F_ERR,     2, "FSM")\
+m(n, L3_T_MSG,     1, "timer")\
+m(n, L3_T_ERR,     2, "timer")\
+m(n, L3_P_MSG,     1, "protocol")\
+m(n, L3_P_ERR,     2, "protocol")\
+m(n, L3_A_MSG,     1, "facility")\
+m(n, L3_A_ERR,     2, "facility")\
+m(n, L3_PRIM,      1, "Q.931 exchange")\
+m(n, L3_UNKNOWN0,  1, "unknown")\
+m(n, L3_UNKNOWN1,  1, "unknown")\
+m(n, L3_UNKNOWN2,  1, "unknown")\
+m(n, L3_UNKNOWN3,  1, "unknown")\
+\
+    /* Layer 4 */\
+\
+m(n, L4_ERR,       2, "general")\
+m(n, L4_MSG,       1, "general")\
+m(n, L4_TIMO,      1, "B-ch timeout")\
+m(n, L4_DIALST,    1, "network driver dial state")\
+m(n, L4_IPRDBG,    1, "ipr  driver")\
+m(n, L4_RBCHDBG,   1, "rbch driver")\
+m(n, L4_ISPDBG,    1, "isp  driver")\
+m(n, L4_TELDBG,    1, "tel  driver")\
+m(n, L4_INGDBG,    1, "ing  driver")\
+m(n, L4_IAVCDBG,   1, "iavc driver")\
+m(n, L4_CAPIDBG,   1, "capi driver")\
+m(n, L4_UNKNOWN0,  1, "unknown")\
+m(n, L4_UNKNOWN1,  1, "unknown")\
+m(n, L4_UNKNOWN2,  1, "unknown")\
+m(n, L4_UNKNOWN3,  1, "unknown")\
 
-#define DEBUG_ENUM_1(layer, name, group, desc, first, last)	   \
-	_##layer##name first (=0), /* LOG2 of L##layer##_##name */
+/* end of I4B_DEBUG_FIELDS(..) */
 
-#define DEBUG_ENUM_2(layer, name, group, desc, first, last)	    \
-	L##layer##_##name = 1 << _##layer##name,
+#if DO_I4B_DEBUG
 
-#define DEBUG_ENUM_3(layer, name, group, desc, first, last)			\
-first (L##layer##_DEBUG_ERR=) (((group) & 2) ? L##layer##_##name:0)| last (0,)
+#define I4B_DBG(layer, what, fmt, ...)		\
+  if(i4b_debug_mask.what)			\
+    { printf("i4b-L" #layer " %s: " fmt "\n",	\
+	     __FUNCTION__ ,## __VA_ARGS__ ); }
 
-#define DEBUG_ENUM_4(layer, name, group, desc, first, last)			\
-first (L##layer##_DEBUG_MAX=) (((group) !=0) ? L##layer##_##name:0)| last (0,)
-
-#ifdef DO_I4B_MAXDEBUG
-#define DEBUG_ENUM_5(layer, name, group, desc, first, last)	\
-first (L##layer##_DEBUG_DEFAULT=L##layer##_DEBUG_MAX,)
 #else
-#define DEBUG_ENUM_5(layer, name, group, desc, first, last)	\
-first (L##layer##_DEBUG_DEFAULT=L##layer##_DEBUG_ERR,)
+
+#define I4B_DBG(...) { }
+
 #endif
 
-#define I4B_DEBUG_MASKS(m)							\
-										\
- /* Layer 1 */									\
- m (1, ERROR,     2, "general",              YES, NO)/*general errors       */	\
- m (1, PRIM,      1, "PH primitive exchange",NO , NO)/*interlayer primitives*/	\
- m (1, BCHAN,     1, "B channel action",     NO , NO)/*B channel action     */	\
- m (1, H_ERR,     2, "HSCX",                 NO , NO)/*HSCX errors          */	\
- m (1, H_IRQ,     0, "HSCX IRQ",             NO , NO)/*HSCX IRQ messages    */	\
- m (1, I_ERR,     2, "ISAC",                 NO , NO)/*ISAC errors          */	\
- m (1, I_MSG,     1, "ISAC",                 NO , NO)/*ISAC messages        */	\
- m (1, I_SETUP,   1, "ISAC setup",           NO , NO)/*ISAC setup messages  */	\
- m (1, F_MSG,     1, "FSM ",                 NO , NO)/*FSM messages         */	\
- m (1, F_ERR,     2, "FSM",                  NO , NO)/*FSM errors           */	\
- m (1, T_MSG,     1, "timer",                NO , NO)/*Timer messages       */	\
- m (1, T_ERR,     2, "timer",                NO , NO)/*Timer errors         */	\
- m (1, H_XFRERR,  4, "HSCX data xfer",       NO , NO)/*HSCX data xfer errors*/	\
- m (1, I_CICO,    1, "ISAC CICO",            NO , NO)/*ISAC command in/out  */	\
- m (1, S_MSG,     1, "soft-HDLC",            NO , NO)/*soft-HDLC messages   */	\
- m (1, S_ERR,     4, "soft-HDLC",            NO , NO)/*soft-HDLC errors     */	\
- m (1, HFC_DBG,   0, "HFC-S IRQ",            NO , NO)/*HFC messages+IRQ     */	\
- m (1, UNKNOWN0,  1, "unknown",              NO , NO)/**/			\
- m (1, UNKNOWN1,  1, "unknown",              NO , NO)/**/			\
- m (1, UNKNOWN2,  1, "unknown",              NO , NO)/**/			\
- m (1, UNKNOWN3,  1, "unknown",              NO ,YES)/**/			\
-										\
- /* Layer 2 */									\
- m (2, ERROR,     2, "general",              YES, NO)/*general errors       */	\
- m (2, PRIM,      1, "DL primitive exchange",NO , NO)/*interlayer primitives*/	\
- m (2, U_MSG,     1, "U frame",              NO , NO)/*U frame messages     */	\
- m (2, U_ERR,     2, "U frame",              NO , NO)/*U frame errors       */	\
- m (2, S_MSG,     1, "S frame",              NO , NO)/*S frame messages     */	\
- m (2, S_ERR,     2, "S frame",              NO , NO)/*S frame errors       */	\
- m (2, I_MSG,     1, "I frame",              NO , NO)/*I frame messages     */	\
- m (2, I_ERR,     2, "I frame",              NO , NO)/*I frame errors       */	\
- m (2, F_MSG,     1, "FSM",                  NO , NO)/*FSM messages         */	\
- m (2, F_ERR,     2, "FSM",                  NO , NO)/*FSM errors           */	\
- m (2, T_MSG,     1, "timer",                NO , NO)/*timer messages       */	\
- m (2, T_ERR,     2, "timer",                NO , NO)/*timer errors         */	\
- m (2, TEI_MSG,   1, "TEI",                  NO , NO)/*TEI messages         */	\
- m (2, TEI_ERR,   2, "TEI",                  NO , NO)/*TEI errors           */	\
- m (2, UNKNOWN0,  1, "unknown",              NO , NO)/**/			\
- m (2, UNKNOWN1,  1, "unknown",              NO , NO)/**/			\
- m (2, UNKNOWN2,  1, "unknown",              NO , NO)/**/			\
- m (2, UNKNOWN3,  1, "unknown",              NO ,YES)/**/			\
-										\
- /* Layer 3 */									\
- m (3, ERR,       2, "general",              YES, NO)/*general errors       */	\
- m (3, MSG,       1, "general",              NO , NO)/*general message      */	\
- m (3, F_MSG,     1, "FSM",                  NO , NO)/*FSM messages         */	\
- m (3, F_ERR,     2, "FSM",                  NO , NO)/*FSM errors           */	\
- m (3, T_MSG,     1, "timer",                NO , NO)/*timer messages       */	\
- m (3, T_ERR,     2, "timer",                NO , NO)/*timer errors         */	\
- m (3, P_MSG,     1, "protocol",             NO , NO)/*protocol messages    */	\
- m (3, P_ERR,     2, "protocol",             NO , NO)/*protocol errors      */	\
- m (3, A_MSG,     1, "facility",             NO , NO)/*AOC messages         */	\
- m (3, A_ERR,     2, "facility",             NO , NO)/*AOC errors           */	\
- m (3, PRIM,      1, "Q.931 exchange",       NO , NO)/*messages exchanged   */	\
- m (3, UNKNOWN0,  1, "unknown",              NO , NO)/**/			\
- m (3, UNKNOWN1,  1, "unknown",              NO , NO)/**/			\
- m (3, UNKNOWN2,  1, "unknown",              NO , NO)/**/			\
- m (3, UNKNOWN3,  1, "unknown",              NO ,YES)/**/			\
-										\
- /* Layer 4 */									\
- m (4, ERR,       2, "general",              YES, NO)/*general errors       */	\
- m (4, MSG,       1, "general",              NO , NO)/*general message      */	\
- m (4, TIMO,      1, "B-ch timeout",         NO , NO)/*B-ch idle timeout    */	\
- m (4, DIALST,    1, "network driver dial state", NO , NO)/*network driver  *	\
-							   * dial states    */	\
- m (4, IPRDBG,    1, "ipr  driver",          NO , NO)/*ipr driver messages  */	\
- m (4, RBCHDBG,   1, "rbch driver",          NO , NO)/*rbch driver messages */	\
- m (4, ISPDBG,    1, "isp  driver",          NO , NO)/*isp driver messages  */	\
- m (4, TELDBG,    1, "tel  driver",          NO , NO)/*tel driver messages  */	\
- m (4, INGDBG,    1, "ing  driver",          NO , NO)/*ing driver messages  */	\
- m (4, IAVCDBG,   1, "iavc driver",          NO , NO)/*AVM B1 driver message*/	\
- m (4, CAPIDBG,   1, "capi driver",          NO , NO)/*CAPI driver messages */	\
- m (4, UNKNOWN0,  1, "unknown",              NO , NO)/**/			\
- m (4, UNKNOWN1,  1, "unknown",              NO , NO)/**/			\
- m (4, UNKNOWN2,  1, "unknown",              NO , NO)/**/			\
- m (4, UNKNOWN3,  1, "unknown",              NO ,YES)/**/			\
-										\
-/* end of I4B_DEBUG_MASKS(..) */
+#define NDBGL1(...) I4B_DBG(1, __VA_ARGS__)
+#define NDBGL2(...) I4B_DBG(2, __VA_ARGS__)
+#define NDBGL3(...) I4B_DBG(3, __VA_ARGS__)
+#define NDBGL4(...) I4B_DBG(4, __VA_ARGS__)
 
-/*
- * generate enums
- */
-enum {
-  I4B_DEBUG_MASKS(DEBUG_ENUM_1)
-  I4B_DEBUG_MASKS(DEBUG_ENUM_2)
-  I4B_DEBUG_MASKS(DEBUG_ENUM_3)
-  I4B_DEBUG_MASKS(DEBUG_ENUM_4)
-  I4B_DEBUG_MASKS(DEBUG_ENUM_5)
+#define I4B_DEBUG_MAKE_TABLE_0(n, what, group, desc)	\
+  (((group) & 2) ?					\
+   "(" #what ") " desc " errors" :			\
+   "(" #what ") " desc " messages"),
+
+#define I4B_DEBUG_MAKE_ENUM(n, what, group, desc) \
+  what##_ENUM,
+
+#define I4B_DEBUG_MAKE_CASE_SET(n, what, group, desc) \
+  case what##_ENUM: (n)->what = value; break;
+
+#define I4B_DEBUG_MAKE_CASE_GET(n, what, group, desc) \
+  case what##_ENUM: if((n)->what) goto one; break;
+
+#define I4B_DEBUG_MAKE_STRUCT(n, what, group, desc) \
+  u_int8_t what : 1;
+
+#define I4B_DEBUG_MAKE_MAX(n, what, group, desc) \
+  .what = ((group) ? 1 : 0),
+
+#define I4B_DEBUG_MAKE_ERR(n, what, group, desc) \
+  .what = (((group) & 2) ? 1 : 0),
+
+#define I4B_DEBUG_MAKE_ALL(n, what, group, desc) \
+  .what = 1,
+
+/*---------------------------------------------------------------------------*
+ *	debugging mask definition
+ *---------------------------------------------------------------------------*/
+extern struct i4b_debug_mask {
+  I4B_DEBUG_FIELDS(I4B_DEBUG_MAKE_STRUCT,)
+} i4b_debug_mask;
+
+/*---------------------------------------------------------------------------*
+ *	max debugging mask
+ *---------------------------------------------------------------------------*/
+static const struct i4b_debug_mask i4b_debug_max = {
+  I4B_DEBUG_FIELDS(I4B_DEBUG_MAKE_MAX,)
 };
 
-/*
- * custom debugging (disabled)
- */
-#if 0
-#define L1_DEBUG_DEFAULT L1_DEBUG_DEFAULT
-#define L2_DEBUG_DEFAULT L2_DEBUG_DEFAULT 
-#define L3_DEBUG_DEFAULT L3_DEBUG_DEFAULT
-#define L4_DEBUG_DEFAULT L4_DEBUG_DEFAULT
-#endif
+/*---------------------------------------------------------------------------*
+ *	error debugging mask
+ *---------------------------------------------------------------------------*/
+static const struct i4b_debug_mask i4b_debug_err = {
+  I4B_DEBUG_FIELDS(I4B_DEBUG_MAKE_ERR,)
+};
+
+/*---------------------------------------------------------------------------*
+ *	full debugging mask
+ *---------------------------------------------------------------------------*/
+static const struct i4b_debug_mask i4b_debug_all = {
+  I4B_DEBUG_FIELDS(I4B_DEBUG_MAKE_ALL,)
+};
+
+/*---------------------------------------------------------------------------*
+ *	zero debugging mask
+ *---------------------------------------------------------------------------*/
+static const struct i4b_debug_mask i4b_debug_zero = {
+
+};
 
 /*---------------------------------------------------------------------------*
  *	Layer1 statistics structure
@@ -263,11 +275,9 @@ typedef struct {
 	u_int32_t chan;
 	u_int32_t value;
 	u_int32_t mask;
-	u_int32_t debug[5]; /* used to get/set debug bits;
-			     * debug[0] is not used
-			     */
 	u_char desc[64];
 
+	struct i4b_debug_mask debug;
 	lapdstat_t lapdstat;
 	chanstat_t chanstat;
 } i4b_debug_t;
@@ -301,4 +311,3 @@ typedef struct {
 #define  I4B_OPTION_REMOTE_LOOP       0x0200 /* If set, else disabled */
 
 #endif /* _I4B_DEBUG_H_ */
-

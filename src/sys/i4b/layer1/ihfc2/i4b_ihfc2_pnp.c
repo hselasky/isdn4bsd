@@ -818,7 +818,8 @@ __ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 #if DO_I4B_DEBUG
 	if(bootverbose)
 	{
-	    i4b_l1_debug |= L1_HFC_DBG | L1_ERROR;
+	    i4b_debug_mask.L1_HFC_DBG = 1;
+	    i4b_debug_mask.L1_ERROR = 1;
 	}
 #endif
 	/*
