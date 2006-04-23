@@ -1418,17 +1418,18 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 
 			ptr = ((u_int8_t *)(m->m_data)) + len;
 
-			/* send a dummy RELEASE_COMPLETE */
-
+			/* send a dummy STATUS_ENQUIRY 
+			 *
+			 * NOTE: some PBXs count the number
+			 * of errors, and will stop working
+			 * after some while, if not a valid
+			 * message is sent. The message
+			 * STATUS_ENQUIRY seems to not 
+			 * be included by this rule.
+			 */
 			*ptr++ = PD_Q931;
 			 ptr   = make_callreference(pipe_adapter, 0x7f, ptr);
-			*ptr++ = RELEASE_COMPLETE;
-			*ptr++ = IEI_CAUSE;
-			*ptr++ = IEI_CAUSE_LEN;
-			*ptr++ = NT_MODE(sc) ? 
-			  CAUSE_STD_LOC_PUBLIC : 
-			  CAUSE_STD_LOC_OUT;
-			*ptr++ = 0x10|EXT_LAST; /* normal call clearing */
+		        *ptr++ = STATUS_ENQUIRY;
 
 			m->m_len = ptr - ((__typeof(ptr))m->m_data);
 		    }
