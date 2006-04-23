@@ -95,7 +95,7 @@ typedef struct u_int64_p u_int64_p_t;
 
 /* global defines */
 
-#define CAPI_STACK_VERSION     206
+#define CAPI_STACK_VERSION     207
 #define CAPI_APPLICATION_MAX   0x80 /* units */
 #define CAPI_DEVICE_NAME       "/dev/capi20"
 #define CAPI_SHLIB_BASENAME    "libcapi20.so"
@@ -638,6 +638,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, STRUCT, add_info, ADDITIONAL_INFO)\
   m(n, BYTE,   bFlag_0,) /* BSD specific */\
   m(n, STRUCT, src_telno_2,) /* BSD specific */\
+  m(n, STRUCT, display,) /* BSD specific */\
   END
 
 #define CAPI_CONNECT_CONF(m,n) \
@@ -655,6 +656,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, STRUCT, HLC,)\
   m(n, STRUCT, add_info, ADDITIONAL_INFO)\
   m(n, STRUCT, src_telno_2,)\
+  m(n, STRUCT, display,) /* BSD specific */\
   END
 
 #define CAPI_CONNECT_RESP(m,n) \
@@ -2444,6 +2446,7 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 #define CONNECT_REQ_SENDINGCOMPLETE(x) ((x)->ADDITIONAL_INFO.sending_complete.ppbyte[0])
 #define CONNECT_REQ_FLAG0(x) ((x)->data.CONNECT_REQ.bFlag_0)
 #define CONNECT_REQ_SECONDCALLINGPARTYNUMBER(x) ((x)->data.CONNECT_REQ.src_telno_2.ppbyte[0])
+#define CONNECT_REQ_DISPLAY(x) ((x)->data.CONNECT_REQ.display.ppbyte[0])
 #define CONNECT_CONF_INFO(x) ((x)->data.CONNECT_CONF.wInfo)
 #define CONNECT_IND_CIPVALUE(x) ((x)->data.CONNECT_IND.wCIP)
 #define CONNECT_IND_CALLEDPARTYNUMBER(x) ((x)->data.CONNECT_IND.dst_telno.ppbyte[0])
@@ -2460,6 +2463,7 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 #define CONNECT_IND_FACILITYDATAARRAY(x) ((x)->ADDITIONAL_INFO.facility.ppbyte[0])
 #define CONNECT_IND_SENDINGCOMPLETE(x) ((x)->ADDITIONAL_INFO.sending_complete.ppbyte[0])
 #define CONNECT_IND_SECONDCALLINGPARTYNUMBER(x) ((x)->data.CONNECT_IND.src_telno_2.ppbyte[0])
+#define CONNECT_IND_DISPLAY(x) ((x)->data.CONNECT_IND.display.ppbyte[0])
 #define CONNECT_RESP_REJECT(x) ((x)->data.CONNECT_RESP.wReject)
 #define CONNECT_RESP_BPROTOCOL(x) ((x)->data.CONNECT_RESP.b_protocol_STRUCT)
 #define CONNECT_RESP_B1PROTOCOL(x) ((x)->B_PROTOCOL.wB1_protocol)

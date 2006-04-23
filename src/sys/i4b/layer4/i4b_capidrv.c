@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2005 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2005-2006 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -1156,14 +1156,24 @@ capi_ai_connect_ind(struct call_desc *cd)
 	   sizeof(src_subaddr), 0x80, NULL);
 
 	/* link in the additional info */
+
 	connect_ind.add_info_STRUCT = IE_STRUCT_DECODED;
 	connect_ind.add_info.ptr = &add_info;
+
+	add_info.keypad.ptr = &cd->keypad[0];
+	add_info.keypad.len = strlen(cd->keypad);
+
+	add_info.useruser.ptr = &cd->user_user[0];
+	add_info.useruser.len = strlen(cd->user_user);
 
 	if(cd->sending_complete)
 	{
 	    add_info.sending_complete.ptr = &sending_complete;
 	    add_info.sending_complete.len = sizeof(sending_complete);
 	}
+
+	connect_ind.display.ptr = &cd->display[0];
+	connect_ind.display.len = strlen(cd->display);
 
 	len = capi_encode(&msg.data, sizeof(msg.data), &connect_ind);
 	len += sizeof(msg.head);
@@ -2031,13 +2041,44 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		 connect_req.src_subaddr.len,
 		 &(cd->src[0].subaddr[0]), sizeof(cd->src[0].subaddr)-1, NULL);
 
-	      /* XXX if there is user-user info or a keypad-string
-	       * in "add_info" one could have added that to 
-	       * "cd->keypad[] and cd->user_user[]"
-	       */
-	      cd->keypad[0] = '\0';
-	      cd->user_user[0] = '\0';
-	      cd->display[0] = '\0';
+
+	      /* copy in keypad string */
+
+	      if(add_info.keypad.len > (sizeof(cd->keypad)-1))
+	      {
+		  add_info.keypad.len = (sizeof(cd->keypad)-1);
+	      }
+
+	      bcopy(add_info.keypad.ptr, cd->keypad, 
+		    add_info.keypad.len);
+
+	      cd->keypad[add_info.keypad.len] = '\0';
+
+
+	      /* copy in user-user string */
+
+	      if(add_info.useruser.len > (sizeof(cd->user_user)-1))
+	      {
+		  add_info.useruser.len = (sizeof(cd->user_user)-1);
+	      }
+
+	      bcopy(add_info.useruser.ptr, cd->user_user,
+		    add_info.useruser.len);
+
+	      cd->user_user[add_info.useruser.len] = '\0';
+
+
+	      /* copy in display string */
+
+	      if(connect_req.display.len > (sizeof(cd->display)-1))
+	      {
+		  connect_req.display.len = (sizeof(cd->display)-1);
+	      }
+
+	      bcopy(connect_req.display.ptr, cd->display,
+		    connect_req.display.len);
+
+	      cd->display[connect_req.display.len] = '\0';
 
 	      SET_CAUSE_TYPE(cd->cause_in, CAUSET_I4B);
 	      SET_CAUSE_VAL(cd->cause_in, CAUSE_I4B_NORMAL);
