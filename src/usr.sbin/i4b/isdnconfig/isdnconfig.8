@@ -128,7 +128,9 @@ selects NT mode and the DSS1 multipoint to point driver, for passive
 ISDN controller 0 and 1, and disables power saving. The command:
 .
 .Bd -literal -offset indent
-isdnconfig -m 0 pcm_32 -m 1 pcm_64 -u 0 pcm_map 0 -1 1 end pcm_slave
+isdnconfig -m 0 pcm_32 \\
+           -m 1 pcm_64 \\
+           -u 0 pcm_map 0 -1 1 end pcm_slave
 .Ed
 .Pp
 sets PCM cable 0 to a size of 32 PCM slots, 
@@ -136,7 +138,22 @@ sets PCM cable 1 to a size of 64 PCM slots,
 sets PCM map to use PCM cable 0 for the first bi-directional pin,
 sets PCM map to use no PCM cable for the second bi-directional pin,
 sets PCM map to use PCM cable 1 for the third bi-directional pin and
-selects PCM slave mode for controller 0.
+selects PCM slave mode for controller 0. The command:
+.
+.Bd -literal -offset indent
+isdnconfig -m 0 pcm_64 \\
+           -m 1 pcm_64 \\
+           -u 8 pcm_64 pcm_map 0 1 end pcm_master te_mode \\
+           -u 9 pcm_64 pcm_map 0 1 end pcm_master nt_mode \\
+                power_on -p DRVR_DSS1_NT
+.Ed
+.Pp
+.
+sets PCM cable 0 to a size of 64 PCM slots, sets PCM cable 1 to a size
+of 64 PCM slots, sets PCM speed for controller 8 and 9 to 64 PCM
+slots, sets PCM first and second bi-directional pin to be used, sets
+TE-mode for controller 8 and sets NT-mode for contoller 9. This
+command was used to initialize the first two ports of a HFC-4S.
 .
 .Sh AUTHORS
 The
