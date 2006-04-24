@@ -77,7 +77,7 @@ __atoi(const u_int8_t *optarg)
 {
     const struct enum_list *item = &enum_list[0];
 
-    while(item->value)
+    while(item->name)
     {
         if(strcmp(item->name,optarg) == 0)
 	{
