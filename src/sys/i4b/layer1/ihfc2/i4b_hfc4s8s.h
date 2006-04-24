@@ -585,7 +585,8 @@ hfc4s8s_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 
 	    HFC4S8S_WRITE_1(REG_hfc4s8s_a_con_hdlc_write, temp);
 
-	    if(FIFO_LOGICAL_NO(f) == d1t)
+	    if((FIFO_LOGICAL_NO(f) == d1t) ||
+	       (FIFO_LOGICAL_NO(f) == d1r))
 	        temp = 0x02; /* process 2 bits */
 	    else 
 	        temp = 0x00; /* process 8 bits */
@@ -902,11 +903,22 @@ hfc4s8s_chip_status_read CHIP_STATUS_READ_T(sc)
 #if ((IHFC_CHANNELS < 48) || (SC_INTR_BITS != 8))
 #error "please update this code, (IHFC_CHANNELS < 48) || (SC_INTR_BITS != 8)"
 #endif
-	    sc->sc_intr_status[0] = 0xFF;
-	    sc->sc_intr_status[1] = 0xFF;
-	    sc->sc_intr_status[2] = 0xFF;
-
-	    if (sc->sc_default.d_sub_controllers > 4) {
+	    if(sc->sc_default.d_sub_controllers == 2)
+	    {
+	        sc->sc_intr_status[0] = 0xFF;
+		sc->sc_intr_status[1] = 0x0F;
+	    }
+	    else if(sc->sc_default.d_sub_controllers == 4)
+	    {
+	        sc->sc_intr_status[0] = 0xFF;
+		sc->sc_intr_status[1] = 0xFF;
+		sc->sc_intr_status[2] = 0xFF;
+	    }
+	    else if(sc->sc_default.d_sub_controllers == 8)
+	    {
+	        sc->sc_intr_status[0] = 0xFF;
+		sc->sc_intr_status[1] = 0xFF;
+		sc->sc_intr_status[2] = 0xFF;
 	        sc->sc_intr_status[3] = 0xFF;
 		sc->sc_intr_status[4] = 0xFF;
 		sc->sc_intr_status[5] = 0xFF;
