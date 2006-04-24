@@ -355,7 +355,7 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 	    f->fm.h.Fsize = F_max - F_min;
 	    f->fm.h.Zend  = Z_max;
 
-	    f->sub_unit = FIFO_NO(f)/6;
+	    f->sub_unit = FIFO_NO(f) / 6;
 	    FIFO_LOGICAL_NO(f) = FIFO_NO(f) % 6;
 
 	    st = &sc->sc_state[f->sub_unit];
@@ -367,7 +367,7 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 	     * the D-channel is first and 
 	     * the B-channels last
 	     */
-	    temp = ((FIFO_NO(f)/6) * 4) | FIFO_DIR(f);
+	    temp = (f->sub_unit * 8) | FIFO_DIR(f);
 
 	    switch(FIFO_LOGICAL_NO(f) / 2) {
 	    case 1:
@@ -444,13 +444,16 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 
 	hfc4s8s_chip_slots_init(sc);
 
-	for(unit = 0; unit < sc->sc_default.d_sub_controllers; unit++)
+	for(unit = 0; 
+	    unit < sc->sc_default.d_sub_controllers; 
+	    unit++)
 	{
 	    /* select S/T interface */
 	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_st_sel_write, unit);
 
 	    temp = IS_NT_MODE(sc,unit) ? 0x6C : 0x0E;
-	    HFC4S8S_WRITE_1(REG_hfc4s8s_a_st_clk_dly_write, 0x6C);
+
+	    HFC4S8S_WRITE_1(REG_hfc4s8s_a_st_clk_dly_write, temp);
 
 	    temp = 0x03; /* enable B-transmit-channels */
 
