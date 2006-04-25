@@ -760,6 +760,7 @@ static void
 dss1_pipe_resend_ind(DSS1_TCP_pipe_t *pipe)
 {
 	l2softc_t *sc = pipe->L5_sc;
+	struct i4b_controller *cntl = sc->sc_cntl;
 	struct call_desc *cd;
 
 	NDBGL3(L3_MSG, "unit=%x, pipe=%x",
@@ -767,7 +768,7 @@ dss1_pipe_resend_ind(DSS1_TCP_pipe_t *pipe)
 
 	/* inform all active call(s) of the event */
 
-	CD_FOREACH(cd,&sc->sc_cntl->N_call_desc[0])
+	CD_FOREACH(cd, cntl)
 	{
 	    if((cd->cdid != CDID_UNUSED) &&
 	       (cd->pipe == pipe) &&
@@ -810,6 +811,7 @@ static void
 dss1_pipe_reset_ind(DSS1_TCP_pipe_t *pipe)
 {
 	l2softc_t *sc = pipe->L5_sc;
+	struct i4b_controller *cntl = sc->sc_cntl;
 	struct call_desc *cd;
 
 	NDBGL3(L3_MSG, "unit=%x, pipe=%x",
@@ -817,13 +819,13 @@ dss1_pipe_reset_ind(DSS1_TCP_pipe_t *pipe)
 
 	/* inform all active call(s) of the event */
 
-	CD_FOREACH(cd,&sc->sc_cntl->N_call_desc[0])
+	CD_FOREACH(cd, cntl)
 	{
-		if( (cd->cdid != CDID_UNUSED) &&
-		    (cd->pipe == pipe) )
-                {
-		  cd_update(cd, NULL, EV_L3_RELEASE);
-		}
+	    if((cd->cdid != CDID_UNUSED) &&
+	       (cd->pipe == pipe))
+	    {
+	        cd_update(cd, NULL, EV_L3_RELEASE);
+	    }
 	}
 	return;
 }

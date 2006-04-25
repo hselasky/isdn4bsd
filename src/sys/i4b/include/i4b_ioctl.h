@@ -55,18 +55,18 @@
 #define I4B_TIME_FORMAT	"%d.%m.%Y %H:%M:%S"
 
 /*---------------------------------------------------------------------------*
- *	max number of controllers in system
+ *	max number of controllers under I4B
  *
  * NOTE: should be power of two
  *---------------------------------------------------------------------------*/
-#define MAX_CONTROLLERS 8               /* max number of controllers    */
+#define MAX_CONTROLLERS 64 /* units */
 
 /*---------------------------------------------------------------------------*
  *	max number of channels
  *
  * NOTE: must be power of two
  *---------------------------------------------------------------------------*/
-#define MAX_CHANNELS (1<<5)
+#define MAX_CHANNELS    64 /* units */
 
 /*---------------------------------------------------------------------------*
  *	max number of PCM cables

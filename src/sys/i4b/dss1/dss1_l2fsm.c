@@ -1525,8 +1525,10 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	{
 #define BZERO(ptr) bzero(ptr,sizeof(*ptr))
 
-	  /* set all call-descriptors free */
-	  BZERO(&cntl->N_call_desc);
+	  /* clear all call-descriptors */
+	  bzero(cntl->N_call_desc_start, 
+		(((u_int8_t *)(cntl->N_call_desc_end)) -
+		 ((u_int8_t *)(cntl->N_call_desc_start))));
 
 	  /* set all channels free */
 	  BZERO(&cntl->N_channel_utilization);

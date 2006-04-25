@@ -60,6 +60,8 @@ get_cdid(struct i4b_controller *cntl)
 	struct call_desc *cd;
 	u_int new_cdid;
 
+	CNTL_LOCK_ASSERT(cntl);
+
 	if(cntl->N_cdid_end > CDID_REF_MAX)
 	{
 	  printf("%s: %s: controller %d: N_cdid_end set "
@@ -91,7 +93,7 @@ get_cdid(struct i4b_controller *cntl)
 	new_cdid = MAKE_CDID(cntl->unit, cntl->N_cdid_count);
 
 	/* check if ID already in use */
-	CD_FOREACH(cd,&cntl->N_call_desc[0])
+	CD_FOREACH(cd, cntl)
 	{
 		if(cd->cdid == new_cdid)
 		{
@@ -115,7 +117,9 @@ i4b_allocate_cd(struct i4b_controller *cntl)
 {
 	struct call_desc *cd;
 
-	CD_FOREACH(cd,&cntl->N_call_desc[0])
+	CNTL_LOCK_ASSERT(cntl);
+
+	CD_FOREACH(cd, cntl)
 	{
 		if(cd->cdid == CDID_UNUSED)
 		{
@@ -123,6 +127,7 @@ i4b_allocate_cd(struct i4b_controller *cntl)
 			bzero(cd, sizeof(*cd));
 
 			cd->cdid = get_cdid(cntl);	/* fill in new cdid */
+			cd->p_cntl = cntl;
 
 			if(cd->cdid == CDID_UNUSED)
 			{
@@ -300,12 +305,14 @@ cd_set_appl_interface(struct call_desc *cd, u_int8_t appl_interface_type,
 struct call_desc *
 cd_by_cdid(struct i4b_controller *cntl, unsigned int cdid)
 {
+	struct call_desc *cd;
+
+	CNTL_LOCK_ASSERT(cntl);
+
 	if(cdid != CDID_UNUSED)
 	{
-	  struct call_desc *cd;
-
-	  CD_FOREACH(cd,&cntl->N_call_desc[0])
-	  {
+	    CD_FOREACH(cd, cntl)
+	    {
 		if(cd->cdid == cdid)
 		{
 			NDBGL4(L4_MSG, "found cdid - cdid=%u cr=%d",
@@ -313,7 +320,7 @@ cd_by_cdid(struct i4b_controller *cntl, unsigned int cdid)
 
 			return(cd);
 		}
-	  }
+	    }
 	}
 	return(NULL);
 }
@@ -344,21 +351,22 @@ cd_by_unitcr(struct i4b_controller *cntl, void *pipe, void *pipe_adapter, u_int 
 {
 	struct call_desc *cd;
 
+	CNTL_LOCK_ASSERT(cntl);
+
 	/* NT use CR to identify
 	 * TE use TEI+CR to identify
 	 */
-	CD_FOREACH(cd,&cntl->N_call_desc[0])
+	CD_FOREACH(cd, cntl)
 	{
-	  if((cd->cdid != CDID_UNUSED)  &&
-	     (cd->cr == cr)             &&
-	     ((cd->pipe == pipe_adapter) ||
-	      (cd->pipe == pipe)) )
-	  {
-	    NDBGL4(L4_MSG, "found cd - cdid=%u, cr=%d",
-		   cd->cdid, cd->cr);
-
-	    return(cd);
-	  }
+	    if((cd->cdid != CDID_UNUSED)  &&
+	       (cd->cr == cr)             &&
+	       ((cd->pipe == pipe_adapter) ||
+		(cd->pipe == pipe)))
+	    {
+	        NDBGL4(L4_MSG, "found cd - cdid=%u, cr=%d",
+		       cd->cdid, cd->cr);
+		return(cd);
+	    }
 	}
 	return(NULL);
 }
@@ -380,9 +388,9 @@ i4b_disconnect_by_appl_interface(u_int8_t ai_type, void *ai_ptr)
 
 	    if(cntl->N_fifo_translator)
 	    {
-	        /* connected */
-	      CD_FOREACH(cd,&cntl->N_call_desc[0])
-	      {
+	       /* connected */
+	       CD_FOREACH(cd, cntl)
+	       {
 		  if((cd->cdid != CDID_UNUSED) &&
 		     (cd->ai_type == ai_type) &&
 		     (cd->ai_ptr == ai_ptr))
@@ -395,7 +403,7 @@ i4b_disconnect_by_appl_interface(u_int8_t ai_type, void *ai_ptr)
 
 		      /* cd = NULL; call descriptor is freed ! */
 		  }
-	      }
+	       }
 	    }
 	    CNTL_UNLOCK(cntl);
 	}
@@ -528,7 +536,6 @@ i4b_li_alloc(cdid_t cdid)
 {
     struct i4b_controller *cntl = CNTL_FIND(cdid);
     struct i4b_line_interconnect *li;
-    u_int32_t x;
 
     mtx_assert(&i4b_global_lock, MA_OWNED);
 
@@ -539,17 +546,13 @@ i4b_li_alloc(cdid_t cdid)
 	goto done;
     }
 
-    li = &(cntl->L1_interconnect[0]);
-    x = MAX_CHANNELS;
-
-    while(x--)
+    LI_FOREACH(li,cntl)
     {
         if(li->cdid == CDID_UNUSED)
 	{
 	    li->cdid = cdid;
 	    goto done;
 	}
-        li++;
     }
 
     li = NULL;
@@ -563,7 +566,6 @@ i4b_li_search(cdid_t cdid)
 {
     struct i4b_controller *cntl = CNTL_FIND(cdid);
     struct i4b_line_interconnect *li;
-    u_int32_t x;
 
     mtx_assert(&i4b_global_lock, MA_OWNED);
 
@@ -574,16 +576,12 @@ i4b_li_search(cdid_t cdid)
 	goto done;
     }
 
-    li = &(cntl->L1_interconnect[0]);
-    x = MAX_CHANNELS;
-
-    while(x--)
+    LI_FOREACH(li, cntl)
     {
         if(li->cdid == cdid)
 	{
 	    goto done;
 	}
-        li++;
     }
     li = NULL;
 

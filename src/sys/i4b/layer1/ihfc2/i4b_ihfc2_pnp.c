@@ -385,7 +385,8 @@ const   struct resource_tab *ptr;
 
 	sc->sc_resources.i4b_controller =
 	  i4b_controller_allocate(sc->sc_default.o_PORTABLE, 
-				  sc->sc_default.d_sub_controllers, error);
+				  sc->sc_default.d_sub_controllers, 
+				  sc->sc_default.d_channels, error);
 
 	/* allocate I4B-controller(s) */
 	if(sc->sc_resources.i4b_controller == NULL)

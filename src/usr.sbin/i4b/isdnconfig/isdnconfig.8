@@ -144,6 +144,7 @@ selects PCM slave mode for controller 0. The command:
 isdnconfig -m 0 pcm_64 \\
            -m 1 pcm_64 \\
            -u 8 pcm_64 pcm_map 0 1 end pcm_master te_mode \\
+                         -p DRVR_DSS1_TE \\
            -u 9 pcm_64 pcm_map 0 1 end pcm_master nt_mode \\
                 power_on -p DRVR_DSS1_NT
 .Ed

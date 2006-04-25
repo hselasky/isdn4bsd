@@ -139,11 +139,13 @@ i4b_controller_reset(struct i4b_controller *cntl)
  *---------------------------------------------------------------------------*/
 struct i4b_controller *
 i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers, 
-			u_int8_t *error)
+			u_int8_t call_descriptors, u_int8_t *error)
 {
   struct i4b_controller *cntl;
   struct i4b_controller *cntl_end;
   struct i4b_controller *cntl_temp;
+  struct call_desc *cd = NULL;
+  struct i4b_line_interconnect *li = NULL;
   struct mtx *p_mtx;
   u_int8_t x;
 
@@ -153,6 +155,36 @@ i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers,
       ADD_ERROR(error, "%s: number of sub-controllers, "
 		"%d, is invalid!\n", __FUNCTION__, 
 		sub_controllers);
+      cntl = NULL;
+      goto done;
+  }
+
+  if((call_descriptors == 0) ||
+     (call_descriptors > MAX_CHANNELS))
+  {
+      ADD_ERROR(error, "%s: number of call-descriptors, "
+		"%d, is invalid!\n", __FUNCTION__,
+		call_descriptors);
+      cntl = NULL;
+      goto done;
+  }
+
+  /* try to allocate call descriptors 
+   * and line interconnect structures:
+   */
+  cd = malloc(call_descriptors * sub_controllers * sizeof(*cd),
+	      M_DEVBUF, M_WAITOK|M_ZERO);
+
+  li = malloc(call_descriptors * sub_controllers * sizeof(*li),
+	      M_DEVBUF, M_WAITOK|M_ZERO);
+
+  if((cd == NULL) ||
+     (li == NULL))
+  {
+      ADD_ERROR(error, "%s: could not allocate "
+		"call descriptors or line "
+		"interconnect structures!\n",
+		__FUNCTION__);
       cntl = NULL;
       goto done;
   }
@@ -206,13 +238,29 @@ i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers,
       i4b_controller_reset(cntl_temp);
 
       cntl_temp->allocated = 1;
-
+      cntl_temp->N_call_desc_start = cd;
+      cntl_temp->N_line_interconnect_start = li;
+      cd += call_descriptors;
+      li += call_descriptors;
+      cntl_temp->N_call_desc_end = cd;
+      cntl_temp->N_line_interconnect_end = li;
       cntl_temp++;
   }
 
   CNTL_UNLOCK(cntl);
 
  done:
+  if(cntl == NULL)
+  {
+      if(cd)
+      {
+	  free(cd, M_DEVBUF);
+      }
+      if(li)
+      {
+	  free(li, M_DEVBUF);
+      }
+  }
   return cntl;
 }
 
@@ -274,12 +322,18 @@ i4b_controller_detach(struct i4b_controller *cntl)
 void
 i4b_controller_free(struct i4b_controller *cntl, u_int8_t sub_controllers)
 {
+  struct call_desc *cd;
+  struct i4b_line_interconnect *li;
+
   if(cntl && sub_controllers)
   {
       /* the sub-controllers should be 
        * all under the same lock!
        */
       CNTL_LOCK(cntl);
+
+      cd = cntl->N_call_desc_start;
+      li = cntl->N_line_interconnect_start;
 
       while(1)
       {
@@ -297,29 +351,20 @@ i4b_controller_free(struct i4b_controller *cntl, u_int8_t sub_controllers)
 	      break;
 	  }
       }
+
       CNTL_UNLOCK(cntl);
+
+      if(cd)
+      {
+	  free(cd, M_DEVBUF);
+      }
+
+      if(li)
+      {
+	  free(li, M_DEVBUF);
+      }
   }
   return;
-}
-
-/*---------------------------------------------------------------------------*
- *	i4b_controller_by_cd
- *---------------------------------------------------------------------------*/
-struct i4b_controller *
-i4b_controller_by_cd(struct call_desc *cd)
-{
-  struct i4b_controller *cntl;
-  for(cntl = &i4b_controller[0];
-      cntl < &i4b_controller[MAX_CONTROLLERS];
-      cntl++)
-  {
-    if((cd >= &cntl->N_call_desc[0]) &&
-       (cd < &cntl->N_call_desc[N_CALL_DESC]))
-    {
-      return cntl;
-    }
-  }
-  return 0;
 }
 
 /*---------------------------------------------------------------------------*

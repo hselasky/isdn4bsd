@@ -396,11 +396,15 @@ struct i4b_src_telno {
  *	definition of a call and all its parameters
  *---------------------------------------------------------------------------*/
 typedef struct call_desc {
-	cdid_t	cdid;			/* call descriptor id		*/
+	cdid_t	cdid;			/* call descriptor id */
 
-	void	*pipe;			/* isdn controller pipe		*/
+#define i4b_controller_by_cd(cd) ((cd)->p_cntl)
 
-	u_int32_t cr;			/* call reference value		*/
+	struct i4b_controller *p_cntl;  /* ISDN controller */
+
+	void *  pipe;			/* ISDN controller pipe */
+
+	u_int32_t cr;			/* call reference value	*/
 
 	int	channel_id;		/* channel id value cannot be 
 					 * changed when channel is allocated
@@ -631,14 +635,22 @@ SET_BIT((cntl)->N_channel_utilization,channel,value)	\
 GET_BIT((cntl)->N_channel_utilization,channel)	\
 /**/
 
-#define N_CALL_DESC MAX_CHANNELS /* per controller */
+	struct call_desc *N_call_desc_start;
+	struct call_desc *N_call_desc_end;
 
-	struct call_desc N_call_desc[N_CALL_DESC]; /* call descriptor array */
-
-#define CD_FOREACH(cd,cd_var)			\
-  for((cd) = (cd_var);				\
-      (cd) < ((cd_var)+N_CALL_DESC);		\
+#define CD_FOREACH(cd,cntl)			\
+  for((cd) = (cntl)->N_call_desc_start;		\
+      (cd) < (cntl)->N_call_desc_end;		\
       (cd)++)					\
+/**/
+
+	struct i4b_line_interconnect *N_line_interconnect_start;
+	struct i4b_line_interconnect *N_line_interconnect_end;
+
+#define LI_FOREACH(li,cntl)			\
+  for((li) = (cntl)->N_line_interconnect_start;	\
+      (li) < (cntl)->N_line_interconnect_end;	\
+      (li)++)					\
 /**/
 
 	/*  --> Layer 1 */
@@ -651,8 +663,6 @@ GET_BIT((cntl)->N_channel_utilization,channel)	\
 	u_int8_t  L1_type;		/* layer 1 type	      */
 	u_int8_t  L1_pcm_cable_end;	/* exclusive */
 	u_int8_t  L1_pcm_cable_map[I4B_PCM_CABLE_MAX];
-
-	struct i4b_line_interconnect L1_interconnect[MAX_CHANNELS];
 
 	struct fifo_translator * 
 		(*L1_GET_FIFO_TRANSLATOR)(struct i4b_controller *, int channel);
@@ -736,8 +746,7 @@ typedef u_int8_t L1_activity_t;
 
 /* prototypes from i4b_l1.c */
 
-extern struct i4b_controller * i4b_controller_by_cd(struct call_desc *cd);
-extern struct i4b_controller * i4b_controller_allocate(u_int8_t portable, u_int8_t, u_int8_t *);
+extern struct i4b_controller * i4b_controller_allocate(u_int8_t portable, u_int8_t, u_int8_t, u_int8_t *);
 extern int i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *parm);
 extern int i4b_l1_set_options(struct i4b_controller *cntl, u_int32_t mask, u_int32_t value);
 extern int i4b_l1_bchan_tel_silence(unsigned char *data, int len);
