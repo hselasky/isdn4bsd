@@ -436,6 +436,7 @@ update_config:
 
 .for FILE in ${CONFIG_FILES}
 	cat ${FILE} \
+	| grep -v "ihfc | isic | itjc | iwic" \
 	| grep -v " i4b" \
 	| grep -v " new_usb" \
 	| grep -v "i4b/" \
