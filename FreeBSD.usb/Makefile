@@ -88,6 +88,7 @@ DIFF_FILES=\
 ${S}/sys/conf/kmod.mk \
 ${S}/sys/dev/sound/usb/uaudio.c \
 ${S}/sys/dev/usb/if_ural.c \
+${S}/sys/dev/usb/ufoma.c \
 ${S}/sys/dev/usb/ums.c \
 ${S}/sys/dev/usb/udbp.c \
 ${S}/sys/dev/usb/ukbd.c \

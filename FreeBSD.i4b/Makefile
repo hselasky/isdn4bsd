@@ -127,6 +127,7 @@ ${S}/sys/dev/sound/pcm/dsp.c \
 ${S}/sys/dev/sound/isa/sb16.c \
 ${S}/sys/dev/sound/isa/sb8.c \
 ${S}/sys/dev/usb/if_ural.c \
+${S}/sys/dev/usb/ufoma.c \
 ${S}/sys/dev/usb/ums.c \
 ${S}/sys/dev/usb/udbp.c \
 ${S}/sys/dev/usb/ukbd.c \
