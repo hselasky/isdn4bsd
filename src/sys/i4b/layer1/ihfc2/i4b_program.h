@@ -327,7 +327,8 @@ ihfc_fifo_program(ihfc_sc_t *sc)
 
 		if(f->prot_curr.protocol_1 != P_DISABLE)
 		{
-		    IHFC_MSG("(#%d,prot=%d)\n", FIFO_NO(f), f->prot_curr.protocol_1);
+		    IHFC_MSG("(#%d,prot=%d)\n", FIFO_NO(f), 
+			     f->prot_curr.protocol_1);
 		}
 
 		/* limit amount of processing.
@@ -612,7 +613,7 @@ i4b_ipac_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		 * but just in case, check the
 		 * protocol:
 		 */
-		if(PROT_IS_HDLC(&(f->prot_curr)) == 0)
+		if(!PROT_IS_HDLC(&(f->prot_curr)))
 		{
 		    /* allocate a temporary buffer 
 		     * on the stack :
@@ -935,7 +936,7 @@ i4b_hfc_rx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 
 	    if(f->F_chip)
 	    {
-	        if(PROT_IS_HDLC(&(f->prot_curr)) == 0)
+	        if(!PROT_IS_HDLC(&(f->prot_curr)))
 		{
 		    IHFC_ERR("(#%d) F_drvr != F_chip in [extended] "
 			     "transparent mode!\n",
@@ -1178,11 +1179,10 @@ i4b_hfc_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 
 	    if(f->F_chip)
 	    {
-	        if(!(PROT_IS_HDLC(&(f->prot_curr))))
+	        if(!PROT_IS_HDLC(&(f->prot_curr)))
 		{
 		    IHFC_ERR("(#%d) F_drvr != F_chip in [extended] "
-			     "transparent mode!\n",
-			     FIFO_NO(f));
+			     "transparent mode!\n", FIFO_NO(f));
 
 		    /* in [extended] transparent mode one
 		     * cannot transmit any frames, so the
@@ -1287,10 +1287,9 @@ i4b_hfc_tx_program_new(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	    /* limit number of frames in transmit FIFO */
 	    if((f->F_chip+1) >= f->fm.h.Fsize)
 	    {
-	        IHFC_MSG("(#%d) FIFO full!\n",
-			 FIFO_NO(f));
+	        IHFC_MSG("(#%d) FIFO full!\n", FIFO_NO(f));
 
-	        f->program_state = ST_0_FIFO_SEL;
+		f->program_state = ST_0_FIFO_SEL;
 		return PROGRAM_DONE;
 	    }
 

@@ -638,6 +638,7 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 {
 	HFCE1_BUS_VAR(sc);
 
+	struct sc_fifo *f_last;
 	u_int8_t temp;
 	u_int8_t cable;
 
@@ -664,6 +665,8 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	}
 	else
 	{
+	    f_last = sc->sc_fifo_select_last;
+
 	    hfce1_fifo_select(sc,f);
 
 	    if(f->prot_last.protocol_1 == P_BRIDGE)
@@ -682,7 +685,7 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	    {
 	        /* disable FIFO */
 	        HFCE1_WRITE_1(REG_hfce1_con_hdlc, 0x00);
-		return;
+		goto fifo_unselect;
 	    }
 
 	    if(FIFO_NO(f) == d1t)
@@ -720,7 +723,7 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 
 	    /* reset FIFO and LOST bit */
 
-	    HFCE1_WRITE_1(REG_hfce1_inc_res_fifo, 0x06);
+	    HFCE1_WRITE_1(REG_hfce1_inc_res_fifo, (0x02|0x04));
 
 	    hfce1_fifo_wait_disbusy(sc);
 
@@ -747,6 +750,16 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 		/* enable time slot */
 		HFCE1_WRITE_1(REG_hfce1_slot, temp);
 		HFCE1_WRITE_1(REG_hfce1_sl_cfg, cable);
+	    }
+
+	fifo_unselect:
+
+	    if(f_last)
+	    {
+	        /* restore the selected FIFO, in case
+		 * this routine is called recursivly:
+		 */
+	        hfce1_fifo_select(sc, f_last);
 	    }
 	}
 	return;
@@ -909,11 +922,9 @@ hfce1_fifo_inc_fx FIFO_INC_FX_T(sc,f)
 	    f->F_drvr = 0;
 	}
 
-	HFCE1_WRITE_1(REG_hfce1_inc_res_fifo, 0x04);
+	/* increment F-counter and clear LOST bit */
 
-	hfce1_fifo_wait_disbusy(sc);
-
-	HFCE1_WRITE_1(REG_hfce1_inc_res_fifo, 0x01);
+	HFCE1_WRITE_1(REG_hfce1_inc_res_fifo, (0x04|0x01));
 
 	hfce1_fifo_wait_disbusy(sc);
 

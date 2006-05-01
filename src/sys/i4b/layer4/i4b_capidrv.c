@@ -71,6 +71,7 @@ struct capi_ai_softc {
 	u_int32_t sc_CIP_mask_2[MAX_CONTROLLERS]; /* used to select incoming calls */
 
 	u_int16_t sc_max_b_data_len;
+	u_int16_t sc_max_b_data_blocks;
 
 	struct cdev *sc_dev;
 
@@ -3026,11 +3027,16 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		}
 
 		if(req->max_b_data_len < 128) {
-		  req->max_b_data_len = 128;
+		   req->max_b_data_len = 128;
+		}
+
+		if(req->max_b_data_blocks > 128) {
+		   req->max_b_data_blocks = 128;
 		}
 
 		mtx_lock(&sc->sc_mtx);
 		sc->sc_max_b_data_len = req->max_b_data_len;
+		sc->sc_max_b_data_blocks = req->max_b_data_blocks;
 		mtx_unlock(&sc->sc_mtx);
 
 		req->app_id = 0; /* unused */
@@ -3613,6 +3619,8 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	if(pp->protocol_1)
 	{
+		struct capi_ai_softc *sc = cd->ai_ptr;
+
 		/* connected */
 
 		f->L5_sc = cd;
@@ -3620,6 +3628,13 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 		f->L5_PUT_MBUF = &capi_put_mbuf;
 		f->L5_GET_MBUF = &capi_get_mbuf;
 		f->L5_ALLOC_MBUF = &capi_alloc_mbuf;
+
+		if(sc)
+		{
+		    mtx_lock(&sc->sc_mtx);
+		    f->tx_queue.ifq_maxlen = sc->sc_max_b_data_blocks;
+		    mtx_unlock(&sc->sc_mtx);
+		}
 
 		capi_ai_connect_b3_active_ind(cd);
 	}

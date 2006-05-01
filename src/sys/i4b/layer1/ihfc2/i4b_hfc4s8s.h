@@ -503,6 +503,8 @@ static void
 hfc4s8s_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 {
 	HFC4S8S_BUS_VAR(sc);
+
+	struct sc_fifo *f_last;
 	u_int8_t temp;
 	u_int8_t cable;
 
@@ -531,6 +533,8 @@ hfc4s8s_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	}
 	else
 	{
+	    f_last = sc->sc_fifo_select_last;
+
 	    hfc4s8s_fifo_select(sc,f);
 
 	    if(f->prot_last.protocol_1 == P_BRIDGE)
@@ -549,7 +553,7 @@ hfc4s8s_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	    {
 	        /* disable FIFO */
 	        HFC4S8S_WRITE_1(REG_hfc4s8s_a_con_hdlc_write, 0x00);
-		return;
+		goto fifo_unselect;
 	    }
 
 	    if(FIFO_LOGICAL_NO(f) == d1t)
@@ -622,6 +626,16 @@ hfc4s8s_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 		/* enable time slot */
 		HFC4S8S_WRITE_1(REG_hfc4s8s_r_slot_write, temp);
 		HFC4S8S_WRITE_1(REG_hfc4s8s_a_sl_cfg_write, cable);
+	    }
+
+	fifo_unselect:
+
+	    if(f_last)
+	    {
+	        /* restore the selected FIFO, in case
+		 * this routine is called recursivly:
+		 */
+	        hfc4s8s_fifo_select(sc, f_last);
 	    }
 	}
 	return;
@@ -792,11 +806,9 @@ hfc4s8s_fifo_inc_fx FIFO_INC_FX_T(sc,f)
 	    f->F_drvr = 0;
 	}
 
-	HFC4S8S_WRITE_1(REG_hfc4s8s_a_inc_res_fifo_write, 0x04);
+	/* increment FIFO and clear LOST bit */
 
-	hfc4s8s_fifo_wait_disbusy(sc);
-
-	HFC4S8S_WRITE_1(REG_hfc4s8s_a_inc_res_fifo_write, 0x01);
+	HFC4S8S_WRITE_1(REG_hfc4s8s_a_inc_res_fifo_write, (0x04|0x01));
 
 	hfc4s8s_fifo_wait_disbusy(sc);
 #if 1
