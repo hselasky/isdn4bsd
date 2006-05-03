@@ -607,7 +607,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	    }
 
 	    /* overlap sending */
-	    i4b_l4_proceeding_ind(cd, 0/* sending not complete */);
+	    i4b_l4_proceeding_ind(cd, 0, TE_MODE(sc));
 	    break;
 	  }
 
@@ -641,7 +641,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	     * we sent a SENDING COMPLETE in the preceding SETUP
 	     * message (-hm)
 	     */
-	    i4b_l4_proceeding_ind(cd, 1/* sending complete */);
+	    i4b_l4_proceeding_ind(cd, 1, TE_MODE(sc));
 	  }
 	  break;
 
@@ -668,7 +668,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 		  * miss the proceeding and sending complete
 		  * indication
 		  */
-	         i4b_l4_proceeding_ind(cd, 1);
+	         i4b_l4_proceeding_ind(cd, 1, TE_MODE(sc));
 	     }
 
 	     /* set state before indication */

@@ -75,7 +75,8 @@ extern void i4b_l4_pre_disconnect_ind(struct call_desc *cd);
 extern void i4b_l4_disconnect_ind(struct call_desc *cd, u_int8_t complement);
 extern void i4b_l4_idle_timeout_ind(struct call_desc *cd);
 extern void i4b_l4_proceeding_ind(struct call_desc *cd, 
-				  u_int8_t sending_complete);
+				  u_int8_t sending_complete,
+				  u_int8_t progress);
 extern void i4b_l4_retrieve_ind(call_desc_t *cd);
 extern void i4b_l4_hold_ind(call_desc_t *cd);
 

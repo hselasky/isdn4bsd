@@ -651,7 +651,8 @@ i4b_l4_alert_ind(call_desc_t *cd)
  *	send MSG_PROCEEDING_IND message to userland
  *---------------------------------------------------------------------------*/
 void
-i4b_l4_proceeding_ind(call_desc_t *cd, u_int8_t sending_complete)
+i4b_l4_proceeding_ind(call_desc_t *cd, u_int8_t sending_complete, 
+		      u_int8_t progress)
 {
 	struct mbuf *m;
 
@@ -681,12 +682,8 @@ i4b_l4_proceeding_ind(call_desc_t *cd, u_int8_t sending_complete)
 	        capi_ai_info_ind(cd, 0, 0x800d /* SETUP_ACKNOWLEDGE */, NULL, 0);
 	    }
 
-	    /* XXX applications should not depend
-	     * on the progress indicator, but
-	     * call proceeding !
-	     */
 	    if((cd->channel_id != CHAN_ANY) &&
-	       (cd->channel_id != CHAN_NOT_ANY))
+	       (cd->channel_id != CHAN_NOT_ANY) && progress)
 	    {
 		capi_ai_info_ind(cd, 0, 0x001e /* PROGRESS */, 
 				 &progress_indicator, sizeof(progress_indicator));
