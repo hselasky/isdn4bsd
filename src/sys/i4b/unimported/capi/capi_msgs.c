@@ -1,5 +1,7 @@
-/*
+/*-
  * Copyright (c) 2001 Cubical Solutions Ltd. All rights reserved.
+ *
+ * Copyright (c) 2006 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -22,11 +24,10 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * capi/capi_msgs.c	The CAPI i4b message handlers.
+ * capi/capi_msgs.c	The CAPI I4B message handlers.
+ *
+ * $FreeBSD: src/sys/i4b/capi/capi_msgs.c $
  */
-
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/i4b/capi/capi_msgs.c,v 1.4 2003/06/10 23:09:37 obrien Exp $");
 
 #include <sys/param.h>
 #include <sys/kernel.h>
@@ -38,10 +39,9 @@ __FBSDID("$FreeBSD: src/sys/i4b/capi/capi_msgs.c,v 1.4 2003/06/10 23:09:37 obrie
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_cause.h>
-
-#include <i4b/include/i4b_l3l4.h>
-#include <i4b/include/i4b_mbuf.h>
 #include <i4b/include/i4b_global.h>
+
+#include <i4b/include/capi20.h>
 
 #include <i4b/layer4/i4b_l4.h>
 
@@ -49,46 +49,121 @@ __FBSDID("$FreeBSD: src/sys/i4b/capi/capi_msgs.c,v 1.4 2003/06/10 23:09:37 obrie
 #include <i4b/capi/capi_msgs.h>
 
 /*
+//  Transmission of CAPI messages
+//  -----------------------------
+*/
+
+static u_int16_t
+capi_send_decoded(struct i4b_controller *cntl, u_int16_t wCmd, 
+		  u_int16_t wMsgNum, u_int32_t dwCid, struct mbuf *m2, 
+		  void *p_msg)
+{
+    struct CAPI_MESSAGE_ENCODED msg;
+    u_int16_t len;
+    u_int16_t error;
+    struct mbuf *m1;
+
+    CNTL_LOCK_ASSERT(cntl);
+
+    len = capi_encode(&msg.data, sizeof(msg.data), p_msg);
+    len += sizeof(msg.head);
+
+    msg.head.wLen = htole16(len);
+    msg.head.wApp = htole16(I4BCAPI_APPLID);
+    msg.head.wCmd = htole16(wCmd);
+    msg.head.wNum = htole16(wMsgNum);
+    msg.head.dwCid = htole32(dwCid);
+
+    m1 = i4b_getmbuf(len, M_NOWAIT);
+
+    if (m1) {
+        bcopy(&msg, m1->m_data, m1->m_len);
+	m1->m_next = m2;
+	error = (sc->send)(sc, m1);
+    } else {
+        error = 0x1008; /* OS resource error */
+	m_free(m2);
+    }
+
+    if (error) {
+        printf("WARNING: %s: CAPI cannot send "
+	       "cmd=0x%04x, len=%d bytes!\n", 
+	       __FUNCTION__, wCmd,len);
+
+	/* XXX do what: 
+	 * Tear down all active connections?
+	 * And reset controller?
+	 */
+    }
+    return error;
+}
+
+static u_int16_t
+capi_send_decoded_std(struct i4b_controller *cntl, u_int16_t wCmd, 
+		    u_int32_t dwCid, void *p_msg)
+{
+    struct capi_softc *sc = cntl->L1_softc;
+    return capi_send_decoded(cntl, wCmd, (sc->sc_msg_id)++, dwCid, NULL, p_msg);
+}
+
+static u_int16_t
+capi_send_decoded_b3(struct i4b_controller *cntl, u_int16_t wCmd, 
+		     u_int32_t dwCid, struct mbuf *m2, void *p_msg)
+{
+    struct capi_softc *sc = cntl->L1_softc;
+    return capi_send_decoded(cntl, wCmd, (sc->sc_msg_id)++, dwCid, m2, p_msg);
+}
+
+static u_int16_t
+capi_send_decoded_reply(struct i4b_controller *cntl, u_int16_t wCmd,
+			struct mbuf *m_in, void *p_msg)
+{
+    struct capi_softc *sc = cntl->L1_softc;
+    struct CAPI_HEADER_ENCODED *hdr = (void *)(m_in->m_data);
+    return capi_send_decoded(cntl, wCmd, hdr->wMsgNum, hdr->dwCid, NULL, p_msg);
+}
+
+static void
+capi_decode_mbuf(struct mbuf *m, void *p_msg)
+{
+    capi_decode(((u_int8_t *)(m->m_data)) + 12, 
+		m->m_len - 12, p_msg);
+}
+
+/*
 //  Administrative messages:
 //  ------------------------
 */
 
-void capi_listen_req(capi_softc_t *sc, u_int32_t CIP)
+u_int16_t
+capi_listen_req(struct i4b_controller *cntl, u_int32_t dwCIP)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 18);
-    u_int8_t *msg;
-    u_int16_t msgid;
+    struct CAPI_LISTEN_REQ_DECODED listen_req;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for listen_req\n", sc->sc_unit);
-	return;
-    }
+    u_int16_t error;
 
-    msgid = sc->sc_msgid++;
+    bzero(&listen_req, sizeof(listen_req));
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, I4BCAPI_APPLID);
-    msg = capimsg_setu16(msg, CAPI_LISTEN_REQ);
-    msg = capimsg_setu16(msg, msgid);
+    CAPI_INIT(CAPI_LISTEN_REQ, &listen_req);
 
-    msg = capimsg_setu32(msg, 1); /* Controller */
-    msg = capimsg_setu32(msg, 0); /* Info mask */
-    msg = capimsg_setu32(msg, CIP);
-    msg = capimsg_setu32(msg, 0);
-    msg = capimsg_setu8(msg, 0);
-    msg = capimsg_setu8(msg, 0);
+    listen_req.dwCipMask1 = dwCIP;
 
-    sc->send(sc, m);
+    error = capi_send_decoded_std(cntl, CAPI_REQ(LISTEN), 
+				  1 /* controller */, &listen_req);
+    return error;
 }
 
-void capi_listen_conf(capi_softc_t *sc, struct mbuf *m_in)
+void
+capi_listen_conf(struct i4b_controller *cntl, struct mbuf *m_in)
 {
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    u_int16_t Info;
+    struct CAPI_LISTEN_CONF listen_conf;
 
-    capimsg_getu16(msg + 12, &Info);
+    CAPI_INIT(CAPI_LISTEN_CONF, &listen_conf);
 
-    if (Info == 0) {
+    capi_decode_mbuf(m_in, &listen_conf);
+
+    if (listen_conf.wInfo == 0) {
+
 	/* We are now listening. */
 
 	sc->sc_state = C_UP;
@@ -99,74 +174,58 @@ void capi_listen_conf(capi_softc_t *sc, struct mbuf *m_in)
 
     } else {
 	/* XXX sc->sc_state = C_DOWN ? XXX */
-	printf("capi%d: can't listen, info=%04x\n", sc->sc_unit, Info);
+	printf("capi%d: can't listen, wInfo=0x%04x\n", 
+	       sc->sc_unit, wInfo);
     }
+    return;
 }
 
-void capi_info_ind(capi_softc_t *sc, struct mbuf *m_in)
+u_int16_t
+capi_info_ind(struct call_desc *cd, struct mbuf *m_in)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 4);
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    u_int16_t applid, msgid;
-    u_int32_t PLCI;
+    struct CAPI_INFO_RESP_DECODED info_resp;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for info_resp\n", sc->sc_unit);
-	return;
-    }
+    u_int16_t error;
 
-    msg = capimsg_getu16(msg + 2, &applid);
-    msg = capimsg_getu16(msg + 2, &msgid);
-    msg = capimsg_getu32(msg, &PLCI);
+    bzero(&info_resp, sizeof(info_resp));
 
-    /* i4b_l4_info_ind() */
-    
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, applid);
-    msg = capimsg_setu16(msg, CAPI_INFO_RESP);
-    msg = capimsg_setu16(msg, msgid);
+    CAPI_INIT(CAPI_INFO_RESP, &info_resp);
 
-    msg = capimsg_setu32(msg, PLCI);
-
-    sc->send(sc, m);
+    error = capi_send_decoded_reply(cd->p_cntl, CAPI_RESP(INFO),
+				    m_in, &info_resp);
+    return error;
 }
 
-void capi_alert_req(capi_softc_t *sc, call_desc_t *cd)
+u_int16_t
+capi_alert_req(capi_softc_t *sc, call_desc_t *cd)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 5);
-    u_int8_t *msg;
-    u_int16_t msgid;
-    u_int32_t PLCI;
+    struct CAPI_ALERT_REQ_DECODED alert_req;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for alert_req\n", sc->sc_unit);
-	return;
-    }
+    u_int16_t error;
 
-    msgid = sc->sc_bchan[cd->channelid].msgid = sc->sc_msgid++;
-    PLCI = (sc->sc_bchan[cd->channelid].ncci & CAPI_PLCI_MASK);
+    bzero(&alert_req, sizeof(alert_req));
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, I4BCAPI_APPLID);
-    msg = capimsg_setu16(msg, CAPI_ALERT_REQ);
-    msg = capimsg_setu16(msg, msgid);
+    CAPI_INIT(CAPI_ALERT_REQ, &alert_req);
 
-    msg = capimsg_setu32(msg, PLCI);
-    msg = capimsg_setu8(msg, 0);
-
-    sc->send(sc, m);
+    error = capi_send_decoded_std(cd->p_cntl, CAPI_REQ(ALERT), 
+				  cd->capi_dwCid, &alert_req);
+    return error;
 }
 
-void capi_alert_conf(capi_softc_t *sc, struct mbuf *m_in)
+void
+capi_alert_conf(struct call_desc *cd, struct mbuf *m_in)
 {
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    u_int16_t Info;
+    struct CAPI_ALERT_CONF_DECODED alert_conf;
 
-    msg = capimsg_getu16(msg + 12, &Info);
+    CAPI_INIT(CAPI_ALERT_CONF, &alert_conf);
 
-    if (Info) {
-	printf("capi%d: can't alert, info=%04x\n", sc->sc_unit, Info);
+    capi_decode_mbuf(m_in, &alert_conf);
+
+    if (alert_conf.wInfo) {
+	printf("WARNING: %s: alert info=0x%04x\n", 
+	       __FUNCTION__, alert_conf.wInfo);
     }
+    return;
 }
 
 /*
@@ -185,226 +244,252 @@ void capi_alert_conf(capi_softc_t *sc, struct mbuf *m_in)
 //                       (notify Layer 4)
 */
 
-void capi_connect_req(capi_softc_t *sc, call_desc_t *cd)
+u_int16_t
+capi_connect_req(struct call_desc *cd, struct mbuf *m_in)
 {
-    struct mbuf *m;
-    u_int8_t *msg;
-    u_int16_t msgid;
-    int slen = strlen(cd->src_telno);
-    int dlen = strlen(cd->dst_telno);
+    struct CAPI_CONNECT_REQ_DECODED conn_req;
+    struct CAPI_ADDITIONAL_INFO_DECODED add_info;
+    struct CAPI_B_PROTOCOL_DECODED b_prot;
 
-    m = i4b_Dgetmbuf(8 + 27 + slen + dlen);
-    if (!m) {
-	printf("capi%d: can't get mbuf for connect_req\n", sc->sc_unit);
-	return;
-    }
+    u_int8_t dst_telno[TELNO_MAX+1];
+    u_int8_t src_telno[TELNO_MAX+2];
 
-    cd->crflag = CRF_ORIG;
+    u_int8_t dst_subaddr[SUBADDR_MAX+1];
+    u_int8_t src_subaddr[SUBADDR_MAX+1];
 
-    sc->sc_bchan[cd->channelid].cdid = cd->cdid;
-    sc->sc_bchan[cd->channelid].bprot = cd->bprot;
-    sc->sc_bchan[cd->channelid].state = B_CONNECT_CONF;
-    msgid = sc->sc_bchan[cd->channelid].msgid = sc->sc_msgid++;
-    ctrl_desc[sc->ctrl_unit].bch_state[cd->channelid] = BCH_ST_RSVD;
+    u_int16_t error;
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, I4BCAPI_APPLID);
-    msg = capimsg_setu16(msg, CAPI_CONNECT_REQ);
-    msg = capimsg_setu16(msg, msgid);
+    static const u_int8_t sending_complete[2] = { 0x01, 0x00 };
+    static const u_int8_t sending_not_complete[2] = { 0x00, 0x00 };
 
-    msg = capimsg_setu32(msg, 1); /* Controller */
+    bzero(&conn_req, sizeof(conn_req));
+    bzero(&add_info, sizeof(add_info));
+    bzero(&b_prot, sizeof(b_prot));
 
-    switch (cd->bprot) {
+    CAPI_INIT(CAPI_CONNECT_REQ, &conn_req);
+    CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
+    CAPI_INIT(CAPI_B_PROTOCOL, &b_prot);
+
+    /* recursivly encode some structures */
+
+    conn_req.b_protocol.ptr = &b_prot;
+    conn_req.b_protocol_STRUCT = IE_STRUCT_DECODED;
+
+    conn_req.add_info.ptr = &add_info;
+    conn_req.add_info_STRUCT = IE_STRUCT_DECODED;
+
+    /* initialize state and message number */
+
+    cd->capi_state = B_CONNECT_CONF;
+    cd->capi_msg_num = sc->sc_msgid++;
+
+#warning "Use separate message number for connect request!"
+
+    /* initialize message */
+
+    switch (cd->channel_bprot) {
     case BPROT_NONE:
-	msg = capimsg_setu16(msg, 0x0010); /* Telephony */
-	break;
-
-    case BPROT_RHDLC:
-	msg = capimsg_setu16(msg, 0x0002); /* Unrestricted digital */
+    case BPROT_RHDLC_DOV:
+        /* Telephony */
+	conn_req.wCIP = 0x0010;
 	break;
 
     default:
-	msg = capimsg_setu16(msg, 0x0002); /* Unrestricted digital */
+        printf("WARNING: %s: Unknown protocol, %d!\n",
+	       __FUNCTION__, cd->channel_bprot);
+
+    case BPROT_RHDLC:
+    case BPROT_NONE_VOD:
+        /* Unrestricted digital */
+        conn_req.wCIP = 0x0002;
+	break;
     }
 
-    msg = capimsg_setu8(msg, 1 + dlen);
-    msg = capimsg_setu8(msg, 0x80);
-    strncpy(msg, cd->dst_telno, dlen);
+    /* copy destination telephone number */
 
-    msg = capimsg_setu8(msg + dlen, 2 + slen);
-    msg = capimsg_setu8(msg, 0x00);
-    msg = capimsg_setu8(msg, 0x80); /* Presentation and screening indicator */
-    strncpy(msg, cd->src_telno, slen);
+    dst_telno[0] = 0x80;
+    strlcpy(dst_telno+1, cd->dst_telno, sizeof(dst_telno)-1);
 
-    msg = capimsg_setu8(msg + slen, 0); /* Called & */
-    msg = capimsg_setu8(msg, 0); /* Calling party subaddress */
-    
-    msg = capimsg_setu8(msg, 15); /* B protocol */
-    if (cd->bprot == BPROT_NONE)
-	msg = capimsg_setu16(msg, 1); /* B1 protocol = transparent */
-    else
-	msg = capimsg_setu16(msg, 0); /* B1 protocol = HDLC */
-    msg = capimsg_setu16(msg, 1); /* B2 protocol = transparent */
-    msg = capimsg_setu16(msg, 0); /* B3 protocol = transparent */
-    msg = capimsg_setu8(msg, 0); /* B1 parameters */
-    msg = capimsg_setu8(msg, 0); /* B2 parameters */
-    msg = capimsg_setu8(msg, 0); /* B3 parameters */
+    conn_req.dst_telno.ptr = dst_telno;
+    conn_req.dst_telno.len = strlen(dst_telno+1)+1;
 
-    msg = capimsg_setu8(msg, 0); /* Bearer Capability */
-    msg = capimsg_setu8(msg, 0); /* Low Layer Compatibility */
-    msg = capimsg_setu8(msg, 0); /* High Layer Compatibility */
-    msg = capimsg_setu8(msg, 0); /* Additional Info */
+    /* copy source telephone number */
 
-    sc->send(sc, m);
+    /* set Type Of Number */
+
+    switch(cd->src[0].ton) {
+    case TON_INTERNAT:
+      src_telno[0] = 0x10;
+      break;
+    case TON_NATIONAL:
+      src_telno[0] = 0x20;
+      break;
+    default:
+      src_telno[0] = 0x00;
+      break;
+    }
+
+    /* set Presentation Indicator */
+
+    switch(cd->src[0].prs_ind) {
+    case PRS_RESTRICT:
+      src_telno[1] = (0x80|0x20);
+      break;
+    default:
+      src_telno[1] = (0x80|0x00);
+      break;
+    }
+
+    strlcpy(src_telno+2, cd->src[0].telno, sizeof(src_telno)-2);
+
+    conn_req.src_telno.ptr = src_telno;
+    conn_req.src_telno.len = strlen(src_telno+2)+2;
+
+    /* copy destination subaddress */
+
+    dst_subaddr[0] = 0x80;
+    strlcpy(dst_subaddr+1, cd->dst_subaddr, sizeof(dst_subaddr)-1);
+
+    conn_req.dst_subaddr.ptr = dst_subaddr;
+    conn_req.dst_subaddr.len = strlen(dst_subaddr+1)+1;
+
+    /* copy source subaddress */
+
+    src_subaddr[0] = 0x80;
+    strlcpy(src_subaddr+1, cd->src_subaddr, sizeof(src_subaddr)-1);
+
+    conn_req.src_subaddr.ptr = src_subaddr;
+    conn_req.src_subaddr.len = strlen(src_subaddr+1)+1;
+
+#warning "XXX: always use transparent mode"
+
+    b_prot.wB1_protocol = 
+      ((cd->channel_bprot == BPROT_NONE) ||
+       (cd->channel_bprot == BPROT_NONE_VOD)) ? 
+      1 /* transparent */ : 
+      0 /* HDLC */;
+
+    b_prot.wB2_protocol = 1; /* transparent */
+
+    add_info.keypad.ptr = cd->keypad;
+    add_info.keypad.len = strlen(cd->keypad);
+
+    add_info.useruser.ptr = cd->user_user;
+    add_info.useruser.len = strlen(cd->user_user);
+
+    if (cd->sending_complete) {
+      add_info.sending_complete.ptr = &sending_complete;
+      add_info.sending_complete.len = sizeof(sending_complete);
+    } else {
+      add_info.sending_complete.ptr = &sending_not_complete;
+      add_info.sending_complete.len = sizeof(sending_not_complete);
+    }
+
+    /* transmit the message */
+
+    error = capi_send_decoded_std(cd->p_cntl, CAPI_REQ(CONNECT), 
+				  1 /* controller */, &conn_req);
+    return error;
 }
 
-void capi_connect_conf(capi_softc_t *sc, struct mbuf *m_in)
+void
+capi_connect_conf(struct call_desc *cd, struct mbuf *m_in)
 {
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    call_desc_t *cd;
-    u_int16_t msgid;
-    u_int32_t PLCI;
-    u_int16_t Info;
-    int bch;
+    struct CAPI_CONNECT_CONF_DECODED conn_conf;
 
-    msg = capimsg_getu16(msg + 6, &msgid);
-    msg = capimsg_getu32(msg, &PLCI);
-    msg = capimsg_getu16(msg, &Info);
+    bzero(&conn_conf, sizeof(conn_conf));
 
-    for (bch = 0; bch < sc->sc_nbch; bch++)
-	if ((sc->sc_bchan[bch].state == B_CONNECT_CONF) &&
-	    (sc->sc_bchan[bch].msgid == msgid))
-	    break;
+    CAPI_INIT(CAPI_CONNECT_CONF, &conn_conf);
 
-    if ((bch == sc->sc_nbch) ||
-	(cd = cd_by_cdid(sc->sc_bchan[bch].cdid)) == NULL) {
-	printf("capi%d: can't find channel for connect_conf PLCI %x\n",
-	       sc->sc_unit, PLCI);
-	return;
-    }
+    capi_decode_mbuf(m_in, &conn_conf);
 
-    if (Info == 0) {
+#warning "set cd->capi_dwCid"
+
+    if (conn_conf.wInfo == 0x0000) {
+
 	sc->sc_bchan[bch].state = B_CONNECT_ACTIVE_IND;
 	sc->sc_bchan[bch].ncci = PLCI;
 
 	i4b_l4_proceeding_ind(cd);
 
     } else {
-	SET_CAUSE_TV(cd->cause_out, CAUSET_I4B, CAUSE_I4B_L1ERROR);
-	i4b_l4_disconnect_ind(cd);
-	freecd_by_cd(cd);
 
-	sc->sc_bchan[bch].state = B_FREE;
-	ctrl_desc[sc->ctrl_unit].bch_state[bch] = BCH_ST_FREE;
+#warning "Update:"
+
+	SET_CAUSE_TV(cd->cause_out, CAUSET_I4B, CAUSE_I4B_L1ERROR);
+
+	cd_set_state(cd, ST_L3_U0);
 
 	printf("capi%d: can't connect out, info=%04x\n", sc->sc_unit, Info);
     }
+    return;
 }
 
-void capi_connect_active_ind(capi_softc_t *sc, struct mbuf *m_in)
+u_int16_t
+capi_connect_active_ind(struct call_desc *cd, struct mbuf *m_in)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 4);
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    call_desc_t *cd;
-    u_int16_t applid, msgid;
-    u_int32_t PLCI;
-    int bch;
+    struct CAPI_CONNECT_ACTIVE_RESP_DECODED conn_act_resp;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for active_ind\n", sc->sc_unit);
-	return;
-    }
+    u_int16_t error;
 
-    msg = capimsg_getu16(msg + 2, &applid);
-    msg = capimsg_getu16(msg + 2, &msgid);
-    msg = capimsg_getu32(msg, &PLCI);
+    bzero(&conn_act_resp, sizeof(conn_act_resp));
 
-    for (bch = 0; bch < sc->sc_nbch; bch++)
-	if ((sc->sc_bchan[bch].state == B_CONNECT_ACTIVE_IND) &&
-	    (sc->sc_bchan[bch].ncci == PLCI))
-	    break;
+    CAPI_INIT(CAPI_CONNECT_ACTIVE_RESP, &conn_act_resp);
 
-    if ((bch == sc->sc_nbch) ||
-	(cd = cd_by_cdid(sc->sc_bchan[bch].cdid)) == NULL) {
-	printf("capi%d: can't find channel for active_resp, PLCI %x\n",
-	       sc->sc_unit, PLCI);
-	return;
-    }
+    error = capi_send_decoded_reply(cd->p_cntl, CAPI_RESP(CONNECT_ACTIVE), 
+				    m_in, &conn_act_resp);
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, applid);
-    msg = capimsg_setu16(msg, CAPI_CONNECT_ACTIVE_RESP);
-    msg = capimsg_setu16(msg, msgid);
+#error "Redesign:"
 
-    msg = capimsg_setu32(msg, PLCI);
+    if (!(cd->dir_incoming)) {
 
-    sc->send(sc, m);
-
-    if (cd->crflag == CRF_ORIG) {
 	capi_connect_b3_req(sc, cd);
 
     } else {
 	sc->sc_bchan[bch].state = B_CONNECT_B3_IND;
     }
+
+    return error;
 }
 
-void capi_connect_b3_req(capi_softc_t *sc, call_desc_t *cd)
+u_int16_t
+capi_connect_b3_req(struct call_desc *cd, struct mbuf *m_in)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 5);
-    u_int8_t *msg;
-    u_int16_t msgid;
-    u_int32_t PLCI;
+    struct CAPI_CONNECT_B3_REQ_DECODED conn_b3_req;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for connect_b3_req\n", sc->sc_unit);
-	return;
-    }
+    u_int16_t error;
 
-    sc->sc_bchan[cd->channelid].state = B_CONNECT_B3_CONF;
-    msgid = sc->sc_bchan[cd->channelid].msgid = sc->sc_msgid++;
-    PLCI = (sc->sc_bchan[cd->channelid].ncci & CAPI_PLCI_MASK);
+    bzero(&conn_b3_req, sizeof(conn_b3_req));
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, I4BCAPI_APPLID);
-    msg = capimsg_setu16(msg, CAPI_CONNECT_B3_REQ);
-    msg = capimsg_setu16(msg, msgid);
+    CAPI_INIT(CAPI_CONNECT_B3_REQ, &conn_b3_req);
 
-    msg = capimsg_setu32(msg, PLCI);
-    msg = capimsg_setu8(msg, 0); /* NCPI */
+    cd->capi_state = B_CONNECT_B3_CONF;
 
-    sc->send(sc, m);
+    error = capi_send_decoded_std(cd->p_cntl, CAPI_REQ(CONNECT_B3), 
+				  cd->capi_dwCid, &conn_b3_req);
+    return error;
 }
 
-void capi_connect_b3_conf(capi_softc_t *sc, struct mbuf *m_in)
+void
+capi_connect_b3_conf(struct call_desc *cd, struct mbuf *m_in)
 {
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    call_desc_t *cd;
-    u_int16_t msgid;
-    u_int32_t NCCI;
-    u_int16_t Info;
-    int bch;
+    struct CAPI_CONNECT_B3_CONF conn_b3_conf;
 
-    msg = capimsg_getu16(msg + 6, &msgid);
-    msg = capimsg_getu32(msg, &NCCI);
-    msg = capimsg_getu16(msg, &Info);
+    CAPI_INIT(CAPI_CONNECT_B3_CONF, &conn_b3_conf);
 
-    for (bch = 0; bch < sc->sc_nbch; bch++)
-	if ((sc->sc_bchan[bch].state == B_CONNECT_B3_CONF) &&
-	    (sc->sc_bchan[bch].ncci == (NCCI & CAPI_PLCI_MASK)))
-	    break;
+    capi_decode_mbuf(m_in, &conn_b3_conf);
 
-    if ((bch == sc->sc_nbch) ||
-	(cd = cd_by_cdid(sc->sc_bchan[bch].cdid)) == NULL) {
-	printf("capi%d: can't find channel for connect_b3_conf NCCI %x\n",
-	       sc->sc_unit, NCCI);
-	return;
+    if (cd->capi_state == B_CONNECT_B3_CONF) {
+        return;
     }
 
-    if (Info == 0) {
+    if (conn_b3_conf.wInfo == 0x0000) {
+
 	sc->sc_bchan[bch].ncci = NCCI;
 	sc->sc_bchan[bch].state = B_CONNECT_B3_ACTIVE_IND;
 
     } else {
+
 	SET_CAUSE_TV(cd->cause_in, CAUSET_I4B, CAUSE_I4B_OOO); /* XXX */
 	i4b_l4_disconnect_ind(cd);
 	freecd_by_cd(cd);
@@ -415,49 +500,45 @@ void capi_connect_b3_conf(capi_softc_t *sc, struct mbuf *m_in)
 
 	capi_disconnect_req(sc, cd);
     }
+    return;
 }
 
-void capi_connect_b3_active_ind(capi_softc_t *sc, struct mbuf *m_in)
+u_int16_t
+capi_connect_b3_active_resp(struct call_desc *cd, struct mbuf *m_in)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 4);
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    call_desc_t *cd;
-    u_int16_t applid, msgid;
-    u_int32_t NCCI;
-    int bch;
+    struct CAPI_CONNECT_B3_ACTIVE_RESP_DECODED conn_b3_act_resp;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for b3_active_ind\n", sc->sc_unit);
-	return;
+    u_int16_t error;
+
+    bzero(&conn_b3_act_resp, sizeof(conn_b3_act_resp));
+
+    CAPI_INIT(CAPI_CONNECT_B3_ACTIVE_RESP, &conn_b3_act_resp);
+
+    error = capi_send_decoded_reply(cd->p_cntl, CAPI_RESP(CONNECT_B3_ACTIVE),
+				    m_in, &conn_b3_act_resp);
+    return error;
+}
+
+void
+capi_connect_b3_active_ind(struct call_desc *cd, struct mbuf *m_in)
+{
+    struct CAPI_CONNECT_B3_ACTIVE_IND_DECODED conn_b3_act_ind;
+
+    CAPI_INIT(CAPI_CONNECT_B3_ACTIVE_IND, &conn_b3_act_ind);
+
+    capi_decode_mbuf(m_in, &conn_b3_act_ind);
+
+    if (cd->capi_state != B_CONNECT_B3_ACTIVE_IND) {
+#warning "XXX wrong to return here!"
+        return;
     }
 
-    msg = capimsg_getu16(msg + 2, &applid);
-    msg = capimsg_getu16(msg + 2, &msgid);
-    msg = capimsg_getu32(msg, &NCCI);
+    capi_connect_b3_active_resp(cd, m_in);
 
-    for (bch = 0; bch < sc->sc_nbch; bch++)
-	if ((sc->sc_bchan[bch].state == B_CONNECT_B3_ACTIVE_IND) &&
-	    (sc->sc_bchan[bch].ncci == NCCI))
-	    break;
+    cd->capi_state = B_CONNECTED;
 
-    if ((bch == sc->sc_nbch) ||
-	(cd = cd_by_cdid(sc->sc_bchan[bch].cdid)) == NULL) {
-	printf("capi%d: can't find channel for b3_active_resp NCCI %x\n",
-	       sc->sc_unit, NCCI);
-	return;
-    }
-
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, I4BCAPI_APPLID);
-    msg = capimsg_setu16(msg, CAPI_CONNECT_B3_ACTIVE_RESP);
-    msg = capimsg_setu16(msg, msgid);
-
-    msg = capimsg_setu32(msg, NCCI);
-
-    sc->send(sc, m);
-
-    sc->sc_bchan[bch].state = B_CONNECTED;
     i4b_l4_connect_active_ind(cd);
+    return;
 }
 
 /*
@@ -476,115 +557,269 @@ void capi_connect_b3_active_ind(capi_softc_t *sc, struct mbuf *m_in)
 //                       (notify Layer 4)
 */
 
-void capi_connect_ind(capi_softc_t *sc, struct mbuf *m_in)
+static void
+get_ton_prs_src(const u_int8_t *ptr, u_int16_t len, 
+		struct i4b_src_telno *src)
 {
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    call_desc_t *cd;
-    u_int16_t applid, msgid;
-    u_int32_t PLCI;
-    u_int16_t CIP;
-    u_int8_t x, y, z;
-    int bch;
+    /* get Type Of Number */
 
-    if ((cd = reserve_cd()) == NULL) {
-	printf("capi%d: can't get cd for connect_ind\n", sc->sc_unit);
-	return;
+    src->ton = TON_OTHER;
+
+    if(len) {
+      switch(*ptr & 0x70) {
+      case 0x10:
+	src->ton = TON_INTERNAT;
+	break;
+      case 0x20:
+	src->ton = TON_NATIONAL;
+	break;
+      }
+      ptr++;
+      len--;
     }
 
-    cd->controller = sc->ctrl_unit;
-    cd->channelexcl = FALSE;
+    /* get Presentation byte */
 
-    for (bch = 0; bch < sc->sc_nbch; bch++)
-	if (sc->sc_bchan[bch].state == B_FREE) break;
-    sc->sc_bchan[bch].state = B_CONNECT_IND;
-    cd->channelid = bch; /* XXX CHAN_ANY XXX */
+    src->prs_ind = PRS_ALLOWED;
+    src->scr_ind = SCR_NONE;
 
-    cd->crflag = CRF_DEST;
-    cd->cr = get_rand_cr(sc->sc_unit);
-    cd->scr_ind = SCR_NONE;
-    cd->prs_ind = PRS_NONE;
-    cd->bprot = BPROT_NONE;
-    cd->ilt = NULL;
-    cd->dlt = NULL;
-    cd->display[0] = '\0';
-    cd->datetime[0] = '\0';
-
-    msg = capimsg_getu16(msg + 2, &applid);
-    msg = capimsg_getu16(msg + 2, &msgid);
-    msg = capimsg_getu32(msg, &PLCI);
-    msg = capimsg_getu16(msg, &CIP);
-
-    cd->event = (int) msgid; /* XXX overload */
-    cd->Q931state = (int) PLCI; /* XXX overload */
-
-    switch (CIP) {
-    case 0x0010:
-    case 0x0001: cd->bprot = BPROT_NONE; break;
-    case 0x0002: cd->bprot = BPROT_RHDLC; break;
-    default:
-	NDBGL4(L4_CAPIDBG, "capi%d: unknown CIP = %d", sc->sc_unit, CIP);
-	cd->bprot = BPROT_NONE;
+    if(len) {
+      switch(*ptr & 0x60) {
+      case 0x20:
+	src->prs_ind = PRS_RESTRICT;
+	break;
+      case 0x40:
+	src->prs_ind = PRS_NNINTERW;
+	break;
+      case 0x60:
+	src->prs_ind = PRS_RESERVED;
+	break;
+      }
+      switch(*ptr & 0x03) {
+      case 0x00:
+	src->scr_ind = SCR_USR_NOSC;
+	break;
+      case 0x01:
+	src->scr_ind = SCR_USR_PASS;
+	break;
+      case 0x02:
+	src->scr_ind = SCR_USR_FAIL;
+	break;
+      case 0x03:
+	src->scr_ind = SCR_NET;
+	break;
+      }
+      ptr++;
+      len--;
     }
-
-    msg = capimsg_getu8(msg, &x); /* Called party struct len */
-    if (x) {
-	msg = capimsg_getu8(msg, &y); /* Numbering plan */
-	z = x - 1;
-	if (z >= TELNO_MAX) z = (TELNO_MAX-1);
-	strncpy(cd->dst_telno, msg, z);
-	msg += x;
-	x = z;
-    }
-    cd->dst_telno[x] = '\0';
-
-    msg = capimsg_getu8(msg, &x); /* Calling party struct len */
-    if (x) {
-	msg = capimsg_getu8(msg, &y); /* Numbering plan */
-	msg = capimsg_getu8(msg, &y); /* Screening/Presentation */
-	if ((y & 0x80) == 0) { /* screening used */
-	    cd->scr_ind = (y & 3) + SCR_USR_NOSC;
-	    cd->prs_ind = ((y >> 5) & 3) + PRS_ALLOWED;
-	}
-	z = x - 2;
-	if (z >= TELNO_MAX) z = (TELNO_MAX-1);
-	strncpy(cd->src_telno, msg, z);
-	msg += x;
-	x = z;
-    }
-    cd->src_telno[x] = '\0';
-
-    i4b_l4_connect_ind(cd);
+    return;
 }
 
-void capi_connect_resp(capi_softc_t *sc, call_desc_t *cd)
+static void
+get_multi_1(const u_int8_t *src_ptr, u_int16_t src_len,
+	    u_int8_t *dst_ptr, u_int16_t dst_len, u_int16_t skip)
 {
-    struct mbuf *m;
-    u_int8_t *msg;
-    u_int16_t msgid;
-    u_int32_t PLCI;
-    int dlen = strlen(cd->dst_telno);
+    if (src_len < skip) {
+        src_len = 0;
+    } else {
+        src_len -= skip;
+	src_ptr += skip;
+    }
 
-    m = i4b_Dgetmbuf(8 + 21 + dlen);
-    if (!m) {
-	printf("capi%d: can't get mbuf for connect_resp\n", sc->sc_unit);
+    if (src_len > dst_len) {
+        src_len = dst_len;
+    }
+
+    bcopy(src_ptr, dst_ptr, src_len);
+    dst_ptr[src_len] = '\0';
+
+    return;
+}
+
+void
+capi_connect_ind(struct i4b_controller *cntl, struct mbuf *m_in)
+{
+    struct CAPI_CONNECT_IND_DECODED conn_ind;
+    struct CAPI_ADDITIONAL_INFO_DECODED add_info;
+    struct CAPI_HEADER_ENCODED *hdr = (void *)(m_in->m_data);
+    struct call_desc *cd;
+
+    CAPI_INIT(CAPI_CONNECT_IND, &conn_ind);
+    CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
+
+    /* perform recursive decoding */
+
+    conn_ind.add_info.ptr = &add_info;
+    conn_ind.add_info_STRUCT = IE_STRUCT_DECODED;
+
+    capi_decode_mbuf(m_in, &conn_ind);
+
+    cd = N_ALLOCATE_CD(cntl, ((void *)1), 0, 0, NULL);
+
+    if (cd == NULL) {
+       /* just let it time out */
+       return;
+    }
+
+    cd_allocate_channel(cd);
+
+    if (cd->channel_allocated == 0) {
+        cd_set_state(cd, ST_L3_U0);
 	return;
     }
 
-    msgid = (u_int16_t) cd->event;
-    PLCI = (u_int32_t) cd->Q931state;
+    cd->capi_dwCid   = hdr->dwCid;
+    cd->capi_wMsgNum = hdr->wNum;
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, I4BCAPI_APPLID);
-    msg = capimsg_setu16(msg, CAPI_CONNECT_RESP);
-    msg = capimsg_setu16(msg, msgid);
+    switch (conn_ind.wCIP) {
+    default:
+        NDBGL4(L4_CAPIDBG, "capi%d: cdid=%d, unknown CIP = %d", 
+	       CDID2CONTROLLER(cd->cdid), cd->cdid, conn_ind.wCIP);
 
-    msg = capimsg_setu32(msg, PLCI);
+    case 0x0010:
+    case 0x0001: 
+        cd->channel_bprot = BPROT_NONE; 
+	break;
+    case 0x0002: 
+        cd->channel_bprot = BPROT_RHDLC; 
+	break;
+    }
+
+    /* get destination telephone number */
+
+    get_multi_1(conn_ind.dst_telno.ptr,
+		conn_ind.dst_telno.len,
+		cd->dst_telno,
+		sizeof(cd->dst_telno)-1, 1);
+
+    /* get source telephone number */
+
+    get_ton_prs_src(conn_ind.src_telno.ptr,
+		    conn_ind.src_telno.len, &(cd->src[0]));
+
+    get_multi_1(conn_ind.src_telno.ptr,
+		conn_ind.src_telno.len,
+		cd->src[0].telno,
+		sizeof(cd->src[0].telno)-1, 2);
+
+    /* get second source telephone number */
+
+    get_ton_prs_src(conn_ind.src_telno_2.ptr,
+		    conn_ind.src_telno_2.len, &(cd->src[1]));
+
+    get_multi_1(conn_ind.src_telno_2.ptr,
+		conn_ind.src_telno_2.len,
+		cd->src[1].telno,
+		sizeof(cd->src[1].telno)-1, 2);
+
+    /* get destination subaddress number */
+
+    get_multi_1(conn_ind.dst_subaddr.ptr,
+		conn_ind.dst_subaddr.len,
+		cd->dst_subaddr,
+		sizeof(cd->dst_subaddr)-1, 1);
+
+    /* get source subaddress number */
+
+    get_multi_1(conn_ind.src_subaddr.ptr,
+		conn_ind.src_subaddr.len,
+		cd->src_subaddr,
+		sizeof(cd->src_subaddr)-1, 1);
+
+    /* get keypad string */
+
+    get_multi_1(add_info.keypad.ptr,
+		add_info.keypad.len,
+		cd->keypad,
+		sizeof(cd->keypad)-1, 0);
+
+    /* get user-user string */
+
+    get_multi_1(add_info.useruser.ptr,
+		add_info.useruser.len,
+		cd->user_user,
+		sizeof(cd->user_user)-1, 0);
+
+    /* get sending complete */
+
+    if (add_info.sending_complete.len >= 2) {
+        u_int8_t *ptr = add_info.sending_complete.ptr;
+
+	if((ptr[0] == 0x01) &&
+	   (ptr[1] == 0x00)) {
+
+	   cd->sending_complete = 1;
+	}
+    }
+
+    i4b_l4_connect_ind(cd);
+
+    return;
+}
+
+u_int16_t
+capi_connect_resp(struct call_desc *cd, struct mbuf *m_in, u_int16_t wReject)
+{
+    struct CAPI_CONNECT_RESP_DECODED conn_resp;
+    struct CAPI_B_PROTOCOL_DECODED b_prot;
+    struct ADDITIONAL_INFO add_info;
+
+    u_int8_t dst_telno[TELNO_MAX+1];
+
+    u_int16_t error;
+
+    bzero(&conn_resp, sizeof(conn_resp));
+    bzero(&b_prot, sizeof(b_prot));
+    bzero(&add_info, sizeof(add_info));
+
+    CAPI_INIT(CAPI_CONNECT_RESP, &conn_resp);
+    CAPI_INIT(CAPI_B_PROTOCOL, &b_prot);
+    CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
+
+    /* recursivly encode some structures */
+
+    conn_req.b_protocol.ptr = &b_prot;
+    conn_req.b_protocol_STRUCT = IE_STRUCT_DECODED;
+
+    conn_req.add_info.ptr = &add_info;
+    conn_req.add_info_STRUCT = IE_STRUCT_DECODED;
+
+    /**/
+
+    XXX msgid = (u_int16_t) cd->event;
+    XXX PLCI = (u_int32_t) cd->Q931state;
+
+#warning "XXX: always use transparent mode"
+
+    b_prot.wB1_protocol = 
+      ((cd->channel_bprot == BPROT_NONE) ||
+       (cd->channel_bprot == BPROT_NONE_VOD)) ? 
+      1 /* transparent */ : 
+      0 /* HDLC */;
+
+    b_prot.wB2_protocol = 1; /* transparent */
+
+    /* copy destination telephone number */
+
+    dst_telno[0] = 0x80;
+    strlcpy(dst_telno+1, cd->dst_telno, sizeof(dst_telno)-1);
+
+    conn_resp.dst_telno.ptr = dst_telno;
+    conn_resp.dst_telno.len = strlen(dst_telno+1)+1;
+
+    /* set reject variable */
+
+    conn_resp.wReject = wReject;
+
+    error = capi_send_decoded_reply(cd->p_cntl, CAPI_RESP(CONNECT), 
+				    m_in, &conn_req);
+
+#if 0
+ Move this elsewhere !
 
     switch (cd->response) {
     case SETUP_RESP_ACCEPT:
-	sc->sc_bchan[cd->channelid].cdid = cd->cdid;
-	sc->sc_bchan[cd->channelid].ncci = PLCI;
-	sc->sc_bchan[cd->channelid].state = B_CONNECT_ACTIVE_IND;
+      cd->capi_state = B_CONNECT_ACTIVE_IND;
 	ctrl_desc[sc->ctrl_unit].bch_state[cd->channelid] = BCH_ST_USED;
 	msg = capimsg_setu16(msg, 0); /* Accept the call */
 	break;
@@ -611,71 +846,43 @@ void capi_connect_resp(capi_softc_t *sc, call_desc_t *cd)
 	ctrl_desc[sc->ctrl_unit].bch_state[cd->channelid] = BCH_ST_FREE;
 	msg = capimsg_setu16(msg, (0x3480|CAUSE_Q850_CALLREJ));
     }
-
-    msg = capimsg_setu8(msg, 15); /* B protocol */
-    if (cd->bprot == BPROT_NONE)
-	msg = capimsg_setu16(msg, 1); /* B1 protocol = transparent */
-    else
-	msg = capimsg_setu16(msg, 0); /* B1 protocol = HDLC */
-    msg = capimsg_setu16(msg, 1); /* B2 protocol = transparent */
-    msg = capimsg_setu16(msg, 0); /* B3 protocol = transparent */
-    msg = capimsg_setu8(msg, 0); /* B1 parameters */
-    msg = capimsg_setu8(msg, 0); /* B2 parameters */
-    msg = capimsg_setu8(msg, 0); /* B3 parameters */
-
-    msg = capimsg_setu8(msg, 1 + dlen);
-    msg = capimsg_setu8(msg, 0x80); /* Numbering plan */
-    strncpy(msg, cd->dst_telno, dlen);
-    msg = capimsg_setu8(msg + dlen, 0); /* Connected subaddress */
-    msg = capimsg_setu8(msg, 0); /* Low Layer Compatibility */
-    msg = capimsg_setu8(msg, 0); /* Additional Info */
-
-    sc->send(sc, m);
+#endif
+    return error;
 }
 
-void capi_connect_b3_ind(capi_softc_t *sc, struct mbuf *m_in)
+u_int16_t
+capi_connect_b3_resp(struct call_desc *cd, struct mbuf *m_in, 
+		     u_int16_t wReject)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 7);
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    u_int16_t applid, msgid;
-    u_int32_t NCCI;
-    int bch;
+    struct CAPI_CONNECT_B3_RESP_DECODED conn_b3_resp;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for connect_b3_resp\n", sc->sc_unit);
-	return;
-    }
+    u_int16_t error;
 
-    msg = capimsg_getu16(msg + 2, &applid);
-    msg = capimsg_getu16(msg + 2, &msgid);
-    msg = capimsg_getu32(msg, &NCCI);
+    bzero(&conn_b3_resp, sizeof(conn_b3_resp));
 
-    for (bch = 0; bch < sc->sc_nbch; bch++)
-	if ((sc->sc_bchan[bch].state == B_CONNECT_B3_IND) &&
-	    (sc->sc_bchan[bch].ncci == (NCCI & CAPI_PLCI_MASK)))
-	    break;
+    CAPI_INIT(CAPI_CONNECT_B3_RESP, &conn_b3_resp);
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, applid);
-    msg = capimsg_setu16(msg, CAPI_CONNECT_B3_RESP);
-    msg = capimsg_setu16(msg, msgid);
+    conn_b3_resp.wReject = wReject;
 
-    msg = capimsg_setu32(msg, NCCI);
+    error = capi_send_decoded_reply(cd->p_cntl, CAPI_RESP(CAPI_CONNECT_B3), 
+				    m_in, &conn_b3_resp);
+    return error;
+}
 
-    if (bch == sc->sc_nbch) {
-	printf("capi%d: can't get cd for connect_b3_resp NCCI %x\n",
-	       sc->sc_unit, NCCI);
-	msg = capimsg_setu16(msg, 8); /* Reject, destination OOO */
+u_int16_t
+capi_connect_b3_ind(struct call_desc *cd, struct mbuf *m_in)
+{
+    struct CAPI_CONNECT_B3_IND_DECODED conn_b3_ind;
 
-    } else {
-	sc->sc_bchan[bch].ncci = NCCI;
-	sc->sc_bchan[bch].state = B_CONNECT_B3_ACTIVE_IND;
-	msg = capimsg_setu16(msg, 0); /* Accept */
-    }
+    u_int16_t error;
 
-    msg = capimsg_setu8(msg, 0); /* NCPI */
+    CAPI_INIT(CAPI_CONNECT_B3_IND, &conn_b3_ind);
 
-    sc->send(sc, m);
+    capi_decode_mbuf(m_in, &conn_b3_ind);
+
+    error = capi_connect_b3_resp(cd, m_in, 0x0000 /* Accept */);
+
+    return error;
 }
 
 /*
@@ -683,87 +890,83 @@ void capi_connect_b3_ind(capi_softc_t *sc, struct mbuf *m_in)
 //  --------------
 */
 
-void capi_data_b3_req(capi_softc_t *sc, int chan, struct mbuf *m_b3)
+u_int16_t
+capi_data_b3_req(capi_softc_t *sc, int chan, struct mbuf *m_b3)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 14);
-    u_int8_t *msg;
-    u_int16_t msgid;
+    struct CAPI_DATA_B3_REQ_DECODED data_b3_req;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for data_b3_req\n", sc->sc_unit);
-	return;
-    }
+    u_int16_t error;
 
-    msgid = sc->sc_bchan[chan].msgid = sc->sc_msgid++;
-    sc->sc_bchan[chan].busy = 1;
+    bzero(&data_b3_req, sizeof(data_b3_req));
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, I4BCAPI_APPLID);
-    msg = capimsg_setu16(msg, CAPI_DATA_B3_REQ);
-    msg = capimsg_setu16(msg, msgid);
+    CAPI_INIT(CAPI_DATA_B3_REQ, &data_b3_req);
 
-    msg = capimsg_setu32(msg, sc->sc_bchan[chan].ncci);
-    msg = capimsg_setu32(msg, (u_int32_t) m_b3->m_data); /* Pointer */
-    msg = capimsg_setu16(msg, m_b3->m_len);
-    msg = capimsg_setu16(msg, chan);
-    msg = capimsg_setu16(msg, 0); /* Flags */
+    if(sizeof(void *) <= 4)
+      data_b3_req.dwPtr_1 = (u_int32_t)(m_b3->m_data);
+    else
+      data_b3_req.dwPtr_2 = (u_int64_t)(m_b3->m_data);
 
-    m->m_next = m_b3;
+    data_b3_req.wLen = (m_b3->m_len);
 
-    sc->send(sc, m);
+    cd->capi_busy = 1;
+
+    error = capi_send_decoded_b3(cd->p_cntl, CAPI_REQ(DATA_B3), 
+				 cd->capi_dwCid, m_b3, &data_b3_req);
+    return error;
 }
 
-void capi_data_b3_conf(capi_softc_t *sc, struct mbuf *m_in)
+void
+capi_data_b3_conf(struct call_desc *cd, struct mbuf *m_in)
 {
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    u_int32_t NCCI;
-    u_int16_t handle;
-    u_int16_t Info;
+    struct CAPI_DATA_B3_CONF_DECODED data_b3_conf;
 
-    msg = capimsg_getu32(msg + 8, &NCCI);
-    msg = capimsg_getu16(msg, &handle);
-    msg = capimsg_getu16(msg, &Info);
+    CAPI_INIT(CAPI_DATA_B3_CONF, &data_b3_conf);
 
-    if (Info == 0) {
+    capi_decode_mbuf(m_in, &data_b3_conf);
+
+    if (data_b3_conf.wInfo == 0x0000) {
 	sc->sc_bchan[handle].busy = 0;
 	capi_start_tx(sc, handle);
 
     } else {
-	printf("capi%d: data_b3_conf NCCI %x handle %x info=%04x\n",
-	       sc->sc_unit, NCCI, handle, Info);
+	printf("WARNING: %s[cdid=%d], wInfo=0x%04x\n",
+	       __FUNCTION__, cd->cdid, data_b3_conf.wInfo);
     }
+    return;
 }
 
-void capi_data_b3_ind(capi_softc_t *sc, struct mbuf *m_in)
+u_int16_t
+capi_data_b3_resp(struct call_desc *cd, struct mbuf *m_in, u_int16_t wHandle)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 6);
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    u_int16_t applid, msgid;
-    u_int32_t NCCI;
-    u_int16_t handle;
-    int bch;
+    struct CAPI_DATA_B3_RESP_DECODED data_b3_resp;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for data_b3_resp\n", sc->sc_unit);
-	return;
-    }
+    u_int16_t error;
 
-    msg = capimsg_getu16(msg + 2, &applid);
-    msg = capimsg_getu16(msg + 2, &msgid);
-    msg = capimsg_getu32(msg, &NCCI);
-    msg = capimsg_getu16(msg + 6, &handle);
+    CAPI_INIT(CAPI_DATA_B3_RESP, &data_b3_resp);
 
-    for (bch = 0; bch < sc->sc_nbch; bch++)
-	if ((sc->sc_bchan[bch].state == B_CONNECTED) &&
-	    (sc->sc_bchan[bch].ncci == NCCI))
-	    break;
+    bzero(&data_b3_resp, sizeof(data_b3_resp));
 
-    if (bch == sc->sc_nbch) {
-	printf("capi%d: can't find channel for data_b3_ind NCCI %x\n",
-	       sc->sc_unit, NCCI);
+    data_b3_resp.wHandle = wHandle;
 
-    } else {
-	if (sc->sc_bchan[bch].bprot == BPROT_RHDLC) {
+    error = capi_send_decoded_reply(cd->p_cntl, CAPI_RESP(DATA_B3), 
+				    m_in, &data_b3_resp);
+    return error;
+}
+
+u_int16_t
+capi_data_b3_ind(struct call_desc *cd, struct mbuf *m_in)
+{
+    struct CAPI_DATA_B3_IND_DECODED data_b3_ind;
+
+    u_int16_t error;
+
+    CAPI_INIT(CAPI_DATA_B3_IND, &data_b3_ind);
+
+    capi_decode_mbuf(m_in, &data_b3_ind);
+
+#warning "FIXME:"
+
+    if (sc->sc_bchan[bch].bprot == BPROT_RHDLC) {
 	    /* HDLC drivers use rx_mbuf */
 
 	    sc->sc_bchan[bch].in_mbuf = m_in->m_next;
@@ -773,7 +976,7 @@ void capi_data_b3_ind(capi_softc_t *sc, struct mbuf *m_in)
 	    (*sc->sc_bchan[bch].capi_drvr_linktab->bch_rx_data_ready)(
 		sc->sc_bchan[bch].capi_drvr_linktab->unit);
 
-	} else {
+    } else {
 	    /* Telephony drivers use rx_queue */
 
 	    if (!_IF_QFULL(&sc->sc_bchan[bch].rx_queue)) {
@@ -784,18 +987,11 @@ void capi_data_b3_ind(capi_softc_t *sc, struct mbuf *m_in)
 
 	    (*sc->sc_bchan[bch].capi_drvr_linktab->bch_rx_data_ready)(
 		sc->sc_bchan[bch].capi_drvr_linktab->unit);
-	}
     }
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, I4BCAPI_APPLID);
-    msg = capimsg_setu16(msg, CAPI_DATA_B3_RESP);
-    msg = capimsg_setu16(msg, msgid);
+    error = capi_data_b3_resp(cd, m_in, data_b3_ind.wHandle);
 
-    msg = capimsg_setu32(msg, NCCI);
-    msg = capimsg_setu16(msg, handle);
-
-    sc->send(sc, m);
+    return error;
 }
 
 /*
@@ -803,147 +999,153 @@ void capi_data_b3_ind(capi_softc_t *sc, struct mbuf *m_in)
 //  --------------------
 */
 
-void capi_disconnect_req(capi_softc_t *sc, call_desc_t *cd)
+u_int16_t
+capi_disconnect_req(struct call_desc *cd, struct mbuf *m_in)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 5);
-    u_int8_t *msg;
-    u_int16_t msgid;
-    u_int32_t PLCI;
+    u_int16_t error;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for disconnect_req\n", sc->sc_unit);
-	return;
-    }
+    struct CAPI_DISCONNECT_REQ_DECODED disc_req;
 
-    sc->sc_bchan[cd->channelid].state = B_DISCONNECT_CONF;
-    ctrl_desc[sc->ctrl_unit].bch_state[cd->channelid] = BCH_ST_RSVD;
-    msgid = sc->sc_bchan[cd->channelid].msgid = sc->sc_msgid++;
-    PLCI = (sc->sc_bchan[cd->channelid].ncci & CAPI_PLCI_MASK);
+    bzero(&disc_req, sizeof(disc_req));
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, I4BCAPI_APPLID);
-    msg = capimsg_setu16(msg, CAPI_DISCONNECT_REQ);
-    msg = capimsg_setu16(msg, msgid);
+    CAPI_INIT(CAPI_DISCONNECT_REQ, &disc_req);
 
-    msg = capimsg_setu32(msg, PLCI);
-    msg = capimsg_setu8(msg, 0); /* Additional Info */
+    error = capi_send_decoded_std(cd->p_cntl, CAPI_REQ(DISCONNECT), 
+				  cd->capi_dwCid, &disc_req);
 
-    sc->send(sc, m);
+    cd_set_state(cd, ST_L3_U0);
+
+    return error;
 }
 
-void capi_disconnect_conf(capi_softc_t *sc, struct mbuf *m_in)
+void
+capi_disconnect_conf(struct call_desc *cd, struct mbuf *m_in)
 {
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    call_desc_t *cd;
-    u_int32_t PLCI;
-    int bch;
-
-    msg = capimsg_getu32(msg + 8, &PLCI);
-
-    for (bch = 0; bch < sc->sc_nbch; bch++)
-	if ((sc->sc_bchan[bch].state == B_DISCONNECT_CONF) &&
-	    ((sc->sc_bchan[bch].ncci & CAPI_PLCI_MASK) == PLCI))
-	    break;
-
-    if (bch == sc->sc_nbch) {
-	printf("capi%d: can't find channel for disconnect_conf PLCI %x\n",
-	       sc->sc_unit, PLCI);
-	return;
-    }
-
-    cd = cd_by_cdid(sc->sc_bchan[bch].cdid);
-    if (!cd) {
-	printf("capi%d: can't find cd for disconnect_conf PLCI %x\n",
-	       sc->sc_unit, PLCI);
-    } else {
-	i4b_l4_disconnect_ind(cd);
-	freecd_by_cd(cd);
-    }
-
-    sc->sc_bchan[bch].state = B_FREE;
-    ctrl_desc[sc->ctrl_unit].bch_state[bch] = BCH_ST_FREE;
+    return;
 }
 
-void capi_disconnect_b3_ind(capi_softc_t *sc, struct mbuf *m_in)
+u_int16_t
+capi_disconnect_b3_resp(struct call_desc *cd, struct mbuf *m_in)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 4);
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    u_int16_t applid, msgid;
-    u_int32_t NCCI;
+    struct CAPI_DISCONNECT_B3_RESP_DECODED disc_b3_resp;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for disconnect_b3_resp\n", sc->sc_unit);
-	return;
-    }
+    u_int16_t error;
 
-    msg = capimsg_getu16(msg + 2, &applid);
-    msg = capimsg_getu16(msg + 2, &msgid);
-    msg = capimsg_getu32(msg, &NCCI);
+    bzero(&disc_b3_resp, sizeof(disc_b3_resp));
+
+    CAPI_INIT(CAPI_DISCONNECT_B3_RESP, &disc_b3_resp);
+
+    error = capi_send_decoded_reply(cd->p_cntl, CAPI_RESP(DISCONNECT_B3), 
+				    m_in, &disc_b3_resp);
+    return error;
+}
+
+u_int16_t
+capi_disconnect_b3_ind(struct call_desc *cd, struct mbuf *m_in)
+{
+    struct CAPI_DISCONNECT_B3_IND_DECODED disc_b3_ind;
+
+    u_int16_t error;
+
+    CAPI_INIT(CAPI_DISCONNECT_B3_IND, &disc_b3_ind);
+
+    capi_decode_mbuf(m_in, &disc_b3_ind);
 
     /* XXX update bchan state? XXX */
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, applid);
-    msg = capimsg_setu16(msg, CAPI_DISCONNECT_B3_RESP);
-    msg = capimsg_setu16(msg, msgid);
+    error = capi_disconnect_b3_resp(cd, m_in);
 
-    msg = capimsg_setu32(msg, NCCI);
-
-    sc->send(sc, m);
+    return error;
 }
 
-void capi_disconnect_ind(capi_softc_t *sc, struct mbuf *m_in)
+u_int16_t
+capi_disconnect_resp(struct call_desc *cd, struct mbuf *m_in)
 {
-    struct mbuf *m = i4b_Dgetmbuf(8 + 4);
-    u_int8_t *msg = mtod(m_in, u_int8_t*);
-    call_desc_t *cd;
-    u_int16_t applid, msgid;
-    u_int32_t PLCI;
-    u_int16_t Reason;
-    int bch;
+    struct CAPI_DISCONNECT_RESP_DECODED disc_resp;
 
-    if (!m) {
-	printf("capi%d: can't get mbuf for disconnect_resp\n", sc->sc_unit);
-	return;
+    u_int16_t error;
+
+    bzero(&disc_resp, sizeof(disc_resp));
+
+    CAPI_INIT(CAPI_DISCONNECT_RESP, &disc_resp);
+
+    error = capi_send_decoded_reply(cd->p_cntl, CAPI_RESP(DISCONNECT), 
+				    m_in, &disc_resp);
+    return error;
+}
+
+u_int16_t
+capi_disconnect_ind(struct call_desc *cd, struct mbuf *m_in)
+{
+    struct CAPI_DISCONNECT_IND_DECODED disc_ind;
+
+    u_int16_t error;
+
+    CAPI_INIT(CAPI_DISCONNECT_IND, &disc_ind);
+
+    capi_decode(data, len, &disc_ind);
+
+    if ((disc_ind.wReason & 0xff00) == 0x3400) {
+      SET_CAUSE_TV(cd->cause_in, CAUSET_Q850, (disc_ind.wReason & 0x7f));
+    } else {
+      SET_CAUSE_TV(cd->cause_in, CAUSET_I4B, CAUSE_I4B_NORMAL);
     }
 
-    msg = capimsg_getu16(msg + 2, &applid);
-    msg = capimsg_getu16(msg + 2, &msgid);
-    msg = capimsg_getu32(msg, &PLCI);
-    msg = capimsg_getu16(msg, &Reason);
+    error = capi_disconnect_resp(cd, m_in);
 
-    for (bch = 0; bch < sc->sc_nbch; bch++)
-	if ((sc->sc_bchan[bch].state != B_FREE) &&
-	    ((sc->sc_bchan[bch].ncci & CAPI_PLCI_MASK) == PLCI))
-	    break;
+    cd_set_state(cd, ST_L3_U0);
 
-    if (bch < sc->sc_nbch) {
-	/* We may not have a bchan assigned if call was ignored. */
+    return error;
+}
 
-	cd = cd_by_cdid(sc->sc_bchan[bch].cdid);
-	sc->sc_bchan[bch].state = B_DISCONNECT_IND;
-    } else cd = NULL;
+/*
+//  Protocol selection
+//  ------------------
+*/
+void
+capi_select_b3_protocol_conf(struct call_desc *cd, struct mbuf *m_in)
+{
+    struct CAPI_SELECT_B_PROTOCOL_CONF_DECODED prot_conf;
 
-    if (cd) {
-	if ((Reason & 0xff00) == 0x3400) {
-	    SET_CAUSE_TV(cd->cause_in, CAUSET_Q850, (Reason & 0x7f));
-	} else {
-	    SET_CAUSE_TV(cd->cause_in, CAUSET_I4B, CAUSE_I4B_NORMAL);
-	}
+    CAPI_INIT(CAPI_SELECT_B_PROTOCOL_CONF, &prot_conf);
 
-	i4b_l4_disconnect_ind(cd);
-	freecd_by_cd(cd);
+    capi_decode_mbuf(m_in, &prot_conf);
 
-	sc->sc_bchan[bch].state = B_FREE;
-	ctrl_desc[sc->ctrl_unit].bch_state[bch] = BCH_ST_FREE;
+    if (prot_conf.wInfo == 0x0000) {
+
+
+    } else {
+
+        printf("WARNING: %s[cdid=%d], wInfo=0x%04x\n",
+	       __FUNCTION__, cd->cdid, prot_conf.wInfo);
     }
+    return;
+}
 
-    msg = capimsg_setu16(mtod(m, u_int8_t*), m->m_len);
-    msg = capimsg_setu16(msg, applid);
-    msg = capimsg_setu16(msg, CAPI_DISCONNECT_RESP);
-    msg = capimsg_setu16(msg, msgid);
+u_int16_t
+capi_select_b3_protocol_req(struct call_desc *cd, struct mbuf *m_in)
+{
+    struct CAPI_SELECT_B_PROTOCOL_REQ_DECODED prot_req;
+    struct CAPI_B_PROTOCOL_DECODED b_prot;
 
-    msg = capimsg_setu32(msg, PLCI);
+    u_int16_t error;
 
-    sc->send(sc, m);
+    bzero(&prot_req, sizeof(prot_req));
+    bzero(&b_prot, sizeof(b_prot));
+
+    CAPI_INIT(CAPI_SELECT_B_PROTOCOL_REQ, &prot_req);
+    CAPI_INIT(CAPI_B_PROTOCOL, &b_prot);
+
+    /* recursivly encode some structures */
+
+    prot_req.b_protocol.ptr = &b_prot;
+    prot_req.b_protocol_STRUCT = IE_STRUCT_DECODED;
+
+    b_prot.wB1_protocol = 1; /* transparent */
+    b_prot.wB2_protocol = 1; /* transparent */
+    b_prot.wB3_protocol = 0; /* transparent */
+
+    error = capi_send_decoded_std(cd->p_cntl, CAPI_REQ(SELECT_B_PROTOCOL),
+				  cd->dwCid, &prot_req);
+    return error;
 }
