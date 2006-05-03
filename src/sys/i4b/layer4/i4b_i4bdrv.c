@@ -608,7 +608,7 @@ i4b_controller_download(struct i4b_controller *cntl,
 	protocols_old = req->protocols;
 	size = req->numprotos * sizeof(struct isdn_dr_prot);
 
-	req->protocols = malloc(size, M_DEVBUF, M_WAITOK);
+	req->protocols = size ? malloc(size, M_DEVBUF, M_WAITOK) : NULL;
 
 	if(req->protocols == NULL)
 	{
@@ -623,7 +623,8 @@ i4b_controller_download(struct i4b_controller *cntl,
 
 	while(i--)
 	{
-		microcode = malloc(prot->bytecount, M_DEVBUF, M_WAITOK);
+		microcode = prot->bytecount ? 
+		  malloc(prot->bytecount, M_DEVBUF, M_WAITOK) : NULL;
 
 		if(microcode == NULL)
 		{
@@ -639,6 +640,7 @@ i4b_controller_download(struct i4b_controller *cntl,
 		 * regardless of result
 		 */
 		prot->microcode = microcode;
+		prot++;
 	}
 
 	if(!error)

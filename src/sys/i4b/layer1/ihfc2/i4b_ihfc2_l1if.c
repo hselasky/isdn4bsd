@@ -38,7 +38,7 @@
 #include <i4b/layer1/ihfc2/i4b_ihfc2_ext.h>
 
 /*---------------------------------------------------------------------------*
- *	command from the upper layers
+ *	handle command from the upper layers
  *---------------------------------------------------------------------------*/
 static int
 ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
@@ -364,7 +364,7 @@ ihfc_trace_info(ihfc_sc_t *sc, ihfc_fifo_t *f, const u_int8_t *desc)
  *	put mbuf to layer 5
  *---------------------------------------------------------------------------*/
 void
-ihfc_i4b_putmbuf (ihfc_sc_t *sc, ihfc_fifo_t *f, struct mbuf *m)
+ihfc_i4b_putmbuf(ihfc_sc_t *sc, ihfc_fifo_t *f, struct mbuf *m)
 {
 	fifo_translator_t *ft = FIFO_TRANSLATOR(sc,f);
 
@@ -385,7 +385,7 @@ ihfc_i4b_putmbuf (ihfc_sc_t *sc, ihfc_fifo_t *f, struct mbuf *m)
  *	get mbuf from layer 5
  *---------------------------------------------------------------------------*/
 struct mbuf *
-ihfc_i4b_getmbuf (ihfc_sc_t *sc, ihfc_fifo_t *f)
+ihfc_i4b_getmbuf(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
 	fifo_translator_t *ft = FIFO_TRANSLATOR(sc,f);
 	register struct mbuf *m1;
@@ -513,7 +513,7 @@ ihfc_B_stat(fifo_translator_t *ft, bchan_statistics_t *bsp)
 /*---------------------------------------------------------------------------*
  *	return FIFO-translator
  *
- * NOTE: "channel" range checking is performed by caller
+ * NOTE: "channel" range checking is performed by the caller
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 ihfc_B_get_fifo_translator(struct i4b_controller *cntl, int channel)

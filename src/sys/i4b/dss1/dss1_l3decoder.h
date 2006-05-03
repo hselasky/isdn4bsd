@@ -172,7 +172,7 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct dss1_buffer *buf)
 	    break;
 
 	case IEI_CALLSTATE:	/* call state */
-	    cd->call_state = temp & 0x3f;		
+	    cd->call_state = (temp & 0x3f);
 	    NDBGL3(L3_P_MSG, "IEI_CALLSTATE = %d", cd->call_state);
 	    break;
 			
@@ -634,7 +634,6 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, struct dss1_buffer *buf,
 			/* allocate call-descriptor */
 
 			cd = N_ALLOCATE_CD(sc->sc_cntl,pipe,crval,0,NULL);
-			/* cdid filled in */
 		}
 		else if((crval & ~0x80) == 0)
 		{
