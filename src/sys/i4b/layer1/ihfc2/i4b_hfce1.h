@@ -213,6 +213,7 @@ hfce1_chip_reset CHIP_RESET_T(sc,error)
 	u_int16_t Z_max; /* exclusive */
 	u_int8_t F_min; /* inclusive */
 	u_int8_t F_max; /* exclusive */
+	u_int8_t pcm_md0;
 	ihfc_fifo_t *f;
 
 #if 0
@@ -372,14 +373,18 @@ hfce1_chip_reset CHIP_RESET_T(sc,error)
 	    HFCE1_WRITE_1(REG_hfce1_conf, 0x00);
 	}
 
-	/* PCM slave or master */
-	HFCE1_WRITE_1(REG_hfce1_pcm_md0, 
-		      IS_PCM_SLAVE(sc,0) ? 0x90 : 0x91);
+	pcm_md0 = (IS_PCM_SLAVE(sc,0) ? 0x00 : 0x01);
+
+	/* PCM slave or master, and select md1 register */
+	HFCE1_WRITE_1(REG_hfce1_pcm_md0, pcm_md0|0x90);
 
 	/* set PCM speed */
 	HFCE1_WRITE_1(REG_hfce1_pcm_md1, 
 		      IS_PCM_SPEED_128(sc,0) ? 0x20 :
 		      IS_PCM_SPEED_64(sc,0) ? 0x10 : 0x00);
+
+	/* select md2 register */
+	HFCE1_WRITE_1(REG_hfce1_pcm_md0, pcm_md0|0xA0);
 
 	/* PCM is synchronized to E1 receive */
 	HFCE1_WRITE_1(REG_hfce1_pcm_md2, 0x00);
@@ -688,36 +693,42 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 		goto fifo_unselect;
 	    }
 
-	    if(FIFO_NO(f) == d1t)
-	        temp = 1; /* 0xFF inter frame fill */
-	    else 
-	        temp = 0; /* 0x7E inter frame fill */
-
-	    if(PROT_IS_TRANSPARENT(&(f->prot_curr)) ||
-	       (f->prot_curr.protocol_1 == P_BRIDGE) ||
-	       (f->prot_curr.protocol_1 == P_DISABLE))
+	    if(f->prot_curr.protocol_1 == P_BRIDGE)
 	    {
-	        temp |= 2; /* extended transparent mode */
+	        temp = 0xC2;
 	    }
 	    else
 	    {
-	        /* recompute "Z_min_free"
-		 *
-		 * If there is too much data
-		 * in the buffers, the response
-		 * times will increase. 
-		 * So put a limit on the FIFO
-		 * usage:
-		 */
-	        f->Z_min_free = f->fm.h.Zsize - 2000; /* max 250ms */
-		if(f->Z_min_free & Z_MSB) f->Z_min_free = 0;
-	    }
+	        if(FIFO_NO(f) == d1t)
+		  temp = 1; /* 0xFF inter frame fill */
+		else 
+		  temp = 0; /* 0x7E inter frame fill */
 
-	    /*
-	     * make sure that the
-	     * FIFO is enabled
-	     */
-	    temp |= 4;
+	        if(PROT_IS_TRANSPARENT(&(f->prot_curr)) ||
+		   (f->prot_curr.protocol_1 == P_DISABLE))
+		{
+		    temp |= 2; /* extended transparent mode */
+		}
+		else
+		{
+		    /* recompute "Z_min_free"
+		     *
+		     * If there is too much data
+		     * in the buffers, the response
+		     * times will increase. 
+		     * So put a limit on the FIFO
+		     * usage:
+		     */
+		    f->Z_min_free = f->fm.h.Zsize - 2000; /* max 250ms */
+		    if(f->Z_min_free & Z_MSB) f->Z_min_free = 0;
+		}
+
+		/*
+		 * make sure that the
+		 * FIFO is enabled
+		 */
+		temp |= 4;
+	    }
 
 	    HFCE1_WRITE_1(REG_hfce1_con_hdlc, temp);
 
@@ -742,8 +753,8 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 		  ((f->prot_curr.u.bridge.rx_slot << 1)|receive);
 
 		cable = (FIFO_DIR(f) == transmit) ? 
-		  f->prot_curr.u.bridge.tx_cable :
-		  f->prot_curr.u.bridge.rx_cable;
+		  (f->prot_curr.u.bridge.tx_cable) :
+		  (f->prot_curr.u.bridge.rx_cable ^ 0x01);
 
 		cable = ((cable << 6) | 0x80 | f->s_fifo_sel);
 

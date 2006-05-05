@@ -1585,6 +1585,14 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, STRUCT , Param,)\
   END
 
+/* ================================================  
+ *
+ * generic STRUCT structure
+ */
+#define CAPI_GENERIC_STRUCT(m,n) \
+  m(n, STRUCT , Param,)\
+  END
+
 /*---------------------------------------------------------------------------*
  *	declare all CAPI structures and some enums
  *---------------------------------------------------------------------------*/
@@ -1635,6 +1643,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, LINE_INTERCONNECT_PARAM)\
   m(n, FACILITY_CONF_GET_SUPPL)\
   m(n, SUPPL_PARAM)\
+  m(n, GENERIC_STRUCT)\
 
 /* for each command generate eight structures */
 CAPI_COMMANDS(CAPI_MAKE_DEF_1,);

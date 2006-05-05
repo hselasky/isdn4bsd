@@ -862,7 +862,6 @@ capi_make_suppl_supp_conf(struct capi_message_encoded *pmsg)
 	struct CAPI_FACILITY_CONF_GET_SUPPL_DECODED 
 	  suppl_conf = { /* zero */ };
 
-
 	CAPI_INIT(CAPI_FACILITY_CONF_GET_SUPPL, &suppl_conf);
 
 	suppl_conf.dwServices = 
@@ -882,16 +881,18 @@ capi_make_li_conn_conf(struct capi_message_encoded *pmsg,
 		       u_int16_t wInfo, u_int32_t dwCid)
 {
 	struct CAPI_LI_CONN_CONF_PART_DECODED li_conn_conf_part;
+	struct CAPI_GENERIC_STRUCT_DECODED gen_struct;
 	struct CAPI_LI_CONN_CONF_PARAM_DECODED li_conn_conf;
 	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm;
 
 	bzero(&li_conn_conf_part, sizeof(li_conn_conf_part));
-	CAPI_INIT(CAPI_LI_CONN_CONF_PART, &li_conn_conf_part);
-
+	bzero(&gen_struct, sizeof(gen_struct));
 	bzero(&li_conn_conf, sizeof(li_conn_conf));
-	CAPI_INIT(CAPI_LI_CONN_CONF_PARAM, &li_conn_conf);
-
 	bzero(&li_parm, sizeof(li_parm));
+
+	CAPI_INIT(CAPI_LI_CONN_CONF_PART, &li_conn_conf_part);
+	CAPI_INIT(CAPI_GENERIC_STRUCT, &gen_struct);
+	CAPI_INIT(CAPI_LI_CONN_CONF_PARAM, &li_conn_conf);
 	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
 
 	li_parm.wFunction = 0x0001;
@@ -899,8 +900,11 @@ capi_make_li_conn_conf(struct capi_message_encoded *pmsg,
 	li_parm.Param_STRUCT = IE_STRUCT_DECODED;
 
 	li_conn_conf.wInfo = wInfo;
-	li_conn_conf.conn_conf_part.ptr = &li_conn_conf_part;
+	li_conn_conf.conn_conf_part.ptr = &gen_struct;
 	li_conn_conf.conn_conf_part_STRUCT = IE_STRUCT_DECODED;
+
+	gen_struct.Param.ptr = &li_conn_conf_part;
+	gen_struct.Param_STRUCT = IE_STRUCT_DECODED;
 
 	li_conn_conf_part.wInfo = wInfo;
 	li_conn_conf_part.dwCid = dwCid;
@@ -917,16 +921,18 @@ capi_make_li_disc_conf(struct capi_message_encoded *pmsg,
 		       u_int16_t wInfo, u_int32_t dwCid)
 {
 	struct CAPI_LI_DISC_CONF_PART_DECODED li_disc_conf_part;
+	struct CAPI_GENERIC_STRUCT_DECODED gen_struct;
 	struct CAPI_LI_DISC_CONF_PARAM_DECODED li_disc_conf;
 	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm;
 
 	bzero(&li_disc_conf_part, sizeof(li_disc_conf_part));
-	CAPI_INIT(CAPI_LI_DISC_CONF_PART, &li_disc_conf_part);
-
+	bzero(&gen_struct, sizeof(gen_struct));
 	bzero(&li_disc_conf, sizeof(li_disc_conf));
-	CAPI_INIT(CAPI_LI_DISC_CONF_PARAM, &li_disc_conf);
-
 	bzero(&li_parm, sizeof(li_parm));
+
+	CAPI_INIT(CAPI_LI_DISC_CONF_PART, &li_disc_conf_part);
+	CAPI_INIT(CAPI_GENERIC_STRUCT, &gen_struct);
+	CAPI_INIT(CAPI_LI_DISC_CONF_PARAM, &li_disc_conf);
 	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
 
 	li_parm.wFunction = 0x0002;
@@ -934,8 +940,11 @@ capi_make_li_disc_conf(struct capi_message_encoded *pmsg,
 	li_parm.Param_STRUCT = IE_STRUCT_DECODED;
 
 	li_disc_conf.wInfo = wInfo;
-	li_disc_conf.disc_conf_part.ptr = &li_disc_conf_part;
+	li_disc_conf.disc_conf_part.ptr = &gen_struct;
 	li_disc_conf.disc_conf_part_STRUCT = IE_STRUCT_DECODED;
+
+	gen_struct.Param.ptr = &li_disc_conf_part;
+	gen_struct.Param_STRUCT = IE_STRUCT_DECODED;
 
 	li_disc_conf_part.wInfo = wInfo;
 	li_disc_conf_part.dwCid = dwCid;
@@ -1756,6 +1765,8 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	struct CAPI_FACILITY_REQ_CALL_DEFL_PARAM_DECODED cd_req;
 
+	struct CAPI_GENERIC_STRUCT_DECODED gen_struct;
+
 	struct capi_message_encoded msg;
 
 	/* NOTE: one has got to read all data into 
@@ -2547,13 +2558,17 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		      capi_decode(li_param.Param.ptr, li_param.Param.len, 
 				  &li_conn_req_param);
 
-		      CAPI_INIT(CAPI_LI_CONN_REQ_PART, &li_conn_req_part);
+		      CAPI_INIT(CAPI_GENERIC_STRUCT, &gen_struct);
 		      capi_decode(li_conn_req_param.conn_req_part.ptr,
 				  li_conn_req_param.conn_req_part.len,
+				  &gen_struct);
+
+		      CAPI_INIT(CAPI_LI_CONN_REQ_PART, &li_conn_req_part);
+		      capi_decode(gen_struct.Param.ptr,
+				  gen_struct.Param.len,
 				  &li_conn_req_part);
 
-		      if((li_conn_req_param.dwDataPath != 0x00000000) ||
-			 (li_conn_req_param.conn_req_part.len > 4))
+		      if(li_conn_req_param.dwDataPath != 0x00000000)
 		      {
 			  m2 = capi_make_li_conn_conf(&msg, 0x2008, 
 						      li_conn_req_part.dwCid);
@@ -2587,17 +2602,15 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		      capi_decode(li_param.Param.ptr, li_param.Param.len, 
 				  &li_disc_req_param);
 
-		      CAPI_INIT(CAPI_LI_DISC_REQ_PART, &li_disc_req_part);
+		      CAPI_INIT(CAPI_GENERIC_STRUCT, &gen_struct);
 		      capi_decode(li_disc_req_param.disc_req_part.ptr,
 				  li_disc_req_param.disc_req_part.len,
-				  &li_disc_req_part);
+				  &gen_struct);
 
-		      if(li_disc_req_param.disc_req_part.len > 4)
-		      {
-			  m2 = capi_make_li_disc_conf(&msg, 0x2001,
-						      li_disc_req_part.dwCid);
-			  goto send_confirmation;
-		      }
+		      CAPI_INIT(CAPI_LI_DISC_REQ_PART, &li_disc_req_part);
+		      capi_decode(gen_struct.Param.ptr,
+				  gen_struct.Param.len,
+				  &li_disc_req_part);
 
 		      m2 = capi_make_li_disc_conf(&msg, 0x0000,
 						  li_disc_req_part.dwCid);
