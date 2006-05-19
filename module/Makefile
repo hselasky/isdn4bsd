@@ -72,7 +72,7 @@ i4b_tel.c i4b_ipr.c i4b_isppp.c i4b_rbch.c i4b_trace.c \
 i4b_ctl.c i4b_i4bdrv.c i4b_capidrv.c i4b_mbuf.c \
 i4b_l4mgmt.c i4b_l4.c i4b_ihfc2_drv.c i4b_ihfc2_pnp.c \
 i4b_ihfc2_dev.c i4b_ihfc2_l1if.c i4b_hdlc.c dss1_l2fsm.c \
-i4b_l1.c
+i4b_l1.c i4b_echo_cancel.c i4b_convert_xlaw.c
 
 #
 # Netgraph is not supported on NetBSD:

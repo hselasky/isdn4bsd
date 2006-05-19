@@ -863,6 +863,7 @@ struct sc_default {
 						* in [extended] transparent
 						* mode
 						*/
+  u_int32_t o_ECHO_CANCEL_ENABLED : 1; /* set if echo canceller is supported */
   u_int32_t o_T125_WAIT          : 1; /* set if waiting for 125us timeout */
 
 #define IS_NT_MODE(sc,su) \
@@ -1247,6 +1248,8 @@ struct sc_fifo {
 	u_int16_t	Z_chip;		/* chip incremented Z-counter */
 	u_int16_t	Z_chip3;	/* replacement for a Z-list */
 	u_int16_t	Z_min_free;	/* minimum free FIFO space */
+	u_int16_t	Z_read_time;    /* time when Z-counters were read */
+	u_int16_t	Z_chip_written; /* number of bytes in transmit FIFO */
 #	define		Z_MSB 0x8000	/* please update! */
 
 #	define Z_transfer_length Z_chip	/* the Z_chip variable is also used
@@ -2597,6 +2600,11 @@ struct ihfc_sc {
 
 	/* ihfc application interface /dev/ihfc.XXX */
 	struct cdev *		sc_test_dev[IHFC_CHANNELS/2];
+
+	struct i4b_echo_cancel  sc_echo_cancel[IHFC_CHANNELS/2];
+
+	u_int16_t		sc_f0_counter_offset;
+	u_int32_t		sc_f0_counter_last;
 };
 
 /*---------------------------------------------------------------------------*

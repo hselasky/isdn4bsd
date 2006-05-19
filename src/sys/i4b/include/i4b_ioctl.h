@@ -237,6 +237,9 @@ struct i4b_protocol {
 	    u_int8_t  rx_cable;
 	    u_int8_t  tx_cable;
 	} bridge;
+        struct {
+	    u_int8_t  echo_cancel_enable;
+	} transp;
     } u;
 };
 

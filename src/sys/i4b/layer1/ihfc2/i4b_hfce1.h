@@ -58,6 +58,8 @@
 #define REG_hfce1_ctrl              0x01
 #define REG_hfce1_e_ech             0x37
 #define REG_hfce1_e_ecl             0x36
+#define REG_hfce1_f0_cntl_high      0x19
+#define REG_hfce1_f0_cntl_low       0x18
 #define REG_hfce1_fas_ech           0x31
 #define REG_hfce1_fas_ecl           0x30
 #define REG_hfce1_fifo_data         0x80
@@ -954,6 +956,7 @@ hfce1_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 	HFCE1_BUS_VAR(sc);
 	u_int8_t  Z_base;
 	u_int8_t  F_base;
+	u_int8_t  temp;
 	u_int16_t Z_chip2;
 
 	if(FIFO_DIR(f) == transmit)
@@ -968,6 +971,17 @@ hfce1_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 	}
 
 	cli(sc);
+
+	/* get current time */
+
+	HFCE1_READ_1(REG_hfce1_f0_cntl_low, temp);
+
+	f->Z_read_time = temp;
+
+	HFCE1_READ_1(REG_hfce1_f0_cntl_high, temp);
+
+	f->Z_read_time |= (temp << 8);
+
 
 	/* read F- and Z-counters respectively */
 
@@ -1176,6 +1190,7 @@ I4B_DBASE(hfce1_dbase_root)
   I4B_DBASE_ADD(o_RES_IRQ_0          , 1); /* enable */
   I4B_DBASE_ADD(o_RES_MEMORY_0       , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
+  I4B_DBASE_ADD(o_ECHO_CANCEL_ENABLED, 1); /* enable */
 
   I4B_DBASE_ADD(i4b_option_mask      , (I4B_OPTION_POLLED_MODE|
 					I4B_OPTION_NT_MODE|

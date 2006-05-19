@@ -739,6 +739,10 @@ enum
 
   /* PCM */
   CMR_SET_PCM_MAPPING,
+
+  /**/
+  CMR_ENABLE_ECHO_CANCEL,
+  CMR_DISABLE_ECHO_CANCEL,
 };
 
 typedef u_int32_t L1_auto_activate_t;
@@ -753,6 +757,80 @@ extern int i4b_l1_bchan_tel_silence(unsigned char *data, int len);
 extern int i4b_controller_attach(struct i4b_controller *cntl, u_int8_t *error);
 extern void i4b_controller_detach(struct i4b_controller *cntl);
 extern void i4b_controller_free(struct i4b_controller *cntl, u_int8_t sub_controllers);
+
+/* prototypes from i4b_convert_xlaw.c */
+
+extern const  int16_t i4b_ulaw_to_signed[0x100];
+extern const  int16_t i4b_alaw_to_signed[0x100];
+
+extern const u_int8_t i4b_reverse_bits[0x100];
+
+typedef u_int8_t (i4b_convert_rev_t)(int32_t);
+
+extern i4b_convert_rev_t i4b_signed_to_ulaw;
+extern i4b_convert_rev_t i4b_signed_to_alaw;
+
+/* prototypes from i4b_echo_cancel.c */
+
+#define I4B_ECHO_CANCEL_N_TAPS   128 /* units */
+#define I4B_ECHO_CANCEL_F_SIZE  1024 /* units */
+#define I4B_ECHO_CANCEL_COEFF_ADJ  3 
+
+struct i4b_echo_cancel {
+    int32_t coeffs[I4B_ECHO_CANCEL_N_TAPS];
+    int32_t adapt_factor;
+    int32_t adapt_divisor;
+
+    int32_t high_pass_1; /* DC - level */
+    int32_t high_pass_2; /* DC - level */
+
+  u_int32_t noise_rem;
+
+  u_int32_t cur_power_tx;
+  u_int32_t cur_power_rx;
+
+  u_int16_t offset_1; /* input offset for ring buffer 1 */
+  u_int16_t offset_wr; /* input offset for ring buffer 2 */
+
+  u_int16_t offset_rd; /* output offset for ring buffer 2 */
+  u_int16_t unused_1;
+
+  u_int16_t pre_delay; /* pre delay length in units */
+  u_int16_t cur_power_count;
+
+  u_int16_t adapt_count;
+  u_int16_t debug_count;
+
+  u_int16_t rx_time;
+  u_int16_t tx_time;
+
+    int16_t buffer_1[2*I4B_ECHO_CANCEL_N_TAPS];
+
+  u_int8_t  buffer_2[2*I4B_ECHO_CANCEL_F_SIZE];
+
+  u_int8_t  adapt_enabled : 1;
+  u_int8_t  rx_speaking : 1;
+  u_int8_t  tx_speaking : 1;
+  u_int8_t  is_ulaw : 1;
+  u_int8_t  last_byte;
+};
+
+extern void
+i4b_echo_cancel_init(struct i4b_echo_cancel *ec, 
+		     u_int16_t pre_delay, 
+		     u_int8_t is_ulaw);
+extern void
+i4b_echo_cancel_update_feeder(struct i4b_echo_cancel *ec,
+			      u_int16_t tx_time);
+extern void
+i4b_echo_cancel_feed(struct i4b_echo_cancel *ec, 
+		     u_int8_t *ptr, u_int16_t len);
+extern void
+i4b_echo_cancel_update_merger(struct i4b_echo_cancel *ec,
+			      u_int16_t rx_time);
+extern void
+i4b_echo_cancel_merge(struct i4b_echo_cancel *ec, 
+		      u_int8_t *read_ptr, u_int16_t read_len);
 
 /* prototypes from i4b_trace.c */
 

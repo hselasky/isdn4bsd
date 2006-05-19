@@ -175,6 +175,8 @@ ${N}i4b/layer4/i4b_l4.c                 optional i4b \
 ${N}i4b/layer4/i4b_l4mgmt.c             optional i4b \
 ${N}i4b/layer4/i4b_mbuf.c               optional i4b \
 ${N}i4b/layer1/i4b_l1.c                 optional i4b \
+${N}i4b/layer1/i4b_echo_cancel.c        optional i4b \
+${N}i4b/layer1/i4b_convert_xlaw.c       optional i4b \
 ${N}i4b/layer1/i4b_hdlc.c               optional i4b \
 ${N}\# \
 ${N}\# ISDN4BSD driver files \

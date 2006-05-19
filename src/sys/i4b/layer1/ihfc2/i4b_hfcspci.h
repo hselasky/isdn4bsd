@@ -371,6 +371,10 @@ hfcspci_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 	 */
 	cli(sc);
 
+	/* get current time */
+
+	f->Z_read_time = ihfc_get_f0_counter(sc);
+
 	/*
 	 * F_drvr is needed to compute the MWBA
 	 * offset for Z_chip and Z_drvr, and is
@@ -623,6 +627,7 @@ I4B_DBASE(hfcspci_dbase_root)
   I4B_DBASE_ADD(o_RES_MEMORY_0       , 1); /* enable */
   I4B_DBASE_ADD(o_HFC_MWBA           , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
+  I4B_DBASE_ADD(o_ECHO_CANCEL_ENABLED, 1); /* enable */
 
   I4B_DBASE_ADD(i4b_option_mask      , (I4B_OPTION_POLLED_MODE|
 					I4B_OPTION_NT_MODE|

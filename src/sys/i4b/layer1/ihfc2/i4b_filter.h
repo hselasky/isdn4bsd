@@ -134,6 +134,14 @@ filter_rx FIFO_FILTER_T(sc,f)
         /* RX data */
         FIFO_READ_MULTI_1(sc,f,(f->buf_ptr),(io_len));
 
+	/* echo cancel */
+	if((f->prot_curr.protocol_1 == P_TRANSPARENT) &&
+	   (f->prot_curr.u.transp.echo_cancel_enable))
+	{
+	    struct i4b_echo_cancel *ec = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
+ 	    i4b_echo_cancel_merge(ec, f->buf_ptr, io_len);
+	}
+
         /* post increment buf_ptr */
         (f->buf_ptr)     += (io_len);
 
@@ -214,6 +222,13 @@ rx_transparent FIFO_FILTER_T(sc,f)
 	} while(f->Z_chip);
 
  done:
+	/* echo cancel */
+	if((f->prot_curr.protocol_1 == P_TRANSPARENT) &&
+	   (f->prot_curr.u.transp.echo_cancel_enable))
+	{
+	    struct i4b_echo_cancel *ec = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
+	    i4b_echo_cancel_update_merger(ec, f->Z_read_time - f->Z_chip);
+	}
 	return;
 }
 
@@ -578,12 +593,23 @@ filter_tx FIFO_FILTER_T(sc,f)
         /* TX data */
         FIFO_WRITE_MULTI_1(sc,f,(f->buf_ptr),(io_len));
 
+	/* echo cancel */
+	if((f->prot_curr.protocol_1 == P_TRANSPARENT) &&
+	   (f->prot_curr.u.transp.echo_cancel_enable))
+	{
+	    struct i4b_echo_cancel *ec = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
+ 	    i4b_echo_cancel_feed(ec, f->buf_ptr, io_len);
+	}
+
         /* post increment buf_ptr */
         (f->buf_ptr)     += (io_len);
 
 	/* post decrement buf_len and Z_chip */
         (f->buf_len)     -= (io_len);
         (f->Z_chip)      -= (io_len);
+
+	/* increment number of bytes in FIFO */
+	(f->Z_chip_written) += (io_len);
 }
 
 static void
@@ -636,6 +662,13 @@ tx_transparent FIFO_FILTER_T(sc,f)
 	} while(f->Z_chip);
 
  done:
+	/* echo cancel */
+	if((f->prot_curr.protocol_1 == P_TRANSPARENT) &&
+	   (f->prot_curr.u.transp.echo_cancel_enable))
+	{
+	    struct i4b_echo_cancel *ec = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
+	    i4b_echo_cancel_update_feeder(ec, f->Z_read_time + f->Z_chip_written);
+	}
 	return;
 }
 

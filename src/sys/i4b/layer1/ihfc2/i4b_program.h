@@ -1050,6 +1050,11 @@ i4b_hfc_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		    f->Z_chip = f->fm.h.Zsize;
 		}
 
+		/* compute number of bytes 
+		 * left in the transmit FIFO:
+		 */
+		f->Z_chip_written = (f->fm.h.Zsize - f->Z_chip);
+
 		/* 1) reserve FIFO space so that the 
 		 * response times are kept low!
 		 *
@@ -1071,6 +1076,12 @@ i4b_hfc_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		 * for ``next frame'' (HDLC mode)
 		 */
 	        f->Z_chip = f->Z_chip3;
+
+		/* number of bytes left 
+		 * in the transmit FIFO
+		 * is undefined:
+		 */
+		f->Z_chip_written = 0;
 	    }
 
 	    /* call filter */
@@ -1299,6 +1310,11 @@ i4b_hfc_tx_program_new(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	        f->state |= ST_FRAME_ERROR;
 		f->Z_chip = f->fm.h.Zsize;
 	    }
+
+	    /* compute number of bytes 
+	     * left in the transmit FIFO:
+	     */
+	    f->Z_chip_written = (f->fm.h.Zsize - f->Z_chip);
 
 	    /* need to reserve one byte due to simple
 	     * ringbuffer logic

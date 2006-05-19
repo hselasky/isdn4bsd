@@ -43,6 +43,30 @@
 #endif
 
 /*---------------------------------------------------------------------------*
+ * : layer 1 F0 clock emulator
+ *---------------------------------------------------------------------------*/
+static u_int16_t
+ihfc_get_f0_counter(ihfc_sc_t *sc)
+{
+    struct timeval tv;
+    u_int32_t temp;
+
+    IHFC_ASSERT_LOCKED(sc);
+
+    microtime(&tv);
+
+    temp = (tv.tv_usec / 125);
+
+    if (temp < sc->sc_f0_counter_last) {
+        sc->sc_f0_counter_offset += 8000;
+    }
+
+    sc->sc_f0_counter_last = temp;
+
+    return (sc->sc_f0_counter_offset + temp);
+}
+
+/*---------------------------------------------------------------------------*
  * : prototypes
  *---------------------------------------------------------------------------*/
 static device_probe_t  ihfc_pnp_probe;

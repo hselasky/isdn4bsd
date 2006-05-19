@@ -1593,6 +1593,33 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, STRUCT , Param,)\
   END
 
+/* ================================================ 
+ *
+ * FACILITY: Echo cancellation
+ * Defined in: http://www.eicon.com/pubs/20641303.pdf
+ */
+#define CAPI_EC_PARM_ENABLE_REQ(m,n) \
+  m(n, WORD   , wOptions,)\
+  m(n, WORD   , wTail,)\
+  m(n, WORD   , wPreDelay,)\
+  END
+
+#define CAPI_EC_PARM_SUPP_CONF(m,n) \
+  m(n, WORD   , wInfo,)\
+  m(n, WORD   , wSupportOptions,)\
+  m(n, WORD   , wSupportTailLength,)\
+  m(n, WORD   , wSupportPreDelay,)\
+  END
+
+#define CAPI_EC_PARM_GENERIC_CONF(m,n) \
+  m(n, WORD   , wInfo,)\
+  END
+
+#define CAPI_EC_FACILITY_PARM(m,n) \
+  m(n, WORD   , wFunction,)\
+  m(n, STRUCT , Parm,)\
+  END
+
 /*---------------------------------------------------------------------------*
  *	declare all CAPI structures and some enums
  *---------------------------------------------------------------------------*/
@@ -1644,6 +1671,10 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, FACILITY_CONF_GET_SUPPL)\
   m(n, SUPPL_PARAM)\
   m(n, GENERIC_STRUCT)\
+  m(n, EC_PARM_ENABLE_REQ)\
+  m(n, EC_PARM_SUPP_CONF)\
+  m(n, EC_PARM_GENERIC_CONF)\
+  m(n, EC_FACILITY_PARM)\
 
 /* for each command generate eight structures */
 CAPI_COMMANDS(CAPI_MAKE_DEF_1,);

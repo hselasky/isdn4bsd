@@ -1387,6 +1387,14 @@ ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 
 	ihfc_fifo_setup_soft(sc,f);
 
+	/* init echo cancel */
+	if((f->prot_curr.protocol_1 == P_TRANSPARENT) &&
+	   (FIFO_DIR(f) == receive))
+	{
+	    struct i4b_echo_cancel *ec = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
+	    i4b_echo_cancel_init(ec, -8, 0);
+	}
+
 	/* reset and configure FIFO first */
 	ihfc_config_write(sc,f);
 

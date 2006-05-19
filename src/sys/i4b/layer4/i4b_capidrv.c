@@ -954,6 +954,57 @@ capi_make_li_disc_conf(struct capi_message_encoded *pmsg,
 }
 
 /*---------------------------------------------------------------------------*
+ *	generate echo cancel support confirmation
+ *---------------------------------------------------------------------------*/
+static struct mbuf *
+capi_make_ec_supp_conf(struct capi_message_encoded *pmsg)
+{
+	struct CAPI_EC_PARM_SUPP_CONF_DECODED supp_conf;
+	struct CAPI_EC_FACILITY_PARM_DECODED fac_parm;
+
+	bzero(&supp_conf, sizeof(supp_conf));
+	bzero(&fac_parm, sizeof(fac_parm));
+
+	CAPI_INIT(CAPI_EC_PARM_SUPP_CONF, &supp_conf);
+	CAPI_INIT(CAPI_EC_FACILITY_PARM, &fac_parm);
+
+	fac_parm.wFunction = 0x0000;
+
+	fac_parm.Parm.ptr = &supp_conf;
+	fac_parm.Parm_STRUCT = IE_STRUCT_DECODED;
+
+	return capi_make_facility_conf
+	  (pmsg, 0x0008, 0x0000, &fac_parm);
+}
+
+/*---------------------------------------------------------------------------*
+ *	generate echo cancel generic confirmation
+ *---------------------------------------------------------------------------*/
+static struct mbuf *
+capi_make_ec_generic_conf(struct capi_message_encoded *pmsg, 
+			  u_int16_t wFunction, u_int16_t wInfo)
+{
+	struct CAPI_EC_PARM_GENERIC_CONF_DECODED conf;
+	struct CAPI_EC_FACILITY_PARM_DECODED fac_parm;
+
+	bzero(&conf, sizeof(conf));
+	bzero(&fac_parm, sizeof(fac_parm));
+
+	CAPI_INIT(CAPI_EC_PARM_GENERIC_CONF, &conf);
+	CAPI_INIT(CAPI_EC_FACILITY_PARM, &fac_parm);
+
+	conf.wInfo = wInfo;
+
+	fac_parm.wFunction = wFunction;
+
+	fac_parm.Parm.ptr = &conf;
+	fac_parm.Parm_STRUCT = IE_STRUCT_DECODED;
+
+	return capi_make_facility_conf
+	  (pmsg, 0x0008, 0x0000, &fac_parm);
+}
+
+/*---------------------------------------------------------------------------*
  *	send CAPI connect B-channel active indication
  *---------------------------------------------------------------------------*/
 static void
@@ -1767,6 +1818,8 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	struct CAPI_GENERIC_STRUCT_DECODED gen_struct;
 
+	struct CAPI_EC_FACILITY_PARM_DECODED ec_parm;
+
 	struct capi_message_encoded msg;
 
 	/* NOTE: one has got to read all data into 
@@ -2468,6 +2521,64 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      CAPI_INIT(CAPI_FACILITY_REQ, &facility_req);
  	      capi_decode(&msg.data, msg.head.wLen, &facility_req);
+
+
+	      if(facility_req.wSelector == 0x0008)
+	      {
+		  /* echo cancellation */
+		  CAPI_INIT(CAPI_EC_FACILITY_PARM, &ec_parm);
+		  capi_decode(facility_req.Param.ptr,
+			      facility_req.Param.len,
+			      &ec_parm);
+
+		  if(ec_parm.wFunction == 0x0000)
+		  {
+		      /* get supported parameters */
+
+		      m2 = capi_make_ec_supp_conf(&msg);
+		      goto send_confirmation;
+		  }
+		  else if(ec_parm.wFunction == 0x0001)
+		  {
+		      /* enable echo canceller */
+
+		      int err;
+
+		      if (cd->fifo_translator_capi_std == NULL) {
+
+			err = EINVAL;
+
+		      } else {
+
+			err = L1_COMMAND_REQ(cntl, CMR_ENABLE_ECHO_CANCEL, 
+					     cd->fifo_translator_capi_std);
+		      }
+
+		      m2 = capi_make_ec_generic_conf
+			(&msg, 0x0001, err ? 0x3011 : 0x0000);
+		      goto send_confirmation;
+		  }
+		  else if(ec_parm.wFunction == 0x0002)
+		  {
+		      /* disable echo canceller */
+
+		      int err;
+
+		      if (cd->fifo_translator_capi_std == NULL) {
+
+			err = EINVAL;
+
+		      } else {
+
+			err = L1_COMMAND_REQ(cntl, CMR_DISABLE_ECHO_CANCEL, 
+					     cd->fifo_translator_capi_std);
+		      }
+
+		      m2 = capi_make_ec_generic_conf
+			(&msg, 0x0002, err ? 0x3011 : 0x0000);
+		      goto send_confirmation;
+		  }
+	      }
 
 	      if(facility_req.wSelector == 0x0003)
 	      {
@@ -3212,6 +3323,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		req->profile.wNumBChannels = htole16(MAX_CHANNELS);
 		req->profile.dwGlobalOptions = 
 		  htole32(CAPI_PROFILE_INTERNAL_CTLR_SUPPORT|
+			  CAPI_PROFILE_ECHO_CANCELLATION|
 			  CAPI_PROFILE_SUPPLEMENTARY_SERVICES);
 
 		CNTL_LOCK(cntl);
