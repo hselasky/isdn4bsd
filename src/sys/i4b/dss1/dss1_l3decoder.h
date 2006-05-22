@@ -651,8 +651,9 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, struct dss1_buffer *buf,
 			     * NOTE: this driver only supports one thing
 			     * and that is full reset
 			     */
-			    dss1_l3_tx_message_by_pipe_cr(pipe,crval,RESTART_ACKNOWLEDGE,
-							  (L3_TX_HEADER|L3_TX_RESTARTI),0,7);
+			    dss1_l3_tx_message_by_pipe_cr
+			      (pipe,crval,RESTART_ACKNOWLEDGE,
+			       (L3_TX_HEADER|L3_TX_RESTARTI),0,7);
 			    dss1_pipe_reset_ind(pipe);
 			}
 
@@ -675,9 +676,26 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, struct dss1_buffer *buf,
 			 * message back just in case that the device 
 			 * thinks that the call is still valid.
 			 */
-			dss1_l3_tx_message_by_pipe_cr(pipe,crval,RELEASE_COMPLETE,
-						      (L3_TX_HEADER|L3_TX_CAUSE),
-						      CAUSE_Q850_INVCLRFVAL,0);
+			dss1_l3_tx_message_by_pipe_cr
+			  (pipe,crval,RELEASE_COMPLETE,
+			   (L3_TX_HEADER|L3_TX_CAUSE),
+			   CAUSE_Q850_INVCLRFVAL,0);
+		}
+		else if(TE_MODE(sc) &&
+			(!broadcast) &&
+			(mt == RELEASE) &&
+			(crval == 0x7F))
+		{
+			/* some exchanges apparently thinks
+			 * that the call-reference value is
+			 * active when STATUS_ENQUIRY is 
+			 * transmitted, and sends a RELEASE
+			 * message that must be answered!
+			 */
+			dss1_l3_tx_message_by_pipe_cr
+			  (pipe,crval,RELEASE_COMPLETE,
+			   (L3_TX_HEADER|L3_TX_CAUSE),
+			   CAUSE_Q850_INVCLRFVAL,0);
 		}
 
 		if(cd == NULL)
