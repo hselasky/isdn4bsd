@@ -301,7 +301,7 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 	if (sum_coeffs >= lim_coeffs) {
 
 	    /* make sure that the coefficients 
-	     * does not diverge
+	     * do not diverge
 	     */
 	    I4B_DBG(1, L1_EC_MSG, "reverting bad coeffs!");
 	}
