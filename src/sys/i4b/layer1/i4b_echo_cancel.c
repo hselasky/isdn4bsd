@@ -1,5 +1,7 @@
 /*-
  * Copyright (c) 2006 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2004-2005 DFS Deutsche Flugsicherung. All rights reserved.
+ * Copyright (c) 2004-2005 Andre Adrian. All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,7 +25,7 @@
  * SUCH DAMAGE.
  *
  *
- * i4b_echo_cancel.c - An echo canceller
+ * i4b_echo_cancel.c - A Normalized Least Mean Squares, NLMS, echo canceller
  *
  */
 #include <sys/param.h>
@@ -42,12 +44,12 @@
  *---------------------------------------------------------------------------*/
 void
 i4b_echo_cancel_init(struct i4b_echo_cancel *ec, 
-		     u_int16_t pre_delay, 
+		     u_int16_t pre_delay,
 		     u_int8_t is_ulaw)
 {
     bzero(ec, sizeof(*ec));
 
-    ec->adapt_count = 8000;
+    ec->adapt_count = I4B_ECHO_CANCEL_ADAPT_COUNT;
 
     ec->noise_rem = 1;
 
@@ -86,23 +88,23 @@ i4b_echo_cancel_noise(struct i4b_echo_cancel *ec)
 }
 
 /*---------------------------------------------------------------------------*
- * i4b_echo_cancel_hp1 - IIR high pass filter number 1, to remove DC
+ * i4b_echo_cancel_hp_f1 - IIR filter number 1, high pass to remove DC
  *---------------------------------------------------------------------------*/
 static __inline int16_t
-i4b_echo_cancel_hp1(struct i4b_echo_cancel *ec, int16_t in)
+i4b_echo_cancel_hp_f1(struct i4b_echo_cancel *ec, int16_t in)
 {
-    ec->high_pass_1 += ((in * (1<<8)) - (ec->high_pass_1 / (1<<8)));
-    return (in - (ec->high_pass_1 / (1<<16)));
+    ec->low_pass_1 += ((in * (1<<8)) - (ec->low_pass_1 / (1<<8)));
+    return (in - (ec->low_pass_1 / (1<<16)));
 }
 
 /*---------------------------------------------------------------------------*
- * i4b_echo_cancel_hp2 - IIR high pass filter number 1, to remove DC
+ * i4b_echo_cancel_hp_f2 - IIR filter number 2, high pass to remove DC
  *---------------------------------------------------------------------------*/
 static __inline int16_t
-i4b_echo_cancel_hp2(struct i4b_echo_cancel *ec, int16_t in)
+i4b_echo_cancel_hp_f2(struct i4b_echo_cancel *ec, int16_t in)
 {
-    ec->high_pass_2 += ((in * (1<<8)) - (ec->high_pass_2 / (1<<8)));
-    return (in - (ec->high_pass_2 / (1<<16)));
+    ec->low_pass_2 += ((in * (1<<8)) - (ec->low_pass_2 / (1<<8)));
+    return (in - (ec->low_pass_2 / (1<<16)));
 }
 
 /*---------------------------------------------------------------------------*
@@ -116,19 +118,33 @@ i4b_echo_cancel_hp2(struct i4b_echo_cancel *ec, int16_t in)
  *   sample from microphone without echo
  *---------------------------------------------------------------------------*/
 static __inline int16_t
-i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x, int16_t y)
+i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x, int16_t __y)
 {
     u_int16_t n;
+    int32_t power;
+    int32_t factor;
     int32_t sample1 = 0;
     int32_t sample2 = 0;
-    int32_t temp1 = 0;
-    int32_t temp2 = 0;
-    int32_t max1 = 0;
-    int32_t max2 = 0;
-    int32_t sum1 = 0;
-    int32_t sum2 = 0;
+    int32_t y = (__y * (1<<16));
 
-    ec->buffer_1[ec->offset_1] = x; // + (i4b_echo_cancel_noise(ec) / (1<<18));
+    /*
+     * store "x" in "buffer_x[]" and compute the 
+     * squared of the last "I4B_ECHO_CANCEL_N_TAPS"
+     * "x" values divided by "I4B_ECHO_CANCEL_N_TAPS" 
+     * (optimized):
+     */
+
+    ec->buffer_x[ec->offset_x] = x;
+
+    ec->avg_power_tx += (((x * x) + (I4B_ECHO_CANCEL_N_TAPS-1))
+			 / I4B_ECHO_CANCEL_N_TAPS);
+
+    x = ec->buffer_x[ec->offset_x + I4B_ECHO_CANCEL_N_TAPS];
+
+    ec->avg_power_tx -= (((x * x) + (I4B_ECHO_CANCEL_N_TAPS-1))
+			 / I4B_ECHO_CANCEL_N_TAPS);
+
+    power = ec->avg_power_tx;
 
     /*
      * subtract the computed echo from the 
@@ -140,106 +156,94 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x, int16_t y)
 
         /* partial loop unrolled */
 
-        sample1 += (ec->buffer_1[ec->offset_1 + n] * 
-		    (ec->coeffs[n] / (1<<(16-I4B_ECHO_CANCEL_COEFF_ADJ))));
+        sample1 += (ec->buffer_x[ec->offset_x + n] * 
+		    (ec->coeffs_cur[n] / I4B_ECHO_CANCEL_COEFF_DP));
 
-        sample2 += (ec->buffer_1[ec->offset_1 + n + 1] * 
-		    (ec->coeffs[n+1] / (1<<(16-I4B_ECHO_CANCEL_COEFF_ADJ))));
+	sample2 += (ec->buffer_x[ec->offset_x + n + 1] * 
+		    (ec->coeffs_cur[n + 1] / I4B_ECHO_CANCEL_COEFF_DP));
     }
 
-    y -= ((sample1 + sample2) / (1<<16));
+    y -= (sample1 + sample2);
 
-    if (ec->adapt_enabled) {
+    /*
+     * add a little noise to
+     * influence the filter
+     * noise:
+     */
+    y += i4b_echo_cancel_noise(ec) / 16;
 
-        /* update coefficients, filter learning */
+    if (ec->coeffs_adapt) {
 
+        if (power < (4*I4B_ECHO_CANCEL_COEFF_FACTOR)) {
+            /*
+	     * avoid division by zero and
+	     * coefficient overflow:
+	     */
+            power = 4;
+	} else {
+            power /= I4B_ECHO_CANCEL_COEFF_FACTOR;
+	}
+
+	factor = (y / power);
+
+        /* update the coefficients using the
+	 * Normalized Least Means Squared,
+	 * NLMS, method:
+	 */
         for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n += 2) {
 
 	    /* partial loop unrolled */
 
-	    ec->coeffs[n] += (((ec->buffer_1[ec->offset_1 + n] * y) /
-				ec->adapt_divisor) * ec->adapt_factor);
+	    ec->coeffs_cur[n] += (ec->buffer_x[ec->offset_x + n] * factor);
 
-	    temp1 = (((ec->coeffs[n] < 0) ? ec->coeffs[n] : -ec->coeffs[n]) 
-		     / I4B_ECHO_CANCEL_N_TAPS);
-
-	    sum1 += temp1;
-
-	    if (temp1 < max1) {
-	        max1 = temp1;
-	    }
-
-	    ec->coeffs[n+1] += (((ec->buffer_1[ec->offset_1 + n + 1] * y) /
-				  ec->adapt_divisor) * ec->adapt_factor);
-
-	    temp2 = (((ec->coeffs[n+1] < 0) ? ec->coeffs[n+1] : -ec->coeffs[n+1])
-		     / I4B_ECHO_CANCEL_N_TAPS);
-
-	    sum2 += temp2;
-
-	    if (temp2 < max2) {
-	       max2 = temp2;
-	    }
-	}
-
-	if (max2 < max1) {
-	    max1 = max2;
-	}
-
-	sum1 += sum2;
-
-	if ((max1 <= -(1<<(32-I4B_ECHO_CANCEL_COEFF_ADJ))) ||
-	    (sum1 <= -((1<<(32-I4B_ECHO_CANCEL_COEFF_ADJ)) / 
-		       I4B_ECHO_CANCEL_N_TAPS))) {
-
-	    I4B_DBG(1, L1_EC_MSG, "Resetting bad coeffs "
-		    "max1=0x%08x, sum1=0x%08x!", max1, sum1);
-
-	    bzero(ec->coeffs, sizeof(ec->coeffs));
-
-	    ec->adapt_count = 8000;
+	    ec->coeffs_cur[n+1] += (ec->buffer_x[ec->offset_x + n + 1] * factor);
 	}
     }
+
 #if 1
     if (ec->debug_count == 0) {
-        int32_t mm_y = 0, mm_x = 0;
+          int32_t mm_y = 0.0;
+	u_int16_t mm_x = 0;
 
         ec->debug_count = 8000;
 
 	for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
-	  if (ec->coeffs[n] > mm_y) {
-	      mm_y = ec->coeffs[n];
+	  if (ec->coeffs_cur[n] > mm_y) {
+	      mm_y = ec->coeffs_cur[n];
 	      mm_x = n;
 	  }
-	  if (ec->coeffs[n] < -mm_y) {
-	      mm_y = -ec->coeffs[n];
+	  if (ec->coeffs_cur[n] < -mm_y) {
+	      mm_y = -ec->coeffs_cur[n];
 	      mm_x = n;
 	  }
 	}
 
-	I4B_DBG(1, L1_EC_MSG,  "> DC1=%d,DC2=%d,tx=%d,rx=%d,mm_x=%d,mm_y=0x%08x", 
-		ec->high_pass_1 / (1<<16), 
-		ec->high_pass_2 / (1<<16), 
+	I4B_DBG(1, L1_EC_MSG, "DC1=%d, DC2=%d,tx=%d,"
+		"rx=%d,mm_x=%d,mm_y=%d,adapt=%d", 
+		ec->low_pass_1 / (1<<16), 
+		ec->low_pass_2 / (1<<16), 
 		ec->tx_speaking, 
 		ec->rx_speaking,
-		mm_x, mm_y);
+		mm_x, mm_y / I4B_ECHO_CANCEL_COEFF_DP,
+		ec->coeffs_adapt);
+
     } else {
         ec->debug_count --;
     }
 #endif
 
-    if (ec->offset_1 == 0) {
+    if (ec->offset_x == 0) {
 
         /* update input offset */
 
-        ec->offset_1 = (I4B_ECHO_CANCEL_N_TAPS-1);
-        bcopy(ec->buffer_1, ec->buffer_1 + I4B_ECHO_CANCEL_N_TAPS,
-	      I4B_ECHO_CANCEL_N_TAPS * sizeof(ec->buffer_1[0]));
+        ec->offset_x = (I4B_ECHO_CANCEL_N_TAPS-1);
+        bcopy(ec->buffer_x, ec->buffer_x + I4B_ECHO_CANCEL_N_TAPS,
+	      I4B_ECHO_CANCEL_N_TAPS * sizeof(ec->buffer_x[0]));
     } else {
-        ec->offset_1 --;
+        ec->offset_x --;
     }
 
-    return y;
+    return (y / (1<<16));
 }
 
 /*---------------------------------------------------------------------------*
@@ -247,33 +251,83 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x, int16_t y)
  *
  * inputs:
  *   x: sample from speaker
- *   y: sample from microphone
+ *   y: sample from microphone (after FIR filter)
+ *   z: sample from microphone (before FIR filter)
  *
  * outputs:
  *   sample from microphone without echo
  *---------------------------------------------------------------------------*/
 static __inline int16_t
-i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec, int16_t x, int16_t y)
+i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec, 
+		    int16_t x, int16_t y, int16_t z)
 {
+    const u_int32_t max = 512;
+    const u_int32_t lim_coeffs = (I4B_ECHO_CANCEL_COEFF_DP * 
+				  ((1<<16) / I4B_ECHO_CANCEL_N_TAPS));
+    u_int32_t sum_coeffs = 0;
+    u_int16_t n;
+    void *ptr1;
+    void *ptr2;
 
-    ec->cur_power_tx += (x * x) / 256;
-    ec->cur_power_rx += (y * y) / 256;
+    ec->cur_power_tx += (x * x) / max;
+    ec->cur_power_rx += (y * y) / max;
     ec->cur_power_count ++;
 
-    if (ec->cur_power_count >= 256) {
+    if (ec->cur_power_count >= max) {
 
         ec->rx_speaking = ((ec->cur_power_rx > 1024) && 
 			   (ec->cur_power_rx > (ec->cur_power_tx/4)));
 
-	ec->tx_speaking = ((ec->cur_power_tx > 1024) && 
+	ec->tx_speaking = ((ec->cur_power_tx > 1024) &&
 			   (ec->cur_power_tx > (ec->cur_power_rx/4)));
 
-	ec->adapt_enabled = ec->tx_speaking;
-	ec->adapt_factor = 1;
-	ec->adapt_divisor = 1024;
+	ec->coeffs_adapt = (ec->tx_speaking && (!(ec->rx_speaking)));
+
+	ptr1 = (ec->data_toggle) ? ec->coeffs_old_0 : ec->coeffs_old_1;
+	ptr2 = (ec->data_toggle) ? ec->coeffs_old_1 : ec->coeffs_old_0;
+
+	ec->data_toggle = !(ec->data_toggle);
+
+	/* check the coefficients */
+
+	for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
+
+	    if (ec->coeffs_cur[n] < 0)
+	      sum_coeffs += -(ec->coeffs_cur[n] / I4B_ECHO_CANCEL_N_TAPS);
+	    else
+	      sum_coeffs += (ec->coeffs_cur[n] / I4B_ECHO_CANCEL_N_TAPS);
+	}
+
+	if (sum_coeffs >= lim_coeffs) {
+
+	    /* make sure that the coefficients 
+	     * does not diverge
+	     */
+	    I4B_DBG(1, L1_EC_MSG, "reverting bad coeffs!");
+	}
+
+	if (ec->coeffs_adapt && (sum_coeffs < lim_coeffs)) {
+
+	    /* make a backup of the coefficients */
+
+	    bcopy(ec->coeffs_cur, ptr1, sizeof(ec->coeffs_cur));
+
+	} else {
+
+	    /* restore the coefficients */
+
+	    bcopy(ptr1, ec->coeffs_cur, sizeof(ec->coeffs_cur));
+
+	    bcopy(ptr1, ptr2, sizeof(ec->coeffs_cur));
+	}
+
+	ec->cur_power_count = 0;
+	ec->cur_power_tx = 0;
+	ec->cur_power_rx = 0;
     }
 
-    if (ec->adapt_enabled && ec->adapt_count) {
+    if (ec->tx_speaking && 
+	ec->adapt_count) {
         ec->adapt_count--;
 
 	if (ec->tx_speaking) {
@@ -286,6 +340,9 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec, int16_t x, int16_t y)
 
 /*---------------------------------------------------------------------------*
  * i4b_echo_cancel_update_feeder - set feed state for echo canceller
+ *
+ * input:
+ *   tx_time: time in units of 125us, when the TX-buffer was empty
  *---------------------------------------------------------------------------*/
 void
 i4b_echo_cancel_update_feeder(struct i4b_echo_cancel *ec,
@@ -318,15 +375,15 @@ i4b_echo_cancel_feed(struct i4b_echo_cancel *ec,
 
     while(len) {
 
-        ec->buffer_2[ec->offset_wr] = *ptr;
+        ec->buffer_y[ec->offset_wr] = *ptr;
 
 	if (ec->offset_wr == 0) {
 
 	    /* update input offset */
 
             ec->offset_wr = (I4B_ECHO_CANCEL_F_SIZE-1);
-	    bcopy(ec->buffer_2, ec->buffer_2 + I4B_ECHO_CANCEL_F_SIZE,
-		  I4B_ECHO_CANCEL_F_SIZE * sizeof(ec->buffer_2[0]));
+	    bcopy(ec->buffer_y, ec->buffer_y + I4B_ECHO_CANCEL_F_SIZE,
+		  I4B_ECHO_CANCEL_F_SIZE * sizeof(ec->buffer_y[0]));
 
 	    /* update output offset */
 
@@ -347,6 +404,9 @@ i4b_echo_cancel_feed(struct i4b_echo_cancel *ec,
 
 /*---------------------------------------------------------------------------*
  * i4b_echo_cancel_update_merger - update the echo canceller sound merger
+ *
+ * input:
+ *   rx_time: time in units of 125us, when the RX-buffer was empty
  *---------------------------------------------------------------------------*/
 void
 i4b_echo_cancel_update_merger(struct i4b_echo_cancel *ec,
@@ -389,7 +449,7 @@ i4b_echo_cancel_update_merger(struct i4b_echo_cancel *ec,
 	 (d_len < (d_time-4))) ||
 	(d_len > (d_time+4))) {
 
-        I4B_DBG(1, L1_EC_MSG,  "Adjusting pre-delay buffer "
+        I4B_DBG(1, L1_EC_MSG, "Adjusting pre-delay buffer "
 		"from %d to %d bytes!", d_len, d_time);
 
 	/* adjust */
@@ -410,12 +470,16 @@ void
 i4b_echo_cancel_merge(struct i4b_echo_cancel *ec, 
 		      u_int8_t *read_ptr, u_int16_t read_len)
 {
-    u_int8_t  once = 0;
-      int16_t sample_x;
-      int16_t sample_y;
+    u_int8_t once = 0;
+      int16_t sample_x; /* sample from speaker */
+      int16_t sample_y; /* sample from microphone */
+      int16_t sample_z; /* sample from microphone (copy) */
 
-    const int16_t *convert_fwd = (ec->is_ulaw) ? i4b_ulaw_to_signed : i4b_alaw_to_signed;
-    i4b_convert_rev_t *convert_rev = (ec->is_ulaw) ? i4b_signed_to_ulaw : i4b_signed_to_alaw;
+    const int16_t *convert_fwd = 
+      ((ec->is_ulaw) ? i4b_ulaw_to_signed : i4b_alaw_to_signed);
+
+    i4b_convert_rev_t *convert_rev = 
+      ((ec->is_ulaw) ? i4b_signed_to_ulaw : i4b_signed_to_alaw);
 
     while(read_len) {
 
@@ -424,11 +488,10 @@ i4b_echo_cancel_merge(struct i4b_echo_cancel *ec,
 
 	    if (once == 0) {
 	        once = 1;
-	        I4B_DBG(1, L1_EC_MSG, "repeating last byte!");
+		I4B_DBG(1, L1_EC_MSG, "repeating last byte");
 	    }
-
 	} else {
-	    sample_x = convert_fwd[ec->buffer_2[ec->offset_rd]];
+	    sample_x = convert_fwd[ec->buffer_y[ec->offset_rd]];
 	    ec->offset_rd--;
 	}
 
@@ -436,13 +499,14 @@ i4b_echo_cancel_merge(struct i4b_echo_cancel *ec,
 
 	/* high pass sound to remove DC */
 
-	sample_x = i4b_echo_cancel_hp1(ec, sample_x);
-	sample_y = i4b_echo_cancel_hp2(ec, sample_y);
+	sample_x = i4b_echo_cancel_hp_f1(ec, sample_x);
+	sample_y = i4b_echo_cancel_hp_f2(ec, sample_y);
+	sample_z = sample_y;
 
 	/* filter */
 
 	sample_y = i4b_echo_cancel_lms(ec, sample_x, sample_y);
-	sample_y = i4b_echo_cancel_pwr(ec, sample_x, sample_y);
+	sample_y = i4b_echo_cancel_pwr(ec, sample_x, sample_y, sample_z);
 
 	read_ptr[0] = convert_rev(sample_y);
 

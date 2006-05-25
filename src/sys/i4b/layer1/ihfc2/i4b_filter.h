@@ -667,6 +667,30 @@ tx_transparent FIFO_FILTER_T(sc,f)
 	   (f->prot_curr.u.transp.echo_cancel_enable))
 	{
 	    struct i4b_echo_cancel *ec = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
+	    u_int8_t temp_buf[64];
+	    u_int16_t io_len;
+
+	    /*
+	     * fill FIFO with last byte:
+	     */
+	    while(f->Z_chip)
+	    {
+	        io_len = (f->Z_chip > 64) ? 64 : f->Z_chip;
+
+		memset_1(temp_buf, ec->last_byte, io_len);
+
+		/* TX data */
+		FIFO_WRITE_MULTI_1(sc, f, temp_buf, io_len);
+
+		i4b_echo_cancel_feed(ec, temp_buf, io_len);
+
+		/* post decrement Z_chip */
+		(f->Z_chip)         -= io_len;
+
+		/* increment number of bytes in FIFO */
+		(f->Z_chip_written) += io_len;
+	    }
+
 	    i4b_echo_cancel_update_feeder(ec, f->Z_read_time + f->Z_chip_written);
 	}
 	return;
