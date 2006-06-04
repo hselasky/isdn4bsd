@@ -811,6 +811,11 @@ ev_incoming_from_i4b(msg_connect_ind_t *mp)
 	dst_tel = mp->dst_telno;
   }
 
+  /* print out who is calling who */
+
+  log(LL_CHD, "Incoming call from '%s' to '%s' (cdid=%05d)",
+      src_tel, dst_tel, mp->header.cdid);
+
   /* check for CW (call waiting) early */
 
   if(mp->channel == CHAN_NOT_ANY)
