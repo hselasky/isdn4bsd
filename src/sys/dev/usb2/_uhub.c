@@ -50,7 +50,7 @@
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/uhub.c $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/uhub.c $");
 
 #define UHUB_INTR_INTERVAL 250	/* ms */
 
@@ -354,9 +354,7 @@ uhub_attach(device_t dev)
 	usb_device_request_t req;
 	usb_hub_descriptor_t hubdesc;
 	int port, nports, removable, pwrdly;
-	char devinfo[1024];
-
-	/* XXX no range check for devinfo */
+	char devinfo[256];
 
 	DPRINTFN(1,("\n"));
 
@@ -564,9 +562,9 @@ uhub_attach(device_t dev)
 		usbd_delay_ms(udev, pwrdly);
 	}
 
-	usbd_devinfo(udev, 1, &devinfo[0]);
-	device_set_desc_copy(dev, &devinfo[0]);
-	device_printf(dev, "%s\n", &devinfo[0]);
+	usbd_devinfo(udev, 1, devinfo, sizeof(devinfo));
+	device_set_desc_copy(dev, devinfo);
+	device_printf(dev, "%s\n", devinfo);
 	device_printf(dev, "%d port%s with %d "
 		      "removable, %s powered\n",
 		      nports, (nports != 1) ? "s" : "",

@@ -189,28 +189,36 @@ usbd_printBCD(char *cp, int bcd)
 }
 
 void
-usbd_devinfo(struct usbd_device *udev, int showclass, char *cp)
+usbd_devinfo(struct usbd_device *udev, int showclass, 
+	     char *dst_ptr, u_int16_t dst_len)
 {
 	usb_device_descriptor_t *udd = &udev->ddesc;
 	char vendor[USB_MAX_STRING_LEN];
 	char product[USB_MAX_STRING_LEN];
-	int bcdDevice, bcdUSB;
+	u_int16_t bcdDevice, bcdUSB;
 
 	usbd_devinfo_vp(udev, vendor, product, 1);
-	cp += sprintf(cp, "%s %s", vendor, product);
-	if(showclass)
-	{
-		cp += sprintf(cp, ", class %d/%d",
-			      udd->bDeviceClass, udd->bDeviceSubClass);
-	}
+
 	bcdUSB = UGETW(udd->bcdUSB);
 	bcdDevice = UGETW(udd->bcdDevice);
-	cp += sprintf(cp, ", rev ");
-	cp += usbd_printBCD(cp, bcdUSB);
-	*cp++ = '/';
-	cp += usbd_printBCD(cp, bcdDevice);
-	cp += sprintf(cp, ", addr %d", udev->address);
-	*cp = 0;
+
+	if(showclass)
+	{
+	    snprintf(dst_ptr, dst_len, "%s %s, class %d/%d, rev %x.%02x/"
+		     "%x.%02x, addr %d", vendor, product,
+		     udd->bDeviceClass, udd->bDeviceSubClass,
+		     (bcdUSB >> 8), bcdUSB & 0xFF,
+		     (bcdDevice >> 8), bcdDevice & 0xFF,
+		     udev->address);
+	}
+	else
+	{
+	    snprintf(dst_ptr, dst_len, "%s %s, rev %x.%02x/"
+		     "%x.%02x, addr %d", vendor, product,
+		     (bcdUSB >> 8), bcdUSB & 0xFF,
+		     (bcdDevice >> 8), bcdDevice & 0xFF,
+		     udev->address);
+	}
 	return;
 }
 
@@ -1548,10 +1556,58 @@ usbd_get_iface(struct usbd_device *udev, u_int8_t iface_index)
 void
 usbd_set_desc(device_t dev, struct usbd_device *udev)
 {
-	u_int8_t devinfo[1024];
+	u_int8_t devinfo[256];
 
-	usbd_devinfo(udev, 1, &devinfo[0]);
-	device_set_desc_copy(dev, &devinfo[0]);
-	device_printf(dev, "<%s>\n", &devinfo[0]);
+	usbd_devinfo(udev, 1, devinfo, sizeof(devinfo));
+	device_set_desc_copy(dev, devinfo);
+	device_printf(dev, "<%s>\n", devinfo);
 	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *      allocate mbufs to an usbd interface queue
+ *
+ * returns a pointer that eventually should be passed to "free()"
+ *---------------------------------------------------------------------------*/
+void *
+usbd_alloc_mbufs(struct malloc_type *type, struct usbd_ifqueue *ifq, 
+		 u_int32_t block_size, u_int16_t block_number)
+{
+	struct usbd_mbuf *m_ptr;
+	u_int8_t *data_ptr;
+	void *free_ptr = NULL;
+	u_int32_t alloc_size;
+
+        /* align data */
+        block_size += ((-block_size) & (USB_HOST_ALIGN-1));
+
+	if (block_number && block_size) {
+
+	  alloc_size = (block_size + sizeof(struct usbd_mbuf)) * block_number;
+
+	  free_ptr = malloc(alloc_size, type, M_WAITOK|M_ZERO);
+
+	  if (free_ptr == NULL) {
+	      goto done;
+	  }
+
+	  m_ptr = free_ptr;
+	  data_ptr = (void *)(m_ptr + block_number);
+
+	  while(block_number--) {
+
+	      m_ptr->cur_data_ptr =
+		m_ptr->min_data_ptr = data_ptr;
+
+	      m_ptr->cur_data_len =
+		m_ptr->max_data_len = block_size;
+
+	      USBD_IF_ENQUEUE(ifq, m_ptr);
+
+	      m_ptr++;
+	      data_ptr += block_size;
+	  }
+	}
+ done:
+	return free_ptr;
 }

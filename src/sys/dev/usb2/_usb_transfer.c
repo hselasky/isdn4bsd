@@ -45,6 +45,7 @@
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
+#include <dev/usb2/usb_hid.h>
 
 __FBSDID("$FreeBSD: src/sys/dev/usb2/usb_transfer.c $");
 
@@ -1056,42 +1057,93 @@ usbd_do_request_flags(struct usbd_device *udev, usb_device_request_t *req,
 }
 
 void
-usbd_clearstall_callback(struct usbd_xfer *xfer)
+usbd_fill_get_report(usb_device_request_t *req, u_int8_t iface_no, 
+		     u_int8_t type, u_int8_t id, u_int16_t size)
 {
-	usb_device_request_t *req;
-	USBD_CHECK_STATUS(xfer);
+        req->bmRequestType = UT_READ_CLASS_INTERFACE;
+        req->bRequest = UR_GET_REPORT;
+        USETW2(req->wValue, type, id);
+        USETW(req->wIndex, iface_no);
+        USETW(req->wLength, size);
+	return;
+}
 
- tr_setup:
-	req = xfer->buffer;
+void
+usbd_fill_set_report(usb_device_request_t *req, u_int8_t iface_no,
+		     u_int8_t type, u_int8_t id, u_int16_t size)
+{
+        req->bmRequestType = UT_WRITE_CLASS_INTERFACE;
+        req->bRequest = UR_SET_REPORT;
+        USETW2(req->wValue, type, id);
+        USETW(req->wIndex, iface_no);
+        USETW(req->wLength, size);
+	return;
+}
 
-	/* setup a CLEAR STALL packet */
+void
+usbd_clear_stall_tr_setup(struct usbd_xfer *xfer1, 
+			  struct usbd_xfer *xfer2)
+{
+	usb_device_request_t *req = xfer1->buffer;
+
+	mtx_assert(xfer1->priv_mtx, MA_OWNED);
+	mtx_assert(xfer2->priv_mtx, MA_OWNED);
+
+	/* setup a clear-stall packet */
+
 	req->bmRequestType = UT_WRITE_ENDPOINT;
 	req->bRequest = UR_CLEAR_FEATURE;
 	USETW(req->wValue, UF_ENDPOINT_HALT);
-	req->wIndex[0] = ((struct usbd_xfer *)(xfer->priv_sc))->pipe
-	  ->edesc->bEndpointAddress;
+	req->wIndex[0] = xfer2->pipe->edesc->bEndpointAddress;
 	req->wIndex[1] = 0;
 	USETW(req->wLength, 0);
 
-	usbd_start_hardware(xfer);
+	usbd_start_hardware(xfer1);
+	return;
+}
+
+void
+usbd_clear_stall_tr_transferred(struct usbd_xfer *xfer1, 
+				struct usbd_xfer *xfer2)
+{
+	mtx_assert(xfer1->priv_mtx, MA_OWNED);
+	mtx_assert(xfer2->priv_mtx, MA_OWNED);
+
+	mtx_lock(xfer2->usb_mtx);
+
+	/* 
+	 * clear any stall and make sure 
+	 * that DATA0 toggle will be 
+	 * used next:
+	 */
+
+	xfer2->pipe->clearstall = 0;
+	xfer2->pipe->toggle_next = 0;
+
+	mtx_unlock(xfer2->usb_mtx);
+
+	return;
+}
+
+void
+usbd_clearstall_callback(struct usbd_xfer *xfer)
+{
+	USBD_CHECK_STATUS(xfer);
+
+ tr_setup:
+	usbd_clear_stall_tr_setup(xfer, xfer->priv_sc);
 	return;
 
  tr_transferred:
  tr_error:
 	PRINTFN(3,("xfer=%p\n", xfer));
 
-	/* clear any stall and make sure DATA0
-	 * toggle will be used next
-	 *
-	 * NOTE: some devices reject this command,
+	/* NOTE: some devices reject this command,
 	 * so ignore a STALL
 	 */
-	xfer = xfer->priv_sc;
+	usbd_clear_stall_tr_transferred(xfer, xfer->priv_sc);
 
-	xfer->pipe->clearstall = 0;
-	xfer->pipe->toggle_next = 0;
-
-	usbd_start_hardware(xfer);
+	usbd_start_hardware(xfer->priv_sc);
 	return;
 }
 

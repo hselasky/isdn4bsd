@@ -1,5 +1,5 @@
-VERSION=1_6_0_r2
-DATE=April 2006
+VERSION=1_6_1
+DATE=June 2006
 
 FILTER= grep -v "temp"   | \
 	grep -v "~"      | \
@@ -58,12 +58,18 @@ ${S}/usr.sbin/i4b \
 USB_FILES=\
 ${S}/sys/modules/usb/Makefile \
 ${S}/sys/modules/ugen/Makefile \
+${S}/sys/modules/ums/Makefile \
+${S}/sys/modules/ukbd/Makefile \
+${S}/sys/modules/ulpt/Makefile \
+${S}/sys/modules/uhid/Makefile \
 ${S}/sys/tools/usbdevs2h.awk \
 ${S}/sys/dev/usb/usb.h \
 ${S}/sys/dev/usb/usb_port.h \
 ${S}/sys/dev/usb/usbdi.h \
 ${S}/sys/dev/usb/usbdi_util.h \
 ${S}/sys/dev/usb/usbdivar.h \
+${S}/sys/dev/usb/hid.h \
+${S}/sys/dev/usb/usbhid.h \
 ${S}/sys/dev/usb2 \
 
 USB_MODULES=\
@@ -202,7 +208,13 @@ ${N}dev/usb2/_usb.c             optional usb \
 ${N}dev/usb2/_usb_requests.c    optional usb \
 ${N}dev/usb2/_usb_subr.c        optional usb \
 ${N}dev/usb2/_usb_transfer.c    optional usb \
+${N}dev/usb2/_usb_cdev.c        optional usb \
+${N}dev/usb2/_usb_hid.c         optional usb \
 ${N}dev/usb2/_ugen.c            optional ugen \
+${N}dev/usb2/_ulpt.c            optional ulpt \
+${N}dev/usb2/_ums.c             optional ums \
+${N}dev/usb2/_ukbd.c            optional ukbd \
+${N}dev/usb2/_uhid.c            optional uhid \
 ${N}usbdevs.h                   optional usb dependency \"$$S/tools/usbdevs2h.awk $$S/dev/usb/usbdevs\" compile-with \"$${AWK} -f $$S/tools/usbdevs2h.awk $$S/dev/usb/usbdevs\" no-obj no-implicit-rule before-depend clean \"usbdevs.h\" \
 ${N}'
 
@@ -341,8 +353,12 @@ backup:
 	mkdir ${S}/sys/dev/usb         || echo -n
 	mkdir ${S}/sys/dev/usb2        || echo -n
 	mkdir ${S}/sys/modules         || echo -n
-	mkdir ${S}/sys/modules/usb     || echo -n
 	mkdir ${S}/sys/modules/ugen    || echo -n
+	mkdir ${S}/sys/modules/uhid    || echo -n
+	mkdir ${S}/sys/modules/ukbd    || echo -n
+	mkdir ${S}/sys/modules/ulpt    || echo -n
+	mkdir ${S}/sys/modules/ums     || echo -n
+	mkdir ${S}/sys/modules/usb     || echo -n
 	mkdir ${S}/sys/conf            || echo -n
 	mkdir ${S}/sys/i386            || echo -n
 	mkdir ${S}/sys/i386/include    || echo -n
@@ -457,6 +473,11 @@ update_config:
 	| grep -v "dev/usb/usbdi.c" \
 	| grep -v "dev/usb/usbdi_util.c" \
 	| grep -v "dev/usb/ugen.c" \
+	| grep -v "dev/usb/ums.c" \
+	| grep -v "dev/usb/ukbd.c" \
+	| grep -v "dev/usb/uhid.c" \
+	| grep -v "dev/usb/ulpt.c" \
+	| grep -v "dev/usb/hid.c" \
 	| sed -e s/"S\/dev\/usb\/usbdevs -h"/"S\/dev\/usb\/usbdevs"/g \
 	| sed -e s/"S\/dev\/usb\/usbdevs -d"/"S\/dev\/usb\/usbdevs"/g \
 	> ${TEMP}
@@ -531,17 +552,7 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_pcm
 	touch ${S}/sys/net/if_spppfr.c || echo -n
 .endif
 
-# patch 6
-#
-# this is a cleanup 
-# from a previous 
-# driver version
-#
-	(([ ! -f ${S}/sys/dev/usb/usbhid.h ] || \
-	(cat ${S}/sys/dev/usb/usbhid.h | \
-	 grep "include <dev/usb2/usb.h>" > /dev/null)) && \
-	(cp ${S}/sys/dev/usb2/usb_hid_copy.h \
-	    ${S}/sys/dev/usb/usbhid.h)) || echo -n
+# patch 6 (obsolete)
 
 # patch 7
 #

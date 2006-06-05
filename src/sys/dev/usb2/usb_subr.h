@@ -77,9 +77,11 @@ struct usbd_config;
 struct usbd_device;
 struct usbd_interface;
 struct usbd_memory_info;
+struct usbd_ifqueue;
 struct __callout;
 struct module;
 struct bus_dma_tag;
+struct malloc_type;
 
 typedef u_int8_t usbd_status;
 
@@ -271,7 +273,7 @@ struct usbd_config {
 					 * flag is also exported by usb.h
 					 */
 #endif
-#ifdef USB_COMPAT_OLD
+#if (defined(USB_COMPAT_OLD) || 1)
 #define USBD_CUSTOM_CLEARSTALL   0x0008 /* used to disable automatic clear-stall
 					 * when a device reset request is needed
 					 * in addition to the clear stall request
@@ -397,6 +399,63 @@ struct usbd_callback_info {
     u_int32_t refcount;
 };
 
+struct usbd_mbuf {
+  u_int8_t *cur_data_ptr;
+  u_int8_t *min_data_ptr;
+  struct usbd_mbuf *usbd_nextpkt;
+  struct usbd_mbuf *usbd_next;
+
+  u_int32_t cur_data_len;
+  u_int32_t max_data_len;
+};
+
+struct usbd_ifqueue {
+  struct  usbd_mbuf *ifq_head;
+  struct  usbd_mbuf *ifq_tail;
+
+  int32_t ifq_len;
+  int32_t ifq_maxlen;
+};
+
+#define USBD_IF_ENQUEUE(ifq, m) do {		\
+    (m)->usbd_nextpkt = NULL;			\
+    if ((ifq)->ifq_tail == NULL)		\
+        (ifq)->ifq_head = (m);			\
+    else					\
+        (ifq)->ifq_tail->usbd_nextpkt = (m);	\
+    (ifq)->ifq_tail = (m);			\
+    (ifq)->ifq_len++;				\
+  } while (0)
+
+#define USBD_IF_DEQUEUE(ifq, m) do {				\
+    (m) = (ifq)->ifq_head;					\
+    if (m) {							\
+        if (((ifq)->ifq_head = (m)->usbd_nextpkt) == NULL) {	\
+	     (ifq)->ifq_tail = NULL;				\
+	}							\
+	(m)->usbd_nextpkt = NULL;				\
+	(ifq)->ifq_len--;					\
+    }								\
+  } while (0)
+
+#define USBD_IF_PREPEND(ifq, m) do {		\
+      (m)->usbd_nextpkt = (ifq)->ifq_head;	\
+      if ((ifq)->ifq_tail == NULL) {		\
+	  (ifq)->ifq_tail = (m);		\
+      }						\
+      (ifq)->ifq_head = (m);			\
+      (ifq)->ifq_len++;				\
+  } while (0)
+
+#define USBD_IF_QFULL(ifq)   ((ifq)->ifq_len >= (ifq)->ifq_maxlen)
+#define USBD_IF_QLEN(ifq)    ((ifq)->ifq_len)
+#define USBD_IF_POLL(ifq, m) ((m) = (ifq)->ifq_head)
+
+#define USBD_MBUF_RESET(m) do {			\
+    (m)->cur_data_ptr = (m)->min_data_ptr;	\
+    (m)->cur_data_len = (m)->max_data_len;	\
+  } while (0)
+
 /*---------------------------------------------------------------------------*
  * structures used by probe and attach
  *---------------------------------------------------------------------------*/
@@ -457,7 +516,8 @@ struct usb_attach_arg
 /* routines from usb_subr.c */
 
 void
-usbd_devinfo(struct usbd_device *udev, int showclass, char *cp);
+usbd_devinfo(struct usbd_device *udev, int showclass, 
+	     char *dst_ptr, u_int16_t dst_len);
 
 const char *
 usbd_errstr(usbd_status err);
@@ -522,6 +582,10 @@ usbd_get_iface(struct usbd_device *udev, u_int8_t iface_index);
 
 void
 usbd_set_desc(device_t dev, struct usbd_device *udev);
+
+void *
+usbd_alloc_mbufs(struct malloc_type *type, struct usbd_ifqueue *ifq, 
+		 u_int32_t block_size, u_int16_t block_number);
 
 /* routines from usb.c */
 
@@ -640,7 +704,18 @@ usbd_status
 usbd_do_request_flags(struct usbd_device *udev, usb_device_request_t *req,
 		      void *data, u_int32_t flags, int *actlen,
 		      u_int32_t timeout);
-
+void
+usbd_fill_get_report(usb_device_request_t *req, u_int8_t iface_no, 
+		     u_int8_t type, u_int8_t id, u_int16_t size);
+void
+usbd_fill_set_report(usb_device_request_t *req, u_int8_t iface_no,
+		     u_int8_t type, u_int8_t id, u_int16_t size);
+void
+usbd_clear_stall_tr_setup(struct usbd_xfer *xfer1, 
+			  struct usbd_xfer *xfer2);
+void
+usbd_clear_stall_tr_transferred(struct usbd_xfer *xfer1, 
+				struct usbd_xfer *xfer2);
 void
 usbd_clearstall_callback(struct usbd_xfer *xfer);
 
@@ -865,5 +940,137 @@ usbreq_get_config(struct usbd_device *udev, u_int8_t *conf);
 /* helper for computing offsets */
 #define POINTER_TO_UNSIGNED(ptr) \
   (((u_int8_t *)(ptr)) - ((u_int8_t *)0))
+
+/* routines from "usb_cdev.c" */
+
+struct usb_cdev;
+struct cdev;
+struct mtx;
+
+extern int32_t
+usb_cdev_sleep(struct usb_cdev *sc, int32_t fflags);
+
+extern void
+usb_cdev_wakeup(struct usb_cdev *sc);
+
+extern int32_t
+usb_cdev_attach(struct usb_cdev *sc, 
+		void *priv_sc, 
+		struct mtx *priv_mtx,
+		const char **pp_dev,
+		uid_t _uid,
+		gid_t _gid,
+		int _perms,
+		u_int32_t rd_size, 
+		u_int16_t rd_packets,
+		u_int32_t wr_size,
+		u_int16_t wr_packets);
+
+extern void
+usb_cdev_detach(struct usb_cdev *sc);
+
+extern void
+usb_cdev_put_data(struct usb_cdev *sc, u_int8_t *buf, u_int32_t len, 
+		  u_int8_t what);
+extern void
+usb_cdev_put_data_error(struct usb_cdev *sc);
+
+extern u_int8_t
+usb_cdev_get_data(struct usb_cdev *sc, u_int8_t *buf, u_int32_t len, 
+		  u_int32_t *actlen, u_int8_t what);
+extern void
+usb_cdev_get_data_error(struct usb_cdev *sc);
+
+
+typedef int32_t (usb_cdev_open_t)(struct usb_cdev *sc, int32_t fflags, 
+				  int32_t mode, struct thread *td);
+typedef int32_t (usb_cdev_ioctl_t)(struct usb_cdev *sc, u_long cmd, caddr_t addr, 
+				   int32_t fflags, struct thread *td);
+
+typedef void (usb_cdev_cmd_t)(struct usb_cdev *sc);
+
+struct usb_cdev {
+
+    struct usbd_ifqueue     sc_rdq_free;
+    struct usbd_ifqueue     sc_rdq_used;
+    struct usbd_ifqueue     sc_wrq_free;
+    struct usbd_ifqueue     sc_wrq_used;
+    struct selinfo          sc_read_sel;
+    struct selinfo          sc_write_sel;
+
+    /* various pointers */
+
+    void *                  sc_rdq_pointer;
+    void *                  sc_wrq_pointer;
+    struct mtx *            sc_mtx_ptr;
+    void *                  sc_priv_ptr;
+#define USB_CDEV_COUNT 4
+    struct cdev *           sc_cdev[USB_CDEV_COUNT];
+    struct cdev *           sc_last_cdev;
+    struct proc *           sc_async_rd; /* process that wants SIGIO */
+    struct proc *           sc_async_wr; /* process that wants SIGIO */
+
+    /* multiplexer functions */
+
+    usb_cdev_open_t *       sc_open;
+    usb_cdev_ioctl_t *      sc_ioctl;
+    usb_cdev_cmd_t *        sc_start_read;
+    usb_cdev_cmd_t *        sc_stop_read;
+    usb_cdev_cmd_t *        sc_start_write;
+    usb_cdev_cmd_t *        sc_stop_write;
+
+    u_int32_t               sc_cur_context;
+    u_int32_t               sc_flags;
+
+  /* synchronization flags */
+
+#define USB_CDEV_FLAG_GONE            0x00000001
+#define USB_CDEV_FLAG_FLUSHING_WRITE  0x00000002
+
+#define USB_CDEV_FLAG_OPEN_READ       0x00000004
+#define USB_CDEV_FLAG_OPEN_WRITE      0x00000008
+
+#define USB_CDEV_FLAG_SLEEP_READ      0x00000010
+#define USB_CDEV_FLAG_SLEEP_WRITE     0x00000020
+
+#define USB_CDEV_FLAG_SLEEP_IOCTL_RD  0x00000040
+#define USB_CDEV_FLAG_SLEEP_IOCTL_WR  0x00000080
+
+#define USB_CDEV_FLAG_WAKEUP_READ     0x00000100
+#define USB_CDEV_FLAG_WAKEUP_WRITE    0x00000200
+
+#define USB_CDEV_FLAG_WAKEUP_IOCTL_RD 0x00000400
+#define USB_CDEV_FLAG_WAKEUP_IOCTL_WR 0x00000800
+
+#define USB_CDEV_FLAG_SELECT_READ     0x00001000
+#define USB_CDEV_FLAG_SELECT_WRITE    0x00002000
+
+#define USB_CDEV_FLAG_CLOSING_READ    0x00004000
+#define USB_CDEV_FLAG_CLOSING_WRITE   0x00008000
+
+#define USB_CDEV_FLAG_ERROR_READ      0x00010000 /* can be set to indicate error */
+#define USB_CDEV_FLAG_ERROR_WRITE     0x00020000 /* can be set to indicate error */
+
+  /* other flags */
+
+#define USB_CDEV_FLAG_FWD_SHORT       0x00040000 /* can be set to forward short transfers */
+#define USB_CDEV_FLAG_READ_ONLY       0x00080000 /* device is read only */
+#define USB_CDEV_FLAG_WRITE_ONLY      0x00100000 /* device is read only */
+#define USB_CDEV_FLAG_WAKEUP_RD_IMMED 0x00200000 /* wakeup read thread immediately */
+#define USB_CDEV_FLAG_WAKEUP_WR_IMMED 0x00400000 /* wakeup write thread immediately */
+
+    u_int8_t                sc_wakeup_read; /* dummy */
+    u_int8_t                sc_wakeup_write; /* dummy */
+    u_int8_t                sc_wakeup_flush; /* dummy */
+    u_int8_t                sc_wakeup_close_read; /* dummy */
+    u_int8_t                sc_wakeup_close_write; /* dummy */
+    u_int8_t                sc_wakeup_detach; /* dummy */
+    u_int8_t                sc_wakeup_ioctl; /* dummy */
+    u_int8_t                sc_wakeup_ioctl_rdwr; /* dummy */
+
+    u_int8_t                sc_first_open; /* set when first device
+					    * is being opened
+					    */
+};
 
 #endif /* _USB_SUBR_H_ */

@@ -10,7 +10,7 @@ KMOD=	usb
 SRCS=	bus_if.h device_if.h usb_if.h usb_if.c \
 	vnode_if.h \
 	opt_usb.h \
-	hid.c hid.h usbhid.h \
+	_usb_hid.c ../usb2/usb_hid.h \
 	usb_quirks.c ../usb/usb_quirks.h \
 	usb_ethersubr.c usbdevs.h \
 	_uhub.c \
@@ -18,6 +18,7 @@ SRCS=	bus_if.h device_if.h usb_if.h usb_if.c \
 	_usb_requests.c \
 	_usb_subr.c ../usb2/usb_subr.h \
 	_usb_transfer.c \
+	_usb_cdev.c \
 	../usb2/usb_port.h
 
 SRCS+=	_uhci_pci.c _uhci.c ../usb2/uhci.h
