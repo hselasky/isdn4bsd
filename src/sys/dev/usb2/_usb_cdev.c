@@ -1294,6 +1294,12 @@ usb_cdev_get_data(struct usb_cdev *sc, u_int8_t *buf, u_int32_t len,
 	            USBD_IF_PREPEND(&(sc->sc_wrq_used), m);
 		}
 	    } else {
+
+		if (tr_data) {
+		   /* wait for data to be written out */
+		   break;
+		}
+
 	        if (sc->sc_flags &   USB_CDEV_FLAG_FLUSHING_WRITE) {
 		    sc->sc_flags &= ~USB_CDEV_FLAG_FLUSHING_WRITE;
 		    wakeup(&(sc->sc_wakeup_flush));
