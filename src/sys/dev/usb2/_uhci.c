@@ -63,7 +63,7 @@
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/uhci.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/uhci.c $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/uhci.c $");
 
 #define MS_TO_TICKS(ms) (((ms) * hz) / 1000)
 #define UHCI_BUS2SC(bus) ((uhci_softc_t *)(((u_int8_t *)(bus)) - \
@@ -2711,7 +2711,6 @@ uhci_xfer_setup(struct usbd_device *udev,
 	  xfer->usb_mtx = &sc->sc_bus.mtx;
 	  xfer->usb_root = info;
 	  xfer->flags = setup->flags;
-	  xfer->length = setup->bufsize;
 	  xfer->nframes = setup->frames;
 	  xfer->timeout = setup->timeout;
 	  xfer->callback = setup->callback;
@@ -2746,6 +2745,12 @@ uhci_xfer_setup(struct usbd_device *udev,
 		xfer->address = udev->address;
 		xfer->endpoint = xfer->pipe->edesc->bEndpointAddress;
 		xfer->max_packet_size = UGETW(xfer->pipe->edesc->wMaxPacketSize);
+
+		xfer->length = setup->bufsize;
+
+		if (xfer->length == 0) {
+		    xfer->length = xfer->max_packet_size;
+		}
 
 		/* wMaxPacketSize is validated by "usbd_fill_iface_data()" */
 
@@ -2806,7 +2811,7 @@ uhci_xfer_setup(struct usbd_device *udev,
 		xfer->physbuffer = (physbuffer + size);
 	  }
 
-	  size += setup->bufsize;
+	  size += xfer->length;
 
 	  size += ((-size) & (UHCI_TD_ALIGN-1)); /* align data */
 

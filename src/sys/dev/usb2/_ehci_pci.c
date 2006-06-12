@@ -365,6 +365,8 @@ ehci_pci_detach(device_t self)
 		sc->io_res = NULL;
 	}
 
+	mtx_destroy(&sc->sc_bus.mtx);
+
 	usb_free_mem(sc, sizeof(*sc));
 
 	device_set_softc(self, NULL);

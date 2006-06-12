@@ -96,8 +96,9 @@ SYSCTL_INT(_hw_usb_uhid, OID_AUTO, debug, CTLFLAG_RW,
 #define	UHID_FRAME_NUM 	  50 /* bytes, frame number */
 
 struct uhid_softc {
-	struct usb_cdev   sc_cdev;
-	struct mtx        sc_mtx;
+	struct usb_cdev         sc_cdev;
+	struct mtx              sc_mtx;
+	struct usbd_memory_wait sc_mem_wait;
 
 	struct usbd_xfer *      sc_xfer[UHID_N_TRANSFER];
 	void *                  sc_repdesc_ptr;
@@ -113,13 +114,11 @@ struct uhid_softc {
 	u_int8_t sc_iid;
 	u_int8_t sc_oid;
 	u_int8_t sc_fid;
-	u_int8_t sc_wakeup_detach;
 	u_int8_t sc_flags;
 #define UHID_FLAG_IMMED        0x01 /* set if read should be immediate */
 #define UHID_FLAG_INTR_STALL   0x02 /* set if interrupt transfer stalled */
 #define UHID_FLAG_STATIC_DESC  0x04 /* set if report descriptors are static */
 #define UHID_FLAG_COMMAND_ERR  0x08 /* set if control transfer had an error */
-#define UHID_FLAG_WAIT_USB     0x10 /* set if should wait for USB */
 };
 
 static u_int8_t uhid_xb360gp_report_descr[] = { UHID_XB360GP_REPORT_DESCR() };
@@ -137,13 +136,13 @@ uhid_intr_callback(struct usbd_xfer *xfer)
  tr_transferred:
 	DPRINTF(0, "transferred!\n");
 
-	if (xfer->actlen == sc->sc_isize) {
+	if (xfer->actlen >= sc->sc_isize) {
 	    usb_cdev_put_data(&(sc->sc_cdev), 
-			      xfer->buffer, xfer->actlen, 1);
+			      xfer->buffer, sc->sc_isize, 1);
 	} else {
 	    /* ignore it */
-	    DPRINTF(0, "ignored short transfer, %d bytes\n",
-		    xfer->actlen);
+	    DPRINTF(0, "ignored short transfer, "
+		    "%d bytes\n", xfer->actlen);
 	}
 
  tr_setup:
@@ -153,7 +152,6 @@ uhid_intr_callback(struct usbd_xfer *xfer)
 	    USBD_IF_POLL(&(sc->sc_cdev.sc_rdq_free), m);
 
 	    if (m) {
-	        xfer->length = sc->sc_isize;
 		usbd_start_hardware(xfer);
 	    }
 	}
@@ -310,7 +308,7 @@ static const struct usbd_config uhid_config[UHID_N_TRANSFER] = {
       .endpoint  = -1, /* any */
       .direction = UE_DIR_IN,
       .flags     = USBD_SHORT_XFER_OK,
-      .bufsize   = UHID_BSIZE, /* bytes */
+      .bufsize   = 0, /* use wMaxPacketSize */
       .callback  = &uhid_intr_callback,
     },
 
@@ -628,23 +626,6 @@ uhid_probe(device_t dev)
 	return UMATCH_IFACECLASS_GENERIC;
 }
 
-static void
-uhid_detach_complete(struct usbd_memory_info *info)
-{
-	struct uhid_softc *sc = info->priv_sc;
-
-	mtx_lock(&(sc->sc_mtx));
-
-	if (sc->sc_flags &   UHID_FLAG_WAIT_USB) {
-	    sc->sc_flags &= ~UHID_FLAG_WAIT_USB;
-	    wakeup(&(sc->sc_wakeup_detach));
-	}
-
-	mtx_unlock(&(sc->sc_mtx));
-
-	return;
-}
-
 static int
 uhid_attach(device_t dev)
 {
@@ -671,13 +652,11 @@ uhid_attach(device_t dev)
 
 	error = usbd_transfer_setup(uaa->device, uaa->iface_index, 
 				    sc->sc_xfer, uhid_config, UHID_N_TRANSFER,
-				    sc, &(sc->sc_mtx), &(uhid_detach_complete));
+				    sc, &(sc->sc_mtx), &(sc->sc_mem_wait));
 	if (error) {
 	    DPRINTF(0, "error=%s\n", usbd_errstr(error)) ;
 	    goto detach;
 	}
-
-	sc->sc_flags |= UHID_FLAG_WAIT_USB;
 
 	if (uaa->vendor == USB_VENDOR_WACOM) {
 
@@ -806,7 +785,6 @@ static int
 uhid_detach(device_t dev)
 {
 	struct uhid_softc *sc = device_get_softc(dev);
-	int32_t error;
 
 	usb_cdev_detach(&(sc->sc_cdev));
 
@@ -818,13 +796,7 @@ uhid_detach(device_t dev)
 	    }
 	}
 
-	mtx_lock(&(sc->sc_mtx));
-	while (sc->sc_flags & UHID_FLAG_WAIT_USB) {
-
-	    error = msleep(&(sc->sc_wakeup_detach), &(sc->sc_mtx), 
-			   PRIBIO, "uhid_sync", 0);
-	}
-	mtx_unlock(&(sc->sc_mtx));
+	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&(sc->sc_mtx));
 

@@ -118,6 +118,7 @@ struct ukbd_softc {
 	struct __callout   sc_callout;
 	struct ukbd_data   sc_ndata;
 	struct ukbd_data   sc_odata;
+	struct usbd_memory_wait sc_mem_wait;
 
 	struct usbd_device * sc_udev;
 	struct usbd_interface * sc_iface;
@@ -136,10 +137,8 @@ struct ukbd_softc {
 #define UKBD_FLAG_POLLING    0x0002
 #define UKBD_FLAG_SET_LEDS   0x0004
 #define UKBD_FLAG_PIPE_ERROR 0x0008
-#define UKBD_FLAG_WAIT_USB   0x0010
-#define UKBD_FLAG_WAIT_CO    0x0020
-#define UKBD_FLAG_ATTACHED   0x0040
-#define UKBD_FLAG_GONE       0x0080
+#define UKBD_FLAG_ATTACHED   0x0010
+#define UKBD_FLAG_GONE       0x0020
 
 	int32_t            sc_mode; /* input mode (K_XLATE,K_RAW,K_CODE) */
 	int32_t		   sc_state;  /* shift/lock key state */
@@ -151,7 +150,6 @@ struct ukbd_softc {
 
 	u_int8_t           sc_leds;
 	u_int8_t	   sc_iface_index;
-	u_int8_t           sc_wakeup_detach; /* dummy */
 };
 
 #define KEY_ERROR	  0x01
@@ -570,7 +568,7 @@ static const struct usbd_config ukbd_config[UKBD_N_TRANSFER] = {
       .endpoint  = -1, /* any */
       .direction = UE_DIR_IN,
       .flags     = USBD_SHORT_XFER_OK,
-      .bufsize   = sizeof(struct ukbd_data), /* bytes */
+      .bufsize   = 0, /* use wMaxPacketSize */
       .callback  = &ukbd_intr_callback,
     },
 
@@ -592,23 +590,6 @@ static const struct usbd_config ukbd_config[UKBD_N_TRANSFER] = {
       .timeout   = 1000, /* 1 second */
     },
 };
-
-static void
-ukbd_detach_complete(struct usbd_memory_info *info)
-{
-	struct ukbd_softc *sc = info->priv_sc;
-
-	mtx_lock(&Giant);
-
-	if (sc->sc_flags &   UKBD_FLAG_WAIT_USB) {
-	    sc->sc_flags &= ~UKBD_FLAG_WAIT_USB;
-	    wakeup(&(sc->sc_wakeup_detach));
-	}
-
-	mtx_unlock(&Giant);
-
-	return;
-}
 
 static int
 ukbd_probe(device_t dev)
@@ -669,21 +650,14 @@ ukbd_attach(device_t dev)
 
 	__callout_init_mtx(&(sc->sc_callout), &Giant,
 			   CALLOUT_RETURNUNLOCKED);
-#if 0
-	/* TODO: "__callout_init_mtx()" does not support this: */
-
-	sc->sc_flags |= UKBD_FLAG_WAIT_CO; 
-#endif
 
 	err = usbd_transfer_setup(uaa->device, uaa->iface_index, sc->sc_xfer, 
 				  ukbd_config, UKBD_N_TRANSFER, sc, 
-				  &Giant, &ukbd_detach_complete);
+				  &Giant, &(sc->sc_mem_wait));
 	if (err) {
 	    DPRINTF(0, "error=%s\n", usbd_errstr(err)) ;
 	    goto detach;
 	}
-
-	sc->sc_flags |= UKBD_FLAG_WAIT_USB;
 
 	/* setup default keyboard maps */
 
@@ -804,13 +778,7 @@ ukbd_detach(device_t dev)
 
 	usbd_transfer_unsetup(sc->sc_xfer, UKBD_N_TRANSFER);
 
-	/* wait for callbacks to be aborted */
-
-	while (sc->sc_flags & (UKBD_FLAG_WAIT_USB|UKBD_FLAG_WAIT_CO)) {
-
-	    error = msleep(&(sc->sc_wakeup_detach), &Giant, 
-			   PRIBIO, "ukbd_sync_2", 0);
-	}
+	usbd_transfer_drain(&(sc->sc_mem_wait), &Giant);
 
 	DPRINTF(0, "%s: disconnected\n", 
 		device_get_nameunit(dev));

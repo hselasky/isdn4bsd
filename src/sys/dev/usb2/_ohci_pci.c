@@ -66,7 +66,7 @@
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/ohci.h> 
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/ohci_pci.c,v 1.40 2004/08/02 15:37:35 iedowse Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ohci_pci.c,v 1.40 2004/08/02 15:37:35 iedowse Exp $");
 
 #define PCI_OHCI_VENDORID_ACERLABS	0x10b9
 #define PCI_OHCI_VENDORID_AMD		0x1022
@@ -341,6 +341,8 @@ ohci_pci_detach(device_t self)
 				     sc->io_res);
 		sc->io_res = NULL;
 	}
+
+	mtx_destroy(&sc->sc_bus.mtx);
 
 	usb_free_mem(sc, sizeof(*sc));
 

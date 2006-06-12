@@ -77,7 +77,6 @@ SYSCTL_INT(_hw_usb_ums, OID_AUTO, debug, CTLFLAG_RW,
 #define MOUSE_FLAGS_MASK (HIO_CONST|HIO_RELATIVE)
 #define MOUSE_FLAGS (HIO_RELATIVE)
 
-#define UMS_INT_SIZE     64 /* bytes */
 #define UMS_BUF_SIZE      8 /* bytes */
 #define UMS_IFQ_MAXLEN   50 /* units */
 #define UMS_N_TRANSFER    2 /* units */
@@ -89,6 +88,7 @@ struct ums_softc {
   struct usbd_ifqueue sc_rdq_free;
   struct usbd_ifqueue sc_rdq_used;
   struct __callout    sc_callout;
+  struct usbd_memory_wait sc_mem_wait;
   struct selinfo      sc_read_sel;
   struct hid_location sc_loc_x; 
   struct hid_location sc_loc_y;
@@ -111,17 +111,14 @@ struct ums_softc {
 #define UMS_FLAG_SBU        0x0010 /* spurious button up events */
 #define UMS_FLAG_SELECT     0x0020 /* select is waiting */
 #define UMS_FLAG_INTR_STALL 0x0040 /* set if transfer error */
-#define UMS_FLAG_WAIT_USB   0x0080 /* device is waiting for callbacks */
-#define UMS_FLAG_WAIT_CO    0x0100 /* device is waiting for callbacks */
-#define UMS_FLAG_GONE       0x0200 /* device is gone */
-#define UMS_FLAG_RD_WUP     0x0400 /* device is waiting for wakeup */
-#define UMS_FLAG_RD_SLP     0x0800 /* device is sleeping */
-#define UMS_FLAG_CLOSING    0x1000 /* device is closing */
-#define UMS_FLAG_DEV_OPEN   0x2000 /* device is open */
+#define UMS_FLAG_GONE       0x0080 /* device is gone */
+#define UMS_FLAG_RD_WUP     0x0100 /* device is waiting for wakeup */
+#define UMS_FLAG_RD_SLP     0x0200 /* device is sleeping */
+#define UMS_FLAG_CLOSING    0x0400 /* device is closing */
+#define UMS_FLAG_DEV_OPEN   0x0800 /* device is open */
 
   u_int8_t	      sc_buttons;
   u_int8_t	      sc_iid;
-  u_int8_t            sc_wakeup_detach; /* dummy */
   u_int8_t            sc_wakeup_read; /* dummy */
   u_int8_t            sc_wakeup_sync_1; /* dummy */
 };
@@ -310,7 +307,7 @@ static const struct usbd_config ums_config[UMS_N_TRANSFER] = {
       .endpoint  = -1, /* any */
       .direction = UE_DIR_IN,
       .flags     = USBD_SHORT_XFER_OK,
-      .bufsize   = UMS_INT_SIZE, /* bytes */
+      .bufsize   = 0, /* use wMaxPacketSize */
       .callback  = &ums_intr_callback,
     },
 
@@ -323,23 +320,6 @@ static const struct usbd_config ums_config[UMS_N_TRANSFER] = {
       .timeout   = 1000, /* 1 second */
     },
 };
-
-static void
-ums_detach_complete(struct usbd_memory_info *info)
-{
-	struct ums_softc *sc = info->priv_sc;
-
-	mtx_lock(&(sc->sc_mtx));
-
-	if (sc->sc_flags &   UMS_FLAG_WAIT_USB) {
-	    sc->sc_flags &= ~UMS_FLAG_WAIT_USB;
-	    wakeup(&(sc->sc_wakeup_detach));
-	}
-
-	mtx_unlock(&(sc->sc_mtx));
-
-	return;
-}
 
 static int
 ums_probe(device_t dev)
@@ -404,11 +384,6 @@ ums_attach(device_t dev)
 
 	__callout_init_mtx(&(sc->sc_callout),
 			   &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
-#if 0
-	/* TODO: "__callout_init_mtx()" does not support this: */
-
-	sc->sc_flags |= UMS_FLAG_WAIT_CO; 
-#endif
 
  	sc->sc_mem_ptr_1 = 
 	  usbd_alloc_mbufs(M_DEVBUF, &(sc->sc_rdq_free), 
@@ -420,13 +395,11 @@ ums_attach(device_t dev)
 
 	err = usbd_transfer_setup(uaa->device, uaa->iface_index, sc->sc_xfer, 
 				  ums_config, UMS_N_TRANSFER, sc, 
-				  &(sc->sc_mtx), &ums_detach_complete);
+				  &(sc->sc_mtx), &(sc->sc_mem_wait));
 	if (err) {
 	    DPRINTF(0, "error=%s\n", usbd_errstr(err)) ;
 	    goto detach;
 	}
-
-	sc->sc_flags |= UMS_FLAG_WAIT_USB;
 
 	err = usbreq_read_report_desc(uaa->device, uaa->iface_index, 
 				      &d_ptr, &d_len, M_TEMP);
@@ -501,13 +474,11 @@ ums_attach(device_t dev)
 
 	isize = hid_report_size(d_ptr, d_len, hid_input, &sc->sc_iid);
 
-	if (isize > UMS_INT_SIZE) {
-	    DPRINTF(0, "cannot handle a report "
-		    "size of %d bytes\n", isize);
-	    goto detach;
+	if (isize > sc->sc_xfer[0]->length) {
+	    DPRINTF(0, "WARNING: report size, %d bytes, is larger "
+		    "than interrupt size, %d bytes!\n",
+		    isize, sc->sc_xfer[0]->length);
 	}
-
-	sc->sc_xfer[0]->length = isize;
 
 	free(d_ptr, M_TEMP);
 
@@ -573,8 +544,6 @@ ums_detach(device_t self)
 {
 	struct ums_softc *sc = device_get_softc(self);
 
-	int error;
-
 	DPRINTF(0, "sc=%p\n", sc);
 
 	mtx_lock(&(sc->sc_mtx));
@@ -602,15 +571,7 @@ ums_detach(device_t self)
 	    free(sc->sc_mem_ptr_1, M_DEVBUF);
 	}
 
-	/* wait for callbacks to be aborted */
-
-	mtx_lock(&(sc->sc_mtx));
-	while (sc->sc_flags & (UMS_FLAG_WAIT_USB|UMS_FLAG_WAIT_CO)) {
-
-	    error = msleep(&(sc->sc_wakeup_detach), &(sc->sc_mtx), 
-			   PRIBIO, "ums_sync_2", 0);
-	}
-	mtx_unlock(&(sc->sc_mtx));
+	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&(sc->sc_mtx));
 

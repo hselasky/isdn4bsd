@@ -94,6 +94,7 @@ struct ulpt_softc {
 	struct usb_cdev         sc_cdev;
 	struct __callout	sc_watchdog;
 	struct mtx		sc_mtx;
+	struct usbd_memory_wait sc_mem_wait;
 
 	device_t		sc_dev;
 	struct usbd_xfer *	sc_xfer[ULPT_N_TRANSFER];
@@ -101,15 +102,12 @@ struct ulpt_softc {
 	u_int8_t		sc_flags;
 #define ULPT_FLAG_NO_READ       0x01 /* device has no read endpoint */
 #define ULPT_FLAG_DUMP_READ     0x02 /* device is not opened for read */
-#define ULPT_FLAG_WAIT_USB      0x04 /* device is waiting for USB callbacks */
-#define ULPT_FLAG_WAIT_CO       0x08 /* device is waiting for callouts */
-#define ULPT_FLAG_READ_STALL    0x10 /* read transfer stalled */
-#define ULPT_FLAG_WRITE_STALL   0x20 /* write transfer stalled */
-#define ULPT_FLAG_RESETTING     0x40 /* device is resetting */
+#define ULPT_FLAG_READ_STALL    0x04 /* read transfer stalled */
+#define ULPT_FLAG_WRITE_STALL   0x08 /* write transfer stalled */
+#define ULPT_FLAG_RESETTING     0x10 /* device is resetting */
 
 	u_int8_t		sc_iface_no;
 	u_int8_t		sc_last_status;
-	u_int8_t		sc_wakeup_detach; /* dummy */
 };
 
 static void
@@ -520,23 +518,6 @@ ulpt_probe(device_t dev)
 	return UMATCH_NONE;
 }
 
-static void
-ulpt_detach_complete(struct usbd_memory_info *info)
-{
-	struct ulpt_softc *sc = info->priv_sc;
-
-	mtx_lock(&(sc->sc_mtx));
-
-	if (sc->sc_flags &   ULPT_FLAG_WAIT_USB) {
-	    sc->sc_flags &= ~ULPT_FLAG_WAIT_USB;
-	    wakeup(&(sc->sc_wakeup_detach));
-	}
-
-	mtx_unlock(&(sc->sc_mtx));
-
-	return;
-}
-
 static int
 ulpt_attach(device_t dev)
 {
@@ -562,11 +543,6 @@ ulpt_attach(device_t dev)
 
 	__callout_init_mtx(&(sc->sc_watchdog),
 			   &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
-#if 0
-	/* TODO: "__callout_init_mtx()" does not support this: */
-
-	sc->sc_flags |= ULPT_FLAG_WAIT_CO; 
-#endif
 
 	/* search through all the descriptors looking for bidir mode */
 
@@ -613,14 +589,12 @@ ulpt_attach(device_t dev)
 	sc->sc_iface_no = id->bInterfaceNumber;
 
 	error = usbd_transfer_setup(uaa->device, iface_index, 
-				  sc->sc_xfer, ulpt_config, ULPT_N_TRANSFER, 
-				  sc, &(sc->sc_mtx), &(ulpt_detach_complete));
+				    sc->sc_xfer, ulpt_config, ULPT_N_TRANSFER, 
+				    sc, &(sc->sc_mtx), &(sc->sc_mem_wait));
 	if (error) {
 	    DPRINTF(0, "error=%s\n", usbd_errstr(error)) ;
 	    goto detach;
 	}
-
-	sc->sc_flags |= ULPT_FLAG_WAIT_USB;
 
 	if (usbd_get_quirks(uaa->device)->uq_flags & UQ_BROKEN_BIDIR) {
 		/* this device doesn't handle reading properly. */
@@ -709,7 +683,6 @@ static int
 ulpt_detach(device_t dev)
 {
 	struct ulpt_softc *sc = device_get_softc(dev);
-	int error;
 
 	DPRINTF(0, "sc=%p\n", sc);
 
@@ -721,15 +694,7 @@ ulpt_detach(device_t dev)
 
 	usbd_transfer_unsetup(sc->sc_xfer, ULPT_N_TRANSFER);
 
-	/* wait for callbacks to be aborted */
-
-	mtx_lock(&(sc->sc_mtx));
-	while (sc->sc_flags & (ULPT_FLAG_WAIT_USB|ULPT_FLAG_WAIT_CO)) {
-
-	    error = msleep(&(sc->sc_wakeup_detach), &(sc->sc_mtx), 
-			   PRIBIO, "ulpt_sync", 0);
-	}
-	mtx_unlock(&(sc->sc_mtx));
+	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&(sc->sc_mtx));
 

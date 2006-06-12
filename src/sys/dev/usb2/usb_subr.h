@@ -382,16 +382,19 @@ struct usbd_xfer {
 #endif
 };
 
-typedef void (usbd_unsetup_callback_t)(struct usbd_memory_info *info);
+struct usbd_memory_wait {
+    struct mtx *   priv_mtx;
+    u_int16_t      priv_refcount;
+    u_int16_t      priv_sleeping;
+};
 
 struct usbd_memory_info {
     void *         memory_base;
     u_int32_t      memory_size;
     u_int32_t      memory_refcount;
-    void *         priv_sc;
+    struct usbd_memory_wait * priv_wait;
     struct mtx *   priv_mtx;
     struct mtx *   usb_mtx;
-    usbd_unsetup_callback_t *priv_func;
 };
 
 struct usbd_callback_info {
@@ -662,10 +665,13 @@ usbd_transfer_setup(struct usbd_device *udev,
 		    u_int16_t n_setup,
 		    void *priv_sc,
 		    struct mtx *priv_mtx,
-		    usbd_unsetup_callback_t *priv_func);
+		    struct usbd_memory_wait *priv_wait);
 
 void
 usbd_transfer_unsetup(struct usbd_xfer **pxfer, u_int16_t n_setup);
+
+void
+usbd_transfer_drain(struct usbd_memory_wait *priv_wait, struct mtx *priv_mtx);
 
 void
 usbd_start_hardware(struct usbd_xfer *xfer);

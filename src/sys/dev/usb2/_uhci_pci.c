@@ -65,7 +65,7 @@
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/uhci.h> 
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/uhci_pci.c $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/uhci_pci.c $");
 
 #define PCI_UHCI_VENDORID_INTEL		0x8086
 #define PCI_UHCI_VENDORID_VIA		0x1106
@@ -366,6 +366,8 @@ uhci_pci_detach(device_t self)
 				     sc->io_res);
 		sc->io_res = NULL;
 	}
+
+	mtx_destroy(&sc->sc_bus.mtx);
 
 	usb_free_mem(sc, sizeof(*sc));
 

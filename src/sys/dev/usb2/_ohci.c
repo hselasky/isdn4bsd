@@ -60,7 +60,7 @@
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/ohci.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/ohci.c,v 1.145 2004/11/09 20:51:32 iedowse Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ohci.c,v 1.145 2004/11/09 20:51:32 iedowse Exp $");
 
 #define MS_TO_TICKS(ms) (((ms) * hz) / 1000)
 #define OHCI_BUS2SC(bus) ((ohci_softc_t *)(((u_int8_t *)(bus)) - \
@@ -2421,7 +2421,6 @@ ohci_xfer_setup(struct usbd_device *udev,
 	  xfer->usb_mtx = &sc->sc_bus.mtx;
 	  xfer->usb_root = info;
 	  xfer->flags = setup->flags;
-	  xfer->length = setup->bufsize;
 	  xfer->nframes = setup->frames;
 	  xfer->timeout = setup->timeout;
 	  xfer->callback = setup->callback;
@@ -2476,6 +2475,12 @@ ohci_xfer_setup(struct usbd_device *udev,
 		xfer->endpoint = xfer->pipe->edesc->bEndpointAddress;
 		xfer->max_packet_size = UGETW(xfer->pipe->edesc->wMaxPacketSize);
 
+		xfer->length = setup->bufsize;
+
+		if (xfer->length == 0) {
+		    xfer->length = xfer->max_packet_size;
+		}
+
 		/* wMaxPacketSize is validated by "usbd_fill_iface_data()" */
 
 		/*
@@ -2492,7 +2497,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 		}
 		else if(xfer->pipe->methods == &ohci_device_isoc_methods)
 		{
-			nitd = (setup->bufsize / OHCI_PAGE_SIZE) +
+			nitd = (xfer->length / OHCI_PAGE_SIZE) +
 			  (max_frames / OHCI_ITD_NOFFSET) + 1 /* EXTRA */;
 			ntd = 0;
 		}
@@ -2536,7 +2541,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 		xfer->physbuffer = (physbuffer + size);
 	  }
 
-	  size += setup->bufsize;
+	  size += xfer->length;
 
 	  size += ((-size) & (OHCI_ITD_ALIGN-1)); /* align data */
 

@@ -69,7 +69,7 @@
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/ehci.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/ehci.c,v 1.18 2004/11/09 20:51:32 iedowse Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ehci.c,v 1.18 2004/11/09 20:51:32 iedowse Exp $");
 
 #define MS_TO_TICKS(ms) (((ms) * hz) / 1000)
 #define EHCI_BUS2SC(bus) ((ehci_softc_t *)(((u_int8_t *)(bus)) - \
@@ -3417,7 +3417,6 @@ ehci_xfer_setup(struct usbd_device *udev,
 	  xfer->usb_mtx = &sc->sc_bus.mtx;
 	  xfer->usb_root = info;
 	  xfer->flags = setup->flags;
-	  xfer->length = setup->bufsize;
 	  xfer->nframes = setup->frames;
 	  xfer->timeout = setup->timeout;
 	  xfer->callback = setup->callback;
@@ -3452,6 +3451,12 @@ ehci_xfer_setup(struct usbd_device *udev,
 		xfer->address = udev->address;
 		xfer->endpoint = xfer->pipe->edesc->bEndpointAddress;
 		xfer->max_packet_size = UGETW(xfer->pipe->edesc->wMaxPacketSize);
+
+		xfer->length = setup->bufsize;
+
+		if (xfer->length == 0) {
+		    xfer->length = xfer->max_packet_size;
+		}
 
 		/* wMaxPacketSize is validated by "usbd_fill_iface_data()" */
 
@@ -3544,7 +3549,7 @@ ehci_xfer_setup(struct usbd_device *udev,
 		xfer->physbuffer = (physbuffer + size);
 	  }
 
-	  size += setup->bufsize;
+	  size += xfer->length;
 
 	  /* memory is allocated at 
 	   * highest alignment 
