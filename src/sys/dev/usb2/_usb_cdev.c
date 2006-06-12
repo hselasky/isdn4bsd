@@ -39,6 +39,7 @@
 #include <sys/vnode.h>
 #include <sys/proc.h>
 #include <sys/poll.h>
+#include <sys/signalvar.h>
 
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>

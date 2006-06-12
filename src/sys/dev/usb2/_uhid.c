@@ -116,7 +116,7 @@ struct uhid_softc {
 	u_int8_t sc_wakeup_detach;
 	u_int8_t sc_flags;
 #define UHID_FLAG_IMMED        0x01 /* set if read should be immediate */
-#define UHID_FLAG_INTR_STALLED 0x02 /* set if interrup transfer stalled */
+#define UHID_FLAG_INTR_STALL   0x02 /* set if interrupt transfer stalled */
 #define UHID_FLAG_STATIC_DESC  0x04 /* set if report descriptors are static */
 #define UHID_FLAG_COMMAND_ERR  0x08 /* set if control transfer had an error */
 #define UHID_FLAG_WAIT_USB     0x10 /* set if should wait for USB */
@@ -147,17 +147,22 @@ uhid_intr_callback(struct usbd_xfer *xfer)
 	}
 
  tr_setup:
-	USBD_IF_POLL(&(sc->sc_cdev.sc_rdq_free), m);
+	if (sc->sc_flags & UHID_FLAG_INTR_STALL) {
+	    usbd_transfer_start(sc->sc_xfer[1]);
+	} else {
+	    USBD_IF_POLL(&(sc->sc_cdev.sc_rdq_free), m);
 
-	if ((!(sc->sc_flags & (UHID_FLAG_INTR_STALLED))) && m) {
-	    xfer->length = sc->sc_isize;
-	    usbd_start_hardware(xfer);
+	    if (m) {
+	        xfer->length = sc->sc_isize;
+		usbd_start_hardware(xfer);
+	    }
 	}
 	return;
 
  tr_error:
 	if (xfer->error != USBD_CANCELLED) {
 	    /* try to clear stall first */
+	    sc->sc_flags |= UHID_FLAG_INTR_STALL;
 	    usbd_transfer_start(sc->sc_xfer[1]);
 	}
 	return;
@@ -171,20 +176,19 @@ uhid_intr_clear_stall_callback(struct usbd_xfer *xfer)
 
  tr_setup:
 	/* start clear stall */
-	sc->sc_flags |= UHID_FLAG_INTR_STALLED;
 	usbd_clear_stall_tr_setup(xfer, sc->sc_xfer[0]);
 	return;
 
  tr_transferred:
 	usbd_clear_stall_tr_transferred(xfer, sc->sc_xfer[0]);
 
-	sc->sc_flags &= ~UHID_FLAG_INTR_STALLED;
+	sc->sc_flags &= ~UHID_FLAG_INTR_STALL;
 	usbd_transfer_start(sc->sc_xfer[0]);
 	return;
 
  tr_error:
 	/* bomb out */
-	sc->sc_flags &= ~UHID_FLAG_INTR_STALLED;
+	sc->sc_flags &= ~UHID_FLAG_INTR_STALL;
 	usb_cdev_put_data_error(&(sc->sc_cdev));
 	return;
 }

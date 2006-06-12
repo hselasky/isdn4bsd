@@ -110,7 +110,7 @@ struct ums_softc {
 #define UMS_FLAG_T_AXIS     0x0008
 #define UMS_FLAG_SBU        0x0010 /* spurious button up events */
 #define UMS_FLAG_SELECT     0x0020 /* select is waiting */
-#define UMS_FLAG_PIPE_ERROR 0x0040 /* set if transfer error */
+#define UMS_FLAG_INTR_STALL 0x0040 /* set if transfer error */
 #define UMS_FLAG_WAIT_USB   0x0080 /* device is waiting for callbacks */
 #define UMS_FLAG_WAIT_CO    0x0100 /* device is waiting for callbacks */
 #define UMS_FLAG_GONE       0x0200 /* device is gone */
@@ -152,40 +152,29 @@ ums_put_queue_timeout(void *__sc)
 }
 
 static void
-ums_clear_stall_callback(struct usbd_xfer *xfer1)
+ums_clear_stall_callback(struct usbd_xfer *xfer)
 {
-	usb_device_request_t *req = xfer1->buffer;
-	struct ums_softc *sc = xfer1->priv_sc;
-	struct usbd_xfer *xfer0 = sc->sc_xfer[0];
+	struct ums_softc *sc = xfer->priv_sc;
 
-	USBD_CHECK_STATUS(xfer1);
+	USBD_CHECK_STATUS(xfer);
 
  tr_setup:
-
-        /* setup a CLEAR STALL packet */
-
-        req->bmRequestType = UT_WRITE_ENDPOINT;
-        req->bRequest = UR_CLEAR_FEATURE;
-        USETW(req->wValue, UF_ENDPOINT_HALT);
-        req->wIndex[0] = xfer0->pipe->edesc->bEndpointAddress;
-        req->wIndex[1] = 0;
-        USETW(req->wLength, 0);
-
-        usbd_start_hardware(xfer1);
+	/* start clear stall */
+	usbd_clear_stall_tr_setup(xfer, sc->sc_xfer[0]);
         return;
 
- tr_error:
  tr_transferred:
+	usbd_clear_stall_tr_transferred(xfer, sc->sc_xfer[0]);
 
-	sc->sc_flags &= ~UMS_FLAG_PIPE_ERROR;
+	sc->sc_flags &= ~UMS_FLAG_INTR_STALL;
+	usbd_transfer_start(sc->sc_xfer[0]);
+	return;
 
-	if (xfer1->error != USBD_CANCELLED) {
-
-	    xfer0->pipe->clearstall = 0;
-	    xfer0->pipe->toggle_next = 0;
-
-	    usbd_transfer_start(xfer0);
-	}
+ tr_error:
+	/* bomb out */
+	sc->sc_flags &= ~UMS_FLAG_INTR_STALL;
+	DPRINTF(0, "clear stall failed, error=%s!\n",
+		usbd_errstr(xfer->error));
 	return;
 }
 
@@ -294,18 +283,21 @@ ums_intr_callback(struct usbd_xfer *xfer)
 	}
 
  tr_setup:
-	USBD_IF_POLL(&sc->sc_rdq_free, m);
+	if (sc->sc_flags & UMS_FLAG_INTR_STALL) {
+	    usbd_transfer_start(sc->sc_xfer[1]);
+	} else {
+	    USBD_IF_POLL(&sc->sc_rdq_free, m);
 
-	if (m && (!(sc->sc_flags & UMS_FLAG_PIPE_ERROR))) {
-	    usbd_start_hardware(xfer);
+	    if (m) {
+	        usbd_start_hardware(xfer);
+	    }
 	}
 	return;
 
  tr_error:
 	if (xfer->error != USBD_CANCELLED) {
 	    /* start clear stall */
-	    sc->sc_flags |= UMS_FLAG_PIPE_ERROR;
-
+	    sc->sc_flags |= UMS_FLAG_INTR_STALL;
 	    usbd_transfer_start(sc->sc_xfer[1]);
 	}
 	return;

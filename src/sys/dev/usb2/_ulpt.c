@@ -157,6 +157,7 @@ ulpt_write_callback(struct usbd_xfer *xfer)
  tr_transferred:
  tr_setup:
 	if (sc->sc_flags & ULPT_FLAG_WRITE_STALL) {
+	    usbd_transfer_start(sc->sc_xfer[4]);
 	    return;
 	}
 	if (usb_cdev_get_data(&(sc->sc_cdev), xfer->buffer, 
@@ -219,6 +220,7 @@ ulpt_read_callback(struct usbd_xfer *xfer)
 
  tr_setup:
 	if (sc->sc_flags & ULPT_FLAG_READ_STALL) {
+	    usbd_transfer_start(sc->sc_xfer[5]);
 	    return;
 	}
 
@@ -682,10 +684,6 @@ ulpt_attach(device_t dev)
 				 USB_CDEV_FLAG_WAKEUP_RD_IMMED|
 				 USB_CDEV_FLAG_WAKEUP_WR_IMMED);
 
-	/* make the buffers one byte larger than maximum so
-	 * that one can detect too large read/writes and 
-	 * short transfers:
-	 */
 	error = usb_cdev_attach(&(sc->sc_cdev), sc, &(sc->sc_mtx), p_buf,
 				UID_ROOT, GID_OPERATOR, 0644, 
 				ULPT_BSIZE, ULPT_IFQ_MAXLEN,
