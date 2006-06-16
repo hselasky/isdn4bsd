@@ -531,16 +531,19 @@ usb_delay_ms(struct usbd_bus *bus, u_int ms);
 void
 usbd_delay_ms(struct usbd_device *udev, u_int ms);
 
+usb_descriptor_t *
+usbd_desc_foreach(usb_config_descriptor_t *cd, usb_descriptor_t *desc);
+
 struct usb_hid_descriptor;
 struct usb_hid_descriptor *
 usbd_get_hdesc(usb_config_descriptor_t *cd, usb_interface_descriptor_t *id);
 
 usb_interface_descriptor_t *
-usbd_find_idesc(usb_config_descriptor_t *cd, int iface_index, int alt_index);
+usbd_find_idesc(usb_config_descriptor_t *cd, u_int16_t iface_index, u_int16_t alt_index);
 
 usb_endpoint_descriptor_t *
-usbd_find_edesc(usb_config_descriptor_t *cd, int iface_index, int alt_index,
-		int endptidx);
+usbd_find_edesc(usb_config_descriptor_t *cd, u_int16_t iface_index, u_int16_t alt_index,
+		u_int16_t endptidx);
 
 usb_descriptor_t *
 usbd_find_descriptor(usb_config_descriptor_t *cd, int type, int subtype);
@@ -548,7 +551,7 @@ usbd_find_descriptor(usb_config_descriptor_t *cd, int type, int subtype);
 #define USBD_SUBTYPE_ANY (-1)
 
 int
-usbd_get_no_alts(usb_config_descriptor_t *cd, int ifaceno);
+usbd_get_no_alts(usb_config_descriptor_t *cd, u_int8_t ifaceno);
 
 usbd_status
 usbd_search_and_set_config(struct usbd_device *udev, int no, int msg);

@@ -258,121 +258,125 @@ usbd_delay_ms(struct usbd_device *udev, u_int ms)
 
 #define ADD_BYTES(ptr,len) ((void *)(((u_int8_t *)(ptr)) + (len)))
 
+usb_descriptor_t *
+usbd_desc_foreach(usb_config_descriptor_t *cd, usb_descriptor_t *desc)
+{
+	void *end;
+
+	if (cd == NULL) {
+	    return NULL;
+	}
+
+	end = ADD_BYTES(cd, UGETW(cd->wTotalLength));
+
+	if (desc == NULL) {
+	    desc = ADD_BYTES(cd, 0);
+	} else {
+	    desc = ADD_BYTES(desc, desc->bLength);
+	}
+	return (((((void *)desc) >= ((void *)cd)) &&
+		 (((void *)desc) < end) &&
+		 (ADD_BYTES(desc,desc->bLength) >= ((void *)cd)) &&
+		 (ADD_BYTES(desc,desc->bLength) <= end) &&
+		 (desc->bLength >= sizeof(*desc))) ? desc : NULL);
+}
+
 usb_hid_descriptor_t *
 usbd_get_hdesc(usb_config_descriptor_t *cd, usb_interface_descriptor_t *id)
 {
-	void *end = ADD_BYTES(cd, UGETW(cd->wTotalLength));
+	usb_descriptor_t *desc = (void *)id;
 
-	if((id == NULL) ||
-	   (((void *)id) < ((void *)cd)) ||
-	   (((void *)id) >= end))
-	{
-		return NULL;
+	if(desc == NULL) {
+	    return NULL;
 	}
 
-	for(id = ADD_BYTES(id, id->bLength);
-	    (((void *)id) < end) &&
-	      (ADD_BYTES(id, USB_HID_DESCRIPTOR_SIZE(0)) <= end) &&
-	      (ADD_BYTES(id, id->bLength) <= end);
-	    id = ADD_BYTES(id, id->bLength))
+	while ((desc = usbd_desc_foreach(cd, desc)))
 	{
-		if(id->bDescriptorType == UDESC_HID)
+		if ((desc->bDescriptorType == UDESC_HID) &&
+		    (desc->bLength >= USB_HID_DESCRIPTOR_SIZE(0)))
 		{
-			return (void *)id;
+			return (void *)desc;
 		}
-		if(id->bDescriptorType == UDESC_INTERFACE)
+
+		if (desc->bDescriptorType == UDESC_INTERFACE)
 		{
 			break;
 		}
 	}
-	return (0);
+	return NULL;
 }
 
 usb_interface_descriptor_t *
-usbd_find_idesc(usb_config_descriptor_t *cd, int iface_index, int alt_index)
+usbd_find_idesc(usb_config_descriptor_t *cd, u_int16_t iface_index, 
+		u_int16_t alt_index)
 {
-	void *end = ADD_BYTES(cd, UGETW(cd->wTotalLength));
+	usb_descriptor_t *desc = NULL;
 	usb_interface_descriptor_t *id;
-	int curidx, lastidx, curaidx = 0;
+	u_int16_t curidx = 0xFFFF;
+	u_int16_t lastidx = 0xFFFF;
+	u_int16_t curaidx = 0;
 
-	curidx = lastidx = -1;
-
-	for(id = ADD_BYTES(cd, 0);
-	    (((void *)id) < end) &&
-	      (ADD_BYTES(id,USB_INTERFACE_DESCRIPTOR_SIZE) <= end) &&
-	      (ADD_BYTES(id,id->bLength) <= end);
-	    id = ADD_BYTES(id, id->bLength))
+	while ((desc = usbd_desc_foreach(cd, desc)))
 	{
-		PRINTFN(4,("iface_index=%d(%d) alt_index=%d(%d) len=%d "
-			    "type=%d\n",
-			    iface_index, curidx, alt_index, curaidx,
-			    id->bLength, id->bDescriptorType));
+	    if ((desc->bDescriptorType == UDESC_INTERFACE) &&
+		(desc->bLength >= sizeof(*id)))
+	    {
+	        id = (void *)desc;
 
-		if(id->bLength == 0)
+		if(id->bInterfaceNumber != lastidx)
 		{
-			/* bad descriptor */
-			break;
+		    lastidx = id->bInterfaceNumber;
+		    curidx++;
+		    curaidx = 0;
 		}
-		if(id->bDescriptorType == UDESC_INTERFACE)
+		else
 		{
-			if(id->bInterfaceNumber != lastidx)
-			{
-				lastidx = id->bInterfaceNumber;
-				curidx++;
-				curaidx = 0;
-			}
-			else
-			{
-				curaidx++;
-			}
-			if((iface_index == curidx) && (alt_index == curaidx))
-			{
-				return (id);
-			}
+		    curaidx++;
 		}
+		if((iface_index == curidx) && (alt_index == curaidx))
+		{
+		    return (id);
+		}
+	    }
 	}
 	return (NULL);
 }
 
 usb_endpoint_descriptor_t *
-usbd_find_edesc(usb_config_descriptor_t *cd, int iface_index, int alt_index,
-		int endptidx)
+usbd_find_edesc(usb_config_descriptor_t *cd, u_int16_t iface_index, 
+		u_int16_t alt_index, u_int16_t endptidx)
 {
-	void *end = ADD_BYTES(cd, UGETW(cd->wTotalLength));
+	usb_descriptor_t *desc = NULL;
 	usb_interface_descriptor_t *d;
-	usb_endpoint_descriptor_t *ed;
-	int curidx;
+	u_int16_t curidx = 0;
 
 	d = usbd_find_idesc(cd, iface_index, alt_index);
 	if(d == NULL)
 	{
-		return (NULL);
+	    return NULL;
 	}
+
 	if(endptidx >= d->bNumEndpoints) /* quick exit */
 	{
-		return (NULL);
+	    return NULL;
 	}
-	curidx = 0;
-	for(ed = ADD_BYTES(d, d->bLength);
-	    (((void *)ed) < end) &&
-	      (ADD_BYTES(ed, USB_ENDPOINT_DESCRIPTOR_SIZE) <= end) &&
-	      (ADD_BYTES(ed, ed->bLength) <= end);
-	    ed = ADD_BYTES(ed, ed->bLength))
-	{
-		if((ed->bLength == 0) ||
-		   (ed->bDescriptorType == UDESC_INTERFACE))
-		{
-			/* bad descriptor */
-			break;
+
+	desc = ((void *)d);
+
+	while ((desc = usbd_desc_foreach(cd, desc))) {
+
+	    if(desc->bDescriptorType == UDESC_INTERFACE) {
+	        break;
+	    }
+
+	    if (desc->bDescriptorType == UDESC_ENDPOINT) {
+
+	        if (curidx == endptidx) {
+		    return ((desc->bLength >= USB_ENDPOINT_DESCRIPTOR_SIZE) ? 
+			    ((void *)d) : NULL);
 		}
-		if(ed->bDescriptorType == UDESC_ENDPOINT)
-		{
-			if(curidx == endptidx)
-			{
-				return (ed);
-			}
-			curidx++;
-		}
+		curidx++;
+	    }
 	}
 	return (NULL);
 }
@@ -380,20 +384,10 @@ usbd_find_edesc(usb_config_descriptor_t *cd, int iface_index, int alt_index,
 usb_descriptor_t *
 usbd_find_descriptor(usb_config_descriptor_t *cd, int type, int subtype)
 {
-	void *end = ADD_BYTES(cd, UGETW(cd->wTotalLength));
-	usb_descriptor_t *desc;
+	usb_descriptor_t *desc = NULL;
 
-	for(desc = ADD_BYTES(cd, 0);
-	    (((void *)desc) < end) &&
-	      (ADD_BYTES(desc, sizeof(usb_descriptor_t)) <= end) &&
-	      (ADD_BYTES(desc, desc->bLength) <= end);
-	    desc = ADD_BYTES(desc, desc->bLength))
-	{
-		if(desc->bLength == 0)
-		{
-			/* bad descriptor */
-			break;
-		}
+	while ((desc = usbd_desc_foreach(cd, desc))) {
+
 		if((desc->bDescriptorType == type) &&
 		   ((subtype == USBD_SUBTYPE_ANY) ||
 		    (subtype == desc->bDescriptorSubtype)))
@@ -405,24 +399,23 @@ usbd_find_descriptor(usb_config_descriptor_t *cd, int type, int subtype)
 }
 
 int
-usbd_get_no_alts(usb_config_descriptor_t *cd, int ifaceno)
+usbd_get_no_alts(usb_config_descriptor_t *cd, u_int8_t ifaceno)
 {
-	void *end = ADD_BYTES(cd, UGETW(cd->wTotalLength));
-	int n;
+	usb_descriptor_t *desc = NULL;
+	usb_interface_descriptor_t *id;
+	int n = 0;
 
-	for(n = 0;
-	    (((void *)cd) < end) &&
-	      (ADD_BYTES(cd,USB_INTERFACE_DESCRIPTOR_SIZE) <= end) &&
-	      (ADD_BYTES(cd,cd->bLength) <= end);
-	    cd = ADD_BYTES(cd, cd->bLength))
-	{
-	  if((((usb_interface_descriptor_t *)cd)->bDescriptorType == UDESC_INTERFACE) &&
-	     (((usb_interface_descriptor_t *)cd)->bInterfaceNumber == ifaceno))
-	  {
-		n++;
-	  }
+	while ((desc = usbd_desc_foreach(cd, desc))) {
+
+	    if ((desc->bDescriptorType == UDESC_INTERFACE) &&
+		(desc->bLength >= sizeof(*id))) {
+	        id = (void *)desc;
+		if (id->bInterfaceNumber == ifaceno) {
+		    n++;
+		}
+	    }
 	}
-	return (n);
+	return n;
 }
 
 static void
@@ -473,8 +466,8 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 	struct usbd_pipe *pipe = &udev->pipes[0];
 	struct usbd_pipe *pipe_end = &udev->pipes_end[0];
 	usb_interface_descriptor_t *id;
-	usb_endpoint_descriptor_t *ed;
-	void *end;
+	usb_endpoint_descriptor_t *ed = NULL;
+	usb_descriptor_t *desc;
 	u_int8_t nendpt;
 
 	if(iface == NULL)
@@ -521,36 +514,29 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 	nendpt = id->bNumEndpoints;
 	PRINTFN(4,("found idesc nendpt=%d\n", nendpt));
 
-	ed = ADD_BYTES(id, id->bLength);
-	end = ADD_BYTES(udev->cdesc, UGETW(udev->cdesc->wTotalLength));
+	desc = (void *)id;
 
 	while(nendpt--)
 	{
 		PRINTFN(10,("endpt=%d\n", nendpt));
 
-		while(ADD_BYTES(ed,USB_ENDPOINT_DESCRIPTOR_SIZE) <= end)
+		while ((desc = usbd_desc_foreach(udev->cdesc, desc)))
 		{
-			PRINTFN(10,("ed=%p end=%p "
-				     "len=%d type=%d\n",
-				     ed, end, ed->bLength,
-				     ed->bDescriptorType));
-
-			if((ADD_BYTES(ed, ed->bLength) <= end) &&
-			   (ed->bLength != 0) &&
-			   (ed->bDescriptorType == UDESC_ENDPOINT))
+			if ((desc->bDescriptorType == UDESC_ENDPOINT) &&
+			    (desc->bLength >= USB_ENDPOINT_DESCRIPTOR_SIZE))
 			{
 				goto found;
 			}
-			if((ed->bLength == 0) ||
-			   (ed->bDescriptorType == UDESC_INTERFACE))
+			if (desc->bDescriptorType == UDESC_INTERFACE)
 			{
 				break;
 			}
-			ed = ADD_BYTES(ed, ed->bLength);
 		}
 		goto error;
 
 	found:
+		ed = (void *)desc;
+
 		if(udev->speed == USB_SPEED_HIGH)
 		{
 			u_int16_t mps;
@@ -598,7 +584,6 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 			}
 			pipe++;
 		}
-		ed = ADD_BYTES(ed, ed->bLength);
 	}
 	return (USBD_NORMAL_COMPLETION);
 
