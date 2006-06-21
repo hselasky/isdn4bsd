@@ -2750,6 +2750,9 @@ uhci_xfer_setup(struct usbd_device *udev,
 
 		if (xfer->length == 0) {
 		    xfer->length = xfer->max_packet_size;
+		    if (setup->frames) {
+		        xfer->length *= setup->frames;
+		    }
 		}
 
 		/* wMaxPacketSize is validated by "usbd_fill_iface_data()" */
