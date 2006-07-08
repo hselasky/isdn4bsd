@@ -271,7 +271,8 @@ usbd_transfer_setup(struct usbd_device *udev,
 		      USBD_SHORT_XFER_OK|
 		      USBD_CUSTOM_CLEARSTALL|
 		      USBD_USE_POLLING|
-		      USBD_SELF_DESTRUCT)))
+		      USBD_SELF_DESTRUCT|
+		      USBD_USE_DMA)))
 		{
 		    error = USBD_BAD_FLAG;
 		    PRINTF(("invalid flag(s) specified: "

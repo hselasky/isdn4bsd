@@ -1918,7 +1918,8 @@ ugenioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *p
 
 		if(usbd_do_request_flags
 		   (sc->sc_udev, &ur->ucr_request, data,
-		    ur->ucr_flags, &ur->ucr_actlen, USBD_DEFAULT_TIMEOUT))
+		    (ur->ucr_flags & USBD_SHORT_XFER_OK), &ur->ucr_actlen, 
+		    USBD_DEFAULT_TIMEOUT))
 		{
 			error = EIO;
 			break;
