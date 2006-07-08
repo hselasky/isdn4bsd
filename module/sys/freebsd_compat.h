@@ -255,13 +255,13 @@ static __inline time_t time_second() { return time.tv_sec; }
 
 #ifndef IHFC_USB_ENABLED
 void *
-usb_mem_alloc(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power);
+usbd_mem_alloc(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power);
 
 bus_size_t
-usb_mem_vtophys(void *ptr, u_int32_t size);
+usbd_mem_vtophys(void *ptr, u_int32_t size);
 
 void
-usb_mem_free(void *ptr, u_int32_t size);
+usbd_mem_free(void *ptr, u_int32_t size);
 #endif
 
 #else

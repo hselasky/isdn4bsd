@@ -1355,7 +1355,7 @@ struct usb_dma {
 } __packed;
 
 void *
-usb_mem_alloc(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
+usbd_mem_alloc(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
 {
     caddr_t ptr = NULL;
     struct usb_dma temp;
@@ -1412,7 +1412,7 @@ usb_mem_alloc(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
 }
 
 bus_size_t
-usb_mem_vtophys(void *ptr, u_int32_t size)
+usbd_mem_vtophys(void *ptr, u_int32_t size)
 {
     struct usb_dma *arg = (void *)(((u_int8_t *)ptr) + size);
 #if 1
@@ -1423,7 +1423,7 @@ usb_mem_vtophys(void *ptr, u_int32_t size)
 }
 
 void
-usb_mem_free(void *ptr, u_int32_t size)
+usbd_mem_free(void *ptr, u_int32_t size)
 {
     struct usb_dma *arg = (void *)(((u_int8_t *)ptr) + size);
     struct usb_dma temp = *arg; /* make a copy ! */
