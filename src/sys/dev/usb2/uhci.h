@@ -112,6 +112,11 @@
 #define UHCI_TD_ALIGN		16 /* bytes */
 #define UHCI_QH_ALIGN		16 /* bytes */
 
+#if ((USB_PAGE_SIZE < UHCI_TD_ALIGN) || (UHCI_TD_ALIGN == 0) || \
+     (USB_PAGE_SIZE < UHCI_QH_ALIGN) || (UHCI_QH_ALIGN == 0))
+#error "Invalid USB page size!"
+#endif
+
 typedef u_int32_t uhci_physaddr_t;
 #define UHCI_PTR_T		0x00000001
 #define UHCI_PTR_TD		0x00000000
@@ -175,10 +180,13 @@ typedef struct uhci_td {
 /*
  * extra information needed:
  */
-	u_int32_t td_self;
-
 	struct uhci_td *next;
 	struct uhci_td *prev;
+	struct uhci_td *obj_next;
+	void *fixup_ptr;
+
+	u_int32_t td_self;
+	u_int32_t fixup_offset;
 
 } __attribute__((__aligned__(UHCI_TD_ALIGN))) uhci_td_t;
 
@@ -206,14 +214,15 @@ typedef struct uhci_qh {
 /*
  * extra information needed:
  */
-	u_int32_t qh_self;
-
 	struct uhci_qh *h_next;
 	struct uhci_qh *h_prev;
+	struct uhci_qh *obj_next;
 
 	struct uhci_td *e_next;
 
-	u_int16_t	intr_pos;
+	u_int32_t qh_self;
+
+	u_int16_t intr_pos;
 
 } __attribute__((__aligned__(UHCI_QH_ALIGN))) uhci_qh_t;
 

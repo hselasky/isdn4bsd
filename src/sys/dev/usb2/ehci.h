@@ -226,6 +226,7 @@ typedef struct ehci_itd {
 
 	struct ehci_itd *next;
 	struct ehci_itd *prev;
+	struct ehci_itd *obj_next;
 
 } __attribute__((__aligned__(EHCI_ITD_ALIGN))) ehci_itd_t;
 
@@ -274,6 +275,7 @@ typedef struct ehci_sitd {
 
 	struct ehci_sitd *next;
 	struct ehci_sitd *prev;
+	struct ehci_sitd *obj_next;
 
 } __attribute__((__aligned__(EHCI_SITD_ALIGN))) ehci_sitd_t;
 
@@ -317,12 +319,11 @@ typedef struct ehci_qtd {
   /* 
    * extra information needed:
    */
+	struct ehci_qtd *obj_next;
 
 	u_int32_t	qtd_self;
 
 	u_int16_t	len;
-
-	struct ehci_qtd *next;
 
 } __attribute__((__aligned__(EHCI_QTD_ALIGN))) ehci_qtd_t;
 
@@ -377,9 +378,11 @@ typedef struct ehci_qh {
   /* 
    * extra information needed:
    */
-	u_int32_t	qh_self;
 	struct ehci_qh *next;
 	struct ehci_qh *prev;
+	struct ehci_qh *obj_next;
+
+	u_int32_t	qh_self;
 
 } __attribute__((__aligned__(EHCI_QH_ALIGN))) ehci_qh_t;
 
@@ -390,6 +393,15 @@ typedef struct {
 	__volatile__ u_int32_t	fstn_back;
 
 } __attribute__((__aligned__(EHCI_FSTN_ALIGN))) ehci_fstn_t;
+
+#if ((USB_PAGE_SIZE < EHCI_PAGE_SIZE) || (EHCI_PAGE_SIZE == 0) || \
+     (USB_PAGE_SIZE < EHCI_ITD_ALIGN) || (EHCI_ITD_ALIGN == 0) || \
+     (USB_PAGE_SIZE < EHCI_SITD_ALIGN) || (EHCI_SITD_ALIGN == 0) || \
+     (USB_PAGE_SIZE < EHCI_QTD_ALIGN) || (EHCI_QTD_ALIGN == 0) || \
+     (USB_PAGE_SIZE < EHCI_QH_ALIGN) || (EHCI_QH_ALIGN == 0) || \
+     (USB_PAGE_SIZE < EHCI_FSTN_ALIGN) || (EHCI_FSTN_ALIGN == 0))
+#error "Invalid USB page size!"
+#endif
 
 struct ehci_hw_softc {
 	u_int32_t		pframes[EHCI_FRAMELIST_COUNT]; /* start TD pointer */

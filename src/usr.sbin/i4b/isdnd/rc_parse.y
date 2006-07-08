@@ -486,13 +486,9 @@ boolkeyword:	  BUDGETCALLBACKSFILEROTATE { $$ = BUDGETCALLBACKSFILEROTATE; }
 /* controller section */
 /* ================== */
 
-controllersect:	CONTROLLER '\n'
+controllersect:	CONTROLLER
 		{
 			controllercount++;
-		}
-		| CONTROLLER NUMBERSTR '\n'
-		{
-			controllercount = atoi($2);
 		}
 		controllers
 		;

@@ -379,7 +379,13 @@ usbd_drop_refcount(struct usbd_memory_info *info)
 	    mtx_unlock(info->priv_mtx);
 	}
 
-	usb_free_mem(info->memory_base, info->memory_size);
+	usbd_page_free(info->page_base, info->page_size);
+
+	/* free the "memory_base" last, hence the
+	 * "info" structure is contained within
+	 * the "memory_base"!
+	 */
+	free(info->memory_base, M_USB);
     }
     return;
 }
@@ -459,6 +465,109 @@ usbd_transfer_drain(struct usbd_memory_wait *priv_wait, struct mtx *priv_mtx)
     return;
 }
 
+void
+usbd_std_isoc_copy_in(struct usbd_xfer *xfer)
+{
+    u_int32_t x;
+    u_int32_t length;
+
+    if (UE_GET_DIR(xfer->endpoint) == UE_DIR_OUT) {
+
+        length = 0;
+
+	for (x = 0; x < xfer->nframes; x++) {
+	    length += xfer->frlengths[x];
+	}
+
+	/* only one copy is needed, hence 
+	 * the frames are back to back:
+	 */
+	usbd_copy_in(&(xfer->buf_data), 0, xfer->buffer, length);
+
+    } else {
+
+        for (x = 0; x < xfer->nframes; x++) {
+	    xfer->frlengths_old[x] = xfer->frlengths[x];
+	}
+    }
+    return;
+}
+
+void
+usbd_std_isoc_copy_out(struct usbd_xfer *xfer)
+{
+    u_int8_t *ptr;
+    u_int32_t x;
+    u_int32_t offset;
+
+    if (UE_GET_DIR(xfer->endpoint) == UE_DIR_IN) {
+
+        ptr = xfer->buffer;
+	offset = 0;
+
+        for (x = 0; x < xfer->nframes; x++) {
+
+	    usbd_copy_out(&(xfer->buf_data), offset,
+			  ptr, xfer->frlengths[x]);
+
+	    ptr += xfer->frlengths_old[x];
+	    offset += xfer->frlengths_old[x];
+	}
+    }
+    return;
+}
+
+void
+usbd_std_bulk_intr_copy_in(struct usbd_xfer *xfer)
+{
+    if (UE_GET_DIR(xfer->endpoint) == UE_DIR_OUT) {
+
+        usbd_copy_in(&(xfer->buf_data), 0, 
+		     xfer->buffer, xfer->length);
+    }
+    return;
+}
+
+void
+usbd_std_bulk_intr_copy_out(struct usbd_xfer *xfer)
+{
+    if (UE_GET_DIR(xfer->endpoint) == UE_DIR_IN) {
+
+        usbd_copy_out(&(xfer->buf_data), 0, 
+		      xfer->buffer, xfer->actlen);
+    }
+    return;
+}
+
+void
+usbd_std_ctrl_copy_in(struct usbd_xfer *xfer)
+{
+    u_int32_t len = xfer->length;
+    usb_device_request_t *req = xfer->buffer;
+
+    if ((len >= sizeof(*req)) &&
+	(req->bmRequestType & UT_READ)) {
+        len = sizeof(*req);
+    }
+    usbd_copy_in(&(xfer->buf_data), 0, 
+		 xfer->buffer, len);
+    return;
+}
+
+void
+usbd_std_ctrl_copy_out(struct usbd_xfer *xfer)
+{
+    u_int32_t len = xfer->actlen;
+    usb_device_request_t *req = xfer->buffer;
+
+    if ((len >= sizeof(*req)) &&
+	(req->bmRequestType & UT_READ)) {
+
+        usbd_copy_out(&(xfer->buf_data), sizeof(*req), 
+		      (req+1), len - sizeof(*req));
+    }
+    return;
+}
 
 /* CALLBACK EXAMPLES:
  * ==================
@@ -586,24 +695,31 @@ usbd_start_hardware(struct usbd_xfer *xfer)
 		else
 		{
 #ifdef USB_COMPAT_OLD
-			if(xfer->d_copy_src)
-			{
-				bcopy(xfer->d_copy_src, xfer->d_copy_ptr, xfer->d_copy_len);
-			}
-			if(xfer->f_copy_src)
-			{
-				bcopy(xfer->f_copy_src, xfer->f_copy_ptr, xfer->f_copy_len);
-			}
+		    if(xfer->d_copy_src)
+		    {
+		        bcopy(xfer->d_copy_src, xfer->d_copy_ptr, 
+			      xfer->d_copy_len);
+		    }
+		    if(xfer->f_copy_src)
+		    {
+		        bcopy(xfer->f_copy_src, xfer->f_copy_ptr, 
+			      xfer->f_copy_len);
+		    }
 #endif
-			mtx_lock(xfer->usb_mtx);
+		    if(!(xfer->flags & USBD_USE_DMA)) {
+		        /* copy in data */
+		        (xfer->pipe->methods->copy_in)(xfer);
+		    }
 
-			/* enter the transfer */
-			(xfer->pipe->methods->enter)(xfer);
+		    mtx_lock(xfer->usb_mtx);
 
-			xfer->usb_thread = (xfer->flags & USBD_USE_POLLING) ? 
-			  curthread : NULL;
+		    /* enter the transfer */
+		    (xfer->pipe->methods->enter)(xfer);
 
-			mtx_unlock(xfer->usb_mtx);
+		    xfer->usb_thread = (xfer->flags & USBD_USE_POLLING) ? 
+		      curthread : NULL;
+
+		    mtx_unlock(xfer->usb_mtx);
  		}
 	}
 	return;
@@ -811,6 +927,14 @@ __usbd_callback(struct usbd_xfer *xfer)
 			/* set both recurse flags */
 			xfer->flags |= (USBD_DEV_RECURSED_2|
 					USBD_DEV_RECURSED_1);
+
+			/* check if any data must be copied out */
+			if(xfer->flags & USBD_DEV_TRANSFERRING) {
+			    if(!(xfer->flags & USBD_USE_DMA)) {
+			        /* copy out data */
+			        (xfer->pipe->methods->copy_out)(xfer);
+			    }
+			}
 
 			/* call processing routine */
 			(xfer->callback)(xfer);

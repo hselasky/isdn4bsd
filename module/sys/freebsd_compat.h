@@ -253,14 +253,16 @@ static __inline time_t time_second() { return time.tv_sec; }
 # define if_attach(ifp) \
   { if_attach(ifp); if_alloc_sadl(ifp); }
 
+#ifndef IHFC_USB_ENABLED
 void *
-usb_alloc_mem(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power);
+usb_mem_alloc(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power);
 
 bus_size_t
-usb_vtophys(void *ptr, u_int32_t size);
+usb_mem_vtophys(void *ptr, u_int32_t size);
 
 void
-usb_free_mem(void *ptr, u_int32_t size);
+usb_mem_free(void *ptr, u_int32_t size);
+#endif
 
 #else
 #error "Operating system not supported"

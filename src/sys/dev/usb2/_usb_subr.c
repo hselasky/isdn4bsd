@@ -1596,3 +1596,690 @@ usbd_alloc_mbufs(struct malloc_type *type, struct usbd_ifqueue *ifq,
  done:
 	return free_ptr;
 }
+
+/*---------------------------------------------------------------------------*
+ *  usbd_get_page - lookup DMA-able memory for the given offset
+ *---------------------------------------------------------------------------*/
+void
+usbd_get_page(struct usbd_page_cache *cache, u_int32_t offset, 
+	      struct usbd_page_search *res)
+{
+	struct usbd_page *page;
+
+	offset += cache->page_offset_buf;
+
+	if ((offset < cache->page_offset_cur) ||
+	    (cache->page_cur == NULL)) {
+
+	    /* reset the page search */
+
+	    cache->page_cur = cache->page_start;
+	    cache->page_offset_cur = 0;
+	}
+
+	offset -= cache->page_offset_cur;
+	page = cache->page_cur;
+
+	while (1) {
+
+	    if (page >= cache->page_end) {
+	        res->length = 0;
+		res->buffer = NULL;
+		res->physaddr = 0;
+		break;
+	    }
+
+	    if (offset < page->length) {
+
+	        /* found the offset on a page */
+
+	        res->length = page->length - offset;
+		res->buffer = ADD_BYTES(page->buffer, offset);
+		res->physaddr = page->physaddr + offset;
+		break;
+	    }
+
+	    /* get the next page */
+
+	    offset -= page->length;
+	    cache->page_offset_cur += page->length;
+	    page++;
+	    cache->page_cur = page;
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_copy_in - copy directly to DMA-able memory
+ *---------------------------------------------------------------------------*/
+void
+usbd_copy_in(struct usbd_page_cache *cache, u_int32_t offset, 
+	     const void *ptr, u_int32_t len)
+{
+	struct usbd_page_search res;
+
+	while (len) {
+
+	    usbd_get_page(cache, offset, &res);
+
+	    if (res.length == 0) {
+	        panic("%s:%d invalid offset!\n",
+		      __FUNCTION__, __LINE__);
+	    }
+
+	    if (res.length > len) {
+	        res.length = len;
+	    }
+
+	    bcopy(ptr, res.buffer, res.length);
+
+	    offset += res.length;
+	    len -= res.length;
+	    ptr = ((const u_int8_t *)ptr) + res.length;
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_copy_out - copy directly from DMA-able memory
+ *---------------------------------------------------------------------------*/
+void
+usbd_copy_out(struct usbd_page_cache *cache, u_int32_t offset, 
+	      void *ptr, u_int32_t len)
+{
+	struct usbd_page_search res;
+
+	while (len) {
+
+	    usbd_get_page(cache, offset, &res);
+
+	    if (res.length == 0) {
+	        panic("%s:%d invalid offset!\n",
+		      __FUNCTION__, __LINE__);
+	    }
+
+	    if (res.length > len) {
+	        res.length = len;
+	    }
+
+	    bcopy(res.buffer, ptr, res.length);
+
+	    offset += res.length;
+	    len -= res.length;
+	    ptr = ADD_BYTES(ptr, res.length);
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_bzero - zero DMA-able memory
+ *---------------------------------------------------------------------------*/
+void
+usbd_bzero(struct usbd_page_cache *cache, u_int32_t offset, u_int32_t len)
+{
+	struct usbd_page_search res;
+
+	while (len) {
+
+	    usbd_get_page(cache, offset, &res);
+
+	    if (res.length == 0) {
+	        panic("%s:%d invalid offset!\n",
+		      __FUNCTION__, __LINE__);
+	    }
+
+	    if (res.length > len) {
+	        res.length = len;
+	    }
+
+	    bzero(res.buffer, res.length);
+
+	    offset += res.length;
+	    len -= res.length;
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_page_alloc - allocate multiple DMA-able memory pages
+ *
+ * return values:
+ *   1: failure
+ *   0: success
+ *---------------------------------------------------------------------------*/
+u_int8_t
+usbd_page_alloc(struct bus_dma_tag *tag, struct usbd_page *page, 
+		u_int32_t npages)
+{
+	u_int32_t x;
+	void *ptr;
+
+	for (x = 0; x < npages; x++) {
+
+	repeat:
+
+	    ptr = usbd_mem_alloc_sub(tag, page + x, 
+				     USB_PAGE_SIZE, USB_PAGE_SIZE);
+	    if (ptr == NULL) {
+
+	        while(x--) {
+		    usbd_mem_free_sub(page + x);
+		}
+		return 1; /* failure */
+	    } else {
+
+	      if ((page + x)->physaddr == 0) {
+
+		  /* at least the OHCI controller
+		   * gives special meaning to 
+		   * physaddr == 0, so discard
+		   * that page if it gets here:
+		   */
+		  printf("%s:%d: Discarded memory "
+			 "page with physaddr=0!\n",
+			 __FUNCTION__, __LINE__);
+		  goto repeat;
+	      }
+	    }
+	}
+	return 0; /* success */
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_page_free - free multiple DMA-able memory pages
+ *---------------------------------------------------------------------------*/
+void
+usbd_page_free(struct usbd_page *page, u_int32_t npages)
+{
+	while(npages--) {
+	    usbd_mem_free_sub(page + npages);
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_page_get_buf - get virtual buffer
+ *---------------------------------------------------------------------------*/
+void *
+usbd_page_get_buf(struct usbd_page *page, u_int32_t size)
+{
+	page += (size / USB_PAGE_SIZE);
+	size &= (USB_PAGE_SIZE-1);
+	return ADD_BYTES(page->buffer,size);
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_page_get_phy - get physical buffer
+ *---------------------------------------------------------------------------*/
+bus_size_t
+usbd_page_get_phy(struct usbd_page *page, u_int32_t size)
+{
+	page += (size / USB_PAGE_SIZE);
+	size &= (USB_PAGE_SIZE-1);
+	return (page->physaddr + size);
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_page_set_start
+ *---------------------------------------------------------------------------*/
+void
+usbd_page_set_start(struct usbd_page_cache *pc, struct usbd_page *page_ptr,
+		    u_int32_t size)
+{
+	pc->page_start = page_ptr + (size / USB_PAGE_SIZE);
+	pc->page_offset_buf = (size % USB_PAGE_SIZE);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_page_set_end
+ *---------------------------------------------------------------------------*/
+void
+usbd_page_set_end(struct usbd_page_cache *pc, struct usbd_page *page_ptr,
+		  u_int32_t size)
+{
+	pc->page_end = (page_ptr + 
+			((size + USB_PAGE_SIZE -1) / USB_PAGE_SIZE));
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_page_fit_obj - fit object function
+ *---------------------------------------------------------------------------*/
+u_int32_t
+usbd_page_fit_obj(struct usbd_page *page, u_int32_t size, u_int32_t obj_len)
+{
+	u_int32_t adj;
+
+	if (obj_len > USB_PAGE_SIZE) {
+	    panic("%s:%d Too large object, %d bytes, will "
+		  "not fit on a USB page, %d bytes!\n", 
+		  __FUNCTION__, __LINE__, obj_len, 
+		  USB_PAGE_SIZE);
+	}
+
+	if (obj_len > (USB_PAGE_SIZE - (size & (USB_PAGE_SIZE-1)))) {
+
+	  /* adjust offset to the beginning 
+	   * of the next page:
+	   */
+	  adj = ((-size) & (USB_PAGE_SIZE-1));
+
+	  if (page) {
+	      /* adjust the size of the 
+	       * current page, so that the
+	       * objects follow back to back!
+	       */
+	      (page + (size/USB_PAGE_SIZE))->length -= adj;
+	  }
+	} else {
+	  adj = 0;
+	}
+	return adj;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_mem_alloc - allocate DMA-able memory
+ *---------------------------------------------------------------------------*/
+void *
+usbd_mem_alloc(struct bus_dma_tag *parent, u_int32_t size, 
+	       u_int8_t align_power)
+{
+	struct bus_dma_tag *tag;
+	struct usbd_page temp;
+	u_int32_t alignment = (1 << align_power);
+	void *ptr;
+
+	size += (-size) & (USB_HOST_ALIGN-1);
+	size += sizeof(temp);
+
+	tag = usbd_dma_tag_alloc(parent, size, alignment);
+
+	if (tag == NULL) {
+	    return NULL;
+	}
+
+	ptr = usbd_mem_alloc_sub(tag, &temp, size, alignment);
+
+	if (ptr == NULL) {
+	    usbd_dma_tag_free(tag);
+	    return NULL;
+	}
+
+	size -= sizeof(temp);
+
+	bcopy(&temp, ADD_BYTES(ptr,size), sizeof(temp));
+
+	return ptr;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_mem_vtophys - get the physical address of DMA-able memory
+ *---------------------------------------------------------------------------*/
+bus_size_t
+usbd_mem_vtophys(void *ptr, u_int32_t size)
+{
+	struct usbd_page *page;
+
+	size += (-size) & (USB_HOST_ALIGN-1);
+
+	page = ADD_BYTES(ptr, size);
+
+	return page->physaddr;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_mem_free - free DMA-able memory
+ *---------------------------------------------------------------------------*/
+void
+usbd_mem_free(void *ptr, u_int32_t size)
+{
+	struct usbd_page *page;
+	struct bus_dma_tag *tag;
+
+	size += (-size) & (USB_HOST_ALIGN-1);
+
+	page = ADD_BYTES(ptr, size);
+
+	tag = page->tag;
+
+	usbd_mem_free_sub(page);
+
+	usbd_dma_tag_free(tag);
+
+	return;
+}
+
+#ifdef __FreeBSD__
+/*---------------------------------------------------------------------------*
+ *  bus_dmamap_load_callback
+ *---------------------------------------------------------------------------*/
+static void
+bus_dmamap_load_callback(void *arg, bus_dma_segment_t *segs, 
+			 int nseg, int error)
+{
+	*((bus_size_t *)arg) = nseg ? segs->ds_addr : 0;
+
+	if(error)
+	{
+	    printf("%s: %s: error=%d\n",
+		   __FILE__, __FUNCTION__, error);
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_dma_tag_alloc - allocate a bus-DMA tag
+ *---------------------------------------------------------------------------*/
+struct bus_dma_tag *
+usbd_dma_tag_alloc(struct bus_dma_tag *parent, u_int32_t size, 
+		   u_int32_t alignment)
+{
+	struct bus_dma_tag *tag;
+
+	if(bus_dma_tag_create
+	   ( /* parent    */parent,
+	     /* alignment */alignment,
+	     /* boundary  */0,
+	     /* lowaddr   */BUS_SPACE_MAXADDR_32BIT,
+	     /* highaddr  */BUS_SPACE_MAXADDR,
+	     /* filter    */NULL,
+	     /* filterarg */NULL,
+	     /* maxsize   */size,
+	     /* nsegments */1,
+	     /* maxsegsz  */size,
+	     /* flags     */0,
+	     /* lock      */NULL,
+	     /*           */NULL,
+	     &tag))
+	{
+	    tag = NULL;
+	}
+	return tag;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_dma_tag_free - free a bus-DMA tag
+ *---------------------------------------------------------------------------*/
+void
+usbd_dma_tag_free(struct bus_dma_tag *tag)
+{
+	bus_dma_tag_destroy(tag);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_mem_alloc_sub - allocate DMA-able memory
+ *---------------------------------------------------------------------------*/
+void *
+usbd_mem_alloc_sub(struct bus_dma_tag *tag, struct usbd_page *page,
+		   u_int32_t size, u_int32_t alignment)
+{
+	struct bus_dmamap *map;
+	bus_size_t physaddr = 0;
+	void *ptr;
+
+	if(bus_dmamem_alloc
+	   (tag, &ptr, (BUS_DMA_WAITOK|BUS_DMA_COHERENT), &map))
+	{
+		return NULL;
+	}
+
+	if(bus_dmamap_load
+	   (tag, map, ptr, size, &bus_dmamap_load_callback, 
+	    &physaddr, (BUS_DMA_WAITOK|BUS_DMA_COHERENT)))
+	{
+		bus_dmamem_free(tag, ptr, map);
+		return NULL;
+	}
+
+	page->tag = tag;
+	page->map = map;
+	page->physaddr = physaddr;
+	page->buffer = ptr;
+	page->length = size;
+
+	bzero(ptr, size);
+
+#ifdef USB_DEBUG
+	if(usbdebug > 14)
+	{
+	    printf("%s: %p, %d bytes, phys=%p\n", 
+		   __FUNCTION__, ptr, size, 
+		   ((char *)0) + physaddr);
+	}
+#endif
+	return ptr;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_mem_free_sub - free DMA-able memory
+ *---------------------------------------------------------------------------*/
+void
+usbd_mem_free_sub(struct usbd_page *page)
+{
+	/* NOTE: make a copy of "tag", "map", 
+	 * and "buffer" in case "page" is part 
+	 * of the allocated memory:
+	 */
+	struct bus_dma_tag *tag = page->tag;
+	struct bus_dmamap *map = page->map;
+	void *ptr = page->buffer;
+
+	bus_dmamap_unload(tag, map);
+
+	bus_dmamem_free(tag, ptr, map);
+
+#ifdef USB_DEBUG
+	if(usbdebug > 14)
+	{
+	    printf("%s: %p\n", 
+		   __FUNCTION__, ptr);
+	}
+#endif
+	return;
+}
+#endif
+
+#ifdef __NetBSD__
+
+struct bus_dma_tag *
+usbd_dma_tag_alloc(struct bus_dma_tag *parent, u_int32_t size, 
+		   u_int32_t alignment)
+{
+	/* FreeBSD specific */
+	return parent;
+}
+
+void
+usbd_dma_tag_free(struct bus_dma_tag *tag)
+{
+	return;
+}
+
+void *
+usbd_mem_alloc_sub(struct bus_dma_tag *tag, struct usbd_page *page,
+		   u_int32_t size, u_int32_t alignment)
+{
+	caddr_t ptr = NULL;
+
+	page->tag = tag;
+	page->seg_count = 1;
+
+	if(bus_dmamem_alloc(page->tag, size, alignment, 0,
+			    &page->seg, 1,
+			    &page->seg_count, BUS_DMA_WAITOK))
+	{
+		goto done_4;
+	}
+
+	if(bus_dmamem_map(page->tag, &page->seg, page->seg_count, size,
+			  &ptr, BUS_DMA_WAITOK|BUS_DMA_COHERENT))
+	{
+		goto done_3;
+	}
+
+	if(bus_dmamap_create(page->tag, size, 1, size,
+			     0, BUS_DMA_WAITOK, &page->map))
+	{
+		goto done_2;
+	}
+
+	if(bus_dmamap_load(page->tag, page->map, ptr, size, NULL, 
+			   BUS_DMA_WAITOK))
+	{
+		goto done_1;
+	}
+
+	page->physaddr = page->map->dm_segs[0].ds_addr;
+	page->buffer = ptr;
+	page->length = size;
+
+	bzero(ptr, size);
+
+#ifdef USB_DEBUG
+	if(usbdebug > 14)
+	{
+	    printf("%s: %p, %d bytes, phys=%p\n", 
+		   __FUNCTION__, ptr, size, 
+		   ((char *)0) + page->physaddr);
+	}
+#endif
+	return ptr;
+
+ done_1:
+	bus_dmamap_destroy(page->tag, page->map);
+
+ done_2:
+	bus_dmamem_unmap(page->tag, ptr, size);
+
+ done_3:
+	bus_dmamem_free(page->tag, &page->seg, page->seg_count);
+
+ done_4:
+	return NULL;
+}
+
+void
+usbd_mem_free_sub(struct usbd_page *page)
+{
+	/* NOTE: make a copy of "tag", "map", 
+	 * and "buffer" in case "page" is part 
+	 * of the allocated memory:
+	 */
+	struct usbd_page temp = *page;
+
+	bus_dmamap_unload(temp.tag, temp.map);
+	bus_dmamap_destroy(temp.tag, temp.map);
+	bus_dmamem_unmap(temp.tag, temp.buffer, temp.size);
+	bus_dmamem_free(temp.tag, &temp.seg, temp.seg_count);
+
+#ifdef USB_DEBUG
+	if(usbdebug > 14)
+	{
+	    printf("%s: %p\n", 
+		   __FUNCTION__, temp.buffer);
+	}
+#endif
+	return;
+}
+#endif
+
+/*---------------------------------------------------------------------------*
+ *  usbd_std_transfer_setup - standard transfer setup
+ *---------------------------------------------------------------------------*/
+void
+usbd_std_transfer_setup(struct usbd_xfer *xfer, 
+			const struct usbd_config *setup, 
+			u_int16_t max_packet_size, u_int16_t max_frame_size)
+{
+	__callout_init_mtx(&xfer->timeout_handle, xfer->usb_mtx,
+			   CALLOUT_RETURNUNLOCKED);
+
+	xfer->flags = setup->flags;
+	xfer->nframes = setup->frames;
+	xfer->timeout = setup->timeout;
+	xfer->callback = setup->callback;
+	xfer->interval = setup->interval;
+	xfer->endpoint = xfer->pipe->edesc->bEndpointAddress;
+	xfer->max_packet_size = UGETW(xfer->pipe->edesc->wMaxPacketSize);
+	xfer->length = setup->bufsize;
+
+	if(xfer->interval == 0)
+	{
+	    xfer->interval = xfer->pipe->edesc->bInterval;
+	}
+
+	if(xfer->interval == 0)
+	{
+	    /* one is the smallest interval */
+	    xfer->interval = 1;
+	}
+
+	/* wMaxPacketSize is also checked by "usbd_fill_iface_data()" */
+
+	if (xfer->max_packet_size == 0) {
+	    xfer->max_packet_size = 8;
+	}
+
+	if (xfer->max_packet_size > max_packet_size) {
+	    xfer->max_packet_size = max_packet_size;
+	}
+
+	/* frame_size: isochronous frames only */
+
+	xfer->max_frame_size = max_frame_size;
+
+	if (xfer->length == 0) {
+	    xfer->length = xfer->max_packet_size;
+	    if (xfer->nframes) {
+	        xfer->length *= xfer->nframes;
+	    }
+	    if (setup->sub_frames) {
+	        xfer->length *= setup->sub_frames;
+	    }
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_make_str_desc - convert an ASCII string into a UNICODE string
+ *---------------------------------------------------------------------------*/
+u_int8_t
+usbd_make_str_desc(void *ptr, u_int16_t max_len, const char *s)
+{
+	usb_string_descriptor_t *p = ptr;
+	u_int8_t totlen;
+	int32_t j;
+
+	if (max_len < 2) {
+	    /* invalid length */
+	    return 0;
+	}
+
+	max_len = ((max_len / 2) - 1);
+
+	j = strlen(s);
+
+	if (j < 0) {
+	    j = 0;
+	}
+
+	if (j > 126) {
+	    j = 126;
+	}
+
+	if (max_len > j) {
+	    max_len = j;
+	}
+
+	totlen = (max_len + 1) * 2;
+
+	p->bLength = totlen;
+	p->bDescriptorType = UDESC_STRING;
+
+	while (max_len--) {
+	    USETW2(p->bString[max_len], 0, s[max_len]);
+	}
+	return totlen;
+}

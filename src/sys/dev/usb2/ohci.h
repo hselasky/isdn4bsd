@@ -173,10 +173,11 @@ typedef struct ohci_ed {
   /* 
    * extra information needed:
    */
-	u_int32_t	ed_self;
-
 	struct ohci_ed *next;
 	struct ohci_ed *prev;
+	struct ohci_ed *obj_next;
+
+	u_int32_t	ed_self;
 
 } __attribute__((__aligned__(OHCI_ED_ALIGN))) ohci_ed_t;
 
@@ -207,9 +208,9 @@ typedef struct ohci_td {
   /*
    * extra information needed:
    */
+	struct ohci_td *	obj_next;
+
 	u_int32_t		td_self;
-  
-	struct ohci_td *	next;
 
 	u_int16_t		len;
 
@@ -241,9 +242,9 @@ typedef struct ohci_itd {
   /*
    * extra information needed
    */
-	u_int32_t	itd_self;
+	struct ohci_itd *obj_next;
 
-	struct ohci_itd *next;
+	u_int32_t itd_self;
 
 	u_int8_t frames;
 
@@ -268,6 +269,13 @@ typedef struct ohci_itd {
 #define OHCI_READ_DESC_DELAY	5
 
 #define OHCI_NO_EDS (2*OHCI_NO_INTRS)
+
+#if ((USB_PAGE_SIZE < OHCI_ED_ALIGN) || (OHCI_ED_ALIGN == 0) || \
+     (USB_PAGE_SIZE < OHCI_TD_ALIGN) || (OHCI_TD_ALIGN == 0) || \
+     (USB_PAGE_SIZE < OHCI_ITD_ALIGN) || (OHCI_ITD_ALIGN == 0) || \
+     (USB_PAGE_SIZE < OHCI_PAGE_SIZE) || (OHCI_PAGE_SIZE == 0))
+#error "Invalid USB page size!"
+#endif
 
 struct ohci_hw_softc {
 	struct ohci_hcca	hcca;

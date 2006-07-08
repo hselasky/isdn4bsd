@@ -113,6 +113,8 @@ struct usbd_pipe_methods {
 	void (*close)(struct usbd_xfer *xfer);
 	void (*enter)(struct usbd_xfer *xfer);
 	void (*start)(struct usbd_xfer *xfer);
+	void (*copy_in)(struct usbd_xfer *xfer);
+	void (*copy_out)(struct usbd_xfer *xfer);
 };
 
 struct usbd_port {
@@ -135,10 +137,46 @@ struct usbd_hub {
 
 /*****/
 
+#define USB_PAGE_SIZE PAGE_SIZE
+
+struct usbd_page {
+	void *buffer;
+	bus_size_t physaddr;
+
+#ifdef __FreeBSD__
+	struct bus_dma_tag * tag;
+	struct bus_dmamap * map;
+#endif
+
+#ifdef __NetBSD__
+	bus_dma_tag_t tag;
+	bus_dmamap_t map;
+	bus_dma_segment_t seg;
+	int32_t seg_count;
+#endif
+	u_int32_t  length;
+};
+
+struct usbd_page_search {
+	void *buffer;
+	bus_size_t physaddr;
+	u_int32_t length;
+};
+
+struct usbd_page_cache {
+	struct usbd_page * page_start;
+	struct usbd_page * page_end;
+	struct usbd_page * page_cur;
+
+	u_int32_t page_offset_buf;
+	u_int32_t page_offset_cur;
+};
+
 struct usbd_bus {
 	/* filled by HC driver */
 	device_t                bdev; /* base device, host adapter */
 	struct usbd_bus_methods	*methods;
+	struct bus_dma_tag *dma_tag;
 
 	/* filled by USB driver */
 	struct usbd_port	root_port; /* dummy port for root hub */
@@ -161,7 +199,7 @@ struct usbd_bus {
  	struct usb_device_stats	stats;
 	struct mtx		mtx;
  	struct proc *		event_thread;
- 	u_int			no_intrs;
+ 	u_int32_t		no_intrs;
 };
 
 struct usbd_interface {
@@ -252,11 +290,15 @@ struct usbd_config {
 
 	u_int16_t	timeout;	/* milliseconds */
 
-	u_int8_t	frames;		/* number of frames
+	u_int16_t	frames;		/* number of frames
 					 * used in isochronous
 					 * mode
 					 */
-
+	u_int8_t	sub_frames;	/* number of sub-frames
+					 * contained within each
+					 * frame. Used in High-Speed
+					 * isochronous mode.
+					 */
 	u_int8_t	index;	/* pipe index to use, if more
 				 * than one descriptor matches
 				 * type, address, direction ...
@@ -288,7 +330,7 @@ struct usbd_config {
 					 * use polling instead of sleep/wakeup
 					 */
 #define USBD_SELF_DESTRUCT       0x0400 /* set if callback is allowed to unsetup itself */
-#define USBD_UNUSED_3            0x0800
+#define USBD_USE_DMA             0x0800
 #define USBD_UNUSED_4            0x1000
 #define USBD_UNUSED_5            0x2000
 #define USBD_UNUSED_6            0x4000
@@ -323,6 +365,7 @@ struct usbd_xfer {
 
 	/* for isochronous transfers */
 	u_int16_t *		frlengths;
+	u_int16_t *		frlengths_old;
 	u_int32_t		nframes;
 
 	/*
@@ -352,19 +395,18 @@ struct usbd_xfer {
 	u_int8_t		interval; /* milliseconds */
 
 	u_int16_t		max_packet_size;
-
-	u_int32_t		physbuffer;
-
-	void *			td_start;
-	void *			td_end;
-
-	void *			td_transfer_first;
-	void *			td_transfer_last;
-
-	void *			qh_start;
-	void *			qh_end;
-
+	u_int16_t		max_frame_size;
 	u_int16_t		qh_pos;
+
+	struct usbd_page_cache  buf_data; /* buffer page cache */
+        struct usbd_page_cache  buf_fixup; /* fixup buffer */
+
+	void *qh_start;
+
+	void *td_start;
+	void *td_transfer_first;
+	void *td_transfer_last;
+
 #ifdef USB_COMPAT_OLD
 	struct usbd_xfer *	alloc_xfer; /* the real transfer */
 	void *			alloc_ptr;
@@ -395,6 +437,8 @@ struct usbd_memory_info {
     struct usbd_memory_wait * priv_wait;
     struct mtx *   priv_mtx;
     struct mtx *   usb_mtx;
+    struct usbd_page * page_base;
+    u_int32_t page_size;
 };
 
 struct usbd_callback_info {
@@ -592,6 +636,69 @@ usbd_set_desc(device_t dev, struct usbd_device *udev);
 void *
 usbd_alloc_mbufs(struct malloc_type *type, struct usbd_ifqueue *ifq, 
 		 u_int32_t block_size, u_int16_t block_number);
+void
+usbd_get_page(struct usbd_page_cache *cache, u_int32_t offset, 
+	      struct usbd_page_search *res);
+void
+usbd_copy_in(struct usbd_page_cache *cache, u_int32_t offset, 
+	     const void *ptr, u_int32_t len);
+void
+usbd_copy_out(struct usbd_page_cache *cache, u_int32_t offset, 
+	      void *ptr, u_int32_t len);
+void
+usbd_bzero(struct usbd_page_cache *cache, u_int32_t offset, u_int32_t len);
+
+u_int8_t
+usbd_page_alloc(struct bus_dma_tag *tag, struct usbd_page *page, 
+		u_int32_t npages);
+void
+usbd_page_free(struct usbd_page *page, u_int32_t npages);
+
+void *
+usbd_page_get_buf(struct usbd_page *page, u_int32_t size);
+
+bus_size_t
+usbd_page_get_phy(struct usbd_page *page, u_int32_t size);
+
+void
+usbd_page_set_start(struct usbd_page_cache *pc, struct usbd_page *page_ptr,
+		    u_int32_t size);
+void
+usbd_page_set_end(struct usbd_page_cache *pc, struct usbd_page *page_ptr,
+		  u_int32_t size);
+u_int32_t
+usbd_page_fit_obj(struct usbd_page *page, u_int32_t size, u_int32_t obj_len);
+
+void *
+usbd_mem_alloc(struct bus_dma_tag *parent, u_int32_t size, 
+	       u_int8_t align_power);
+bus_size_t
+usbd_mem_vtophys(void *ptr, u_int32_t size);
+
+void
+usbd_mem_free(void *ptr, u_int32_t size);
+
+struct bus_dma_tag *
+usbd_dma_tag_alloc(struct bus_dma_tag *parent, u_int32_t size, u_int32_t alignment);
+
+void
+usbd_dma_tag_free(struct bus_dma_tag *tag);
+
+void *
+usbd_mem_alloc_sub(struct bus_dma_tag *tag, struct usbd_page *page,
+		   u_int32_t size, u_int32_t alignment);
+void
+usbd_mem_free_sub(struct usbd_page *page);
+
+#ifdef __FreeBSD__
+#define device_get_dma_tag(dev) NULL /* XXX */
+#endif
+
+void
+usbd_std_transfer_setup(struct usbd_xfer *xfer, const struct usbd_config *setup,
+			u_int16_t max_packet_size, u_int16_t max_frame_size);
+u_int8_t
+usbd_make_str_desc(void *ptr, u_int16_t max_len, const char *s);
 
 /* routines from usb.c */
 
@@ -615,19 +722,6 @@ extern u_int8_t usb_driver_added_refcount;
 
 void
 usb_needs_probe_and_attach(void);
-
-#ifdef __FreeBSD__
-#define device_get_dma_tag(dev) NULL
-
-void *
-usb_alloc_mem(struct bus_dma_tag *tag, u_int32_t size, u_int8_t align_power);
-
-bus_size_t
-usb_vtophys(void *ptr, u_int32_t size);
-
-void
-usb_free_mem(void *ptr, u_int32_t size);
-#endif
 
 /* routines from usb_transfer.c */
 
@@ -675,6 +769,24 @@ usbd_transfer_unsetup(struct usbd_xfer **pxfer, u_int16_t n_setup);
 
 void
 usbd_transfer_drain(struct usbd_memory_wait *priv_wait, struct mtx *priv_mtx);
+
+void
+usbd_std_isoc_copy_in(struct usbd_xfer *xfer);
+
+void
+usbd_std_isoc_copy_out(struct usbd_xfer *xfer);
+
+void
+usbd_std_bulk_intr_copy_in(struct usbd_xfer *xfer);
+
+void
+usbd_std_bulk_intr_copy_out(struct usbd_xfer *xfer);
+
+void
+usbd_std_ctrl_copy_in(struct usbd_xfer *xfer);
+
+void
+usbd_std_ctrl_copy_out(struct usbd_xfer *xfer);
 
 void
 usbd_start_hardware(struct usbd_xfer *xfer);

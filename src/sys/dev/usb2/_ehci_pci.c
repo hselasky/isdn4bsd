@@ -60,8 +60,6 @@
 #include <sys/lock.h>
 #include <sys/malloc.h>
 
-#include <machine/bus.h> /* bus_space_xxx() */
-
 #define INCLUDE_PCIXXX_H
 
 #include <dev/usb2/usb_port.h>
@@ -177,8 +175,8 @@ ehci_pci_attach(device_t self)
 	int err;
 	int rid;
 
-	sc = usb_alloc_mem(device_get_dma_tag(self),
-			   sizeof(*sc), LOG2(EHCI_FRAMELIST_ALIGN));
+	sc = usbd_mem_alloc(device_get_dma_tag(self),
+			    sizeof(*sc), LOG2(EHCI_FRAMELIST_ALIGN));
 
 	if(sc == NULL)
 	{
@@ -189,7 +187,7 @@ ehci_pci_attach(device_t self)
 #if 1
 	bzero(sc, sizeof(*sc));
 #endif
-	sc->sc_physaddr = usb_vtophys(sc, sizeof(*sc)); /* physical address of sc */
+	sc->sc_physaddr = usbd_mem_vtophys(sc, sizeof(*sc)); /* physical address of sc */
 
 	mtx_init(&sc->sc_bus.mtx, "usb lock",
 		 NULL, MTX_DEF|MTX_RECURSE);
@@ -212,6 +210,14 @@ ehci_pci_attach(device_t self)
 	default:
 		sc->sc_bus.usbrev = USBREV_UNKNOWN;
 		break;
+	}
+
+	sc->sc_bus.dma_tag = usbd_dma_tag_alloc(device_get_dma_tag(dev),
+						USB_PAGE_SIZE, USB_PAGE_SIZE);
+	if (sc->sc_bus.dma_tag == NULL)
+	{
+		device_printf(self, "Could not allocate DMA tag\n");
+		goto error;
 	}
 
 	rid = PCI_CBMEM;
@@ -365,9 +371,14 @@ ehci_pci_detach(device_t self)
 		sc->io_res = NULL;
 	}
 
+	if(sc->sc_bus.dma_tag)
+	{
+		usbd_dma_tag_free(sc->sc_bus.dma_tag);
+	}
+
 	mtx_destroy(&sc->sc_bus.mtx);
 
-	usb_free_mem(sc, sizeof(*sc));
+	usbd_mem_free(sc, sizeof(*sc));
 
 	device_set_softc(self, NULL);
 	return 0;

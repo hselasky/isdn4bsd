@@ -1345,6 +1345,8 @@ devclass_find(const char *classname)
     return NULL;
 }
 
+#ifndef IHFC_USB_ENABLED
+
 struct usb_dma {
     bus_dma_tag_t     tag;
     bus_dmamap_t      map;
@@ -1353,7 +1355,7 @@ struct usb_dma {
 } __packed;
 
 void *
-usb_alloc_mem(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
+usb_mem_alloc(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
 {
     caddr_t ptr = NULL;
     struct usb_dma temp;
@@ -1410,7 +1412,7 @@ usb_alloc_mem(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
 }
 
 bus_size_t
-usb_vtophys(void *ptr, u_int32_t size)
+usb_mem_vtophys(void *ptr, u_int32_t size)
 {
     struct usb_dma *arg = (void *)(((u_int8_t *)ptr) + size);
 #if 1
@@ -1421,7 +1423,7 @@ usb_vtophys(void *ptr, u_int32_t size)
 }
 
 void
-usb_free_mem(void *ptr, u_int32_t size)
+usb_mem_free(void *ptr, u_int32_t size)
 {
     struct usb_dma *arg = (void *)(((u_int8_t *)ptr) + size);
     struct usb_dma temp = *arg; /* make a copy ! */
@@ -1432,3 +1434,5 @@ usb_free_mem(void *ptr, u_int32_t size)
     bus_dmamem_free(temp.tag, &temp.seg, temp.seg_count);
     return;
 }
+
+#endif

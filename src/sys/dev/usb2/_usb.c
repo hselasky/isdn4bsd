@@ -58,8 +58,6 @@
 #include <sys/signalvar.h>
 #include <sys/vnode.h>
 
-#include <machine/bus.h>
-
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
@@ -521,7 +519,7 @@ usb_attach(device_t dev)
 
 	mtx_unlock(&usb_global_lock);
 
-	USB_ATTACH_SUCCESS_RETURN;
+	return 0; /* return success */
 }
 
 static void
@@ -951,133 +949,6 @@ usb_init(void *arg)
 }
 
 SYSINIT(usb_init, SI_SUB_DRIVERS, SI_ORDER_FIRST, usb_init, NULL);
-
-#ifdef __FreeBSD__
-static void
-bus_dmamap_load_callback(void *arg, bus_dma_segment_t *segs, int nseg, int error)
-{
-	((u_int32_t *)arg)[0] = segs->ds_addr;
-
-	if(error)
-	{
-	    printf("%s: %s: error=%d\n",
-		   __FILE__, __FUNCTION__, error);
-	}
-	return;
-}
-
-struct usb_dma {
-	struct bus_dma_tag *	tag;
-	struct bus_dmamap *	map;
-	bus_size_t		physaddr;
-} __packed;
-
-void *
-usb_alloc_mem(struct bus_dma_tag *tag, u_int32_t size, u_int8_t align_power)
-{
-	struct bus_dmamap *map;
-	bus_size_t physaddr = 0;
-	void *ptr;
-
-	size += sizeof(struct usb_dma);
-
-	if(tag == NULL)
-	{
-	  if(bus_dma_tag_create
-	   ( /* parent    */NULL,
-	     /* alignment */(1 << align_power),
-	     /* boundary  */0,
-	     /* lowaddr   */BUS_SPACE_MAXADDR_32BIT,
-	     /* highaddr  */BUS_SPACE_MAXADDR,
-	     /* filter    */NULL,
-	     /* filterarg */NULL,
-	     /* maxsize   */size,
-	     /* nsegments */1,
-	     /* maxsegsz  */size,
-	     /* flags     */0,
-#if __FreeBSD_version >= 500000
-	     /* lock      */NULL,
-	     /*           */NULL,
-#endif
-	     &tag))
-	  {
-		return NULL;
-
-	  }
-	}
-
-	if(bus_dmamem_alloc
-	   (tag, &ptr, (BUS_DMA_NOWAIT|BUS_DMA_COHERENT), &map))
-	{
-		bus_dma_tag_destroy(tag);
-		return NULL;
-	}
-
-	if(bus_dmamap_load
-	   (tag, map, ptr, size, &bus_dmamap_load_callback, 
-	    &physaddr, (BUS_DMA_NOWAIT|BUS_DMA_COHERENT)))
-	{
-		bus_dmamem_free(tag, ptr, map);
-		bus_dma_tag_destroy(tag);
-		return NULL;
-	}
-
-	size -= sizeof(struct usb_dma);
-
-	((struct usb_dma *)(((u_int8_t *)ptr) + size))->tag = tag;
-	((struct usb_dma *)(((u_int8_t *)ptr) + size))->map = map;
-	((struct usb_dma *)(((u_int8_t *)ptr) + size))->physaddr = physaddr;
-
-#ifdef USB_DEBUG
-	if(usbdebug > 14)
-	{
-	    printf("%s: %p, %d bytes\n", 
-		   __FUNCTION__, ptr, size);
-	}
-#endif
-	return ptr;
-}
-
-bus_size_t
-usb_vtophys(void *ptr, u_int32_t size)
-{
-	bus_size_t temp = 
-	  ((struct usb_dma *)(((u_int8_t *)ptr) + size))->physaddr;
-
-#ifdef USB_DEBUG
-	if(usbdebug > 14)
-	{
-	    printf("%s: %p, physaddr = %p\n", 
-		   __FUNCTION__, ptr, ((char *)0) + temp);
-	}
-#endif
-  	return temp;
-}
-
-void
-usb_free_mem(void *ptr, u_int32_t size)
-{
-	struct bus_dma_tag *tag = 
-	  ((struct usb_dma *)(((u_int8_t *)ptr) + size))->tag;
-	struct bus_dmamap *map =
-	  ((struct usb_dma *)(((u_int8_t *)ptr) + size))->map;
-
-	bus_dmamap_unload(tag, map);
-
-	bus_dmamem_free(tag, ptr, map);
-
-	bus_dma_tag_destroy(tag);
-
-#ifdef USB_DEBUG
-	if(usbdebug > 14)
-	{
-	    printf("%s: %p, %d bytes\n", 
-		   __FUNCTION__, ptr, size);
-	}
-#endif
-	return;
-}
-#endif
 
 static devclass_t usb_devclass;
 static driver_t usb_driver =
