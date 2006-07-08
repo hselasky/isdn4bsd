@@ -211,7 +211,7 @@ uhci_pci_attach(device_t self)
 
 	pci_enable_busmaster(self);
 
-	sc->sc_bus.dma_tag = usbd_dma_tag_alloc(device_get_dma_tag(dev),
+	sc->sc_bus.dma_tag = usbd_dma_tag_alloc(device_get_dma_tag(self),
 						USB_PAGE_SIZE, USB_PAGE_SIZE);
 	if (sc->sc_bus.dma_tag == NULL)
 	{
