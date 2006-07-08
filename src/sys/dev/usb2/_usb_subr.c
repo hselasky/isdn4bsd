@@ -1748,7 +1748,7 @@ usbd_bzero(struct usbd_page_cache *cache, u_int32_t offset, u_int32_t len)
  *   0: success
  *---------------------------------------------------------------------------*/
 u_int8_t
-usbd_page_alloc(struct bus_dma_tag *tag, struct usbd_page *page, 
+usbd_page_alloc(bus_dma_tag_t tag, struct usbd_page *page, 
 		u_int32_t npages)
 {
 	u_int32_t x;
@@ -1882,10 +1882,10 @@ usbd_page_fit_obj(struct usbd_page *page, u_int32_t size, u_int32_t obj_len)
  *  usbd_mem_alloc - allocate DMA-able memory
  *---------------------------------------------------------------------------*/
 void *
-usbd_mem_alloc(struct bus_dma_tag *parent, u_int32_t size, 
+usbd_mem_alloc(bus_dma_tag_t parent, u_int32_t size, 
 	       u_int8_t align_power)
 {
-	struct bus_dma_tag *tag;
+	bus_dma_tag_t tag;
 	struct usbd_page temp;
 	u_int32_t alignment = (1 << align_power);
 	void *ptr;
@@ -1935,7 +1935,7 @@ void
 usbd_mem_free(void *ptr, u_int32_t size)
 {
 	struct usbd_page *page;
-	struct bus_dma_tag *tag;
+	bus_dma_tag_t tag;
 
 	size += (-size) & (USB_HOST_ALIGN-1);
 
@@ -1971,11 +1971,11 @@ bus_dmamap_load_callback(void *arg, bus_dma_segment_t *segs,
 /*---------------------------------------------------------------------------*
  *  usbd_dma_tag_alloc - allocate a bus-DMA tag
  *---------------------------------------------------------------------------*/
-struct bus_dma_tag *
-usbd_dma_tag_alloc(struct bus_dma_tag *parent, u_int32_t size, 
+bus_dma_tag_t 
+usbd_dma_tag_alloc(bus_dma_tag_t parent, u_int32_t size, 
 		   u_int32_t alignment)
 {
-	struct bus_dma_tag *tag;
+	bus_dma_tag_t tag;
 
 	if(bus_dma_tag_create
 	   ( /* parent    */parent,
@@ -2002,7 +2002,7 @@ usbd_dma_tag_alloc(struct bus_dma_tag *parent, u_int32_t size,
  *  usbd_dma_tag_free - free a bus-DMA tag
  *---------------------------------------------------------------------------*/
 void
-usbd_dma_tag_free(struct bus_dma_tag *tag)
+usbd_dma_tag_free(bus_dma_tag_t tag)
 {
 	bus_dma_tag_destroy(tag);
 	return;
@@ -2012,10 +2012,10 @@ usbd_dma_tag_free(struct bus_dma_tag *tag)
  *  usbd_mem_alloc_sub - allocate DMA-able memory
  *---------------------------------------------------------------------------*/
 void *
-usbd_mem_alloc_sub(struct bus_dma_tag *tag, struct usbd_page *page,
+usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
 		   u_int32_t size, u_int32_t alignment)
 {
-	struct bus_dmamap *map;
+	bus_dmamap_t map;
 	bus_size_t physaddr = 0;
 	void *ptr;
 
@@ -2062,8 +2062,8 @@ usbd_mem_free_sub(struct usbd_page *page)
 	 * and "buffer" in case "page" is part 
 	 * of the allocated memory:
 	 */
-	struct bus_dma_tag *tag = page->tag;
-	struct bus_dmamap *map = page->map;
+	bus_dma_tag_t tag = page->tag;
+	bus_dmamap_t map = page->map;
 	void *ptr = page->buffer;
 
 	bus_dmamap_unload(tag, map);
@@ -2083,8 +2083,8 @@ usbd_mem_free_sub(struct usbd_page *page)
 
 #ifdef __NetBSD__
 
-struct bus_dma_tag *
-usbd_dma_tag_alloc(struct bus_dma_tag *parent, u_int32_t size, 
+bus_dma_tag_t 
+usbd_dma_tag_alloc(bus_dma_tag_t parent, u_int32_t size, 
 		   u_int32_t alignment)
 {
 	/* FreeBSD specific */
@@ -2092,13 +2092,13 @@ usbd_dma_tag_alloc(struct bus_dma_tag *parent, u_int32_t size,
 }
 
 void
-usbd_dma_tag_free(struct bus_dma_tag *tag)
+usbd_dma_tag_free(bus_dma_tag_t tag)
 {
 	return;
 }
 
 void *
-usbd_mem_alloc_sub(struct bus_dma_tag *tag, struct usbd_page *page,
+usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
 		   u_int32_t size, u_int32_t alignment)
 {
 	caddr_t ptr = NULL;

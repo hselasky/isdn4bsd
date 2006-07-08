@@ -80,7 +80,6 @@ struct usbd_memory_info;
 struct usbd_ifqueue;
 struct __callout;
 struct module;
-struct bus_dma_tag;
 struct malloc_type;
 
 typedef u_int8_t usbd_status;
@@ -144,8 +143,8 @@ struct usbd_page {
 	bus_size_t physaddr;
 
 #ifdef __FreeBSD__
-	struct bus_dma_tag * tag;
-	struct bus_dmamap * map;
+	bus_dma_tag_t  tag;
+	bus_dmamap_t map;
 #endif
 
 #ifdef __NetBSD__
@@ -176,7 +175,7 @@ struct usbd_bus {
 	/* filled by HC driver */
 	device_t                bdev; /* base device, host adapter */
 	struct usbd_bus_methods	*methods;
-	struct bus_dma_tag *dma_tag;
+	bus_dma_tag_t dma_tag;
 
 	/* filled by USB driver */
 	struct usbd_port	root_port; /* dummy port for root hub */
@@ -649,7 +648,7 @@ void
 usbd_bzero(struct usbd_page_cache *cache, u_int32_t offset, u_int32_t len);
 
 u_int8_t
-usbd_page_alloc(struct bus_dma_tag *tag, struct usbd_page *page, 
+usbd_page_alloc(bus_dma_tag_t tag, struct usbd_page *page, 
 		u_int32_t npages);
 void
 usbd_page_free(struct usbd_page *page, u_int32_t npages);
@@ -670,7 +669,7 @@ u_int32_t
 usbd_page_fit_obj(struct usbd_page *page, u_int32_t size, u_int32_t obj_len);
 
 void *
-usbd_mem_alloc(struct bus_dma_tag *parent, u_int32_t size, 
+usbd_mem_alloc(bus_dma_tag_t parent, u_int32_t size, 
 	       u_int8_t align_power);
 bus_size_t
 usbd_mem_vtophys(void *ptr, u_int32_t size);
@@ -678,14 +677,14 @@ usbd_mem_vtophys(void *ptr, u_int32_t size);
 void
 usbd_mem_free(void *ptr, u_int32_t size);
 
-struct bus_dma_tag *
-usbd_dma_tag_alloc(struct bus_dma_tag *parent, u_int32_t size, u_int32_t alignment);
+bus_dma_tag_t 
+usbd_dma_tag_alloc(bus_dma_tag_t parent, u_int32_t size, u_int32_t alignment);
 
 void
-usbd_dma_tag_free(struct bus_dma_tag *tag);
+usbd_dma_tag_free(bus_dma_tag_t tag);
 
 void *
-usbd_mem_alloc_sub(struct bus_dma_tag *tag, struct usbd_page *page,
+usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
 		   u_int32_t size, u_int32_t alignment);
 void
 usbd_mem_free_sub(struct usbd_page *page);
