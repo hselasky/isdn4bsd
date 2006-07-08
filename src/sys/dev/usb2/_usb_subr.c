@@ -2171,7 +2171,7 @@ usbd_mem_free_sub(struct usbd_page *page)
 
 	bus_dmamap_unload(temp.tag, temp.map);
 	bus_dmamap_destroy(temp.tag, temp.map);
-	bus_dmamem_unmap(temp.tag, temp.buffer, temp.size);
+	bus_dmamem_unmap(temp.tag, temp.buffer, temp.length);
 	bus_dmamem_free(temp.tag, &temp.seg, temp.seg_count);
 
 #ifdef USB_DEBUG
