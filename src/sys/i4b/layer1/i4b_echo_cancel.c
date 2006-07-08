@@ -261,7 +261,8 @@ static __inline int16_t
 i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec, 
 		    int16_t x, int16_t y, int16_t z)
 {
-    const u_int32_t max = 512;
+    const u_int32_t max = 512; /* this constant can be tuned */
+    const u_int32_t level = 32; /* this constant can be tuned */
     const u_int32_t lim_coeffs = (I4B_ECHO_CANCEL_COEFF_DP * 
 				  ((1<<16) / I4B_ECHO_CANCEL_N_TAPS));
     u_int32_t sum_coeffs = 0;
@@ -275,13 +276,20 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 
     if (ec->cur_power_count >= max) {
 
-        ec->rx_speaking = ((ec->cur_power_rx > 1024) && 
-			   (ec->cur_power_rx > (ec->cur_power_tx/4)));
+	ec->rx_speaking = ((ec->cur_power_rx > (level * level * max)) && 
+			   (ec->cur_power_rx > (ec->cur_power_tx/
+						(level * level))));
 
-	ec->tx_speaking = ((ec->cur_power_tx > 1024) &&
-			   (ec->cur_power_tx > (ec->cur_power_rx/4)));
+	ec->tx_speaking = ((ec->cur_power_tx > (level * level * max)) &&
+			   (ec->cur_power_tx > (ec->cur_power_rx/
+						(level * level))));
 
 	ec->coeffs_adapt = (ec->tx_speaking && (!(ec->rx_speaking)));
+
+	I4B_DBG(1, L1_EC_MSG, "rx/tx = %d, tx/rx = %d %dr/%dt",
+		ec->cur_power_rx / (ec->cur_power_tx ? ec->cur_power_tx : 1),
+		ec->cur_power_tx / (ec->cur_power_rx ? ec->cur_power_rx : 1),
+		ec->rx_speaking, ec->tx_speaking);
 
 	ptr1 = (ec->data_toggle) ? ec->coeffs_old_0 : ec->coeffs_old_1;
 	ptr2 = (ec->data_toggle) ? ec->coeffs_old_1 : ec->coeffs_old_0;
