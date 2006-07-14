@@ -459,7 +459,10 @@ ipr_response_to_user(msg_response_to_user_t *mrtu)
 static void
 ipr_activity(struct ipr_softc *sc)
 {
-	sc->sc_cdp->last_active_time = SECOND;
+	if (sc->sc_cdp) {
+	    sc->sc_cdp->last_active_time = SECOND;
+	}
+	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -832,7 +835,7 @@ ipr_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	  /* show next IPR_LOG packets again */
 	  sc->sc_log_first = IPR_LOG;
 #endif
-	  sc->sc_cdp = 0;
+	  sc->sc_cdp = NULL;
 
 	  NDBGL4(L4_DIALST, "setting dial state to ST_IDLE");
 

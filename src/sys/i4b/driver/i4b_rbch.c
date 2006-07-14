@@ -526,7 +526,9 @@ rbch_response_to_user(msg_response_to_user_t *mrtu)
 static void
 rbch_activity(struct rbch_softc *sc)
 {
-	sc->sc_cd->last_active_time = SECOND;
+	if (sc->sc_cd) {
+	    sc->sc_cd->last_active_time = SECOND;
+	}
 	selwakeup(&sc->selp);
 }
 
@@ -664,7 +666,7 @@ rbch_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	   * "i4b_rbch_write" they will not be woken up !
 	   */
 
-	  sc->sc_cd = 0;
+	  sc->sc_cd = NULL;
 	}
 
 	return f;

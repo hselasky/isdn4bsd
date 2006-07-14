@@ -1053,7 +1053,9 @@ tel_response_to_user(msg_response_to_user_t *mrtu)
 static void
 tel_activity(tel_sc_t *sc)
 {
-	sc->cdp->last_active_time = SECOND;
+	if (sc->cdp) {
+	    sc->cdp->last_active_time = SECOND;
+	}
 	return;
 }
 	
@@ -1838,6 +1840,8 @@ tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	else
 	{
 	  /* not connected */
+
+	  sc->cdp = NULL;
 	
 	  /* close sound-bridge */
 	  snd_close(&sc->rd.audio_dev);

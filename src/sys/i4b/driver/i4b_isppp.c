@@ -383,14 +383,15 @@ i4bisppp_activity(struct i4bisppp_softc *sc)
 {
 	struct sppp *sp = IFP2SP(sc->sc_ifp);
 
-	/* update cd->last_active_time */
-	sc->sc_cdp->last_active_time =
-	  (sp->pp_last_recv < sp->pp_last_sent) ?
-	  sp->pp_last_sent : sp->pp_last_recv;
-
+	if (sc->sc_cdp) {
+	    /* update cd->last_active_time */
+	    sc->sc_cdp->last_active_time =
+	      ((sp->pp_last_recv < sp->pp_last_sent) ?
+	       sp->pp_last_sent : sp->pp_last_recv);
+	}
 	return;
 }
-	
+
 /*---------------------------------------------------------------------------*
  *	this routine is called from the HSCX interrupt handler
  *	when a new frame (mbuf) has been received

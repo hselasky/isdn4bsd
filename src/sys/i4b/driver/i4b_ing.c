@@ -250,7 +250,9 @@ ing_response_to_user(msg_response_to_user_t *mrtu)
 static void
 ing_activity(struct ing_softc *sc)
 {
-	sc->sc_cdp->last_active_time = SECOND;
+	if (sc->sc_cdp) {
+	    sc->sc_cdp->last_active_time = SECOND;
+	}
 	return;
 }
 
@@ -352,7 +354,7 @@ ing_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	{
 	  /* not connected */
 
-	  sc->sc_cdp = 0;
+	  sc->sc_cdp = NULL;
 
 	  NDBGL4(L4_DIALST, "ing%d: setting dial state to ST_IDLE",
 		 driver_unit);
