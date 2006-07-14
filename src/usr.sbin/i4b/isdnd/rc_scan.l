@@ -144,7 +144,6 @@ restrictedcmd			{ return RESTRICTEDCMD; }
 channelstate			{ return CHANNELSTATE; }
 callin				{ return CALLIN; }
 callout				{ return CALLOUT; }
-driver_type			{ return DRIVER_TYPE; }
 logevents			{ return LOGEVENTS; }
 name				{ return NAME; }
 no				{ return NO; }

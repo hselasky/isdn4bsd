@@ -499,8 +499,6 @@ typedef struct cfg_entry {
 typedef struct isdn_ctrl_state {
 	u_int8_t   l1_type;		/* type: active/passive 	*/
 	u_int8_t   l1_desc[64];		/* controller description, zero terminated */
-	u_int16_t  driver_type;		/* ISDN D-channel driver type	*/
-	u_int32_t  serial_number;	/* ISDN D-channel serial number */
 	char* firmware;			/* loadable firmware file name 	*/
     
         char ch_state[MAX_CHANNELS];    /* channel state		*/

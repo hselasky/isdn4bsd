@@ -120,8 +120,6 @@ set_config_defaults(void)
 		isdn_ctrl_tab[i].tei = -1;
 		isdn_ctrl_tab[i].l1stat = LAYER_IDLE;
 		isdn_ctrl_tab[i].l2stat = LAYER_IDLE;
-		isdn_ctrl_tab[i].driver_type = DRVR_D_CHANNEL;
-		isdn_ctrl_tab[i].serial_number = i;
 		isdn_ctrl_tab[i].firmware = NULL;
 
 		for (j = 0;
@@ -205,30 +203,6 @@ set_config_defaults(void)
 	return;
 }
 
-/*--------------------------------------------------------------------------*
- *	init controller D-channel ISDN protocol
- *--------------------------------------------------------------------------*/
-static void
-init_controller_protocol(void)
-{
-	int controller;
-	msg_prot_ind_t mpi = { /* zero */ };
-
-	for(controller = 0; controller < MAX_CONTROLLERS; controller++)
-	{
-		mpi.controller = controller;
-		mpi.driver_type = isdn_ctrl_tab[controller].driver_type;
-		mpi.serial_number = isdn_ctrl_tab[controller].serial_number;
-		
-		if((ioctl(isdnfd, I4B_PROT_IND, &mpi)) < 0)
-		{
-			log(LL_ERR, "ioctl I4B_PROT_IND failed: %s", strerror(errno));
-			config_error_flag++;
-		}
-	}
-	return;
-}
-
 /*---------------------------------------------------------------------------*
  *	called from main to read and process config file
  *---------------------------------------------------------------------------*/
@@ -268,8 +242,6 @@ configure(char *filename, int reread)
 	check_config();		/* validation and consistency check */
 
 	fclose(yyin);
-
-	init_controller_protocol();
 
 	if(config_error_flag)
 	{
@@ -967,25 +939,6 @@ cfg_setval(int keyword)
 		
 			DBGL(DL_RCCF, (log(LL_DBG, "%s: downtime = %d", cep->name, yylval.num)));
 			cep->downtime = yylval.num;
-			break;
-
-		case DRIVER_TYPE:
-		  /* case PROTOCOL: */
-			DBGL(DL_RCCF, (log(LL_DBG, "controller %d: driver_type = %s", 
-					   controllercount, yylval.str)));
-#define m(enum,args...)									\
-			if(!(strcmp(yylval.str, #enum)))				\
-				isdn_ctrl_tab[controllercount].driver_type = enum;	\
-			else								\
-			/**/
-
-			I4B_D_DRIVERS(m)
-#undef m
-			{
-				log(LL_ERR, "ERROR parsing config file: unknown parameter "
-				    "for keyword \"driver_type\" at line %d!", lineno);
-				config_error_flag++;
-			}
 			break;
 
 		case EARLYHANGUP:

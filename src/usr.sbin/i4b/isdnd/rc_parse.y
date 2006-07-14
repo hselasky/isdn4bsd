@@ -99,7 +99,6 @@ yyerror(const char *msg)
 %token		DISCONNECTPROG
 %token		DOWNTIME
 %token		DOWNTRIES
-%token		DRIVER_TYPE
 %token		EARLYHANGUP
 %token		ENTRY
 %token		EXTCALLATTR
@@ -486,9 +485,25 @@ boolkeyword:	  BUDGETCALLBACKSFILEROTATE { $$ = BUDGETCALLBACKSFILEROTATE; }
 /* controller section */
 /* ================== */
 
-controllersect:	CONTROLLER
+controllersect:	CONTROLLER '\n'
 		{
 			controllercount++;
+
+			if (controllercount >= MAX_CONTROLLERS) {
+			    controllercount = (MAX_CONTROLLERS-1);
+			}
+		}
+		| CONTROLLER NUMBERSTR '\n'
+		{
+			controllercount = atoi($2);
+
+			if (controllercount < 0) {
+			    controllercount = 0;
+			}
+
+			if (controllercount >= MAX_CONTROLLERS) {
+			    controllercount = (MAX_CONTROLLERS-1);
+			}
 		}
 		controllers
 		;
@@ -514,9 +529,6 @@ strcontroller:	cstrkeyword '=' STRING '\n'
 			{ 
 			cfg_setval($1);
 			}
-		;
-
-cstrkeyword:	  DRIVER_TYPE		{ $$ = DRIVER_TYPE; }
 		;
 
 cfilekeyword:	  FIRMWARE		{ $$ = FIRMWARE; }

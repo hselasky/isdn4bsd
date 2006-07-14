@@ -233,45 +233,10 @@
 .El
 \&
 .It Li controller
-\&This keyword starts the controller configuration section. It must not have a parameter and may be used once for every controller. The keyword is optional. The following keywords are valid in a controller configuration section:
+.It Li controller 0
+.It Li controller 63
+\&This keyword starts the controller configuration section. If a parameter is present it will set the current controller number. Else the current controller number will be incremented. The following keywords are valid in a controller configuration section:
 .Bl -tag -width useacctfile
-\&
-.It Li driver_type
-\&This keyword is used to set the D-channel driver-type for the S0-bus a controller is connected to. The following parameters are currently supported:
-.Bl -tag 
-\&
-.It Ar DRVR_DSS1_TE
-This is a point to multipoint terminal side driver
-for the DSS1 or 'euro-ISDN' protocol. This driver
-supports ITU Recommendations Q.921 and Q.931.
-.It Ar DRVR_DSS1_NT
-This is a multipoint to point network side driver
-for the DSS1 or 'euro-ISDN' protocol. This driver
-supports ITU Recommendations Q.921 and Q.931.
-.It Ar DRVR_DSS1_P2P_TE
-This is a point to point terminal side driver
-for the DSS1 or 'euro-ISDN' protocol. This driver
-supports ITU Recommendations Q.921 and Q.931.
-.It Ar DRVR_DSS1_P2P_NT
-This is a point to point network side driver
-for the DSS1 or 'euro-ISDN' protocol. This driver
-supports ITU Recommendations Q.921 and Q.931.
-.It Ar DRVR_CAPI_TE
-\&
-.It Ar DRVR_DIEHL_TE
-\&
-.It Ar DRVR_TINA_DD_TE
-\&
-.It Ar DRVR_AMV_B1_TE
-\&
-.It Ar DRVR_D_CHANNEL
-This driver selects the default D-channel driver.
-.It Ar DRVR_D64S
-This driver can be used on single B-channel leased lines.
-.It Ar DRVR_DUMMY
-\&
-.El
-\&
 .It Li firmware
 \&This keyword is used like
 .Li firmware Ns = Ns Ar /path/to/file
