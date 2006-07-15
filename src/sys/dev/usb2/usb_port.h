@@ -43,6 +43,7 @@
 #  ifdef __FreeBSD__
 
 #   include <sys/conf.h>
+#   include <machine/bus.h> /* bus_space_xxx() */
 #   include <machine/resource.h> /* SYS_XXX */
 #   include <sys/bus.h> /* device_xxx() */
 #   ifdef INCLUDE_PCIXXX_H
