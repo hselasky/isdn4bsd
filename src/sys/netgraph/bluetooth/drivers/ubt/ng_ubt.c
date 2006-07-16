@@ -375,9 +375,10 @@ static const struct usbd_config ubt_config_if_1_high_speed[UBT_IF_1_N_TRANSFER] 
  * Module
  */
 
-DRIVER_MODULE(ubt, uhub, ubt_driver, ubt_devclass, ubt_modevent, 0);
+DRIVER_MODULE(ng_ubt, uhub, ubt_driver, ubt_devclass, ubt_modevent, 0);
 MODULE_VERSION(ng_ubt, NG_BLUETOOTH_VERSION);
 MODULE_DEPEND(ng_ubt, netgraph, NG_ABI_VERSION, NG_ABI_VERSION, NG_ABI_VERSION);
+MODULE_DEPEND(ng_ubt, usb, 1, 1, 1);
 
 /****************************************************************************
  ****************************************************************************
@@ -774,7 +775,8 @@ ubt_intr_read_callback(struct usbd_xfer *xfer)
 	    xfer->actlen = max_len;
 	}
 
-	bcopy(xfer->buffer, m->m_data, xfer->actlen);
+	bcopy(xfer->buffer, ((u_int8_t *)(m->m_data)) + m->m_len, 
+	      xfer->actlen);
 
 	m->m_pkthdr.len += xfer->actlen;
 	m->m_len += xfer->actlen;
@@ -944,7 +946,8 @@ ubt_bulk_read_callback(struct usbd_xfer *xfer)
 	    xfer->actlen = max_len;
 	}
 
-	bcopy(xfer->buffer, m->m_data, xfer->actlen);
+	bcopy(xfer->buffer, ((u_int8_t *)(m->m_data)) + m->m_len, 
+	      xfer->actlen);
 
 	m->m_pkthdr.len += xfer->actlen;
 	m->m_len += xfer->actlen;
@@ -1227,7 +1230,8 @@ ubt_isoc_read_callback(struct usbd_xfer *xfer)
 			    xfer->frlengths[n] = max_len;
 			}
 
-			bcopy(buf, m->m_data, xfer->frlengths[n]);
+			bcopy(buf, ((u_int8_t *)(m->m_data)) + m->m_len,
+			      xfer->frlengths[n]);
 
 			m->m_pkthdr.len += xfer->frlengths[n];
 			m->m_len += xfer->frlengths[n];
