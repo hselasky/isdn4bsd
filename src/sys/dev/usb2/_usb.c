@@ -857,10 +857,15 @@ usbioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *p)
 			int addr = di->udi_addr;
 
 			if((addr < 1) ||
-			   (addr >= USB_MAX_DEVICES) ||
-			   (bus->devices[addr] == 0))
+			   (addr >= USB_MAX_DEVICES))
 			{
 				error = EINVAL;
+				goto done;
+			}
+
+			if (bus->devices[addr] == 0)
+			{
+				error = ENXIO;
 				goto done;
 			}
 
