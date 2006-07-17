@@ -1262,19 +1262,35 @@ void
 usbd_clear_stall_tr_setup(struct usbd_xfer *xfer1, 
 			  struct usbd_xfer *xfer2)
 {
-	usb_device_request_t *req = xfer1->buffer;
+	usb_device_request_t req;
 
 	mtx_assert(xfer1->priv_mtx, MA_OWNED);
 	mtx_assert(xfer2->priv_mtx, MA_OWNED);
 
 	/* setup a clear-stall packet */
 
-	req->bmRequestType = UT_WRITE_ENDPOINT;
-	req->bRequest = UR_CLEAR_FEATURE;
-	USETW(req->wValue, UF_ENDPOINT_HALT);
-	req->wIndex[0] = xfer2->pipe->edesc->bEndpointAddress;
-	req->wIndex[1] = 0;
-	USETW(req->wLength, 0);
+	req.bmRequestType = UT_WRITE_ENDPOINT;
+	req.bRequest = UR_CLEAR_FEATURE;
+	USETW(req.wValue, UF_ENDPOINT_HALT);
+	req.wIndex[0] = xfer2->pipe->edesc->bEndpointAddress;
+	req.wIndex[1] = 0;
+	USETW(req.wLength, 0);
+
+	/* double check the length */
+
+	if (xfer1->length != sizeof(req)) {
+	    printf("%s:%d: invalid transfer length, %d bytes!\n",
+		   __FUNCTION__, __LINE__, xfer1->length);
+	    return;
+	}
+
+	/* copy in the transfer */
+
+	if (xfer1->flags & USBD_USE_DMA) {
+	    usbd_copy_in(&(xfer1->buf_data), 0, &req, sizeof(req));
+	} else {
+	    bcopy(&req, xfer1->buffer, sizeof(req));
+	}
 
 	usbd_start_hardware(xfer1);
 	return;
