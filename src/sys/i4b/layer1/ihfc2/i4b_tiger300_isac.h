@@ -1529,8 +1529,18 @@ I4B_DBASE(tiger300_dbase_root)
   I4B_ADD_LED_SUPPORT(LED_SCHEME);
 }
 
-I4B_PCI_DRIVER(/* NetJet-S */
-	       .vid           = 0x0001e159);
+/* NOTE: Tiger Jet is reusing 
+ * chip ID's so one has to 
+ * specify a sub-ID !
+ */
+
+I4B_PCI_DRIVER(/* NetJet-S (320) */
+	       .vid           = 0x0001e159,
+	       .sub           = 0x00000100);
+
+I4B_PCI_DRIVER(/* NetJet-S (300) */
+	       .vid           = 0x0001e159,
+	       .sub           = 0x00020059);
 
 /*
  * cleanup

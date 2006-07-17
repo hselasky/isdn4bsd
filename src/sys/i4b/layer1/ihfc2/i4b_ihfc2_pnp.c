@@ -1140,16 +1140,6 @@ ihfc_pnp_probe(device_t dev)
 
 		vid = pci_get_devid(dev);
 		sub = pci_read_config(dev, 0x2c, 4);
-
-		/* XXX Tiger Jet is reusing 
-		 * chip ID's
-		 */
-		if((vid == 0x0001e159) &&
-		   (sub == 0x0001b119))
-		{
-		    /* this is a Firewire Device */
-		    return ENXIO;
-		}
 	  }
 
 #ifdef IHFC_USB_ENABLED
