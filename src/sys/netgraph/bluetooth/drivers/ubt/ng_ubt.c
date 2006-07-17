@@ -244,7 +244,7 @@ static const struct usbd_config ubt_config_if_0[UBT_IF_0_N_TRANSFER] = {
       .endpoint  = -1, /* any */
       .direction = UE_DIR_IN,
       .flags     = USBD_SHORT_XFER_OK,
-      .bufsize   = 0, /* use wMaxPacketSize */
+      .bufsize   = 0x110, /* bytes */
       .callback  = &ubt_intr_read_callback,
     },
 
