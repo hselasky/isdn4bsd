@@ -286,7 +286,9 @@ static const struct usbd_config ubt_config_if_0[UBT_IF_0_N_TRANSFER] = {
 };
 
 /* USB config */
-static const struct usbd_config ubt_config_if_1_full_speed[UBT_IF_1_N_TRANSFER] = {
+static const struct usbd_config 
+ubt_config_if_1_full_speed[UBT_IF_1_N_TRANSFER] = {
+
     [0] = {
       .type      = UE_ISOCHRONOUS,
       .endpoint  = -1, /* any */
@@ -329,7 +331,9 @@ static const struct usbd_config ubt_config_if_1_full_speed[UBT_IF_1_N_TRANSFER] 
 };
 
 /* USB config */
-static const struct usbd_config ubt_config_if_1_high_speed[UBT_IF_1_N_TRANSFER] = {
+static const struct usbd_config 
+ubt_config_if_1_high_speed[UBT_IF_1_N_TRANSFER] = {
+
     [0] = {
       .type      = UE_ISOCHRONOUS,
       .endpoint  = -1, /* any */
@@ -490,6 +494,10 @@ ubt_attach(device_t dev)
 {
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	struct ubt_softc *sc = device_get_softc(dev);
+	const struct usbd_config *isoc_setup;
+	struct usbd_pipe *pipe;
+	u_int16_t wMaxPacketSize;
+	u_int8_t alt_index;
 	u_int8_t i;
 
 	usbd_set_desc(dev, uaa->device);
@@ -556,33 +564,57 @@ ubt_attach(device_t dev)
 	   (uaa->device, 0, 
 	    sc->sc_xfer_if_0, ubt_config_if_0, UBT_IF_0_N_TRANSFER,
 	    sc, &(sc->sc_mtx), &(sc->sc_mem_wait))) {
+	    device_printf(dev, "Could not allocate transfers "
+			  "for interface 0!\n");
 	    goto detach;
 	}
 
 	/*
-	 * Interface 1 (search alternate settings)
+	 * Interface 1 
+	 * (search alternate settings, and find
+	 *  the descriptor with the largest
+	 *  wMaxPacketSize)
 	 */
+	isoc_setup = 
+	  ((usbd_get_speed(uaa->device) == USB_SPEED_HIGH) ? 
+	   ubt_config_if_1_high_speed : 
+	   ubt_config_if_1_full_speed);
 
-	for (i = 0; ; i++) {
+	wMaxPacketSize = 0;
+	alt_index = 0;
 
-	    if (usbreq_set_interface(uaa->device, 1, i)) {
+	for (i = 0; i < 32; i++) {
+
+	    if (usbd_fill_iface_data(uaa->device, 1, i)) {
+	        /* end of alternate settings */
 	        break;
 	    }
 
-	    if(usbd_transfer_setup
-	       (uaa->device, 1, 
-		sc->sc_xfer_if_1, 
-		(usbd_get_speed(uaa->device) == USB_SPEED_HIGH) ? 
-		ubt_config_if_1_high_speed : 
-		ubt_config_if_1_full_speed, UBT_IF_1_N_TRANSFER,
-		sc, &(sc->sc_mtx), &(sc->sc_mem_wait)) == 0) {
-	      goto found;
+	    pipe = usbd_get_pipe(uaa->device, 1, isoc_setup);
+
+	    if (pipe && pipe->edesc) {
+
+	        if (UGETW(pipe->edesc->wMaxPacketSize) > wMaxPacketSize) {
+		    wMaxPacketSize = UGETW(pipe->edesc->wMaxPacketSize);
+		    alt_index = i;
+		}
 	    }
 	}
 
-	goto detach;
+	if (usbreq_set_interface(uaa->device, 1, alt_index)) {
+	    device_printf(dev, "Could not set alternate "
+			  "setting %d for interface 1!\n", alt_index);
+	    goto detach;
+	}
 
- found:
+	if(usbd_transfer_setup
+	   (uaa->device, 1, 
+	    sc->sc_xfer_if_1, isoc_setup, UBT_IF_1_N_TRANSFER,
+	    sc, &(sc->sc_mtx), &(sc->sc_mem_wait))) {
+	    device_printf(dev, "Could not allocate transfers "
+			  "for interface 1!\n");
+	    goto detach;
+	}
 
 	/* create Netgraph node */
 
