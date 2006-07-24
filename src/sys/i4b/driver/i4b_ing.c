@@ -387,6 +387,7 @@ static int
 ng_ing_newhook(node_p node, hook_p hook, const char *name)
 {
 	struct ing_softc *sc = NG_NODE_PRIVATE(node);
+	int error = EINVAL;
 
 	SC_LOCK(f,sc->sc_fifo_translator);
 
@@ -397,7 +398,8 @@ ng_ing_newhook(node_p node, hook_p hook, const char *name)
 	{
 		NG_HOOK_SET_PRIVATE(hook, NULL); /* paranoid */
 		sc->debughook = hook;
-		return (0);
+		error = 0;
+		goto done;
 	}
 	/*
 	 * Check for raw mode hook.
@@ -406,11 +408,13 @@ ng_ing_newhook(node_p node, hook_p hook, const char *name)
 	{
 		NG_HOOK_SET_PRIVATE(hook, sc);
 		sc->hook = hook;
-		return (0);
+		error = 0;
+		goto done;
 	}
+ done:
 	SC_UNLOCK(f);
 
-	return (EINVAL);
+	return error;
 }
 
 /*---------------------------------------------------------------------------*
@@ -680,5 +684,3 @@ ng_ing_disconnect(hook_p hook)
 
 	return (0);
 }
-
-
