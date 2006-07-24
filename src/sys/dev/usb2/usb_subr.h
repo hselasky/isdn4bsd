@@ -642,6 +642,9 @@ void
 usbd_copy_in(struct usbd_page_cache *cache, u_int32_t offset, 
 	     const void *ptr, u_int32_t len);
 void
+usbd_m_copy_in(struct usbd_page_cache *cache, u_int32_t dst_offset,
+	       struct mbuf *m, u_int32_t src_offset, u_int32_t src_len);
+void
 usbd_copy_out(struct usbd_page_cache *cache, u_int32_t offset, 
 	      void *ptr, u_int32_t len);
 void
@@ -824,6 +827,14 @@ usbd_status
 usbd_do_request_flags(struct usbd_device *udev, usb_device_request_t *req,
 		      void *data, u_int32_t flags, int *actlen,
 		      u_int32_t timeout);
+usbd_status
+usbd_do_request_mtx(struct usbd_device *udev, struct mtx *mtx, 
+		    usb_device_request_t *req, void *data);
+usbd_status
+usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
+			  usb_device_request_t *req, void *data, 
+			  u_int32_t flags, int *actlen,
+			  u_int32_t timeout);
 void
 usbd_fill_get_report(usb_device_request_t *req, u_int8_t iface_no, 
 		     u_int8_t type, u_int8_t id, u_int16_t size);

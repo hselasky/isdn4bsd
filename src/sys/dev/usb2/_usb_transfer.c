@@ -1166,59 +1166,90 @@ usbd_default_callback(struct usbd_xfer *xfer)
 	return;
 }
 
-usbd_status
-usbd_do_request(struct usbd_device *udev, usb_device_request_t *req, void *data)
-{
-	return (usbd_do_request_flags(udev, req, data, 0, 0, 
-				      USBD_DEFAULT_TIMEOUT));
-}
-
 /*---------------------------------------------------------------------------*
- *	usbd_do_request_flags
+ *	usbd_do_request_flags / usbd_do_request
  *
  * NOTE: the caller should hold "Giant" while calling this function
  *---------------------------------------------------------------------------*/
+usbd_status
+usbd_do_request(struct usbd_device *udev, usb_device_request_t *req, void *data)
+{
+	return usbd_do_request_flags_mtx
+	  (udev, NULL, req, data, 0, NULL, USBD_DEFAULT_TIMEOUT);
+}
+
 usbd_status
 usbd_do_request_flags(struct usbd_device *udev, usb_device_request_t *req,
 		      void *data, u_int32_t flags, int *actlen,
 		      u_int32_t timeout)
 {
+	return usbd_do_request_flags_mtx
+	  (udev, NULL, req, data, flags, actlen, timeout);
+}
+
+/*---------------------------------------------------------------------------*
+ *	usbd_do_request_flags_mtx / usbd_do_request_mtx
+ *
+ * NOTE: the caller should hold "mtx" while calling this function
+ *---------------------------------------------------------------------------*/
+usbd_status
+usbd_do_request_mtx(struct usbd_device *udev, struct mtx *mtx, 
+		    usb_device_request_t *req, void *data)
+{
+	return usbd_do_request_flags_mtx
+	  (udev, mtx, req, data, 0, 0, USBD_DEFAULT_TIMEOUT);
+}
+
+usbd_status
+usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
+			  usb_device_request_t *req, void *data, 
+			  u_int32_t flags, int *actlen,
+			  u_int32_t timeout)
+{
 	struct usbd_config usbd_config[1] = { /* zero */ };
 	struct usbd_xfer *xfer = NULL;
+	u_int16_t length = UGETW(req->wLength);
 	usbd_status err;
 
 	usbd_config[0].type = UE_CONTROL;
 	usbd_config[0].endpoint = 0; /* control pipe */
 	usbd_config[0].direction = -1;
 	usbd_config[0].timeout = timeout;
-	usbd_config[0].flags = flags|USBD_SYNCHRONOUS;
-	usbd_config[0].bufsize = sizeof(req[0]) + UGETW(req->wLength);
+	usbd_config[0].flags = (flags|USBD_SYNCHRONOUS|USBD_USE_DMA);
+	usbd_config[0].bufsize = sizeof(*req) + length;
 	usbd_config[0].callback = &usbd_default_callback;
+
+	if (mtx) {
+	    mtx_assert(mtx, MA_OWNED);
+	    mtx_unlock(mtx);
+	    mtx_assert(mtx, MA_NOTOWNED);
+	}
 
 	/* setup transfer */
 	err = usbd_transfer_setup(udev, 0, &xfer, &usbd_config[0], 1,
-				  NULL, NULL, NULL);
+				  NULL, mtx, NULL);
+
+	if (mtx) {
+	    mtx_lock(mtx);
+	}
+
 	if(err)
 	{
 	    goto done;
 	}
 
-	/* copy IN */
-
-	bcopy(req, xfer->buffer, sizeof(req[0]));
+	usbd_copy_in(&(xfer->buf_data), 0, req, sizeof(*req));
 
 	if(!(req->bmRequestType & UT_READ))
 	{
-	    bcopy(data, ((u_int8_t *)xfer->buffer) + sizeof(req[0]), UGETW(req->wLength));
+	    usbd_copy_in(&(xfer->buf_data), sizeof(*req), data, length);
 	}
 
 	usbd_transfer_start_safe(xfer);
 
-	/* copy OUT */
-
 	if(req->bmRequestType & UT_READ)
 	{
-	    bcopy(((u_int8_t *)xfer->buffer) + sizeof(req[0]), data, UGETW(req->wLength));
+	    usbd_copy_out(&(xfer->buf_data), sizeof(*req), data, length);
 	}
 
 	err = xfer->error;

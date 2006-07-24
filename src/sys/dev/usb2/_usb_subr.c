@@ -43,6 +43,7 @@
 #include <sys/queue.h> /* LIST_XXX() */
 #include <sys/lock.h>
 #include <sys/malloc.h>
+#include <sys/mbuf.h>
 
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
@@ -1677,6 +1678,33 @@ usbd_copy_in(struct usbd_page_cache *cache, u_int32_t offset,
 	    len -= res.length;
 	    ptr = ((const u_int8_t *)ptr) + res.length;
 	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *  usbd_m_copy_in - copy a mbuf chain directly into DMA-able memory
+ *---------------------------------------------------------------------------*/
+struct usbd_m_copy_in_arg {
+	struct usbd_page_cache *cache;
+	u_int32_t dst_offset;
+};
+
+static int32_t
+usbd_m_copy_in_cb(void *arg, void *src, u_int32_t count)
+{
+	register struct usbd_m_copy_in_arg *ua = arg;
+	usbd_copy_in(ua->cache, ua->dst_offset, src, count);
+	ua->dst_offset += count;
+	return 0;
+}
+
+void
+usbd_m_copy_in(struct usbd_page_cache *cache, u_int32_t dst_offset,
+	       struct mbuf *m, u_int32_t src_offset, u_int32_t src_len)
+{
+	struct usbd_m_copy_in_arg arg = { cache, dst_offset };
+	register int error;
+	error = m_apply(m, src_offset, src_len, &usbd_m_copy_in_cb, &arg);
 	return;
 }
 
