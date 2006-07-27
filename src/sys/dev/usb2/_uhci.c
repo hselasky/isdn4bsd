@@ -969,7 +969,7 @@ uhci_check_transfer(struct usbd_xfer *xfer)
 
 			DPRINTFN(12, ("xfer=%p active\n", xfer));
 
-			for(td = xfer->td_transfer_first;
+			for(td = xfer->td_transfer_cache;
 			    td != NULL;
 			    td = ((td == xfer->td_transfer_last) ? NULL : td->obj_next))
 			{
@@ -984,6 +984,9 @@ uhci_check_transfer(struct usbd_xfer *xfer)
 				{
 					DPRINTFN(12, ("xfer=%p is still "
 						      "active\n", xfer));
+
+					/* update cache */
+					xfer->td_transfer_cache = td;
 					goto done;
 				}
 
@@ -1229,7 +1232,8 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 		     xfer->address, UE_GET_ADDR(xfer->endpoint),
 		     xfer->length, xfer->udev->speed));
 
-	td = (xfer->td_transfer_first = xfer->td_start);
+	td = (xfer->td_transfer_first = 
+	      xfer->td_transfer_cache = xfer->td_start);
 
 	buf_offset = 0;
 	usbd_get_page(&(xfer->buf_data), buf_offset, &buf_res);

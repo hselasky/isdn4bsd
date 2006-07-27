@@ -964,10 +964,9 @@ ural_config_thread(void *arg)
 
 	ic->ic_reset = &ural_reset_cb;
 
-#ifdef IEEE80211_FEXT_SWBMISS
 	/* enable SW bmiss handling in sta mode */
 	ic->ic_flags_ext |= IEEE80211_FEXT_SWBMISS;
-#endif
+
 	/* override state transition machine */
 	sc->sc_newstate = ic->ic_newstate;
 	ic->ic_newstate = ural_newstate_cb;

@@ -452,6 +452,16 @@ ulpt_open(struct usb_cdev *cdev, int32_t fflags,
 	struct ulpt_softc *sc = cdev->sc_priv_ptr;
 	int32_t error = 0;
 
+	if (fflags & FREAD) {
+	    /* clear stall first */
+	    sc->sc_flags |= ULPT_FLAG_READ_STALL;
+	}
+
+	if (fflags & FWRITE) {
+	    /* clear stall first */
+	    sc->sc_flags |= ULPT_FLAG_WRITE_STALL;
+	}
+
 	if (prime) {
 	    DPRINTF(0, "opening prime device (reset)\n");
 

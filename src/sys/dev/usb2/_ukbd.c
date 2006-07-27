@@ -136,7 +136,7 @@ struct ukbd_softc {
 #define UKBD_FLAG_COMPOSE    0x0001
 #define UKBD_FLAG_POLLING    0x0002
 #define UKBD_FLAG_SET_LEDS   0x0004
-#define UKBD_FLAG_PIPE_ERROR 0x0008
+#define UKBD_FLAG_INTR_STALL 0x0008
 #define UKBD_FLAG_ATTACHED   0x0010
 #define UKBD_FLAG_GONE       0x0020
 
@@ -437,42 +437,29 @@ ukbd_timeout(void *arg)
 }
 
 static void
-ukbd_clear_stall_callback(struct usbd_xfer *xfer1)
+ukbd_clear_stall_callback(struct usbd_xfer *xfer)
 {
-	usb_device_request_t *req = xfer1->buffer;
-	struct ukbd_softc *sc = xfer1->priv_sc;
-	struct usbd_xfer *xfer0 = sc->sc_xfer[0];
+	struct ukbd_softc *sc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
-	USBD_CHECK_STATUS(xfer1);
+	USBD_CHECK_STATUS(xfer);
 
  tr_setup:
-
-        /* setup a CLEAR STALL packet */
-
-        req->bmRequestType = UT_WRITE_ENDPOINT;
-        req->bRequest = UR_CLEAR_FEATURE;
-        USETW(req->wValue, UF_ENDPOINT_HALT);
-        req->wIndex[0] = xfer0->pipe->edesc->bEndpointAddress;
-        req->wIndex[1] = 0;
-        USETW(req->wLength, 0);
-
-        usbd_start_hardware(xfer1);
-        return;
-
- tr_error:
-	DPRINTF(0, "error=%s\n", usbd_errstr(xfer1->error));
+	/* start clear stall */
+	usbd_clear_stall_tr_setup(xfer, xfer_other);
+	return;
 
  tr_transferred:
+	usbd_clear_stall_tr_transferred(xfer, xfer_other);
 
-	sc->sc_flags &= ~UKBD_FLAG_PIPE_ERROR;
+	sc->sc_flags &= ~UKBD_FLAG_INTR_STALL;
+	usbd_transfer_start(xfer_other);
+	return;
 
-	if (xfer1->error != USBD_CANCELLED) {
-
-	    xfer0->pipe->clearstall = 0;
-	    xfer0->pipe->toggle_next = 0;
-
-	    usbd_transfer_start(xfer0);
-	}
+ tr_error:
+	/* bomb out */
+	sc->sc_flags &= ~UKBD_FLAG_INTR_STALL;
+	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
 	return;
 }
 
@@ -510,12 +497,14 @@ ukbd_intr_callback(struct usbd_xfer *xfer)
 	}
 
  tr_setup:
-	if (!(sc->sc_flags & UKBD_FLAG_PIPE_ERROR)) {
-	    if (sc->sc_inputs < UKBD_IN_BUF_FULL) {
-	        usbd_start_hardware(xfer);
-	    } else {
-	        DPRINTF(0, "input queue is full!\n");
-	    }
+	if (sc->sc_flags & UKBD_FLAG_INTR_STALL) {
+	    usbd_transfer_start(sc->sc_xfer[1]);
+	    return;
+	}
+	if (sc->sc_inputs < UKBD_IN_BUF_FULL) {
+	    usbd_start_hardware(xfer);
+	} else {
+	    DPRINTF(0, "input queue is full!\n");
 	}
 	return;
 
@@ -523,10 +512,8 @@ ukbd_intr_callback(struct usbd_xfer *xfer)
 	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
 
 	if (xfer->error != USBD_CANCELLED) {
-
-	    /* start clear stall */
-	    sc->sc_flags |= UKBD_FLAG_PIPE_ERROR;
-
+	    /* try to clear stall first */
+	    sc->sc_flags |= UKBD_FLAG_INTR_STALL;
 	    usbd_transfer_start(sc->sc_xfer[1]);
 	}
 	return;
@@ -1161,6 +1148,21 @@ ukbd_ioctl(keyboard_t *kbd, u_long cmd, caddr_t arg)
 	};
 	struct ukbd_softc *sc = kbd->kb_data;
 	int i;
+
+	if (!mtx_owned(&Giant)) {
+	    /* XXX big problem: 
+	     * If scroll lock is pressed and
+	     * "printf()" is called, the CPU will 
+	     * get here, to un-scroll lock the 
+	     * keyboard. But if "printf()" acquires 
+	     * the "Giant" lock, there will be a 
+	     * locking order reversal problem, 
+	     * so the keyboard system must get 
+	     * out of "Giant" first, before
+	     * the CPU can proceed here ...
+	     */
+	    return EINVAL;
+	}
 
 	mtx_assert(&Giant, MA_OWNED);
 

@@ -405,6 +405,7 @@ struct usbd_xfer {
 	void *td_start;
 	void *td_transfer_first;
 	void *td_transfer_last;
+        void *td_transfer_cache;
 
 #ifdef USB_COMPAT_OLD
 	struct usbd_xfer *	alloc_xfer; /* the real transfer */
