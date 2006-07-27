@@ -200,6 +200,13 @@ exec_answer(cfg_entry_t *cep)
 	u_char devicename[MAXPATHLEN];	
 	int pid;
 	const char *device;
+
+	if ((cep->answerprog == NULL) ||
+	    (cep->answerprog[0] == 0)) {
+
+	    DBGL(DL_PROC, (log(LL_DBG, "No valid answerprog (ignored)")));
+	    return (GOOD);
+	}
 	
 	device = driver_devicename(cep->usrdevicename);
 

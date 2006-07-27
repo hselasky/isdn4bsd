@@ -53,7 +53,7 @@
 /* utility programs forked */
 
 #define REGPROG_DEF	"program"	/* default program to use for regexpr */
-#define ANSWERPROG_DEF	"answer"	/* default telephone answer program */
+#define ANSWERPROG_DEF  ""		/* default is disabled */
 
 /* pathnames */
 

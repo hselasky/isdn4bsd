@@ -599,8 +599,7 @@ ev_connect_from_i4b(msg_connect_active_ind_t *mp)
 			cep->isdncontrollerused, cep->isdnchannelused,
 			driver_name(cep->usrdevicename), cep->usrdeviceunit);
 
-		if((cep->dialin_reaction == REACT_ANSWER) &&
-		   (cep->usrdevicename == DRVR_TEL))
+		if(cep->dialin_reaction == REACT_ANSWER)
 		{
 			exec_answer(cep);
 		}

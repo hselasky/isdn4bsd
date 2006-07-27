@@ -162,7 +162,7 @@ set_config_defaults(void)
 		
 	 	cep->unitlengthsrc = ULSRC_NONE;
 
-		cep->answerprog = ANSWERPROG_DEF;	 	
+		cep->answerprog = ANSWERPROG_DEF;
 
 		cep->callbackwait = CALLBACKWAIT_MIN;
 
@@ -2073,9 +2073,15 @@ print_config(void)
 
 		}
 		
+		if(cep->answerprog && cep->answerprog[0])
+		{
+			fprintf(PFILE, "answerprog            = %s\t\t# "
+				"program used to answer incoming "
+				"telephone calls\n", cep->answerprog);
+		}
+
 		if(cep->usrdevicename == DRVR_TEL)
 		{
-			fprintf(PFILE, "answerprog            = %s\t\t# program used to answer incoming telephone calls\n", cep->answerprog);
 			fprintf(PFILE, "alert                 = %d\t\t# number of seconds to wait before accepting a call\n", cep->alert);
 		}
 
