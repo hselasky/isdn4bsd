@@ -81,6 +81,7 @@ struct usbd_ifqueue;
 struct __callout;
 struct module;
 struct malloc_type;
+struct proc;
 
 typedef u_int8_t usbd_status;
 
@@ -504,6 +505,49 @@ struct usbd_ifqueue {
   } while (0)
 
 /*---------------------------------------------------------------------------*
+ * structures used by the usbd config thread system
+ *---------------------------------------------------------------------------*/
+struct usbd_config_td_softc;
+struct usbd_config_td_cc;
+
+typedef void (usbd_config_td_command_t)
+  (struct usbd_config_td_softc *sc, 
+   struct usbd_config_td_cc *cc, 
+   u_int16_t reference);
+
+typedef void (usbd_config_td_config_copy_t)
+  (struct usbd_config_td_softc *sc, 
+   struct usbd_config_td_cc *cc, 
+   u_int16_t reference);
+
+typedef void (usbd_config_td_end_of_commands_t)
+ (struct usbd_config_td_softc *sc);
+
+struct usbd_config_td {
+    struct usbd_ifqueue	cmd_free;
+    struct usbd_ifqueue	cmd_used;
+
+    struct proc *	config_thread;
+    struct mtx *	p_mtx;
+    void *		p_softc;
+    void *		p_cmd_queue;
+
+    usbd_config_td_config_copy_t *p_config_copy;
+    usbd_config_td_end_of_commands_t *p_end_of_commands;
+
+    u_int8_t		wakeup_config_td;
+    u_int8_t		wakeup_config_td_gone;
+
+    u_int8_t		flag_config_td_sleep;
+    u_int8_t		flag_config_td_gone;
+};
+
+struct usbd_config_td_item {
+    usbd_config_td_command_t *command_func;
+    u_int16_t command_ref;
+} __attribute__((__aligned__(USB_HOST_ALIGN)));
+
+/*---------------------------------------------------------------------------*
  * structures used by probe and attach
  *---------------------------------------------------------------------------*/
 struct usb_devno {
@@ -702,6 +746,31 @@ usbd_std_transfer_setup(struct usbd_xfer *xfer, const struct usbd_config *setup,
 			u_int16_t max_packet_size, u_int16_t max_frame_size);
 u_int8_t
 usbd_make_str_desc(void *ptr, u_int16_t max_len, const char *s);
+
+u_int32_t
+mtx_drop_recurse(struct mtx *mtx);
+
+void
+mtx_pickup_recurse(struct mtx *mtx, u_int32_t recurse_level);
+
+u_int8_t
+usbd_config_td_setup(struct usbd_config_td *ctd, void *priv_sc, 
+		     struct mtx *priv_mtx, 
+		     usbd_config_td_config_copy_t *p_func_cc,
+		     usbd_config_td_end_of_commands_t *p_func_eoc,
+		     u_int16_t item_size, u_int16_t item_count);
+void
+usbd_config_td_stop(struct usbd_config_td *ctd);
+
+void
+usbd_config_td_unsetup(struct usbd_config_td *ctd);
+
+void
+usbd_config_td_queue_command(struct usbd_config_td *ctd,
+			     usbd_config_td_command_t *command_func,
+			     u_int16_t command_ref);
+void
+usbd_config_td_check_gone(struct usbd_config_td *ctd);
 
 /* routines from usb.c */
 

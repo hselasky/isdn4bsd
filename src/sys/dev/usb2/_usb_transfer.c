@@ -811,16 +811,9 @@ usbd_transfer_start(struct usbd_xfer *xfer)
 				}
 				else
 				{
-					u_int recurse = xfer->priv_mtx->mtx_recurse;
-					u_int __recurse = recurse;
+					u_int32_t level;
 
-					/* need to unlock private mutex so that
-					 * callback can be called
-					 */
-					while(__recurse--)
-					{
-						mtx_unlock(xfer->priv_mtx);
-					}
+					level = mtx_drop_recurse(xfer->priv_mtx);
 
 					if(msleep(xfer, xfer->priv_mtx,
 						  (PRIBIO|PCATCH), "usbsync", 0))
@@ -829,10 +822,7 @@ usbd_transfer_start(struct usbd_xfer *xfer)
 						usbd_transfer_stop(xfer);
 					}
 
-					while(recurse--)
-					{
-						mtx_lock(xfer->priv_mtx);
-					}
+					mtx_pickup_recurse(xfer->priv_mtx, level);
 					break;
 				}
 			}

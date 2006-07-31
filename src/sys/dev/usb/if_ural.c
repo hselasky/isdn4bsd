@@ -19,7 +19,7 @@
  *
  *
  * NOTE: all function names beginning like "ural_cfg_" can only
- * be called from within the "ural_config_thread()" function!
+ * be called from within the config thread function !
  */
 
 /*-
@@ -36,8 +36,6 @@
 #include <sys/systm.h>
 #include <sys/malloc.h>
 #include <sys/endian.h>
-#include <sys/kthread.h>
-#include <sys/unistd.h>
 
 #include <net/bpf.h>
 #include <net/if.h>
@@ -55,6 +53,9 @@
 #include <netinet/in_var.h>
 #include <netinet/ip.h>
 #include <netinet/if_ether.h>
+
+#define usbd_config_td_cc    ural_config_copy
+#define usbd_config_td_softc ural_softc
 
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
@@ -117,17 +118,14 @@ static void
 ural_cfg_rf_write(struct ural_softc *sc, u_int8_t reg, u_int32_t val);
 
 static void
-ural_config_thread(void *arg);
+ural_cfg_first_time_setup(struct ural_softc *sc,
+			  struct ural_config_copy *cc, u_int16_t refcount);
+static void
+ural_end_of_commands(struct ural_softc *sc);
 
 static void
-ural_config_copy(struct ural_softc *sc, struct ural_config_copy *cc);
-
-static void
-ural_queue_command(struct ural_softc *sc, ural_command_t *command_func);
-
-static void
-ural_check_gone(struct ural_softc *sc);
-
+ural_config_copy(struct ural_softc *sc, 
+		 struct ural_config_copy *cc, u_int16_t refcount);
 static const char *
 ural_get_rf(int rev);
 
@@ -189,32 +187,29 @@ static void
 ural_cfg_tx_bcn(struct ural_softc *sc);
 
 static void
-ural_cfg_dummy(struct ural_softc *sc,
-	       struct ural_config_copy *cc);
-static void
 ural_cfg_set_chan(struct ural_softc *sc,
-		  struct ural_config_copy *cc);
+		  struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_set_run(struct ural_softc *sc, 
-		 struct ural_config_copy *cc);
+		 struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_disable_rf_tune(struct ural_softc *sc);
 
 static void
 ural_cfg_enable_tsf_sync(struct ural_softc *sc,
-			 struct ural_config_copy *cc);
+			 struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_disable_tsf_sync(struct ural_softc *sc,
-			  struct ural_config_copy *cc);
+			  struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_update_slot(struct ural_softc *sc,
-		     struct ural_config_copy *cc);
+		     struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_set_txpreamble(struct ural_softc *sc,
-			struct ural_config_copy *cc);
+			struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_set_basicrates(struct ural_softc *sc,
-			struct ural_config_copy *cc);
+			struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_set_bssid(struct ural_softc *sc, const u_int8_t *bssid);
 
@@ -223,7 +218,7 @@ ural_cfg_set_macaddr(struct ural_softc *sc, const u_int8_t *addr);
 
 static void
 ural_cfg_update_promisc(struct ural_softc *sc,
-			struct ural_config_copy *cc);
+			struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_set_txantenna(struct ural_softc *sc, u_int8_t antenna);
 
@@ -238,16 +233,16 @@ ural_cfg_bbp_init(struct ural_softc *sc);
 
 static void
 ural_cfg_init(struct ural_softc *sc,
-	      struct ural_config_copy *cc);
+	      struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_stop(struct ural_softc *sc,
-	      struct ural_config_copy *cc);
+	      struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_amrr_start(struct ural_softc *sc);
 
 static void
 ural_cfg_amrr_timeout(struct ural_softc *sc,
-		      struct ural_config_copy *cc);
+		      struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_ratectl(struct ural_amrr *amrr, struct ieee80211_node *ni);
 
@@ -563,27 +558,24 @@ ural_attach(device_t dev)
 	    goto detach;
 	}
 
- 	sc->sc_cmd_queue_ptr = 
-	  usbd_alloc_mbufs(M_DEVBUF, &(sc->sc_cmd_free), 
-			   sizeof(struct ural_config_copy), 16);
-
-	if (sc->sc_cmd_queue_ptr == NULL) {
-	    device_printf(dev, "could not allocate memory for "
-			  "command queue!\n");
+	error = usbd_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
+				     &ural_config_copy, &ural_end_of_commands,
+				     sizeof(struct ural_config_copy), 16);
+	if (error) {
+	    device_printf(dev, "could not setup config "
+			  "thread!\n");
 	    goto detach;
 	}
-
-	if(usb_kthread_create1(&ural_config_thread, sc, 
-			       &(sc->sc_config_thread), "%s", sc->sc_name))
-	{
-	    sc->sc_config_thread = NULL;
-	    device_printf(dev, "unable to create config thread!\n");
-	    goto detach;
-	}
-
-	/* start watchdog */
 
 	mtx_lock(&(sc->sc_mtx));
+
+	/* start setup */
+
+	usbd_config_td_queue_command
+	  (&(sc->sc_config_td), &ural_cfg_first_time_setup, 0);
+
+	/* start watchdog (will exit mutex) */
+
 	ural_watchdog(sc);
 
 	return 0; /* success */
@@ -599,30 +591,14 @@ ural_detach(device_t dev)
 	struct ural_softc *sc = device_get_softc(dev);
 	struct ieee80211com *ic;
 	struct ifnet *ifp;
-	register int error;
 
 	mtx_lock(&(sc->sc_mtx));
 
-	sc->sc_flags |= URAL_FLAG_DEV_GONE;
+	usbd_config_td_stop(&(sc->sc_config_td));
 
 	__callout_stop(&sc->sc_watchdog);
 
-	ural_queue_command(sc, &ural_cfg_dummy);
-
-	ural_cfg_stop(sc, NULL);
-
-	if (sc->sc_config_thread) {
-
-	    while (!(sc->sc_flags & URAL_FLAG_TD_EXIT)) {
-
-	        if (cold) {
-		    panic("cannot stop config thread!\n");
-		}
-
-		error = msleep(&(sc->sc_wakeup_td_gone), 
-			       &(sc->sc_mtx), 0, "ural wait TD", 0);
-	    }
-	}
+	ural_cfg_stop(sc, NULL, 0);
 
 	ic = &(sc->sc_ic);
 	ifp = ic->ic_ifp;
@@ -639,10 +615,7 @@ ural_detach(device_t dev)
 
 	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
-	if (sc->sc_cmd_queue_ptr) {
-	    free(sc->sc_cmd_queue_ptr, M_DEVBUF);
-	    sc->sc_cmd_queue_ptr = NULL;
-	}
+	usbd_config_td_unsetup(&(sc->sc_config_td));
 
 	mtx_destroy(&sc->sc_mtx);
 
@@ -661,7 +634,8 @@ ural_cfg_do_request(struct ural_softc *sc, usb_device_request_t *req,
 
 	err = usbd_do_request_flags_mtx(sc->sc_udev, &(sc->sc_mtx), req, 
 					data, 0, NULL, 1000);
-	ural_check_gone(sc);
+
+	usbd_config_td_check_gone(&(sc->sc_config_td));
 
 	if (err) {
 	    u_int16_t length = UGETW(req->wLength);
@@ -854,22 +828,17 @@ ural_cfg_rf_write(struct ural_softc *sc, u_int8_t reg, u_int32_t val)
 	return;
 }
 
-/*========================================================================*
- * CONFIGURE THREAD
- *========================================================================*/
-
 static void
-ural_config_thread(void *arg)
+ural_cfg_first_time_setup(struct ural_softc *sc,
+			  struct ural_config_copy *cc, u_int16_t refcount)
 {
-	struct ural_softc *sc = arg;
 	struct ieee80211com *ic = &(sc->sc_ic);
 	struct ifnet *ifp;
-	struct usbd_mbuf *m;
-	struct ural_config_copy *cc;
-	register int error;
 	register u_int16_t i;
 
-	mtx_lock(&(sc->sc_mtx));
+	if (cc == NULL) {
+	    return;
+	}
 
 	/* retrieve RT2570 rev. no */
 	sc->sc_asic_rev = ural_cfg_read(sc, RAL_MAC_CSR0);
@@ -889,7 +858,7 @@ ural_config_thread(void *arg)
 	if (ifp == NULL) {
 	    printf("%s: could not if_alloc()!\n", 
 		   sc->sc_name);
-	    goto command_loop;
+	    goto done;
 	}
 
 	sc->sc_ifp = ifp;
@@ -991,49 +960,26 @@ ural_config_thread(void *arg)
 	if (bootverbose) {
 	    ieee80211_announce(ic);
 	}
-
- command_loop:
-
-	while(1) {
-
-	    ural_check_gone(sc);
-
-	    USBD_IF_DEQUEUE(&(sc->sc_cmd_used), m);
-
-	    if (m) {
-
-	        cc = (void *)(m->cur_data_ptr);
-
-		(cc->command_func)(sc, cc);
-
-		USBD_IF_ENQUEUE(&(sc->sc_cmd_free), m);
-
-		continue;
-	    }
-
-	    sc->sc_flags &= ~URAL_FLAG_WAIT_COMMAND;
-
-	    if ((sc->sc_flags & URAL_FLAG_LL_READY) &&
-		(sc->sc_flags & URAL_FLAG_HL_READY)) {
-	        /* start write transfer, if not started */
-	        usbd_transfer_start(sc->sc_xfer[0]);
-	    }
-
-	    sc->sc_flags |= URAL_FLAG_CMD_SLEEP;
-
-	    error = msleep(&(sc->sc_wakeup_cfg), &(sc->sc_mtx), 
-			   0, "ural cfg sleep", 0);
-
-	    sc->sc_flags &= ~URAL_FLAG_CMD_SLEEP;
-	}
-
-	mtx_unlock(&(sc->sc_mtx));
-
+ done:
 	return;
 }
 
 static void
-ural_config_copy(struct ural_softc *sc, struct ural_config_copy *cc)
+ural_end_of_commands(struct ural_softc *sc)
+{
+	sc->sc_flags &= ~URAL_FLAG_WAIT_COMMAND;
+
+	if ((sc->sc_flags & URAL_FLAG_LL_READY) &&
+	    (sc->sc_flags & URAL_FLAG_HL_READY)) {
+	    /* start write transfer, if not started */
+	    usbd_transfer_start(sc->sc_xfer[0]);
+	}
+	return;
+}
+
+static void
+ural_config_copy(struct ural_softc *sc, 
+		 struct ural_config_copy *cc, u_int16_t refcount)
 {
 	struct ieee80211com *ic = &(sc->sc_ic);
 	struct ieee80211_channel *c = ic->ic_curchan;
@@ -1084,88 +1030,7 @@ ural_config_copy(struct ural_softc *sc, struct ural_config_copy *cc)
 	bcopy(ic->ic_myaddr, cc->ic_myaddr, 
 	      sizeof(cc->ic_myaddr));
 
-	return;
-}
-
-static void
-ural_queue_command(struct ural_softc *sc, ural_command_t *command_func)
-{
-	struct usbd_mbuf *m;
-	struct ural_config_copy *cc;
-	int32_t qlen;
-
-	mtx_assert(&(sc->sc_mtx), MA_OWNED);
-
-	/*
-	 * first check if the command was
-	 * already queued, and if so, remove
-	 * it from the queue:
-	 */
-	qlen = USBD_IF_QLEN(&(sc->sc_cmd_used));
-
-	while (qlen--) {
-
-	    USBD_IF_DEQUEUE(&(sc->sc_cmd_used), m);
-
-	    if (m == NULL) break;
-
-	    cc = (void *)(m->cur_data_ptr);
-
-	    if (cc->command_func == command_func) {
-	        USBD_IF_ENQUEUE(&(sc->sc_cmd_free), m);
-	    } else {
-	        USBD_IF_ENQUEUE(&(sc->sc_cmd_used), m);
-	    }
-	}
-
-	USBD_IF_DEQUEUE(&(sc->sc_cmd_free), m);
-
-	if (m == NULL) {
-	    panic("%s:%d: out of memory!\n",
-		  __FUNCTION__, __LINE__);
-	}
-
-	USBD_MBUF_RESET(m);
-
-	cc = (void *)(m->cur_data_ptr);
-
-	ural_config_copy(sc, cc);
-
-	cc->command_func = command_func;
-
-	USBD_IF_ENQUEUE(&(sc->sc_cmd_used), m);
-
-	if (sc->sc_flags &   URAL_FLAG_CMD_SLEEP) {
-	    sc->sc_flags &= ~URAL_FLAG_CMD_SLEEP;
-	    wakeup(&(sc->sc_wakeup_cfg));
-	}
-
-	/* early call to function */
-
 	sc->sc_flags |= URAL_FLAG_WAIT_COMMAND;
-
-	(command_func)(sc, NULL);
-
-	return;
-}
-
-static void
-ural_check_gone(struct ural_softc *sc)
-{
-	mtx_assert(&(sc->sc_mtx), MA_OWNED);
-
-	if (sc->sc_flags & URAL_FLAG_DEV_GONE) {
-
-	    sc->sc_flags |= URAL_FLAG_TD_EXIT;
-
-	    wakeup(&(sc->sc_wakeup_td_gone));
-
-	    mtx_unlock(&(sc->sc_mtx));
-
-	    mtx_assert(&(sc->sc_mtx), MA_NOTOWNED);
-
-	    kthread_exit(0);
-	}
 	return;
 }
 
@@ -1824,14 +1689,16 @@ ural_watchdog(void *arg)
 	if ((sc->sc_amrr_timer) &&
 	    (--sc->sc_amrr_timer == 0)) {
 
-	    ural_queue_command(sc, &ural_cfg_amrr_timeout);
+	    usbd_config_td_queue_command
+	      (&(sc->sc_config_td), &ural_cfg_amrr_timeout, 0);
 	}
 
 	if ((sc->sc_tx_timer) &&
 	    (--sc->sc_tx_timer == 0)) {
 
 	    printf("%s: device timeout\n", sc->sc_name);
-	    ural_queue_command(sc, &ural_cfg_init);
+	    usbd_config_td_queue_command
+	      (&(sc->sc_config_td), &ural_cfg_init, 0);
 	}
 
 	if ((sc->sc_if_timer) &&
@@ -1868,7 +1735,8 @@ ural_init_cb(void *arg)
 	struct ural_softc *sc = arg;
 
 	mtx_lock(&(sc->sc_mtx));
-	ural_queue_command(sc, &ural_cfg_init);
+	usbd_config_td_queue_command
+	  (&(sc->sc_config_td), &ural_cfg_init, 0);
 	mtx_unlock(&(sc->sc_mtx));
 
 	return;
@@ -1888,13 +1756,16 @@ ural_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 
 	    if (ifp->if_flags & IFF_UP) {
 	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
-		    ural_queue_command(sc, &ural_cfg_update_promisc);
+		    usbd_config_td_queue_command
+		      (&(sc->sc_config_td), &ural_cfg_update_promisc, 0);
 		} else {
-		    ural_queue_command(sc, &ural_cfg_init); 
+		    usbd_config_td_queue_command
+		      (&(sc->sc_config_td), &ural_cfg_init, 0); 
 		}
 	    } else {
 	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
-		    ural_queue_command(sc, &ural_cfg_stop);
+		    usbd_config_td_queue_command
+		      (&(sc->sc_config_td), &ural_cfg_stop, 0);
 		}
 	    }
 	    break;
@@ -1907,7 +1778,8 @@ ural_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 	    if ((ifp->if_flags & IFF_UP) &&
 		(ifp->if_drv_flags & IFF_DRV_RUNNING) &&
 		(ic->ic_roaming != IEEE80211_ROAMING_MANUAL)) {
-	        ural_queue_command(sc, &ural_cfg_init);
+	        usbd_config_td_queue_command
+		  (&(sc->sc_config_td), &ural_cfg_init, 0);
 	    }
 	    error = 0;
 	}
@@ -1950,7 +1822,8 @@ ural_media_change_cb(struct ifnet *ifp)
 
 	if ((ifp->if_flags & IFF_UP) &&
 	    (ifp->if_drv_flags & IFF_DRV_RUNNING)) {
-	    ural_queue_command(sc, &ural_cfg_init);
+	    usbd_config_td_queue_command
+	      (&(sc->sc_config_td), &ural_cfg_init, 0);
 	}
 
  done:
@@ -1976,7 +1849,8 @@ ural_reset_cb(struct ifnet *ifp)
 		return ENETRESET;
 	}
 
-	ural_queue_command(sc, &ural_cfg_set_chan);
+	usbd_config_td_queue_command
+	  (&(sc->sc_config_td), &ural_cfg_set_chan, 0);
 
 	mtx_unlock(&(sc->sc_mtx));
 
@@ -2003,26 +1877,31 @@ ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 	switch (nstate) {
 	case IEEE80211_S_INIT:
 	    if (sc->sc_ic.ic_state == IEEE80211_S_RUN) {
-	        ural_queue_command(sc, &ural_cfg_disable_tsf_sync);
+	      usbd_config_td_queue_command
+		(&(sc->sc_config_td), &ural_cfg_disable_tsf_sync, 0);
 	    }
 	    sc->sc_if_timer = 0;
 	    break;
 
 	case IEEE80211_S_SCAN:
-	    ural_queue_command(sc, &ural_cfg_set_chan);
+	    usbd_config_td_queue_command
+	      (&(sc->sc_config_td), &ural_cfg_set_chan, 0);
 	    sc->sc_scan_timer = 3;
 	    break;
 
 	case IEEE80211_S_AUTH:
-	    ural_queue_command(sc, &ural_cfg_set_chan);
+	    usbd_config_td_queue_command
+	      (&(sc->sc_config_td), &ural_cfg_set_chan, 0);
 	    break;
 
 	case IEEE80211_S_ASSOC:
-	    ural_queue_command(sc, &ural_cfg_set_chan);
+	    usbd_config_td_queue_command
+	      (&(sc->sc_config_td), &ural_cfg_set_chan, 0);
 	    break;
 
 	case IEEE80211_S_RUN:
-	    ural_queue_command(sc, &ural_cfg_set_run);
+	    usbd_config_td_queue_command
+	      (&(sc->sc_config_td), &ural_cfg_set_run, 0);
 	    break;
 	}
 
@@ -2040,18 +1919,18 @@ ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 static void
 ural_cfg_sleep(struct ural_softc *sc, u_int32_t timeout)
 {
-    int error;
+	int error;
 
-    if (timeout == 0) {
-        timeout = 1;
-    }
+	if (timeout == 0) {
+	    timeout = 1;
+	}
 
-    error = msleep(sc, &(sc->sc_mtx), 0, 
-		   "ural delay sleep", timeout);
+	error = msleep(sc, &(sc->sc_mtx), 0, 
+		       "ural delay sleep", timeout);
 
-    ural_check_gone(sc);
+	usbd_config_td_check_gone(&(sc->sc_config_td));
 
-    return;
+	return;
 }
 
 static void
@@ -2106,22 +1985,15 @@ ural_cfg_tx_bcn(struct ural_softc *sc)
 	        error = msleep(&(sc->sc_wakeup_bcn), &(sc->sc_mtx), 
 			       0, "ural beacon sleep", 0);
 
-		ural_check_gone(sc);
+		usbd_config_td_check_gone(&(sc->sc_config_td));
 	    }
 	}
 	return;
 }
 
 static void
-ural_cfg_dummy(struct ural_softc *sc,
-	       struct ural_config_copy *cc)
-{
-	return;
-}
-
-static void
 ural_cfg_set_chan(struct ural_softc *sc,
-		  struct ural_config_copy *cc)
+		  struct ural_config_copy *cc, u_int16_t refcount)
 {
 	u_int32_t i;
 	u_int32_t chan;
@@ -2244,7 +2116,7 @@ ural_cfg_set_chan(struct ural_softc *sc,
 
 static void
 ural_cfg_set_run(struct ural_softc *sc, 
-		 struct ural_config_copy *cc)
+		 struct ural_config_copy *cc, u_int16_t refcount)
 {
 	if (cc == NULL) {
 
@@ -2262,12 +2134,12 @@ ural_cfg_set_run(struct ural_softc *sc,
 
 	/* delayed configuration */
 
-	ural_cfg_set_chan(sc, cc);
+	ural_cfg_set_chan(sc, cc, 0);
 
 	if (cc->ic_opmode != IEEE80211_M_MONITOR) {
-	    ural_cfg_update_slot(sc, cc);
-	    ural_cfg_set_txpreamble(sc, cc);
-	    ural_cfg_set_basicrates(sc, cc);
+	    ural_cfg_update_slot(sc, cc, 0);
+	    ural_cfg_set_txpreamble(sc, cc, 0);
+	    ural_cfg_set_basicrates(sc, cc, 0);
 	    ural_cfg_set_bssid(sc, cc->ic_bss.ni_bssid);
 	}
 
@@ -2280,7 +2152,7 @@ ural_cfg_set_run(struct ural_softc *sc,
 	ural_cfg_write(sc, RAL_MAC_CSR20, 1);
 
 	if (cc->ic_opmode != IEEE80211_M_MONITOR) {
-	    ural_cfg_enable_tsf_sync(sc, cc);
+	    ural_cfg_enable_tsf_sync(sc, cc , 0);
 	}
 
 	/* clear statistic registers (STA_CSR0 to STA_CSR10) */
@@ -2316,7 +2188,7 @@ ural_cfg_disable_rf_tune(struct ural_softc *sc)
  *------------------------------------------------------------------------*/
 static void
 ural_cfg_enable_tsf_sync(struct ural_softc *sc,
-			 struct ural_config_copy *cc)
+			 struct ural_config_copy *cc, u_int16_t refcount)
 {
 	u_int16_t logcwmin;
 	u_int16_t preload;
@@ -2354,7 +2226,7 @@ ural_cfg_enable_tsf_sync(struct ural_softc *sc,
 
 static void
 ural_cfg_disable_tsf_sync(struct ural_softc *sc,
-			  struct ural_config_copy *cc)
+			  struct ural_config_copy *cc, u_int16_t refcount)
 {
 	if (cc == NULL) {
 	    /* nothing to do */
@@ -2372,7 +2244,7 @@ ural_cfg_disable_tsf_sync(struct ural_softc *sc,
 
 static void
 ural_cfg_update_slot(struct ural_softc *sc,
-		     struct ural_config_copy *cc)
+		     struct ural_config_copy *cc, u_int16_t refcount)
 {
 	u_int16_t slottime;
 	u_int16_t sifs;
@@ -2405,7 +2277,7 @@ ural_cfg_update_slot(struct ural_softc *sc,
 
 static void
 ural_cfg_set_txpreamble(struct ural_softc *sc,
-			struct ural_config_copy *cc)
+			struct ural_config_copy *cc, u_int16_t refcount)
 {
 	u_int16_t tmp;
 
@@ -2428,7 +2300,7 @@ ural_cfg_set_txpreamble(struct ural_softc *sc,
 
 static void
 ural_cfg_set_basicrates(struct ural_softc *sc,
-			struct ural_config_copy *cc)
+			struct ural_config_copy *cc, u_int16_t refcount)
 {
 	if (cc == NULL) {
 	    /* nothing to do */
@@ -2492,7 +2364,7 @@ ural_cfg_set_macaddr(struct ural_softc *sc, const u_int8_t *addr)
 
 static void
 ural_cfg_update_promisc(struct ural_softc *sc,
-			struct ural_config_copy *cc)
+			struct ural_config_copy *cc, u_int16_t refcount)
 {
 	u_int16_t tmp;
 
@@ -2646,7 +2518,7 @@ ural_cfg_bbp_init(struct ural_softc *sc)
 
 static void
 ural_cfg_init(struct ural_softc *sc,
-	      struct ural_config_copy *cc)
+	      struct ural_config_copy *cc, u_int16_t refcount)
 {
 	u_int16_t tmp;
 	u_int16_t i;
@@ -2659,7 +2531,7 @@ ural_cfg_init(struct ural_softc *sc,
 	    struct ieee80211com *ic = &(sc->sc_ic);
 	    struct ifnet *ifp = sc->sc_ic.ic_ifp;
 
-	    ural_cfg_stop(sc, NULL);
+	    ural_cfg_stop(sc, NULL, 0);
 
 	    ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	    ifp->if_drv_flags |= IFF_DRV_RUNNING;
@@ -2685,7 +2557,7 @@ ural_cfg_init(struct ural_softc *sc,
 
 	ural_cfg_write(sc, 0x308, 0x00f0);	/* XXX magic */
 
-	ural_cfg_stop(sc, cc);
+	ural_cfg_stop(sc, cc, 0);
 
 	/* initialize MAC registers to default values */
 	for (i = 0; i < (sizeof(ural_def_mac)/
@@ -2721,7 +2593,7 @@ ural_cfg_init(struct ural_softc *sc,
 	}
 
 	/* set default BSS channel */
-	ural_cfg_set_chan(sc, cc);
+	ural_cfg_set_chan(sc, cc, 0);
 
 	/* clear statistic registers (STA_CSR0 to STA_CSR10) */
 	ural_cfg_read_multi(sc, RAL_STA_CSR0, sc->sc_sta, 
@@ -2780,17 +2652,17 @@ ural_cfg_init(struct ural_softc *sc,
 	return;
 
  fail:
-	ural_cfg_stop(sc, NULL);
+	ural_cfg_stop(sc, NULL, 0);
 
 	if (cc) {
-	    ural_cfg_stop(sc, cc);
+	    ural_cfg_stop(sc, cc, 0);
 	}
 	return;
 }
 
 static void
 ural_cfg_stop(struct ural_softc *sc,
-	      struct ural_config_copy *cc)
+	      struct ural_config_copy *cc, u_int16_t refcount)
 {
 	if (cc == NULL) {
 
@@ -2881,7 +2753,7 @@ ural_cfg_amrr_start(struct ural_softc *sc)
 
 static void
 ural_cfg_amrr_timeout(struct ural_softc *sc,
-		      struct ural_config_copy *cc)
+		      struct ural_config_copy *cc, u_int16_t refcount)
 {
 	struct ural_amrr *amrr = &sc->sc_amrr;
 	struct ifnet *ifp = sc->sc_ic.ic_ifp;

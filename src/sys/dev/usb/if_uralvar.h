@@ -17,11 +17,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-struct ural_softc;
-struct ural_config_copy;
-
-typedef void (ural_command_t)(struct ural_softc *sc, 
-			      struct ural_config_copy *cc);
 struct ural_config_copy {
 	struct {
 	  u_int32_t		chan_to_ieee;
@@ -53,8 +48,6 @@ struct ural_config_copy {
 	u_int16_t		ic_curmode;
 
 	u_int8_t		ic_myaddr[IEEE80211_ADDR_LEN];
-
-	ural_command_t *	command_func;
 };
 
 struct ural_rx_radiotap_header {
@@ -116,6 +109,7 @@ struct ural_bbp_prom {
 
 struct ural_softc {
 
+	struct usbd_config_td		sc_config_td;
 	struct ural_tx_desc		sc_tx_desc;
 	struct ural_rx_desc		sc_rx_desc;
 	struct ieee80211com		sc_ic;
@@ -126,16 +120,12 @@ struct ural_softc {
 	struct __callout		sc_watchdog;
 	struct ural_bbp_prom 		sc_bbp_prom[16];
 	struct usbd_xfer *		sc_xfer[URAL_N_TRANSFER];
-	struct usbd_ifqueue		sc_cmd_free;
-	struct usbd_ifqueue		sc_cmd_used;
 	union ural_rxtap		sc_rxtap;
 	union ural_txtap		sc_txtap;
 
 	struct mbuf *			sc_bcn_mbuf;
- 	struct proc *			sc_config_thread;
 	struct ifnet *			sc_ifp;
 	struct bpf_if *			sc_drvbpf;
-	void *				sc_cmd_queue_ptr;
 	struct usbd_device *		sc_udev;
 
 	int (*sc_newstate)
@@ -147,18 +137,15 @@ struct ural_softc {
 	u_int32_t			sc_unit;
 	u_int32_t			sc_asic_rev;
 	u_int32_t			sc_rf_regs[4];
-	u_int32_t			sc_flags;
-#define URAL_FLAG_DEV_GONE		0x0001
-#define URAL_FLAG_TD_EXIT		0x0002
-#define URAL_FLAG_CMD_SLEEP		0x0004
-#define URAL_FLAG_READ_STALL		0x0008
-#define URAL_FLAG_WRITE_STALL		0x0010
-#define URAL_FLAG_SEND_BYTE_FRAME	0x0020
-#define URAL_FLAG_SEND_BCN_FRAME	0x0040
-#define URAL_FLAG_LL_READY		0x0080
-#define URAL_FLAG_HL_READY		0x0100
-#define URAL_FLAG_WAIT_COMMAND		0x0200
 
+	u_int16_t			sc_flags;
+#define URAL_FLAG_READ_STALL		0x0001
+#define URAL_FLAG_WRITE_STALL		0x0002
+#define URAL_FLAG_SEND_BYTE_FRAME	0x0004
+#define URAL_FLAG_SEND_BCN_FRAME	0x0008
+#define URAL_FLAG_LL_READY		0x0010
+#define URAL_FLAG_HL_READY		0x0020
+#define URAL_FLAG_WAIT_COMMAND		0x0040
 	u_int16_t			sc_txtap_len;
 	u_int16_t			sc_rxtap_len;
 	u_int16_t			sc_sta[11];
@@ -177,8 +164,6 @@ struct ural_softc {
 	u_int8_t			sc_amrr_timer;
 	u_int8_t			sc_name[32];
 
-	u_int8_t			sc_wakeup_td_gone;
-	u_int8_t			sc_wakeup_cfg;
 	u_int8_t			sc_wakeup_bcn;
 };
 

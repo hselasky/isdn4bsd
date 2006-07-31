@@ -187,10 +187,8 @@ extern int cold;
 
 #include "opt_usb.h"
 
-#define usb_kthread_create1(f, s, p, a0, a1) \
-		kthread_create((f), (s), (p), RFHIGHPID, 0, (a0), (a1))
-#define usb_kthread_create2(f, s, p, a0) \
-		kthread_create((f), (s), (p), RFHIGHPID, 0, (a0))
+#define usb_kthread_create1(f, s, p, ...) \
+		kthread_create((f), (s), (p), RFHIGHPID, 0, __VA_ARGS__)
 #define usb_kthread_create	kthread_create
 
 #define clalloc(p, s, x) (clist_alloc_cblocks((p), (s), (s)), 0)

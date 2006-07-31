@@ -44,6 +44,8 @@
 #include <sys/lock.h>
 #include <sys/malloc.h>
 #include <sys/mbuf.h>
+#include <sys/kthread.h>
+#include <sys/unistd.h>
 
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
@@ -2310,4 +2312,303 @@ usbd_make_str_desc(void *ptr, u_int16_t max_len, const char *s)
 	    USETW2(p->bString[max_len], 0, s[max_len]);
 	}
 	return totlen;
+}
+
+/*------------------------------------------------------------------------*
+ * mtx_drop_recurse - drop mutex recurse level
+ *------------------------------------------------------------------------*/
+u_int32_t
+mtx_drop_recurse(struct mtx *mtx)
+{
+	u_int32_t recurse_level = mtx->mtx_recurse;
+	u_int32_t recurse_curr = recurse_level;
+
+	mtx_assert(mtx, MA_OWNED);
+
+	while(recurse_curr--) {
+	    mtx_unlock(mtx);
+	}
+
+	return recurse_level;
+}
+
+/*------------------------------------------------------------------------*
+ * mtx_pickup_recurse - pickup mutex recurse level
+ *------------------------------------------------------------------------*/
+void
+mtx_pickup_recurse(struct mtx *mtx, u_int32_t recurse_level)
+{
+	mtx_assert(mtx, MA_OWNED);
+
+	while(recurse_level--) {
+	    mtx_lock(mtx);
+	}
+	return;
+}
+
+
+/*------------------------------------------------------------------------*
+ * usbd_config_thread
+ *------------------------------------------------------------------------*/
+static void
+usbd_config_td_thread(void *arg)
+{
+	struct usbd_config_td *ctd = arg;
+	struct usbd_config_td_item *item;
+	struct usbd_mbuf *m;
+	register int error;
+
+	mtx_lock(ctd->p_mtx);
+
+	while(1) {
+
+	    usbd_config_td_check_gone(ctd);
+
+	    USBD_IF_DEQUEUE(&(ctd->cmd_used), m);
+
+	    if (m) {
+
+	        item = (void *)(m->cur_data_ptr);
+
+		(item->command_func)
+		  (ctd->p_softc, (void *)(item+1), item->command_ref);
+
+		USBD_IF_ENQUEUE(&(ctd->cmd_free), m);
+
+		continue;
+	    }
+
+	    if (ctd->p_end_of_commands) {
+	        (ctd->p_end_of_commands)(ctd->p_softc);
+	    }
+
+	    ctd->flag_config_td_sleep = 1;
+
+	    error = msleep(&(ctd->wakeup_config_td), ctd->p_mtx,
+			   0, "cfg td sleep", 0);
+
+	    ctd->flag_config_td_sleep = 0;
+	}
+
+	ctd->config_thread = NULL;
+
+	mtx_unlock(ctd->p_mtx);
+
+	kthread_exit(0);
+
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ * usbd_config_td_setup
+ *
+ * NOTE: the structure pointed to by "ctd" must be zeroed before calling 
+ * this function!
+ *
+ * Return values:
+ *    0: success
+ * else: failure
+ *------------------------------------------------------------------------*/
+u_int8_t
+usbd_config_td_setup(struct usbd_config_td *ctd, void *priv_sc, 
+		     struct mtx *priv_mtx, 
+		     usbd_config_td_config_copy_t *p_func_cc,
+		     usbd_config_td_end_of_commands_t *p_func_eoc,
+		     u_int16_t item_size, u_int16_t item_count)
+{
+	ctd->p_mtx = priv_mtx;
+	ctd->p_softc = priv_sc;
+	ctd->p_config_copy = p_func_cc;
+	ctd->p_end_of_commands = p_func_eoc;
+
+	if (item_count >= 256) {
+	    PRINTFN(0,("too many items!\n"));
+	    goto error;
+	}
+
+	ctd->p_cmd_queue = 
+	  usbd_alloc_mbufs(M_DEVBUF, &(ctd->cmd_free), 
+			   (sizeof(struct usbd_config_td_item) + item_size), 
+			   item_count);
+
+	if (ctd->p_cmd_queue == NULL) {
+	    PRINTFN(0,("unable to allocate memory "
+		       "for command queue!\n"));
+	    goto error;
+	}
+
+	if (usb_kthread_create1
+	    (&usbd_config_td_thread, ctd, &(ctd->config_thread), 
+	     "usbd config thread")) {
+	    PRINTFN(0,("unable to create config thread!\n"));
+	    ctd->config_thread = NULL;
+	    goto error;
+	}
+	return 0;
+
+ error:
+	usbd_config_td_unsetup(ctd);
+	return 1;
+}
+
+/*------------------------------------------------------------------------*
+ * usbd_config_td_dummy_cmd
+ *------------------------------------------------------------------------*/
+static void
+usbd_config_td_dummy_cmd(struct usbd_config_td_softc *sc, 
+			 struct usbd_config_td_cc *cc, 
+			 u_int16_t reference)
+{
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ * usbd_config_td_stop
+ *
+ * NOTE: If the structure pointed to by "ctd" is all zero,
+ * this function does nothing.
+ *------------------------------------------------------------------------*/
+void
+usbd_config_td_stop(struct usbd_config_td *ctd)
+{
+	register int error;
+
+	while (ctd->config_thread) {
+
+	    mtx_assert(ctd->p_mtx, MA_OWNED);
+
+	    ctd->flag_config_td_gone = 1;
+
+	    usbd_config_td_queue_command(ctd, &usbd_config_td_dummy_cmd, 0);
+
+	    if (cold) {
+	        panic("%s:%d: cannot stop config thread!\n",
+		      __FUNCTION__, __LINE__);
+	    }
+
+	    error = msleep(&(ctd->wakeup_config_td_gone), 
+			   ctd->p_mtx, 0, "wait config TD", 0);
+	}
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ * usbd_config_td_unsetup
+ *
+ * NOTE: If the structure pointed to by "ctd" is all zero,
+ * this function does nothing.
+ *------------------------------------------------------------------------*/
+void
+usbd_config_td_unsetup(struct usbd_config_td *ctd)
+{
+	if (ctd->p_mtx) {
+	    mtx_lock(ctd->p_mtx);
+	    usbd_config_td_stop(ctd);
+	    mtx_unlock(ctd->p_mtx);
+	}
+	if (ctd->p_cmd_queue) {
+	    free(ctd->p_cmd_queue, M_DEVBUF);
+	    ctd->p_cmd_queue = NULL;
+	}
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ * usbd_config_td_queue_command
+ *------------------------------------------------------------------------*/
+void
+usbd_config_td_queue_command(struct usbd_config_td *ctd,
+			     usbd_config_td_command_t *command_func,
+			     u_int16_t command_ref)
+{
+	struct usbd_config_td_item *item;
+	struct usbd_mbuf *m;
+	int32_t qlen;
+
+	mtx_assert(ctd->p_mtx, MA_OWNED);
+
+	/*
+	 * first check if the command was
+	 * already queued, and if so, remove
+	 * it from the queue:
+	 */
+	qlen = USBD_IF_QLEN(&(ctd->cmd_used));
+
+	while (qlen--) {
+
+	    USBD_IF_DEQUEUE(&(ctd->cmd_used), m);
+
+	    if (m == NULL) {
+	        /* should not happen */
+	        break;
+	    }
+
+	    item = (void *)(m->cur_data_ptr);
+
+	    if ((item->command_func == command_func) &&
+		(item->command_ref == command_ref)) {
+	        USBD_IF_ENQUEUE(&(ctd->cmd_free), m);
+	    } else {
+	        USBD_IF_ENQUEUE(&(ctd->cmd_used), m);
+	    }
+	}
+
+	USBD_IF_DEQUEUE(&(ctd->cmd_free), m);
+
+	if (m == NULL) {
+	    /* should not happen */
+	    panic("%s:%d: out of memory!\n",
+		  __FUNCTION__, __LINE__);
+	}
+
+	USBD_MBUF_RESET(m);
+
+	item = (void *)(m->cur_data_ptr);
+
+	if (ctd->p_config_copy) {
+	    (ctd->p_config_copy)(ctd->p_softc, (void *)(item+1), command_ref);
+	}
+
+	item->command_func = command_func;
+	item->command_ref = command_ref;
+
+	USBD_IF_ENQUEUE(&(ctd->cmd_used), m);
+
+	if (ctd->flag_config_td_sleep) {
+	    ctd->flag_config_td_sleep = 0;
+	    wakeup(&(ctd->wakeup_config_td));
+	}
+
+	/* first call to command function */
+
+	(command_func)(ctd->p_softc, NULL, command_ref);
+
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ * usbd_config_td_check_gone
+ *
+ * NOTE: this function can only be called from the config thread
+ *------------------------------------------------------------------------*/
+void
+usbd_config_td_check_gone(struct usbd_config_td *ctd)
+{
+	u_int32_t level;
+
+	mtx_assert(ctd->p_mtx, MA_OWNED);
+
+	if (ctd->flag_config_td_gone) {
+
+	    ctd->config_thread = NULL;
+
+	    wakeup(&(ctd->wakeup_config_td_gone));
+
+	    level = mtx_drop_recurse(ctd->p_mtx);
+
+	    mtx_unlock(ctd->p_mtx);
+
+	    kthread_exit(0);
+	}
+	return;
 }
