@@ -54,7 +54,7 @@
 #include <netinet/ip.h>
 #include <netinet/if_ether.h>
 
-#define usbd_config_td_cc    ural_config_copy
+#define usbd_config_td_cc ural_config_copy
 #define usbd_config_td_softc ural_softc
 
 #include <dev/usb2/usb_port.h>
@@ -63,10 +63,10 @@
 
 #include "usbdevs.h"
 
-#include <dev/usb2/../usb/if_uralreg.h>
-#include <dev/usb2/../usb/if_uralvar.h>
+#include <dev/usb/if_uralreg.h>
+#include <dev/usb/if_uralvar.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb2/if_ural.c,v 1.38 2006/05/16 14:36:32 phk Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.38 2006/05/16 14:36:32 phk Exp $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(sc,n,fmt,...)	\
@@ -176,9 +176,6 @@ ural_reset_cb(struct ifnet *ifp);
 
 static int
 ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg);
-
-static void
-ural_cfg_sleep(struct ural_softc *sc, u_int32_t timeout);
 
 static void
 ural_tx_bcn_complete(struct ural_softc *sc);
@@ -1547,7 +1544,7 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 	
 	    xfer->timeout = RAL_TX_TIMEOUT;
 
-	    DPRINTF(sc, 10, "sending mgt frame len=%u rate=%u xfer len=%u\n",
+	    DPRINTF(sc, 10, "sending frame len=%u rate=%u xfer len=%u\n",
 		     m0->m_pkthdr.len, rate, xfer->length);
 
 	    m_freem(m0);
@@ -1917,23 +1914,6 @@ ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
  *========================================================================*/
 
 static void
-ural_cfg_sleep(struct ural_softc *sc, u_int32_t timeout)
-{
-	int error;
-
-	if (timeout == 0) {
-	    timeout = 1;
-	}
-
-	error = msleep(sc, &(sc->sc_mtx), 0, 
-		       "ural delay sleep", timeout);
-
-	usbd_config_td_check_gone(&(sc->sc_config_td));
-
-	return;
-}
-
-static void
 ural_tx_bcn_complete(struct ural_softc *sc)
 {
 	if (sc->sc_bcn_mbuf) {
@@ -2107,7 +2087,7 @@ ural_cfg_set_chan(struct ural_softc *sc,
 		ural_cfg_read(sc, RAL_STA_CSR0);
 
 		/* wait a little */
-		ural_cfg_sleep(sc, hz/100);
+		usbd_config_td_sleep(&(sc->sc_config_td), hz/100);
 
 		ural_cfg_disable_rf_tune(sc);
 	}
@@ -2463,6 +2443,8 @@ ural_cfg_read_eeprom(struct ural_softc *sc)
 	sc->sc_tx_ant   = (val >> 2)  & 0x3;
 	sc->sc_nb_ant   = (val & 0x3);
 
+	DPRINTF(sc, 0, "val = 0x%04x\n", val);
+
 	/* read MAC address */
 	ural_cfg_eeprom_read(sc, RAL_EEPROM_ADDRESS, ic->ic_myaddr, 
 			     sizeof(ic->ic_myaddr));
@@ -2489,7 +2471,7 @@ ural_cfg_bbp_init(struct ural_softc *sc)
 	        if (ural_cfg_bbp_read(sc, RAL_BBP_VERSION) != 0) {
 		    break;
 		}
-		ural_cfg_sleep(sc, hz/100);
+		usbd_config_td_sleep(&(sc->sc_config_td), hz/100);
 	    } else {
 	        printf("%s: timeout waiting for BBP\n",
 		       sc->sc_name);
@@ -2574,7 +2556,7 @@ ural_cfg_init(struct ural_softc *sc,
 		      (RAL_BBP_AWAKE | RAL_RF_AWAKE)) {
 		      break;
 		  }
-		  ural_cfg_sleep(sc, hz/100);
+		  usbd_config_td_sleep(&(sc->sc_config_td), hz/100);
 	    } else {
 	        printf("%s: timeout waiting for "
 		       "BBP/RF to wakeup\n", sc->sc_name);
@@ -2598,6 +2580,9 @@ ural_cfg_init(struct ural_softc *sc,
 	/* clear statistic registers (STA_CSR0 to STA_CSR10) */
 	ural_cfg_read_multi(sc, RAL_STA_CSR0, sc->sc_sta, 
 			    sizeof(sc->sc_sta));
+
+	DPRINTF(sc, 0, "rx_ant=%d, tx_ant=%d\n",
+		sc->sc_rx_ant, sc->sc_tx_ant);
 
 	ural_cfg_set_txantenna(sc, sc->sc_tx_ant);
 	ural_cfg_set_rxantenna(sc, sc->sc_rx_ant);

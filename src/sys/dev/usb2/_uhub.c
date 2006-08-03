@@ -412,7 +412,8 @@ uhub_attach(device_t dev)
 
 	if(!err && (nports >= 8))
 	{
-		USETW(req.wLength, USB_HUB_DESCRIPTOR_SIZE + (nports / 8));
+		u_int16_t len = (USB_HUB_DESCRIPTOR_SIZE-1) + ((nports+7) / 8);
+		USETW(req.wLength, len);
 		err = usbd_do_request(udev, &req, &hubdesc);
 	}
 

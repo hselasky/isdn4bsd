@@ -927,21 +927,18 @@ uhci_non_isoc_done(struct usbd_xfer *xfer)
  * and callback must be called; else zero
  */
 static u_int8_t
-uhci_check_transfer(struct usbd_xfer *xfer)
+uhci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 {
 	uhci_td_t *td;
 
 	DPRINTFN(15, ("xfer=%p\n", xfer));
 
-	if(xfer->usb_thread)
+	if(xfer->usb_thread != ctd)
 	{
-	    if(xfer->usb_thread != curthread)
-	    {
-	        /* cannot call this transfer 
-		 * back due to locking !
-		 */
-	        return 0;
-	    }
+	    /* cannot call this transfer 
+	     * back due to locking !
+	     */
+	    goto done;
 	}
 
 	td = xfer->td_transfer_last;
@@ -1021,8 +1018,8 @@ uhci_check_transfer(struct usbd_xfer *xfer)
 	return 1;
 }
 
-void
-uhci_interrupt(uhci_softc_t *sc)
+static void
+uhci_interrupt_td(uhci_softc_t *sc, struct thread *ctd)
 {
 	enum { FINISH_LIST_MAX = 16 };
 
@@ -1051,6 +1048,15 @@ uhci_interrupt(uhci_softc_t *sc)
 		UWRITE2(sc, UHCI_INTR, 0);	/* disable interrupts */
 #endif
 		goto done;
+	}
+
+	if(ctd)
+	{
+		/* the poll thread should not read
+		 * any status registers that will
+		 * clear interrupts!
+		 */
+		goto repeat;
 	}
 
 	sc->sc_bus.no_intrs++;
@@ -1128,7 +1134,7 @@ uhci_interrupt(uhci_softc_t *sc)
 		/* check if transfer is
 		 * transferred 
 		 */
-		if(uhci_check_transfer(xfer))
+		if(uhci_check_transfer(xfer, ctd))
 		{
 		    /* queue callback */
 		    ptr->xfer = xfer;
@@ -1164,6 +1170,13 @@ uhci_interrupt(uhci_softc_t *sc)
 	return;
 }
 
+void
+uhci_interrupt(uhci_softc_t *sc)
+{
+	uhci_interrupt_td(sc, NULL);
+	return;
+}
+
 /*
  * called when a request does not complete
  */
@@ -1196,7 +1209,7 @@ uhci_timeout(struct usbd_xfer *xfer)
 static void
 uhci_do_poll(struct usbd_bus *bus)
 {
-	uhci_interrupt(UHCI_BUS2SC(bus));
+	uhci_interrupt_td(UHCI_BUS2SC(bus), curthread);
 	return;
 }
 

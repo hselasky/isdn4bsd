@@ -1059,19 +1059,16 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
  * and callback must be called else zero
  */
 static u_int8_t
-ehci_check_transfer(struct usbd_xfer *xfer)
+ehci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 {
 	DPRINTFN(15, ("xfer=%p\n", xfer));
 
-	if(xfer->usb_thread)
+	if(xfer->usb_thread != ctd)
 	{
-	    if(xfer->usb_thread != curthread)
-	    {
-	        /* cannot call this transfer 
-		 * back due to locking !
-		 */
-	        goto done;
-	    }
+	    /* cannot call this transfer 
+	     * back due to locking !
+	     */
+	    goto done;
 	}
 
 	if(xfer->pipe->methods == &ehci_device_isoc_fs_methods)
@@ -1205,8 +1202,8 @@ ehci_pcd_enable(ehci_softc_t *sc)
 	return;
 }
 
-void
-ehci_interrupt(ehci_softc_t *sc)
+static void
+ehci_interrupt_td(ehci_softc_t *sc, struct thread *ctd)
 {
 	enum { FINISH_LIST_MAX = 16 };
 
@@ -1230,6 +1227,15 @@ ehci_interrupt(ehci_softc_t *sc)
 	if(sc->sc_bus.bdev == NULL)
 	{
 		goto done;
+	}
+
+	if(ctd)
+	{
+		/* the poll thread should not read
+		 * any status registers that will
+		 * clear interrupts!
+		 */
+		goto repeat;
 	}
 
 	sc->sc_bus.no_intrs++;
@@ -1322,7 +1328,7 @@ ehci_interrupt(ehci_softc_t *sc)
 		/* check if transfer is
 		 * transferred 
 		 */
-		if(ehci_check_transfer(xfer))
+		if(ehci_check_transfer(xfer, ctd))
 		{
 		    /* queue callback */
 		    ptr->xfer = xfer;
@@ -1358,6 +1364,13 @@ ehci_interrupt(ehci_softc_t *sc)
 	return;
 }
 
+void
+ehci_interrupt(ehci_softc_t *sc)
+{
+	ehci_interrupt_td(sc, NULL);
+	return;
+}
+
 /*
  * called when a request does not complete
  */
@@ -1390,7 +1403,7 @@ ehci_timeout(struct usbd_xfer *xfer)
 static void
 ehci_do_poll(struct usbd_bus *bus)
 {
-	ehci_interrupt(EHCI_BUS2SC(bus));
+	ehci_interrupt_td(EHCI_BUS2SC(bus), curthread);
 	return;
 }
 

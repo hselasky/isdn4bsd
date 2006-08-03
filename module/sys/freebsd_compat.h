@@ -177,6 +177,7 @@ extern int pci_enumerate_bus
 # ifdef _KERNEL
 #  include <sys/freebsd_linker_set.h>
 #  include <sys/freebsd_mutex.h>
+#  include <sys/freebsd_ethernet.h>
 #  include <sys/freebsd_eventhandler.h>
 #  include <sys/freebsd_sysctl.h>
 #  include <sys/freebsd_devfs.h>

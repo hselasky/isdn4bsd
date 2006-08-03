@@ -64,6 +64,8 @@
 #   include <sys/taskqueue.h>
 #   include <sys/callout.h> /* callout_xxx() */
 
+#   include <net/ethernet.h> /* ETHER_XXX */
+
 #   ifndef __KASSERT
      typedef struct cdevsw cdevsw_t;
 #    define __lockmgr lockmgr
@@ -221,8 +223,10 @@ MALLOC_DECLARE(M_USBHC);
 SYSCTL_DECL(_hw_usb);
 #endif
 
+#if 1
 /* enable support for the old USB interface: */
 #define USB_COMPAT_OLD
+#endif
 
 /* force debugging until further */
 #ifndef USB_DEBUG

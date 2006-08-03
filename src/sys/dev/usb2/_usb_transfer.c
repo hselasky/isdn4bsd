@@ -1199,6 +1199,7 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 	struct usbd_config usbd_config[1] = { /* zero */ };
 	struct usbd_xfer *xfer = NULL;
 	u_int16_t length = UGETW(req->wLength);
+	u_int32_t level = 0;
 	usbd_status err;
 
 	usbd_config[0].type = UE_CONTROL;
@@ -1210,9 +1211,8 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 	usbd_config[0].callback = &usbd_default_callback;
 
 	if (mtx) {
-	    mtx_assert(mtx, MA_OWNED);
+	    level = mtx_drop_recurse(mtx);
 	    mtx_unlock(mtx);
-	    mtx_assert(mtx, MA_NOTOWNED);
 	}
 
 	/* setup transfer */
@@ -1221,6 +1221,7 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 
 	if (mtx) {
 	    mtx_lock(mtx);
+	    mtx_pickup_recurse(mtx, level);
 	}
 
 	if(err)
