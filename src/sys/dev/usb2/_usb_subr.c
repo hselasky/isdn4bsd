@@ -1692,7 +1692,11 @@ struct usbd_m_copy_in_arg {
 };
 
 static int32_t
+#ifdef __FreeBSD__
 usbd_m_copy_in_cb(void *arg, void *src, u_int32_t count)
+#else
+usbd_m_copy_in_cb(void *arg, caddr_t src, u_int32_t count)
+#endif
 {
 	register struct usbd_m_copy_in_arg *ua = arg;
 	usbd_copy_in(ua->cache, ua->dst_offset, src, count);

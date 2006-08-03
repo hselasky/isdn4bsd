@@ -47,7 +47,7 @@ freebsd_kern_bus.c \
 freebsd_i4b_mod.c freebsd_devfs_devs.c freebsd_devfs_vfsops.c \
 freebsd_devfs_vnops.c freebsd_kern_mutex.c freebsd_kern_conf.c \
 freebsd_subr_eventhandler.c freebsd_kern_sysctl.c freebsd_if.c \
-freebsd_kern_timeout.c
+freebsd_kern_timeout.c freebsd_kern_mbuf.c
 
 .if defined(WITH_USB)
 #
