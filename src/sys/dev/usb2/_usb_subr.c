@@ -2366,7 +2366,9 @@ usbd_config_td_thread(void *arg)
 
 	while(1) {
 
-	    usbd_config_td_check_gone(ctd);
+	    if (ctd->flag_config_td_gone) {
+	        break;
+	    }
 
 	    USBD_IF_DEQUEUE(&(ctd->cmd_used), m);
 
@@ -2395,6 +2397,8 @@ usbd_config_td_thread(void *arg)
 	}
 
 	ctd->config_thread = NULL;
+
+	wakeup(&(ctd->wakeup_config_td_gone));
 
 	mtx_unlock(ctd->p_mtx);
 
@@ -2591,41 +2595,39 @@ usbd_config_td_queue_command(struct usbd_config_td *ctd,
 }
 
 /*---------------------------------------------------------------------------*
- * usbd_config_td_check_gone
+ * usbd_config_td_is_gone
  *
- * NOTE: this function can only be called from the config thread
+ * Return values:
+ *    0: config thread is running
+ * else: config thread is gone
  *---------------------------------------------------------------------------*/
-void
-usbd_config_td_check_gone(struct usbd_config_td *ctd)
+u_int8_t
+usbd_config_td_is_gone(struct usbd_config_td *ctd)
 {
-	u_int32_t level;
-
 	mtx_assert(ctd->p_mtx, MA_OWNED);
 
-	if (ctd->flag_config_td_gone) {
-
-	    ctd->config_thread = NULL;
-
-	    wakeup(&(ctd->wakeup_config_td_gone));
-
-	    level = mtx_drop_recurse(ctd->p_mtx);
-
-	    mtx_unlock(ctd->p_mtx);
-
-	    kthread_exit(0);
-	}
-	return;
+	return ctd->flag_config_td_gone ? 1 : 0;
 }
 
 /*---------------------------------------------------------------------------*
  * usbd_config_td_sleep
  *
  * NOTE: this function can only be called from the config thread
+ *
+ * Return values:
+ *    0: normal delay
+ * else: config thread is gone
  *---------------------------------------------------------------------------*/
-void
+u_int8_t
 usbd_config_td_sleep(struct usbd_config_td *ctd, u_int32_t timeout)
 {
 	register int error;
+	u_int8_t is_gone = usbd_config_td_is_gone(ctd);
+	u_int32_t level;
+
+	if (is_gone) {
+	    goto done;
+	}
 
 	if (timeout == 0) {
 	    /* zero means no timeout, 
@@ -2635,12 +2637,15 @@ usbd_config_td_sleep(struct usbd_config_td *ctd, u_int32_t timeout)
 	    timeout = 1;
 	}
 
+	level = mtx_drop_recurse(ctd->p_mtx);
+
 	error = msleep(ctd, ctd->p_mtx, 0, 
 		       "config td sleep", timeout);
 
-	usbd_config_td_check_gone(ctd);
+	mtx_pickup_recurse(ctd->p_mtx, level);
 
-	return;
+ done:
+	return is_gone;
 }
 
 /*---------------------------------------------------------------------------*

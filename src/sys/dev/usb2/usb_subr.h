@@ -769,10 +769,10 @@ void
 usbd_config_td_queue_command(struct usbd_config_td *ctd,
 			     usbd_config_td_command_t *command_func,
 			     u_int16_t command_ref);
-void
-usbd_config_td_check_gone(struct usbd_config_td *ctd);
+u_int8_t
+usbd_config_td_is_gone(struct usbd_config_td *ctd);
 
-void
+u_int8_t
 usbd_config_td_sleep(struct usbd_config_td *ctd, u_int32_t timeout);
 
 struct mbuf *
