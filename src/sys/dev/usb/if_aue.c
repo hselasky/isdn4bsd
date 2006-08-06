@@ -101,6 +101,9 @@
 
 #include <dev/usb/if_auereg.h>
 
+/* "device miibus" required.  See GENERIC if you get errors here. */
+#include "miibus_if.h"
+
 __FBSDID("$FreeBSD: src/sys/dev/usb/if_aue.c,v 1.96 2006/02/14 12:44:55 glebius Exp $");
 
 MODULE_DEPEND(aue, usb, 1, 1, 1);
@@ -120,9 +123,6 @@ SYSCTL_INT(_hw_usb_aue, OID_AUTO, debug, CTLFLAG_RW, &aue_debug, 0,
 #else
 #define DPRINTF(...)
 #endif
-
-/* "device miibus" required.  See GENERIC if you get errors here. */
-#include "miibus_if.h"
 
 /*
  * Various supported device vendors/products.
@@ -550,6 +550,8 @@ aue_cfg_miibus_readreg(device_t dev, int phy, int reg)
 	struct aue_softc *	sc = device_get_softc(dev);
 	u_int16_t		i;
 
+	mtx_lock(&(sc->sc_mtx)); /* XXX */
+
 	/*
 	 * The Am79C901 HomePNA PHY actually contains
 	 * two transceivers: a 1Mbps HomePNA PHY and a
@@ -564,12 +566,14 @@ aue_cfg_miibus_readreg(device_t dev, int phy, int reg)
 	    (sc->sc_product == USB_PRODUCT_ADMTEK_PEGASUS)) {
 
 	    if (phy == 3) {
-	        return (0);
+	        i = 0;
+		goto done;
 	    }
 
 #ifdef notdef
 	    if (phy != 1) {
-	        return (0);
+	        i = 0;
+		goto done;
 	    }
 #endif
 	}
@@ -596,6 +600,9 @@ aue_cfg_miibus_readreg(device_t dev, int phy, int reg)
 
 	i = aue_cfg_csr_read_2(sc, AUE_PHY_DATA);
 
+ done:
+	mtx_unlock(&(sc->sc_mtx)); /* XXX */
+
 	return i;
 }
 
@@ -608,6 +615,8 @@ aue_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 	if (phy == 3) {
 	    return (0);
 	}
+
+	mtx_lock(&(sc->sc_mtx)); /* XXX */
 
 	aue_cfg_csr_write_2(sc, AUE_PHY_DATA, data);
 	aue_cfg_csr_write_1(sc, AUE_PHY_ADDR, phy);
@@ -629,6 +638,8 @@ aue_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 	    }
 	}
 
+	mtx_unlock(&(sc->sc_mtx)); /* XXX */
+
 	return(0);
 }
 
@@ -637,6 +648,8 @@ aue_cfg_miibus_statchg(device_t dev)
 {
 	struct aue_softc * sc = device_get_softc(dev);
 	struct mii_data	* mii = GET_MII(sc);
+
+	mtx_lock(&(sc->sc_mtx)); /* XXX */
 
 	AUE_CFG_CLRBIT(sc, AUE_CTL0, AUE_CTL0_RX_ENB | AUE_CTL0_TX_ENB);
 
@@ -665,6 +678,8 @@ aue_cfg_miibus_statchg(device_t dev)
 		aue_cfg_miibus_writereg(dev, 0, 0x1b, auxmode | 0x04);
 	}
 
+	mtx_unlock(&(sc->sc_mtx)); /* XXX */
+
 	return;
 }
 
@@ -672,7 +687,7 @@ static void
 aue_cfg_setmulti(struct aue_softc *sc,
 		 struct aue_config_copy *cc, u_int16_t refcount)
 {
-	u_int16_t		i;
+	u_int16_t i;
 
 	if (cc == NULL) {
 	    /* nothing to do */
@@ -821,7 +836,9 @@ aue_attach(device_t dev)
 	__callout_init_mtx(&(sc->sc_watchdog),
 			   &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
 
-	if (usbd_set_config_no(uaa->device, AUE_CONFIG_NO, 0)) {
+	error = usbd_set_config_no(uaa->device, AUE_CONFIG_NO, 0);
+
+	if (error) {
 		device_printf(dev, "setting config "
 			      "number failed!\n");
 		goto detach;
@@ -870,10 +887,14 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 			 struct aue_config_copy *cc, u_int16_t refcount)
 {
 	struct ifnet * ifp;
-	u_int8_t eaddr[ETHER_ADDR_LEN];
+	int error;
+	u_int8_t eaddr[min(ETHER_ADDR_LEN,6)];
 
 	/* reset the adapter */
 	aue_cfg_reset(sc);
+
+	/* set default value */
+	bzero(eaddr, sizeof(eaddr));
 
 	/* get station address from the EEPROM */
 	aue_cfg_read_eeprom(sc, eaddr, 0, 3);
@@ -900,16 +921,19 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 	ifp->if_init = aue_init_cb;
 	ifp->if_snd.ifq_maxlen = IFQ_MAXLEN;
 
-	/* XXX: we need Giant when we 
-	 * clobber with the bus:
-	 *
-	 * FIXME: right here we are locking
-	 * in the wrong order:
+	/* XXX need Giant when accessing
+	 * the device structures !
 	 */
 
 	mtx_unlock(&(sc->sc_mtx));
 
 	mtx_lock(&Giant);
+
+	error = mii_phy_probe(sc->sc_dev, &(sc->sc_miibus),
+			      &aue_ifmedia_upd_cb, 
+			      &aue_ifmedia_sts_cb);
+
+	mtx_unlock(&Giant);
 
 	mtx_lock(&(sc->sc_mtx));
 
@@ -926,17 +950,12 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 	 * end up getting the children deleted twice, which will crash
 	 * the system.
 	 */
-	if (mii_phy_probe(sc->sc_dev, &(sc->sc_miibus),
-			  &aue_ifmedia_upd_cb, 
-			  &aue_ifmedia_sts_cb)) {
-		printf("%s: MII without any PHY!\n", 
-		       sc->sc_name);
-		if_free(ifp);
-		mtx_unlock(&Giant);
-		goto done;
+	if (error) {
+	    printf("%s: MII without any PHY!\n", 
+		   sc->sc_name);
+	    if_free(ifp);
+	    goto done;
 	}
-
-	mtx_unlock(&Giant);
 
 	sc->sc_ifp = ifp;
 
@@ -1081,10 +1100,6 @@ aue_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 	return;
 }
 
-/*
- * A frame has been uploaded: pass the resulting mbuf chain up to
- * the higher level protocols.
- */
 static void
 aue_bulk_read_callback(struct usbd_xfer *xfer)
 {
@@ -1100,13 +1115,11 @@ aue_bulk_read_callback(struct usbd_xfer *xfer)
 	    sc->sc_flags |= AUE_FLAG_READ_STALL;
 	    usbd_transfer_start(sc->sc_xfer[3]);
 	}
+	DPRINTF(sc, 0, "bulk read error, %s\n",
+		usbd_errstr(xfer->error));
 	return;
 
  tr_transferred:
-
-	if (!(ifp->if_drv_flags & IFF_DRV_RUNNING)) {
-	    goto tr_setup;
-	}
 
 	if (xfer->actlen <= (4 + ETHER_CRC_LEN)) {
 	    ifp->if_ierrors++;
@@ -1221,8 +1234,8 @@ aue_bulk_write_callback(struct usbd_xfer *xfer)
 	}
 
 	if (sc->sc_flags & AUE_FLAG_WAIT_LINK) {
-	    /* don't send anything while a command
-	     * is pending, or there is no link !
+	    /* don't send anything 
+	     * if there is no link !
 	     */
 	    goto done;
 	}
@@ -1277,7 +1290,7 @@ aue_config_copy(struct aue_softc *sc,
 {
 	struct ifnet * ifp = sc->sc_ifp;
 	struct ifmultiaddr * ifma;
-	u_int16_t h;
+	u_int8_t h;
 	u_int8_t i;
 
 	bzero(cc, sizeof(*cc));
@@ -1298,9 +1311,9 @@ aue_config_copy(struct aue_softc *sc,
 		    continue;
 		}
 
-		h = ether_crc32_le
-		  (LLADDR((struct sockaddr_dl *)(ifma->ifma_addr)), 
-		   ETHER_ADDR_LEN) & ((1 << AUE_BITS) - 1);
+		h = (ether_crc32_le
+		     (LLADDR((struct sockaddr_dl *)(ifma->ifma_addr)), 
+		      ETHER_ADDR_LEN)) & ((1 << AUE_BITS) - 1);
 
 		cc->if_hash[(h >> 3)] |= (1 << (h & 7));
 	    }
@@ -1563,7 +1576,8 @@ aue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 	    if (mii == NULL) {
 	        error = EINVAL;
 	    } else {
-	        error = ifmedia_ioctl(ifp, (void *)data, &(mii->mii_media), command);
+	        error = ifmedia_ioctl
+		  (ifp, (void *)data, &(mii->mii_media), command);
 	    }
 	    break;
 
@@ -1597,6 +1611,8 @@ aue_watchdog(void *arg)
 /*
  * Stop the adapter and free any mbufs allocated to the
  * RX and TX lists.
+ *
+ * NOTE: can be called when "ifp" is NULL
  */
 static void
 aue_cfg_stop(struct aue_softc *sc,

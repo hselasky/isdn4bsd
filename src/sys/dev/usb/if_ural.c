@@ -627,18 +627,23 @@ static void
 ural_cfg_do_request(struct ural_softc *sc, usb_device_request_t *req, 
 		    void *data)
 {
+	u_int16_t length;
 	usbd_status err;
+
+	if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
+	    goto error;
+	}
 
 	err = usbd_do_request_flags_mtx(sc->sc_udev, &(sc->sc_mtx), req, 
 					data, 0, NULL, 1000);
 
-	usbd_config_td_check_gone(&(sc->sc_config_td));
-
 	if (err) {
-	    u_int16_t length = UGETW(req->wLength);
 
 	    printf("%s: device request failed, err=%s "
 		   "(ignored)\n", sc->sc_name, usbd_errstr(err));
+
+	error:
+	    length = UGETW(req->wLength);
 
 	    if ((req->bmRequestType & UT_READ) && length) {
 	        bzero(data, length);
@@ -1962,10 +1967,12 @@ ural_cfg_tx_bcn(struct ural_softc *sc)
 	    while (sc->sc_flags & (URAL_FLAG_SEND_BYTE_FRAME|
 				   URAL_FLAG_SEND_BCN_FRAME)) {
 
+		if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
+		    break;
+		}
+
 	        error = msleep(&(sc->sc_wakeup_bcn), &(sc->sc_mtx), 
 			       0, "ural beacon sleep", 0);
-
-		usbd_config_td_check_gone(&(sc->sc_config_td));
 	    }
 	}
 	return;
@@ -2471,7 +2478,9 @@ ural_cfg_bbp_init(struct ural_softc *sc)
 	        if (ural_cfg_bbp_read(sc, RAL_BBP_VERSION) != 0) {
 		    break;
 		}
-		usbd_config_td_sleep(&(sc->sc_config_td), hz/100);
+		if (usbd_config_td_sleep(&(sc->sc_config_td), hz/100)) {
+		    break;
+		}
 	    } else {
 	        printf("%s: timeout waiting for BBP\n",
 		       sc->sc_name);
@@ -2556,7 +2565,9 @@ ural_cfg_init(struct ural_softc *sc,
 		      (RAL_BBP_AWAKE | RAL_RF_AWAKE)) {
 		      break;
 		  }
-		  usbd_config_td_sleep(&(sc->sc_config_td), hz/100);
+		  if (usbd_config_td_sleep(&(sc->sc_config_td), hz/100)) {
+		      break;
+		  }
 	    } else {
 	        printf("%s: timeout waiting for "
 		       "BBP/RF to wakeup\n", sc->sc_name);

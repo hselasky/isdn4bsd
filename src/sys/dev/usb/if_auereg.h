@@ -193,9 +193,8 @@ struct aue_rxpkt {
 #define AUE_RXSTAT_DRIBBLE	0x10
 #define AUE_RXSTAT_MASK		0x1E
 
-#define AUE_INC(x, y)		(x) = ((x) + 1) % (y)
-
-#define GET_MII(sc) ((sc)->sc_miibus ? device_get_softc((sc)->sc_miibus) : NULL)
+#define GET_MII(sc) ((sc)->sc_miibus ? \
+		     device_get_softc((sc)->sc_miibus) : NULL)
 
 struct aue_softc {
 	struct usbd_config_td	sc_config_td;
@@ -211,7 +210,6 @@ struct aue_softc {
 	device_t		sc_dev;
 
 	u_int32_t		sc_unit;
-
 	u_int32_t		sc_media_active;
 	u_int32_t		sc_media_status;
 
