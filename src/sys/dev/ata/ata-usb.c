@@ -2,6 +2,9 @@
  * Copyright (c) 2006 Søren Schmidt <sos@FreeBSD.org>
  * All rights reserved.
  *
+ * Copyright (c) 2006 Hans Petter Selasky
+ * All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -112,10 +115,9 @@ struct atausb_softc {
     u_int8_t		last_xfer_no;
     u_int8_t		reset_count;
     u_int8_t		usb_speed;
-    u_int8_t		intr_stall_cleared;
+    u_int8_t		intr_stalled;
     u_int8_t		maxlun;
     u_int8_t		iface_no;
-
 };
 
 static const int atausbdebug = 0;
@@ -352,7 +354,7 @@ atausb_attach(device_t dev)
     sc->locked_ch = NULL;
     sc->restart_ch = NULL;
     sc->usb_speed = usbd_get_speed(uaa->device);
-    mtx_init(&(sc->locked_mtx), "ATAUSB lock", NULL, MTX_DEF); 
+    mtx_init(&(sc->locked_mtx), "ATAUSB lock", NULL, (MTX_DEF|MTX_RECURSE)); 
 
     __callout_init_mtx(&(sc->watchdog),
 		       &(sc->locked_mtx), CALLOUT_RETURNUNLOCKED);
@@ -609,6 +611,7 @@ atausb_t_bbb_command_callback(struct usbd_xfer *xfer)
     struct atausb_softc *sc = xfer->priv_sc;
     struct ata_request *request = sc->ata_request;
     struct ata_channel *ch;
+    u_int32_t tag;
 
     USBD_CHECK_STATUS(xfer);
 
@@ -632,8 +635,10 @@ atausb_t_bbb_command_callback(struct usbd_xfer *xfer)
 
 	sc->timeout = (request->timeout * 1000) + 5000;
 
+	tag = UGETDW(sc->cbw.tag) + 1;
+
 	USETDW(sc->cbw.signature, CBWSIGNATURE);
-	USETDW(sc->cbw.tag, UGETDW(sc->cbw.tag) + 1);
+	USETDW(sc->cbw.tag, tag);
 	USETDW(sc->cbw.transfer_length, request->bytecount);
 	sc->cbw.flags = (request->flags & ATA_R_READ) ? CBWFLAGS_IN : CBWFLAGS_OUT;
 	sc->cbw.lun = ch->unit;
@@ -675,6 +680,12 @@ atausb_t_bbb_data_read_callback(struct usbd_xfer *xfer)
     }
 
  tr_setup:
+
+    if (atausbdebug > 1) {
+        device_printf(sc->dev, "%s: max_bulk=%d, ata_bytecount=%d\n",
+		      __FUNCTION__, max_bulk, sc->ata_bytecount);
+    }
+
     if (sc->ata_bytecount == 0) {
         atausb_transfer_start(sc, ATAUSB_T_BBB_STATUS);
 	return;
@@ -711,6 +722,11 @@ atausb_t_bbb_data_write_callback(struct usbd_xfer *xfer)
 
  tr_setup:
 
+    if (atausbdebug > 1) {
+        device_printf(sc->dev, "%s: max_bulk=%d, ata_bytecount=%d\n",
+		      __FUNCTION__, max_bulk, sc->ata_bytecount);
+    }
+
     if (sc->ata_bytecount == 0) {
         atausb_transfer_start(sc, ATAUSB_T_BBB_STATUS);
 	return;
@@ -745,11 +761,11 @@ atausb_t_bbb_status_callback(struct usbd_xfer *xfer)
 
  tr_transferred:
 
-    if (xfer->actlen != sizeof(sc->csw)) {
+    if (xfer->actlen < sizeof(sc->csw)) {
         bzero(&(sc->csw), sizeof(sc->csw));
     }
 
-    usbd_copy_in(&(xfer->buf_data), 0, &(sc->csw), xfer->actlen);
+    usbd_copy_out(&(xfer->buf_data), 0, &(sc->csw), xfer->actlen);
 
     if (request->flags & (ATA_R_READ | ATA_R_WRITE)) {
         request->donecount = sc->ata_donecount;
@@ -757,9 +773,8 @@ atausb_t_bbb_status_callback(struct usbd_xfer *xfer)
 
     residue = UGETDW(sc->csw.residue);
 
-    if (!residue &&
-	(request->bytecount - request->donecount)) {
-        residue = request->bytecount - request->donecount;
+    if (!residue) {
+        residue = (request->bytecount - request->donecount);
     }
 
     /* check CSW and handle eventual error */
@@ -807,7 +822,17 @@ atausb_t_bbb_status_callback(struct usbd_xfer *xfer)
     sc->last_xfer_no = ATAUSB_T_BBB_COMMAND;
 
     sc->ata_request = NULL;
+
+    if (atausbdebug > 1) {
+        device_printf(sc->dev, "%s: depreciated unlock!\n",
+		      __FUNCTION__);
+    }
+
+    mtx_unlock(xfer->priv_mtx); /* XXX depreciated! */
+
     ata_interrupt(device_get_softc(request->parent));
+
+    mtx_lock(xfer->priv_mtx);
     return;
 
  tr_setup:
@@ -823,18 +848,23 @@ atausb_t_bbb_interrupt_callback(struct usbd_xfer *xfer)
     USBD_CHECK_STATUS(xfer);
 
  tr_transferred:
- tr_setup:
-    if (!(sc->intr_stall_cleared)) {
-        usbd_transfer_start(sc->xfer[ATAUSB_T_BBB_I_CLEAR_STALL]);
-	return;
+    if (atausbdebug) {
+        device_printf(sc->dev, "Interrupt transfer "
+		      "complete, %d bytes\n", xfer->actlen);
     }
-    usbd_start_hardware(xfer);
+
+ tr_setup:
+    if (sc->intr_stalled) {
+        usbd_transfer_start(sc->xfer[ATAUSB_T_BBB_I_CLEAR_STALL]);
+    } else {
+        usbd_start_hardware(xfer);
+    }
     return;
 
  tr_error:
     if (xfer->error != USBD_CANCELLED) {
         /* try to clear stall first */
-        sc->intr_stall_cleared = 0;
+        sc->intr_stalled = 1;
 	usbd_transfer_start(sc->xfer[ATAUSB_T_BBB_I_CLEAR_STALL]);
     }
     return;
@@ -856,7 +886,7 @@ atausb_t_bbb_i_clear_stall_callback(struct usbd_xfer *xfer)
  tr_transferred:
     usbd_clear_stall_tr_transferred(xfer, other_xfer);
 
-    sc->intr_stall_cleared = 1;
+    sc->intr_stalled = 0;
     usbd_transfer_start(other_xfer);
     return;
 
@@ -864,7 +894,7 @@ atausb_t_bbb_i_clear_stall_callback(struct usbd_xfer *xfer)
     /* bomb out (wait for watchdog to start 
      * interrupt transfer again)
      */
-    sc->intr_stall_cleared = 1;
+    sc->intr_stalled = 0;
 
     if (xfer->error != USBD_CANCELLED) {
         device_printf(sc->dev, "Interrupt transfer stopped!\n");
@@ -878,24 +908,34 @@ atausb_tr_error(struct usbd_xfer *xfer)
     struct atausb_softc *sc = xfer->priv_sc;
     struct ata_request *request = sc->ata_request;
 
+    if (xfer->error != USBD_CANCELLED) {
+
+        if (atausbdebug) {
+	    device_printf(sc->dev, "transfer failed, %s, in state %d "
+			  "-> BULK reset\n", usbd_errstr(xfer->error), 
+			  sc->last_xfer_no);
+	}
+
+	/* start reset before any callback */
+
+	atausb_transfer_start(sc, ATAUSB_T_BBB_RESET1);
+    }
+
     if (request) {
         request->result = (xfer->error == USBD_CANCELLED) ? ENXIO : EIO;
 	sc->ata_request = NULL;
+
+	if (atausbdebug > 1) {
+	    device_printf(sc->dev, "%s: depreciated unlock!\n",
+			  __FUNCTION__);
+	}
+
+	mtx_unlock(xfer->priv_mtx); /* XXX depreciated! */
+
 	ata_interrupt(device_get_softc(request->parent));
-    }
 
-    if (xfer->error == USBD_CANCELLED) {
-        /* ignore */
-        return;
+	mtx_lock(xfer->priv_mtx);
     }
-
-    if (atausbdebug) {
-        device_printf(sc->dev, "transfer failed, %s, in state %d "
-		      "-> BULK reset\n", usbd_errstr(xfer->error), 
-		      sc->last_xfer_no);
-    }
-
-    atausb_transfer_start(sc, ATAUSB_T_BBB_RESET1);
     return;
 }
 
