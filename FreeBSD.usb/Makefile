@@ -1,5 +1,5 @@
 VERSION=1_6_1_r2
-DATE=June 2006
+DATE=August 2006
 
 FILTER= grep -v "temp"   |\
 	grep -v "~"      |\
@@ -40,6 +40,7 @@ ${S}/sys/modules/ukbd/Makefile \
 ${S}/sys/modules/ulpt/Makefile \
 ${S}/sys/modules/uhid/Makefile \
 ${S}/sys/tools/usbdevs2h.awk\
+${S}/sys/dev/ata/ata-usb.c \
 ${S}/sys/dev/usb/usb.h \
 ${S}/sys/dev/usb/usb_port.h \
 ${S}/sys/dev/usb/usbdi.h \
@@ -47,6 +48,12 @@ ${S}/sys/dev/usb/usbdi_util.h \
 ${S}/sys/dev/usb/usbdivar.h \
 ${S}/sys/dev/usb/hid.h \
 ${S}/sys/dev/usb/usbhid.h \
+${S}/sys/dev/usb/if_aue.c \
+${S}/sys/dev/usb/if_auereg.h \
+${S}/sys/dev/usb/if_axe.c \
+${S}/sys/dev/usb/if_axereg.h \
+${S}/sys/dev/usb/if_cdce.c \
+${S}/sys/dev/usb/if_cdcereg.h \
 ${S}/sys/dev/usb2 \
 
 USB_MODULES=\
@@ -231,6 +238,7 @@ backup:
 	mkdir ${S}/sys/dev             || echo -n
 	mkdir ${S}/sys/dev/sound       || echo -n
 	mkdir ${S}/sys/dev/sound/usb   || echo -n
+	mkdir ${S}/sys/dev/ata         || echo -n
 	mkdir ${S}/sys/dev/usb         || echo -n
 	mkdir ${S}/sys/dev/usb2        || echo -n
 	mkdir ${S}/sys/modules         || echo -n
