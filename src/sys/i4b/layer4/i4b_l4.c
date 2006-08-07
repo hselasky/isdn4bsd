@@ -973,6 +973,7 @@ i4b_link_bchandrvr(call_desc_t *cd, int activate)
 	    cd->driver_unit_copy = cd->driver_unit;
 	    cd->b_link_want_active = 1;
 	    p.protocol_1 = I4B_B_PROTOCOLS_PROTOCOL[cd->channel_bprot];
+	    p.protocol_4 = cd->channel_bsubprot;
 
 	} else {
 

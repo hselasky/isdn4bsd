@@ -409,13 +409,14 @@ typedef struct call_desc {
 	int	channel_id;		/* channel id value cannot be 
 					 * changed when channel is allocated
 					 */
-	int	channel_bprot;		/* channel B-protocol, BPROT_XXX */
+	u_int8_t channel_bprot;		/* channel B-protocol, BPROT_XXX */
+	u_int8_t channel_bsubprot;	/* channel B-sub-protocol, BSUBPROT_XXX */
 
-	int	driver_type;		/* driver-type to use for channel */
-	int	driver_unit;		/* driver-unit for above driver-type */
+	u_int32_t driver_type;		/* driver-type to use for channel */
+	u_int32_t driver_unit;		/* driver-unit for above driver-type */
 
-	int	driver_type_copy;	/* copy of "driver_type" */
-	int	driver_unit_copy;	/* copy of "driver_unit" */
+	u_int32_t driver_type_copy;	/* copy of "driver_type" */
+	u_int32_t driver_unit_copy;	/* copy of "driver_unit" */
 	
 	cause_t	cause_in;		/* cause value from remote */
 	cause_t	cause_out;		/* cause value to remote */
@@ -824,7 +825,7 @@ struct i4b_echo_cancel {
 extern void
 i4b_echo_cancel_init(struct i4b_echo_cancel *ec, 
 		     u_int16_t pre_delay, 
-		     u_int8_t is_ulaw);
+		     u_int8_t sub_bprot);
 extern void
 i4b_echo_cancel_update_feeder(struct i4b_echo_cancel *ec,
 			      u_int16_t tx_time);

@@ -45,7 +45,7 @@
 void
 i4b_echo_cancel_init(struct i4b_echo_cancel *ec, 
 		     u_int16_t pre_delay,
-		     u_int8_t is_ulaw)
+		     u_int8_t sub_bprot)
 {
     bzero(ec, sizeof(*ec));
 
@@ -55,7 +55,8 @@ i4b_echo_cancel_init(struct i4b_echo_cancel *ec,
 
     ec->pre_delay = pre_delay;
     ec->last_byte = 0xFF;
-    ec->is_ulaw = is_ulaw;
+
+    ec->is_ulaw = (sub_bprot != BSUBPROT_G711_ALAW);
 
     return;
 }

@@ -186,7 +186,17 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	      *ptr++ = IEI_BEARERCAP_LEN+1;
 	      *ptr++ = IT_CAP_SPEECH;
 	      *ptr++ = IT_RATE_64K;
-	      *ptr++ = IT_UL1_G711A;
+	      switch(cd->channel_bsubprot) {
+	      case BSUBPROT_G711_ALAW:
+		  *ptr++ = IT_UL1_G711A;
+		  break;
+	      case BSUBPROT_G711_ULAW:
+		  *ptr++ = IT_UL1_G711U;
+		  break;
+	      default:
+		  *ptr++ = 0xA0; /* reserved */
+		  break;
+	      }
 	      break;
 
 	  case BPROT_RHDLC:       /* raw HDLC */

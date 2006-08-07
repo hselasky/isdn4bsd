@@ -873,6 +873,7 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 			msg_connect_req_t *mcr = (void *)data;
 
 			cd->channel_bprot = mcr->bprot;
+			cd->channel_bsubprot = BSUBPROT_G711_ALAW;
 			cd->driver_type = mcr->driver;
 			cd->driver_unit = mcr->driver_unit;
 			cd->shorthold_data = mcr->shorthold_data;

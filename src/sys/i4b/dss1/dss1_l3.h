@@ -203,7 +203,8 @@ extern void dss1_facility_decode(call_desc_t *cd, struct dss1_buffer *buf);
 #define	IT_RATE_56K		0x8f
 
 /* layer1 protocol G.711 A-law	*/
-#define	IT_UL1_G711A		0xa3	
+#define	IT_UL1_G711U		0xa2
+#define	IT_UL1_G711A		0xa3
 
 #define IE_CHAN_ID_NO		0x00	/* no channel			*/
 #define IE_CHAN_ID_B1		0x01	/* B1 channel			*/

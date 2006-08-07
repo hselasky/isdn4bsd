@@ -227,7 +227,10 @@ m(DRVR_DSS1_P2P_NT,,dss1_setup_ft      ,NULL,\
  *---------------------------------------------------------------------------*/
 struct i4b_protocol {
 
-    u_int16_t protocol_1;
+    u_int16_t protocol_1; /* I4B_PROTOCOLS() */
+    u_int16_t protocol_2;
+    u_int16_t protocol_3;
+    u_int16_t protocol_4; /* I4B_B_SUB_PROTOCOLS() */
 
     union {
         struct {
@@ -306,11 +309,11 @@ m(BPROT_NONE         ,, P_TRANSPARENT  ,\
 "no protocol at all, raw data"				   ,0x80)\
 /**/
 
-#if 0
-  case 0x80:      /* speech */
-  case 0x89:      /* restricted digital info */
-  case 0x90:      /* 3.1KHz audio */
-#endif
+#define I4B_B_SUB_PROTOCOLS(m) \
+m(BSUBPROT_UNKNOWN   ,, )   \
+m(BSUBPROT_G711_ALAW ,, )   \
+m(BSUBPROT_G711_ULAW ,, )   \
+/**/
 
 MAKE_ENUM(I4B_DRIVERS,
 	N_I4B_DRIVERS);
@@ -319,6 +322,9 @@ MAKE_ENUM(I4B_PROTOCOLS);
 
 MAKE_ENUM(I4B_B_PROTOCOLS,
 	N_I4B_B_PROTOCOLS);
+
+MAKE_ENUM(I4B_B_SUB_PROTOCOLS,
+	N_I4B_B_SUB_PROTOCOLS);
 
 /*---------------------------------------------------------------------------*
  * causes data type

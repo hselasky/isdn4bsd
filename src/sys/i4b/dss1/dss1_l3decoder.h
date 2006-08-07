@@ -161,6 +161,23 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct dss1_buffer *buf)
 		       "Unsupported B-Protocol 0x%02x", temp);
 		break;
 	    }
+
+	    temp = dss1_get_1(buf,4) & 0x1F;
+
+	    switch(temp) {
+	    case 0x02: 
+	      cd->channel_bsubprot = BSUBPROT_G711_ULAW;
+	      break;
+
+	    case 0x03:
+	      cd->channel_bsubprot = BSUBPROT_G711_ALAW;
+	      break;
+
+	    default:
+	      NDBGL3(L3_P_ERR, "IEI_BEARERCAP - "
+		     "Unsupported B-Sub-Protocol 0x%02x", temp);
+	      cd->channel_bsubprot = BSUBPROT_UNKNOWN;
+	    }
 	    break;
 	
 	case IEI_CAUSE:		/* cause */

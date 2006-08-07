@@ -1137,7 +1137,9 @@ capi_ai_connect_ind(struct call_desc *cd)
 	u_int8_t dst_subaddr[SUBADDR_MAX];
 	u_int8_t src_subaddr[SUBADDR_MAX];
 
-	static const u_int8_t bc_bprot_none[] = { 0x04, 0x03, 0x80, 0x90, 0xA3 };
+	static const u_int8_t bc_bprot_alaw[] = { 0x04, 0x03, 0x80, 0x90, 0xA3 };
+	static const u_int8_t bc_bprot_ulaw[] = { 0x04, 0x03, 0x80, 0x90, 0xA2 };
+	static const u_int8_t bc_bprot_reserved[] = { 0x04, 0x03, 0x80, 0x90, 0xA0 };
 	static const u_int8_t bc_bprot_rhdlc[] = { 0x04, 0x02, 0x88, 0x90 };
 	static const u_int8_t hlc_bprot_none[] = { 0x7D, 0x02, 0x91, 0x81 };
 	static const u_int8_t sending_complete[] = { 0x01, 0x00 };
@@ -1165,8 +1167,22 @@ capi_ai_connect_ind(struct call_desc *cd)
 	case BPROT_NONE:
 	case BPROT_RHDLC_DOV:
 	  connect_ind.wCIP = CAPI_CIP_TELEPHONY;
-	  connect_ind.BC.ptr = &bc_bprot_none;
-	  connect_ind.BC.len = sizeof(bc_bprot_none);
+
+	  switch(cd->channel_bsubprot) {
+	  case BSUBPROT_G711_ALAW:
+	      connect_ind.BC.ptr = &bc_bprot_alaw;
+	      connect_ind.BC.len = sizeof(bc_bprot_alaw);
+	      break;
+	  case BSUBPROT_G711_ULAW:
+	      connect_ind.BC.ptr = &bc_bprot_ulaw;
+	      connect_ind.BC.len = sizeof(bc_bprot_ulaw);
+	      break;
+	  default:
+	      connect_ind.BC.ptr = &bc_bprot_reserved;
+	      connect_ind.BC.len = sizeof(bc_bprot_reserved);
+	      break;
+	  }
+
 	  connect_ind.HLC.ptr = &hlc_bprot_none;
 	  connect_ind.HLC.len = sizeof(hlc_bprot_none);
 	  break;
@@ -2038,6 +2054,24 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      case CAPI_CIP_3100Hz_AUDIO:
 	      case CAPI_CIP_TELEPHONY:
 		cd->channel_bprot = BPROT_NONE;
+
+		if (connect_req.BC.len >= 5) {
+		    u_int8_t *temp = connect_req.BC.ptr;
+
+		    switch(temp[4] & 0x1F) {
+		    case 0x02:
+		      cd->channel_bsubprot = BSUBPROT_G711_ULAW;
+		      break;
+		    case 0x03:
+		      cd->channel_bsubprot = BSUBPROT_G711_ALAW;
+		      break;
+		    default:
+		      cd->channel_bsubprot = BSUBPROT_UNKNOWN;
+		      break;
+		    }
+		} else {
+		    cd->channel_bsubprot = BSUBPROT_G711_ALAW;
+		}
 		break;
       
 	      default:

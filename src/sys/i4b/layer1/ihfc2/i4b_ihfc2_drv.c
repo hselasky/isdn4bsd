@@ -1392,7 +1392,7 @@ ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 	   (FIFO_DIR(f) == receive))
 	{
 	    struct i4b_echo_cancel *ec = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
-	    i4b_echo_cancel_init(ec, -8, 0);
+	    i4b_echo_cancel_init(ec, -8, f->prot_curr.protocol_4);
 	}
 
 	/* reset and configure FIFO first */
