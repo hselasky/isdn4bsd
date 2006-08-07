@@ -282,6 +282,11 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 	bus_space_write_1(t,h,6,0);
 	bus_space_write_1(t,h,7,0);
 #endif
+	/* set clock speed */
+
+	temp = (sc->sc_default.double_clock ? 0x20 : 0x00);
+
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_brg_pcm_cfg_write, temp);
 
 	temp = 0;
 
@@ -299,9 +304,6 @@ hfc4s8s_chip_reset CHIP_RESET_T(sc,error)
 	    temp |= 4;
 	}
 #endif
-
-	temp |= (sc->sc_default.st_clock << 6);
-
 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ctrl_write, temp);
 
 	/* NOTE: counter maximum values are exclusive here,
@@ -1081,6 +1083,34 @@ I4B_DBASE(hfc4s8s_dbase_root)
   I4B_DBASE_ADD(mem_rid[0]           , PCIR_BAR(1));
 }
 
+/*
+ * double_clock = 0: crystal frequency is 24.576 MHz
+ * double_clock = 1: crystal frequency is 49.152 MHz
+ */
+
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
+I4B_DBASE(hfc2s_dbase_root)
+{
+  I4B_DBASE_IMPORT(hfc4s8s_dbase_root);
+
+  I4B_DBASE_ADD(d_channels           , 6*2);
+  I4B_DBASE_ADD(d_sub_controllers    , 2);
+  I4B_DBASE_ADD(desc                 , "HFC-2S PCI ISDN adapter");
+}
+
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
+I4B_DBASE(COUNT())
+{
+  I4B_DBASE_IMPORT(hfc2s_dbase_root);
+  I4B_DBASE_ADD(double_clock, 1);
+}
+
+I4B_PCI_DRIVER(/* HFC-2S */
+	       .vid = 0x08b41397,
+	       .sub = 0xb5661397);
+
 #include <i4b/layer1/ihfc2/i4b_count.h>
 
 I4B_DBASE(hfc4s_dbase_root)
@@ -1097,7 +1127,7 @@ I4B_DBASE(hfc4s_dbase_root)
 I4B_DBASE(COUNT())
 {
   I4B_DBASE_IMPORT(hfc4s_dbase_root);
-  I4B_DBASE_ADD(st_clock, 0);
+  I4B_DBASE_ADD(double_clock, 0);
 }
 
 I4B_PCI_DRIVER(/* HFC-4S generic */
@@ -1113,12 +1143,16 @@ I4B_PCI_DRIVER(/* HFC-4S */
 I4B_DBASE(COUNT())
 {
   I4B_DBASE_IMPORT(hfc4s_dbase_root);
-  I4B_DBASE_ADD(st_clock, 1);
+  I4B_DBASE_ADD(double_clock, 1);
 }
 
 I4B_PCI_DRIVER(/* HFC-4S */
 	       .vid = 0x08b41397,
 	       .sub = 0xb5201397);
+
+I4B_PCI_DRIVER(/* HFC-4S */
+	       .vid = 0x08b41397,
+	       .sub = 0xb5501397);
 
 I4B_PCI_DRIVER(/* HFC-4S */
 	       .vid = 0x08b41397,
@@ -1144,7 +1178,7 @@ I4B_DBASE(hfc8s_dbase_root)
 I4B_DBASE(COUNT())
 {
   I4B_DBASE_IMPORT(hfc8s_dbase_root);
-  I4B_DBASE_ADD(st_clock, 0);
+  I4B_DBASE_ADD(double_clock, 0);
 }
 
 I4B_PCI_DRIVER(/* HFC-8S generic */
@@ -1156,7 +1190,7 @@ I4B_PCI_DRIVER(/* HFC-8S generic */
 I4B_DBASE(COUNT())
 {
   I4B_DBASE_IMPORT(hfc8s_dbase_root);
-  I4B_DBASE_ADD(st_clock, 1);
+  I4B_DBASE_ADD(double_clock, 1);
 }
 
 I4B_PCI_DRIVER(/* HFC-8S */
@@ -1166,6 +1200,10 @@ I4B_PCI_DRIVER(/* HFC-8S */
 I4B_PCI_DRIVER(/* HFC-8S */
 	       .vid = 0x16b81397,
 	       .sub = 0xb5221397);
+
+I4B_PCI_DRIVER(/* HFC-8S */
+	       .vid = 0x16b81397,
+	       .sub = 0xb5521397);
 
 I4B_PCI_DRIVER(/* HFC-8S */
 	       .vid = 0x16b81397,

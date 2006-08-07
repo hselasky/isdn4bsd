@@ -893,7 +893,7 @@ struct sc_default {
   u_int8_t                      cookie;
   u_int8_t                      stdel_nt;  /* S/T delay for NT-mode */
   u_int8_t                      stdel_te;  /* S/T delay for TE-mode */
-  u_int8_t                      st_clock;  /* S/T clock selection */
+  u_int8_t                      double_clock; /* crystal selection */
   u_int8_t                      usb_length;
   u_int8_t                      usb_conf_no;
   u_int8_t                      usb_iface_no;
