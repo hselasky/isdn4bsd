@@ -2021,9 +2021,14 @@ tel_dial_get_mbuf(struct fifo_translator *f)
 
 	  /* store position */
 	  cd->tone_gen_pos = pos;
-	  
-	  /* convert data (u-law to a-law and bitreverse) */
-	  i4b_tel_convert(m->m_data, m->m_len, 0x08|0x04);
+
+	  if (cd->channel_bsubprot == BSUBPROT_G711_ULAW) {
+	      /* convert data (bitreverse only) */
+	      i4b_tel_convert(m->m_data, m->m_len, 0x08);
+	  } else {
+	      /* convert data (u-law to a-law and bitreverse) */
+	      i4b_tel_convert(m->m_data, m->m_len, 0x08|0x04);
+	  }
 
 	  /* increment tone program */
 	  cd->tone_gen_ptr++;
