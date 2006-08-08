@@ -761,8 +761,9 @@ extern void i4b_controller_free(struct i4b_controller *cntl, u_int8_t sub_contro
 
 /* prototypes from i4b_convert_xlaw.c */
 
-extern const  int16_t i4b_ulaw_to_signed[0x100];
-extern const  int16_t i4b_alaw_to_signed[0x100];
+extern const int16_t i4b_ulaw_to_signed[0x100];
+extern const int16_t i4b_alaw_to_signed[0x100];
+extern const int16_t i4b_sine_to_signed[8000];
 
 extern const u_int8_t i4b_reverse_bits[0x100];
 
@@ -770,6 +771,11 @@ typedef u_int8_t (i4b_convert_rev_t)(int32_t);
 
 extern i4b_convert_rev_t i4b_signed_to_ulaw;
 extern i4b_convert_rev_t i4b_signed_to_alaw;
+
+extern void
+i4b_convert_bsubprot(u_int8_t *ptr, u_int32_t len, 
+		     int32_t factor, int32_t divisor,
+		     u_int8_t in_bsubprot, u_int8_t out_bsubprot);
 
 /* prototypes from i4b_echo_cancel.c */
 
