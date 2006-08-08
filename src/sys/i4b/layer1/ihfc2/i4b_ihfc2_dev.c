@@ -541,7 +541,7 @@ ihfc_dread(struct cdev *dev, struct uio *uio, int ioflag)
 		  {
 		    _IF_DEQUEUE(&f->ifqueue, f->mbuf_dev);
 
-		    if(!f->mbuf_dev)
+		    if((!f->mbuf_dev) && uio->uio_resid)
 		    {
 			/* sleep */
 			f->state |= ST_TSLEEP;
