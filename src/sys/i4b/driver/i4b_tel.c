@@ -1762,9 +1762,9 @@ tel_dial_get_mbuf(struct fifo_translator *f)
 	  while (len) {
 
 	    if (cd->channel_bsubprot == BSUBPROT_G711_ULAW) {
-	        *ptr = i4b_signed_to_ulaw(i4b_sine_to_signed[pos] / 2);
+	        *ptr = i4b_signed_to_ulaw(i4b_sine_to_signed[pos] / 4);
 	    } else {
-	        *ptr = i4b_signed_to_alaw(i4b_sine_to_signed[pos] / 2);
+	        *ptr = i4b_signed_to_alaw(i4b_sine_to_signed[pos] / 4);
 	    }
 
 	    ptr++;
