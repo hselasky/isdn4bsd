@@ -1113,6 +1113,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, WORD  , wToneDuration,)\
   m(n, WORD  , wGapDuration,)\
   m(n, STRUCT, Digits,)\
+  m(n, STRUCT, Characteristic,)\
   END
 
 /* definition of "wFunction": */

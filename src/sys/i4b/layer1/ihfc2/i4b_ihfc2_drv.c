@@ -1395,6 +1395,17 @@ ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 	    i4b_echo_cancel_init(ec, -8, f->prot_curr.protocol_4);
 	}
 
+	/* init DTMF detector */
+	if(f->prot_curr.protocol_1 == P_TRANSPARENT)
+	{
+	    struct fifo_translator *ft = FIFO_TRANSLATOR(sc,f);
+	    if (FIFO_DIR(f) == receive) {
+	        i4b_dtmf_init_rx(ft, f->prot_curr.protocol_4);
+	    } else {
+	        i4b_dtmf_init_tx(ft, f->prot_curr.protocol_4);
+	    }
+	}
+
 	/* reset and configure FIFO first */
 	ihfc_config_write(sc,f);
 

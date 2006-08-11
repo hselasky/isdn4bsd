@@ -356,6 +356,9 @@ capi_ai_attach(void *dummy)
 }
 SYSINIT(capi_ai_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, capi_ai_attach, NULL);
 
+#define CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT 0x01
+#define CAPI_PUTQUEUE_FLAG_DROP_OK       0x02
+
 /*---------------------------------------------------------------------------*
  *	capi_ai_putqueue - put message into application interface queue(s)
  *
@@ -364,14 +367,18 @@ SYSINIT(capi_ai_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, capi_ai_attach, NULL);
  *---------------------------------------------------------------------------*/
 static void
 capi_ai_putqueue(struct capi_ai_softc *sc, 
-		 u_int8_t sc_complement, struct mbuf *m1)
+		 u_int8_t flags, struct mbuf *m1)
 {
 	struct capi_ai_softc *sc_exclude;
 	struct capi_message_encoded *mp;
 	struct mbuf *m2;
 
-	if((sc == NULL) || (sc_complement))
+	if((sc == NULL) || (flags & CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT))
 	{
+		/* remove the complement flag */
+
+		flags &= ~CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT;
+
 		/* broadcast 
 		 *
 		 * NOTE: the softc structures are
@@ -405,7 +412,7 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 				    m2 = m_copypacket(m1, M_DONTWAIT);
 				}
 
-				capi_ai_putqueue(sc, 0, m2);
+				capi_ai_putqueue(sc,flags,m2);
 			}
 			sc = sc->sc_next;
 		}
@@ -425,6 +432,10 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 		if((m1 == NULL) || 
 		   (_IF_QLEN(&sc->sc_rdqueue) >= IFQ_LIMIT_HIGH))
 		{
+		    if(flags & CAPI_PUTQUEUE_FLAG_DROP_OK)
+		    {
+		        goto done;
+		    }
 		    if(!(sc->sc_flags & ST_MBUF_LOST))
 		    {
 		        sc->sc_flags |= ST_MBUF_LOST;
@@ -480,9 +491,9 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 		    }
 		}
 
-		/* filter B-channel data indications */
+		/* check if the frame can be dropped */
 
-		if(mp->head.wCmd == htole16(CAPI_IND(DATA_B3)))
+		if(flags & CAPI_PUTQUEUE_FLAG_DROP_OK)
 		{
 			if(_IF_QLEN(&sc->sc_rdqueue) >= IFQ_LIMIT_LOW)
 			{
@@ -744,6 +755,49 @@ capi_make_conf(struct capi_message_encoded *msg, u_int16_t wCmd,
 }
 
 /*---------------------------------------------------------------------------*
+ *	send a facility indication message
+ *---------------------------------------------------------------------------*/
+static void
+capi_ai_facility_ind(struct call_desc *cd, u_int16_t wSelector, 
+		     u_int8_t flags, void *param)
+{
+	struct mbuf *m;
+	struct capi_message_encoded msg;
+	struct CAPI_FACILITY_IND_DECODED fac_ind = { /* zero */ };
+
+	u_int16_t len;
+
+	CAPI_INIT(CAPI_FACILITY_IND, &fac_ind);
+
+	fac_ind.wSelector = wSelector;
+
+	if(param)
+	{
+	    fac_ind.Param.ptr = param;
+	    fac_ind.Param_STRUCT = IE_STRUCT_DECODED;
+	}
+
+	len = capi_encode(&msg.data, sizeof(msg.data), &fac_ind);
+	len += sizeof(msg.head);
+
+	/* fill out CAPI header */
+
+	msg.head.wLen = htole16(len);
+	msg.head.wApp = htole16(0);
+	msg.head.wCmd = htole16(CAPI_IND(FACILITY));
+	msg.head.wNum = htole16(0);
+	msg.head.dwCid = htole32(CDID2CAPI_ID(cd->cdid));
+
+	if((m = i4b_getmbuf(len, M_NOWAIT)))
+	{
+	    bcopy(&msg, m->m_data, m->m_len);
+	}
+	
+	capi_ai_putqueue(cd->ai_ptr,flags,m);
+	return;
+}
+
+/*---------------------------------------------------------------------------*
  *	generate facility confirmation message
  *---------------------------------------------------------------------------*/
 static struct mbuf *
@@ -954,6 +1008,24 @@ capi_make_li_disc_conf(struct capi_message_encoded *pmsg,
 }
 
 /*---------------------------------------------------------------------------*
+ *	generate DTMF support confirmation
+ *---------------------------------------------------------------------------*/
+static struct mbuf *
+capi_make_dtmf_conf(struct capi_message_encoded *pmsg, u_int16_t wInfo)
+{
+	struct CAPI_FACILITY_CONF_DTMF_PARAM_DECODED dtmf_conf;
+
+	bzero(&dtmf_conf, sizeof(dtmf_conf));
+
+	CAPI_INIT(CAPI_FACILITY_CONF_DTMF_PARAM, &dtmf_conf);
+
+	dtmf_conf.wInfo = wInfo;
+
+	return capi_make_facility_conf
+	  (pmsg, 0x0001, 0x0000, &dtmf_conf);
+}
+
+/*---------------------------------------------------------------------------*
  *	generate echo cancel support confirmation
  *---------------------------------------------------------------------------*/
 static struct mbuf *
@@ -1111,7 +1183,8 @@ capi_ai_info_ind(struct call_desc *cd, u_int8_t complement,
 	    bcopy(&msg, m->m_data, m->m_len);
 	}
 
-	capi_ai_putqueue(cd->ai_ptr,complement,m);
+	capi_ai_putqueue(cd->ai_ptr,complement ? 
+			 CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT : 0,m);
 	return;
 }
 
@@ -1387,7 +1460,8 @@ capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement)
 	    bcopy(&msg, m->m_data, m->m_len);
 	}
 
-	capi_ai_putqueue(cd->ai_ptr,complement,m);
+	capi_ai_putqueue(cd->ai_ptr,complement ? 
+			 CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT : 0,m);
 	return;
 }
 
@@ -1397,25 +1471,15 @@ capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement)
 static void
 capi_ai_line_inter_connect_ind(struct call_desc *cd)
 {
-	struct mbuf *m;
-	struct capi_message_encoded msg;
-	struct CAPI_FACILITY_IND_DECODED fac_ind = { /* zero */ };
 	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm = { /* zero */ };
 	struct CAPI_LI_CONN_IND_PARAM_DECODED li_conn_ind = { /* zero */ };
-
-	u_int16_t len;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		   (cd->ai_type == I4B_AI_CAPI)), 
 		  ("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
 
-	CAPI_INIT(CAPI_FACILITY_IND, &fac_ind);
 	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
 	CAPI_INIT(CAPI_LI_CONN_IND_PARAM, &li_conn_ind);
-
-	fac_ind.wSelector = 0x0005; /* line interconnect */
-	fac_ind.Param.ptr = &li_parm;
-	fac_ind.Param_STRUCT = IE_STRUCT_DECODED;
 
 	li_parm.wFunction = 0x0001; /* connect active */
 	li_parm.Param.ptr = &li_conn_ind;
@@ -1423,23 +1487,8 @@ capi_ai_line_inter_connect_ind(struct call_desc *cd)
 
 	li_conn_ind.dwCid = CDID2CAPI_ID(cd->li_cdid_last);
 
-	len = capi_encode(&msg.data, sizeof(msg.data), &fac_ind);
-	len += sizeof(msg.head);
-
-	/* fill out CAPI header */
-
-	msg.head.wLen = htole16(len);
-	msg.head.wApp = htole16(0);
-	msg.head.wCmd = htole16(CAPI_IND(FACILITY));
-	msg.head.wNum = htole16(0);
-	msg.head.dwCid = htole32(CDID2CAPI_ID(cd->cdid));
-
-	if((m = i4b_getmbuf(len, M_NOWAIT)))
-	{
-	    bcopy(&msg, m->m_data, m->m_len);
-	}
-
-	capi_ai_putqueue(cd->ai_ptr,0,m);
+	capi_ai_facility_ind(cd, 0x0005 /* line interconnect */,
+			     0 /* no flags */, &li_parm);
 	return;
 }
 
@@ -1449,25 +1498,15 @@ capi_ai_line_inter_connect_ind(struct call_desc *cd)
 static void
 capi_ai_line_inter_disconnect_ind(struct call_desc *cd)
 {
-	struct mbuf *m;
-	struct capi_message_encoded msg;
-	struct CAPI_FACILITY_IND_DECODED fac_ind = { /* zero */ };
 	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm = { /* zero */ };
 	struct CAPI_LI_DISC_IND_PARAM_DECODED li_disc_ind = { /* zero */ };
-
-	u_int16_t len;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		   (cd->ai_type == I4B_AI_CAPI)), 
 		  ("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
 
-	CAPI_INIT(CAPI_FACILITY_IND, &fac_ind);
 	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
 	CAPI_INIT(CAPI_LI_DISC_IND_PARAM, &li_disc_ind);
-
-	fac_ind.wSelector = 0x0005; /* line interconnect */
-	fac_ind.Param.ptr = &li_parm;
-	fac_ind.Param_STRUCT = IE_STRUCT_DECODED;
 
 	li_parm.wFunction = 0x0002; /* disconnect */
 	li_parm.Param.ptr = &li_disc_ind;
@@ -1476,23 +1515,8 @@ capi_ai_line_inter_disconnect_ind(struct call_desc *cd)
 	li_disc_ind.dwCid = CDID2CAPI_ID(cd->li_cdid_last);
 	li_disc_ind.wServiceReason = 0x0000; /* user initiated */
 
-	len = capi_encode(&msg.data, sizeof(msg.data), &fac_ind);
-	len += sizeof(msg.head);
-
-	/* fill out CAPI header */
-
-	msg.head.wLen = htole16(len);
-	msg.head.wApp = htole16(0);
-	msg.head.wCmd = htole16(CAPI_IND(FACILITY));
-	msg.head.wNum = htole16(0);
-	msg.head.dwCid = htole32(CDID2CAPI_ID(cd->cdid));
-
-	if((m = i4b_getmbuf(len, M_NOWAIT)))
-	{
-	    bcopy(&msg, m->m_data, m->m_len);
-	}
-
-	capi_ai_putqueue(cd->ai_ptr,0,m);
+	capi_ai_facility_ind(cd, 0x0005 /* line interconnect */,
+			     0 /* no flags */, &li_parm);
 	return;
 }
 
@@ -1820,6 +1844,8 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	struct CAPI_SENDING_COMPLETE_DECODED sending_complete;
 	struct CAPI_B_PROTOCOL_DECODED b_protocol;
 
+	struct CAPI_FACILITY_REQ_DTMF_PARAM_DECODED dtmf_req;
+
 	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_param;
 
 	struct CAPI_LI_CONN_REQ_PARAM_DECODED li_conn_req_param;
@@ -2035,7 +2061,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      m2 = capi_make_conf(&msg, CAPI_CONF(CONNECT), 0x0000);
 
-	      capi_ai_putqueue(sc, 0, m2);
+	      capi_ai_putqueue(sc,0,m2);
 
 	      if(m2 == NULL) break;
 
@@ -2356,7 +2382,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      msg.head.dwCid = CDID2CAPI_ID(cd->cdid)|CAPI_ID_NCCI;
 
 	      m2 = capi_make_conf(&msg, CAPI_CONF(CONNECT_B3), 0x0000);
-	      capi_ai_putqueue(sc, 0, m2);
+	      capi_ai_putqueue(sc,0,m2);
 
 	      if(i4b_link_bchandrvr(cd, 1))
 	      {
@@ -2376,7 +2402,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		  /* disconnect request, actively terminate connection */
 
 		  m2 = capi_make_conf(&msg, CAPI_CONF(DISCONNECT_B3), 0x0000);
-		  capi_ai_putqueue(sc, 0, m2);
+		  capi_ai_putqueue(sc,0,m2);
 
 		  (void)i4b_link_bchandrvr(cd, 0);
 	      }
@@ -2544,7 +2570,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(cd->dir_incoming)
 	      {
-		  capi_ai_putqueue(sc, 0, m2);
+		  capi_ai_putqueue(sc,0,m2);
 
 		  m2 = capi_make_connect_b3_ind(cd);
 	      }
@@ -2556,6 +2582,61 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      CAPI_INIT(CAPI_FACILITY_REQ, &facility_req);
  	      capi_decode(&msg.data, msg.head.wLen, &facility_req);
 
+	      if(facility_req.wSelector == 0x0001)
+	      {
+		  int err = EINVAL;
+
+		  /* DTMF support */
+
+		  CAPI_INIT(CAPI_FACILITY_REQ_DTMF_PARAM, &dtmf_req);
+		  capi_decode(facility_req.Param.ptr,
+			      facility_req.Param.len,
+			      &dtmf_req);
+
+		  switch(dtmf_req.wFunction) {
+		  case 1:
+		      /* enable DTMF detector */
+
+		      if (cd->fifo_translator_capi_std) {
+
+			err = L1_COMMAND_REQ(cntl, CMR_ENABLE_DTMF_DETECT, 
+					     cd->fifo_translator_capi_std);
+		      }
+		      break;
+
+		  case 2:
+		      /* disable DTMF detector */
+
+		      if (cd->fifo_translator_capi_std) {
+
+			err = L1_COMMAND_REQ(cntl, CMR_DISABLE_DTMF_DETECT, 
+					     cd->fifo_translator_capi_std);
+		      }
+		      break;
+
+		  case 3:
+		      /* generate DTMF tone(s) */
+
+		      if (cd->fifo_translator_capi_std) {
+
+			u_int16_t len = dtmf_req.Digits.len;
+			u_int8_t *ptr = dtmf_req.Digits.ptr;
+
+			while (len--) {
+			    i4b_dtmf_queue_digit
+			      (cd->fifo_translator_capi_std, *ptr++, 
+			       dtmf_req.wToneDuration,
+			       dtmf_req.wGapDuration);
+			}
+			err = 0;
+		      }
+		      break;
+		  }
+		  m2 = capi_make_dtmf_conf(&msg, err ? 
+					   0x0002 /* unknown DTMF request */ : 
+					   0x0000 /* success */);
+		  goto send_confirmation;
+	      }
 
 	      if(facility_req.wSelector == 0x0008)
 	      {
@@ -2722,7 +2803,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 		      m2 = capi_make_li_conn_conf(&msg, 0x0000,
 						  li_conn_req_part.dwCid);
-		      capi_ai_putqueue(sc, 0, m2);
+		      capi_ai_putqueue(sc,0,m2);
 
 		      capi_connect_bridge(cd, sc, 
 					  CAPI_ID2CDID(li_conn_req_part.dwCid));
@@ -2759,7 +2840,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 		      m2 = capi_make_li_disc_conf(&msg, 0x0000,
 						  li_disc_req_part.dwCid);
-		      capi_ai_putqueue(sc, 0, m2);
+		      capi_ai_putqueue(sc,0,m2);
 
 		      capi_disconnect_bridge(cd, sc,
 					     CAPI_ID2CDID(li_disc_req_part.dwCid));
@@ -2982,7 +3063,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      break;
 
 	    send_confirmation:
-	      capi_ai_putqueue(sc, 0, m2);
+	      capi_ai_putqueue(sc,0,m2);
 	      break;
 
 	    default:
@@ -3358,6 +3439,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		req->profile.dwGlobalOptions = 
 		  htole32(CAPI_PROFILE_INTERNAL_CTLR_SUPPORT|
 			  CAPI_PROFILE_ECHO_CANCELLATION|
+			  CAPI_PROFILE_DTMF_SUPPORT|
 			  CAPI_PROFILE_SUPPLEMENTARY_SERVICES);
 
 		CNTL_LOCK(cntl);
@@ -3635,6 +3717,34 @@ capi_poll(struct cdev *dev, int events, struct thread *td)
 	return(revents);
 }
 
+#define CAPI_CUSTOM_DTMF_IND(m,n) \
+  m(n, BYTE_ARRAY, Digits, 1) \
+  END
+
+CAPI_MAKE_STRUCT(CAPI_CUSTOM_DTMF_IND);
+
+/*---------------------------------------------------------------------------*
+ *	this routine is called from the HSCX interrupt handler
+ *	when a DTMF digit has been detected
+ *---------------------------------------------------------------------------*/
+static void
+capi_put_dtmf(struct fifo_translator *f, u_int8_t *dtmf_ptr, u_int16_t dtmf_len)
+{
+	struct call_desc *cd = f->L5_sc;
+	struct CAPI_CUSTOM_DTMF_IND_DECODED dtmf_data = { /* zero */ };
+
+	CAPI_INIT(CAPI_CUSTOM_DTMF_IND, &dtmf_data);
+
+	while (dtmf_len--) {
+
+	    dtmf_data.Digits[0] = *dtmf_ptr++;
+
+	    capi_ai_facility_ind(cd, 0x0001 /* DTMF selector */,
+				 CAPI_PUTQUEUE_FLAG_DROP_OK, &dtmf_data);
+	}
+	return;
+}
+
 /*---------------------------------------------------------------------------*
  *	this routine is called from the HSCX interrupt handler
  *	when a new frame (mbuf) has been received
@@ -3689,7 +3799,7 @@ capi_put_mbuf(struct fifo_translator *f, struct mbuf *m1)
 		 * only call "capi_ai_putqueue()"
 		 * when there is an mbuf
 		 */
-		capi_ai_putqueue(sc, 0, m2);
+		capi_ai_putqueue(sc,CAPI_PUTQUEUE_FLAG_DROP_OK,m2);
 		return;
 	    }
 	}
@@ -3724,7 +3834,7 @@ capi_get_mbuf(struct fifo_translator *f)
 			m2->m_next = NULL;
 
 			/* send acknowledge back */
-			capi_ai_putqueue(sc, 0, m2);
+			capi_ai_putqueue(sc,0,m2);
 		}
 	}
 	else
@@ -3732,6 +3842,9 @@ capi_get_mbuf(struct fifo_translator *f)
 		/* no data to send */
 		m1 = NULL;
 	}
+
+	i4b_dtmf_generate(f, &m1);
+
 	return m1;
 }
 
@@ -3785,6 +3898,7 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 		f->L5_sc = cd;
 
 		f->L5_PUT_MBUF = &capi_put_mbuf;
+		f->L5_PUT_DTMF = &capi_put_dtmf;
 		f->L5_GET_MBUF = &capi_get_mbuf;
 		f->L5_ALLOC_MBUF = &capi_alloc_mbuf;
 

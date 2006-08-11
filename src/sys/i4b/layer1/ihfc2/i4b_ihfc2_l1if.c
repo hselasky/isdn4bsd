@@ -333,6 +333,38 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	    break;
 	}
 
+	case CMR_ENABLE_DTMF_DETECT:
+	{
+	    struct fifo_translator *ft = parm;
+	    f = ft->L1_fifo;
+
+	    if(PROT_IS_TRANSPARENT(&((f + receive)->prot_curr)))
+	    {
+	        (f + receive)->prot_curr.u.transp.dtmf_detect_enable = 1;
+	    }
+	    else
+	    {
+	        return EINVAL;
+	    }
+	    break;
+	}
+
+	case CMR_DISABLE_DTMF_DETECT:
+	{
+	    struct fifo_translator *ft = parm;
+	    f = ft->L1_fifo;
+
+	    if(PROT_IS_TRANSPARENT(&((f + receive)->prot_curr)))
+	    {
+	        (f + receive)->prot_curr.u.transp.dtmf_detect_enable = 0;
+	    }
+	    else
+	    {
+	        return EINVAL;
+	    }
+	    break;
+	}
+
 	default:
 	    IHFC_MSG("unsupported command, 0x%08x!\n", command);
 	    break;

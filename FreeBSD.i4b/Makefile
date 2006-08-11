@@ -1,5 +1,5 @@
 VERSION=1_6_1_r2
-DATE=June 2006
+DATE=August 2006
 
 FILTER= grep -v "temp"   | \
 	grep -v "~"      | \
@@ -182,6 +182,7 @@ ${N}i4b/layer4/i4b_l4mgmt.c             optional i4b \
 ${N}i4b/layer4/i4b_mbuf.c               optional i4b \
 ${N}i4b/layer1/i4b_l1.c                 optional i4b \
 ${N}i4b/layer1/i4b_echo_cancel.c        optional i4b \
+${N}i4b/layer1/i4b_dtmf.c               optional i4b \
 ${N}i4b/layer1/i4b_convert_xlaw.c       optional i4b \
 ${N}i4b/layer1/i4b_hdlc.c               optional i4b \
 ${N}\# \

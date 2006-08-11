@@ -178,6 +178,39 @@ _if_handoff(struct _ifqueue *ifq, struct mbuf *m)
 struct mbuf *i4b_getmbuf( int, int );
 
 /*---------------------------------------------------------------------------*
+ *	definition of DTMF detector
+ *---------------------------------------------------------------------------*/
+#define I4B_DTMF_N_FREQ 18 /* must be even */
+#define I4B_DTMF_N_SAMPLES 102
+#define I4B_DTMF_N_DIGITS 32 /* units, max */
+
+struct i4b_dtmf_info_rx {
+    int32_t w0[I4B_DTMF_N_FREQ];
+    int32_t w1[I4B_DTMF_N_FREQ];
+    int32_t max_gain;
+
+    u_int8_t count;
+    u_int8_t code;
+    u_int8_t bsubprot;
+    u_int8_t unused;
+};
+
+struct i4b_dtmf_info_tx {
+
+    u_int16_t freq0[I4B_DTMF_N_DIGITS];
+    u_int16_t freq1[I4B_DTMF_N_DIGITS];
+    u_int16_t duration[I4B_DTMF_N_DIGITS];
+
+    u_int16_t omega0;
+    u_int16_t omega1;
+
+    u_int8_t input_pos;
+    u_int8_t output_pos;
+    u_int8_t bsubprot;
+    u_int8_t unused;
+};
+
+/*---------------------------------------------------------------------------*
  *	fifo-translator definition
  *---------------------------------------------------------------------------*/
 typedef struct fifo_translator
@@ -196,7 +229,7 @@ typedef struct fifo_translator
 # define L5_RX_INTERRUPT(f,buf_input)		\
    ((f)->L5_RX_INTERRUPT)(f,buf_input)
 
-  /* NOTE: Do not call if m == NULL */
+  /* NOTE: Do not call if "m == NULL" */
   void (*L5_PUT_MBUF)(struct fifo_translator *, struct mbuf *);
 # define L5_PUT_MBUF(f,m)			\
    ((f)->L5_PUT_MBUF)(f,m)
@@ -210,6 +243,11 @@ typedef struct fifo_translator
        (*L5_ALLOC_MBUF)(struct fifo_translator *, u_int16_t, u_int16_t);
 # define L5_ALLOC_MBUF(f,def_len,tr_len)	\
    ((f)->L5_ALLOC_MBUF(f,def_len,tr_len))
+
+  /* NOTE: Do not call if "ptr == NULL" */
+  void (*L5_PUT_DTMF)(struct fifo_translator *, u_int8_t *, u_int16_t len);
+# define L5_PUT_DTMF(f,p,l)			\
+   ((f)->L5_PUT_DTMF)(f,p,l)
 
   void  *L1_sc;
   void  *L1_fifo;
@@ -239,6 +277,9 @@ typedef struct fifo_translator
 
   struct _ifqueue tx_queue;
   struct _ifqueue rx_queue;
+
+  struct i4b_dtmf_info_rx dtmf_rx;
+  struct i4b_dtmf_info_tx dtmf_tx;
 
 } fifo_translator_t;
 
@@ -741,9 +782,13 @@ enum
   /* PCM */
   CMR_SET_PCM_MAPPING,
 
-  /**/
+  /* echo cancelling */
   CMR_ENABLE_ECHO_CANCEL,
   CMR_DISABLE_ECHO_CANCEL,
+
+  /* DTMF detection */
+  CMR_ENABLE_DTMF_DETECT,
+  CMR_DISABLE_DTMF_DETECT,
 };
 
 typedef u_int32_t L1_auto_activate_t;
@@ -776,6 +821,25 @@ extern void
 i4b_convert_bsubprot(u_int8_t *ptr, u_int32_t len, 
 		     int32_t factor, int32_t divisor,
 		     u_int8_t in_bsubprot, u_int8_t out_bsubprot);
+
+/* prototypes from i4b_dtmf.c */
+
+extern void
+i4b_dtmf_init_rx(struct fifo_translator *ft, u_int8_t bsubprot);
+
+extern void
+i4b_dtmf_init_tx(struct fifo_translator *ft, u_int8_t bsubprot);
+
+extern void
+i4b_dtmf_queue_digit(struct fifo_translator *ft, u_int8_t digit,
+		     u_int16_t tone_duration,
+		     u_int16_t gap_duration);
+extern void
+i4b_dtmf_generate(struct fifo_translator *ft, struct mbuf **pp_m);
+
+extern void
+i4b_dtmf_detect(struct fifo_translator *ft, 
+		u_int8_t *data_ptr, u_int16_t data_len);
 
 /* prototypes from i4b_echo_cancel.c */
 

@@ -242,6 +242,7 @@ struct i4b_protocol {
 	} bridge;
         struct {
 	    u_int8_t  echo_cancel_enable;
+	    u_int8_t  dtmf_detect_enable;
 	} transp;
     } u;
 };

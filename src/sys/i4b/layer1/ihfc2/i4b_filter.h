@@ -134,12 +134,21 @@ filter_rx FIFO_FILTER_T(sc,f)
         /* RX data */
         FIFO_READ_MULTI_1(sc,f,(f->buf_ptr),(io_len));
 
-	/* echo cancel */
-	if((f->prot_curr.protocol_1 == P_TRANSPARENT) &&
-	   (f->prot_curr.u.transp.echo_cancel_enable))
+	if(f->prot_curr.protocol_1 == P_TRANSPARENT)
 	{
-	    struct i4b_echo_cancel *ec = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
- 	    i4b_echo_cancel_merge(ec, f->buf_ptr, io_len);
+	    /* echo cancel first */
+	    if(f->prot_curr.u.transp.echo_cancel_enable)
+	    {
+	        struct i4b_echo_cancel *ec = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
+		i4b_echo_cancel_merge(ec, f->buf_ptr, io_len);
+	    }
+
+	    /* DTMF detect second */ 
+	    if(f->prot_curr.u.transp.dtmf_detect_enable)
+	    {
+	        struct fifo_translator *ft = FIFO_TRANSLATOR(sc,f);
+		i4b_dtmf_detect(ft, f->buf_ptr, io_len);
+	    }
 	}
 
         /* post increment buf_ptr */

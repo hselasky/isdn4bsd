@@ -78,7 +78,7 @@ m(n, L1_S_MSG,     1, "soft-HDLC")\
 m(n, L1_S_ERR,     4, "soft-HDLC")\
 m(n, L1_HFC_DBG,   0, "HFC-S IRQ")\
 m(n, L1_EC_MSG,    1, "echo cancel")\
-m(n, L1_UNKNOWN1,  1, "unknown")\
+m(n, L1_DTMF_MSG,  1, "DTMF detection")\
 m(n, L1_UNKNOWN2,  1, "unknown")\
 m(n, L1_UNKNOWN3,  1, "unknown")\
 \
