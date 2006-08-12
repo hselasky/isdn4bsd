@@ -289,13 +289,60 @@ i4b_dtmf_generate(struct fifo_translator *ft, struct mbuf **pp_m)
     return;
 }
 
+/* routine to compute the square root */
+
+u_int16_t 
+i4b_sqrt_32(u_int32_t a) {
+    u_int32_t b = 0x40000000;
+    u_int32_t x = 0x40000000;
+
+    while(1) {
+
+        if(a >= b) {
+
+           a -= b;
+
+           if(b & 1) {
+              b >>= 1;
+              b |= x;
+              break;
+           }
+           b >>= 1;
+           b |= x;
+           x >>= 1;
+           b ^= x;
+           x >>= 1;
+           b ^= x;
+
+        } else {
+
+           if(b & 1) {
+              b >>= 1;
+              break;
+           }
+           b >>= 1;
+           x >>= 1;
+           b ^= x;
+           x >>= 1;
+           b ^= x;
+        }
+    }
+    return b;
+}
+
 void
 i4b_dtmf_detect(struct fifo_translator *ft, 
 		u_int8_t *data_ptr, u_int16_t data_len)
 {
+    static const int32_t min_gain = 0x1000;
     int32_t w2[I4B_DTMF_N_FREQ];
     int32_t sample;
     int32_t sample_cp;
+    int32_t min0;
+    int32_t min1;
+    int32_t max0;
+    int32_t max1;
+    int32_t max2;
     u_int32_t found;
     u_int32_t n;
     u_int8_t temp;
@@ -309,12 +356,8 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 
 	data_ptr++;
 
-	/* update "max_gain" */
-
-	if (ft->dtmf_rx.max_gain > 0x100) {
-	    ft->dtmf_rx.max_gain -= 8;
-	} else {
-	    ft->dtmf_rx.max_gain = 0x100;
+	if (ft->dtmf_rx.max_gain < min_gain) {
+	    ft->dtmf_rx.max_gain = min_gain;
 	}
 
 	if (sample == -0x8000) {
@@ -338,8 +381,8 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 	        sample_cp = -sample_cp;
 	    }
 
-	    if (sample_cp < 0x100) {
-	        sample_cp = 0x100;
+	    if (sample_cp < min_gain) {
+	        sample_cp = min_gain;
 	    }
 
 	    ft->dtmf_rx.max_gain = sample_cp;
@@ -373,22 +416,73 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 	if (ft->dtmf_rx.count == I4B_DTMF_N_SAMPLES) {
 
 	    found = 0;
+	    max2 = 0;
+	    max1 = 0;
+	    max0 = 0;
+	    min0 = 0x7FFFFFFF;
+	    min1 = 0x7FFFFFFF;
 
 	    for (n = 0; n < I4B_DTMF_N_FREQ; n++) {
 
 	        ft->dtmf_rx.w0[n] /= (1<<7);
 		ft->dtmf_rx.w1[n] /= (1<<7);
 
-		w2[n] = ((ft->dtmf_rx.w0[n]*ft->dtmf_rx.w0[n]) + 
-			 (ft->dtmf_rx.w1[n]*ft->dtmf_rx.w1[n]) -
-			 (((K[n] * ft->dtmf_rx.w0[n]) / (1<<7)) * 
-			  (ft->dtmf_rx.w1[n] / (1<<7))));
+		w2[n] = i4b_sqrt_32
+		  ((ft->dtmf_rx.w0[n]*ft->dtmf_rx.w0[n]) + 
+		   (ft->dtmf_rx.w1[n]*ft->dtmf_rx.w1[n]) -
+		   (((K[n] * ft->dtmf_rx.w0[n]) / (1<<7)) * 
+		    (ft->dtmf_rx.w1[n] / (1<<7))));
 
-		found |= (w2[n] >= (1 << 24)) << n;
+		/* compute the three highest values */
 
-		I4B_DBG(1, L1_DTMF_MSG, "tone[%d]=%d %s",
-			n, w2[n], (found & (1<<n)) ? "over threshold" : 
-			"under threshold");
+		if (max0 < w2[n]) {
+		    max2 = max1;
+		    max1 = max0;
+		    max0 = w2[n];
+		} else if (max1 < w2[n]) {
+		    max2 = max1;
+		    max1 = w2[n];
+		} else if (max2 < w2[n]) {
+		    max2 = w2[n];
+		}
+
+		/* compute the two lowest values */
+
+		if (min0 > w2[n]) {
+		    min1 = min0;
+		    min0 = w2[n];
+		} else if (min1 > w2[n]) {
+		    min1 = w2[n];
+		}
+	    }
+
+	    if ((max0 >= 5000) && (max0 < 10000) &&
+		(max1 >= 5000) && (max1 < 10000) &&
+		(max1 < (max0 + (max0/2))) &&
+		(max2 < 4000)) {
+
+	        /* dual tone */
+
+	        for (n = 0; n < I4B_DTMF_N_FREQ; n++) {
+		    found |= ((w2[n] == max0) ||
+			      (w2[n] == max1)) << n;
+		}
+
+	    } if ((max0 >= 10000) && (max1 < 5000)) {
+
+	        /* single tone */
+
+	        for (n = 0; n < I4B_DTMF_N_FREQ; n++) {
+		    found |= (w2[n] == max1) << n;
+		}
+	    }
+
+	    if (found) {
+	        for (n = 0; n < I4B_DTMF_N_FREQ; n++) {
+		    I4B_DBG(1, L1_DTMF_MSG, "tone[%d]=%d max=%d,%d,%d "
+			    "min=%d,%d", n, w2[n], max0, max1, 
+			    max2, min0, min1);
+		}
 	    }
 
 	    if (found == (1<<16)) {
@@ -444,8 +538,22 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 	done:
 	    if (ft->dtmf_rx.code != code) {
 	        ft->dtmf_rx.code = code;
-		if (code) {
+		ft->dtmf_rx.code_count = 0;
+	    }
+
+	    if ((code == 'X') || (code == 'Y')) {
+	        if (ft->dtmf_rx.code_count == 14) {
 		    L5_PUT_DTMF(ft, &code, 1);
+		}
+		if (ft->dtmf_rx.code_count != 0xFF) {
+		    ft->dtmf_rx.code_count++;
+		}
+	    } else if (code) {
+	        if (ft->dtmf_rx.code_count == 1) {
+		    L5_PUT_DTMF(ft, &code, 1);
+		}
+		if (ft->dtmf_rx.code_count != 0xFF) {
+		    ft->dtmf_rx.code_count++;
 		}
 	    }
 

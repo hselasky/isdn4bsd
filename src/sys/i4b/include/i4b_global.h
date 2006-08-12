@@ -191,8 +191,8 @@ struct i4b_dtmf_info_rx {
 
     u_int8_t count;
     u_int8_t code;
+    u_int8_t code_count;
     u_int8_t bsubprot;
-    u_int8_t unused;
 };
 
 struct i4b_dtmf_info_tx {
@@ -836,6 +836,9 @@ i4b_dtmf_queue_digit(struct fifo_translator *ft, u_int8_t digit,
 		     u_int16_t gap_duration);
 extern void
 i4b_dtmf_generate(struct fifo_translator *ft, struct mbuf **pp_m);
+
+extern u_int16_t 
+i4b_sqrt_32(u_int32_t a);
 
 extern void
 i4b_dtmf_detect(struct fifo_translator *ft, 
