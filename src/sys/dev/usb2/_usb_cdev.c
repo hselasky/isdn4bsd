@@ -943,12 +943,16 @@ usb_cdev_alloc_minor(void)
 
     mtx_unlock(&Giant);
 
+    DPRINTF(0, "x=0x%08x\n", x);
+
     return x;
 }
 
 static void
 usb_cdev_free_minor(u_int32_t x)
 {
+    DPRINTF(0, "x=0x%08x\n", x);
+
     if (x & 0x00FF00) {
         /* invalid minor */
         return;
@@ -1351,4 +1355,5 @@ cdevsw_t usb_cdev_cdevsw = {
   .d_ioctl   = usb_cdev_ioctl,
   .d_poll    = usb_cdev_poll,
   .d_name    = "usb_cdev",
+  .d_flags   = D_TRACKCLOSE,
 };
