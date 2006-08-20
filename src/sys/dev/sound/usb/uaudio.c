@@ -164,11 +164,58 @@ struct uaudio_chan {
 	u_int8_t iface_alt_index;
 };
 
+#define UMIDI_N_TRANSFER    4 /* units */
+#define UMIDI_CABLES_MAX   16 /* units */
+#define UMIDI_BULK_SIZE  1024 /* bytes */
+
+struct umidi_sub_chan {
+    struct usb_cdev cdev;
+    u_int8_t * temp_cmd;
+    u_int8_t temp_0[4];
+    u_int8_t temp_1[4];
+    u_int8_t state;
+#define UMIDI_ST_UNKNOWN   0 /* scan for command */
+#define UMIDI_ST_1PARAM    1
+#define UMIDI_ST_2PARAM_1  2
+#define UMIDI_ST_2PARAM_2  3
+#define UMIDI_ST_SYSEX_0   4
+#define UMIDI_ST_SYSEX_1   5
+#define UMIDI_ST_SYSEX_2   6
+
+    u_int8_t read_open : 1;
+    u_int8_t write_open : 1;
+    u_int8_t unused : 6;
+};
+
+struct umidi_chan {
+
+    struct umidi_sub_chan sub[UMIDI_CABLES_MAX];
+    struct usbd_memory_wait mem_wait;
+    struct mtx mtx;
+
+    struct usbd_xfer *xfer[UMIDI_N_TRANSFER];
+
+    u_int8_t iface_index;
+    u_int8_t iface_alt_index;
+
+    u_int8_t flags;
+#define UMIDI_FLAG_READ_STALL  0x01
+#define UMIDI_FLAG_WRITE_STALL 0x02
+
+    u_int8_t read_open_refcount;
+    u_int8_t write_open_refcount;
+
+    u_int8_t curr_cable;
+    u_int8_t max_cable;
+    u_int8_t valid;
+};
+
 struct uaudio_softc {
 	struct sbuf         sc_sndstat;
 	struct sndcard_func sc_sndcard_func;
 	struct uaudio_chan  sc_rec_chan;
 	struct uaudio_chan  sc_play_chan;
+	struct umidi_chan   sc_midi_chan;
 	struct usbd_memory_wait sc_mixer_mem;
 
 	struct usbd_device * sc_udev;
@@ -373,7 +420,55 @@ uaudio_mixer_ctl_set(struct uaudio_softc *sc, struct uaudio_mixer_node *mc,
 static void
 uaudio_mixer_init(struct uaudio_softc *sc);
 
-static const struct usbd_config uaudio_cfg_record_full_speed[UAUDIO_NCHANBUFS] = {
+static void
+umidi_read_clear_stall_callback(struct usbd_xfer *xfer);
+
+static void
+umidi_bulk_read_callback(struct usbd_xfer *xfer);
+
+static void
+umidi_write_clear_stall_callback(struct usbd_xfer *xfer);
+
+static u_int8_t
+umidi_convert_to_usb(struct umidi_sub_chan *sub, u_int8_t cn, u_int8_t b);
+
+static void
+umidi_bulk_write_callback(struct usbd_xfer *xfer);
+
+static struct umidi_sub_chan *
+umidi_sub_by_cdev(struct usb_cdev *cdev);
+
+static void
+umidi_start_read(struct usb_cdev *cdev);
+
+static void
+umidi_stop_read(struct usb_cdev *cdev);
+
+static void
+umidi_start_write(struct usb_cdev *cdev);
+
+static void
+umidi_stop_write(struct usb_cdev *cdev);
+
+static int32_t
+umidi_open(struct usb_cdev *cdev, int32_t fflags,
+	   int32_t devtype, struct thread *td);
+
+static int32_t
+umidi_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t data, 
+	    int32_t fflags, struct thread *td);
+static void
+umidi_init(device_t dev);
+
+static int32_t
+umidi_probe(device_t dev);
+
+static int32_t
+umidi_detach(device_t dev);
+
+
+static const struct usbd_config 
+uaudio_cfg_record_full_speed[UAUDIO_NCHANBUFS] = {
     [0] = {
       .type      = UE_ISOCHRONOUS,
       .endpoint  = -1, /* any */
@@ -395,7 +490,8 @@ static const struct usbd_config uaudio_cfg_record_full_speed[UAUDIO_NCHANBUFS] =
     },
 };
 
-static const struct usbd_config uaudio_cfg_record_high_speed[UAUDIO_NCHANBUFS] = {
+static const struct usbd_config 
+uaudio_cfg_record_high_speed[UAUDIO_NCHANBUFS] = {
     [0] = {
       .type      = UE_ISOCHRONOUS,
       .endpoint  = -1, /* any */
@@ -417,7 +513,8 @@ static const struct usbd_config uaudio_cfg_record_high_speed[UAUDIO_NCHANBUFS] =
     },
 };
 
-static const struct usbd_config uaudio_cfg_play_full_speed[UAUDIO_NCHANBUFS] = {
+static const struct usbd_config 
+uaudio_cfg_play_full_speed[UAUDIO_NCHANBUFS] = {
     [0] = {
       .type      = UE_ISOCHRONOUS,
       .endpoint  = -1, /* any */
@@ -439,7 +536,8 @@ static const struct usbd_config uaudio_cfg_play_full_speed[UAUDIO_NCHANBUFS] = {
     },
 };
 
-static const struct usbd_config uaudio_cfg_play_high_speed[UAUDIO_NCHANBUFS] = {
+static const struct usbd_config 
+uaudio_cfg_play_high_speed[UAUDIO_NCHANBUFS] = {
     [0] = {
       .type      = UE_ISOCHRONOUS,
       .endpoint  = -1, /* any */
@@ -461,7 +559,8 @@ static const struct usbd_config uaudio_cfg_play_high_speed[UAUDIO_NCHANBUFS] = {
     },
 };
 
-static const struct usbd_config uaudio_mixer_config[1] = {
+static const struct usbd_config 
+uaudio_mixer_config[1] = {
     [0] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
@@ -472,6 +571,66 @@ static const struct usbd_config uaudio_mixer_config[1] = {
     },
 };
 
+static const
+u_int8_t umidi_cmd_to_len[16] = {
+    [0x0] = 0, /* reserved */
+    [0x1] = 0, /* reserved */
+    [0x2] = 2, /* bytes */
+    [0x3] = 3, /* bytes */
+    [0x4] = 3, /* bytes */
+    [0x5] = 1, /* bytes */
+    [0x6] = 2, /* bytes */
+    [0x7] = 3, /* bytes */
+    [0x8] = 3, /* bytes */
+    [0x9] = 3, /* bytes */
+    [0xA] = 3, /* bytes */
+    [0xB] = 3, /* bytes */
+    [0xC] = 2, /* bytes */
+    [0xD] = 2, /* bytes */
+    [0xE] = 3, /* bytes */
+    [0xF] = 1, /* bytes */
+};
+
+static const struct usbd_config 
+umidi_config[UMIDI_N_TRANSFER] = {
+    [0] = {
+      .type      = UE_BULK,
+      .endpoint  = -1, /* any */
+      .direction = UE_DIR_OUT,
+      .bufsize   = UMIDI_BULK_SIZE,
+      .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
+      .callback  = &umidi_bulk_write_callback,
+    },
+
+    [1] = {
+      .type      = UE_BULK,
+      .endpoint  = -1, /* any */
+      .direction = UE_DIR_IN,
+      .bufsize   = UMIDI_BULK_SIZE,
+      .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
+      .callback  = &umidi_bulk_read_callback,
+    },
+
+    [2] = {
+      .type      = UE_CONTROL,
+      .endpoint  = 0x00, /* Control pipe */
+      .direction = -1,
+      .bufsize   = sizeof(usb_device_request_t),
+      .flags     = USBD_USE_DMA,
+      .callback  = &umidi_write_clear_stall_callback,
+      .timeout   = 1000, /* 1 second */
+    },
+
+    [3] = {
+      .type      = UE_CONTROL,
+      .endpoint  = 0x00, /* Control pipe */
+      .direction = -1,
+      .bufsize   = sizeof(usb_device_request_t),
+      .flags     = USBD_USE_DMA,
+      .callback  = &umidi_read_clear_stall_callback,
+      .timeout   = 1000, /* 1 second */
+    },
+};
 
 static devclass_t uaudio_devclass;
 
@@ -528,6 +687,8 @@ uaudio_attach(device_t dev)
 	sc->sc_rec_chan.priv_sc = sc;
 	sc->sc_udev = uaa->device;
 
+	umidi_init(dev);
+
 	usbd_set_desc(dev, uaa->device);
 
 	id = usbd_get_interface_descriptor(uaa->iface);
@@ -564,8 +725,22 @@ uaudio_attach(device_t dev)
 	    device_printf(dev, "No recording!\n");
 	}		      
 
-	device_printf(dev, "WARNING: Unplugging the device while "
-		      "it is in use will cause a panic!\n");
+	if (sc->sc_midi_chan.valid) {
+
+	    if (umidi_probe(dev)) {
+	        goto detach;
+	    }
+
+	    device_printf(dev, "MIDI sequencer\n");
+	} else {
+	    device_printf(dev, "No midi sequencer\n");
+	}
+
+	if (sc->sc_play_chan.valid || 
+	    sc->sc_rec_chan.valid) {
+	    device_printf(dev, "WARNING: Unplugging the device while "
+			  "it is in use will cause a panic!\n");
+	}
 
 	DPRINTF(0, "doing child attach\n");
 
@@ -689,6 +864,8 @@ uaudio_detach(device_t dev)
 	sbuf_delete(&(sc->sc_sndstat));
 	sc->sc_sndstat_valid = 0;
 
+	umidi_detach(dev);
+
 	return 0;
 }
 
@@ -763,6 +940,19 @@ uaudio_chan_fill_info_sub(struct uaudio_softc *sc, struct usbd_device *udev,
 		    audio_if = 1;
 		} else {
 		    audio_if = 0;
+		}
+
+		if ((id->bInterfaceClass == UICLASS_AUDIO) &&
+		    (id->bInterfaceSubClass ==  UISUBCLASS_MIDISTREAM)) {
+
+		    /* XXX could allow multiple MIDI interfaces XXX */
+
+		    if ((sc->sc_midi_chan.valid == 0) && 
+			usbd_get_iface(udev, curidx)) {
+		        sc->sc_midi_chan.iface_index = curidx;
+			sc->sc_midi_chan.iface_alt_index = alt_index;
+			sc->sc_midi_chan.valid = 1;
+		    }
 		}
 
 		asid = NULL;
@@ -3069,6 +3259,595 @@ uaudio_mixer_setrecsrc(struct uaudio_softc *sc, u_int32_t src)
 	    }
 	}
 	return src;
+}
+
+/*========================================================================*
+ * MIDI support routines
+ *========================================================================*/
+
+static void
+umidi_read_clear_stall_callback(struct usbd_xfer *xfer)
+{
+        struct umidi_chan *chan = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = chan->xfer[1];
+	u_int32_t n;
+
+        USBD_CHECK_STATUS(xfer);
+
+ tr_setup:
+        /* start clear stall */
+        usbd_clear_stall_tr_setup(xfer, xfer_other);
+        return;
+
+ tr_transferred:
+        usbd_clear_stall_tr_transferred(xfer, xfer_other);
+
+        chan->flags &= ~UMIDI_FLAG_READ_STALL;
+        usbd_transfer_start(xfer_other);
+        return;
+
+ tr_error:
+        /* bomb out */
+        chan->flags &= ~UMIDI_FLAG_READ_STALL;
+
+	if (xfer->error != USBD_CANCELLED) {
+	    for (n = 0; n < chan->max_cable; n++) {
+	        if (chan->sub[n].read_open) {
+		    usb_cdev_put_data_error(&(chan->sub[n].cdev));
+		}
+	    }
+	}
+        return;
+}
+
+static void
+umidi_bulk_read_callback(struct usbd_xfer *xfer)
+{
+	struct umidi_chan *chan = xfer->priv_sc;
+	struct umidi_sub_chan *sub;
+	u_int8_t buf[4];
+	u_int8_t cmd_len;
+	u_int8_t cn;
+	u_int16_t pos;
+
+	USBD_CHECK_STATUS(xfer);
+
+ tr_error:
+
+	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
+
+        if (xfer->error != USBD_CANCELLED) {
+            /* try to clear stall first */
+            chan->flags |= UMIDI_FLAG_READ_STALL;
+            usbd_transfer_start(chan->xfer[3]);
+        }
+	return;
+
+ tr_transferred:
+
+	DPRINTF(0, "actlen=%d bytes\n", xfer->actlen);
+
+	if (xfer->actlen == 0) {
+	    /* should not happen */
+	    goto tr_error;
+	}
+
+	pos = 0;
+
+	while (xfer->actlen >= 4) {
+
+	    usbd_copy_out(&(xfer->buf_data), pos, buf, 4);
+
+	    cmd_len = umidi_cmd_to_len[buf[0] & 0xF]; /* command length */
+	    cn = buf[0] >> 4; /* cable number */
+	    sub = &(chan->sub[cn]);
+
+	    if (cmd_len && (cn < chan->max_cable) && sub->read_open) {
+	        usb_cdev_put_data(&(sub->cdev), buf+1, cmd_len, 1);
+	    } else {
+	        /* ignore the command */
+	    }
+
+	    xfer->actlen -= 4;
+	    pos += 4;
+	}
+
+ tr_setup:
+	DPRINTF(0, "start\n");
+
+        if (chan->flags & UMIDI_FLAG_READ_STALL) {
+            usbd_transfer_start(chan->xfer[3]);
+            return;
+        }
+	usbd_start_hardware(xfer);
+	return;
+}
+
+static void
+umidi_write_clear_stall_callback(struct usbd_xfer *xfer)
+{
+        struct umidi_chan *chan = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = chan->xfer[0];
+	u_int32_t n;
+
+        USBD_CHECK_STATUS(xfer);
+
+ tr_setup:
+        /* start clear stall */
+        usbd_clear_stall_tr_setup(xfer, xfer_other);
+        return;
+
+ tr_transferred:
+        usbd_clear_stall_tr_transferred(xfer, xfer_other);
+        chan->flags &= ~UMIDI_FLAG_WRITE_STALL;	
+        usbd_transfer_start(xfer_other);
+        return;
+
+ tr_error:
+        /* bomb out */
+        chan->flags &= ~UMIDI_FLAG_WRITE_STALL;
+	if (xfer->error != USBD_CANCELLED) {
+	    for (n = 0; n < chan->max_cable; n++) {
+	        if (chan->sub[n].write_open) {
+		    usb_cdev_get_data_error(&(chan->sub[n].cdev));
+		}
+	    }
+	}
+        return;
+}
+
+/* 
+ * the following statemachine, that converts MIDI commands to 
+ * USB MIDI packets, derives from Linux's usbmidi.c, which
+ * was written by "Clemens Ladisch":
+ *
+ * return values:
+ *    0: No command
+ * Else: Command is complete
+ */
+static u_int8_t
+umidi_convert_to_usb(struct umidi_sub_chan *sub, u_int8_t cn, u_int8_t b)
+{
+	u_int8_t p0 = (cn << 4);
+
+	if (b >= 0xf8) {
+	    sub->temp_0[0] = p0 | 0x0f;
+	    sub->temp_0[1] = b;
+	    sub->temp_0[2] = 0;
+	    sub->temp_0[3] = 0;
+	    sub->temp_cmd = sub->temp_0;
+	    return 1;
+
+	} else if (b >= 0xf0) {
+	    switch (b) {
+	    case 0xf0: /* system exclusive begin */
+	        sub->temp_1[1] = b;
+		sub->state = UMIDI_ST_SYSEX_1;
+		break;
+	    case 0xf1: /* MIDI time code */
+	    case 0xf3: /* song select */
+	        sub->temp_1[1] = b;
+		sub->state = UMIDI_ST_1PARAM;
+		break;
+	    case 0xf2: /* song position pointer */
+	        sub->temp_1[1] = b;
+		sub->state = UMIDI_ST_2PARAM_1;
+		break;
+	    case 0xf4: /* unknown */
+	    case 0xf5: /* unknown */
+	        sub->state = UMIDI_ST_UNKNOWN;
+		break;
+	    case 0xf6: /* tune request */
+	        sub->temp_1[0] = p0 | 0x05;
+		sub->temp_1[1] = 0xf6;
+		sub->temp_1[2] = 0;
+		sub->temp_1[3] = 0;
+		sub->temp_cmd = sub->temp_1;
+		sub->state = UMIDI_ST_UNKNOWN;
+		return 1;
+
+	    case 0xf7: /* system exclusive end */
+	        switch (sub->state) {
+		case UMIDI_ST_SYSEX_0:
+		    sub->temp_1[0] = p0 | 0x05;
+		    sub->temp_1[1] = 0xf7;
+		    sub->temp_1[2] = 0;
+		    sub->temp_1[3] = 0;
+		    sub->temp_cmd = sub->temp_1;
+		    sub->state = UMIDI_ST_UNKNOWN;
+		    return 1;
+		case UMIDI_ST_SYSEX_1:
+		    sub->temp_1[0] = p0 | 0x06;
+		    sub->temp_1[2] = 0xf7;
+		    sub->temp_1[3] = 0;
+		    sub->temp_cmd = sub->temp_1;
+		    sub->state = UMIDI_ST_UNKNOWN;
+		    return 1;
+		case UMIDI_ST_SYSEX_2:
+		    sub->temp_1[0] = p0 | 0x07;
+		    sub->temp_1[3] = 0xf7;
+		    sub->temp_cmd = sub->temp_1;
+		    sub->state = UMIDI_ST_UNKNOWN;
+		    return 1;
+		}
+		sub->state = UMIDI_ST_UNKNOWN;
+		break;
+	    }
+	} else if (b >= 0x80) {
+	    sub->temp_1[1] = b;
+	    if ((b >= 0xc0) && (b <= 0xdf)) {
+	        sub->state = UMIDI_ST_1PARAM;
+	    } else {
+	        sub->state = UMIDI_ST_2PARAM_1;
+	    }
+	} else { /* b < 0x80 */
+	    switch (sub->state) {
+	    case UMIDI_ST_1PARAM:
+	        if (sub->temp_1[1] < 0xf0) {
+		    p0 |= sub->temp_1[1] >> 4;
+		} else {
+		    p0 |= 0x02;
+		    sub->state = UMIDI_ST_UNKNOWN;
+		}
+		sub->temp_1[0] = p0;
+		sub->temp_1[2] = b;
+		sub->temp_1[3] = 0;
+		sub->temp_cmd = sub->temp_1;
+		return 1;
+	    case UMIDI_ST_2PARAM_1:
+	        sub->temp_1[2] = b;
+		sub->state = UMIDI_ST_2PARAM_2;
+		break;
+	    case UMIDI_ST_2PARAM_2:
+	        if (sub->temp_1[1] < 0xf0) {
+		    p0 |= sub->temp_1[1] >> 4;
+		    sub->state = UMIDI_ST_2PARAM_1;
+		} else {
+		    p0 |= 0x03;
+		    sub->state = UMIDI_ST_UNKNOWN;
+		}
+		sub->temp_1[0] = p0;
+		sub->temp_1[3] = b;
+		sub->temp_cmd = sub->temp_1;
+		return 1;
+	    case UMIDI_ST_SYSEX_0:
+	        sub->temp_1[1] = b;
+		sub->state = UMIDI_ST_SYSEX_1;
+		break;
+	    case UMIDI_ST_SYSEX_1:
+	        sub->temp_1[2] = b;
+		sub->state = UMIDI_ST_SYSEX_2;
+		break;
+	    case UMIDI_ST_SYSEX_2:
+	        sub->temp_1[0] = p0 | 0x04;
+		sub->temp_1[3] = b;
+		sub->temp_cmd = sub->temp_1;
+		sub->state = UMIDI_ST_SYSEX_0;
+		return 1;
+	    }
+	}
+	return 0;
+}
+
+static void
+umidi_bulk_write_callback(struct usbd_xfer *xfer)
+{
+	struct umidi_chan *chan = xfer->priv_sc;
+	struct umidi_sub_chan *sub;
+	u_int32_t actlen;
+	u_int16_t total_length;
+	u_int8_t buf;
+	u_int8_t start_cable;
+	u_int8_t tr_any;
+
+	USBD_CHECK_STATUS(xfer);
+
+ tr_error:
+
+	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
+
+        if (xfer->error != USBD_CANCELLED) {
+            /* try to clear stall first */
+            chan->flags |= UMIDI_FLAG_WRITE_STALL;
+            usbd_transfer_start(chan->xfer[2]);
+        }
+	return;
+
+ tr_transferred:
+	DPRINTF(0, "actlen=%d bytes\n", xfer->actlen);
+
+ tr_setup:
+
+	DPRINTF(0, "start\n");
+
+        if (chan->flags & UMIDI_FLAG_WRITE_STALL) {
+            usbd_transfer_start(chan->xfer[2]);
+            return;
+        }
+
+	total_length = 0; /* reset */
+
+	start_cable = chan->curr_cable;
+
+	tr_any = 0;
+
+	while (1) {
+
+	    /* round robin de-queueing */
+
+	    sub = &(chan->sub[chan->curr_cable]);
+
+	    if (sub->write_open) {
+	        usb_cdev_get_data(&(sub->cdev), &buf, 1, &actlen, 0);
+	    } else {
+	        actlen = 0;
+	    }
+
+	    if (actlen) {
+	        tr_any = 1;
+
+		DPRINTF(0, "byte=0x%02x\n", buf);
+
+		if (umidi_convert_to_usb(sub, chan->curr_cable, buf)) {
+
+		    DPRINTF(0, "sub= %02x %02x %02x %02x\n",
+			    sub->temp_cmd[0], sub->temp_cmd[1], 
+			    sub->temp_cmd[2], sub->temp_cmd[3]);
+
+		    usbd_copy_in(&(xfer->buf_data), total_length,
+				 sub->temp_cmd, 4);
+
+		    total_length += 4;
+
+		    if (total_length >= UMIDI_BULK_SIZE) {
+		        break;
+		    }
+
+		} else {
+		  continue;
+		}
+	    }
+
+	    chan->curr_cable ++;
+	    if (chan->curr_cable >= chan->max_cable) {
+	        chan->curr_cable = 0;
+	    }
+	    if (chan->curr_cable == start_cable) {
+	        if (tr_any == 0) {
+		    break;
+		}
+		tr_any = 0;
+	    }
+	}
+
+	if (total_length) {
+	    xfer->length = total_length;
+	    usbd_start_hardware(xfer);
+	}
+	return;
+}
+
+static struct umidi_sub_chan *
+umidi_sub_by_cdev(struct usb_cdev *cdev)
+{
+	struct umidi_chan *chan = cdev->sc_priv_ptr;
+	struct umidi_sub_chan *sub;
+	u_int32_t n;
+
+	for (n = 0; n < UMIDI_CABLES_MAX; n++) {
+	    sub = &(chan->sub[n]);
+	    if ((&(sub->cdev)) == cdev) {
+	        return sub;
+	    }
+	}
+
+	panic("%s:%d cannot find usb_cdev!\n",
+	      __FILE__, __LINE__);
+
+	return NULL;
+}
+
+static void
+umidi_start_read(struct usb_cdev *cdev)
+{
+	struct umidi_chan *chan = cdev->sc_priv_ptr;
+	usbd_transfer_start(chan->xfer[1]);
+	return;
+}
+
+static void
+umidi_stop_read(struct usb_cdev *cdev)
+{
+	struct umidi_chan *chan = cdev->sc_priv_ptr;
+	struct umidi_sub_chan *sub = umidi_sub_by_cdev(cdev);
+
+	DPRINTF(0, "\n");
+
+	sub->read_open = 0;
+
+	if (--(chan->read_open_refcount) == 0) {
+	    DPRINTF(0, "(stopping read transfer)\n");
+	}
+	return;
+}
+
+static void
+umidi_start_write(struct usb_cdev *cdev)
+{
+	struct umidi_chan *chan = cdev->sc_priv_ptr;
+	usbd_transfer_start(chan->xfer[0]);
+	return;
+}
+
+static void
+umidi_stop_write(struct usb_cdev *cdev)
+{
+	struct umidi_chan *chan = cdev->sc_priv_ptr;
+	struct umidi_sub_chan *sub = umidi_sub_by_cdev(cdev);
+
+	DPRINTF(0, "\n");
+
+	sub->write_open = 0;
+
+	if (--(chan->write_open_refcount) == 0) {
+	    DPRINTF(0, "(stopping write transfer)\n");
+	    usbd_transfer_stop(chan->xfer[2]);
+	    usbd_transfer_stop(chan->xfer[0]);
+	}
+	return;
+}
+
+static int32_t
+umidi_open(struct usb_cdev *cdev, int32_t fflags,
+	   int32_t devtype, struct thread *td)
+{
+        struct umidi_chan *chan = cdev->sc_priv_ptr;
+	struct umidi_sub_chan *sub = umidi_sub_by_cdev(cdev);
+
+        if (fflags & FREAD) {
+	    chan->read_open_refcount++;
+	    sub->read_open = 1;
+        }
+
+        if (fflags & FWRITE) {
+            /* clear stall first */
+            chan->flags |= UMIDI_FLAG_WRITE_STALL;
+	    chan->write_open_refcount++;
+	    sub->write_open = 1;
+
+	    /* reset */
+	    sub->state = UMIDI_ST_UNKNOWN;
+        }
+	return 0; /* success */
+}
+
+static int32_t
+umidi_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t data, 
+	    int32_t fflags, struct thread *td)
+{
+	return ENODEV;
+}
+
+static void
+umidi_init(device_t dev)
+{
+	struct uaudio_softc *sc = device_get_softc(dev);
+	struct umidi_chan *chan = &(sc->sc_midi_chan);
+
+	mtx_init(&(chan->mtx), "umidi lock", NULL, MTX_DEF|MTX_RECURSE);
+	return;
+}
+
+static int32_t
+umidi_probe(device_t dev)
+{
+	struct uaudio_softc *sc = device_get_softc(dev);
+	struct usb_attach_arg *uaa = device_get_ivars(dev);
+	struct umidi_chan *chan = &(sc->sc_midi_chan);
+	struct umidi_sub_chan *sub;
+        const char * p_buf[3];
+        int32_t unit = device_get_unit(dev);
+        int32_t error;
+	u_int32_t n;
+	u_int8_t buf[32];
+
+	if (usbreq_set_interface(sc->sc_udev, chan->iface_index, 
+				 chan->iface_alt_index)) {
+	    DPRINTF(0, "setting of alternate index failed!\n");
+	    goto detach;
+	}
+
+	USBD_SET_IFACE_NO_PROBE(sc->sc_udev, chan->iface_index);
+
+        error = usbd_transfer_setup(uaa->device, chan->iface_index, 
+                                    chan->xfer, umidi_config, UMIDI_N_TRANSFER, 
+                                    chan, &(chan->mtx), &(chan->mem_wait));
+        if (error) {
+            DPRINTF(0, "error=%s\n", usbd_errstr(error)) ;
+            goto detach;
+        }
+
+	if ((chan->max_cable > UMIDI_CABLES_MAX) ||
+	    (chan->max_cable == 0)) {
+	    chan->max_cable = UMIDI_CABLES_MAX;
+	}
+
+	for (n = 0; n < chan->max_cable; n++) {
+
+	    sub = &(chan->sub[n]);
+
+	    snprintf(buf, sizeof(buf), "umidi"
+		     "%d.%x", unit, n);
+
+	    p_buf[0] = buf;
+	    p_buf[1] = NULL;
+
+	    sub->cdev.sc_start_read = &umidi_start_read;
+	    sub->cdev.sc_start_write = &umidi_start_write;
+	    sub->cdev.sc_stop_read = &umidi_stop_read;
+	    sub->cdev.sc_stop_write = &umidi_stop_write;
+	    sub->cdev.sc_open = &umidi_open;
+	    sub->cdev.sc_ioctl = &umidi_ioctl;
+	    sub->cdev.sc_flags |= (USB_CDEV_FLAG_WAKEUP_RD_IMMED|
+				   USB_CDEV_FLAG_WAKEUP_WR_IMMED);
+
+	    error = usb_cdev_attach(&(sub->cdev), chan, &(chan->mtx), p_buf,
+				    UID_ROOT, GID_OPERATOR, 0644, 
+				    4, (1024/4),
+				    32, (1024/32));
+	    if (error) {
+	        goto detach;
+	    }
+	}
+
+	mtx_lock(&(chan->mtx));
+
+	/* clear stall first */
+	chan->flags |= UMIDI_FLAG_READ_STALL;
+
+	/*
+	 * NOTE: at least one device will not work properly unless
+	 * the BULK pipe is open all the time.
+	 */
+	usbd_transfer_start(chan->xfer[1]);
+
+	mtx_unlock(&(chan->mtx));
+
+	return 0; /* success */
+
+ detach:
+	return ENXIO; /* failure */
+}
+
+static int32_t
+umidi_detach(device_t dev)
+{
+	struct uaudio_softc *sc = device_get_softc(dev);
+	struct umidi_chan *chan = &(sc->sc_midi_chan);
+	u_int32_t n;
+
+	for (n = 0; n < UMIDI_CABLES_MAX; n++) {
+	    usb_cdev_detach(&(chan->sub[n].cdev));
+	}
+
+	mtx_lock(&(chan->mtx));
+
+	if (chan->xfer[3]) {
+	    usbd_transfer_stop(chan->xfer[3]);
+	}
+	if (chan->xfer[1]) {
+	    usbd_transfer_stop(chan->xfer[1]);
+	}
+
+	mtx_unlock(&(chan->mtx));
+
+	usbd_transfer_unsetup(chan->xfer, UMIDI_N_TRANSFER);
+
+	usbd_transfer_drain(&(chan->mem_wait), &(chan->mtx));
+
+	mtx_destroy(&(chan->mtx));
+
+	return 0;
 }
 
 DRIVER_MODULE(uaudio, uhub, uaudio_driver, uaudio_devclass, usbd_driver_load, 0);
