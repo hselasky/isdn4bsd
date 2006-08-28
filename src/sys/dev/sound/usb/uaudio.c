@@ -3666,6 +3666,10 @@ umidi_stop_read(struct usb_cdev *cdev)
 	sub->read_open = 0;
 
 	if (--(chan->read_open_refcount) == 0) {
+	    /* XXX don't stop the read transfer here,
+	     * hence that causes problems with some
+	     * MIDI adapters
+	     */
 	    DPRINTF(0, "(stopping read transfer)\n");
 	}
 	return;

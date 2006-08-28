@@ -2,9 +2,6 @@
  * Copyright (c) 1997, 1998, 1999, 2000-2003
  *	Bill Paul <wpaul@windriver.com>.  All rights reserved.
  *
- * Copyright (c) 2006
- *	Hans Petter Selasky. All rights reserved.
- *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -691,6 +688,10 @@ axe_cfg_first_time_setup(struct axe_softc *sc,
 	struct ifnet * ifp;
 	int error;
 	u_int8_t eaddr[min(ETHER_ADDR_LEN,6)];
+
+	if (cc == NULL) {
+	    return;
+	}
 
        	/* set default value */
 	bzero(eaddr, sizeof(eaddr));

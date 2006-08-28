@@ -2,9 +2,6 @@
  * Copyright (c) 1997, 1998, 1999, 2000
  *	Bill Paul <wpaul@ee.columbia.edu>.  All rights reserved.
  *
- * Copyright (c) 2006
- *	Hans Petter Selasky. All rights reserved.
- *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -890,6 +887,10 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 	int error;
 	u_int8_t eaddr[min(ETHER_ADDR_LEN,6)];
 
+	if (cc == NULL) {
+	    return;
+	}
+
 	/* reset the adapter */
 	aue_cfg_reset(sc);
 
@@ -978,7 +979,7 @@ aue_detach(device_t dev)
 
 	usbd_config_td_stop(&(sc->sc_config_td));
 
-	__callout_stop(&sc->sc_watchdog);
+	__callout_stop(&(sc->sc_watchdog));
 
 	aue_cfg_stop(sc, NULL, 0);
 

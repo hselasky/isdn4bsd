@@ -54,6 +54,8 @@ ${S}/sys/dev/usb/if_axe.c \
 ${S}/sys/dev/usb/if_axereg.h \
 ${S}/sys/dev/usb/if_cdce.c \
 ${S}/sys/dev/usb/if_cdcereg.h \
+${S}/sys/dev/usb/if_cue.c \
+${S}/sys/dev/usb/if_cuereg.h \
 ${S}/sys/dev/usb2 \
 
 USB_MODULES=\
