@@ -687,7 +687,7 @@ cue_bulk_read_callback(struct usbd_xfer *xfer)
 
  tr_transferred:
 
-	if (xfer->actlen <= 2) {
+	if (xfer->actlen <= (2 + sizeof(struct ether_header))) {
 	    ifp->if_ierrors++;
 	    goto tr_setup;
 	}
@@ -1018,10 +1018,6 @@ cue_watchdog(void *arg)
 	return;
 }
 
-/*
- * Stop the adapter and free any mbufs allocated to the
- * RX and TX lists.
- */
 static void
 cue_cfg_stop(struct cue_softc *sc,
 	     struct cue_config_copy *cc, u_int16_t refcount)

@@ -2561,6 +2561,15 @@ usbd_config_td_queue_command(struct usbd_config_td *ctd,
 	    }
 	}
 
+	/* first call to command function
+	 * (do this before calling the 
+	 *  config copy function, so that
+	 *  the immediate part of the command
+	 *  function gets a chance to change 
+	 *  the config before it is copied)
+	 */
+	(command_func)(ctd->p_softc, NULL, command_ref);
+
 	USBD_IF_DEQUEUE(&(ctd->cmd_free), m);
 
 	if (m == NULL) {
@@ -2586,11 +2595,6 @@ usbd_config_td_queue_command(struct usbd_config_td *ctd,
 	    ctd->flag_config_td_sleep = 0;
 	    wakeup(&(ctd->wakeup_config_td));
 	}
-
-	/* first call to command function */
-
-	(command_func)(ctd->p_softc, NULL, command_ref);
-
 	return;
 }
 

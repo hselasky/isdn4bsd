@@ -56,6 +56,9 @@ ${S}/sys/dev/usb/if_cdce.c \
 ${S}/sys/dev/usb/if_cdcereg.h \
 ${S}/sys/dev/usb/if_cue.c \
 ${S}/sys/dev/usb/if_cuereg.h \
+${S}/sys/dev/usb/if_kue.c \
+${S}/sys/dev/usb/if_kuefw.h \
+${S}/sys/dev/usb/if_kuereg.h \
 ${S}/sys/dev/usb2 \
 
 USB_MODULES=\
