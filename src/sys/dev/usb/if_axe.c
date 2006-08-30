@@ -1058,13 +1058,13 @@ axe_cfg_tick(struct axe_softc *sc,
 
 	mii_tick(mii);
 
+	mii_pollstat(mii);
+
 	if ((sc->sc_flags & AXE_FLAG_WAIT_LINK) &&
 	    (mii->mii_media_status & IFM_ACTIVE) &&
 	    (IFM_SUBTYPE(mii->mii_media_active) != IFM_NONE)) {
 	    sc->sc_flags &= ~AXE_FLAG_WAIT_LINK;
 	}
-
-	mii_pollstat(mii);
 
 	sc->sc_media_active = mii->mii_media_active;
 	sc->sc_media_status = mii->mii_media_status;
