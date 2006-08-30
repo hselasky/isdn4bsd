@@ -796,6 +796,7 @@ kue_bulk_write_callback(struct usbd_xfer *xfer)
 	struct kue_softc *sc = xfer->priv_sc;
 	struct ifnet *ifp = sc->sc_ifp;
 	struct mbuf *m;
+	u_int32_t total_len;
 	u_int8_t buf[2];
 
 	USBD_CHECK_STATUS(xfer);
@@ -838,7 +839,7 @@ kue_bulk_write_callback(struct usbd_xfer *xfer)
 	}
 
 	xfer->length = (m->m_pkthdr.len + 2);
-	xfer->length += (64 - (xfer->length % 64));
+	total_len = (xfer->length + (64 - (xfer->length % 64)));
 
 	/* the first two bytes are the frame length */
 
@@ -849,6 +850,11 @@ kue_bulk_write_callback(struct usbd_xfer *xfer)
 
 	usbd_m_copy_in(&(xfer->buf_data), 2, 
 		       m, 0, m->m_pkthdr.len);
+
+	usbd_bzero(&(xfer->buf_data), xfer->length,
+		   total_len - xfer->length);
+
+	xfer->length = total_len;
 
 	/*
 	 * if there's a BPF listener, bounce a copy 
