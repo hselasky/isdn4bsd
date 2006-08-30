@@ -1155,7 +1155,7 @@ struct cdev;
 struct mtx;
 
 extern int32_t
-usb_cdev_sleep(struct usb_cdev *sc, int32_t fflags);
+usb_cdev_sleep(struct usb_cdev *sc, int32_t fflags, u_int32_t timeout);
 
 extern void
 usb_cdev_wakeup(struct usb_cdev *sc);

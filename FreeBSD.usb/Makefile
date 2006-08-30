@@ -63,6 +63,8 @@ ${S}/sys/dev/usb/if_rue.c \
 ${S}/sys/dev/usb/if_ruereg.h \
 ${S}/sys/dev/usb/if_udav.c \
 ${S}/sys/dev/usb/if_udavreg.h \
+${S}/sys/dev/usb/ufm.c \
+${S}/sys/dev/usb/dsbr100io.h \
 ${S}/sys/dev/usb2 \
 
 USB_MODULES=\

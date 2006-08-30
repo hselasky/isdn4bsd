@@ -183,7 +183,8 @@ usb_cdev_uiomove(struct usb_cdev *sc, u_int32_t context_bit,
 }
 
 static int32_t
-usb_cdev_msleep(struct usb_cdev *sc, void *ident, u_int32_t context_bit)
+usb_cdev_msleep(struct usb_cdev *sc, void *ident, u_int32_t context_bit, 
+		u_int32_t timeout)
 {
 	int32_t error;
 
@@ -196,7 +197,7 @@ usb_cdev_msleep(struct usb_cdev *sc, void *ident, u_int32_t context_bit)
 }
 
 int32_t
-usb_cdev_sleep(struct usb_cdev *sc, int32_t fflags)
+usb_cdev_sleep(struct usb_cdev *sc, int32_t fflags, u_int32_t timeout)
 {
 	u_int32_t context_bit = usb_cdev_get_context(fflags);
 
@@ -204,7 +205,8 @@ usb_cdev_sleep(struct usb_cdev *sc, int32_t fflags)
 			USB_CDEV_FLAG_SLEEP_IOCTL_WR|
 			USB_CDEV_FLAG_WAKEUP_IOCTL_RD|
 			USB_CDEV_FLAG_WAKEUP_IOCTL_WR);
-	return usb_cdev_msleep(sc, &(sc->sc_wakeup_ioctl), context_bit);
+	return usb_cdev_msleep(sc, &(sc->sc_wakeup_ioctl), context_bit, 
+			       timeout);
 }
 
 void
@@ -271,7 +273,7 @@ usb_cdev_wait_context(struct usb_cdev *sc, u_int32_t context_bit)
 		USB_CDEV_FLAG_SLEEP_IOCTL_WR)) {
 
 	    error = usb_cdev_msleep(sc, &(sc->sc_wakeup_ioctl_rdwr), 
-				    temp);
+				    temp, 0);
 	    if (error) {
 		goto done;
 	    }
@@ -629,7 +631,7 @@ usb_cdev_write(struct cdev *dev, struct uio *uio, int32_t flags)
 
 	        error = usb_cdev_msleep(sc, &(sc->sc_wakeup_write),
 					(USB_CDEV_FLAG_SLEEP_WRITE|
-					 USB_CDEV_FLAG_WAKEUP_WRITE));
+					 USB_CDEV_FLAG_WAKEUP_WRITE), 0);
 		if (error) {
 		    break;
 		}
@@ -711,7 +713,7 @@ usb_cdev_read(struct cdev *dev, struct uio *uio, int flags)
 
 	        error = usb_cdev_msleep(sc, &(sc->sc_wakeup_read),
 					(USB_CDEV_FLAG_SLEEP_READ|
-					 USB_CDEV_FLAG_WAKEUP_READ)); 
+					 USB_CDEV_FLAG_WAKEUP_READ), 0); 
 		if (error) {
 		    break;
 		}

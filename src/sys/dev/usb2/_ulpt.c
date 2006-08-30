@@ -469,7 +469,7 @@ ulpt_open(struct usb_cdev *cdev, int32_t fflags,
 
 	    usbd_transfer_start(sc->sc_xfer[3]);
 
-	    error = usb_cdev_sleep(&(sc->sc_cdev), fflags);
+	    error = usb_cdev_sleep(&(sc->sc_cdev), fflags, 0);
 
 	    usbd_transfer_stop(sc->sc_xfer[3]);
 

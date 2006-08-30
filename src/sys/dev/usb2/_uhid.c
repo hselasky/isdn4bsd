@@ -399,7 +399,7 @@ uhid_do_control_transfer(struct uhid_softc *sc, int32_t fflags)
 
 	usbd_transfer_start(sc->sc_xfer[4]);
 
-	error = usb_cdev_sleep(&(sc->sc_cdev), fflags);
+	error = usb_cdev_sleep(&(sc->sc_cdev), fflags, 0);
 
 	usbd_transfer_stop(sc->sc_xfer[4]);
 
