@@ -142,7 +142,8 @@ static u_int16_t
 ural_ack_rate(struct ieee80211com *ic, u_int16_t rate);
 
 static u_int16_t
-ural_txtime(struct ural_softc *sc, u_int16_t len, u_int16_t rate, u_int32_t flags);
+ural_txtime(struct ural_softc *sc, u_int16_t len, u_int16_t rate, 
+	    u_int32_t flags);
 
 static u_int8_t
 ural_plcp_signal(u_int16_t rate);

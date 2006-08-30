@@ -1287,9 +1287,6 @@ axe_watchdog(void *arg)
 }
 
 /*
- * Stop the adapter and free any mbufs allocated to the
- * RX and TX lists.
- *
  * NOTE: can be called when "ifp" is NULL
  */
 static void
