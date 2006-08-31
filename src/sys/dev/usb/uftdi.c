@@ -51,6 +51,7 @@
 #include <sys/kernel.h>
 #include <sys/termios.h>
 #include <sys/serial.h>
+#include <sys/taskqueue.h>
 
 #define usbd_config_td_cc uftdi_config_copy
 #define usbd_config_td_softc uftdi_softc
