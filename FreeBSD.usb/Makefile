@@ -67,6 +67,12 @@ ${S}/sys/dev/usb/ufm.c \
 ${S}/sys/dev/usb/dsbr100io.h \
 ${S}/sys/dev/usb2 \
 
+#
+# not yet:
+# ${S}/sys/dev/usb/uftdi.c \
+# ${S}/sys/dev/usb/uftdireg.h \
+#
+
 USB_MODULES=\
 ${S}/sys/modules/aue \
 ${S}/sys/modules/axe \

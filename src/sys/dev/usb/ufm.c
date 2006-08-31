@@ -46,7 +46,7 @@
 
 #include <dev/usb/dsbr100io.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ufm.c,v 1.23 2005/01/06 01:43:28 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ufm.c,v 1.23 2005/01/06 01:43:28 imp Exp $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(sc,n,fmt,...)   \
