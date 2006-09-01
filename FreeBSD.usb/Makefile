@@ -72,6 +72,7 @@ ${S}/sys/dev/usb2 \
 # ${S}/sys/dev/usb/uftdi.c \
 # ${S}/sys/dev/usb/uftdireg.h \
 # ${S}/sys/dev/usb/ucycom.c \
+# ${S}/sys/dev/usb/ufoma.c \
 #
 
 USB_MODULES=\
