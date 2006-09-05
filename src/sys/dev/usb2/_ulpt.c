@@ -46,13 +46,7 @@
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
-#include <sys/malloc.h>
-#include <sys/ioccom.h>
-#include <sys/filio.h>
-#include <sys/tty.h>
-#include <sys/file.h>
-#include <sys/vnode.h>
-#include <sys/poll.h>
+#include <sys/fcntl.h>
 #include <sys/syslog.h>
 
 #include <dev/usb2/usb_port.h>

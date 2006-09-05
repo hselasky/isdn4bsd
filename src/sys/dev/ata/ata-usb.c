@@ -347,6 +347,10 @@ atausb_attach(device_t dev)
     u_int8_t has_intr;
     int err;
 
+    if (sc == NULL) {
+        return ENOMEM;
+    }
+
     usbd_set_desc(dev, uaa->device);
 
     sc->dev = dev;
@@ -544,10 +548,6 @@ atausb_t_bbb_reset1_callback(struct usbd_xfer *xfer)
     return;
 
  tr_setup:
-    if (sc->reset_count >= 16) {
-        device_printf(sc->dev, "timeout: giving up reset!\n");
-	return;
-    }
 
     sc->reset_count ++;
 
@@ -916,9 +916,20 @@ atausb_tr_error(struct usbd_xfer *xfer)
 			  sc->last_xfer_no);
 	}
 
-	/* start reset before any callback */
+	if (sc->reset_count < 16) {
 
-	atausb_transfer_start(sc, ATAUSB_T_BBB_RESET1);
+	    /* start reset before any callback */
+
+	    atausb_transfer_start(sc, ATAUSB_T_BBB_RESET1);
+	} else {
+
+	    /* suspend reset until next command */
+
+	    sc->last_xfer_no = ATAUSB_T_BBB_RESET1;
+	    sc->reset_count = 0;
+
+	    device_printf(sc->dev, "timeout: giving up reset!\n");
+	}
     }
 
     if (request) {
