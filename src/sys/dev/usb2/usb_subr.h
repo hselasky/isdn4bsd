@@ -738,7 +738,11 @@ void
 usbd_mem_free_sub(struct usbd_page *page);
 
 #ifdef __FreeBSD__
+#if (__FreeBSD_version >= 700020)
+#define device_get_dma_tag(dev) bus_get_dma_tag(dev)
+#else
 #define device_get_dma_tag(dev) NULL /* XXX */
+#endif
 #endif
 
 void
