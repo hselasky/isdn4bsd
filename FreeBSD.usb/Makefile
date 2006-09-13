@@ -66,6 +66,7 @@ ${S}/sys/dev/usb/if_udavreg.h \
 ${S}/sys/dev/usb/ufm.c \
 ${S}/sys/dev/usb/dsbr100io.h \
 ${S}/sys/dev/usb/uscanner.c \
+${S}/sys/dev/usb/umass.c \
 ${S}/sys/dev/usb2 \
 
 #

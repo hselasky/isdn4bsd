@@ -99,11 +99,14 @@ struct atausb_softc {
 #define ATAUSB_T_BBB_RESET3        2
 #define ATAUSB_T_BBB_COMMAND       3
 #define ATAUSB_T_BBB_DATA_READ     4
-#define ATAUSB_T_BBB_DATA_WRITE    5
-#define ATAUSB_T_BBB_STATUS        6
-#define ATAUSB_T_BBB_INTERRUPT     7
-#define ATAUSB_T_BBB_I_CLEAR_STALL 8
-#define ATAUSB_T_MAX               9
+#define ATAUSB_T_BBB_DATA_RD_CS    5
+#define ATAUSB_T_BBB_DATA_WRITE    6
+#define ATAUSB_T_BBB_DATA_WR_CS    7
+#define ATAUSB_T_BBB_STATUS        8
+#define ATAUSB_T_BBB_MAX           9
+
+#define ATAUSB_T_MAX ATAUSB_T_BBB_MAX
+
     struct usbd_xfer *  xfer[ATAUSB_T_MAX];
     caddr_t		ata_data;
     device_t		dev;
@@ -118,6 +121,7 @@ struct atausb_softc {
     u_int8_t		intr_stalled;
     u_int8_t		maxlun;
     u_int8_t		iface_no;
+    u_int8_t		status_try;
 };
 
 static const int atausbdebug = 0;
@@ -144,22 +148,26 @@ static void
 atausb_t_bbb_reset3_callback(struct usbd_xfer *xfer);
 
 static void
+atausb_t_bbb_data_clear_stall_callback(struct usbd_xfer *xfer,
+				       u_int8_t next_xfer,
+				       u_int8_t stall_xfer);
+static void
 atausb_t_bbb_command_callback(struct usbd_xfer *xfer);
 
 static void
 atausb_t_bbb_data_read_callback(struct usbd_xfer *xfer);
 
 static void
+atausb_t_bbb_data_rd_cs_callback(struct usbd_xfer *xfer);
+
+static void
 atausb_t_bbb_data_write_callback(struct usbd_xfer *xfer);
 
 static void
+atausb_t_bbb_data_wr_cs_callback(struct usbd_xfer *xfer);
+
+static void
 atausb_t_bbb_status_callback(struct usbd_xfer *xfer);
-
-static void
-atausb_t_bbb_interrupt_callback(struct usbd_xfer *xfer);
-
-static void
-atausb_t_bbb_i_clear_stall_callback(struct usbd_xfer *xfer);
 
 static void
 atausb_tr_error(struct usbd_xfer *xfer);
@@ -181,7 +189,7 @@ static ata_locking_t ata_usbchannel_locking;
  * USB frontend part
  */
 
-struct usbd_config atausb_config[ATAUSB_T_MAX] = {
+struct usbd_config atausb_config[ATAUSB_T_BBB_MAX] = {
 
     [ATAUSB_T_BBB_RESET1] = {
       .type      = UE_CONTROL,
@@ -233,6 +241,16 @@ struct usbd_config atausb_config[ATAUSB_T_MAX] = {
       .timeout   = 0, /* overwritten later */
     },
 
+    [ATAUSB_T_BBB_DATA_RD_CS] = {
+      .type      = UE_CONTROL,
+      .endpoint  = 0x00, /* Control pipe */
+      .direction = -1,
+      .bufsize   = sizeof(usb_device_request_t),
+      .flags     = USBD_USE_DMA,
+      .callback  = &atausb_t_bbb_data_rd_cs_callback,
+      .timeout   = 5000, /* 5 seconds */
+    },
+
     [ATAUSB_T_BBB_DATA_WRITE] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
@@ -243,6 +261,16 @@ struct usbd_config atausb_config[ATAUSB_T_MAX] = {
       .timeout   = 0, /* overwritten later */
     },
 
+    [ATAUSB_T_BBB_DATA_WR_CS] = {
+      .type      = UE_CONTROL,
+      .endpoint  = 0x00, /* Control pipe */
+      .direction = -1,
+      .bufsize   = sizeof(usb_device_request_t),
+      .flags     = USBD_USE_DMA,
+      .callback  = &atausb_t_bbb_data_wr_cs_callback,
+      .timeout   = 5000, /* 5 seconds */
+    },
+
     [ATAUSB_T_BBB_STATUS] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
@@ -250,30 +278,6 @@ struct usbd_config atausb_config[ATAUSB_T_MAX] = {
       .bufsize   = sizeof(struct bbb_csw),
       .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
       .callback  = &atausb_t_bbb_status_callback,
-      .timeout   = 5000, /* ms */
-    },
-
-    /*
-     * the following endpoints are only
-     * present on CBI devices:
-     */
-
-    [ATAUSB_T_BBB_INTERRUPT] = {
-      .type      = UE_INTERRUPT,
-      .endpoint  = -1, /* any */
-      .direction = UE_DIR_IN,
-      .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
-      .bufsize   = 0, /* use wMaxPacketSize */
-      .callback  = &atausb_t_bbb_interrupt_callback,
-    },
-
-    [ATAUSB_T_BBB_I_CLEAR_STALL] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
-      .flags     = USBD_USE_DMA,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &atausb_t_bbb_i_clear_stall_callback,
       .timeout   = 5000, /* ms */
     },
 };
@@ -404,13 +408,16 @@ atausb_attach(device_t dev)
     device_printf(dev, "using %s over %s\n", subclass, proto);
     if (strcmp(proto, "Bulk-Only") ||
 	(strcmp(subclass, "ATAPI") && strcmp(subclass, "SCSI"))) {
-	return ENXIO;
+        goto detach;
     }
 
     err = usbd_transfer_setup(uaa->device, uaa->iface_index, sc->xfer, 
 			      atausb_config, 
-			      has_intr ? ATAUSB_T_MAX : (ATAUSB_T_MAX-2), sc, 
+			      ATAUSB_T_BBB_MAX, sc, 
 			      &(sc->locked_mtx), &(sc->mem_wait));
+    /* skip reset first time */
+    sc->last_xfer_no = ATAUSB_T_BBB_COMMAND;
+
     if (err) {
         device_printf(sc->dev, "could not setup required "
 		      "transfers, %s\n", usbd_errstr(err));
@@ -508,13 +515,10 @@ atausb_watchdog(void *arg)
 
     mtx_assert(&(sc->locked_mtx), MA_OWNED);
 
-    if (sc->xfer[ATAUSB_T_BBB_INTERRUPT]) {
-        /* start the interrupt pipe, in case it stopped */
-        usbd_transfer_start(sc->xfer[ATAUSB_T_BBB_INTERRUPT]);
-    }
-
+#if 0
     __callout_reset(&(sc->watchdog), 
 		    hz, &atausb_watchdog, sc);
+#endif
 
     mtx_unlock(&(sc->locked_mtx));
     return;
@@ -523,9 +527,9 @@ atausb_watchdog(void *arg)
 static void
 atausb_transfer_start(struct atausb_softc *sc, u_int8_t xfer_no)
 {
-#if 0
-    device_printf(sc->dev, "BBB transfer %d\n", xfer_no);
-#endif
+    if (atausbdebug) {
+	device_printf(sc->dev, "BBB transfer %d\n", xfer_no);
+    }
     sc->last_xfer_no = xfer_no;
     usbd_transfer_start(sc->xfer[xfer_no]);
     return;
@@ -554,7 +558,8 @@ atausb_t_bbb_reset1_callback(struct usbd_xfer *xfer)
     req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
     req.bRequest = 0xff; /* bulk-only reset */
     USETW(req.wValue, 0);
-    USETW(req.wIndex, sc->iface_no);
+    req.wIndex[0] = sc->iface_no;
+    req.wIndex[1] = 0;
     USETW(req.wLength, 0);
 
     usbd_copy_in(&(xfer->buf_data), 0, &req, sizeof(req));
@@ -566,26 +571,23 @@ atausb_t_bbb_reset1_callback(struct usbd_xfer *xfer)
 static void
 atausb_t_bbb_reset2_callback(struct usbd_xfer *xfer)
 {
-    struct atausb_softc *sc = xfer->priv_sc;
-
-    USBD_CHECK_STATUS(xfer);
-
- tr_error:
-    atausb_tr_error(xfer);
-    return;
-
- tr_transferred:
-    atausb_transfer_start(sc, ATAUSB_T_BBB_RESET3);
-    return;
-
- tr_setup:
-    usbd_clear_stall_tr_setup(xfer, sc->xfer[ATAUSB_T_BBB_DATA_READ]);
-    usbd_clear_stall_tr_transferred(xfer, sc->xfer[ATAUSB_T_BBB_DATA_READ]);
+    atausb_t_bbb_data_clear_stall_callback(xfer, ATAUSB_T_BBB_RESET3,
+					   ATAUSB_T_BBB_DATA_READ);
     return;
 }
 
 static void
 atausb_t_bbb_reset3_callback(struct usbd_xfer *xfer)
+{
+    atausb_t_bbb_data_clear_stall_callback(xfer, ATAUSB_T_BBB_COMMAND,
+					   ATAUSB_T_BBB_DATA_WRITE);
+    return;
+}
+
+static void
+atausb_t_bbb_data_clear_stall_callback(struct usbd_xfer *xfer, 
+				       u_int8_t next_xfer,
+				       u_int8_t stall_xfer)
 {
     struct atausb_softc *sc = xfer->priv_sc;
 
@@ -596,12 +598,12 @@ atausb_t_bbb_reset3_callback(struct usbd_xfer *xfer)
     return;
 
  tr_transferred:
-    atausb_transfer_start(sc, ATAUSB_T_BBB_COMMAND);
+    atausb_transfer_start(sc, next_xfer);
     return;
 
  tr_setup:
-    usbd_clear_stall_tr_setup(xfer, sc->xfer[ATAUSB_T_BBB_DATA_WRITE]);
-    usbd_clear_stall_tr_transferred(xfer, sc->xfer[ATAUSB_T_BBB_DATA_WRITE]);
+    usbd_clear_stall_tr_setup(xfer, sc->xfer[stall_xfer]);
+    usbd_clear_stall_tr_transferred(xfer, sc->xfer[stall_xfer]);
     return;
 }
 
@@ -629,6 +631,7 @@ atausb_t_bbb_command_callback(struct usbd_xfer *xfer)
  tr_setup:
 
     sc->reset_count = 0;
+    sc->status_try = 0;
 
     if (request) {
         ch = device_get_softc(request->parent);
@@ -662,7 +665,11 @@ atausb_t_bbb_data_read_callback(struct usbd_xfer *xfer)
     USBD_CHECK_STATUS(xfer);
 
  tr_error:
-    atausb_tr_error(xfer);
+    if (xfer->error == USBD_CANCELLED) {
+        atausb_tr_error(xfer);
+    } else {
+        atausb_transfer_start(sc, ATAUSB_T_BBB_DATA_RD_CS);
+    }
     return;
 
  tr_transferred:
@@ -703,6 +710,14 @@ atausb_t_bbb_data_read_callback(struct usbd_xfer *xfer)
 }
 
 static void
+atausb_t_bbb_data_rd_cs_callback(struct usbd_xfer *xfer)
+{
+    atausb_t_bbb_data_clear_stall_callback(xfer, ATAUSB_T_BBB_STATUS,
+					   ATAUSB_T_BBB_DATA_READ);
+    return;
+}
+
+static void
 atausb_t_bbb_data_write_callback(struct usbd_xfer *xfer)
 {
     struct atausb_softc *sc = xfer->priv_sc; 
@@ -711,7 +726,11 @@ atausb_t_bbb_data_write_callback(struct usbd_xfer *xfer)
     USBD_CHECK_STATUS(xfer);
 
  tr_error:
-    atausb_tr_error(xfer);
+    if (xfer->error == USBD_CANCELLED) {
+        atausb_tr_error(xfer);
+    } else {
+        atausb_transfer_start(sc, ATAUSB_T_BBB_DATA_WR_CS);
+    }
     return;
 
  tr_transferred:
@@ -747,6 +766,14 @@ atausb_t_bbb_data_write_callback(struct usbd_xfer *xfer)
 }
 
 static void
+atausb_t_bbb_data_wr_cs_callback(struct usbd_xfer *xfer)
+{
+    atausb_t_bbb_data_clear_stall_callback(xfer, ATAUSB_T_BBB_STATUS,
+					   ATAUSB_T_BBB_DATA_WRITE);
+    return;
+}
+
+static void
 atausb_t_bbb_status_callback(struct usbd_xfer *xfer)
 {
     struct atausb_softc *sc = xfer->priv_sc; 
@@ -756,7 +783,13 @@ atausb_t_bbb_status_callback(struct usbd_xfer *xfer)
     USBD_CHECK_STATUS(xfer);
 
  tr_error:
-    atausb_tr_error(xfer);
+    if ((xfer->error == USBD_CANCELLED) ||
+	(sc->status_try)) {
+        atausb_tr_error(xfer);
+    } else {
+        sc->status_try = 1;
+	atausb_transfer_start(sc, ATAUSB_T_BBB_DATA_RD_CS);
+    }
     return;
 
  tr_transferred:
@@ -775,6 +808,15 @@ atausb_t_bbb_status_callback(struct usbd_xfer *xfer)
 
     if (!residue) {
         residue = (request->bytecount - request->donecount);
+    }
+
+    if (residue > request->bytecount) {
+        if (atausbdebug) {
+	    device_printf(sc->dev, "truncating residue from %d "
+			  "to %d bytes\n", residue, 
+			  request->bytecount);
+	}
+        residue = request->bytecount;
     }
 
     /* check CSW and handle eventual error */
@@ -837,68 +879,6 @@ atausb_t_bbb_status_callback(struct usbd_xfer *xfer)
 
  tr_setup:
     usbd_start_hardware(xfer);
-    return;
-}
-
-static void
-atausb_t_bbb_interrupt_callback(struct usbd_xfer *xfer)
-{
-    struct atausb_softc *sc = xfer->priv_sc;
-
-    USBD_CHECK_STATUS(xfer);
-
- tr_transferred:
-    if (atausbdebug) {
-        device_printf(sc->dev, "Interrupt transfer "
-		      "complete, %d bytes\n", xfer->actlen);
-    }
-
- tr_setup:
-    if (sc->intr_stalled) {
-        usbd_transfer_start(sc->xfer[ATAUSB_T_BBB_I_CLEAR_STALL]);
-    } else {
-        usbd_start_hardware(xfer);
-    }
-    return;
-
- tr_error:
-    if (xfer->error != USBD_CANCELLED) {
-        /* try to clear stall first */
-        sc->intr_stalled = 1;
-	usbd_transfer_start(sc->xfer[ATAUSB_T_BBB_I_CLEAR_STALL]);
-    }
-    return;
-}
-
-static void
-atausb_t_bbb_i_clear_stall_callback(struct usbd_xfer *xfer)
-{
-    struct atausb_softc *sc = xfer->priv_sc;
-    struct usbd_xfer *other_xfer = sc->xfer[ATAUSB_T_BBB_INTERRUPT];
-
-    USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-    /* start clear stall */
-    usbd_clear_stall_tr_setup(xfer, other_xfer);
-    return;
-
- tr_transferred:
-    usbd_clear_stall_tr_transferred(xfer, other_xfer);
-
-    sc->intr_stalled = 0;
-    usbd_transfer_start(other_xfer);
-    return;
-
- tr_error:
-    /* bomb out (wait for watchdog to start 
-     * interrupt transfer again)
-     */
-    sc->intr_stalled = 0;
-
-    if (xfer->error != USBD_CANCELLED) {
-        device_printf(sc->dev, "Interrupt transfer stopped!\n");
-    }
     return;
 }
 
