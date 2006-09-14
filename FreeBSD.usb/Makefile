@@ -69,6 +69,8 @@ ${S}/sys/dev/usb/uscanner.c \
 ${S}/sys/dev/usb/umass.c \
 ${S}/sys/dev/usb/urio.c \
 ${S}/sys/dev/usb/rio500_usb.h \
+${S}/sys/dev/usb/udbp.c \
+${S}/sys/dev/usb/udbp.h \
 ${S}/sys/dev/usb2 \
 
 #
