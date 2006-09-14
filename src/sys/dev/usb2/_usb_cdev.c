@@ -221,6 +221,35 @@ usb_cdev_wakeup(struct usb_cdev *sc)
 	return;
 }
 
+void
+usb_cdev_unlock(struct usb_cdev *sc, int32_t fflags)
+{
+	u_int32_t context_bit = usb_cdev_get_context(fflags);
+
+	context_bit &= (USB_CDEV_FLAG_SLEEP_IOCTL_RD|
+			USB_CDEV_FLAG_SLEEP_IOCTL_WR);
+
+	sc->sc_flags |= context_bit;
+
+	mtx_unlock(sc->sc_mtx_ptr);
+
+	return;
+}
+
+int32_t
+usb_cdev_lock(struct usb_cdev *sc, int32_t fflags, 
+	      int32_t error)
+{
+	u_int32_t context_bit = usb_cdev_get_context(fflags);
+
+	context_bit &= (USB_CDEV_FLAG_SLEEP_IOCTL_RD|
+			USB_CDEV_FLAG_SLEEP_IOCTL_WR);
+
+	mtx_lock(sc->sc_mtx_ptr);
+
+	return usb_cdev_exit_context(sc, context_bit, error);
+}
+
 /*
  * the synchronization part is a little more
  * complicated, hence there are two modes:

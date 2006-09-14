@@ -67,6 +67,8 @@ ${S}/sys/dev/usb/ufm.c \
 ${S}/sys/dev/usb/dsbr100io.h \
 ${S}/sys/dev/usb/uscanner.c \
 ${S}/sys/dev/usb/umass.c \
+${S}/sys/dev/usb/urio.c \
+${S}/sys/dev/usb/rio500_usb.h \
 ${S}/sys/dev/usb2 \
 
 #

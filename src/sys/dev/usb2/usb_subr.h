@@ -1164,6 +1164,12 @@ usb_cdev_sleep(struct usb_cdev *sc, int32_t fflags, u_int32_t timeout);
 extern void
 usb_cdev_wakeup(struct usb_cdev *sc);
 
+extern void
+usb_cdev_unlock(struct usb_cdev *sc, int32_t fflags);
+
+extern int32_t
+usb_cdev_lock(struct usb_cdev *sc, int32_t fflags, int32_t error);
+
 extern int32_t
 usb_cdev_attach(struct usb_cdev *sc, 
 		void *priv_sc, 
