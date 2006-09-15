@@ -317,9 +317,9 @@ static device_method_t rue_methods[] = {
 };
 
 static driver_t rue_driver = {
-	"rue",
-	rue_methods,
-	sizeof(struct rue_softc)
+	.name    = "rue",
+	.methods = rue_methods,
+	.size    = sizeof(struct rue_softc),
 };
 
 static devclass_t rue_devclass;

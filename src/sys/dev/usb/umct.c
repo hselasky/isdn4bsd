@@ -294,9 +294,9 @@ static device_method_t umct_methods[] = {
 };
 
 static driver_t umct_driver = {
-	"ucom",
-	umct_methods,
-	sizeof(struct umct_softc)
+	.name    = "ucom",
+	.methods = umct_methods,
+	.size    = sizeof(struct umct_softc),
 };
 
 DRIVER_MODULE(umct, uhub, umct_driver, ucom_devclass, usbd_driver_load, 0);

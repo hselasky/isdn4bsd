@@ -160,11 +160,11 @@ usbd_devinfo_vp(struct usbd_device *udev, char *v, char *p, int usedev)
 		}
 	}
 #endif
-	if (vendor != NULL && *vendor)
+	if ((vendor != NULL) && *vendor)
 		strcpy(v, vendor);
 	else
 		sprintf(v, "vendor 0x%04x", UGETW(udd->idVendor));
-	if (product != NULL && *product)
+	if ((product != NULL) && *product)
 		strcpy(p, product);
 	else
 		sprintf(p, "product 0x%04x", UGETW(udd->idProduct));

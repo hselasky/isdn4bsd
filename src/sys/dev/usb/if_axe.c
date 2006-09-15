@@ -308,9 +308,9 @@ static device_method_t axe_methods[] = {
 };
 
 static driver_t axe_driver = {
-	"axe",
-	axe_methods,
-	sizeof(struct axe_softc)
+	.name    = "axe",
+	.methods = axe_methods,
+	.size    = sizeof(struct axe_softc),
 };
 
 static devclass_t axe_devclass;

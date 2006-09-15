@@ -375,9 +375,9 @@ static device_method_t aue_methods[] = {
 };
 
 static driver_t aue_driver = {
-	"aue",
-	aue_methods,
-	sizeof(struct aue_softc)
+	.name    = "aue",
+	.methods = aue_methods,
+	.size    = sizeof(struct aue_softc)
 };
 
 static devclass_t aue_devclass;

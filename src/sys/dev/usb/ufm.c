@@ -143,9 +143,9 @@ static device_method_t ufm_methods[] = {
 };
 
 static driver_t ufm_driver = {
-    "ufm",
-    ufm_methods,
-    sizeof(struct ufm_softc)
+    .name    = "ufm",
+    .methods = ufm_methods,
+    .size    = sizeof(struct ufm_softc),
 };
 
 MODULE_DEPEND(ufm, usb, 1, 1, 1);

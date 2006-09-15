@@ -248,9 +248,9 @@ static device_method_t kue_methods[] = {
 };
 
 static driver_t kue_driver = {
-	"kue",
-	kue_methods,
-	sizeof(struct kue_softc)
+	.name    = "kue",
+	.methods = kue_methods,
+	.size    = sizeof(struct kue_softc),
 };
 
 static devclass_t kue_devclass;

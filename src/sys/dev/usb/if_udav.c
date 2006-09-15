@@ -266,9 +266,9 @@ static device_method_t udav_methods[] = {
 };
 
 static driver_t udav_driver = {
-	"udav",
-	udav_methods,
-	sizeof(struct udav_softc)
+	.name    = "udav",
+	.methods = udav_methods,
+	.size    = sizeof(struct udav_softc),
 };
 
 static devclass_t udav_devclass;

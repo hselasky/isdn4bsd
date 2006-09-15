@@ -280,9 +280,9 @@ static device_method_t uftdi_methods[] = {
 };
 
 static driver_t uftdi_driver = {
-    "ucom",
-    uftdi_methods,
-    sizeof (struct uftdi_softc)
+    .name    = "ucom",
+    .methods = uftdi_methods,
+    .size    = sizeof (struct uftdi_softc),
 };
 
 DRIVER_MODULE(uftdi, uhub, uftdi_driver, ucom_devclass, usbd_driver_load, 0);

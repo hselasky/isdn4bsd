@@ -228,9 +228,9 @@ static device_method_t cue_methods[] = {
 };
 
 static driver_t cue_driver = {
-	"cue",
-	cue_methods,
-	sizeof(struct cue_softc)
+	.name    = "cue",
+	.methods = cue_methods,
+	.size    = sizeof(struct cue_softc),
 };
 
 static devclass_t cue_devclass;

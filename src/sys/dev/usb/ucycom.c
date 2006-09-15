@@ -193,14 +193,12 @@ static device_method_t ucycom_methods[] = {
 };
 
 static driver_t ucycom_driver = {
-    "ucycom",
-    ucycom_methods,
-    sizeof(struct ucycom_softc),
+    .name    = "ucom",
+    .methods = ucycom_methods,
+    .size    = sizeof(struct ucycom_softc),
 };
 
-static devclass_t ucycom_devclass;
-
-DRIVER_MODULE(ucycom, uhub, ucycom_driver, ucycom_devclass, usbd_driver_load, 0);
+DRIVER_MODULE(ucycom, uhub, ucycom_driver, ucom_devclass, usbd_driver_load, 0);
 MODULE_VERSION(ucycom, 1);
 MODULE_DEPEND(ucycom, usb, 1, 1, 1);
 

@@ -400,12 +400,10 @@ static device_method_t ufoma_methods[] = {
 };
 
 static driver_t ufoma_driver = {
-    "ucom",
-    ufoma_methods,
-    sizeof(struct ufoma_softc)
+    .name    = "ucom",
+    .methods = ufoma_methods,
+    .size    = sizeof(struct ufoma_softc),
 };
-
-static devclass_t ucom_devclass;
 
 DRIVER_MODULE(ufoma, uhub, ufoma_driver, ucom_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(ufoma, usb, 1, 1, 1);

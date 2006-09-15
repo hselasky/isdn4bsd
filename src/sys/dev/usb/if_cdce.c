@@ -165,9 +165,9 @@ static device_method_t cdce_methods[] = {
 };
 
 static driver_t cdce_driver = {
-	"cdce",
-	cdce_methods,
-	sizeof(struct cdce_softc)
+	.name    = "cdce",
+	.methods = cdce_methods,
+	.size    = sizeof(struct cdce_softc),
 };
 
 static devclass_t cdce_devclass;
