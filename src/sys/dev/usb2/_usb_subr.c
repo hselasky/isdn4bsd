@@ -1,3 +1,18 @@
+/*      $NetBSD: usb_subr.c,v 1.99 2002/07/11 21:14:34 augustss Exp $   */
+
+/* Also already have from NetBSD:
+ *      $NetBSD: usb_subr.c,v 1.102 2003/01/01 16:21:50 augustss Exp $
+ *      $NetBSD: usb_subr.c,v 1.103 2003/01/10 11:19:13 augustss Exp $
+ *      $NetBSD: usb_subr.c,v 1.111 2004/03/15 10:35:04 augustss Exp $
+ *      $NetBSD: usb_subr.c,v 1.114 2004/06/23 02:30:52 mycroft Exp $
+ *      $NetBSD: usb_subr.c,v 1.115 2004/06/23 05:23:19 mycroft Exp $
+ *      $NetBSD: usb_subr.c,v 1.116 2004/06/23 06:27:54 mycroft Exp $
+ *      $NetBSD: usb_subr.c,v 1.119 2004/10/23 13:26:33 augustss Exp $
+ */
+
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/usb_subr.c,v 1.86 2006/09/10 15:20:39 trhodes Exp $");
+
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -35,7 +50,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -54,11 +68,9 @@
 #include "usbdevs.h"
 #include <dev/usb2/usb_quirks.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb2/usb_subr.c $");
-
 #ifdef USBVERBOSE
 /*
- * descriptions of of known vendors and devices ("products")
+ * Descriptions of of known vendors and devices ("products").
  */
 struct usb_knowndev {
 	u_int16_t		vendor;
@@ -77,21 +89,13 @@ usbd_trim_spaces(char *p)
 	char *q, *e;
 
 	if(p == NULL)
-	{
 		return;
-	}
 	q = e = p;
-	while(*q == ' ')	/* skip leading spaces */
-	{
+	while (*q == ' ')	/* skip leading spaces */
 		q++;
-	}
-	while((*p = *q++))	/* copy string */
-	{
-		if(*p++ != ' ') /* remember last non-space */
-		{
+	while ((*p = *q++))	/* copy string */
+		if (*p++ != ' ') /* remember last non-space */
 			e = p;
-		}
-	}
 	*e = 0;			/* kill trailing spaces */
 	return;
 }
@@ -105,8 +109,7 @@ usbd_devinfo_vp(struct usbd_device *udev, char *v, char *p, int usedev)
 	const struct usb_knowndev *kdp;
 #endif
 
-	if(udev == NULL)
-	{
+	if(udev == NULL) {
 		v[0] = p[0] = '\0';
 		return;
 	}
@@ -114,7 +117,7 @@ usbd_devinfo_vp(struct usbd_device *udev, char *v, char *p, int usedev)
 	vendor = NULL;
 	product = NULL;
 
-	if(usedev)
+	if (usedev)
 	{
 		(void) usbreq_get_string_any
 		  (udev, udd->iManufacturer, v, USB_MAX_STRING_LEN);
@@ -139,49 +142,32 @@ usbd_devinfo_vp(struct usbd_device *udev, char *v, char *p, int usedev)
 		}
 	}
 #ifdef USBVERBOSE
-	if((vendor == NULL) || (product == NULL))
-	{
+	if ((vendor == NULL) || (product == NULL)) {
 		for(kdp = usb_knowndevs;
 		    kdp->vendorname != NULL;
-		    kdp++)
-		{
-			if((kdp->vendor == UGETW(udd->idVendor)) &&
+		    kdp++) {
+			if ((kdp->vendor == UGETW(udd->idVendor)) &&
 			   ((kdp->product == UGETW(udd->idProduct)) ||
-			    ((kdp->flags & USB_KNOWNDEV_NOPROD) != 0)))
-			{
+			    (kdp->flags & USB_KNOWNDEV_NOPROD)))
 				break;
-			}
 		}
-		if(kdp->vendorname != NULL)
-		{
-			if(vendor == NULL)
-			{
-				vendor = kdp->vendorname;
-			}
-			if(product == NULL)
-			{
-				product = ((kdp->flags & USB_KNOWNDEV_NOPROD) == 0) ?
-				  kdp->productname : NULL;
-			}
+		if (kdp->vendorname != NULL) {
+			if (vendor == NULL)
+			    vendor = kdp->vendorname;
+			if (product == NULL)
+			    product = ((kdp->flags & USB_KNOWNDEV_NOPROD) == 0) ?
+			        kdp->productname : NULL;
 		}
 	}
 #endif
-	if((vendor != NULL) && *vendor)
-	{
+	if (vendor != NULL && *vendor)
 		strcpy(v, vendor);
-	}
 	else
-	{
 		sprintf(v, "vendor 0x%04x", UGETW(udd->idVendor));
-	}
-	if((product != NULL) && *product)
-	{
+	if (product != NULL && *product)
 		strcpy(p, product);
-	}
 	else
-	{
 		sprintf(p, "product 0x%04x", UGETW(udd->idProduct));
-	}
 	return;
 }
 
@@ -235,24 +221,18 @@ usbd_errstr(usbd_status err)
 	  USBD_STATUS_DESC[err] : "unknown error!";
 }
 
-/* delay for a certain number of ms */
+/* Delay for a certain number of ms */
 void
 usb_delay_ms(struct usbd_bus *bus, u_int ms)
 {
-	/* wait at least two clock ticks, 
-	 * so that we know the time has passed
-	 */
-	if(bus->use_polling || cold)
-	{
+	/* Wait at least two clock ticks so we know the time has passed. */
+	if (bus->use_polling || cold)
 		DELAY((ms+1) * 1000);
-	}
 	else
-	{
 		tsleep(&ms, PRIBIO, "usbdly", (((ms*hz)+999)/1000) + 1);
-	}
 }
 
-/* delay given a device handle */
+/* Delay given a device handle. */
 void
 usbd_delay_ms(struct usbd_device *udev, u_int ms)
 {
@@ -354,15 +334,11 @@ usbd_find_edesc(usb_config_descriptor_t *cd, u_int16_t iface_index,
 	u_int16_t curidx = 0;
 
 	d = usbd_find_idesc(cd, iface_index, alt_index);
-	if(d == NULL)
-	{
+	if (d == NULL)
 	    return NULL;
-	}
 
-	if(endptidx >= d->bNumEndpoints) /* quick exit */
-	{
+	if (endptidx >= d->bNumEndpoints) /* quick exit */
 	    return NULL;
-	}
 
 	desc = ((void *)d);
 
@@ -495,7 +471,6 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 		pipe++;
 	}
 
-	/**/
 	pipe = &udev->pipes[0];
 
 	/* free old pipes if any */
@@ -712,10 +687,8 @@ usbd_set_config_index(struct usbd_device *udev, int index, int msg)
 
 	/* get the full descriptor */
 	err = usbreq_get_desc(udev, UDESC_CONFIG, index, len, cdp, 3);
-	if(err)
-	{
+	if (err)
 		goto error;
-	}
 	if(cdp->bDescriptorType != UDESC_CONFIG)
 	{
 		PRINTF(("bad desc %d\n",
@@ -729,17 +702,14 @@ usbd_set_config_index(struct usbd_device *udev, int index, int msg)
 		cdp->bNumInterface = (sizeof(udev->ifaces)/sizeof(udev->ifaces[0]));
 	}
 
-	/* figure out if the device is self or bus powered */
+	/* Figure out if the device is self or bus powered. */
 	selfpowered = 0;
-	if(!(udev->quirks->uq_flags & UQ_BUS_POWERED) &&
-	    (cdp->bmAttributes & UC_SELF_POWERED))
-	{
-		/* may be self powered */
-		if(cdp->bmAttributes & UC_BUS_POWERED)
-		{
-			/* must ask device */
-			if(udev->quirks->uq_flags & UQ_POWER_CLAIM)
-			{
+	if (!(udev->quirks->uq_flags & UQ_BUS_POWERED) &&
+	    (cdp->bmAttributes & UC_SELF_POWERED)) {
+		/* May be self powered. */
+		if (cdp->bmAttributes & UC_BUS_POWERED) {
+			/* Must ask device. */
+			if (udev->quirks->uq_flags & UQ_POWER_CLAIM) {
 				/*
 				 * Hub claims to be self powered, but isn't.
 				 * It seems that the power status can be
@@ -756,9 +726,7 @@ usbd_set_config_index(struct usbd_device *udev, int index, int msg)
 				PRINTF(("characteristics=0x%04x, error=%s\n",
 					 UGETW(hd.wHubCharacteristics),
 					 usbd_errstr(err)));
-			}
-			else
-			{
+			} else {
 				err = usbreq_get_device_status(udev, &ds);
 				if(!err &&
 				   (UGETW(ds.wStatus) & UDS_SELF_POWERED))
@@ -768,11 +736,8 @@ usbd_set_config_index(struct usbd_device *udev, int index, int msg)
 				PRINTF(("status=0x%04x, error=%s\n",
 					 UGETW(ds.wStatus), usbd_errstr(err)));
 			}
-		}
-		else
-		{
+		} else
 			selfpowered = 1;
-		}
 	}
 	PRINTF(("udev=%p cdesc=%p (addr %d) cno=%d attr=0x%02x, "
 		 "selfpowered=%d, power=%d\n",
@@ -780,7 +745,7 @@ usbd_set_config_index(struct usbd_device *udev, int index, int msg)
 		 cdp->bConfigurationValue, udev->address, cdp->bmAttributes,
 		 selfpowered, cdp->bMaxPower * 2));
 
-	/* check if we have enough power */
+	/* Check if we have enough power. */
 	power = cdp->bMaxPower * 2;
 	if(power > udev->powersrc->power)
 	{
@@ -803,14 +768,14 @@ usbd_set_config_index(struct usbd_device *udev, int index, int msg)
 	udev->self_powered = selfpowered;
 	udev->config = cdp->bConfigurationValue;
 
-	/* set the actual configuration value */
+	/* Set the actual configuration value. */
 	err = usbreq_set_config(udev, cdp->bConfigurationValue);
 	if(err)
 	{
 		goto error;
 	}
 
-	/* allocate and fill interface data */
+	/* Allocate and fill interface data. */
 	nifc = cdp->bNumInterface;
 	while(nifc--)
 	{
@@ -820,6 +785,7 @@ usbd_set_config_index(struct usbd_device *udev, int index, int msg)
 			goto error;
 		}
 	}
+
 	return (USBD_NORMAL_COMPLETION);
 
  error:
@@ -1206,7 +1172,6 @@ usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 	USETW(udev->default_ep_desc.wMaxPacketSize, USB_MAX_IPACKET);
 	udev->default_ep_desc.bInterval = 0;
 
-	/**/
 	udev->bus = bus;
 	udev->quirks = &usbd_no_quirk;
 	udev->address = USB_START_ADDR;

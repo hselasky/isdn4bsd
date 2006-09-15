@@ -28,8 +28,10 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
- *
  */
+
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_aue.c,v 1.99 2006/09/07 00:06:41 imp Exp $");
 
 /*
  * ADMtek AN986 Pegasus and AN8511 Pegasus II USB to ethernet driver.
@@ -65,7 +67,6 @@
  * be called from within the config thread function !
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/sockio.h>
@@ -100,8 +101,6 @@
 
 /* "device miibus" required.  See GENERIC if you get errors here. */
 #include "miibus_if.h"
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_aue.c,v 1.96 2006/02/14 12:44:55 glebius Exp $");
 
 MODULE_DEPEND(aue, usb, 1, 1, 1);
 MODULE_DEPEND(aue, ether, 1, 1, 1);
@@ -189,8 +188,6 @@ Static const struct aue_type aue_devs[] = {
  {{ USB_VENDOR_SOHOWARE,	USB_PRODUCT_SOHOWARE_NUB100},	  0 },
 };
 #define aue_lookup(v, p) ((const struct aue_type *)usb_lookup(aue_devs, v, p))
-
-/* prototypes */
 
 static device_probe_t aue_probe;
 static device_attach_t aue_attach;

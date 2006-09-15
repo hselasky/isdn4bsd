@@ -49,9 +49,11 @@
  * sharing of code between *BSD's
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ehci_pci.c,v 1.23 2006/09/07 00:06:41 imp Exp $");
+
 #include "opt_bus.h"
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -66,8 +68,6 @@
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/ehci.h> 
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ehci_pci.c,v 1.14 2004/08/02 15:37:34 iedowse Exp $");
 
 #define PCI_EHCI_VENDORID_ACERLABS	0x10b9
 #define PCI_EHCI_VENDORID_AMD		0x1022
@@ -93,10 +93,8 @@ ehci_pci_suspend(device_t self)
 	int err;
 
 	err = bus_generic_suspend(self);
-	if(err)
-	{
+	if (err)
 		return (err);
-	}
 	ehci_suspend(sc);
 	return 0;
 }
@@ -110,6 +108,7 @@ ehci_pci_resume(device_t self)
 	ehci_resume(sc);
 
 	bus_generic_resume(self);
+
 	return 0;
 }
 
@@ -120,10 +119,8 @@ ehci_pci_shutdown(device_t self)
 	int err;
 
 	err = bus_generic_shutdown(self);
-	if(err)
-	{
+	if (err)
 		return (err);
-	}
 	ehci_shutdown(sc);
 	ehci_pci_givecontroller(self);
 
@@ -146,7 +143,8 @@ ehci_pci_match(device_t self)
 	{
 		return ("EHCI (generic) USB 2.0 controller");
 	}
-	return NULL;
+
+	return NULL;            /* dunno */
 }
 
 static int
@@ -154,13 +152,10 @@ ehci_pci_probe(device_t self)
 {
 	const char *desc = ehci_pci_match(self);
 
-	if(desc)
-	{
+	if (desc) {
 		device_set_desc(self, desc);
 		return 0;
-	}
-	else
-	{
+	} else {
 		return ENXIO;
 	}
 }
@@ -285,11 +280,9 @@ ehci_pci_attach(device_t self)
 		sprintf(sc->sc_vendor, "VIA");
 		break;
 	default:
-		if(bootverbose)
-		{
+		if (bootverbose)
 			device_printf(self, "(New EHCI DeviceId=0x%08x)\n",
-				      pci_get_devid(self));
-		}
+                           pci_get_devid(self));
 		sprintf(sc->sc_vendor, "(0x%04x)", pci_get_vendor(self));
 	}
 
@@ -304,13 +297,11 @@ ehci_pci_attach(device_t self)
 
 	ehci_pci_takecontroller(self);
 	err = ehci_init(sc);
-	if(!err)
-	{
+	if (!err) {
 		err = device_probe_and_attach(sc->sc_bus.bdev);
 	}
 
-	if(err)
-	{
+	if (err) {
 		device_printf(self, "USB init failed err=%d\n", err);
 		goto error;
 	}
@@ -351,31 +342,25 @@ ehci_pci_detach(device_t self)
 
 		int err = bus_teardown_intr(self, sc->irq_res, sc->ih);
 
-		if(err)
-		{
+		if (err)
 			/* XXX or should we panic? */
 			device_printf(self, "Could not tear down irq, %d\n",
-				      err);
-		}
+                           err);
 		sc->ih = NULL;
 	}
-	if(sc->irq_res)
-	{
+	if (sc->irq_res) {
 		bus_release_resource(self, SYS_RES_IRQ, 0, sc->irq_res);
 		sc->irq_res = NULL;
 	}
-	if(sc->io_res)
-	{
+	if (sc->io_res) {
 		bus_release_resource(self, SYS_RES_MEMORY, PCI_CBMEM, 
-				     sc->io_res);
+                           sc->io_res);
 		sc->io_res = NULL;
 	}
 
-	if(sc->sc_bus.dma_tag)
-	{
+	if (sc->sc_bus.dma_tag) {
 		usbd_dma_tag_free(sc->sc_bus.dma_tag);
 	}
-
 	mtx_destroy(&sc->sc_bus.mtx);
 
 	usbd_mem_free(sc, sizeof(*sc));
@@ -393,7 +378,7 @@ ehci_pci_takecontroller(device_t self)
 
 	cparams = EREAD4(sc, EHCI_HCCPARAMS);
 
-	/* Synchronize with the BIOS if it owns the controller. */
+	/* Synchronise with the BIOS if it owns the controller. */
 	for (eecp = EHCI_HCC_EECP(cparams); eecp != 0;
 	     eecp = EHCI_EECP_NEXT(eec))
 	{

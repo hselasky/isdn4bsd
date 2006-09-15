@@ -30,6 +30,9 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_kue.c,v 1.70 2006/09/07 00:06:41 imp Exp $");
+
 /*
  * Kawasaki LSI KL5KUSB101B USB to ethernet adapter driver.
  *
@@ -67,7 +70,6 @@
  * be called from within the config thread function !
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/sockio.h>
@@ -81,6 +83,7 @@
 #include <net/if_arp.h>
 #include <net/ethernet.h>
 #include <net/if_dl.h>
+#include <net/if_media.h>
 #include <net/if_types.h>
 
 #include <net/bpf.h>
@@ -97,8 +100,6 @@
 
 #include <dev/usb/if_kuereg.h>
 #include <dev/usb/if_kuefw.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_kue.c,v 1.68 2005/11/11 16:04:55 ru Exp $");
 
 /*
  * Various supported device vendors/products.
@@ -124,8 +125,6 @@ static struct kue_type kue_devs[] = {
 	{ USB_VENDOR_ABOCOM, USB_PRODUCT_ABOCOM_URE450 },
 	{ 0, 0 }
 };
-
-/* prototypes */
 
 static device_probe_t kue_probe;
 static device_attach_t kue_attach;
@@ -272,7 +271,7 @@ kue_cfg_do_request(struct kue_softc *sc, usb_device_request_t *req,
 		   void *data)
 {
 	u_int16_t length;
-	usbd_status err;
+	usbd_status             err;
 
 	if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
 	    goto error;
@@ -496,7 +495,7 @@ kue_probe(device_t dev)
 	struct kue_type *t;
 
 	if (uaa->iface != NULL) {
-	    return UMATCH_NONE;
+	    return(UMATCH_NONE);
 	}
 
 	t = kue_devs;
@@ -507,7 +506,7 @@ kue_probe(device_t dev)
 	    }
 	    t++;
 	}
-	return UMATCH_NONE;
+	return(UMATCH_NONE);
 }
 
 /*
@@ -674,6 +673,10 @@ kue_detach(device_t dev)
 	return 0;
 }
 
+/*
+ * A frame has been uploaded: pass the resulting mbuf chain up to
+ * the higher level protocols.
+ */
 static void
 kue_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 {
@@ -961,8 +964,8 @@ kue_cfg_init(struct kue_softc *sc,
 static int
 kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 {
-	struct kue_softc * sc = ifp->if_softc;
-	int error = 0;
+       struct kue_softc        *sc = ifp->if_softc;
+       int                     error = 0;
 
 	mtx_lock(&(sc->sc_mtx));
 
@@ -1019,6 +1022,10 @@ kue_cfg_tick(struct kue_softc *sc,
 	return;
 }
 
+/*
+ * Stop the adapter and free any mbufs allocated to the
+ * RX and TX lists.
+ */
 static void
 kue_watchdog(void *arg)
 {

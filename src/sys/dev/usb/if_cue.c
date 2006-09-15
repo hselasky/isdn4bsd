@@ -30,6 +30,9 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_cue.c,v 1.63 2006/09/07 00:06:41 imp Exp $");
+
 /*
  * CATC USB-EL1210A USB to ethernet driver. Used in the CATC Netmate
  * adapters and others.
@@ -53,7 +56,6 @@
  * be called from within the config thread function !
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/sockio.h>
@@ -83,8 +85,6 @@
 #include "usbdevs.h"
 
 #include <dev/usb/if_cuereg.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_cue.c,v 1.61 2005/11/11 16:04:55 ru Exp $");
 
 /*
  * Various supported device vendors/products.
@@ -121,8 +121,8 @@ cue_cfg_mem(struct cue_softc *sc, u_int8_t cmd, u_int16_t addr,
 static void
 cue_cfg_getmac(struct cue_softc *sc, void *buf);
 
-static u_int32_t
-cue_mchash(const u_int8_t *addr);
+static uint32_t
+cue_mchash(const uint8_t *addr);
 
 static void
 cue_cfg_promisc_upd(struct cue_softc *sc,
@@ -358,10 +358,10 @@ cue_cfg_getmac(struct cue_softc *sc, void *buf)
 
 #define CUE_BITS 9
 
-static u_int32_t
-cue_mchash(const u_int8_t *addr)
+static uint32_t
+cue_mchash(const uint8_t *addr)
 {
-	u_int32_t crc;
+	uint32_t crc;
 
 	/* Compute CRC for the address value. */
 	crc = ether_crc32_le(addr, ETHER_ADDR_LEN);
@@ -471,7 +471,7 @@ cue_probe(device_t dev)
 	struct cue_type	*t;
 
 	if (uaa->iface != NULL) {
-	    return UMATCH_NONE;
+	    return(UMATCH_NONE);
 	}
 
 	t = cue_devs;
@@ -869,8 +869,8 @@ cue_bulk_write_callback(struct usbd_xfer *xfer)
 		       m, 0, m->m_pkthdr.len);
 
 	/*
-	 * if there's a BPF listener, bounce a copy 
-	 * of this frame to him:
+	 * If there's a BPF listener, bounce a copy of this frame
+	 * to him.
 	 */
 	BPF_MTAP(ifp, m);
 
@@ -919,7 +919,7 @@ cue_cfg_init(struct cue_softc *sc,
 	}
 
 	/*
-	 * Cancel pending I/O
+	 * Cancel pending I/O and free all RX/TX buffers.
 	 */
 	cue_cfg_stop(sc, cc, 0);
 #if 0
@@ -934,7 +934,7 @@ cue_cfg_init(struct cue_softc *sc,
 	/* Enable RX logic. */
 	cue_cfg_csr_write_1(sc, CUE_ETHCTL, CUE_ETHCTL_RX_ON|CUE_ETHCTL_MCAST_ON);
 
-	/* load the multicast filter */
+	/* Load the multicast filter */
 	cue_cfg_promisc_upd(sc, cc, 0);
 
 	/*
@@ -992,13 +992,13 @@ cue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 	    break;
 
 	default:
-	    error = ether_ioctl(ifp, command, data);
-	    break;
+               error = ether_ioctl(ifp, command, data);
+               break;
 	}
 
 	mtx_unlock(&(sc->sc_mtx));
 
-	return error;
+	return(error);
 }
 
 static void
@@ -1018,6 +1018,10 @@ cue_watchdog(void *arg)
 	return;
 }
 
+/*
+ * Stop the adapter and free any mbufs allocated to the
+ * RX and TX lists.
+ */
 static void
 cue_cfg_stop(struct cue_softc *sc,
 	     struct cue_config_copy *cc, u_int16_t refcount)

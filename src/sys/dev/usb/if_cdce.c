@@ -40,12 +40,15 @@
  */
 
 #include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_cdce.c,v 1.14 2006/09/07 00:06:41 imp Exp $");
+
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/sockio.h>
 #include <sys/mbuf.h>
 #include <sys/malloc.h>
 #include <sys/kernel.h>
+#include <sys/module.h>
 #include <sys/socket.h>
 #include <sys/endian.h>
 
@@ -65,10 +68,6 @@
 #include "usbdevs.h"
 
 #include <dev/usb/if_cdcereg.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_cdce.c,v 1.12 2005/12/29 17:29:18 netchild Exp $");
-
-/* prototypes */
 
 static device_probe_t cdce_probe;
 static device_attach_t cdce_attach;
@@ -435,7 +434,7 @@ cdce_detach(device_t dev)
 
 	mtx_destroy(&(sc->sc_mtx));
 
-	return 0;
+	return (0);
 }
 
 static void
@@ -799,6 +798,7 @@ cdce_bulk_read_callback(struct usbd_xfer *xfer)
 static int
 cdce_ifmedia_upd_cb(struct ifnet *ifp)
 {
+
 	/* no-op, cdce has only 1 possible media type */
 	return 0;
 }
@@ -806,7 +806,7 @@ cdce_ifmedia_upd_cb(struct ifnet *ifp)
 static void
 cdce_ifmedia_sts_cb(struct ifnet * const ifp, struct ifmediareq *req)
 {
+
 	req->ifm_status = IFM_AVALID | IFM_ACTIVE;
 	req->ifm_active = IFM_ETHER | IFM_10_T;
-	return;
 }

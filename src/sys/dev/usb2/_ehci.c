@@ -326,7 +326,7 @@ ehci_init(ehci_softc_t *sc)
 		 EHCI_CMD_PSE |
 		 EHCI_CMD_RS);
 
-	/* take over port ownership */
+	/* Take over port ownership */
 	EOWRITE4(sc, EHCI_CONFIGFLAG, EHCI_CONF_CF);
 
 	for(i = 0; i < 100; i++)
@@ -605,11 +605,11 @@ ehci_dump_link(u_int32_t link, int type)
 {
 	link = le32toh(link);
 	printf("0x%08x", link);
-	if(link & EHCI_LINK_TERMINATE)
+	if (link & EHCI_LINK_TERMINATE)
 		printf("<T>");
 	else {
 		printf("<");
-		if(type) {
+		if (type) {
 			switch (EHCI_LINK_TYPE(link)) {
 			case EHCI_LINK_ITD: printf("ITD"); break;
 			case EHCI_LINK_QH: printf("QH"); break;
@@ -890,7 +890,6 @@ _ehci_append_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 #endif
 	return(sqh);
 }
-/**/
 
 #define EHCI_REMOVE_FS_TD(std,last) (last) = _ehci_remove_fs_td(std,last)
 static ehci_sitd_t *

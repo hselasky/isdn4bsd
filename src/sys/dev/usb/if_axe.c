@@ -30,6 +30,9 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_axe.c,v 1.40 2006/09/07 00:06:41 imp Exp $");
+
 /*
  * ASIX Electronics AX88172 USB 2.0 ethernet driver. Used in the
  * LinkSys USB200M and various other adapters.
@@ -105,8 +108,6 @@
 
 #include <dev/usb/if_axereg.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_axe.c,v 1.36 2006/02/14 12:44:55 glebius Exp $");
-
 MODULE_DEPEND(axe, usb, 1, 1, 1);
 MODULE_DEPEND(axe, ether, 1, 1, 1);
 MODULE_DEPEND(axe, miibus, 1, 1, 1);
@@ -140,8 +141,6 @@ static struct axe_type axe_devs[] = {
 	{ USB_VENDOR_SITECOM, USB_PRODUCT_SITECOM_LN029 },
 	{ 0, 0 }
 };
-
-/* prototypes */
 
 static device_probe_t axe_probe;
 static device_attach_t axe_attach;
