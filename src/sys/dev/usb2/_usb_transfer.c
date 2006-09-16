@@ -430,6 +430,8 @@ usbd_transfer_unsetup(struct usbd_xfer **pxfer, u_int16_t n_setup)
 		    mtx_unlock(xfer->priv_mtx);
 		}
 
+		__callout_drain(&(xfer->timeout_handle));
+
 		if(xfer->usb_root)
 		{
 		    usbd_drop_refcount(xfer->usb_root);

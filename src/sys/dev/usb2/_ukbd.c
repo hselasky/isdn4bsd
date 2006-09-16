@@ -767,6 +767,8 @@ ukbd_detach(device_t dev)
 
 	usbd_transfer_drain(&(sc->sc_mem_wait), &Giant);
 
+	__callout_drain(&(sc->sc_callout));
+
 	DPRINTF(0, "%s: disconnected\n", 
 		device_get_nameunit(dev));
 

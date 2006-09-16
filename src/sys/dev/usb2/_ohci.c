@@ -383,6 +383,9 @@ ohci_detach(struct ohci_softc *sc)
 	DELAY(1000*300); /* XXX let stray task complete */
 
 	mtx_unlock(&sc->sc_bus.mtx);
+
+	__callout_drain(&(sc->sc_tmo_rhsc));
+
 	return;
 }
 

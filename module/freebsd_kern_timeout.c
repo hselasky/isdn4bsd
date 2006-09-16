@@ -93,7 +93,9 @@ __callout_reset(struct __callout *c, u_int32_t to_ticks,
 void
 __callout_stop(struct __callout *c)
 {
-    mtx_assert(c->mtx, MA_OWNED);
+    if (c->mtx) {
+        mtx_assert(c->mtx, MA_OWNED);
+    }
 
 #ifdef __NetBSD__
     callout_stop(&c->c_old);
@@ -104,6 +106,20 @@ __callout_stop(struct __callout *c)
 #endif
     c->func = NULL;
     c->arg = NULL;
+    return;
+}
+
+void
+__callout_drain(struct __callout *c)
+{
+#ifdef __NetBSD__
+    /* XXX NetBSD doesn't have any callout_drain() */
+    __callout_stop(c);
+#elif defined(__OpenBSD__)
+    __callout_stop(c);
+#else
+#error "Unknown operating system"
+#endif
     return;
 }
 

@@ -615,6 +615,8 @@ ural_detach(device_t dev)
 
 	usbd_config_td_unsetup(&(sc->sc_config_td));
 
+	__callout_drain(&(sc->sc_watchdog));
+
 	mtx_destroy(&sc->sc_mtx);
 
 	return 0;

@@ -76,6 +76,7 @@
 #    define __callout_init_mtx(c,m,f) callout_init_mtx(&(c)->co,m,f)
 #    define __callout_reset(c,t,f,d) callout_reset(&(c)->co,t,f,d)
 #    define __callout_stop(c) callout_stop(&(c)->co)
+#    define __callout_drain(c) callout_drain(&(c)->co)
 #    define __callout_pending(c) callout_pending(&(c)->co)
      struct __callout { struct callout co; };
 #   endif

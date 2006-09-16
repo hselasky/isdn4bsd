@@ -51,6 +51,9 @@ __callout_reset(struct __callout *c, u_int32_t to_ticks,
 extern void
 __callout_stop(struct __callout *c);
 
+extern void
+__callout_drain(struct __callout *c);
+
 extern u_int8_t
 __callout_pending(struct __callout *c);
 

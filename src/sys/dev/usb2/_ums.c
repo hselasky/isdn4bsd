@@ -573,6 +573,8 @@ ums_detach(device_t self)
 
 	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
+	__callout_drain(&(sc->sc_callout));
+
 	mtx_destroy(&(sc->sc_mtx));
 
 	return 0;
