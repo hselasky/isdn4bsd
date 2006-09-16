@@ -84,12 +84,10 @@ SYSCTL_INT(_hw_usb_ums, OID_AUTO, debug, CTLFLAG_RW,
 #define UMS_BUT(i) ((i) < 3 ? (((i) + 2) % 3) : (i))
 
 struct ums_softc {
+  struct usb_cdev     sc_cdev;
   struct mtx          sc_mtx;
-  struct usbd_ifqueue sc_rdq_free;
-  struct usbd_ifqueue sc_rdq_used;
   struct __callout    sc_callout;
   struct usbd_memory_wait sc_mem_wait;
-  struct selinfo      sc_read_sel;
   struct hid_location sc_loc_x; 
   struct hid_location sc_loc_y;
   struct hid_location sc_loc_z;
@@ -100,8 +98,6 @@ struct ums_softc {
   mousestatus_t	      sc_status;
 
   struct usbd_xfer *  sc_xfer[UMS_N_TRANSFER];
-  void *              sc_mem_ptr_1;
-  struct cdev *	      sc_cdev_1;
 
   u_int32_t	      sc_flags;
 #define UMS_FLAG_X_AXIS     0x0001
@@ -109,30 +105,40 @@ struct ums_softc {
 #define UMS_FLAG_Z_AXIS     0x0004
 #define UMS_FLAG_T_AXIS     0x0008
 #define UMS_FLAG_SBU        0x0010 /* spurious button up events */
-#define UMS_FLAG_SELECT     0x0020 /* select is waiting */
-#define UMS_FLAG_INTR_STALL 0x0040 /* set if transfer error */
-#define UMS_FLAG_GONE       0x0080 /* device is gone */
-#define UMS_FLAG_RD_WUP     0x0100 /* device is waiting for wakeup */
-#define UMS_FLAG_RD_SLP     0x0200 /* device is sleeping */
-#define UMS_FLAG_CLOSING    0x0400 /* device is closing */
-#define UMS_FLAG_DEV_OPEN   0x0800 /* device is open */
+#define UMS_FLAG_INTR_STALL 0x0020 /* set if transfer error */
 
   u_int8_t	      sc_buttons;
   u_int8_t	      sc_iid;
-  u_int8_t            sc_wakeup_read; /* dummy */
-  u_int8_t            sc_wakeup_sync_1; /* dummy */
 };
+
+static void
+ums_put_queue_timeout(void *__sc);
+
+static void
+ums_clear_stall_callback(struct usbd_xfer *xfer);
+
+static void
+ums_intr_callback(struct usbd_xfer *xfer);
 
 static device_probe_t ums_probe;
 static device_attach_t ums_attach;
 static device_detach_t ums_detach;
-static d_close_t ums_close;
 
+static void
+ums_start_read(struct usb_cdev *cdev);
+
+static void
+ums_stop_read(struct usb_cdev *cdev);
+
+static int32_t
+ums_open(struct usb_cdev *cdev, int32_t fflags, 
+	 int32_t devtype, struct thread *td);
+static int32_t
+ums_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t addr, 
+	  int32_t fflags, struct thread *td);
 static void
 ums_put_queue(struct ums_softc *sc, int32_t dx, int32_t dy, 
 	      int32_t dz, int32_t dt, int32_t buttons);
-
-extern cdevsw_t ums_cdevsw;
 
 static void
 ums_put_queue_timeout(void *__sc)
@@ -283,7 +289,7 @@ ums_intr_callback(struct usbd_xfer *xfer)
 	if (sc->sc_flags & UMS_FLAG_INTR_STALL) {
 	    usbd_transfer_start(sc->sc_xfer[1]);
 	} else {
-	    USBD_IF_POLL(&sc->sc_rdq_free, m);
+	    USBD_IF_POLL(&(sc->sc_cdev.sc_rdq_free), m);
 
 	    if (m) {
 	        usbd_start_hardware(xfer);
@@ -366,17 +372,16 @@ ums_attach(device_t dev)
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	struct ums_softc *sc = device_get_softc(dev);
 	void *d_ptr = NULL;
+	const char * p_buf[2];
 	int32_t unit = device_get_unit(dev);
 	int32_t d_len;
 	int32_t isize;
 	u_int32_t flags;
-	usbd_status err;
+	int32_t err;
 	u_int8_t i;
+	char buf_1[16];
 
 	DPRINTF(10, "sc=%p\n", sc);
-
-	sc->sc_rdq_free.ifq_maxlen = UMS_IFQ_MAXLEN;
-	sc->sc_rdq_used.ifq_maxlen = UMS_IFQ_MAXLEN;
 
 	usbd_set_desc(dev, uaa->device);
 
@@ -384,14 +389,6 @@ ums_attach(device_t dev)
 
 	__callout_init_mtx(&(sc->sc_callout),
 			   &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
-
- 	sc->sc_mem_ptr_1 = 
-	  usbd_alloc_mbufs(M_DEVBUF, &(sc->sc_rdq_free), 
-			   UMS_BUF_SIZE, UMS_IFQ_MAXLEN);
-
-	if (sc->sc_mem_ptr_1 == NULL) {
-	    goto detach;
-	}
 
 	err = usbd_transfer_setup(uaa->device, uaa->iface_index, sc->sc_xfer, 
 				  ums_config, UMS_N_TRANSFER, sc, 
@@ -481,6 +478,7 @@ ums_attach(device_t dev)
 	}
 
 	free(d_ptr, M_TEMP);
+	d_ptr = NULL;
 
 #ifdef USB_DEBUG
 	DPRINTF(0, "sc=%p\n", sc);
@@ -522,11 +520,25 @@ ums_attach(device_t dev)
 	sc->sc_status.dy = 0;
 	sc->sc_status.dz = 0;
 
-	sc->sc_cdev_1 = make_dev
-	  (&ums_cdevsw, unit, UID_ROOT, GID_OPERATOR, 0644, "ums%d", unit);
+	snprintf(buf_1, sizeof(buf_1), "ums%d", unit);
 
-	if (sc->sc_cdev_1) {
-	    DEV2SC(sc->sc_cdev_1) = sc;
+	p_buf[0] = buf_1;
+	p_buf[1] = NULL;
+
+	sc->sc_cdev.sc_start_read = &ums_start_read;
+	sc->sc_cdev.sc_stop_read = &ums_stop_read;
+	sc->sc_cdev.sc_open = &ums_open;
+	sc->sc_cdev.sc_ioctl = &ums_ioctl;
+	sc->sc_cdev.sc_flags |= (USB_CDEV_FLAG_FWD_SHORT|
+				 USB_CDEV_FLAG_WAKEUP_RD_IMMED|
+				 USB_CDEV_FLAG_WAKEUP_WR_IMMED);
+
+	err = usb_cdev_attach(&(sc->sc_cdev), sc, &(sc->sc_mtx), p_buf,
+			      UID_ROOT, GID_OPERATOR, 0644, 
+			      UMS_BUF_SIZE, UMS_IFQ_MAXLEN,
+			      1, 1 /* dummy write buffer */);
+	if (err) {
+	    goto detach;
 	}
 
 	return 0;
@@ -546,30 +558,9 @@ ums_detach(device_t self)
 
 	DPRINTF(0, "sc=%p\n", sc);
 
-	mtx_lock(&(sc->sc_mtx));
-	sc->sc_flags |= UMS_FLAG_GONE;
-	mtx_unlock(&(sc->sc_mtx));
-
-	if (sc->sc_cdev_1) {
-
-	    ums_close(sc->sc_cdev_1, 0, 0, 0);
-
-	    DEV2SC(sc->sc_cdev_1) = NULL;
-
-	    destroy_dev(sc->sc_cdev_1);
-	}
-
-	mtx_lock(&(sc->sc_mtx));
-
-	__callout_stop(&(sc->sc_callout));
-
-	mtx_unlock(&(sc->sc_mtx));
+	usb_cdev_detach(&(sc->sc_cdev));
 
 	usbd_transfer_unsetup(sc->sc_xfer, UMS_N_TRANSFER);
-
-	if (sc->sc_mem_ptr_1) {
-	    free(sc->sc_mem_ptr_1, M_DEVBUF);
-	}
 
 	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
@@ -580,6 +571,25 @@ ums_detach(device_t self)
 	return 0;
 }
 
+static void
+ums_start_read(struct usb_cdev *cdev)
+{
+	struct ums_softc *sc = cdev->sc_priv_ptr;
+	usbd_transfer_start(sc->sc_xfer[0]);
+	return;
+}
+
+static void
+ums_stop_read(struct usb_cdev *cdev)
+{
+	struct ums_softc *sc = cdev->sc_priv_ptr;
+	usbd_transfer_stop(sc->sc_xfer[1]);
+	usbd_transfer_stop(sc->sc_xfer[0]);
+	__callout_stop(&(sc->sc_callout));
+	return;
+}
+
+
 #if ((MOUSE_SYS_PACKETSIZE != 8) || \
      (MOUSE_MSC_PACKETSIZE != 5))
 #error "Software assumptions are not met. Please update code."
@@ -589,13 +599,9 @@ static void
 ums_put_queue(struct ums_softc *sc, int32_t dx, int32_t dy, 
 	      int32_t dz, int32_t dt, int32_t buttons)
 {
-	struct usbd_mbuf *m;
-	u_int8_t *buf;
+	u_int8_t buf[8];
 
-	USBD_IF_DEQUEUE(&sc->sc_rdq_free, m);
-
-	if (m) {
-	    USBD_MBUF_RESET(m);
+	if (1) {
 
 	    if (dx >  254)		dx =  254;
 	    if (dx < -256)		dx = -256;
@@ -606,11 +612,8 @@ ums_put_queue(struct ums_softc *sc, int32_t dx, int32_t dy,
 	    if (dt >  126)		dt =  126;
 	    if (dt < -128)		dt = -128;
 
-	    buf = m->cur_data_ptr;
-	    m->cur_data_len = sc->sc_mode.packetsize;
-
 	    buf[0] = sc->sc_mode.syncmask[1];
-	    buf[0] |= ~buttons & MOUSE_MSC_BUTTONS;
+	    buf[0] |= (~buttons) & MOUSE_MSC_BUTTONS;
 	    buf[1] = dx >> 1;
 	    buf[2] = dy >> 1;
 	    buf[3] = dx - (dx >> 1);
@@ -619,67 +622,17 @@ ums_put_queue(struct ums_softc *sc, int32_t dx, int32_t dy,
 	    if (sc->sc_mode.level == 1) {
 	        buf[5] = dz >> 1;
 		buf[6] = dz - (dz >> 1);
-		buf[7] = ((~buttons >> 3) & MOUSE_SYS_EXTBUTTONS);
+		buf[7] = (((~buttons) >> 3) & MOUSE_SYS_EXTBUTTONS);
 	    }
 
-	    USBD_IF_ENQUEUE(&(sc->sc_rdq_used), m);
-
-	    if (sc->sc_flags &   UMS_FLAG_RD_WUP) {
-	        sc->sc_flags &= ~UMS_FLAG_RD_WUP;
-	        wakeup(&(sc->sc_wakeup_read));
-	    }
-
-	    if (sc->sc_flags & UMS_FLAG_SELECT) {
-	        sc->sc_flags &= ~UMS_FLAG_SELECT;
-		selwakeup(&(sc->sc_read_sel));
-	    }
+	    usb_cdev_put_data(&(sc->sc_cdev), buf, 
+			      sc->sc_mode.packetsize, 1);
 
 	} else {
 	    DPRINTF(0, "Buffer full, discarded packet\n");
 	}
 
 	return;
-}
-
-static int
-ums_uiomove(struct ums_softc *sc, u_int32_t context_bit, 
-	    void *cp, int n, struct uio *uio)
-{
-	int error;
-
-	sc->sc_flags |= context_bit;
-
-	mtx_unlock(&(sc->sc_mtx));
-
-	error = uiomove(cp, n, uio);
-
-	mtx_lock(&(sc->sc_mtx));
-
-	sc->sc_flags &= ~context_bit;
-
-	if (sc->sc_flags & UMS_FLAG_CLOSING) {
-	    wakeup(&(sc->sc_wakeup_sync_1));
-	    error = EINTR;
-	}
-	return error;
-}
-
-static int
-ums_msleep(struct ums_softc *sc, u_int32_t context_bit, void *ident)
-{
-	int error;
-
-	sc->sc_flags |= context_bit;
-
-	error = msleep(ident, &(sc->sc_mtx), PRIBIO|PCATCH, "ums_sleep", 0);
-
-	sc->sc_flags &= ~context_bit;
-
-	if (sc->sc_flags & UMS_FLAG_CLOSING) {
-	    wakeup(&(sc->sc_wakeup_sync_1));
-	    error = EINTR;
-	}
-	return error;
 }
 
 static void
@@ -690,10 +643,10 @@ ums_reset_buf(struct ums_softc *sc)
 	/* reset read queue */
 
 	while(1) {
-	    USBD_IF_DEQUEUE(&(sc->sc_rdq_used), m);
+	    USBD_IF_DEQUEUE(&(sc->sc_cdev.sc_rdq_used), m);
 
 	    if (m) {
-	      USBD_IF_ENQUEUE(&(sc->sc_rdq_free), m);
+	      USBD_IF_ENQUEUE(&(sc->sc_cdev.sc_rdq_free), m);
 	    } else {
 	      break;
 	    }
@@ -701,31 +654,13 @@ ums_reset_buf(struct ums_softc *sc)
 	return;
 }
 
-static int
-ums_open(struct cdev *dev, int flag, int fmt, struct thread *td)
+static int32_t
+ums_open(struct usb_cdev *cdev, int32_t fflags, 
+	 int32_t devtype, struct thread *td)
 {
-	struct ums_softc *sc = DEV2SC(dev);
-	int error = 0;
+	struct ums_softc *sc = cdev->sc_priv_ptr;
 
 	DPRINTF(1, "\n");
-
-	if (sc == NULL) {
-	    return EIO;
-	}
-
-	mtx_lock(&(sc->sc_mtx));
-
-	/* check flags */
-
-	if (sc->sc_flags & 
-	    (UMS_FLAG_DEV_OPEN|UMS_FLAG_GONE)) {
-	    error = EBUSY;
-	    goto done;
-	}
-
-	/* reset buffer */
-
-	ums_reset_buf(sc);
 
 	/* reset status */
 
@@ -737,214 +672,18 @@ ums_open(struct cdev *dev, int flag, int fmt, struct thread *td)
 	sc->sc_status.dz = 0;
 	/* sc->sc_status.dt = 0; */
 
-	/* start interrupt transfer */
-
-	usbd_transfer_start(sc->sc_xfer[0]);
-
-	sc->sc_flags |= UMS_FLAG_DEV_OPEN;
-
- done:
-	mtx_unlock(&(sc->sc_mtx));
-
-	return error;
-}
-
-static int
-ums_close(struct cdev *dev, int flag, int fmt, struct thread *td)
-{
-	struct ums_softc *sc = DEV2SC(dev);
-	int error;
-
-	DPRINTF(1, "\n");
-
-	if (sc == NULL) {
-	    return EIO;
-	}
-
-	mtx_lock(&(sc->sc_mtx));
-
-	if (sc->sc_flags & UMS_FLAG_CLOSING) {
-	    goto done;
-	}
-
-	if (sc->sc_flags & UMS_FLAG_DEV_OPEN) {
-
- 	    sc->sc_flags |= UMS_FLAG_CLOSING;
-
-	    /* stop transfers */
-
-	    if (sc->sc_xfer[0]) {
-	        usbd_transfer_stop(sc->sc_xfer[0]);
-	    }
-
-	    if (sc->sc_xfer[1]) {
-	        usbd_transfer_stop(sc->sc_xfer[1]);
-	    }
-
-	    /* stop callout */
-
-	    __callout_stop(&(sc->sc_callout));
-
-	    while (sc->sc_flags &
-		   (UMS_FLAG_RD_SLP|UMS_FLAG_RD_WUP)) {
-
-	        if (sc->sc_flags &   UMS_FLAG_RD_WUP) {
-		    sc->sc_flags &= ~UMS_FLAG_RD_WUP;
-		    wakeup(&(sc->sc_wakeup_read));
-		}
-
-		error = msleep(&(sc->sc_wakeup_sync_1), &(sc->sc_mtx), 
-			       PRIBIO, "ums_sync_1", 0);
-	    }
-
-	    if (sc->sc_flags &   UMS_FLAG_SELECT) {
-	        sc->sc_flags &= ~UMS_FLAG_SELECT;
-		selwakeup(&(sc->sc_read_sel));
-	    }
-
-	    sc->sc_flags &= ~(UMS_FLAG_DEV_OPEN|
-			      UMS_FLAG_CLOSING);
-	}
-
- done:
-	mtx_unlock(&(sc->sc_mtx));
-
-	DPRINTF(0, "closed\n");
-
 	return 0;
 }
 
-static int
-ums_read(struct cdev *dev, struct uio *uio, int flag)
+static int32_t
+ums_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t addr, 
+	  int32_t fflags, struct thread *td)
 {
-	struct ums_softc *sc = DEV2SC(dev);
-	struct usbd_mbuf *m;
-	int error = 0;
-	int io_len;
-
-	if (sc == NULL) {
-	    return EIO;
-	}
-
-	DPRINTF(1, "\n");
-
-	mtx_lock(&(sc->sc_mtx));
-
-	if (sc->sc_flags & (UMS_FLAG_CLOSING|UMS_FLAG_GONE|
-			    UMS_FLAG_RD_SLP)) {
-		error = EIO;
-		goto done;
-	}
-
-	while (uio->uio_resid) {
-
-	    USBD_IF_DEQUEUE(&(sc->sc_rdq_used), m);
-
-	    if (m == NULL) {
-
-	        /* start reader thread */
-
-	        usbd_transfer_start(sc->sc_xfer[0]);
-
-		if (flag & O_NONBLOCK) {
-		    error = EWOULDBLOCK;
-		    goto done;
-		}
-
-	        error = ums_msleep(sc, (UMS_FLAG_RD_SLP|UMS_FLAG_RD_WUP), 
-				   &(sc->sc_wakeup_read));
-		if (error) {
-		    break;
-		} else {
-		    continue;
-		}
-	    }
-
-	    io_len = min(m->cur_data_len, uio->uio_resid);
-
-	    DPRINTF(1, "transfer %d bytes from %p\n", 
-		    io_len, m->cur_data_ptr);
-
-	    error = ums_uiomove(sc, UMS_FLAG_RD_SLP, m->cur_data_ptr, 
-				io_len, uio);
-
-	    m->cur_data_len -= io_len;
-	    m->cur_data_ptr += io_len;
-
-	    if (m->cur_data_len == 0) {
-	        USBD_IF_ENQUEUE(&sc->sc_rdq_free, m);
-	    } else {
-	        USBD_IF_PREPEND(&sc->sc_rdq_used, m);
-	    }
-
-	    if (error) {
-	       break;
-	    }
-	}
-
- done:
-	mtx_unlock(&(sc->sc_mtx));
-
-	return error;
-}
-
-static int
-ums_poll(struct cdev *dev, int events, struct thread *td)
-{
-	struct ums_softc *sc = DEV2SC(dev);
-	struct usbd_mbuf *m;
-	int32_t revents = 0;
-
-	if (sc == NULL) {
-	    return POLLNVAL;
-	}
-
-	DPRINTF(1, "\n");
-
-	mtx_lock(&(sc->sc_mtx));
-
-	if (sc->sc_flags & (UMS_FLAG_CLOSING|UMS_FLAG_GONE)) {
-	    revents = POLLNVAL;
-	    goto done;
-	}
-
-	if (events & (POLLIN | POLLRDNORM)) {
-
-	    USBD_IF_POLL(&(sc->sc_rdq_used), m);
-
-	    if (m) {
-	        revents = events & (POLLIN | POLLRDNORM);
-	    } else {
-	        sc->sc_flags |= UMS_FLAG_SELECT;
-		selrecord(td, &(sc->sc_read_sel));
-	    }
-	}
-
- done:
-	mtx_unlock(&(sc->sc_mtx));
-
-	return revents;
-}
-
-static int
-ums_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *td)
-{
-	struct ums_softc *sc = DEV2SC(dev);
+	struct ums_softc *sc = cdev->sc_priv_ptr;
 	mousemode_t mode;
 	int error = 0;
 
-	if (sc == NULL) {
-	    return EIO;
-	}
-
 	DPRINTF(1, "\n");
-
-	mtx_lock(&(sc->sc_mtx));
-
-	if (sc->sc_flags & (UMS_FLAG_CLOSING|UMS_FLAG_GONE)) {
-	    error = EIO;
-	    goto done;
-	}
 
 	switch(cmd) {
 	case MOUSE_GETHWINFO:
@@ -1048,20 +787,8 @@ ums_ioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *t
 	}
 
  done:
-	mtx_unlock(&(sc->sc_mtx));
-
 	return error;
 }
-
-cdevsw_t ums_cdevsw = {
-  .d_version = D_VERSION,
-  .d_open    = ums_open,
-  .d_close   = ums_close,
-  .d_read    = ums_read,
-  .d_ioctl   = ums_ioctl,
-  .d_poll    = ums_poll,
-  .d_name    = "ums",
-};
 
 static devclass_t ums_devclass;
 

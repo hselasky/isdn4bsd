@@ -142,29 +142,29 @@ usbd_devinfo_vp(struct usbd_device *udev, char *v, char *p, int usedev)
 		}
 	}
 #ifdef USBVERBOSE
-	if ((vendor == NULL) || (product == NULL)) {
+	if (vendor == NULL || product == NULL) {
 		for(kdp = usb_knowndevs;
 		    kdp->vendorname != NULL;
 		    kdp++) {
-			if ((kdp->vendor == UGETW(udd->idVendor)) &&
-			   ((kdp->product == UGETW(udd->idProduct)) ||
-			    (kdp->flags & USB_KNOWNDEV_NOPROD)))
+			if (kdp->vendor == UGETW(udd->idVendor) &&
+			   (kdp->product == UGETW(udd->idProduct) ||
+			    (kdp->flags & USB_KNOWNDEV_NOPROD) != 0))
 				break;
 		}
 		if (kdp->vendorname != NULL) {
 			if (vendor == NULL)
 			    vendor = kdp->vendorname;
 			if (product == NULL)
-			    product = ((kdp->flags & USB_KNOWNDEV_NOPROD) == 0) ?
+			    product = (kdp->flags & USB_KNOWNDEV_NOPROD) == 0 ?
 			        kdp->productname : NULL;
 		}
 	}
 #endif
-	if ((vendor != NULL) && *vendor)
+	if (vendor != NULL && *vendor)
 		strcpy(v, vendor);
 	else
 		sprintf(v, "vendor 0x%04x", UGETW(udd->idVendor));
-	if ((product != NULL) && *product)
+	if (product != NULL && *product)
 		strcpy(p, product);
 	else
 		sprintf(p, "product 0x%04x", UGETW(udd->idProduct));
