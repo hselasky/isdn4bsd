@@ -41,6 +41,7 @@ CFLAGS+=-DFREEBSD_NO_ISA
 SRCS=
 
 .if (${OSNAME} != "FreeBSD")
+CFLAGS+=-include ${.CURDIR}/fbsdid.h
 SRCS+= \
 freebsd_section_start.c \
 freebsd_kern_bus.c \
