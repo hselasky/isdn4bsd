@@ -1,5 +1,5 @@
 VERSION=1_6_1_r2
-DATE=August 2006
+DATE=September 2006
 
 FILTER= grep -v "temp"   |\
 	grep -v "~"      |\
@@ -71,6 +71,10 @@ ${S}/sys/dev/usb/urio.c \
 ${S}/sys/dev/usb/rio500_usb.h \
 ${S}/sys/dev/usb/udbp.c \
 ${S}/sys/dev/usb/udbp.h \
+${S}/sys/netgraph/bluetooth/drivers/ubt/TODO \
+${S}/sys/netgraph/bluetooth/drivers/ubt/ng_ubt.c \
+${S}/sys/netgraph/bluetooth/drivers/ubt/ng_ubt_var.h \
+${S}/sys/netgraph/bluetooth/drivers/ubtbcmfw/ubtbcmfw.c \
 ${S}/sys/dev/usb2 \
 
 #
@@ -129,9 +133,7 @@ ${S}/sys/dev/sound/usb/uaudio.c \
 ${S}/sys/dev/usb/if_ural.c \
 ${S}/sys/dev/usb/ufoma.c \
 ${S}/sys/dev/usb/ums.c \
-${S}/sys/dev/usb/udbp.c \
 ${S}/sys/dev/usb/ukbd.c \
-${S}/sys/dev/usb/umass.c \
 ${S}/sys/dev/usb/umodem.c \
 ${S}/sys/dev/usb/uvisor.c \
 ${S}/sys/dev/usb/ucycom.c \
@@ -274,6 +276,11 @@ backup:
 	mkdir ${S}/sys/modules/ulpt    || echo -n
 	mkdir ${S}/sys/modules/ums     || echo -n
 	mkdir ${S}/sys/modules/usb     || echo -n
+	mkdir ${S}/sys/netgraph        || echo -n
+	mkdir ${S}/sys/netgraph/bluetooth  || echo -n
+	mkdir ${S}/sys/netgraph/bluetooth/drivers  || echo -n
+	mkdir ${S}/sys/netgraph/bluetooth/drivers/ubt  || echo -n
+	mkdir ${S}/sys/netgraph/bluetooth/drivers/ubtbcmfw  || echo -n
 	mkdir ${S}/sys/conf            || echo -n
 	mkdir ${S}/sys/i386            || echo -n
 	mkdir ${S}/sys/i386/include    || echo -n
