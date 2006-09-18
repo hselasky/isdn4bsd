@@ -137,7 +137,7 @@ i4b_dtmf_queue_digit(struct fifo_translator *ft, u_int8_t digit,
 		     u_int16_t tone_duration,
 		     u_int16_t gap_duration)
 {
-    u_int8_t next_pos0 = (ft->dtmf_tx.input_pos +1) % I4B_DTMF_N_DIGITS;
+    u_int8_t next_pos0 = (ft->dtmf_tx.output_pos +1) % I4B_DTMF_N_DIGITS;
     u_int8_t next_pos1 = (next_pos0 + 1) % I4B_DTMF_N_DIGITS;
     u_int8_t n;
     u_int8_t i;
@@ -247,6 +247,8 @@ i4b_dtmf_generate(struct fifo_translator *ft, struct mbuf **pp_m)
 	    if (i >= I4B_DTMF_N_DIGITS) {
 	        i = 0;
 	    }
+
+	    ft->dtmf_tx.input_pos = i;
 
 	    if (i == ft->dtmf_tx.output_pos) {
 
