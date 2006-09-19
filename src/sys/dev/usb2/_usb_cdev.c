@@ -951,6 +951,13 @@ usb_cdev_dummy_cmd(struct usb_cdev *sc)
     return;
 }
 
+static void
+usb_cdev_dummy_start_write(struct usb_cdev *sc)
+{
+    sc->sc_flags &= ~USB_CDEV_FLAG_FLUSHING_WRITE;
+    return;
+} 
+
 static u_int8_t minor_table[(1<<16) / 8];
 
 static u_int32_t
@@ -1036,7 +1043,7 @@ usb_cdev_attach(struct usb_cdev *sc,
 	}
 
 	if (sc->sc_start_write == NULL) {
-	    sc->sc_start_write = &usb_cdev_dummy_cmd;
+	    sc->sc_start_write = &usb_cdev_dummy_start_write;
 	}
 
 	if (sc->sc_stop_write == NULL) {
