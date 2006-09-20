@@ -504,6 +504,8 @@ atausb_detach(device_t dev)
 
     usbd_transfer_drain(&(sc->mem_wait), &(sc->locked_mtx));
 
+    __callout_drain(&(sc->watchdog));
+
     mtx_destroy(&sc->locked_mtx);
     return 0;
 }

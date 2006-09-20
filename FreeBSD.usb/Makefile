@@ -70,21 +70,26 @@ ${S}/sys/dev/usb/urio.c \
 ${S}/sys/dev/usb/rio500_usb.h \
 ${S}/sys/dev/usb/udbp.c \
 ${S}/sys/dev/usb/udbp.h \
+${S}/sys/dev/usb/uscanner.c \
+${S}/sys/dev/usb/ubsa.c \
+${S}/sys/dev/usb/ubser.c \
+${S}/sys/dev/usb/ucom.c \
+${S}/sys/dev/usb/ucomvar.h \
+${S}/sys/dev/usb/ucycom.c \
+${S}/sys/dev/usb/ufoma.c \
+${S}/sys/dev/usb/uftdi.c \
+${S}/sys/dev/usb/uftdireg.h \
+${S}/sys/dev/usb/umct.c \
+${S}/sys/dev/usb/umodem.c \
+${S}/sys/dev/usb/uplcom.c \
+${S}/sys/dev/usb/uvisor.c \
+${S}/sys/dev/usb/uvscom.c \
+${S}/sys/dev/usb/usbdevs \
 ${S}/sys/netgraph/bluetooth/drivers/ubt/TODO \
 ${S}/sys/netgraph/bluetooth/drivers/ubt/ng_ubt.c \
 ${S}/sys/netgraph/bluetooth/drivers/ubt/ng_ubt_var.h \
 ${S}/sys/netgraph/bluetooth/drivers/ubtbcmfw/ubtbcmfw.c \
 ${S}/sys/dev/usb2 \
-
-#
-# not yet:
-# ${S}/sys/dev/usb/uscanner.c \
-# ${S}/sys/dev/usb/uftdi.c \
-# ${S}/sys/dev/usb/uftdireg.h \
-# ${S}/sys/dev/usb/ucycom.c \
-# ${S}/sys/dev/usb/ufoma.c \
-# ${S}/sys/dev/usb/umct.c \
-#
 
 USB_MODULES=\
 ${S}/sys/modules/aue \
@@ -131,15 +136,7 @@ DIFF_FILES=\
 ${S}/sys/conf/kmod.mk \
 ${S}/sys/dev/sound/usb/uaudio.c \
 ${S}/sys/dev/usb/if_ural.c \
-${S}/sys/dev/usb/ufoma.c \
-${S}/sys/dev/usb/ums.c \
-${S}/sys/dev/usb/ukbd.c \
-${S}/sys/dev/usb/umodem.c \
-${S}/sys/dev/usb/uvisor.c \
-${S}/sys/dev/usb/ucycom.c \
-${S}/sys/dev/usb/hid.c \
 ${S}/sys/dev/usb/usb_quirks.c \
-${S}/sys/dev/usb/usbdevs \
 ${S}/etc/mtree/BSD.include.dist \
 ${S}/include/Makefile \
 
@@ -188,7 +185,7 @@ M=ше
 BSD_INCLUDE_DIST_APPEND_1="${M}usb2${M}.."
 
 HELP='\#\
-${N}\# USB driver for FreeBSD 5/6/7 - ${DATE} \
+${N}\# USB driver for FreeBSD 6/7 - ${DATE} \
 ${N}\# \
 ${N}\# source directory:      ${S} \
 ${N}\# backup directory:      ${.CURDIR} \
@@ -265,6 +262,7 @@ backup:
 	mkdir ${S}/sys                 || echo -n
 	mkdir ${S}/sys/dev             || echo -n
 	mkdir ${S}/sys/dev/sound       || echo -n
+	mkdir ${S}/sys/dev/sound/pcm   || echo -n
 	mkdir ${S}/sys/dev/sound/usb   || echo -n
 	mkdir ${S}/sys/dev/ata         || echo -n
 	mkdir ${S}/sys/dev/usb         || echo -n
