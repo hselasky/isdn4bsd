@@ -184,7 +184,7 @@ ucom_attach(struct ucom_softc *sc, device_t dev)
 	DPRINTF(0, "tp = %p\n", tp);
 
 #ifndef TS_CALLOUT
-#define TS_CALLOUT MINOR_CALLOUT /* compile fix for FreeBSD 6.x */
+#define TS_CALLOUT NULL, unit, MINOR_CALLOUT /* compile fix for FreeBSD 6.x */
 #endif
 	error = ttycreate(tp, TS_CALLOUT, "U%d", unit);
 	if (error) {
