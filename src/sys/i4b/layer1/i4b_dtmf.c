@@ -489,13 +489,23 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 
 	    if (found == (1<<16)) {
 
-	        /* fax tone 1.1 kHz */
-	        code = 'X';
+	        if (ft->dtmf_rx.detected_fax_or_modem) {
+		    code = 0;
+		    goto done;
+		} else {
+		    /* fax tone 1.1 kHz */
+		    code = 'X';
+		}
 
 	    } else if (found == (1<<17)) {
 
-	        /* fax tone 2.1 kHz */
-	        code = 'Y';
+	        if (ft->dtmf_rx.detected_fax_or_modem) {
+		    code = 0;
+		    goto done;
+		} else {
+		    /* fax tone 2.1 kHz */
+		    code = 'Y';
+		}
 
 	    } else {
 
@@ -546,6 +556,8 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 	    if ((code == 'X') || (code == 'Y')) {
 	        if (ft->dtmf_rx.code_count == 14) {
 		    L5_PUT_DTMF(ft, &code, 1);
+
+		    ft->dtmf_rx.detected_fax_or_modem = 1;
 		}
 		if (ft->dtmf_rx.code_count != 0xFF) {
 		    ft->dtmf_rx.code_count++;

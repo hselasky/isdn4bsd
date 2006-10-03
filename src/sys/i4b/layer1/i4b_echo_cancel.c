@@ -311,7 +311,7 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x0, int16_t y0)
     /* compute the estimated signal */
 
     y1 = i4b_echo_cancel_inner_product
-      (ec->buf_X0 + ec->offset_x, ec->buf_W0, I4B_ECHO_CANCEL_N_TAPS);
+      (ec->buf_X0 + ec->offset_x, ec->buf_W1, I4B_ECHO_CANCEL_N_TAPS);
 
     y1 = (y0 * I4B_ECHO_CANCEL_X_DP) - y1;
 
@@ -414,7 +414,7 @@ static __inline int16_t
 i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec, 
 		    int16_t x, int16_t y, int16_t z)
 {
-    const u_int32_t max = 128; /* this constant can be tuned */
+    const u_int32_t max = 256; /* this constant can be tuned */
     const u_int32_t diff_level = 64 * 64; /* this constant can be tuned */
     const u_int32_t echo_level = 32; /* this constant can be tuned */
     const u_int32_t lim_coeffs = (I4B_ECHO_CANCEL_W_DP / 
@@ -532,7 +532,7 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 	ec->cur_power_rx1 = 0;
     }
 
-#if 0
+#if 1
     if (ec->tx_speaking && 
 	ec->adapt_count) {
         ec->adapt_count--;

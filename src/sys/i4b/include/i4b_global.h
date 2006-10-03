@@ -193,6 +193,7 @@ struct i4b_dtmf_info_rx {
     u_int8_t code;
     u_int8_t code_count;
     u_int8_t bsubprot;
+    u_int8_t detected_fax_or_modem;
 };
 
 struct i4b_dtmf_info_tx {
@@ -852,12 +853,12 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 #define I4B_ECHO_CANCEL_K_TAPS         32 /* samples */
 #define I4B_ECHO_CANCEL_N_SUB           2 /* units */
 #define I4B_ECHO_CANCEL_N_COPY          2 /* units */
-#define I4B_ECHO_CANCEL_STEP           32 /* units */
+#define I4B_ECHO_CANCEL_STEP            1 /* units */
 #define I4B_ECHO_CANCEL_X_DP (1<<15)
 #define I4B_ECHO_CANCEL_W_DP (I4B_ECHO_CANCEL_N_TAPS * \
 			      I4B_ECHO_CANCEL_STEP * \
-			      I4B_ECHO_CANCEL_X_DP * 2)
-#define I4B_ECHO_CANCEL_ADAPT_COUNT     4000  /* samples */
+			      I4B_ECHO_CANCEL_X_DP * 64)
+#define I4B_ECHO_CANCEL_ADAPT_COUNT     8000  /* samples */
 #define I4B_ECHO_CANCEL_ADAPT_HIST         2  /* units */
 
 #if (I4B_ECHO_CANCEL_K_TAPS > I4B_ECHO_CANCEL_N_TAPS)
