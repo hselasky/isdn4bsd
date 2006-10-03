@@ -25,8 +25,8 @@
  * SUCH DAMAGE.
  *
  *
- * i4b_echo_cancel.c - A Normalized Least Mean Squares, NLMS, echo canceller
- *
+ * i4b_echo_cancel.c - An integer, dual sub-band, Normalized Least 
+ *                     Mean Square, NLMS, echo canceller.
  */
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -38,6 +38,95 @@
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_trace.h>
 #include <i4b/include/i4b_global.h>
+
+struct ec_stats {
+  u_int32_t sum_y;
+    int32_t max_y;
+    int16_t max_x;
+};
+
+#if (I4B_ECHO_CANCEL_N_SUB != 0x2)
+#error "Please update code!"
+#endif
+
+#if (I4B_ECHO_CANCEL_K_TAPS != 0x20)
+#error "Please update code!"
+#endif
+
+#if (I4B_ECHO_CANCEL_W_DP != 0x20000000)
+#error "Please update code!"
+#endif
+
+static const int32_t buf_H[2][32] = {
+  {
+             7,
+     -11392754,
+            -7,
+      13145486,
+             7,
+     -15535574,
+            -7,
+      18987924,
+             7,
+     -24413045,
+            -7,
+      34178263,
+             7,
+     -56963772,
+            -7,
+     170891318,
+     268435456,
+     170891318,
+            -7,
+     -56963772,
+             7,
+      34178263,
+            -7,
+     -24413045,
+             7,
+      18987924,
+            -7,
+     -15535574,
+             7,
+      13145486,
+            -7,
+             0,
+  },
+  {
+            -7,
+      11392754,
+             7,
+     -13145486,
+            -7,
+      15535574,
+             7,
+     -18987924,
+            -7,
+      24413045,
+             7,
+     -34178263,
+            -7,
+      56963772,
+             7,
+    -170891318,
+     268435456,
+    -170891318,
+             7,
+      56963772,
+            -7,
+     -34178263,
+             7,
+      24413045,
+            -7,
+     -18987924,
+             7,
+      15535574,
+            -7,
+     -13145486,
+             7,
+             0,
+  },
+};
 
 /*---------------------------------------------------------------------------*
  * i4b_echo_cancel_init - initialize echo canceller
@@ -57,6 +146,8 @@ i4b_echo_cancel_init(struct i4b_echo_cancel *ec,
     ec->last_byte = 0xFF;
 
     ec->is_ulaw = (sub_bprot != BSUBPROT_G711_ALAW);
+
+    ec->offset_x = (I4B_ECHO_CANCEL_N_TAPS-1);
 
     return;
 }
@@ -89,13 +180,32 @@ i4b_echo_cancel_noise(struct i4b_echo_cancel *ec)
 }
 
 /*---------------------------------------------------------------------------*
+ * i4b_subract_safe - safe subtraction
+ *---------------------------------------------------------------------------*/
+static __inline int16_t
+i4b_subtract_safe(int16_t a, int16_t b)
+{
+    int32_t temp = a - b;
+
+    /* make room for adding 
+     * a little white noise
+     */
+    if (temp < -I4B_ECHO_CANCEL_SAMPLE_MAX) {
+        temp = -I4B_ECHO_CANCEL_SAMPLE_MAX;
+    } else if (temp > I4B_ECHO_CANCEL_SAMPLE_MAX) {
+        temp = I4B_ECHO_CANCEL_SAMPLE_MAX;
+    }
+    return temp;
+}
+
+/*---------------------------------------------------------------------------*
  * i4b_echo_cancel_hp_f1 - IIR filter number 1, high pass to remove DC
  *---------------------------------------------------------------------------*/
 static __inline int16_t
 i4b_echo_cancel_hp_f1(struct i4b_echo_cancel *ec, int16_t in)
 {
     ec->low_pass_1 += ((in * (1<<8)) - (ec->low_pass_1 / (1<<8)));
-    return (in - (ec->low_pass_1 / (1<<16)));
+    return i4b_subtract_safe(in, (ec->low_pass_1 / (1<<16)));
 }
 
 /*---------------------------------------------------------------------------*
@@ -105,146 +215,188 @@ static __inline int16_t
 i4b_echo_cancel_hp_f2(struct i4b_echo_cancel *ec, int16_t in)
 {
     ec->low_pass_2 += ((in * (1<<8)) - (ec->low_pass_2 / (1<<8)));
-    return (in - (ec->low_pass_2 / (1<<16)));
+    return i4b_subtract_safe(in, (ec->low_pass_2 / (1<<16)));
+}
+
+/*---------------------------------------------------------------------------*
+ * i4b_echo_cancel_stats - compute coefficient statistics
+ *---------------------------------------------------------------------------*/
+static struct ec_stats
+i4b_echo_cancel_stats(int32_t *p_coeffs)
+{
+    struct ec_stats stats;
+    int32_t temp;
+    u_int16_t n;
+
+    stats.max_y = 0;
+    stats.max_x = 0;
+    stats.sum_y = 0;
+
+    for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
+
+        temp = p_coeffs[n];
+
+	if (temp < 0) {
+	    if (temp == -0x80000000) {
+	        /* avoid overflow */
+	        temp = 0x7FFFFFFF;
+	    } else {
+	        temp = -temp;
+	    }
+	}
+
+	stats.sum_y += temp / I4B_ECHO_CANCEL_N_TAPS;
+
+	if (temp > stats.max_y) {
+	    stats.max_y = temp;
+	    stats.max_x = n;
+	}
+    }
+    return stats;
+}
+
+/*---------------------------------------------------------------------------*
+ * i4b_echo_cancel_clamp - sample rangecheck
+ *---------------------------------------------------------------------------*/
+static __inline int16_t
+i4b_echo_cancel_clamp(int32_t val)
+{
+    val /= I4B_ECHO_CANCEL_X_DP;
+
+    if (val < -I4B_ECHO_CANCEL_SAMPLE_MAX) {
+        val = -I4B_ECHO_CANCEL_SAMPLE_MAX;
+    } else if (val > I4B_ECHO_CANCEL_SAMPLE_MAX) {
+        val = I4B_ECHO_CANCEL_SAMPLE_MAX;
+    }
+    return val;
+}
+
+/*---------------------------------------------------------------------------*
+ * i4b_echo_cancel_inner_product - compute inner-product
+ *---------------------------------------------------------------------------*/
+static int32_t
+i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c, u_int16_t n)
+{
+    int32_t temp = 0;
+    while(n--) {
+        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP / I4B_ECHO_CANCEL_X_DP));
+	p_x++;
+	p_c++;
+    }
+    return temp;
 }
 
 /*---------------------------------------------------------------------------*
  * i4b_echo_cancel_lms - an implementation of a self adapting FIR filter
  *
  * inputs:
- *   x: sample from speaker
- *   y: sample from microphone
+ *   x0: sample from speaker
+ *   y0: sample from microphone with echo from speaker
  *
  * outputs:
- *   sample from microphone without echo
+ *   sample from microphone without echo from speaker
  *---------------------------------------------------------------------------*/
-static __inline int16_t
-i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x, int16_t __y)
+static int16_t
+i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x0, int16_t y0)
 {
+    int32_t y1;
+    int32_t y2;
+    int32_t y3;
+
     u_int16_t n;
-    int32_t power;
-    int32_t factor;
-    int32_t sample1 = 0;
-    int32_t sample2 = 0;
-    int32_t y = (__y * (1<<16));
+    u_int16_t p;
 
-    /*
-     * store "x" in "buffer_x[]" and compute the 
-     * squared of the last "I4B_ECHO_CANCEL_N_TAPS"
-     * "x" values divided by "I4B_ECHO_CANCEL_N_TAPS" 
-     * (optimized):
-     */
+    ec->buf_X0[ec->offset_x] = x0;
 
-    ec->buffer_x[ec->offset_x] = x;
+    /* compute the estimated signal */
 
-    ec->avg_power_tx += (((x * x) + (I4B_ECHO_CANCEL_N_TAPS-1))
-			 / I4B_ECHO_CANCEL_N_TAPS);
+    y1 = i4b_echo_cancel_inner_product
+      (ec->buf_X0 + ec->offset_x, ec->buf_W0, I4B_ECHO_CANCEL_N_TAPS);
 
-    x = ec->buffer_x[ec->offset_x + I4B_ECHO_CANCEL_N_TAPS];
+    y1 = (y0 * I4B_ECHO_CANCEL_X_DP) - y1;
 
-    ec->avg_power_tx -= (((x * x) + (I4B_ECHO_CANCEL_N_TAPS-1))
-			 / I4B_ECHO_CANCEL_N_TAPS);
+    /* store error */
 
-    power = ec->avg_power_tx;
+    ec->buf_E0[ec->offset_x] = i4b_echo_cancel_clamp(y1);
 
-    /*
-     * subtract the computed echo from the 
-     * recorded sound. The following loop 
-     * makes up a so-called FIR filter, which
-     * means "Finite Impulse Response":
-     */
-    for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n += 2) {
+    /* iterate over the sub-bands */
 
-        /* partial loop unrolled */
+    for (p = 0; p < I4B_ECHO_CANCEL_N_SUB; p++) {
 
-        sample1 += (ec->buffer_x[ec->offset_x + n] * 
-		    (ec->coeffs_cur[n] / I4B_ECHO_CANCEL_COEFF_DP));
+        /* compute X-sub-band */
 
-	sample2 += (ec->buffer_x[ec->offset_x + n + 1] * 
-		    (ec->coeffs_cur[n + 1] / I4B_ECHO_CANCEL_COEFF_DP));
-    }
+        y2 = i4b_echo_cancel_inner_product
+	  (ec->buf_X0 + ec->offset_x, buf_H[p], I4B_ECHO_CANCEL_K_TAPS);
+      
+	/* store X-sub-band */
 
-    y -= (sample1 + sample2);
+	ec->buf_XH[p][ec->offset_x] = i4b_echo_cancel_clamp(y2);
 
-    /*
-     * add a little noise to
-     * influence the filter
-     * noise:
-     */
-    y += i4b_echo_cancel_noise(ec) / 16;
+	/* compute E-sub-band */
 
-    if (ec->coeffs_adapt) {
+        y2 = i4b_echo_cancel_inner_product
+	  (ec->buf_E0 + ec->offset_x, buf_H[p], I4B_ECHO_CANCEL_K_TAPS);
 
-        if (power < (4*I4B_ECHO_CANCEL_COEFF_FACTOR)) {
-            /*
-	     * avoid division by zero and
-	     * coefficient overflow:
-	     */
-            power = 4;
-	} else {
-            power /= I4B_ECHO_CANCEL_COEFF_FACTOR;
-	}
+	/* compute sum of XH squared (optimized) */
 
-	factor = (y / power);
+	y3 = ec->buf_XH[p][ec->offset_x];
 
-        /* update the coefficients using the
-	 * Normalized Least Means Squared,
-	 * NLMS, method:
-	 */
-        for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n += 2) {
+	ec->buf_PH[p] += (y3 * y3) / I4B_ECHO_CANCEL_N_TAPS;
 
-	    /* partial loop unrolled */
+	y3 = ec->buf_XH[p][ec->offset_x + I4B_ECHO_CANCEL_N_TAPS];
 
-	    ec->coeffs_cur[n] += (ec->buffer_x[ec->offset_x + n] * factor);
+	ec->buf_PH[p] -= (y3 * y3) / I4B_ECHO_CANCEL_N_TAPS;
 
-	    ec->coeffs_cur[n+1] += (ec->buffer_x[ec->offset_x + n + 1] * factor);
+	y3 = ec->buf_PH[p];
+
+	if (ec->coeffs_adapt) {
+
+	    /* update W1 */
+
+	    if (y3 > (64 * 64)) {
+
+	        y2 /= y3;
+
+		if (y2) {
+		    for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
+		        ec->buf_W1[n] += y2 * ec->buf_XH[p][ec->offset_x + n];
+		    }
+		}
+	    }
 	}
     }
-
-#if 1
-    if (ec->debug_count == 0) {
-          int32_t mm_y = 0.0;
-	u_int16_t mm_x = 0;
-
-        ec->debug_count = 8000;
-
-	for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
-	  if (ec->coeffs_cur[n] > mm_y) {
-	      mm_y = ec->coeffs_cur[n];
-	      mm_x = n;
-	  }
-	  if (ec->coeffs_cur[n] < -mm_y) {
-	      mm_y = -ec->coeffs_cur[n];
-	      mm_x = n;
-	  }
-	}
-
-	I4B_DBG(1, L1_EC_MSG, "DC1=%d, DC2=%d,tx=%d,"
-		"rx=%d,mm_x=%d,mm_y=%d,adapt=%d", 
-		ec->low_pass_1 / (1<<16), 
-		ec->low_pass_2 / (1<<16), 
-		ec->tx_speaking, 
-		ec->rx_speaking,
-		mm_x, mm_y / I4B_ECHO_CANCEL_COEFF_DP,
-		ec->coeffs_adapt);
-
-    } else {
-        ec->debug_count --;
-    }
-#endif
 
     if (ec->offset_x == 0) {
 
-        /* update input offset */
-
         ec->offset_x = (I4B_ECHO_CANCEL_N_TAPS-1);
-        bcopy(ec->buffer_x, ec->buffer_x + I4B_ECHO_CANCEL_N_TAPS,
-	      I4B_ECHO_CANCEL_N_TAPS * sizeof(ec->buffer_x[0]));
+
+        bcopy(ec->buf_X0,
+	      ec->buf_X0 + I4B_ECHO_CANCEL_N_TAPS,
+	      sizeof(ec->buf_X0[0]) * I4B_ECHO_CANCEL_N_TAPS);
+
+        bcopy(ec->buf_E0,
+	      ec->buf_E0 + I4B_ECHO_CANCEL_N_TAPS,
+	      sizeof(ec->buf_E0[0]) * I4B_ECHO_CANCEL_N_TAPS);
+
+	for (p = 0; p < I4B_ECHO_CANCEL_N_SUB; p++) {
+
+	    bcopy(ec->buf_XH[p],
+		  ec->buf_XH[p] + I4B_ECHO_CANCEL_N_TAPS,
+		  sizeof(ec->buf_XH[0][0]) * I4B_ECHO_CANCEL_N_TAPS);
+	}
+
     } else {
         ec->offset_x --;
     }
 
-    return (y / (1<<16));
+    y1 = i4b_echo_cancel_clamp(y1);
+
+    /*
+     * Add a little comfort noise
+     */
+    y1 += i4b_echo_cancel_noise(ec) / (1<<20);
+
+    return y1;
 }
 
 /*---------------------------------------------------------------------------*
@@ -262,88 +414,132 @@ static __inline int16_t
 i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec, 
 		    int16_t x, int16_t y, int16_t z)
 {
-    const u_int32_t max = 512; /* this constant can be tuned */
-    const u_int32_t level = 32; /* this constant can be tuned */
-    const u_int32_t lim_coeffs = (I4B_ECHO_CANCEL_COEFF_DP * 
-				  ((1<<16) / I4B_ECHO_CANCEL_N_TAPS));
-    u_int32_t sum_coeffs = 0;
-    u_int16_t n;
-    void *ptr1;
-    void *ptr2;
+    const u_int32_t max = 128; /* this constant can be tuned */
+    const u_int32_t diff_level = 64 * 64; /* this constant can be tuned */
+    const u_int32_t echo_level = 32; /* this constant can be tuned */
+    const u_int32_t lim_coeffs = (I4B_ECHO_CANCEL_W_DP / 
+				  I4B_ECHO_CANCEL_N_TAPS);
+    const u_int32_t min_level = (echo_level * echo_level * max);
+
+    struct ec_stats stats;
 
     ec->cur_power_tx += (x * x) / max;
-    ec->cur_power_rx += (y * y) / max;
+    ec->cur_power_rx0 += (y * y) / max; /* after echo cancel */
+    ec->cur_power_rx1 += (z * z) / max; /* before echo cancel */
     ec->cur_power_count ++;
 
     if (ec->cur_power_count >= max) {
 
-	ec->rx_speaking = ((ec->cur_power_rx > (level * level * max)) && 
-			   (ec->cur_power_rx > (ec->cur_power_tx/
-						(level * level))));
+        ec->rx_speaking = ((ec->cur_power_rx0 > min_level) &&
+			   (ec->cur_power_rx0 > 
+			    (ec->cur_power_tx/diff_level)));
 
-	ec->tx_speaking = ((ec->cur_power_tx > (level * level * max)) &&
-			   (ec->cur_power_tx > (ec->cur_power_rx/
-						(level * level))));
+	ec->tx_speaking = ((ec->cur_power_tx > min_level) &&
+			   (ec->cur_power_tx > 
+			    (ec->cur_power_rx0/diff_level)));
 
-	ec->coeffs_adapt = (ec->tx_speaking && (!(ec->rx_speaking)));
+	ec->coeffs_bad = ((ec->cur_power_rx1 > min_level) &&
+			  ((ec->cur_power_rx0/4) > 
+			   ec->cur_power_rx1));
 
-	I4B_DBG(1, L1_EC_MSG, "rx/tx = %d, tx/rx = %d %dr/%dt",
-		ec->cur_power_rx / (ec->cur_power_tx ? ec->cur_power_tx : 1),
-		ec->cur_power_tx / (ec->cur_power_rx ? ec->cur_power_rx : 1),
-		ec->rx_speaking, ec->tx_speaking);
+	ec->coeffs_adapt = (ec->tx_speaking && 
+			    (!(ec->rx_speaking)));
 
-	ptr1 = (ec->data_toggle) ? ec->coeffs_old_0 : ec->coeffs_old_1;
-	ptr2 = (ec->data_toggle) ? ec->coeffs_old_1 : ec->coeffs_old_0;
+	stats = i4b_echo_cancel_stats(ec->buf_W1);
 
-	ec->data_toggle = !(ec->data_toggle);
+	I4B_DBG(1, L1_EC_MSG, "rx/tx=%d tx/rx=%d rx0=%d rx1=%d "
+		"%dr/%dt/%db/%da xm=%d ym=%d",
+		ec->cur_power_rx0 / (ec->cur_power_tx ? ec->cur_power_tx : 1),
+		ec->cur_power_tx / (ec->cur_power_rx0 ? ec->cur_power_rx0 : 1),
+		ec->cur_power_rx0, ec->cur_power_rx1, 
+		ec->rx_speaking, ec->tx_speaking, 
+		ec->coeffs_bad, ec->coeffs_adapt,
+		stats.max_x, (int32_t)(stats.max_y / 
+				       (I4B_ECHO_CANCEL_W_DP / 
+					(1 << 16))));
 
-	/* check the coefficients */
+	/* check adapt boolean */
 
-	for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
-
-	    if (ec->coeffs_cur[n] < 0)
-	      sum_coeffs += -(ec->coeffs_cur[n] / I4B_ECHO_CANCEL_N_TAPS);
-	    else
-	      sum_coeffs += (ec->coeffs_cur[n] / I4B_ECHO_CANCEL_N_TAPS);
+	if (ec->coeffs_adapt) {
+	    if (ec->coeffs_wait) {
+	        ec->coeffs_wait--;
+		ec->coeffs_adapt = 0;
+	    }
+	} else {
+	    if (ec->adapt_count == 0) {
+	        ec->coeffs_wait = I4B_ECHO_CANCEL_ADAPT_HIST + 1;
+	    }
 	}
 
-	if (sum_coeffs >= lim_coeffs) {
+	if (ec->coeffs_bad) {
 
-	    /* make sure that the coefficients 
-	     * do not diverge
-	     */
-	    I4B_DBG(1, L1_EC_MSG, "reverting bad coeffs!");
-	}
+	    /* coeffs are bad, reset echo canceller */
 
-	if (ec->coeffs_adapt && (sum_coeffs < lim_coeffs)) {
-
-	    /* make a backup of the coefficients */
-
-	    bcopy(ec->coeffs_cur, ptr1, sizeof(ec->coeffs_cur));
+	    bzero(ec->buf_W0, sizeof(ec->buf_W0));
+	    bzero(ec->buf_W1, sizeof(ec->buf_W1));
+	    bzero(ec->buf_WA, sizeof(ec->buf_WA));
 
 	} else {
 
-	    /* restore the coefficients */
+	    if (ec->coeffs_adapt) {
 
-	    bcopy(ptr1, ec->coeffs_cur, sizeof(ec->coeffs_cur));
+	        /* check the coefficients */
 
-	    bcopy(ptr1, ptr2, sizeof(ec->coeffs_cur));
+	        if (stats.sum_y >= lim_coeffs) {
+
+		    /* make sure that the coefficients 
+		     * do not diverge
+		     */
+		    I4B_DBG(1, L1_EC_MSG, "reverting bad current coeffs!");
+
+		    bcopy(ec->buf_W0,
+			  ec->buf_W1, sizeof(ec->buf_W1));
+		} else {
+		    bcopy(ec->buf_W1,
+			  ec->buf_W0, sizeof(ec->buf_W0));
+
+		    bcopy(ec->buf_W1,
+			  ec->buf_WA[ec->adapt_index],sizeof(ec->buf_WA[0]));
+
+		    /* update adapt index */
+
+		    ec->adapt_index ++;
+		    ec->adapt_index %= I4B_ECHO_CANCEL_ADAPT_HIST;
+		}
+	    } else {
+
+	        u_int8_t n;
+
+		for (n = 0; n < I4B_ECHO_CANCEL_ADAPT_HIST; n++) {
+		    if (n != ec->adapt_index) {
+		        bcopy(ec->buf_WA[ec->adapt_index],
+			      ec->buf_WA[n],
+			      sizeof(ec->buf_WA[0]));
+		    }
+		}
+
+		bcopy(ec->buf_WA[ec->adapt_index],
+		      ec->buf_W1, sizeof(ec->buf_W1));
+
+		bcopy(ec->buf_WA[ec->adapt_index],
+		      ec->buf_W0, sizeof(ec->buf_W0));
+	    }
 	}
 
 	ec->cur_power_count = 0;
 	ec->cur_power_tx = 0;
-	ec->cur_power_rx = 0;
+	ec->cur_power_rx0 = 0;
+	ec->cur_power_rx1 = 0;
     }
 
+#if 0
     if (ec->tx_speaking && 
 	ec->adapt_count) {
         ec->adapt_count--;
-
-	if (ec->tx_speaking) {
-	    /* brute force muting */
-	    y /= 64;
-	}
+	/* brute force muting */
+	y /= 64;
     }
+#endif
     return y;
 }
 
@@ -516,6 +712,8 @@ i4b_echo_cancel_merge(struct i4b_echo_cancel *ec,
 
 	sample_y = i4b_echo_cancel_lms(ec, sample_x, sample_y);
 	sample_y = i4b_echo_cancel_pwr(ec, sample_x, sample_y, sample_z);
+
+	/* update */
 
 	read_ptr[0] = convert_rev(sample_y);
 

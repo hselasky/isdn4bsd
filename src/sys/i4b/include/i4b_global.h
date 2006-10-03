@@ -846,30 +846,42 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 
 /* prototypes from i4b_echo_cancel.c */
 
-#define I4B_ECHO_CANCEL_N_TAPS           128 /* samples */
-#define I4B_ECHO_CANCEL_F_SIZE          1024 /* samples */
-#define I4B_ECHO_CANCEL_ALPHA_FAST  (1 <<  7)
-#define I4B_ECHO_CANCEL_ALPHA_SLOW  (1 << 14)
-#define I4B_ECHO_CANCEL_COEFF_DP    (1 << 15)
-#define I4B_ECHO_CANCEL_COEFF_FACTOR (I4B_ECHO_CANCEL_COEFF_DP / 256)
-#define I4B_ECHO_CANCEL_ADAPT_COUNT    12000 /* samples */
+#define I4B_ECHO_CANCEL_SAMPLE_MAX 0x7FC0 /* units */
+#define I4B_ECHO_CANCEL_F_SIZE       1024 /* samples */
+#define I4B_ECHO_CANCEL_N_TAPS        256 /* samples */
+#define I4B_ECHO_CANCEL_K_TAPS         32 /* samples */
+#define I4B_ECHO_CANCEL_N_SUB           2 /* units */
+#define I4B_ECHO_CANCEL_N_COPY          2 /* units */
+#define I4B_ECHO_CANCEL_STEP           32 /* units */
+#define I4B_ECHO_CANCEL_X_DP (1<<15)
+#define I4B_ECHO_CANCEL_W_DP (I4B_ECHO_CANCEL_N_TAPS * \
+			      I4B_ECHO_CANCEL_STEP * \
+			      I4B_ECHO_CANCEL_X_DP * 2)
+#define I4B_ECHO_CANCEL_ADAPT_COUNT     4000  /* samples */
+#define I4B_ECHO_CANCEL_ADAPT_HIST         2  /* units */
+
+#if (I4B_ECHO_CANCEL_K_TAPS > I4B_ECHO_CANCEL_N_TAPS)
+#error "I4B_ECHO_CANCEL_K_TAPS is invalid"
+#endif
 
 struct i4b_echo_cancel {
-    int32_t coeffs_cur[I4B_ECHO_CANCEL_N_TAPS];
-    int32_t coeffs_old_0[I4B_ECHO_CANCEL_N_TAPS];
-    int32_t coeffs_old_1[I4B_ECHO_CANCEL_N_TAPS];
+
+    int32_t buf_W0[I4B_ECHO_CANCEL_N_TAPS]; /* FIR filter weights */
+    int32_t buf_W1[I4B_ECHO_CANCEL_N_TAPS]; /* FIR filter weights  */
+    int32_t buf_WA[I4B_ECHO_CANCEL_ADAPT_HIST][I4B_ECHO_CANCEL_N_TAPS];
+
+    int32_t buf_PH[I4B_ECHO_CANCEL_N_SUB]; /* sum of power */
 
     int32_t low_pass_1;
     int32_t low_pass_2;
 
   u_int32_t noise_rem;
-  u_int32_t cur_power_rx;
+  u_int32_t cur_power_rx0; /* after echo cancelling */
 
-  u_int32_t avg_power_tx;
+  u_int32_t cur_power_rx1; /* before echo cancelling */
   u_int32_t cur_power_tx;
 
   u_int16_t offset_x; /* input offset for ring buffer 1 */
-  u_int16_t unused_1;
 
   u_int16_t offset_wr; /* input offset for ring buffer 2 */
   u_int16_t offset_rd; /* output offset for ring buffer 2 */
@@ -878,21 +890,27 @@ struct i4b_echo_cancel {
   u_int16_t cur_power_count;
 
   u_int16_t adapt_count;
-  u_int16_t debug_count;
+  u_int16_t stable_count;
 
   u_int16_t rx_time;
   u_int16_t tx_time;
 
-    int16_t buffer_x[2*I4B_ECHO_CANCEL_N_TAPS];
+    int16_t coeffs_last_max_x;
+
+    int16_t buf_XH[I4B_ECHO_CANCEL_N_SUB][2*I4B_ECHO_CANCEL_N_TAPS];
+    int16_t buf_X0[2*I4B_ECHO_CANCEL_N_TAPS]; /* TX buffer */
+    int16_t buf_E0[2*I4B_ECHO_CANCEL_N_TAPS]; /* error buffer */
 
   u_int8_t  buffer_y[2*I4B_ECHO_CANCEL_F_SIZE];
 
   u_int8_t  rx_speaking : 1;
   u_int8_t  tx_speaking : 1;
   u_int8_t  is_ulaw : 1;
-  u_int8_t  data_toggle : 1;
   u_int8_t  coeffs_adapt : 1;
+  u_int8_t  coeffs_bad : 1;
   u_int8_t  last_byte;
+  u_int8_t  adapt_index;
+  u_int8_t  coeffs_wait;
 };
 
 extern void
