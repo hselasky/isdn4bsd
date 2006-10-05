@@ -899,7 +899,7 @@ struct i4b_echo_cancel {
     int16_t coeffs_last_max_x;
 
     int16_t buf_XH[I4B_ECHO_CANCEL_N_SUB][2*I4B_ECHO_CANCEL_N_TAPS];
-    int16_t buf_X0[2*I4B_ECHO_CANCEL_N_TAPS]; /* TX buffer */
+    int16_t buf_X0[3*I4B_ECHO_CANCEL_N_TAPS]; /* TX buffer */
     int16_t buf_E0[2*I4B_ECHO_CANCEL_N_TAPS]; /* error buffer */
 
   u_int8_t  buffer_y[2*I4B_ECHO_CANCEL_F_SIZE];
@@ -909,6 +909,7 @@ struct i4b_echo_cancel {
   u_int8_t  is_ulaw : 1;
   u_int8_t  coeffs_adapt : 1;
   u_int8_t  coeffs_bad : 1;
+  u_int8_t  max_trained : 1;
   u_int8_t  last_byte;
   u_int8_t  adapt_index;
   u_int8_t  coeffs_wait;

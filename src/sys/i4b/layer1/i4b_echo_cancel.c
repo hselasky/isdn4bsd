@@ -275,11 +275,13 @@ i4b_echo_cancel_clamp(int32_t val)
  * i4b_echo_cancel_inner_product - compute inner-product
  *---------------------------------------------------------------------------*/
 static int32_t
-i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c, u_int16_t n)
+i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c,
+			      u_int16_t n)
 {
     int32_t temp = 0;
     while(n--) {
-        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP / I4B_ECHO_CANCEL_X_DP));
+        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+				    I4B_ECHO_CANCEL_X_DP));
 	p_x++;
 	p_c++;
     }
@@ -370,6 +372,10 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x0, int16_t y0)
 
         ec->offset_x = (I4B_ECHO_CANCEL_N_TAPS-1);
 
+	bcopy(ec->buf_X0 + (1*I4B_ECHO_CANCEL_N_TAPS),
+	      ec->buf_X0 + (2*I4B_ECHO_CANCEL_N_TAPS),
+	      sizeof(ec->buf_X0[0]) * I4B_ECHO_CANCEL_N_TAPS);
+
         bcopy(ec->buf_X0,
 	      ec->buf_X0 + I4B_ECHO_CANCEL_N_TAPS,
 	      sizeof(ec->buf_X0[0]) * I4B_ECHO_CANCEL_N_TAPS);
@@ -394,9 +400,69 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x0, int16_t y0)
     /*
      * Add a little comfort noise
      */
-    y1 += i4b_echo_cancel_noise(ec) / (1<<20);
+    y1 += i4b_echo_cancel_noise(ec) / (1<<21);
 
     return y1;
+}
+
+/*---------------------------------------------------------------------------*
+ * i4b_echo_cancel_quick_train - quickly figure out the peak coefficient
+ *---------------------------------------------------------------------------*/
+static void
+i4b_echo_cancel_quick_train(struct i4b_echo_cancel *ec, u_int16_t max_x)
+{
+    int64_t factor;
+
+    int32_t pa;
+    int32_t pb;
+
+    u_int16_t n;
+
+    if (ec->stable_count > 12) {
+        return;
+    }
+
+    pa = 0;
+    pb = 0;
+
+    /* directly compute the amplitude factor of the echo */
+
+    for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
+
+        pa += ((ec->buf_X0[ec->offset_x + 1 + n + max_x] *
+		ec->buf_X0[ec->offset_x + 1 + n + max_x]) 
+	       / I4B_ECHO_CANCEL_N_TAPS);
+
+	pb += ((ec->buf_X0[ec->offset_x + 1 + n + max_x] *
+		ec->buf_E0[ec->offset_x + 1 + n]) 
+	       / I4B_ECHO_CANCEL_N_TAPS);
+    }
+
+    if ((pa > (64*64)) &&
+	(pa > pb)) {
+
+        factor = pb;
+	factor *= I4B_ECHO_CANCEL_W_DP;
+	factor /= pa;
+
+	ec->buf_W1[max_x] += factor;
+
+	I4B_DBG(1, L1_EC_MSG, "forcing max = %d / 65536",
+		ec->buf_W1[max_x] / 
+		(I4B_ECHO_CANCEL_W_DP / (1<<16)));
+
+	/* zero all the other coefficients */
+
+	for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
+	    if (n != max_x) {
+	        ec->buf_W1[n] = 0;
+	    }
+	}
+
+	ec->max_trained = 1;
+	ec->stable_count ++;
+    }
+    return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -423,6 +489,8 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 
     struct ec_stats stats;
 
+    int16_t dx;
+
     ec->cur_power_tx += (x * x) / max;
     ec->cur_power_rx0 += (y * y) / max; /* after echo cancel */
     ec->cur_power_rx1 += (z * z) / max; /* before echo cancel */
@@ -447,17 +515,6 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 
 	stats = i4b_echo_cancel_stats(ec->buf_W1);
 
-	I4B_DBG(1, L1_EC_MSG, "rx/tx=%d tx/rx=%d rx0=%d rx1=%d "
-		"%dr/%dt/%db/%da xm=%d ym=%d",
-		ec->cur_power_rx0 / (ec->cur_power_tx ? ec->cur_power_tx : 1),
-		ec->cur_power_tx / (ec->cur_power_rx0 ? ec->cur_power_rx0 : 1),
-		ec->cur_power_rx0, ec->cur_power_rx1, 
-		ec->rx_speaking, ec->tx_speaking, 
-		ec->coeffs_bad, ec->coeffs_adapt,
-		stats.max_x, (int32_t)(stats.max_y / 
-				       (I4B_ECHO_CANCEL_W_DP / 
-					(1 << 16))));
-
 	/* check adapt boolean */
 
 	if (ec->coeffs_adapt) {
@@ -471,13 +528,23 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 	    }
 	}
 
-	if (ec->coeffs_bad) {
+	/* check for stable "max_x" */
+
+	dx = stats.max_x - ec->coeffs_last_max_x;
+
+	if (ec->coeffs_bad || (dx >= 3) || (dx <= -3)) {
 
 	    /* coeffs are bad, reset echo canceller */
+
+	    I4B_DBG(1, L1_EC_MSG, "resetting EC");
 
 	    bzero(ec->buf_W0, sizeof(ec->buf_W0));
 	    bzero(ec->buf_W1, sizeof(ec->buf_W1));
 	    bzero(ec->buf_WA, sizeof(ec->buf_WA));
+
+	    ec->stable_count = 0;
+	    ec->max_trained = 0;
+	    ec->coeffs_last_max_x = stats.max_x;
 
 	} else {
 
@@ -495,11 +562,18 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 		    bcopy(ec->buf_W0,
 			  ec->buf_W1, sizeof(ec->buf_W1));
 		} else {
+
+		    if (ec->stable_count < 8) {
+		        ec->stable_count ++;
+		    } else {
+		        i4b_echo_cancel_quick_train(ec, stats.max_x);
+		    }
+
 		    bcopy(ec->buf_W1,
 			  ec->buf_W0, sizeof(ec->buf_W0));
 
 		    bcopy(ec->buf_W1,
-			  ec->buf_WA[ec->adapt_index],sizeof(ec->buf_WA[0]));
+			  ec->buf_WA[ec->adapt_index], sizeof(ec->buf_WA[0]));
 
 		    /* update adapt index */
 
@@ -526,10 +600,26 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 	    }
 	}
 
+	I4B_DBG(1, L1_EC_MSG, "rx/tx=%d tx/rx=%d rx0=%d rx1=%d "
+		"%dr/%dt/%db/%da/%dT xm=%d ym=%d",
+		ec->cur_power_rx0 / (ec->cur_power_tx ? ec->cur_power_tx : 1),
+		ec->cur_power_tx / (ec->cur_power_rx0 ? ec->cur_power_rx0 : 1),
+		ec->cur_power_rx0, ec->cur_power_rx1, 
+		ec->rx_speaking, ec->tx_speaking, 
+		ec->coeffs_bad, ec->coeffs_adapt,
+		ec->max_trained,
+		stats.max_x, (int32_t)(stats.max_y / 
+				       (I4B_ECHO_CANCEL_W_DP / 
+					(1 << 16))));
+
 	ec->cur_power_count = 0;
 	ec->cur_power_tx = 0;
 	ec->cur_power_rx0 = 0;
 	ec->cur_power_rx1 = 0;
+    }
+
+    if (!(ec->max_trained)) {
+        y = z;
     }
 
 #if 1
