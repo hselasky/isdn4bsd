@@ -116,7 +116,6 @@ struct ural_softc {
 	struct ural_amrr		sc_amrr;
 	struct ieee80211_beacon_offsets	sc_bo;
 	struct mtx			sc_mtx;
-	struct usbd_memory_wait		sc_mem_wait;
 	struct __callout		sc_watchdog;
 	struct ural_bbp_prom 		sc_bbp_prom[16];
 	struct usbd_xfer 		*sc_xfer[URAL_N_TRANSFER];

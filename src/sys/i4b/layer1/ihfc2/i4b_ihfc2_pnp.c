@@ -664,7 +664,7 @@ const   struct resource_tab *ptr;
 		err = usbd_transfer_setup(udev, def->usb_iface_no, 
 					  &sc->sc_resources.usb_xfer[0],
 					  &def->usb[0], def->usb_length,
-					  sc, sc->sc_mtx_p, NULL);
+					  sc, sc->sc_mtx_p);
 		if(err)
 		{
 		  usb_err:

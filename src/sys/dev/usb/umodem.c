@@ -134,7 +134,6 @@ static const struct umodem_product {
 struct umodem_softc {
 	struct ucom_softc	sc_ucom;
 	usb_cdc_line_state_t	sc_line_state;	/* current line state */
-	struct usbd_memory_wait sc_mem_wait;
 
 	struct usbd_xfer *	sc_xfer_data[UMODEM_N_DATA_TRANSFER];
 	struct usbd_xfer *	sc_xfer_intr[UMODEM_N_INTR_TRANSFER];
@@ -494,7 +493,7 @@ umodem_attach(device_t dev)
 	error = usbd_transfer_setup(uaa->device, sc->sc_data_iface_index,
 				    sc->sc_xfer_data, umodem_config_data, 
 				    UMODEM_N_DATA_TRANSFER,
-				    sc, &Giant, &(sc->sc_mem_wait));
+				    sc, &Giant);
 	if (error) {
 	    goto detach;
 	}
@@ -502,7 +501,7 @@ umodem_attach(device_t dev)
 	error = usbd_transfer_setup(uaa->device, sc->sc_ctrl_iface_index,
 				    sc->sc_xfer_intr, umodem_config_intr,
 				    UMODEM_N_INTR_TRANSFER,
-				    sc, &Giant, &(sc->sc_mem_wait));
+				    sc, &Giant);
 	if (error) {
 	    /* ignore */
 	    DPRINTF(0, "no interrupt pipe!\n");
@@ -1095,8 +1094,6 @@ umodem_detach(device_t dev)
 	usbd_transfer_unsetup(sc->sc_xfer_intr, UMODEM_N_INTR_TRANSFER);
 
 	usbd_transfer_unsetup(sc->sc_xfer_data, UMODEM_N_DATA_TRANSFER);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &Giant);
 
 	return 0;
 }

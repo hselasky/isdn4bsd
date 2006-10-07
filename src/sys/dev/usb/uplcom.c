@@ -148,7 +148,6 @@ SYSCTL_INT(_hw_usb_uplcom, OID_AUTO, debug, CTLFLAG_RW,
 struct	uplcom_softc {
 	struct ucom_softc	sc_ucom;
 	usb_cdc_line_state_t	sc_line_state;	/* current line state */
-	struct usbd_memory_wait sc_mem_wait;
 
 	struct usbd_xfer *	sc_xfer_intr[UPLCOM_N_INTR_TRANSFER];
 	struct usbd_xfer *	sc_xfer_data[UPLCOM_N_DATA_TRANSFER];
@@ -527,7 +526,7 @@ uplcom_attach(device_t dev)
 	error = usbd_transfer_setup(uaa->device, sc->sc_data_iface_index,
 				    sc->sc_xfer_data, uplcom_config_data, 
 				    UPLCOM_N_DATA_TRANSFER,
-				    sc, &Giant, &(sc->sc_mem_wait));
+				    sc, &Giant);
 	if (error) {
 	    DPRINTF(0, "one or more missing data "
 		    "pipes, error=%s\n", usbd_errstr(error));
@@ -537,7 +536,7 @@ uplcom_attach(device_t dev)
 	error = usbd_transfer_setup(uaa->device, sc->sc_ctrl_iface_index,
 				    sc->sc_xfer_intr, uplcom_config_intr,
 				    UPLCOM_N_INTR_TRANSFER,
-				    sc, &Giant, &(sc->sc_mem_wait));
+				    sc, &Giant);
 	if (error) {
 	    DPRINTF(0, "no interrupt pipe, error=%s\n",
 		    usbd_errstr(error));
@@ -595,8 +594,6 @@ uplcom_detach(device_t dev)
 	usbd_transfer_unsetup(sc->sc_xfer_intr, UPLCOM_N_INTR_TRANSFER);
 
 	usbd_transfer_unsetup(sc->sc_xfer_data, UPLCOM_N_DATA_TRANSFER);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &Giant);
 
 	return 0;
 }

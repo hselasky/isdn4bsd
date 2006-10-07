@@ -533,7 +533,6 @@ static const struct umass_devdescr umass_devdescr[] = {
 
 struct umass_softc {
 
-	struct usbd_memory_wait	sc_mem_wait;
 	struct scsi_sense	cam_scsi_sense;
 	struct scsi_test_unit_ready cam_scsi_test_unit_ready;
 	struct mtx		sc_mtx;
@@ -1212,7 +1211,7 @@ umass_attach(device_t dev)
 	    err = usbd_transfer_setup
 	      (uaa->device, uaa->iface_index, sc->sc_xfer, 
 	       umass_bbb_config, UMASS_T_BBB_MAX, sc,
-	       &(sc->sc_mtx), &(sc->sc_mem_wait));
+	       &(sc->sc_mtx));
 
 	    /* skip reset first time */
 	    sc->sc_last_xfer_index = UMASS_T_BBB_COMMAND;
@@ -1224,7 +1223,7 @@ umass_attach(device_t dev)
 	       umass_bbb_config, 
 	       (sc->sc_proto & UMASS_PROTO_CBI_I) ?
 	       UMASS_T_CBI_MAX : (UMASS_T_CBI_MAX-2), sc,
-	       &(sc->sc_mtx), &(sc->sc_mem_wait));
+	       &(sc->sc_mtx));
 
 	    /* skip reset first time */
 	    sc->sc_last_xfer_index = UMASS_T_CBI_COMMAND;
@@ -1306,8 +1305,6 @@ umass_detach(device_t dev)
 	umass_cam_detach_sim(sc);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UMASS_T_MAX);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&(sc->sc_mtx));
 

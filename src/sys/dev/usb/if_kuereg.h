@@ -128,7 +128,6 @@ struct kue_type {
 struct kue_softc {
 
 	struct usbd_config_td	sc_config_td;
-	struct usbd_memory_wait	sc_mem_wait;
 	struct __callout	sc_watchdog;
 	struct mtx		sc_mtx;
 	struct kue_ether_desc	sc_desc;

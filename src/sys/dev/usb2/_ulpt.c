@@ -88,7 +88,6 @@ struct ulpt_softc {
 	struct usb_cdev         sc_cdev;
 	struct __callout	sc_watchdog;
 	struct mtx		sc_mtx;
-	struct usbd_memory_wait sc_mem_wait;
 
 	device_t		sc_dev;
 	struct usbd_xfer *	sc_xfer[ULPT_N_TRANSFER];
@@ -594,7 +593,7 @@ ulpt_attach(device_t dev)
 
 	error = usbd_transfer_setup(uaa->device, iface_index, 
 				    sc->sc_xfer, ulpt_config, ULPT_N_TRANSFER, 
-				    sc, &(sc->sc_mtx), &(sc->sc_mem_wait));
+				    sc, &(sc->sc_mtx));
 	if (error) {
 	    DPRINTF(0, "error=%s\n", usbd_errstr(error)) ;
 	    goto detach;
@@ -697,8 +696,6 @@ ulpt_detach(device_t dev)
 	mtx_unlock(&(sc->sc_mtx));
 
 	usbd_transfer_unsetup(sc->sc_xfer, ULPT_N_TRANSFER);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	__callout_drain(&(sc->sc_watchdog));
 

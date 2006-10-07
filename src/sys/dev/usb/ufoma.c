@@ -152,7 +152,6 @@ struct ufoma_softc {
 
 	struct ucom_softc	sc_ucom;
 	struct usbd_config_td	sc_config_td;
-	struct usbd_memory_wait sc_mem_wait;
 	usb_cdc_line_state_t	sc_line_state; /* current line state */
 
 	struct usbd_xfer *	sc_ctrl_xfer[UFOMA_CTRL_ENDPT_MAX];
@@ -478,7 +477,7 @@ ufoma_attach(device_t dev)
 	error = usbd_transfer_setup
 	  (uaa->device, sc->sc_ctrl_iface_index, 
 	   sc->sc_ctrl_xfer, ufoma_ctrl_config, UFOMA_CTRL_ENDPT_MAX,
-	   sc, &Giant, &(sc->sc_mem_wait));
+	   sc, &Giant);
 
 	if (error) {
 	    device_printf(dev, "allocating control USB "
@@ -568,8 +567,6 @@ ufoma_detach(device_t dev)
         usbd_transfer_unsetup(sc->sc_ctrl_xfer, UFOMA_CTRL_ENDPT_MAX);
 
         usbd_transfer_unsetup(sc->sc_bulk_xfer, UFOMA_BULK_ENDPT_MAX);
-
-        usbd_transfer_drain(&(sc->sc_mem_wait), &Giant);
 
         usbd_config_td_unsetup(&(sc->sc_config_td));
 
@@ -1322,7 +1319,7 @@ ufoma_modem_setup(device_t dev, struct ufoma_softc *sc,
 	error = usbd_transfer_setup
 	  (uaa->device, sc->sc_data_iface_index, 
 	   sc->sc_bulk_xfer, ufoma_bulk_config, UFOMA_BULK_ENDPT_MAX,
-	   sc, &Giant, &(sc->sc_mem_wait));
+	   sc, &Giant);
 
 	if (error) {
 	    device_printf(dev, "allocating BULK USB "

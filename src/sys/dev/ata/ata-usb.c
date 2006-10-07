@@ -86,7 +86,6 @@ struct atausb_softc {
     struct bbb_cbw	cbw;
     struct bbb_csw	csw;
     struct mtx		locked_mtx;
-    struct usbd_memory_wait mem_wait;
     struct __callout	watchdog; 
 
     struct ata_channel *locked_ch;
@@ -413,7 +412,7 @@ atausb_attach(device_t dev)
     err = usbd_transfer_setup(uaa->device, uaa->iface_index, sc->xfer, 
 			      atausb_config, 
 			      ATAUSB_T_BBB_MAX, sc, 
-			      &(sc->locked_mtx), &(sc->mem_wait));
+			      &(sc->locked_mtx));
     /* skip reset first time */
     sc->last_xfer_no = ATAUSB_T_BBB_COMMAND;
 
@@ -500,8 +499,6 @@ atausb_detach(device_t dev)
     }
 
     usbd_transfer_unsetup(sc->xfer, ATAUSB_T_MAX);
-
-    usbd_transfer_drain(&(sc->mem_wait), &(sc->locked_mtx));
 
     __callout_drain(&(sc->watchdog));
 

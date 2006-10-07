@@ -118,7 +118,6 @@ struct ukbd_softc {
 	struct __callout   sc_callout;
 	struct ukbd_data   sc_ndata;
 	struct ukbd_data   sc_odata;
-	struct usbd_memory_wait sc_mem_wait;
 
 	struct usbd_device * sc_udev;
 	struct usbd_interface * sc_iface;
@@ -640,7 +639,7 @@ ukbd_attach(device_t dev)
 
 	err = usbd_transfer_setup(uaa->device, uaa->iface_index, sc->sc_xfer, 
 				  ukbd_config, UKBD_N_TRANSFER, sc, 
-				  &Giant, &(sc->sc_mem_wait));
+				  &Giant);
 	if (err) {
 	    DPRINTF(0, "error=%s\n", usbd_errstr(err)) ;
 	    goto detach;
@@ -764,8 +763,6 @@ ukbd_detach(device_t dev)
 	sc->sc_kbd.kb_flags = 0;
 
 	usbd_transfer_unsetup(sc->sc_xfer, UKBD_N_TRANSFER);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &Giant);
 
 	__callout_drain(&(sc->sc_callout));
 

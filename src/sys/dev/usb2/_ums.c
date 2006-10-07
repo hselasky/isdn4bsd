@@ -87,7 +87,6 @@ struct ums_softc {
   struct usb_cdev     sc_cdev;
   struct mtx          sc_mtx;
   struct __callout    sc_callout;
-  struct usbd_memory_wait sc_mem_wait;
   struct hid_location sc_loc_x; 
   struct hid_location sc_loc_y;
   struct hid_location sc_loc_z;
@@ -392,7 +391,7 @@ ums_attach(device_t dev)
 
 	err = usbd_transfer_setup(uaa->device, uaa->iface_index, sc->sc_xfer, 
 				  ums_config, UMS_N_TRANSFER, sc, 
-				  &(sc->sc_mtx), &(sc->sc_mem_wait));
+				  &(sc->sc_mtx));
 	if (err) {
 	    DPRINTF(0, "error=%s\n", usbd_errstr(err)) ;
 	    goto detach;
@@ -561,8 +560,6 @@ ums_detach(device_t self)
 	usb_cdev_detach(&(sc->sc_cdev));
 
 	usbd_transfer_unsetup(sc->sc_xfer, UMS_N_TRANSFER);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	__callout_drain(&(sc->sc_callout));
 

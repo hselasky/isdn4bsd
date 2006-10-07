@@ -98,7 +98,6 @@ SYSCTL_INT(_hw_usb_uhid, OID_AUTO, debug, CTLFLAG_RW,
 struct uhid_softc {
 	struct usb_cdev         sc_cdev;
 	struct mtx              sc_mtx;
-	struct usbd_memory_wait sc_mem_wait;
 
 	struct usbd_xfer *      sc_xfer[UHID_N_TRANSFER];
 	void *                  sc_repdesc_ptr;
@@ -652,7 +651,7 @@ uhid_attach(device_t dev)
 
 	error = usbd_transfer_setup(uaa->device, uaa->iface_index, 
 				    sc->sc_xfer, uhid_config, UHID_N_TRANSFER,
-				    sc, &(sc->sc_mtx), &(sc->sc_mem_wait));
+				    sc, &(sc->sc_mtx));
 	if (error) {
 	    DPRINTF(0, "error=%s\n", usbd_errstr(error)) ;
 	    goto detach;
@@ -795,8 +794,6 @@ uhid_detach(device_t dev)
 	        free(sc->sc_repdesc_ptr, M_USBDEV);
 	    }
 	}
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&(sc->sc_mtx));
 

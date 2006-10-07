@@ -90,7 +90,6 @@ struct ubt_softc {
 	u_int8_t		sc_name[16];
 
 	struct mtx		sc_mtx;
-	struct usbd_memory_wait sc_mem_wait;
 
 	/* USB device specific */
 	struct usbd_xfer * sc_xfer_if_0[UBT_IF_0_N_TRANSFER];

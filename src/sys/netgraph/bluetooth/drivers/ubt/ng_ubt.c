@@ -563,7 +563,7 @@ ubt_attach(device_t dev)
 	if(usbd_transfer_setup
 	   (uaa->device, 0, 
 	    sc->sc_xfer_if_0, ubt_config_if_0, UBT_IF_0_N_TRANSFER,
-	    sc, &(sc->sc_mtx), &(sc->sc_mem_wait))) {
+	    sc, &(sc->sc_mtx))) {
 	    device_printf(dev, "Could not allocate transfers "
 			  "for interface 0!\n");
 	    goto detach;
@@ -610,7 +610,7 @@ ubt_attach(device_t dev)
 	if(usbd_transfer_setup
 	   (uaa->device, 1, 
 	    sc->sc_xfer_if_1, isoc_setup, UBT_IF_1_N_TRANSFER,
-	    sc, &(sc->sc_mtx), &(sc->sc_mem_wait))) {
+	    sc, &(sc->sc_mtx))) {
 	    device_printf(dev, "Could not allocate transfers "
 			  "for interface 1!\n");
 	    goto detach;
@@ -679,8 +679,6 @@ ubt_detach(device_t dev)
 	usbd_transfer_unsetup(sc->sc_xfer_if_0, UBT_IF_0_N_TRANSFER);
 
 	usbd_transfer_unsetup(sc->sc_xfer_if_1, UBT_IF_1_N_TRANSFER);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&(sc->sc_mtx));
 

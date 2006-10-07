@@ -215,7 +215,7 @@ usbd_interface_count(struct usbd_device *udev, u_int8_t *count)
  * NOTE: the parameter "iface_index" is ignored in
  *       case of control pipes
  *
- * The idea that the USB device driver should pre-allocate all
+ * The idea is that the USB device driver should pre-allocate all
  * its transfers by one call to this function.
  *---------------------------------------------------------------------------*/
 usbd_status
@@ -225,8 +225,7 @@ usbd_transfer_setup(struct usbd_device *udev,
 		    const struct usbd_config *setup_start, 
 		    u_int16_t n_setup, 
 		    void *priv_sc,
-		    struct mtx *priv_mtx,
-		    struct usbd_memory_wait *priv_wait)
+		    struct mtx *priv_mtx)
 {
 	const struct usbd_config *setup_end = setup_start + n_setup;
 	const struct usbd_config *setup;
@@ -234,6 +233,9 @@ usbd_transfer_setup(struct usbd_device *udev,
 	struct usbd_xfer *xfer;
 	usbd_status error = 0;
 	u_int16_t n;
+
+	WITNESS_WARN(WARN_GIANTOK | WARN_SLEEPOK, NULL, 
+		     "usbd_transfer_setup can sleep!");
 
 	/* do some checking first */
 
@@ -314,18 +316,7 @@ usbd_transfer_setup(struct usbd_device *udev,
 
 		    info = xfer->usb_root;
 		    info->memory_refcount++;
-
-		    if (info->priv_wait == NULL) {
-
-		        info->priv_wait = priv_wait;
-			info->priv_mtx = priv_mtx;
-
-			if (priv_wait) {
-			    mtx_lock(priv_mtx);
-			    priv_wait->priv_refcount++;
-			    mtx_unlock(priv_mtx);
-			}
-		    }
+		    info->setup_refcount++;
 		}
 	}
 
@@ -341,53 +332,22 @@ usbd_transfer_setup(struct usbd_device *udev,
  *	usbd_drop_refcount 
  *
  * This function is called from various places, and its job is to
- * free the memory holding a set of "transfers", when it 
- * is safe to do so.
+ * wakeup "usbd_transfer_unsetup", when is safe to free the memory.
  *---------------------------------------------------------------------------*/
 static void
 usbd_drop_refcount(struct usbd_memory_info *info)
 {
-    struct usbd_memory_wait *priv_wait;
-    u_int8_t free_memory;
-
     mtx_lock(info->usb_mtx);
 
     __KASSERT(info->memory_refcount != 0, ("Invalid memory "
 					   "reference count!\n"));
 
-    free_memory = ((--(info->memory_refcount)) == 0);
+    if ((--(info->memory_refcount)) == 0) {
+        wakeup(info);
+    }
 
     mtx_unlock(info->usb_mtx);
 
-    if(free_memory)
-    {
-        priv_wait = info->priv_wait;
-
-	/* check if someone is waiting for 
-	 * the memory to be released:
-	 */
-	if (priv_wait) {
-	    mtx_lock(info->priv_mtx);
-
-	    __KASSERT(priv_wait->priv_refcount != 0, ("Invalid private "
-					       "reference count!\n"));
-	    priv_wait->priv_refcount--;
-
-	    if ((priv_wait->priv_refcount == 0) &&
-		(priv_wait->priv_sleeping != 0)) {
-	        wakeup(priv_wait);
-	    }
-	    mtx_unlock(info->priv_mtx);
-	}
-
-	usbd_page_free(info->page_base, info->page_size);
-
-	/* free the "memory_base" last, hence the
-	 * "info" structure is contained within
-	 * the "memory_base"!
-	 */
-	free(info->memory_base, M_USB);
-    }
     return;
 }
 
@@ -397,16 +357,16 @@ usbd_drop_refcount(struct usbd_memory_info *info)
  * NOTE: if the transfer was in progress, the callback will 
  * called with "xfer->error=USBD_CANCELLED", before this
  * function returns
- *
- * NOTE: the mutex "xfer->priv_mtx" might be in use by 
- * the USB system after that this function has returned! 
- * Therefore the mutex, "xfer->priv_mtx", should be allocated 
- * in static memory.
  *---------------------------------------------------------------------------*/
 void
 usbd_transfer_unsetup(struct usbd_xfer **pxfer, u_int16_t n_setup)
 {
 	struct usbd_xfer *xfer;
+	struct usbd_memory_info *info;
+	int error;
+
+	WITNESS_WARN(WARN_GIANTOK | WARN_SLEEPOK, NULL, 
+		     "usbd_transfer_unsetup can sleep!");
 
 	while(n_setup--)
 	{
@@ -434,38 +394,48 @@ usbd_transfer_unsetup(struct usbd_xfer **pxfer, u_int16_t n_setup)
 
 		if(xfer->usb_root)
 		{
-		    usbd_drop_refcount(xfer->usb_root);
+		    info = xfer->usb_root;
+
+		    mtx_lock(info->usb_mtx);
+
+		    __KASSERT(info->memory_refcount != 0, 
+			      ("Invalid memory "
+			       "reference count!\n"));
+
+		    __KASSERT(info->setup_refcount != 0, 
+			      ("Invalid setup "
+			       "reference count!\n"));
+
+		    info->memory_refcount--;
+		    info->setup_refcount--;
+
+		    if (info->setup_refcount == 0) {
+
+		        while (info->memory_refcount > 0) {
+			    error = msleep(info, info->usb_mtx, 0, 
+					   "usb_mem_wait", 0);
+			}
+
+			mtx_unlock(info->usb_mtx);
+
+			/* free DMA'able memory, if any */
+
+			usbd_page_free(info->page_base, info->page_size);
+
+			/* free the "memory_base" last, hence the
+			 * "info" structure is contained within
+			 * the "memory_base"!
+			 */
+			free(info->memory_base, M_USB);
+
+		    } else {
+		        mtx_unlock(info->usb_mtx);
+		    }
+
 		}
 	    }
 	}
 	return;
-}
-
-/*---------------------------------------------------------------------------*
- *	usbd_transfer_drain - wait for USB memory to get freed
- *
- * This function returns when the mutex "priv_mtx", is not used by the
- * USB system any more.
- *---------------------------------------------------------------------------*/
-void
-usbd_transfer_drain(struct usbd_memory_wait *priv_wait, struct mtx *priv_mtx)
-{
-    int error;
-
-    mtx_lock(priv_mtx);
-
-    priv_wait->priv_sleeping = 1;
-
-    while (priv_wait->priv_refcount > 0) {
-
-        error = msleep(priv_wait, priv_mtx, PRIBIO, "usb_drain", 0);
-    }
-
-    priv_wait->priv_sleeping = 0;
-
-    mtx_unlock(priv_mtx);
-
-    return;
 }
 
 void
@@ -1219,7 +1189,7 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 
 	/* setup transfer */
 	err = usbd_transfer_setup(udev, 0, &xfer, &usbd_config[0], 1,
-				  NULL, mtx, NULL);
+				  NULL, mtx);
 
 	if (mtx) {
 	    mtx_lock(mtx);
@@ -1254,7 +1224,17 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 	}
 
  done:
+	if (mtx) {
+	    level = mtx_drop_recurse(mtx);
+	    mtx_unlock(mtx);
+	}
+
 	usbd_transfer_unsetup(&xfer, 1);
+
+	if (mtx) {
+	    mtx_lock(mtx);
+	    mtx_pickup_recurse(mtx, level);
+	}
 	return (err);
 }
 
@@ -1695,7 +1675,7 @@ usbd_setup_xfer(struct usbd_xfer *xfer, struct usbd_pipe *pipe,
 	if(usbd_transfer_setup(pipe->udev, pipe->iface_index, 
 			       &__xfer[0], &usbd_config[0], 
 			       (flags & USBD_CUSTOM_CLEARSTALL) ? 1 : 2,
-			       priv, NULL, NULL))
+			       priv, NULL))
 	{
 	    PRINTFN(3,("USBD_NOMEM\n"));
 	    return USBD_NOMEM;
@@ -1759,7 +1739,7 @@ usbd_setup_default_xfer(struct usbd_xfer *xfer, struct usbd_device *udev,
 
 	if(usbd_transfer_setup(udev, 0, 
 			       &xfer->alloc_xfer, &usbd_config[0], 1, 
-			       priv, NULL, NULL))
+			       priv, NULL))
 	{
 	    PRINTFN(3,("USBD_NOMEM\n"));
 	    return USBD_NOMEM;
@@ -1823,7 +1803,7 @@ usbd_setup_isoc_xfer(struct usbd_xfer *xfer, struct usbd_pipe *pipe,
 
 	if(usbd_transfer_setup(pipe->udev, pipe->iface_index, 
 			       &xfer->alloc_xfer, &usbd_config[0], 1,
-			       priv, NULL, NULL))
+			       priv, NULL))
 	{
 	    return USBD_NOMEM;
 	}

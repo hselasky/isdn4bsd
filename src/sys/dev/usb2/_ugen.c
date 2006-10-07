@@ -126,7 +126,6 @@ struct ugen_softc {
   struct ugen_endpoint	  sc_endpoints[USB_MAX_ENDPOINTS];
   struct ugen_endpoint	  sc_endpoints_end[0];
   struct mtx		  sc_mtx;
-  struct usbd_memory_wait sc_mem_wait;
 };
 
 extern cdevsw_t ugen_cdevsw;
@@ -238,9 +237,6 @@ ugen_detach(device_t dev)
 
 	/* destroy all devices */
 	ugen_destroy_devnodes(sc, 0);
-
-	/* wait for memory to get freed */
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&sc->sc_mtx);
 
@@ -413,20 +409,24 @@ __usbd_transfer_setup(struct ugen_softc *sc,
 	 */
 	error = usbd_transfer_setup(udev, iface_index, &temp[0], 
 				    setup, n_setup, 
-				    sce, &(sc->sc_mtx), &(sc->sc_mem_wait));
+				    sce, &(sc->sc_mtx));
 
 	mtx_lock(&sc->sc_mtx);
 
-	sce->state &= ~context_bit;
-
 	if(sce->state & UGEN_CLOSING)
 	{
-		wakeup(sce);
-		error = USBD_CANCELLED;
+		mtx_unlock(&(sc->sc_mtx));
 
 		/* "usbd_transfer_unsetup()" will clear "temp[]" */
 		usbd_transfer_unsetup(&temp[0], n_setup);
+
+		mtx_lock(&(sc->sc_mtx));
+
+		wakeup(sce);
+		error = USBD_CANCELLED;
 	}
+
+	sce->state &= ~context_bit;
 
 	while(n_setup--)
 	{
@@ -512,6 +512,7 @@ ugenclose(struct cdev *dev, int flag, int mode, struct thread *p)
 {
 	struct ugen_softc *sc = DEV2SC(dev);
 	struct ugen_endpoint *sce = DEV2SCE(dev);
+	struct usbd_xfer *temp_xfer[4];
 
 	PRINTFN(5, ("flag=%d, mode=%d\n", flag, mode));
 
@@ -571,10 +572,22 @@ ugenclose(struct cdev *dev, int flag, int mode, struct thread *p)
 
 		sce->state &= ~(UGEN_OPEN_DEV|UGEN_OPEN_IN|UGEN_OPEN_OUT|UGEN_CLOSING);
 
-		usbd_transfer_unsetup(&sce->xfer_in[0], 2);
-		usbd_transfer_unsetup(&sce->xfer_out[0], 2);
+		temp_xfer[0] = sce->xfer_in[0];
+		temp_xfer[1] = sce->xfer_in[1];
+		temp_xfer[2] = sce->xfer_out[0];
+		temp_xfer[3] = sce->xfer_out[1];
+
+		sce->xfer_in[0] = NULL;
+		sce->xfer_in[1] = NULL;
+		sce->xfer_out[0] = NULL;
+		sce->xfer_out[1] = NULL;
+
+		mtx_unlock(&sc->sc_mtx);
+	
+		usbd_transfer_unsetup(temp_xfer, 4);
+	} else {
+		mtx_unlock(&sc->sc_mtx);
 	}
-	mtx_unlock(&sc->sc_mtx);
 	return (0);
 }
 

@@ -101,7 +101,6 @@ SYSCTL_INT(_hw_usb_udbp, OID_AUTO, debug, CTLFLAG_RW,
 struct udbp_softc {
 
 	struct mtx		sc_mtx;
-	struct usbd_memory_wait sc_mem_wait;
 	struct ng_bt_mbufq	sc_xmitq_hipri;	/* hi-priority transmit queue */
 	struct ng_bt_mbufq	sc_xmitq;	/* low-priority transmit queue */
 
@@ -336,7 +335,7 @@ udbp_attach(device_t dev)
 
   	error = usbd_transfer_setup(uaa->device, uaa->iface_index, 
 				    sc->sc_xfer, udbp_config,  UDBP_T_MAX, 
-				    sc, &(sc->sc_mtx), &(sc->sc_mem_wait));
+				    sc, &(sc->sc_mtx));
 	if (error) {
 	    DPRINTF(sc, 0, "error=%s\n", usbd_errstr(error)) ;
 	    goto detach;
@@ -392,8 +391,6 @@ udbp_detach(device_t dev)
 	/* free USB transfers, if any */
 
 	usbd_transfer_unsetup(sc->sc_xfer, UDBP_T_MAX);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&(sc->sc_mtx));
 

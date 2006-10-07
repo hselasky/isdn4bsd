@@ -97,7 +97,6 @@ SYSCTL_INT(_hw_usb_uftdi, OID_AUTO, debug, CTLFLAG_RW,
 struct uftdi_softc {
 	struct ucom_softc	sc_ucom;
 	struct usbd_config_td	sc_config_td;
-	struct usbd_memory_wait	sc_mem_wait;
 
 	struct usbd_device *	sc_udev;
 	struct usbd_xfer *	sc_xfer[UFTDI_ENDPT_MAX];
@@ -447,7 +446,7 @@ uftdi_attach(device_t dev)
 
 	error = usbd_transfer_setup(uaa->device, sc->sc_iface_index, 
 				    sc->sc_xfer, uftdi_config, UFTDI_ENDPT_MAX,
-				    sc, &Giant, &(sc->sc_mem_wait));
+				    sc, &Giant);
 	if (error) {
 	    device_printf(dev, "allocating USB "
 			  "transfers failed!\n");
@@ -504,8 +503,6 @@ uftdi_detach(device_t dev)
 	ucom_detach(&(sc->sc_ucom));
 
 	usbd_transfer_unsetup(sc->sc_xfer, UFTDI_ENDPT_MAX);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &Giant);
 
 	usbd_config_td_unsetup(&(sc->sc_config_td));
 

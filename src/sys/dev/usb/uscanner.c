@@ -104,7 +104,6 @@ struct uscanner_info {
 struct uscanner_softc {
 	struct usb_cdev		sc_cdev;
 	struct mtx		sc_mtx;
-	struct usbd_memory_wait	sc_mem_wait;
 
 	device_t		sc_dev;
 	struct usbd_xfer *	sc_xfer[USCANNER_N_TRANSFER];
@@ -372,7 +371,7 @@ uscanner_attach(device_t dev)
 	unit = device_get_unit(dev);
 
 	/*
-	 * A first path softc structure filling.  sc_cdev, sc_mem_wait and
+	 * A first path softc structure filling.  sc_cdev and
 	 * sc_xfer are filled later with appropriate functions.
 	 */
 	sc->sc_dev = dev;
@@ -397,8 +396,7 @@ uscanner_attach(device_t dev)
 	 * Setup the transfer.
 	 */
 	if ((error = usbd_transfer_setup(udev, uaa->iface_index, sc->sc_xfer,
-	    uscanner_config, USCANNER_N_TRANSFER, sc, &(sc->sc_mtx),
-	    &(sc->sc_mem_wait)))) {
+	    uscanner_config, USCANNER_N_TRANSFER, sc, &(sc->sc_mtx)))) {
 		device_printf(dev, "could not setup transfers, "
 			      "error=%s\n", usbd_errstr(error));
 		goto detach;
@@ -447,7 +445,6 @@ uscanner_detach(device_t dev)
 
 	usb_cdev_detach(&(sc->sc_cdev));
 	usbd_transfer_unsetup(sc->sc_xfer, USCANNER_N_TRANSFER);
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 	mtx_destroy(&(sc->sc_mtx));
 
 	return (0);

@@ -554,7 +554,7 @@ ural_attach(device_t dev)
 
 	error = usbd_transfer_setup(uaa->device, RAL_IFACE_INDEX, 
 				    sc->sc_xfer, ural_config, URAL_N_TRANSFER, 
-				    sc, &(sc->sc_mtx), &(sc->sc_mem_wait));
+				    sc, &(sc->sc_mtx));
 	if (error) {
 	    device_printf(dev, "could not allocate USB transfers, "
 			  "err=%s\n", usbd_errstr(error)) ;
@@ -615,8 +615,6 @@ ural_detach(device_t dev)
 	}
 
 	usbd_transfer_unsetup(sc->sc_xfer, URAL_N_TRANSFER);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	usbd_config_td_unsetup(&(sc->sc_config_td));
 

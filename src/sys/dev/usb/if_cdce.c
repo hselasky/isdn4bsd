@@ -323,7 +323,7 @@ cdce_attach(device_t dev)
 	    error = usbd_transfer_setup
 	      (uaa->device, sc->sc_data_iface_index, 
 	       sc->sc_xfer, cdce_config, CDCE_ENDPT_MAX,
-	       sc, &(sc->sc_mtx), &(sc->sc_mem_wait));
+	       sc, &(sc->sc_mtx));
 
 	    if (error == 0) {
 	        break;
@@ -429,8 +429,6 @@ cdce_detach(device_t dev)
 	}
 
 	usbd_transfer_unsetup(sc->sc_xfer, CDCE_ENDPT_MAX);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&(sc->sc_mtx));
 

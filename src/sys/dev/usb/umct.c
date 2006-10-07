@@ -84,7 +84,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/umct.c,v 1.10 2006/02/12 17:32:59 glebius Ex
 struct umct_softc {
 	struct ucom_softc	sc_ucom;
 	struct usbd_config_td	sc_config_td;
-	struct usbd_memory_wait	sc_mem_wait;
 
 	struct usbd_device *	sc_udev;
 	struct usbd_xfer *	sc_xfer[UMCT_ENDPT_MAX];
@@ -368,7 +367,7 @@ umct_attach(device_t dev)
 
 	error = usbd_transfer_setup(uaa->device, UMCT_IFACE_INDEX,
 				    sc->sc_xfer, umct_config, UMCT_ENDPT_MAX,
-				    sc, &Giant, &(sc->sc_mem_wait));
+				    sc, &Giant);
 	if (error) {
 	    device_printf(dev, "allocating USB "
 			  "transfers failed!\n");
@@ -440,8 +439,6 @@ umct_detach(device_t dev)
 	ucom_detach(&(sc->sc_ucom));
 
 	usbd_transfer_unsetup(sc->sc_xfer, UMCT_ENDPT_MAX);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &Giant);
 
 	usbd_config_td_unsetup(&(sc->sc_config_td));
 

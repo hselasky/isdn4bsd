@@ -109,6 +109,8 @@ do {				\
 #  define thread proc
 #  define curthread curproc
 
+#  define WITNESS_WARN(...) 
+
 #  undef si_uid
 #  undef si_gid
 

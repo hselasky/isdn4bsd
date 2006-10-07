@@ -62,7 +62,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ucycom.c,v 1.4 2005/10/16 20:22:56 phk Exp $
 
 struct ucycom_softc {
 	struct ucom_softc	sc_ucom;
-	struct usbd_memory_wait	sc_mem_wait;
 
 	struct usbd_device *	sc_udev;
 	struct usbd_xfer *	sc_xfer[UCYCOM_ENDPT_MAX];
@@ -333,7 +332,7 @@ ucycom_attach(device_t dev)
 
 	error = usbd_transfer_setup(uaa->device, UCYCOM_IFACE_INDEX,
 				    sc->sc_xfer, ucycom_config, UCYCOM_ENDPT_MAX,
-				    sc, &Giant, &(sc->sc_mem_wait));
+				    sc, &Giant);
 	if (error) {
 	    device_printf(dev, "allocating USB "
 			  "transfers failed!\n");
@@ -372,8 +371,6 @@ ucycom_detach(device_t dev)
 	ucom_detach(&(sc->sc_ucom));
 
 	usbd_transfer_unsetup(sc->sc_xfer, UCYCOM_ENDPT_MAX);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &Giant);
 
 	return 0;
 }

@@ -72,7 +72,6 @@ SYSCTL_INT(_hw_usb_ufm, OID_AUTO, debug, CTLFLAG_RW,
 struct ufm_softc {
 	struct usb_cdev		sc_cdev;
 	struct mtx		sc_mtx;
-	struct usbd_memory_wait sc_mem_wait;
 
 	struct usbd_device 	*sc_udev;
 	struct usbd_xfer 	*sc_xfer[UFM_N_TRANSFER];
@@ -193,7 +192,7 @@ ufm_attach(device_t dev)
 
 	error = usbd_transfer_setup(uaa->device, uaa->iface_index, 
 				    sc->sc_xfer, ufm_config, UFM_N_TRANSFER,
-				    sc, &(sc->sc_mtx), &(sc->sc_mem_wait));
+				    sc, &(sc->sc_mtx));
 	if (error) {
 	    DPRINTF(sc, 0, "error=%s\n", usbd_errstr(error)) ;
 	    goto detach;
@@ -227,8 +226,6 @@ ufm_detach(device_t dev)
 	usb_cdev_detach(&(sc->sc_cdev));
 
 	usbd_transfer_unsetup(sc->sc_xfer, UFM_N_TRANSFER);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&(sc->sc_mtx));
 

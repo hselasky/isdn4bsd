@@ -132,7 +132,6 @@ struct uaudio_mixer_node {
 
 struct uaudio_chan {
 	struct pcmchan_caps pcm_cap; /* capabilities */
-	struct usbd_memory_wait mem_wait;
 
 	struct snd_dbuf *pcm_buf;
   const struct usbd_config *usb_cfg;
@@ -190,7 +189,6 @@ struct umidi_sub_chan {
 struct umidi_chan {
 
     struct umidi_sub_chan sub[UMIDI_CABLES_MAX];
-    struct usbd_memory_wait mem_wait;
     struct mtx mtx;
 
     struct usbd_xfer *xfer[UMIDI_N_TRANSFER];
@@ -216,7 +214,6 @@ struct uaudio_softc {
 	struct uaudio_chan  sc_rec_chan;
 	struct uaudio_chan  sc_play_chan;
 	struct umidi_chan   sc_midi_chan;
-	struct usbd_memory_wait sc_mixer_mem;
 
 	struct usbd_device * sc_udev;
 	struct usbd_xfer * sc_mixer_xfer[1];
@@ -1434,7 +1431,7 @@ uaudio_chan_init(struct uaudio_softc *sc, struct snd_dbuf *b,
 
 	if (usbd_transfer_setup(sc->sc_udev, iface_index, ch->xfer,
 				ch->usb_cfg, UAUDIO_NCHANBUFS, ch,
-				ch->pcm_mtx, &(ch->mem_wait))) {
+				ch->pcm_mtx)) {
 	    DPRINTF(0, "could not allocate USB transfers!\n");
 	    goto error;
 	}
@@ -1455,10 +1452,6 @@ uaudio_chan_free(struct uaudio_chan *ch)
 	}
 
 	usbd_transfer_unsetup(ch->xfer, UAUDIO_NCHANBUFS);
-
-	if (ch->pcm_mtx) {
-	    usbd_transfer_drain(&(ch->mem_wait), ch->pcm_mtx);
-	}
 
 	ch->valid = 0;
 
@@ -3192,7 +3185,7 @@ uaudio_mixer_init_sub(struct uaudio_softc *sc, struct snd_mixer *m)
 
 	if (usbd_transfer_setup(sc->sc_udev, sc->sc_mixer_iface_index,
 				sc->sc_mixer_xfer, uaudio_mixer_config, 1, sc,
-				sc->sc_mixer_lock, &(sc->sc_mixer_mem))) {
+				sc->sc_mixer_lock)) {
 	    DPRINTF(0, "could not allocate USB transfer for audio mixer!\n");
 	    return ENOMEM;
 	}
@@ -3209,9 +3202,6 @@ uaudio_mixer_uninit_sub(struct uaudio_softc *sc)
 
 	usbd_transfer_unsetup(sc->sc_mixer_xfer, 1);
 
-	if (sc->sc_mixer_lock) {
-	    usbd_transfer_drain(&(sc->sc_mixer_mem), sc->sc_mixer_lock);
-	}
 	return 0;
 }
 
@@ -3764,7 +3754,7 @@ umidi_probe(device_t dev)
 
         error = usbd_transfer_setup(uaa->device, chan->iface_index, 
                                     chan->xfer, umidi_config, UMIDI_N_TRANSFER, 
-                                    chan, &(chan->mtx), &(chan->mem_wait));
+                                    chan, &(chan->mtx));
         if (error) {
             DPRINTF(0, "error=%s\n", usbd_errstr(error)) ;
             goto detach;
@@ -3845,8 +3835,6 @@ umidi_detach(device_t dev)
 	mtx_unlock(&(chan->mtx));
 
 	usbd_transfer_unsetup(chan->xfer, UMIDI_N_TRANSFER);
-
-	usbd_transfer_drain(&(chan->mem_wait), &(chan->mtx));
 
 	mtx_destroy(&(chan->mtx));
 

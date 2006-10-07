@@ -150,7 +150,6 @@ SYSCTL_INT(_hw_usb_uvscom, OID_AUTO, debug, CTLFLAG_RW,
 struct	uvscom_softc {
 	struct ucom_softc	sc_ucom;
 	struct __callout	sc_watchdog;
-	struct usbd_memory_wait sc_mem_wait;
 
 	struct usbd_xfer *	sc_xfer[UVSCOM_N_TRANSFER];
 
@@ -451,7 +450,7 @@ uvscom_attach(device_t dev)
 	error = usbd_transfer_setup(uaa->device, sc->sc_iface_index,
 				    sc->sc_xfer, uvscom_config,
 				    UVSCOM_N_TRANSFER,
-				    sc, &Giant, &(sc->sc_mem_wait));
+				    sc, &Giant);
 	if (error) {
 	    DPRINTF(0, "could not allocate all USB transfers!\n");
 	    goto detach;
@@ -508,8 +507,6 @@ uvscom_detach(device_t dev)
 	ucom_detach(&(sc->sc_ucom));
 
 	usbd_transfer_unsetup(sc->sc_xfer, UVSCOM_N_TRANSFER);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &Giant);
 
 	__callout_drain(&(sc->sc_watchdog));
 

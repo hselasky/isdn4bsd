@@ -478,7 +478,7 @@ uhub_attach(device_t dev)
 
 	/* set up interrupt pipe */
 	err = usbd_transfer_setup(udev, 0, &sc->sc_xfer[0], 
-				  &usbd_config[0], 2, sc, NULL, NULL);
+				  &usbd_config[0], 2, sc, NULL);
 	if(err) 
 	{
 		device_printf(dev, "cannot open interrupt pipe\n");

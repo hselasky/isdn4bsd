@@ -43,7 +43,6 @@ struct cdce_type {
 };
 
 struct cdce_softc {
-	struct usbd_memory_wait	sc_mem_wait;
 	struct ifmedia		sc_ifmedia;
 	struct mtx		sc_mtx;
 

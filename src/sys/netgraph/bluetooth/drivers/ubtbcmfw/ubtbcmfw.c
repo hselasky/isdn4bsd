@@ -55,7 +55,6 @@
 struct ubtbcmfw_softc {
 	struct usb_cdev		sc_cdev;
 	struct mtx		sc_mtx;
-	struct usbd_memory_wait	sc_mem_wait;
 
 	device_t		sc_dev;
 	struct usbd_device	*sc_udev;
@@ -225,7 +224,7 @@ ubtbcmfw_attach(device_t dev)
 
 	err = usbd_transfer_setup(uaa->device, UBTBCMFW_IFACE_IDX,
 				  sc->sc_xfer, ubtbcmfw_config, UBTBCMFW_T_MAX,
-				  sc, &(sc->sc_mtx), &(sc->sc_mem_wait));
+				  sc, &(sc->sc_mtx));
 	if (err) {
 		device_printf(dev, "allocating USB transfers "
 			      "failed, err=%s\n", usbd_errstr(err));
@@ -283,8 +282,6 @@ ubtbcmfw_detach(device_t dev)
 	usb_cdev_detach(&(sc->sc_cdev));
 
 	usbd_transfer_unsetup(sc->sc_xfer, UBTBCMFW_T_MAX);
-
-	usbd_transfer_drain(&(sc->sc_mem_wait), &(sc->sc_mtx));
 
 	mtx_destroy(&(sc->sc_mtx));
 

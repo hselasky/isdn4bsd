@@ -425,17 +425,11 @@ struct usbd_xfer {
 #endif
 };
 
-struct usbd_memory_wait {
-    struct mtx *   priv_mtx;
-    u_int16_t      priv_refcount;
-    u_int16_t      priv_sleeping;
-};
-
 struct usbd_memory_info {
     void *         memory_base;
     u_int32_t      memory_size;
     u_int32_t      memory_refcount;
-    struct usbd_memory_wait * priv_wait;
+    u_int32_t	   setup_refcount;
     struct mtx *   priv_mtx;
     struct mtx *   usb_mtx;
     struct usbd_page * page_base;
@@ -843,14 +837,10 @@ usbd_transfer_setup(struct usbd_device *udev,
 		    const struct usbd_config *setup_start,
 		    u_int16_t n_setup,
 		    void *priv_sc,
-		    struct mtx *priv_mtx,
-		    struct usbd_memory_wait *priv_wait);
+		    struct mtx *priv_mtx);
 
 void
 usbd_transfer_unsetup(struct usbd_xfer **pxfer, u_int16_t n_setup);
-
-void
-usbd_transfer_drain(struct usbd_memory_wait *priv_wait, struct mtx *priv_mtx);
 
 void
 usbd_std_isoc_copy_in(struct usbd_xfer *xfer);
