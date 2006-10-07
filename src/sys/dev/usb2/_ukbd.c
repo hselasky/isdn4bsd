@@ -869,6 +869,10 @@ ukbd_check(keyboard_t *kbd)
 {
 	struct ukbd_softc *sc = kbd->kb_data;
 
+	if (!mtx_owned(&Giant)) {
+	    return 0; /* XXX */
+	}
+
 	mtx_assert(&Giant, MA_OWNED);
 
 	if (!KBD_IS_ACTIVE(kbd)) {
@@ -890,6 +894,10 @@ static int
 ukbd_check_char(keyboard_t *kbd)
 {
 	struct ukbd_softc *sc = kbd->kb_data;
+
+	if (!mtx_owned(&Giant)) {
+	    return 0; /* XXX */
+	}
 
 	mtx_assert(&Giant, MA_OWNED);
 
@@ -914,6 +922,10 @@ ukbd_read(keyboard_t *kbd, int wait)
 	u_int32_t keycode;
 	u_int32_t scancode;
 #endif
+
+	if (!mtx_owned(&Giant)) {
+	    return -1; /* XXX */
+	}
 
 	mtx_assert(&Giant, MA_OWNED);
 
@@ -961,6 +973,9 @@ ukbd_read_char(keyboard_t *kbd, int wait)
 #ifdef UKBD_EMULATE_ATSCANCODE
 	u_int32_t scancode;
 #endif
+	if (!mtx_owned(&Giant)) {
+	    return NOKEY; /* XXX */
+	}
 
 	mtx_assert(&Giant, MA_OWNED);
 
@@ -1272,6 +1287,10 @@ ukbd_clear_state(keyboard_t *kbd)
 {
 	struct ukbd_softc *sc = kbd->kb_data;
 
+	if (!mtx_owned(&Giant)) {
+	    return; /* XXX */
+	}
+
 	mtx_assert(&Giant, MA_OWNED);
 
 	sc->sc_flags &= ~(UKBD_FLAG_COMPOSE|UKBD_FLAG_POLLING);
@@ -1309,6 +1328,10 @@ static int
 ukbd_poll(keyboard_t *kbd, int on)
 {
 	struct ukbd_softc *sc = kbd->kb_data;
+
+	if (!mtx_owned(&Giant)) {
+	    return 0; /* XXX */
+	}
 
 	mtx_assert(&Giant, MA_OWNED);
 

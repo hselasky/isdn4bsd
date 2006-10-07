@@ -1,3 +1,5 @@
+/*	$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.45 2006/09/07 00:06:41 imp Exp $	*/
+
 /*-
  * Copyright (c) 2005, 2006
  *	Damien Bergamini <damien.bergamini@free.fr>
@@ -20,14 +22,19 @@
  *
  * NOTE: all function names beginning like "ural_cfg_" can only
  * be called from within the config thread function !
+ *
+ * TODO: add support for raw transmit trough BPF. See:
+ * http://www.freebsd.org/cgi/cvsweb.cgi/src/sys/dev/usb/if_ural.c.diff?r1=1.41&r2=1.42
  */
+
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.45 2006/09/07 00:06:41 imp Exp $");
 
 /*-
  * Ralink Technology RT2500USB chipset driver
  * http://www.ralinktech.com/
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/sockio.h>
 #include <sys/mbuf.h>
@@ -65,8 +72,6 @@
 
 #include <dev/usb/if_uralreg.h>
 #include <dev/usb/if_uralvar.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.38 2006/05/16 14:36:32 phk Exp $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(sc,n,fmt,...)	\
@@ -1823,6 +1828,8 @@ ural_media_change_cb(struct ifnet *ifp)
 	error = ieee80211_media_change(ifp);
 	if (error != ENETRESET) {
 	    goto done;
+	} else {
+	    error = 0;
 	}
 
 	if ((ifp->if_flags & IFF_UP) &&
@@ -1847,16 +1854,19 @@ ural_reset_cb(struct ifnet *ifp)
 {
 	struct ural_softc *sc = ifp->if_softc;
 	struct ieee80211com *ic = &(sc->sc_ic);
+	int error = 0;
 
 	mtx_lock(&(sc->sc_mtx));
 
 	if (ic->ic_opmode != IEEE80211_M_MONITOR) {
-		return ENETRESET;
+		error = ENETRESET;
+		goto done;
 	}
 
 	usbd_config_td_queue_command
 	  (&(sc->sc_config_td), &ural_cfg_set_chan, 0);
 
+ done:
 	mtx_unlock(&(sc->sc_mtx));
 
 	return 0;
@@ -1930,8 +1940,6 @@ ural_tx_bcn_complete(struct ural_softc *sc)
 
 	    sc->sc_flags &= ~(URAL_FLAG_SEND_BYTE_FRAME|
 			      URAL_FLAG_SEND_BCN_FRAME);
-
-	    wakeup(&(sc->sc_wakeup_bcn));
 	}
 	return;
 }
@@ -1939,14 +1947,17 @@ ural_tx_bcn_complete(struct ural_softc *sc)
 static void
 ural_cfg_tx_bcn(struct ural_softc *sc)
 {
-	register int error;
-
 	if ((sc->sc_flags & URAL_FLAG_LL_READY) &&
 	    (sc->sc_flags & URAL_FLAG_HL_READY)) {
 
 	    struct ieee80211com *ic = &(sc->sc_ic);
 	    struct ieee80211_node *ni = sc->sc_ic.ic_bss;
 	    struct mbuf *m;
+
+	    if (sc->sc_bcn_mbuf) {
+	        DPRINTF(sc,0, "beacon already in progress!\n");
+		return;
+	    }
 
 	    m = ieee80211_beacon_alloc(ic, ni, &sc->sc_bo);
 
@@ -1966,17 +1977,6 @@ ural_cfg_tx_bcn(struct ural_softc *sc)
 	    /* start transfer, if not started */
 
 	    usbd_transfer_start(sc->sc_xfer[0]);
-
-	    while (sc->sc_flags & (URAL_FLAG_SEND_BYTE_FRAME|
-				   URAL_FLAG_SEND_BCN_FRAME)) {
-
-		if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
-		    break;
-		}
-
-	        error = msleep(&(sc->sc_wakeup_bcn), &(sc->sc_mtx), 
-			       0, "ural beacon sleep", 0);
-	    }
 	}
 	return;
 }
@@ -2859,4 +2859,3 @@ ural_ratectl(struct ural_amrr *amrr, struct ieee80211_node *ni)
 	}
 	return;
 }
-
