@@ -24,6 +24,8 @@
  * SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.19 2006/09/07 00:06:41 imp Exp $");
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -60,7 +62,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -77,8 +78,6 @@
 #include <dev/usb/ucomvar.h>
 
 #include "usbdevs.h"
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\

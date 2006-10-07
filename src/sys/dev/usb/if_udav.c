@@ -1,6 +1,6 @@
 /*	$NetBSD: if_udav.c,v 1.2 2003/09/04 15:17:38 tsutsui Exp $	*/
 /*	$nabe: if_udav.c,v 1.3 2003/08/21 16:57:19 nabe Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.21 2006/02/14 12:44:55 glebius Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.23 2006/09/07 00:06:41 imp Exp $	*/
 /*-
  * Copyright (c) 2003
  *     Shingo WATANABE <nabe@nabechan.org>.  All rights reserved.
@@ -49,9 +49,11 @@
  *	powerhook() support?
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.23 2006/09/07 00:06:41 imp Exp $");
+
 #include "opt_inet.h"
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/sockio.h>
@@ -86,8 +88,6 @@
 #include "miibus_if.h"
 
 #include <dev/usb/if_udavreg.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.21 2006/02/14 12:44:55 glebius Exp $");
 
 /* prototypes */
 

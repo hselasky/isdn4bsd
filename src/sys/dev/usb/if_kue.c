@@ -281,7 +281,6 @@ kue_cfg_do_request(struct kue_softc *sc, usb_device_request_t *req,
 					data, 0, NULL, 60000);
 
 	if (err) {
-
 	    DPRINTF(sc, 0, "device request failed, err=%s "
 		    "(ignored)\n", usbd_errstr(err));
 

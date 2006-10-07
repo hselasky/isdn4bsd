@@ -29,6 +29,9 @@
  */
 
 #include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/ufm.c,v 1.25 2006/09/07 00:06:41 imp Exp $");
+
+
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -45,8 +48,6 @@
 #include "usbdevs.h"
 
 #include <dev/usb/dsbr100io.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/ufm.c,v 1.23 2005/01/06 01:43:28 imp Exp $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(sc,n,fmt,...)   \
@@ -73,8 +74,8 @@ struct ufm_softc {
 	struct mtx		sc_mtx;
 	struct usbd_memory_wait sc_mem_wait;
 
-	struct usbd_device *	sc_udev;
-	struct usbd_xfer *	sc_xfer[UFM_N_TRANSFER];
+	struct usbd_device 	*sc_udev;
+	struct usbd_xfer 	*sc_xfer[UFM_N_TRANSFER];
 
 	u_int32_t		sc_unit;
 	u_int32_t		sc_freq;

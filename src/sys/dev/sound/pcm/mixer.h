@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: src/sys/dev/sound/pcm/mixer.h,v 1.14 2005/01/06 01:43:21 imp Exp $
+ * $FreeBSD: src/sys/dev/sound/pcm/mixer.h,v 1.15 2006/07/15 20:11:16 netchild Exp $
  */
 
 int mixer_init(device_t dev, kobj_class_t cls, void *devinfo);
@@ -48,4 +48,4 @@ struct mtx * mixer_get_lock(struct snd_mixer *m);
  */
 #define	MIXER_SIZE	(512 + sizeof(struct kobj))
 
-#define MIXER_DECLARE(name) DEFINE_CLASS(name, name ## _methods, MIXER_SIZE)
+#define MIXER_DECLARE(name) static DEFINE_CLASS(name, name ## _methods, MIXER_SIZE)

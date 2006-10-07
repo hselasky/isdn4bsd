@@ -35,36 +35,36 @@
 #ifndef _USB_IF_CDCEREG_H_
 #define _USB_IF_CDCEREG_H_
 
-struct cdce_type {
-	struct usb_devno	 cdce_dev;
-	u_int16_t		 cdce_flags;
-};
+#define	CDCE_ENDPT_MAX	4
 
-#define CDCE_ENDPT_MAX 4
+struct cdce_type {
+	struct usb_devno	cdce_dev;
+	uint16_t		cdce_flags;
+};
 
 struct cdce_softc {
 	struct usbd_memory_wait	sc_mem_wait;
 	struct ifmedia		sc_ifmedia;
 	struct mtx		sc_mtx;
 
-	struct ifnet *		sc_ifp;
-	struct usbd_xfer *	sc_xfer[CDCE_ENDPT_MAX];
-	struct usbd_device *	sc_udev;
+	struct ifnet		*sc_ifp;
+	struct usbd_xfer	*sc_xfer[CDCE_ENDPT_MAX];
+	struct usbd_device	*sc_udev;
 	device_t		sc_dev;
 
-	u_int32_t		sc_unit;
+	uint32_t		sc_unit;
 
-	u_int16_t		sc_flags;
-#define CDCE_FLAG_ZAURUS	0x0001
-#define CDCE_FLAG_NO_UNION	0x0002
-#define CDCE_FLAG_LL_READY	0x0004
-#define CDCE_FLAG_HL_READY	0x0008
-#define CDCE_FLAG_WRITE_STALL	0x0010
-#define CDCE_FLAG_READ_STALL	0x0020
+	uint16_t		sc_flags;
+#define	CDCE_FLAG_ZAURUS	0x0001
+#define	CDCE_FLAG_NO_UNION	0x0002
+#define	CDCE_FLAG_LL_READY	0x0004
+#define	CDCE_FLAG_HL_READY	0x0008
+#define	CDCE_FLAG_WRITE_STALL	0x0010
+#define	CDCE_FLAG_READ_STALL	0x0020
 
-	u_int8_t		sc_name[16];
-	u_int8_t		sc_data_iface_no;
-	u_int8_t		sc_data_iface_index;
+	uint8_t			sc_name[16];
+	uint8_t			sc_data_iface_no;
+	uint8_t			sc_data_iface_index;
 };
 
 #endif /* _USB_IF_CDCEREG_H_ */

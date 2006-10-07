@@ -35,11 +35,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ums.c,v 1.82 2006/09/07 00:06:42 imp Exp $");
+
 /*
  * HID spec: http://www.usb.org/developers/devclass_docs/HID1_11.pdf
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -56,8 +58,6 @@
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/usb_hid.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ums.c,v 1.80 2005/12/29 18:35:28 netchild Exp $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\

@@ -52,6 +52,8 @@
  */
 
 #include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ehci.c,v 1.49 2006/09/07 00:06:41 imp Exp $");
+
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -66,8 +68,6 @@
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/ehci.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ehci.c,v 1.18 2004/11/09 20:51:32 iedowse Exp $");
 
 #define MS_TO_TICKS(ms) (((ms) * hz) / 1000)
 #define EHCI_BUS2SC(bus) ((ehci_softc_t *)(((u_int8_t *)(bus)) - \
@@ -168,7 +168,7 @@ ehci_init(ehci_softc_t *sc)
 		}
 	}
 
-	if(hcr)
+	if (hcr)
 	{
 		device_printf(sc->sc_bus.bdev, "reset timeout\n");
 		err = USBD_IOERROR;
@@ -338,7 +338,7 @@ ehci_init(ehci_softc_t *sc)
 			break;
 		}
 	}
-	if(hcr)
+	if (hcr)
 	{
 		device_printf(sc->sc_bus.bdev, "run timeout\n");
 		err = USBD_IOERROR;
@@ -419,10 +419,10 @@ ehci_suspend(struct ehci_softc *sc)
 	cmd &= ~EHCI_CMD_RS;
 	EOWRITE4(sc, EHCI_USBCMD, cmd);
 
-	for(i = 0; i < 100; i++)
+	for (i = 0; i < 100; i++)
 	{
 		hcr = EOREAD4(sc, EHCI_USBSTS) & EHCI_STS_HCH;
-		if(hcr == EHCI_STS_HCH)
+		if (hcr == EHCI_STS_HCH)
 		{
 			break;
 		}
@@ -430,7 +430,7 @@ ehci_suspend(struct ehci_softc *sc)
 		DELAY(1000*1);
 	}
 
-	if(hcr != EHCI_STS_HCH)
+	if (hcr != EHCI_STS_HCH)
 	{
 		device_printf(sc->sc_bus.bdev, 
 			      "config timeout\n");
@@ -2848,7 +2848,6 @@ usb_hub_descriptor_t ehci_hubd =
 	0,
 	{0},
 };
-
 
 static void
 ehci_disown(ehci_softc_t *sc, int index, int lowspeed)

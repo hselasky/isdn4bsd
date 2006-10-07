@@ -1,3 +1,19 @@
+/*	$NetBSD: uhci.c,v 1.170 2003/02/19 01:35:04 augustss Exp $	*/
+
+/*	Also already incorporated from NetBSD:
+ *	$NetBSD: uhci.c,v 1.172 2003/02/23 04:19:26 simonb Exp $
+ *	$NetBSD: uhci.c,v 1.173 2003/05/13 04:41:59 gson Exp $
+ *	$NetBSD: uhci.c,v 1.175 2003/09/12 16:18:08 mycroft Exp $
+ *	$NetBSD: uhci.c,v 1.176 2003/11/04 19:11:21 mycroft Exp $
+ *	$NetBSD: uhci.c,v 1.177 2003/12/29 08:17:10 toshii Exp $
+ *	$NetBSD: uhci.c,v 1.178 2004/03/02 16:32:05 martin Exp $
+ *	$NetBSD: uhci.c,v 1.180 2004/07/17 20:12:03 mycroft Exp $
+ */
+
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/uhci.c,v 1.171 2006/09/07 00:06:41 imp Exp $");
+
+
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -45,7 +61,6 @@
  *             ftp://download.intel.com/design/intarch/datashts/29056201.pdf
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -60,8 +75,6 @@
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/uhci.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/uhci.c $");
 
 #define MS_TO_TICKS(ms) (((ms) * hz) / 1000)
 #define UHCI_BUS2SC(bus) ((uhci_softc_t *)(((u_int8_t *)(bus)) - \
@@ -1071,7 +1084,6 @@ uhci_interrupt_td(uhci_softc_t *sc, struct thread *ctd)
 		uhci_dumpregs(sc);
 	}
 #endif
-
 	status = UREAD2(sc, UHCI_STS) & UHCI_STS_ALLINTRS;
 	if(status == 0)
 	{

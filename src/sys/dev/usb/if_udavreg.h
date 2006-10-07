@@ -1,6 +1,6 @@
 /*	$NetBSD: if_udavreg.h,v 1.2 2003/09/04 15:17:39 tsutsui Exp $	*/
 /*	$nabe: if_udavreg.h,v 1.2 2003/08/21 16:26:40 nabe Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb/if_udavreg.h,v 1.6 2005/12/04 10:06:04 ru Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb/if_udavreg.h,v 1.7 2006/09/07 00:06:41 imp Exp $	*/
 /*-
  * Copyright (c) 2003
  *     Shingo WATANABE <nabe@nabechan.org>.  All rights reserved.
@@ -34,7 +34,7 @@
 #define	UDAV_IFACE_INDEX	0
 #define	UDAV_CONFIG_NO		1
 
-#define UDAV_ENDPT_MAX		6 /* units */
+#define	UDAV_ENDPT_MAX		6 /* units */
 
 /* Packet length */
 #define	UDAV_MIN_FRAME_LEN	60
@@ -50,49 +50,49 @@
 
 /* Registers */
 #define	UDAV_NCR		0x00 /* Network Control Register */
-#define	 UDAV_NCR_EXT_PHY	(1<<7) /* Select External PHY */
-#define	 UDAV_NCR_WAKEEN	(1<<6) /* Wakeup Event Enable */
-#define	 UDAV_NCR_FCOL		(1<<4) /* Force Collision Mode */
-#define	 UDAV_NCR_FDX		(1<<3) /* Full-Duplex Mode (RO on Int. PHY) */
-#define	 UDAV_NCR_LBK1		(1<<2) /* Lookback Mode */
-#define	 UDAV_NCR_LBK0		(1<<1) /* Lookback Mode */
-#define	 UDAV_NCR_RST		(1<<0) /* Software reset */
+#define	UDAV_NCR_EXT_PHY	(1<<7) /* Select External PHY */
+#define	UDAV_NCR_WAKEEN	(1<<6) /* Wakeup Event Enable */
+#define	UDAV_NCR_FCOL		(1<<4) /* Force Collision Mode */
+#define	UDAV_NCR_FDX		(1<<3) /* Full-Duplex Mode (RO on Int. PHY) */
+#define	UDAV_NCR_LBK1		(1<<2) /* Lookback Mode */
+#define	UDAV_NCR_LBK0		(1<<1) /* Lookback Mode */
+#define	UDAV_NCR_RST		(1<<0) /* Software reset */
 
 #define	UDAV_RCR		0x05 /* RX Control Register */
-#define	 UDAV_RCR_WTDIS		(1<<6) /* Watchdog Timer Disable */
-#define	 UDAV_RCR_DIS_LONG	(1<<5) /* Discard Long Packet(over 1522Byte) */
-#define	 UDAV_RCR_DIS_CRC	(1<<4) /* Discard CRC Error Packet */
-#define	 UDAV_RCR_ALL		(1<<3) /* Pass All Multicast */
-#define	 UDAV_RCR_RUNT		(1<<2) /* Pass Runt Packet */
-#define	 UDAV_RCR_PRMSC		(1<<1) /* Promiscuous Mode */
-#define	 UDAV_RCR_RXEN		(1<<0) /* RX Enable */
+#define	UDAV_RCR_WTDIS		(1<<6) /* Watchdog Timer Disable */
+#define	UDAV_RCR_DIS_LONG	(1<<5) /* Discard Long Packet(over 1522Byte) */
+#define	UDAV_RCR_DIS_CRC	(1<<4) /* Discard CRC Error Packet */
+#define	UDAV_RCR_ALL		(1<<3) /* Pass All Multicast */
+#define	UDAV_RCR_RUNT		(1<<2) /* Pass Runt Packet */
+#define	UDAV_RCR_PRMSC		(1<<1) /* Promiscuous Mode */
+#define	UDAV_RCR_RXEN		(1<<0) /* RX Enable */
 
 #define	UDAV_RSR		0x06 /* RX Status Register */
-#define	 UDAV_RSR_RF		(1<<7) /* Runt Frame */
-#define	 UDAV_RSR_MF		(1<<6) /* Multicast Frame */
-#define	 UDAV_RSR_LCS		(1<<5) /* Late Collision Seen */
-#define	 UDAV_RSR_RWTO		(1<<4) /* Receive Watchdog Time-Out */
-#define	 UDAV_RSR_PLE		(1<<3) /* Physical Layer Error */
-#define	 UDAV_RSR_AE		(1<<2) /* Alignment Error */
-#define	 UDAV_RSR_CE		(1<<1) /* CRC Error */
-#define	 UDAV_RSR_FOE		(1<<0) /* FIFO Overflow Error */
-#define	 UDAV_RSR_ERR		(UDAV_RSR_RF | UDAV_RSR_LCS | UDAV_RSR_RWTO |\
-				UDAV_RSR_PLE | UDAV_RSR_AE | UDAV_RSR_CE |\
-				UDAV_RSR_FOE)
+#define	UDAV_RSR_RF		(1<<7) /* Runt Frame */
+#define	UDAV_RSR_MF		(1<<6) /* Multicast Frame */
+#define	UDAV_RSR_LCS		(1<<5) /* Late Collision Seen */
+#define	UDAV_RSR_RWTO		(1<<4) /* Receive Watchdog Time-Out */
+#define	UDAV_RSR_PLE		(1<<3) /* Physical Layer Error */
+#define	UDAV_RSR_AE		(1<<2) /* Alignment Error */
+#define	UDAV_RSR_CE		(1<<1) /* CRC Error */
+#define	UDAV_RSR_FOE		(1<<0) /* FIFO Overflow Error */
+#define	UDAV_RSR_ERR		(UDAV_RSR_RF | UDAV_RSR_LCS |		\
+				    UDAV_RSR_RWTO | UDAV_RSR_PLE |	\
+				    UDAV_RSR_AE | UDAV_RSR_CE | UDAV_RSR_FOE)
 
 #define	UDAV_EPCR		0x0b /* EEPROM & PHY Control Register */
-#define	 UDAV_EPCR_REEP		(1<<5) /* Reload EEPROM */
-#define	 UDAV_EPCR_WEP		(1<<4) /* Write EEPROM enable */
-#define	 UDAV_EPCR_EPOS		(1<<3) /* EEPROM or PHY Operation Select */
-#define	 UDAV_EPCR_ERPRR	(1<<2) /* EEPROM/PHY Register Read Command */
-#define	 UDAV_EPCR_ERPRW	(1<<1) /* EEPROM/PHY Register Write Command */
-#define	 UDAV_EPCR_ERRE		(1<<0) /* EEPROM/PHY Access Status */
+#define	UDAV_EPCR_REEP		(1<<5) /* Reload EEPROM */
+#define	UDAV_EPCR_WEP		(1<<4) /* Write EEPROM enable */
+#define	UDAV_EPCR_EPOS		(1<<3) /* EEPROM or PHY Operation Select */
+#define	UDAV_EPCR_ERPRR		(1<<2) /* EEPROM/PHY Register Read Command */
+#define	UDAV_EPCR_ERPRW		(1<<1) /* EEPROM/PHY Register Write Command */
+#define	UDAV_EPCR_ERRE		(1<<0) /* EEPROM/PHY Access Status */
 
 #define	UDAV_EPAR		0x0c /* EEPROM & PHY Control Register */
-#define	 UDAV_EPAR_PHY_ADR1	(1<<7) /* PHY Address bit 1 */
-#define	 UDAV_EPAR_PHY_ADR0	(1<<6) /* PHY Address bit 0 */
-#define	 UDAV_EPAR_EROA		(1<<0) /* EEPROM Word/PHY Register Address */
-#define	 UDAV_EPAR_EROA_MASK	(0x1f) /* [5:0] */
+#define	UDAV_EPAR_PHY_ADR1	(1<<7) /* PHY Address bit 1 */
+#define	UDAV_EPAR_PHY_ADR0	(1<<6) /* PHY Address bit 0 */
+#define	UDAV_EPAR_EROA		(1<<0) /* EEPROM Word/PHY Register Address */
+#define	UDAV_EPAR_EROA_MASK	(0x1f) /* [5:0] */
 
 #define	UDAV_EPDRL		0x0d /* EEPROM & PHY Data Register */
 #define	UDAV_EPDRH		0x0e /* EEPROM & PHY Data Register */
@@ -116,25 +116,25 @@
 #define	UDAV_MAR		UDAV_MAR0
 
 #define	UDAV_GPCR		0x1e /* General purpose control register */
-#define	 UDAV_GPCR_GEP_CNTL6	(1<<6) /* General purpose control 6 */
-#define	 UDAV_GPCR_GEP_CNTL5	(1<<5) /* General purpose control 5 */
-#define	 UDAV_GPCR_GEP_CNTL4	(1<<4) /* General purpose control 4 */
-#define	 UDAV_GPCR_GEP_CNTL3	(1<<3) /* General purpose control 3 */
-#define	 UDAV_GPCR_GEP_CNTL2	(1<<2) /* General purpose control 2 */
-#define	 UDAV_GPCR_GEP_CNTL1	(1<<1) /* General purpose control 1 */
-#define	 UDAV_GPCR_GEP_CNTL0	(1<<0) /* General purpose control 0 */
+#define	UDAV_GPCR_GEP_CNTL6	(1<<6) /* General purpose control 6 */
+#define	UDAV_GPCR_GEP_CNTL5	(1<<5) /* General purpose control 5 */
+#define	UDAV_GPCR_GEP_CNTL4	(1<<4) /* General purpose control 4 */
+#define	UDAV_GPCR_GEP_CNTL3	(1<<3) /* General purpose control 3 */
+#define	UDAV_GPCR_GEP_CNTL2	(1<<2) /* General purpose control 2 */
+#define	UDAV_GPCR_GEP_CNTL1	(1<<1) /* General purpose control 1 */
+#define	UDAV_GPCR_GEP_CNTL0	(1<<0) /* General purpose control 0 */
 
 #define	UDAV_GPR		0x1f /* General purpose register */
-#define	 UDAV_GPR_GEPIO6	(1<<6) /* General purpose 6 */
-#define	 UDAV_GPR_GEPIO5	(1<<5) /* General purpose 5 */
-#define	 UDAV_GPR_GEPIO4	(1<<4) /* General purpose 4 */
-#define	 UDAV_GPR_GEPIO3	(1<<3) /* General purpose 3 */
-#define	 UDAV_GPR_GEPIO2	(1<<2) /* General purpose 2 */
-#define	 UDAV_GPR_GEPIO1	(1<<1) /* General purpose 1 */
-#define	 UDAV_GPR_GEPIO0	(1<<0) /* General purpose 0 */
+#define	UDAV_GPR_GEPIO6		(1<<6) /* General purpose 6 */
+#define	UDAV_GPR_GEPIO5		(1<<5) /* General purpose 5 */
+#define	UDAV_GPR_GEPIO4		(1<<4) /* General purpose 4 */
+#define	UDAV_GPR_GEPIO3		(1<<3) /* General purpose 3 */
+#define	UDAV_GPR_GEPIO2		(1<<2) /* General purpose 2 */
+#define	UDAV_GPR_GEPIO1		(1<<1) /* General purpose 1 */
+#define	UDAV_GPR_GEPIO0		(1<<0) /* General purpose 0 */
 
-#define GET_MII(sc) ((sc)->sc_miibus ? \
-		     device_get_softc((sc)->sc_miibus) : NULL)
+#define	GET_MII(sc)	((sc)->sc_miibus ?				\
+			    device_get_softc((sc)->sc_miibus) : NULL)
 
 struct udav_softc {
 	struct usbd_config_td	sc_config_td;
@@ -142,30 +142,30 @@ struct udav_softc {
 	struct __callout	sc_watchdog;
 	struct mtx		sc_mtx;
 
-	struct ifnet *		sc_ifp;
-	struct usbd_device *	sc_udev;
-	struct usbd_xfer *	sc_xfer[UDAV_ENDPT_MAX];
+	struct ifnet 		*sc_ifp;
+	struct usbd_device 	*sc_udev;
+	struct usbd_xfer 	*sc_xfer[UDAV_ENDPT_MAX];
 	device_t		sc_miibus;
 	device_t		sc_dev;
 
-	u_int32_t		sc_unit;
-	u_int32_t		sc_media_active;
-	u_int32_t		sc_media_status;
+	uint32_t		sc_unit;
+	uint32_t		sc_media_active;
+	uint32_t		sc_media_status;
 
-	u_int16_t		sc_flags;
-#define UDAV_FLAG_WAIT_LINK	0x0001
-#define UDAV_FLAG_INTR_STALL	0x0002
-#define UDAV_FLAG_READ_STALL	0x0004
-#define UDAV_FLAG_WRITE_STALL	0x0008
-#define UDAV_FLAG_LL_READY	0x0010
-#define UDAV_FLAG_HL_READY	0x0020
-#define UDAV_FLAG_EXT_PHY	0x0040
+	uint16_t		sc_flags;
+#define	UDAV_FLAG_WAIT_LINK	0x0001
+#define	UDAV_FLAG_INTR_STALL	0x0002
+#define	UDAV_FLAG_READ_STALL	0x0004
+#define	UDAV_FLAG_WRITE_STALL	0x0008
+#define	UDAV_FLAG_LL_READY	0x0010
+#define	UDAV_FLAG_HL_READY	0x0020
+#define	UDAV_FLAG_EXT_PHY	0x0040
 
-	u_int8_t		sc_name[16];
+	uint8_t			sc_name[16];
 };
 
 struct udav_config_copy {
-	u_int32_t		if_flags;
-	u_int8_t		if_lladdr[ETHER_ADDR_LEN];
-	u_int8_t		if_hashes[8];
+	uint32_t	if_flags;
+	uint8_t		if_lladdr[ETHER_ADDR_LEN];
+	uint8_t		if_hashes[8];
 };

@@ -128,7 +128,7 @@ struct aue_type {
 	u_int16_t		aue_flags;
 };
 
-Static const struct aue_type aue_devs[] = {
+static const struct aue_type aue_devs[] = {
  {{ USB_VENDOR_3COM,		USB_PRODUCT_3COM_3C460B},         AUE_FLAG_PII },
  {{ USB_VENDOR_ABOCOM,		USB_PRODUCT_ABOCOM_XX1},	  AUE_FLAG_PNA|AUE_FLAG_PII },
  {{ USB_VENDOR_ABOCOM,		USB_PRODUCT_ABOCOM_XX2},	  AUE_FLAG_PII },

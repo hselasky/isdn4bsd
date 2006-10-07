@@ -35,6 +35,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/uhci_pci.c,v 1.58 2006/05/28 05:27:08 iedowse Exp $");
+
 /* Universal Host Controller Interface
  *
  * UHCI spec: http://www.intel.com/
@@ -62,8 +65,6 @@
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/uhci.h> 
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/uhci_pci.c $");
 
 #define PCI_UHCI_VENDORID_INTEL		0x8086
 #define PCI_UHCI_VENDORID_VIA		0x1106

@@ -1,5 +1,5 @@
 /*	$NetBSD: uaudio.c,v 1.91 2004/11/05 17:46:14 kent Exp $	*/
-/*	$FreeBSD: src/sys/dev/sound/usb/uaudio.c,v 1.20 2006/02/05 17:47:26 netchild Exp $ */
+/*	$FreeBSD: src/sys/dev/sound/usb/uaudio.c,v 1.22 2006/09/09 14:43:03 netchild Exp $ */
 
 /*-
  * Copyright (c) 1999 The NetBSD Foundation, Inc.
@@ -465,7 +465,6 @@ umidi_probe(device_t dev);
 
 static int32_t
 umidi_detach(device_t dev);
-
 
 static const struct usbd_config 
 uaudio_cfg_record_full_speed[UAUDIO_NCHANBUFS] = {

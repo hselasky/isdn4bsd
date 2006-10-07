@@ -56,6 +56,9 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_rue.c,v 1.30 2006/09/07 00:06:41 imp Exp $");
+
 /*
  * RealTek RTL8150 USB to fast ethernet controller driver.
  * Datasheet is available from
@@ -67,7 +70,6 @@
  * be called from within the config thread function !
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/sockio.h>
@@ -104,8 +106,6 @@
 
 /* "device miibus" required.  See GENERIC if you get errors here. */
 #include "miibus_if.h"
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_rue.c,v 1.28 2006/02/14 12:44:55 glebius Exp $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(sc,n,fmt,...)	\

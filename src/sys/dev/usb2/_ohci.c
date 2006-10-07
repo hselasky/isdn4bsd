@@ -1,3 +1,20 @@
+/*	$NetBSD: ohci.c,v 1.138 2003/02/08 03:32:50 ichiro Exp $	*/
+
+/* Also, already ported:
+ *	$NetBSD: ohci.c,v 1.140 2003/05/13 04:42:00 gson Exp $
+ *	$NetBSD: ohci.c,v 1.141 2003/09/10 20:08:29 mycroft Exp $
+ *	$NetBSD: ohci.c,v 1.142 2003/10/11 03:04:26 toshii Exp $
+ *	$NetBSD: ohci.c,v 1.143 2003/10/18 04:50:35 simonb Exp $
+ *	$NetBSD: ohci.c,v 1.144 2003/11/23 19:18:06 augustss Exp $
+ *	$NetBSD: ohci.c,v 1.145 2003/11/23 19:20:25 augustss Exp $
+ *	$NetBSD: ohci.c,v 1.146 2003/12/29 08:17:10 toshii Exp $
+ *	$NetBSD: ohci.c,v 1.147 2004/06/22 07:20:35 mycroft Exp $
+ *	$NetBSD: ohci.c,v 1.148 2004/06/22 18:27:46 mycroft Exp $
+ */
+
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ohci.c,v 1.164 2006/09/07 00:06:41 imp Exp $");
+
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -42,7 +59,6 @@
  * USB spec: http://www.usb.org/developers/docs/usbspec.zip
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -57,8 +73,6 @@
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/ohci.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ohci.c,v 1.145 2004/11/09 20:51:32 iedowse Exp $");
 
 #define MS_TO_TICKS(ms) (((ms) * hz) / 1000)
 #define OHCI_BUS2SC(bus) ((ohci_softc_t *)(((u_int8_t *)(bus)) - \
@@ -170,7 +184,7 @@ ohci_controller_init(ohci_softc_t *sc)
 			break;
 		}
 	}
-	if(hcr)
+	if (hcr)
 	{
 		device_printf(sc->sc_bus.bdev, "reset timeout\n");
 		return (USBD_IOERROR);
@@ -241,7 +255,6 @@ usbd_status
 ohci_init(ohci_softc_t *sc)
 {
 	u_int i;
-	u_int32_t rev;
 	u_int16_t bit;
 	u_int16_t x;
 	u_int16_t y;
@@ -341,22 +354,10 @@ ohci_init(ohci_softc_t *sc)
 
 	device_printf(sc->sc_bus.bdev, " ");
 
-	rev = OREAD4(sc, OHCI_REVISION);
-	printf("OHCI version %d.%d%s\n", OHCI_REV_HI(rev), OHCI_REV_LO(rev),
-	       OHCI_REV_LEGACY(rev) ? ", legacy support" : "");
-
-	if((OHCI_REV_HI(rev) != 1) ||
-	   (OHCI_REV_LO(rev) != 0))
-	{
-		device_printf(sc->sc_bus.bdev, "unsupported OHCI revision\n");
-		sc->sc_bus.usbrev = USBREV_UNKNOWN;
-		goto error;
-	}
 	sc->sc_bus.usbrev = USBREV_1_0;
 
 	if(ohci_controller_init(sc))
 	{
-	error:
 		mtx_unlock(&sc->sc_bus.mtx);
 		return (USBD_INVAL);
 	}
@@ -625,7 +626,6 @@ _ohci_append_qh(ohci_ed_t *sed, ohci_ed_t *last)
 	last->ed_next = sed->ed_self;
 	return(sed);
 }
-/**/
 
 #define OHCI_REMOVE_QH(sed,last) (last) = _ohci_remove_qh(sed,last)
 static ohci_ed_t *
@@ -1046,7 +1046,6 @@ ohci_interrupt_td(ohci_softc_t *sc, struct thread *ctd)
 		    ptr->xfer = xfer;
 		    ptr->refcount = xfer->usb_refcount;
 		    ptr++;
-
 		    xfer->usb_root->memory_refcount++;
 		}
 
@@ -1105,13 +1104,11 @@ ohci_interrupt_td(ohci_softc_t *sc, struct thread *ctd)
 	mtx_unlock(&sc->sc_bus.mtx);
 
 	usbd_do_callback(&info[0],ptr);
-
 	if(need_repeat)
 	{
 		ptr = &info[0];
 
 		need_repeat = 0;
-
 		mtx_lock(&sc->sc_bus.mtx);
 
 		goto repeat;
@@ -2555,7 +2552,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 	/* align data to 8 byte boundary */
 	size[0] += ((-size[0]) & (USB_HOST_ALIGN-1));
 
-	if(buf)
+	if (buf)
 	{
 	    info = ADD_BYTES(buf,size[0]);
 
@@ -2792,7 +2789,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 	  xfer->qh_start = last_obj;
 	}
 
-	if(buf || error) {
+	if (buf || error) {
 	    goto done;
 	}
 
@@ -2813,7 +2810,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 	/* allocate zeroed memory */
 	buf = malloc(total_size[0], M_USB, M_WAITOK|M_ZERO);
 
-	if(buf == NULL) {
+	if (buf == NULL) {
 	    error = USBD_NOMEM;
 	    DPRINTF(("cannot allocate memory block for "
 		     "configuration (%d bytes)\n", 

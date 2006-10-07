@@ -4,6 +4,9 @@
  *	$NetBSD: uhid.c,v 1.54 2002/09/23 05:51:21 simonb Exp $
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/uhid.c,v 1.83 2006/09/07 00:06:41 imp Exp $");
+
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -45,7 +48,6 @@
  * HID spec: http://www.usb.org/developers/devclass_docs/HID1_11.pdf
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -65,8 +67,6 @@
 #include <dev/usb2/usb_quirks.h>
 
 #include "usbdevs.h"
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/uhid.c $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\

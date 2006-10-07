@@ -27,9 +27,10 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "opt_ata.h"
-
 #include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/ata/ata-usb.c,v 1.5 2006/09/11 19:47:53 sos Exp $");
+
+#include "opt_ata.h"
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -46,8 +47,6 @@
 
 #include <dev/ata/ata-all.h>
 #include <ata_if.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/ata/ata-usb.c,v 1.4 2006/03/31 08:09:05 sos Exp $");
 
 #define ATAUSB_BULK_SIZE (1<<17) /* don't set this lower than (1 << 16) */
 

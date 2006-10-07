@@ -35,6 +35,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ehci_pci.c,v 1.23 2006/09/07 00:06:41 imp Exp $");
+
 /*
  * USB Enhanced Host Controller Driver, a.k.a. USB 2.0 controller.
  *
@@ -48,9 +51,6 @@
  * PCI probes and EHCI specific code. This was done to facilitate the
  * sharing of code between *BSD's
  */
-
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ehci_pci.c,v 1.23 2006/09/07 00:06:41 imp Exp $");
 
 #include "opt_bus.h"
 
@@ -389,7 +389,7 @@ ehci_pci_takecontroller(device_t self)
 		}
 		legsup = eec;
 		pci_write_config(self, eecp, legsup | EHCI_LEGSUP_OSOWNED, 4);
-		if(legsup & EHCI_LEGSUP_BIOSOWNED)
+		if (legsup & EHCI_LEGSUP_BIOSOWNED)
 		{
 			device_printf(sc->sc_bus.bdev, "waiting for BIOS "
 				      "to give up control\n");

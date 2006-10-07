@@ -1,5 +1,5 @@
 /*	$NetBSD: ucomvar.h,v 1.9 2001/01/23 21:56:17 augustss Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb/ucomvar.h,v 1.7 2005/01/06 01:43:28 imp Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb/ucomvar.h,v 1.8 2006/09/07 00:06:41 imp Exp $	*/
 
 /*-
  * Copyright (c) 2001-2002, Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.
@@ -103,9 +103,9 @@ struct ucom_callback {
 struct ucom_softc {
 	struct task            sc_task;
 
-  const struct ucom_callback * sc_callback;
-	struct tty *           sc_tty;
-	void *                 sc_parent;
+  const struct ucom_callback   *sc_callback;
+	struct tty             *sc_tty;
+	void                   *sc_parent;
 
 	u_int16_t	       sc_portno;
 

@@ -35,6 +35,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ohci_pci.c,v 1.48 2006/09/03 00:27:42 jmg Exp $");
+
 /*
  * USB Open Host Controller driver.
  *
@@ -48,7 +51,6 @@
 
 #include "opt_bus.h"
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -63,8 +65,6 @@
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
 #include <dev/usb2/ohci.h> 
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ohci_pci.c,v 1.40 2004/08/02 15:37:35 iedowse Exp $");
 
 #define PCI_OHCI_VENDORID_ACERLABS	0x10b9
 #define PCI_OHCI_VENDORID_AMD		0x1022
@@ -344,7 +344,7 @@ ohci_pci_detach(device_t self)
 	if(sc->io_res)
 	{
 		bus_release_resource(self, SYS_RES_MEMORY, PCI_CBMEM,
-				     sc->io_res);
+		    sc->io_res);
 		sc->io_res = NULL;
 	}
 

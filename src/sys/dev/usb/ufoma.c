@@ -1,5 +1,7 @@
 /*	$NetBSD: umodem.c,v 1.45 2002/09/23 05:51:23 simonb Exp $	*/
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/ufoma.c,v 1.2 2006/09/07 00:06:41 imp Exp $");
 /*-
  * Copyright (c) 2005, Takanori Watanabe
  * Copyright (c) 2003, M. Warner Losh <imp@freebsd.org>.
@@ -79,7 +81,6 @@
  * be called from within the config thread function !
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -100,8 +101,6 @@
 #include <dev/usb/ucomvar.h>
 
 #include "usbdevs.h"
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/ufoma.c,v 1.1 2006/01/09 17:46:36 takawata Exp $");
 
 typedef struct ufoma_mobile_acm_descriptor{
 	u_int8_t bFunctionLength;

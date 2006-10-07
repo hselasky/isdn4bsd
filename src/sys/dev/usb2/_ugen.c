@@ -1,3 +1,15 @@
+/*	$NetBSD: ugen.c,v 1.79 2006/03/01 12:38:13 yamt Exp $	*/
+
+/* Also already merged from NetBSD:
+ *	$NetBSD: ugen.c,v 1.61 2002/09/23 05:51:20 simonb Exp $
+ *	$NetBSD: ugen.c,v 1.64 2003/06/28 14:21:46 darrenr Exp $
+ *	$NetBSD: ugen.c,v 1.65 2003/06/29 22:30:56 fvdl Exp $
+ *	$NetBSD: ugen.c,v 1.68 2004/06/23 02:30:52 mycroft Exp $
+ */
+
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ugen.c,v 1.108 2006/09/06 23:29:53 imp Exp $");
+
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -35,7 +47,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -50,8 +61,6 @@
 #include <dev/usb2/usb_port.h>
 #include <dev/usb2/usb.h>
 #include <dev/usb2/usb_subr.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ugen.c $");
 
 #define	UGEN_BULK_BUFFER_SIZE	(1024*64) /* bytes */
 

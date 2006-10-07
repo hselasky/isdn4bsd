@@ -72,7 +72,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/if_axe.c,v 1.40 2006/09/07 00:06:41 imp Exp 
  * be called from within the config thread function !
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/sockio.h>

@@ -29,16 +29,16 @@
 struct RioCommand
 {
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
-  u_int16_t  length;
+  uint16_t	length;
 #else
-  short length;
+  short		length;
 #endif
-  int   request;
-  int   requesttype;
-  int   value;
-  int   index;
-  void *buffer;
-  int  timeout;
+  int		request;
+  int		requesttype;
+  int		value;
+  int		index;
+  void		*buffer;
+  int		timeout;
 };
 
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)

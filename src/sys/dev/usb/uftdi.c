@@ -36,6 +36,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/uftdi.c,v 1.24 2006/09/07 00:06:41 imp Exp $");
 /*
  * NOTE: all function names beginning like "uftdi_cfg_" can only
  * be called from within the config thread function !
@@ -66,8 +68,6 @@
 #include <dev/usb/uftdireg.h>
 
 #include "usbdevs.h"
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/uftdi.c,v 1.22 2005/04/05 22:09:18 ticso Exp $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(sc,n,fmt,...)					\

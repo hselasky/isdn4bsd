@@ -26,6 +26,9 @@
  * SUCH DAMAGE.
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/ucom.c,v 1.60 2006/09/07 00:06:41 imp Exp $");
+
 /*-
  * Copyright (c) 1998, 2000 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -63,7 +66,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -286,8 +288,6 @@ ucom_open(struct tty *tp, struct cdev *dev)
 	sc->sc_mcr = 0;
 
 	ucom_modem(tp, SER_DTR | SER_RTS, 0);
-
-	/* device specific open */
 
 	if (sc->sc_callback->ucom_open) {
 
