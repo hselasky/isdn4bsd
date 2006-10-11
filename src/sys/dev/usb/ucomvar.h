@@ -105,13 +105,19 @@ struct ucom_softc {
 
   const struct ucom_callback   *sc_callback;
 	struct tty             *sc_tty;
+	struct mtx	       *sc_parent_mtx;
 	void                   *sc_parent;
+
+	uint32_t	       sc_unit;
 
 	u_int16_t	       sc_portno;
 
 	u_int8_t               sc_flag;
 #define UCOM_FLAG_RTS_IFLOW    0x01 /* use RTS input flow control */
 #define UCOM_FLAG_GONE         0x02 /* the device is gone */
+#define UCOM_FLAG_ATTACHED     0x04 /* set if attached */
+#define UCOM_FLAG_READ_ON      0x08 /* set if read is enabled */
+#define UCOM_FLAG_WRITE_ON     0x10 /* set if write is enabled */
 
 	u_int8_t               sc_lsr;
 	u_int8_t               sc_msr;
@@ -120,13 +126,11 @@ struct ucom_softc {
         u_int8_t               sc_last_status;
 };
 
-extern devclass_t ucom_devclass;
-
 extern int
-ucom_attach(struct ucom_softc *sc, device_t dev);
-
+ucom_attach(struct ucom_softc *sc, uint32_t sub_units, void *parent, 
+	    const struct ucom_callback *callback, struct mtx *p_mtx);
 extern void
-ucom_detach(struct ucom_softc *);
+ucom_detach(struct ucom_softc *sc, uint32_t sub_units);
 
 extern void
 ucom_status_change(struct ucom_softc *);
@@ -134,7 +138,6 @@ ucom_status_change(struct ucom_softc *);
 extern u_int8_t
 ucom_get_data(struct ucom_softc *sc, u_int8_t *buf, u_int32_t len,
 	      u_int32_t *actlen);
-
 extern void
 ucom_put_data(struct ucom_softc *sc, u_int8_t *ptr, u_int16_t len);
 

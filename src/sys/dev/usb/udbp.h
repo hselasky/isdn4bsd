@@ -37,20 +37,20 @@
  * $FreeBSD: src/sys/dev/usb/udbp.h,v 1.4 2005/01/06 01:43:28 imp Exp $
  */
 
-#ifndef _NETGRAPH_UDBP_H_
-#define _NETGRAPH_UDBP_H_
+#ifndef	_NETGRAPH_UDBP_H_
+#define	_NETGRAPH_UDBP_H_
 
 /* Node type name. This should be unique among all netgraph node types */
-#define NG_UDBP_NODE_TYPE	"udbp"
+#define	NG_UDBP_NODE_TYPE	"udbp"
 
 /* Node type cookie. Should also be unique. This value MUST change whenever
    an incompatible change is made to this header file, to insure consistency.
    The de facto method for generating cookies is to take the output of the
    date command: date -u +'%s' */
-#define NGM_UDBP_COOKIE		944609300
+#define	NGM_UDBP_COOKIE		944609300
 
 
-#define NG_UDBP_HOOK_NAME	"data"
+#define	NG_UDBP_HOOK_NAME	"data"
 
 /* Netgraph commands understood by this node type */
 enum {
@@ -60,8 +60,8 @@ enum {
 
 /* This structure is returned by the NGM_UDBP_GET_STATUS command */
 struct ngudbpstat {
-	u_int   packets_in;	/* packets in from downstream */
-	u_int   packets_out;	/* packets out towards downstream */
+	uint	packets_in;	/* packets in from downstream */
+	uint	packets_out;	/* packets out towards downstream */
 };
 
 /*
@@ -71,10 +71,10 @@ struct ngudbpstat {
  *
  * This needs to be kept in sync with the above structure definition
  */
-#define NG_UDBP_STATS_TYPE_INFO	{				\
-	  { "packets_in",	&ng_parse_int32_type	},	\
-	  { "packets_out",	&ng_parse_int32_type	},	\
-	  { NULL },						\
+#define NG_UDBP_STATS_TYPE_INFO	{					\
+	  { "packets_in",	&ng_parse_int32_type	},		\
+	  { "packets_out",	&ng_parse_int32_type	},		\
+	  { NULL },							\
 }
 
 #endif /* _NETGRAPH_UDBP_H_ */

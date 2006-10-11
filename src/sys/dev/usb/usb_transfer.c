@@ -42,10 +42,10 @@
 #include <sys/lock.h>
 #include <sys/malloc.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_hid.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_hid.h>
 
 __FBSDID("$FreeBSD: src/sys/dev/usb2/usb_transfer.c $");
 
@@ -156,38 +156,51 @@ usbd_get_pipe(struct usbd_device *udev, u_int8_t iface_index,
 	      const struct usbd_config *setup)
 {
 	struct usbd_pipe *pipe;
-	u_int8_t index = setup->index;
+	uint8_t index = setup->index;
+	uint8_t ea;
+	uint8_t at;
 
 	PRINTFN(8,("udev=%p iface_index=%d address=0x%x "
 		    "type=0x%x dir=0x%x index=%d\n",
 		    udev, iface_index, setup->endpoint,
 		    setup->type, setup->direction, setup->index));
 
-	pipe = &udev->pipes_end[0];
-	while(--pipe >= &udev->pipes[0])
-	{
-		if((pipe->edesc) &&
-		   (pipe->iface_index == iface_index) &&
-		   (((pipe->edesc->bEndpointAddress & (UE_DIR_IN|UE_DIR_OUT)) == setup->direction) || (setup->direction == 0xff)) &&
-		   (((pipe->edesc->bEndpointAddress & UE_ADDR) == setup->endpoint) || (setup->endpoint == 0xff)) &&
-		   (((pipe->edesc->bmAttributes & UE_XFERTYPE) == setup->type) || (setup->type == 0xff))
-		   )
-		{
-			if(!index--)
-			{
-				goto found;
-			}
+	/* NOTE: pipes should be searched from the beginning */
+
+	for (pipe = udev->pipes;
+	     ((pipe >= udev->pipes) && 
+	      (pipe < udev->pipes_end));
+	     pipe++) {
+
+	    if ((pipe->edesc == NULL) ||
+		(pipe->iface_index != iface_index)) {
+	        continue;
+	    }
+
+	    ea = pipe->edesc->bEndpointAddress;
+	    at = pipe->edesc->bmAttributes;
+
+	    if (((setup->direction == (ea & (UE_DIR_IN|UE_DIR_OUT))) ||
+		 (setup->direction == UE_DIR_ANY)) &&
+		((setup->endpoint == (ea & UE_ADDR)) ||
+		 (setup->endpoint == UE_ADDR_ANY)) &&
+		((setup->type == (at & UE_XFERTYPE)) ||
+		 (setup->type == UE_TYPE_ANY) ||
+		 ((setup->type == UE_BULK_INTR) && (at & 2)))) {
+
+	        if(!index--) {
+		    goto found;
 		}
+	    }
 	}
 
-	/* match against default pipe last, so that "any pipe", 
+	/* Match against default pipe last, so that "any pipe", 
 	 * "any address" and "any direction" returns the first 
-	 * pipe of the interface
+	 * pipe of the interface. "iface_index" and "direction"
+	 * is ignored:
 	 */
 	if((setup->endpoint == 0) &&
-	   (setup->type == 0))
-	  /* "iface_index" and "direction" is ignored */
-	{
+	   (setup->type == 0)) {
 		pipe = &udev->default_pipe;
 		goto found;
 	}

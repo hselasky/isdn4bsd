@@ -224,7 +224,7 @@ MALLOC_DECLARE(M_USBHC);
 SYSCTL_DECL(_hw_usb);
 #endif
 
-#if 1
+#if 0
 /* enable support for the old USB interface: */
 #define USB_COMPAT_OLD
 #endif

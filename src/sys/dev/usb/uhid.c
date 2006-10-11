@@ -5,7 +5,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/uhid.c,v 1.83 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uhid.c,v 1.83 2006/09/07 00:06:41 imp Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -59,12 +59,12 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/uhid.c,v 1.83 2006/09/07 00:06:41 imp Exp $
 #include <sys/vnode.h>
 #include <sys/poll.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_hid.h>
-#include <dev/usb2/usb_rdesc.h>
-#include <dev/usb2/usb_quirks.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_hid.h>
+#include <dev/usb/usb_rdesc.h>
+#include <dev/usb/usb_quirks.h>
 
 #include "usbdevs.h"
 

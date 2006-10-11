@@ -52,7 +52,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ehci.c,v 1.49 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ehci.c,v 1.49 2006/09/07 00:06:41 imp Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -64,10 +64,10 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/ehci.c,v 1.49 2006/09/07 00:06:41 imp Exp $
 
 #define INCLUDE_PCIXXX_H
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/ehci.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/ehci.h>
 
 #define MS_TO_TICKS(ms) (((ms) * hz) / 1000)
 #define EHCI_BUS2SC(bus) ((ehci_softc_t *)(((u_int8_t *)(bus)) - \

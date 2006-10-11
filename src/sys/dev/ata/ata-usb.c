@@ -40,10 +40,10 @@ __FBSDID("$FreeBSD: src/sys/dev/ata/ata-usb.c,v 1.5 2006/09/11 19:47:53 sos Exp 
 #include <sys/sema.h>
 #include <vm/uma.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_quirks.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_quirks.h>
 
 #include <dev/ata/ata-all.h>
 #include <ata_if.h>

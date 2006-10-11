@@ -48,9 +48,9 @@
 #include <sys/kernel.h>
 #include <sys/fcntl.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
 
 #include "usbdevs.h"
 

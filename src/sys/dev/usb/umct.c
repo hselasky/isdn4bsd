@@ -52,9 +52,9 @@
 #define usbd_config_td_cc umct_config_copy
 #define usbd_config_td_softc umct_softc
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
 #include <dev/usb/ucomvar.h>
 
 #include "usbdevs.h"
@@ -292,13 +292,15 @@ static device_method_t umct_methods[] = {
 	{ 0, 0 }
 };
 
+static devclass_t umct_devclass;
+
 static driver_t umct_driver = {
-	.name    = "ucom",
+	.name    = "umct",
 	.methods = umct_methods,
 	.size    = sizeof(struct umct_softc),
 };
 
-DRIVER_MODULE(umct, uhub, umct_driver, ucom_devclass, usbd_driver_load, 0);
+DRIVER_MODULE(umct, uhub, umct_driver, umct_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(umct, usb, 1, 1, 1);
 MODULE_DEPEND(umct, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 MODULE_VERSION(umct, 1);
@@ -408,12 +410,8 @@ umct_attach(device_t dev)
 	    goto detach;
 	}
 
-        sc->sc_ucom.sc_parent = sc;
-	sc->sc_ucom.sc_portno = 0;
-	sc->sc_ucom.sc_callback = &umct_callback;
-
-	error = ucom_attach(&(sc->sc_ucom), dev);
-
+	error = ucom_attach(&(sc->sc_ucom), 1, sc,
+			    &umct_callback, &Giant);
 	if (error) {
 	    goto detach;
 	}
@@ -436,7 +434,7 @@ umct_detach(device_t dev)
 
 	mtx_unlock(&Giant);
 
-	ucom_detach(&(sc->sc_ucom));
+	ucom_detach(&(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UMCT_ENDPT_MAX);
 

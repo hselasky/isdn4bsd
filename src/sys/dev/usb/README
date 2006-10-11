@@ -1,0 +1,265 @@
+DESCRIPTION OF THE NEW USB API
+
+The new USB 2.0 API consists of 4 functions. All transfer types are managed 
+using these functions. There is no longer need for separate functions to setup 
+INTERRUPT- and ISOCHRONOUS- transfers.
+
++--------------------------------------------------------------+
+|                                                              |
+|  "usbd_transfer_setup"   -  This function will allocate all  |
+|                             necessary DMA memory and might   |
+|                             sleep!                           |
+|                                                              |
+|  "usbd_transfer_unsetup" -  This function will stop the USB  |
+|                             transfer, if it is currently     |
+|                             active and release all DMA       |
+|                             memory.                          |
+|                                                              |
+|  "usbd_transfer_start"   -  This function will start a USB   |
+|                             transfer, if not already started.|
+|                             This function is always non-     |
+|                             blocking, except when the USB    |
+|                             transfer is SYNCHRONOUS. **      |
+|                                                              |
+|  "usbd_transfer_stop"    -  This function will stop a USB    |
+|                             transfer, if not already stopped.|
+|                             The callback function will be    |
+|                             called before this function      |
+|                             returns. This function is always |
+|                             non-blocking. **                 |
+|                                                              |
+|  ** These functions must be called with the private driver's |
+|     lock locked.                                             |
+|                                                              |
++--------------------------------------------------------------+
+
+Reference: /sys/dev/usb/usb_transfer.c 
+
+One must setup the USB transfer, struct usbd_xfer, from the 
+callback handler, which is required for non-blocking operation, in the end. 
+This behavior is also very practical when writing USB device drivers, because 
+it is easy to make a loop, starting the next transfer from the previous. 
+Simply reorder the labels! The callback's lock is locked by the caller. This 
+solves synchronization problems related to stopping USB transfers.
+
+/*
+ * A simple USB callback state-machine:
+ *
+ *       +->-----------------------+
+ *       |                         |    
+ *   +-<-+-------[tr_setup]--------+-<-+-<-[start/restart]
+ *   |                                 |
+ *   |                                 |
+ *   |                                 |
+ *   +------>-[tr_transferred]---------+
+ *   |                                 |
+ *   +--------->-[tr_error]------------+
+ */
+
+void
+usbd_default_callback(struct usbd_xfer *xfer)
+{
+	/* NOTE: it is not allowed to return
+	 * before "USBD_CHECK_STATUS()",
+	 * even if the system is tearing down!
+	 */
+        USBD_CHECK_STATUS(xfer);
+
+ tr_setup:
+       /* setup xfer->length, xfer->frlengths, xfer->nframes
+        * and write data to xfer->buffer if any
+        */
+
+        /**/
+        usbd_start_hardware(xfer);
+        return;
+
+ tr_transferred:
+        /* read data from xfer->buffer if any */
+ tr_error:
+        /* print error message */
+        return;
+}
+
+NOTE for control endpoints: all of the control transfer now resides in the 
+buffer pointed to by "xfer->buffer", including the request. This is better and 
+saves memory. 
+
+ 1) Something that one should be aware of is that, all USB callbacks support 
+recursation. That means one can start/stop whatever transfer from the callback 
+of another transfer one desires. Also the transfer that is currently called 
+back. Recursion is handled like this, that when the callback that wants to 
+recurse returns, it is called one more time. 
+ 
+ 2) After that the "tr_setup" label has been jumped in the callback, one can 
+always depend on that "tr_error" or "tr_transferred" will get jumped 
+afterwards. Always! 
+ 
+ 3) sleeping functions can only be called from the attach routine of the 
+driver. Else one should not use sleeping functions unless one has to. It is 
+very difficult with sleep, because one has to think that the device might have 
+detached when it returns from sleep. 
+ 
+USB device driver examples: 
+
+/sys/dev/usb/ugen.c
+/sys/dev/usb/ulpt.c
+/sys/dev/usb/uhid.c
+
+http://www.turbocat.net/~hselasky/isdn4bsd/sources/src/sys/i4b/layer1/ihfc2/i4b_regdata.h
+http://www.turbocat.net/~hselasky/isdn4bsd/sources/src/sys/i4b/layer1/ihfc2/i4b_wibusb.h
+
+
+QUICK REFERENCE
+===============
+
+
+/*------------------------------------------------------------------------*
+ * usbd_status 
+ * usbd_transfer_setup(udev, iface_index, pxfer, setup_start,
+ *                     n_setup, priv_sc, priv_mtx)
+ *------------------------------------------------------------------------*/
+
+- "udev" is a pointer to "struct usbd_device"
+
+- "iface_index" is the interface index number
+
+- "pxfer" is a pointer to an array of USB transfer pointers that are
+  initialized to NULL, and then pointed to the allocated DMA-able USB
+  transfers
+
+- "setup_start" is a pointer to an array of USB config structures
+
+- "n_setup" is a number telling the USB system how many USB transfers
+  should be setup
+
+- "priv_sc" is the private softc pointer, which will be used to
+  initialize "xfer->priv_sc"
+
+- "priv_mtx" is the private mutex protecting the transfer structure and
+  the softc. This pointer is used to initialize "xfer->priv_mtx".
+
+/*------------------------------------------------------------------------*
+ * void
+ * usbd_transfer_unsetup(pxfer, n_setup)
+ *------------------------------------------------------------------------*/
+
+- "pxfer" is a pointer to an array of USB transfer pointers, that may
+   be NULL, that should be freed by the USB system.
+
+- "n_setup" is a number telling the USB system how many USB transfers
+  should be unsetup
+
+NOTE: This function can sleep, waiting for active mutexes to become unlocked!
+
+/*------------------------------------------------------------------------*
+ * void
+ * usbd_transfer_start(xfer)
+ *------------------------------------------------------------------------*/
+
+- "xfer" is pointer to a USB transfer that should be started
+
+NOTE: this function must be called with "priv_mtx" locked
+
+/*------------------------------------------------------------------------*
+ * void
+ * usbd_transfer_stop(xfer)
+ *------------------------------------------------------------------------*/
+
+- "xfer" is a pointer to a USB transfer that should be stopped
+
+NOTE: this function must be called with "priv_mtx" locked
+
+NOTE: if the transfer was in progress, the callback will called with 
+      "xfer->error=USBD_CANCELLED", before this function returns
+
+/*------------------------------------------------------------------------*
+ * struct usbd_config {
+ *   type, endpoint, direction, interval, timeout, frames, index
+ *   flags, bufsize, callback
+ * };
+ *------------------------------------------------------------------------*/
+
+- The "type" field selects the USB pipe type. Valid values are:
+  UE_INTERRUPT, UE_CONTROL, UE_BULK, UE_ISOCHRONOUS. The special
+  value UE_BULK_INTR will select BULK and INTERRUPT pipes.
+  This field is mandatory.
+
+- The "endpoint" field selects the USB endpoint number. A value of
+  0xFF, "-1" or "UE_ADDR_ANY" will select the first matching endpoint.
+  This field is mandatory.
+
+- The "direction" field selects the USB endpoint direction. A value of 0xFF,
+  "-1" or "UE_DIR_ANY" will select the first matching endpoint. Else valid
+  values are: "UE_DIR_IN" and "UE_DIR_OUT". This field is mandatory.
+
+- The "interval" field selects the interrupt interval, for "type" = UE_INTERRUPT.
+  The "interval" is given in milliseconds. "0" selects the default
+  interrupt interval.
+
+- The "timeout" field, if non-zero, will set the transfer timeout, in
+  milliseconds.
+
+- The "frames" field sets the number of isochronous frames, for 
+  "type" = UE_ISOCHRONOUS.
+
+- The "index" field allows one to give a number, in case more
+  endpoints match the description, that selects which matching
+  "index" should be used.
+
+- The "flags" field allows one to set flags for the transfer. Valid flags are:
+  USBD_SYNCHRONOUS
+	This flag can only be used with the default callback,
+	"usbd_default_callback()", and will cause the
+	"usbd_transfer_start()" function to sleep, exiting all
+	mutexes, until the transfer is finished. This flag is
+	depreciated.
+
+  USBD_FORCE_SHORT_XFER
+	This flag forces the last USB packet sent to be short. A short
+	packet has a length of less than "xfer->max_packet_size", which
+	derives from "wMaxPacketSize".
+
+  USBD_SHORT_XFER_OK
+	This flag allows the transfer length, "xfer->actlen" to be
+	less than "xfer->length", upon completion of a transfer.
+
+  USBD_CUSTOM_CLEARSTALL
+
+  USBD_USE_POLLING
+	This flag can be used with any callback and will cause the
+	"usbd_transfer_start()" function to wait, using "DELAY()",
+	without exiting any mutexes, until the transfer is finished or
+	has timed out.
+
+  USBD_SELF_DESTRUCT
+	This flag allows one to free a transfer from its
+	callback function.
+
+  USBD_USE_DMA
+	This flag will cause the USB host controller driver to not
+	allocate a second data buffer, "xfer->buffer". Instead of
+	transferring data using "xfer->buffer", data must be
+	transferred by a call to "usbd_copy_in(&(xfer->buf_data),
+	offset, src, len)" or "usbd_copy_out(&(xfer->buf_data),
+	offset, dst, len)". This saves an extra data copy.
+
+- The "bufsize" field sets the total buffer size in bytes. If
+  this field is zero, "wMaxPacketSize" will be used, multiplied by the
+  "frames" field if the transfer type is isochronous. This is useful for
+  setting up interrupt pipes. This field is mandatory.
+
+  NOTE: For control transfers "bufsize" includes
+  the length of the request structure. 
+
+- The "callback" field sets the USB callback. This field is mandatory.
+
+MUTEX NOTE:
+===========
+
+When you create a mutex, using "mtx_init()", don't forget to call
+"mtx_destroy()" at detach, else you can get "freed memory accessed"
+panics.
+
+--HPS
+

@@ -41,11 +41,11 @@
 #include <sys/poll.h>
 #include <sys/signalvar.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb2/usb_cdev.c $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_cdev.c $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\

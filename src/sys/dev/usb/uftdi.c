@@ -58,11 +58,11 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/uftdi.c,v 1.24 2006/09/07 00:06:41 imp Exp $
 #define usbd_config_td_cc uftdi_config_copy
 #define usbd_config_td_softc uftdi_softc
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_quirks.h>
-#include <dev/usb2/usb_cdc.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_quirks.h>
+#include <dev/usb/usb_cdc.h>
 
 #include <dev/usb/ucomvar.h>
 #include <dev/usb/uftdireg.h>
@@ -278,13 +278,15 @@ static device_method_t uftdi_methods[] = {
     { 0, 0 }
 };
 
+static devclass_t uftdi_devclass;
+
 static driver_t uftdi_driver = {
-    .name    = "ucom",
+    .name    = "uftdi",
     .methods = uftdi_methods,
     .size    = sizeof (struct uftdi_softc),
 };
 
-DRIVER_MODULE(uftdi, uhub, uftdi_driver, ucom_devclass, usbd_driver_load, 0);
+DRIVER_MODULE(uftdi, uhub, uftdi_driver, uftdi_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(uftdi, usb, 1, 1, 1);
 MODULE_DEPEND(uftdi, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 
@@ -462,9 +464,7 @@ uftdi_attach(device_t dev)
 	    goto detach;
 	}
 
-        sc->sc_ucom.sc_parent = sc;
 	sc->sc_ucom.sc_portno = FTDI_PIT_SIOA;
-	sc->sc_ucom.sc_callback = &uftdi_callback;
 
 	if (uaa->iface) {
 	    id = usbd_get_interface_descriptor(uaa->iface);
@@ -476,7 +476,8 @@ uftdi_attach(device_t dev)
 	    sc->sc_ucom.sc_portno += id->bInterfaceNumber;
 	}
 
-	error = ucom_attach(&(sc->sc_ucom), dev);
+	error = ucom_attach(&(sc->sc_ucom), 1, sc, 
+			    &uftdi_callback, &Giant);
 
 	if (error) {
 	    goto detach;
@@ -500,7 +501,7 @@ uftdi_detach(device_t dev)
 
 	mtx_unlock(&Giant);
 
-	ucom_detach(&(sc->sc_ucom));
+	ucom_detach(&(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UFTDI_ENDPT_MAX);
 

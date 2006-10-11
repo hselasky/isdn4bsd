@@ -92,11 +92,11 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ufoma.c,v 1.2 2006/09/07 00:06:41 imp Exp $"
 #define usbd_config_td_cc ufoma_config_copy
 #define usbd_config_td_softc ufoma_softc
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_quirks.h>
-#include <dev/usb2/usb_cdc.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_quirks.h>
+#include <dev/usb/usb_cdc.h>
 
 #include <dev/usb/ucomvar.h>
 
@@ -397,13 +397,15 @@ static device_method_t ufoma_methods[] = {
     { 0, 0 }
 };
 
+static devclass_t ufoma_devclass;
+
 static driver_t ufoma_driver = {
-    .name    = "ucom",
+    .name    = "ufoma",
     .methods = ufoma_methods,
     .size    = sizeof(struct ufoma_softc),
 };
 
-DRIVER_MODULE(ufoma, uhub, ufoma_driver, ucom_devclass, usbd_driver_load, 0);
+DRIVER_MODULE(ufoma, uhub, ufoma_driver, ufoma_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(ufoma, usb, 1, 1, 1);
 MODULE_DEPEND(ufoma, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 
@@ -520,14 +522,8 @@ ufoma_attach(device_t dev)
 	sc->sc_currentmode = UMCPC_ACM_MODE_UNLINKED;
 	sc->sc_modetoactivate = mad->bMode[0];
 
-	/* setup UCOM */
-
-        sc->sc_ucom.sc_parent = sc;
-        sc->sc_ucom.sc_portno = 0;
-        sc->sc_ucom.sc_callback = &ufoma_callback;
-
-        error = ucom_attach(&(sc->sc_ucom), dev);
-
+        error = ucom_attach(&(sc->sc_ucom), 1, sc,
+			    &ufoma_callback, &Giant);
         if (error) {
             DPRINTF(0, "ucom_attach failed\n");
             goto detach;
@@ -562,7 +558,7 @@ ufoma_detach(device_t dev)
 
         mtx_unlock(&Giant);
 
-        ucom_detach(&(sc->sc_ucom));
+        ucom_detach(&(sc->sc_ucom), 1);
 
         usbd_transfer_unsetup(sc->sc_ctrl_xfer, UFOMA_CTRL_ENDPT_MAX);
 

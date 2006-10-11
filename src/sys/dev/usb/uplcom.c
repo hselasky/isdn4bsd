@@ -91,11 +91,11 @@
 #include <sys/serial.h>
 #include <sys/taskqueue.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_quirks.h>
-#include <dev/usb2/usb_cdc.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_quirks.h>
+#include <dev/usb/usb_cdc.h>
 
 #include <dev/usb/ucomvar.h>
 
@@ -402,13 +402,15 @@ static device_method_t uplcom_methods[] = {
     { 0, 0 }
 };
 
+static devclass_t uplcom_devclass;
+
 static driver_t uplcom_driver = {
-    .name    = "ucom",
+    .name    = "uplcom",
     .methods = uplcom_methods,
     .size    = sizeof (struct uplcom_softc),
 };
 
-DRIVER_MODULE(uplcom, uhub, uplcom_driver, ucom_devclass, usbd_driver_load, 0);
+DRIVER_MODULE(uplcom, uhub, uplcom_driver, uplcom_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(uplcom, usb, 1, 1, 1);
 MODULE_DEPEND(uplcom, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 MODULE_VERSION(uplcom, UPLCOM_MODVER);
@@ -547,10 +549,6 @@ uplcom_attach(device_t dev)
 	sc->sc_rts = -1;
 	sc->sc_break = -1;
 
-	sc->sc_ucom.sc_parent = sc;
-	sc->sc_ucom.sc_portno = 0;
-	sc->sc_ucom.sc_callback = &uplcom_callback;
-
 	error = uplcom_reset(sc, uaa->device);
 
 	if (error) {
@@ -559,8 +557,8 @@ uplcom_attach(device_t dev)
 	    goto detach;
 	}
 
-	error = ucom_attach(&(sc->sc_ucom), dev);
-
+	error = ucom_attach(&(sc->sc_ucom), 1, sc,
+			    &uplcom_callback, &Giant);
 	if (error) {
 	    goto detach;
 	}
@@ -589,7 +587,7 @@ uplcom_detach(device_t dev)
 
 	DPRINTF(0, "sc=%p\n", sc);
 
-	ucom_detach(&(sc->sc_ucom));
+	ucom_detach(&(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer_intr, UPLCOM_N_INTR_TRANSFER);
 

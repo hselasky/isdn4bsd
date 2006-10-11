@@ -72,405 +72,318 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD: src/sys/dev/usb/ubser.c,v 1.20 2006/09/07 00:06:41 imp Exp $");
 
-#if 0
-
 /*
  * BWCT serial adapter driver
  */
 
-#include <sys/cdefs.h>
-
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
-#include <sys/module.h>
-#include <sys/malloc.h>
-#include <sys/bus.h>
-#include <sys/ioccom.h>
-#include <sys/fcntl.h>
-#include <sys/conf.h>
+#include <sys/termios.h>
 #include <sys/serial.h>
-#include <sys/tty.h>
-#include <sys/clist.h>
-#include <sys/file.h>
+#include <sys/taskqueue.h>
 
-#include <sys/selinfo.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/ucomvar.h>
 
-#include <sys/sysctl.h>
-
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usbhid.h>
-
-#include <dev/usb2/usbdi.h>
-#include <dev/usb2/usbdi_util.h>
 #include "usbdevs.h"
 
-#include <dev/usb/ubser.h>
+#define UBSER_UNIT_MAX	32
+
+/* Vendor Interface Requests */
+#define VENDOR_GET_NUMSER		0x01
+#define VENDOR_SET_BREAK		0x02
+#define VENDOR_CLEAR_BREAK		0x03
 
 #ifdef USB_DEBUG
-static int ubserdebug = 0;
+#define DPRINTF(sc,n,fmt,...)	\
+  do { if (ubser_debug > (n)) {	    \
+      printf("%s:%s: " fmt, (sc)->sc_name, \
+	     __FUNCTION__,## __VA_ARGS__); } } while (0)
+
+static int ubser_debug = 0;
 SYSCTL_NODE(_hw_usb, OID_AUTO, ubser, CTLFLAG_RW, 0, "USB ubser");
 SYSCTL_INT(_hw_usb_ubser, OID_AUTO, debug, CTLFLAG_RW,
-	   &ubserdebug, 0, "ubser debug level");
-#define DPRINTF(x)      do { \
-				if (ubserdebug) \
-					logprintf x; \
-			} while (0)
-
-#define DPRINTFN(n, x)  do { \
-				if (ubserdebug > (n)) \
-					logprintf x; \
-			} while (0)
+	   &ubser_debug, 0, "ubser debug level");
 #else
-#define DPRINTF(x)
-#define DPRINTFN(n,x)
+#define DPRINTF(...)
 #endif
 
-#define ISSET(t, f)	((t) & (f))
-#define SET(t, f)	(t) |= (f)
-#define CLR(t, f)	(t) &= ~((unsigned)(f))
-
-struct ubser_port {
-	int			 p_port;
-	struct ubser_softc	*p_sc;
-	usbd_xfer_handle	 p_oxfer;	/* write request */
-	u_char			*p_obuf;	/* write buffer */
-	struct tty		*p_tty;
-};
+#define UBSER_TR_DT_WRITE 0
+#define UBSER_TR_DT_READ  1
+#define UBSER_TR_CS_WRITE 2
+#define UBSER_TR_CS_READ  3
+#define UBSER_TR_DT_BREAK 4
+#define UBSER_TR_MAX      5
 
 struct ubser_softc {
-	device_t		sc_dev;
-	usbd_device_handle	sc_udev;
-	usbd_interface_handle	sc_iface;	/* data interface */
-	int			sc_ifaceno;
+	struct ucom_softc	sc_ucom[UBSER_UNIT_MAX];
 
-	int			sc_refcnt;
-	u_char			sc_dying;
-	u_char			sc_opening;
-	int			sc_state;
+	struct usbd_xfer	*sc_xfer[UBSER_TR_MAX];
+
+	uint16_t		sc_tx_size;
+
 	uint8_t			sc_numser;
+	uint8_t			sc_send_break[(UBSER_UNIT_MAX+7)/8];
+	uint8_t			sc_flags;
+#define UBSER_FLAG_READ_STALL  0x01
+#define UBSER_FLAG_WRITE_STALL 0x02
 
-	int			sc_bulkin_no;	/* bulk in endpoint address */
-	usbd_pipe_handle	sc_bulkin_pipe;	/* bulk in pipe */
-	usbd_xfer_handle	sc_ixfer;	/* read request */
-	u_char			*sc_ibuf;	/* read buffer */
-	u_int			sc_ibufsize;	/* read buffer size */
-	u_int			sc_ibufsizepad;	/* read buffer size padded */
-
-	int			sc_bulkout_no;	/* bulk out endpoint address */
-	usbd_pipe_handle	sc_bulkout_pipe;/* bulk out pipe */
-	u_int			sc_obufsize;	/* write buffer size */
-	u_int			sc_opkthdrlen;	/* header length of
-						   output packet */
-
-	struct ubser_port	*sc_port;
+	uint8_t			sc_iface_no;
+	uint8_t			sc_iface_index;
+	uint8_t			sc_curr_tx_unit;
+	uint8_t			sc_curr_break_unit;
+	uint8_t			sc_name[16];
 };
 
-static int ubserparam(struct tty *, struct termios *);
-static void ubserstart(struct tty *);
-static void ubserstop(struct tty *, int);
-static usbd_status ubserstartread(struct ubser_softc *);
-static void ubserreadcb(usbd_xfer_handle, usbd_private_handle, usbd_status);
-static void ubserwritecb(usbd_xfer_handle, usbd_private_handle, usbd_status);
-static void ubser_cleanup(struct ubser_softc *sc);
+static device_probe_t ubser_probe;
+static device_attach_t ubser_attach;
+static device_detach_t ubser_detach;
 
-static t_break_t	ubserbreak;
-static t_open_t		ubseropen;
-static t_close_t	ubserclose;
-static t_modem_t	ubsermodem;
+static int   ubser_param(struct ucom_softc *ucom, struct termios *t);
+static void  ubser_write_clear_stall_callback(struct usbd_xfer *xfer);
+static void  ubser_write_callback(struct usbd_xfer *xfer);
+static void  ubser_read_clear_stall_callback(struct usbd_xfer *xfer);
+static void  ubser_read_callback(struct usbd_xfer *xfer);
+static void  ubser_set_break(struct ucom_softc *ucom, u_int8_t onoff);
+static void  ubser_send_break_callback(struct usbd_xfer *xfer);
+static int   ubser_open(struct ucom_softc *ucom);
+static void  ubser_start_write(struct ucom_softc *ucom);
 
-USB_DECLARE_DRIVER(ubser);
+static const struct usbd_config ubser_config[UBSER_TR_MAX] = {
 
-USB_MATCH(ubser)
+    [UBSER_TR_DT_WRITE] = {
+      .type      = UE_BULK,
+      .endpoint  = -1, /* any */
+      .direction = UE_DIR_OUT,
+      .bufsize   = 0, /* use wMaxPacketSize */
+      .flags     = USBD_FORCE_SHORT_XFER,
+      .callback  = &ubser_write_callback,
+    },
+
+    [UBSER_TR_DT_READ] = {
+      .type      = UE_BULK,
+      .endpoint  = -1, /* any */
+      .direction = UE_DIR_IN,
+      .bufsize   = 0, /* use wMaxPacketSize */
+      .flags     = USBD_SHORT_XFER_OK,
+      .callback  = &ubser_read_callback,
+    },
+
+    [UBSER_TR_CS_WRITE] = {
+      .type      = UE_CONTROL,
+      .endpoint  = 0x00, /* Control pipe */
+      .direction = -1,
+      .bufsize   = sizeof(usb_device_request_t),
+      .flags     = USBD_USE_DMA,
+      .callback  = &ubser_write_clear_stall_callback,
+      .timeout   = 1000, /* 1 second */
+    },
+
+    [UBSER_TR_CS_READ] = {
+      .type      = UE_CONTROL,
+      .endpoint  = 0x00, /* Control pipe */
+      .direction = -1,
+      .bufsize   = sizeof(usb_device_request_t),
+      .flags     = USBD_USE_DMA,
+      .callback  = &ubser_read_clear_stall_callback,
+      .timeout   = 1000, /* 1 second */
+    },
+
+    [UBSER_TR_DT_BREAK] = {
+      .type      = UE_CONTROL,
+      .endpoint  = 0x00, /* Control pipe */
+      .direction = -1,
+      .bufsize   = sizeof(usb_device_request_t),
+      .flags     = 0,
+      .callback  = &ubser_send_break_callback,
+      .timeout   = 1000, /* 1 second */
+    },
+};
+
+static const struct ucom_callback ubser_callback = {
+  .ucom_open        = &ubser_open,
+  .ucom_set_break   = &ubser_set_break,
+  .ucom_param       = &ubser_param,
+  .ucom_start_write = &ubser_start_write,
+};
+
+static device_method_t ubser_methods[] = {
+    DEVMETHOD(device_probe, ubser_probe),
+    DEVMETHOD(device_attach, ubser_attach),
+    DEVMETHOD(device_detach, ubser_detach),
+    { 0, 0 }
+};
+
+static devclass_t ubser_devclass;
+
+static driver_t ubser_driver = {
+    .name    = "ubser",
+    .methods = ubser_methods,
+    .size    = sizeof(struct ubser_softc),
+};
+
+DRIVER_MODULE(ubser, uhub, ubser_driver, ubser_devclass, usbd_driver_load, 0);
+MODULE_DEPEND(ubser, usb, 1, 1, 1);
+MODULE_DEPEND(ubser, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
+
+static int
+ubser_probe(device_t dev)
 {
-	USB_MATCH_START(ubser, uaa);
-	usb_string_descriptor_t us;
+	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	usb_interface_descriptor_t *id;
 	usb_device_descriptor_t *dd;
-	int err, size;
+	char buf[6];
+	usbd_status err;
 
 	if (uaa->iface == NULL)
 		return (UMATCH_NONE);
 
-	DPRINTFN(20,("ubser: vendor=0x%x, product=0x%x\n",
-		     uaa->vendor, uaa->product));
-
 	dd = usbd_get_device_descriptor(uaa->device);
 	if (dd == NULL) {
-		printf("ubser: failed to get device descriptor\n");
 		return (UMATCH_NONE);
 	}
 
 	id = usbd_get_interface_descriptor(uaa->iface);
 	if (id == NULL) {
-		printf("ubser: failed to get interface descriptor\n");
 		return (UMATCH_NONE);
 	}
 
-	err = usbd_get_string_desc(uaa->device, dd->iManufacturer, 0, &us,
-	    &size);
+	err = usbreq_get_string_any(uaa->device, dd->iManufacturer, 
+				    buf, sizeof(buf));
 	if (err != 0)
 		return (UMATCH_NONE);
 
 	/* check if this is a BWCT vendor specific ubser interface */
-	if (strcmp((char*)us.bString, "B\0W\0C\0T\0") == 0 &&
-	    id->bInterfaceClass == 0xff && id->bInterfaceSubClass == 0x00)
+	if ((strcmp(buf, "BWCT") == 0) &&
+	    (id->bInterfaceClass == 0xff) && 
+	    (id->bInterfaceSubClass == 0x00))
 		return (UMATCH_VENDOR_IFACESUBCLASS);
 
 	return (UMATCH_NONE);
 }
 
-USB_ATTACH(ubser)
+static int
+ubser_attach(device_t dev)
 {
-	USB_ATTACH_START(ubser, sc, uaa);
-	usbd_device_handle udev = uaa->device;
-	usb_endpoint_descriptor_t *ed;
+	struct usb_attach_arg *uaa = device_get_ivars(dev);
+	struct ubser_softc *sc = device_get_softc(dev);
 	usb_interface_descriptor_t *id;
 	usb_device_request_t req;
-	char *devinfo;
-	struct tty *tp;
-	usbd_status err;
-	int i;
-	int alen;
-	uint8_t epcount;
-	struct ubser_port *pp;
+	uint8_t n;
+	int error;
 
-	devinfo = malloc(1024, M_USBDEV, M_WAITOK);
-	usbd_devinfo(udev, 0, devinfo);
-	USB_ATTACH_SETUP;
-
-	DPRINTFN(10,("\nubser_attach: sc=%p\n", sc));
-
-	sc->sc_udev = udev = uaa->device;
-	sc->sc_iface = uaa->iface;
-	sc->sc_numser = 0;
-	sc->sc_port = NULL;
-
-	/* get interface index */
-	id = usbd_get_interface_descriptor(uaa->iface);
-	if (id == NULL) {
-		printf("ubser: failed to get interface descriptor\n");
-		return (UMATCH_NONE);
+	if (sc == NULL) {
+	    return ENOMEM;
 	}
-	sc->sc_ifaceno = id->bInterfaceNumber;
+
+	usbd_set_desc(dev, uaa->device);
+
+	snprintf(sc->sc_name, sizeof(sc->sc_name), "%s",
+		 device_get_nameunit(dev));
+
+	id = usbd_get_interface_descriptor(uaa->iface);
+
+	sc->sc_iface_no = id->bInterfaceNumber;
+	sc->sc_iface_index = uaa->iface_index;
 
 	/* get number of serials */
 	req.bmRequestType = UT_READ_VENDOR_INTERFACE;
 	req.bRequest = VENDOR_GET_NUMSER;
 	USETW(req.wValue, 0);
-	USETW(req.wIndex, sc->sc_ifaceno);
+	USETW(req.wIndex, sc->sc_iface_no);
 	USETW(req.wLength, 1);
-	err = usbd_do_request_flags(udev, &req, &sc->sc_numser,
-	    USBD_SHORT_XFER_OK, &alen, USBD_DEFAULT_TIMEOUT);
-	if (err) {
-		printf("%s: failed to get number of serials\n",
-		    device_get_nameunit(sc->sc_dev));
-		goto bad;
-	} else if (alen != 1) {
-		printf("%s: bogus answer on get_numser\n",
-		    device_get_nameunit(sc->sc_dev));
-		goto bad;
-	}
-	if (sc->sc_numser > MAX_SER)
-		sc->sc_numser = MAX_SER;
-	printf("%s: found %i serials\n", device_get_nameunit(sc->sc_dev), sc->sc_numser);
-
-	sc->sc_port = malloc(sizeof(*sc->sc_port) * sc->sc_numser,
-	    M_USBDEV, M_WAITOK);
-
-	/* find our bulk endpoints */
-	epcount = 0;
-	usbd_endpoint_count(sc->sc_iface, &epcount);
-	sc->sc_bulkin_no = -1;
-	sc->sc_bulkout_no = -1;
-	for (i = 0; i < epcount; i++) {
-		ed = usbd_interface2endpoint_descriptor(sc->sc_iface, i);
-		if (ed == NULL) {
-			printf("%s: couldn't get ep %d\n",
-			device_get_nameunit(sc->sc_dev), i);
-			USB_ATTACH_ERROR_RETURN;
-		}
-		if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_IN &&
-		    UE_GET_XFERTYPE(ed->bmAttributes) == UE_BULK) {
-			sc->sc_bulkin_no = ed->bEndpointAddress;
-			sc->sc_ibufsizepad = UGETW(ed->wMaxPacketSize);
-			sc->sc_ibufsizepad = UGETW(ed->wMaxPacketSize) - 1;
-		} else if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_OUT &&
-		    UE_GET_XFERTYPE(ed->bmAttributes) == UE_BULK) {
-			sc->sc_bulkout_no = ed->bEndpointAddress;
-			sc->sc_obufsize = UGETW(ed->wMaxPacketSize) - 1;
-			sc->sc_opkthdrlen = 1;
-		}
-	}
-	if (sc->sc_bulkin_no == -1 || sc->sc_bulkout_no == -1) {
-		printf("%s: could not find bulk in/out endpoint\n",
-		    device_get_nameunit(sc->sc_dev));
-		sc->sc_dying = 1;
-		goto bad;
+	error = usbd_do_request_flags(uaa->device, &req, &sc->sc_numser,
+				    0, NULL, USBD_DEFAULT_TIMEOUT);
+	if (error || (sc->sc_numser == 0)) {
+		device_printf(dev, "failed to get number "
+			      "of serial ports: %s\n",
+			      usbd_errstr(error));
+		goto detach;
 	}
 
-	/* Open the bulk pipes */
-	/* Bulk-in pipe */
-	err = usbd_open_pipe(sc->sc_iface, sc->sc_bulkin_no, 0,
-			     &sc->sc_bulkin_pipe);
-	if (err) {
-		printf("%s: open bulk in error (addr %d): %s\n",
-		       device_get_nameunit(sc->sc_dev), sc->sc_bulkin_no,
-		       usbd_errstr(err));
-		goto fail_0;
-	}
-	/* Bulk-out pipe */
-	err = usbd_open_pipe(sc->sc_iface, sc->sc_bulkout_no,
-			     USBD_EXCLUSIVE_USE, &sc->sc_bulkout_pipe);
-	if (err) {
-		printf("%s: open bulk out error (addr %d): %s\n",
-		       device_get_nameunit(sc->sc_dev), sc->sc_bulkout_no,
-		       usbd_errstr(err));
-		goto fail_1;
+	if (sc->sc_numser > UBSER_UNIT_MAX)
+		sc->sc_numser = UBSER_UNIT_MAX;
+
+	device_printf(dev, "found %i serials\n", sc->sc_numser);
+
+	error = usbd_transfer_setup(uaa->device, sc->sc_iface_index,
+				    sc->sc_xfer, ubser_config, 
+				    UBSER_TR_MAX, sc, &Giant);
+	if (error) {
+	    goto detach;
 	}
 
-	/* Allocate a request and an input buffer */
-	sc->sc_ixfer = usbd_alloc_xfer(sc->sc_udev);
-	if (sc->sc_ixfer == NULL) {
-		goto fail_2;
+	sc->sc_tx_size = sc->sc_xfer[UBSER_TR_DT_WRITE]->length;
+
+	if (sc->sc_tx_size == 0) {
+	    DPRINTF(sc, -1, "invalid tx_size!\n");
+	    goto detach;
 	}
 
-	sc->sc_ibuf = usbd_alloc_buffer(sc->sc_ixfer,
-					sc->sc_ibufsizepad);
-	if (sc->sc_ibuf == NULL) {
-		goto fail_3;
+	/* initialize port numbers */
+
+	for (n = 0; n < sc->sc_numser; n++) {
+	    sc->sc_ucom[n].sc_portno = n;
 	}
 
-	for (i = 0; i < sc->sc_numser; i++) {
-		pp = &sc->sc_port[i];
-		pp->p_port = i;
-		pp->p_sc = sc;
-		tp = pp->p_tty = ttyalloc();
-		tp->t_sc = pp;
-		DPRINTF(("ubser_attach: tty_attach tp = %p\n", tp));
-		tp->t_oproc = ubserstart;
-		tp->t_param = ubserparam;
-		tp->t_stop = ubserstop;
-		tp->t_break = ubserbreak;
-		tp->t_open = ubseropen;
-		tp->t_close = ubserclose;
-		tp->t_modem = ubsermodem;
-		ttycreate(tp, 0, "y%r%r", device_get_unit(sc->sc_dev), i);
+	error = ucom_attach(sc->sc_ucom, sc->sc_numser, sc,
+			    &ubser_callback, &Giant);
+	if (error) {
+	    goto detach;
 	}
 
+	mtx_lock(&Giant);
 
-	for (i = 0; i < sc->sc_numser; i++) {
-		sc->sc_port[i].p_oxfer = NULL;
-		sc->sc_port[i].p_obuf = NULL;
-	}
-	for (i = 0; i < sc->sc_numser; i++) {
-		sc->sc_port[i].p_oxfer = usbd_alloc_xfer(sc->sc_udev);
-		if (sc->sc_port[i].p_oxfer == NULL) {
-			goto fail_4;
-		}
+	sc->sc_flags |= (UBSER_FLAG_READ_STALL|
+			 UBSER_FLAG_WRITE_STALL);
 
-		sc->sc_port[i].p_obuf = usbd_alloc_buffer(sc->sc_port[i].p_oxfer,
-						sc->sc_obufsize +
-						sc->sc_opkthdrlen);
-		if (sc->sc_port[i].p_obuf == NULL) {
-			goto fail_4;
-		}
-	}
+	usbd_transfer_start(sc->sc_xfer[UBSER_TR_DT_READ]);
 
-	ubserstartread(sc);
+	mtx_unlock(&Giant);
 
-	free(devinfo, M_USBDEV);
-	USB_ATTACH_SUCCESS_RETURN;
+	return 0; /* success */
 
-fail_4:
-	for (i = 0; i < sc->sc_numser; i++) {
-		if (sc->sc_port[i].p_oxfer != NULL) {
-			usbd_free_xfer(sc->sc_port[i].p_oxfer);
-			sc->sc_port[i].p_oxfer = NULL;
-		}
-	}
-fail_3:
-	usbd_free_xfer(sc->sc_ixfer);
-	sc->sc_ixfer = NULL;
-fail_2:
-	usbd_close_pipe(sc->sc_bulkout_pipe);
-	sc->sc_bulkout_pipe = NULL;
-fail_1:
-	usbd_close_pipe(sc->sc_bulkin_pipe);
-	sc->sc_bulkin_pipe = NULL;
-fail_0:
-	sc->sc_opening = 0;
-	wakeup(&sc->sc_opening);
-
-bad:
-	ubser_cleanup(sc);
-	if (sc->sc_port != NULL) {
-		for (i = 0; i < sc->sc_numser; i++) {
-			pp = &sc->sc_port[i];
-			if (pp->p_tty != NULL)
-				ttyfree(pp->p_tty);
-		}
-		free(sc->sc_port, M_USBDEV);
-		sc->sc_port = NULL;
-	}
-
-	DPRINTF(("ubser_attach: ATTACH ERROR\n"));
-	free(devinfo, M_USBDEV);
-
-	USB_ATTACH_ERROR_RETURN;
-}
-
-USB_DETACH(ubser)
-{
-	USB_DETACH_START(ubser, sc);
-	int i;
-	struct ubser_port *pp;
-
-	DPRINTF(("ubser_detach: sc=%p\n", sc));
-
-	sc->sc_dying = 1;
-	for (i = 0; i < sc->sc_numser; i++) {
-		pp = &sc->sc_port[i];
-		if (pp->p_tty != NULL)
-			ttygone(pp->p_tty);
-	}
-
-	if (sc->sc_bulkin_pipe != NULL)
-		usbd_abort_pipe(sc->sc_bulkin_pipe);
-	if (sc->sc_bulkout_pipe != NULL)
-		usbd_abort_pipe(sc->sc_bulkout_pipe);
-
-	if (sc->sc_port != NULL) {
-		for (i = 0; i < sc->sc_numser; i++) {
-			pp = &sc->sc_port[i];
-			if (pp->p_tty != NULL)
-				ttyfree(pp->p_tty);
-		}
-		free(sc->sc_port, M_USBDEV);
-		sc->sc_port = NULL;
-	}
-
-	if (--sc->sc_refcnt >= 0) {
-		/* Wait for processes to go away. */
-		usb_detach_wait(USBDEV(sc->sc_dev));
-	}
-
-	return (0);
+ detach:
+	ubser_detach(dev);
+	return ENXIO; /* failure */
 }
 
 static int
-ubserparam(struct tty *tp, struct termios *t)
+ubser_detach(device_t dev)
 {
-	struct ubser_softc *sc;
-	struct ubser_port *pp;
+	struct ubser_softc *sc = device_get_softc(dev);
+	uint8_t n;
 
-	pp = tp->t_sc;
-	sc = pp->p_sc;
+	DPRINTF(sc, 0, "\n");
 
-	if (sc->sc_dying)
-		return (EIO);
+	ucom_detach(sc->sc_ucom, sc->sc_numser);
 
-	DPRINTF(("ubserparam: sc = %p\n", sc));
+	/* need to stop all transfers atomically,
+	 * hence when clear stall completes, it
+	 * might start other transfers !
+	 */
+	mtx_lock(&Giant);
+	for (n = 0; n < UBSER_TR_MAX; n++) {
+	    if (sc->sc_xfer[n]) {
+	        usbd_transfer_stop(sc->sc_xfer[n]);
+	    }
+	}
+	mtx_unlock(&Giant);
+
+	usbd_transfer_unsetup(sc->sc_xfer, UBSER_TR_MAX);
+
+	return 0;
+}
+
+static int
+ubser_param(struct ucom_softc *ucom, struct termios *t)
+{
+	struct ubser_softc *sc = ucom->sc_parent;
+
+	DPRINTF(sc, 0, "\n");
 
 	/*
 	 * The firmware on our devices can only do 8n1@9600bps
@@ -487,15 +400,15 @@ ubserparam(struct tty *tp, struct termios *t)
 	}
 
 	/* 2 stop bits not possible */
-	if (ISSET(t->c_cflag, CSTOPB))
+	if (t->c_cflag & CSTOPB)
 		return (EINVAL);
 
 	/* XXX parity handling not possible with current firmware */
-	if (ISSET(t->c_cflag, PARENB))
+	if (t->c_cflag & PARENB)
 		return (EINVAL);
 
 	/* we can only do 8 data bits */
-	switch (ISSET(t->c_cflag, CSIZE)) {
+	switch (t->c_cflag & CSIZE) {
 	case CS8:
 		break;
 	default:
@@ -513,364 +426,233 @@ ubserparam(struct tty *tp, struct termios *t)
 	 * because of delayed reaction due to device buffering.
 	 */
 
-	ttsetwater(tp);
-
 	return (0);
 }
 
-static void
-ubserstart(struct tty *tp)
+static __inline void
+ubser_inc_tx_unit(struct ubser_softc *sc)
 {
-	struct ubser_softc *sc;
-	struct ubser_port *pp;
-	struct cblock *cbp;
-	usbd_status err;
-	u_char *data;
-	int cnt;
-	uint8_t serial;
-
-	pp = tp->t_sc;
-	sc = pp->p_sc;
-	serial = pp->p_port;
-	DPRINTF(("ubserstart: sc = %p, tp = %p\n", sc, tp));
-
-	if (sc->sc_dying)
-		return;
-
-	if (ISSET(tp->t_state, TS_BUSY | TS_TIMEOUT | TS_TTSTOP)) {
-		ttwwakeup(tp);
-		DPRINTF(("ubserstart: stopped\n"));
-		return;
+	sc->sc_curr_tx_unit ++;
+	if (sc->sc_curr_tx_unit >= sc->sc_numser) {
+	    sc->sc_curr_tx_unit = 0;
 	}
-
-	if (tp->t_outq.c_cc <= tp->t_olowat) {
-		if (ISSET(tp->t_state, TS_SO_OLOWAT)) {
-			CLR(tp->t_state, TS_SO_OLOWAT);
-			wakeup(TSA_OLOWAT(tp));
-		}
-		selwakeuppri(&tp->t_wsel, TTIPRI);
-		if (tp->t_outq.c_cc == 0) {
-			if (ISSET(tp->t_state, TS_BUSY | TS_SO_OCOMPLETE) ==
-			    TS_SO_OCOMPLETE && tp->t_outq.c_cc == 0) {
-				CLR(tp->t_state, TS_SO_OCOMPLETE);
-				wakeup(TSA_OCOMPLETE(tp));
-			}
-			return;
-		}
-	}
-
-	/* Grab the first contiguous region of buffer space. */
-	data = tp->t_outq.c_cf;
-	cbp = (struct cblock *) ((intptr_t) tp->t_outq.c_cf & ~CROUND);
-	cnt = min((char *) (cbp+1) - tp->t_outq.c_cf, tp->t_outq.c_cc);
-
-	if (cnt == 0) {
-		DPRINTF(("ubserstart: cnt == 0\n"));
-		return;
-	}
-
-	SET(tp->t_state, TS_BUSY);
-
-	if (cnt + sc->sc_opkthdrlen > sc->sc_obufsize) {
-		DPRINTF(("ubserstart: big buffer %d chars\n", cnt));
-		cnt = sc->sc_obufsize;
-	}
-	sc->sc_port[serial].p_obuf[0] = serial;
-	memcpy(sc->sc_port[serial].p_obuf + sc->sc_opkthdrlen, data, cnt);
-
-
-	DPRINTF(("ubserstart: %d chars\n", cnt));
-	usbd_setup_xfer(sc->sc_port[serial].p_oxfer, sc->sc_bulkout_pipe,
-			(usbd_private_handle)tp, sc->sc_port[serial].p_obuf,
-			cnt + sc->sc_opkthdrlen,
-			USBD_NO_COPY, USBD_NO_TIMEOUT, ubserwritecb);
-	/* What can we do on error? */
-	err = usbd_transfer(sc->sc_port[serial].p_oxfer);
-	if (err != USBD_IN_PROGRESS)
-		printf("ubserstart: err=%s\n", usbd_errstr(err));
-
-	ttwwakeup(tp);
-}
-
-static void
-ubserstop(struct tty *tp, int flag)
-{
-	struct ubser_softc *sc;
-
-	sc = tp->t_sc;
-
-	DPRINTF(("ubserstop: %d\n", flag));
-
-	if (flag & FWRITE) {
-		DPRINTF(("ubserstop: write\n"));
-		if (ISSET(tp->t_state, TS_BUSY)) {
-			/* XXX do what? */
-			if (!ISSET(tp->t_state, TS_TTSTOP))
-				SET(tp->t_state, TS_FLUSH);
-		}
-	}
-
-	DPRINTF(("ubserstop: done\n"));
-}
-
-static void
-ubserwritecb(usbd_xfer_handle xfer, usbd_private_handle p, usbd_status status)
-{
-	struct tty *tp;
-	struct ubser_softc *sc;
-	struct ubser_port *pp;
-	u_int32_t cc;
-
-	tp = (struct tty *)p;
-	pp = tp->t_sc;
-	sc = pp->p_sc;
-
-	DPRINTF(("ubserwritecb: status = %d\n", status));
-
-	if (status == USBD_CANCELLED || sc->sc_dying)
-		goto error;
-
-	if (status != USBD_NORMAL_COMPLETION) {
-		printf("%s: ubserwritecb: %s\n",
-		       device_get_nameunit(sc->sc_dev), usbd_errstr(status));
-		if (status == USBD_STALLED)
-			usbd_clear_endpoint_stall_async(sc->sc_bulkin_pipe);
-		/* XXX we should restart after some delay. */
-		goto error;
-	}
-
-	usbd_get_xfer_status(xfer, NULL, NULL, &cc, NULL);
-	DPRINTF(("ubserwritecb: cc = %d\n", cc));
-	if (cc <= sc->sc_opkthdrlen) {
-		printf("%s: sent size too small, cc = %d\n",
-		       device_get_nameunit(sc->sc_dev), cc);
-		goto error;
-	}
-
-	/* convert from USB bytes to tty bytes */
-	cc -= sc->sc_opkthdrlen;
-
-	CLR(tp->t_state, TS_BUSY);
-	if (ISSET(tp->t_state, TS_FLUSH))
-		CLR(tp->t_state, TS_FLUSH);
-	else
-		ndflush(&tp->t_outq, cc);
-	ttyld_start(tp);
-
-	return;
-
-error:
-	CLR(tp->t_state, TS_BUSY);
 	return;
 }
 
-static usbd_status
-ubserstartread(struct ubser_softc *sc)
+static void
+ubser_write_clear_stall_callback(struct usbd_xfer *xfer)
 {
-	usbd_status err;
+	struct ubser_softc *sc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_xfer[UBSER_TR_DT_WRITE];
 
-	DPRINTF(("ubserstartread: start\n"));
+	USBD_CHECK_STATUS(xfer);
 
-	if (sc->sc_bulkin_pipe == NULL)
-		return (USBD_NORMAL_COMPLETION);
+ tr_setup:
+	/* start clear stall */
+	usbd_clear_stall_tr_setup(xfer, xfer_other);
+	return;
 
-	usbd_setup_xfer(sc->sc_ixfer, sc->sc_bulkin_pipe,
-			(usbd_private_handle)sc,
-			sc->sc_ibuf, sc->sc_ibufsizepad,
-			USBD_SHORT_XFER_OK | USBD_NO_COPY,
-			USBD_NO_TIMEOUT, ubserreadcb);
+ tr_transferred:
+	usbd_clear_stall_tr_transferred(xfer, xfer_other);
+	sc->sc_flags &= ~UBSER_FLAG_WRITE_STALL;
+	usbd_transfer_start(xfer_other);
+	return;
 
-	err = usbd_transfer(sc->sc_ixfer);
-	if (err != USBD_IN_PROGRESS) {
-		DPRINTF(("ubserstartread: err = %s\n", usbd_errstr(err)));
-		return (err);
-	}
-
-	return (USBD_NORMAL_COMPLETION);
+ tr_error:
+	sc->sc_flags &= ~UBSER_FLAG_WRITE_STALL;
+	DPRINTF(sc, -1, "clear stall failed, error=%s\n",
+		usbd_errstr(xfer->error));
+	return;
 }
 
 static void
-ubserreadcb(usbd_xfer_handle xfer, usbd_private_handle p, usbd_status status)
+ubser_write_callback(struct usbd_xfer *xfer)
 {
-	struct ubser_softc *sc = (struct ubser_softc *)p;
-	struct tty *tp;
-	usbd_status err;
-	u_int32_t cc;
-	u_char *cp;
-	int lostcc;
+	struct ubser_softc *sc = xfer->priv_sc;
+	uint8_t *buf = xfer->buffer;
+	uint8_t first_unit = sc->sc_curr_tx_unit;
+	uint32_t actlen;
 
-	if (status == USBD_IOERROR) {
-		printf("%s: ubserreadcb: %s - restarting\n",
-		    device_get_nameunit(sc->sc_dev), usbd_errstr(status));
-		goto resubmit;
+	USBD_CHECK_STATUS(xfer);
+
+ tr_error:
+	if (xfer->error != USBD_CANCELLED) {
+	    sc->sc_flags |= UBSER_FLAG_WRITE_STALL;
+	    usbd_transfer_start(sc->sc_xfer[UBSER_TR_CS_WRITE]);
+	}
+	return;
+
+ tr_setup:
+ tr_transferred:
+	if (sc->sc_flags & UBSER_FLAG_WRITE_STALL) {
+	    usbd_transfer_start(sc->sc_xfer[UBSER_TR_CS_WRITE]);
+	    return;
 	}
 
-	DPRINTF(("ubserreadcb: status = %d\n", status));
+	do {
+	    if (ucom_get_data(sc->sc_ucom + sc->sc_curr_tx_unit,
+			      buf + 1, sc->sc_tx_size - 1, &actlen)) {
 
-	if (status != USBD_NORMAL_COMPLETION) {
-		if (status != USBD_CANCELLED) {
-			printf("%s: ubserreadcb: %s\n",
-			    device_get_nameunit(sc->sc_dev), usbd_errstr(status));
-		}
-		if (status == USBD_STALLED)
-			usbd_clear_endpoint_stall_async(sc->sc_bulkin_pipe);
-		return;
+	        buf[0] = sc->sc_curr_tx_unit;
+
+		xfer->length = actlen + 1;
+
+		usbd_start_hardware(xfer);
+
+		ubser_inc_tx_unit(sc); /* round robin */
+
+		break;
+	    }
+
+	    ubser_inc_tx_unit(sc);
+			    
+	} while (sc->sc_curr_tx_unit != first_unit);
+
+	return;
+}
+
+static void
+ubser_read_clear_stall_callback(struct usbd_xfer *xfer)
+{
+	struct ubser_softc *sc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_xfer[UBSER_TR_DT_READ];
+
+	USBD_CHECK_STATUS(xfer);
+
+ tr_setup:
+	/* start clear stall */
+	usbd_clear_stall_tr_setup(xfer, xfer_other);
+	return;
+
+ tr_transferred:
+	usbd_clear_stall_tr_transferred(xfer, xfer_other);
+	sc->sc_flags &= ~UBSER_FLAG_READ_STALL;
+	usbd_transfer_start(xfer_other);
+	return;
+
+ tr_error:
+	sc->sc_flags &= ~UBSER_FLAG_READ_STALL;
+	DPRINTF(sc, -1, "clear stall failed, error=%s\n",
+		usbd_errstr(xfer->error));
+	return;
+}
+
+static void
+ubser_read_callback(struct usbd_xfer *xfer)
+{
+	struct ubser_softc *sc = xfer->priv_sc;
+	uint8_t *buf = xfer->buffer;
+
+	USBD_CHECK_STATUS(xfer);
+
+ tr_error:
+	if (xfer->error != USBD_CANCELLED) {
+	    sc->sc_flags |= UBSER_FLAG_READ_STALL;
+	    usbd_transfer_start(sc->sc_xfer[UBSER_TR_CS_READ]);
+	}
+	return;
+
+ tr_transferred:
+	if (xfer->actlen < 1) {
+	    DPRINTF(sc, 0, "invalid actlen=0!\n");
+	    goto tr_setup;
 	}
 
-	usbd_get_xfer_status(xfer, NULL, (void **)&cp, &cc, NULL);
-
-	DPRINTF(("ubserreadcb: got %d bytes from device\n", cc));
-	if (cc == 0)
-		goto resubmit;
-
-	if (cc > sc->sc_ibufsizepad) {
-		printf("%s: invalid receive data size, %d chars\n",
-		       device_get_nameunit(sc->sc_dev), cc);
-		goto resubmit;
+	if (buf[0] >= sc->sc_numser) {
+	    DPRINTF(sc, 0, "invalid serial number!\n");
+	    goto tr_setup;
 	}
 
-	/* parse header */
-	if (cc < 1)
-		goto resubmit;
-	DPRINTF(("ubserreadcb: got %d chars for serial %d\n", cc - 1, *cp));
-	tp = sc->sc_port[*cp].p_tty;
-	cp++;
-	cc--;
+	ucom_put_data(sc->sc_ucom + buf[0], 
+		      buf + 1, xfer->actlen -1);
 
-	if (cc < 1)
-		goto resubmit;
-
-	if (!(tp->t_state & TS_ISOPEN))	/* drop data for unused serials */
-		goto resubmit;
-
-	if (tp->t_state & TS_CAN_BYPASS_L_RINT) {
-		if (tp->t_rawq.c_cc + cc > tp->t_ihiwat
-		    && (tp->t_iflag & IXOFF)
-		    && !(tp->t_state & TS_TBLOCK))
-			ttyblock(tp);
-		lostcc = b_to_q((char *)cp, cc, &tp->t_rawq);
-		tp->t_rawcc += cc;
-		ttwakeup(tp);
-		if (tp->t_state & TS_TTSTOP
-		    && (tp->t_iflag & IXANY
-			|| tp->t_cc[VSTART] == tp->t_cc[VSTOP])) {
-			tp->t_state &= ~TS_TTSTOP;
-			tp->t_lflag &= ~FLUSHO;
-			ubserstart(tp);
-		}
-		if (lostcc > 0)
-			printf("%s: lost %d chars\n", device_get_nameunit(sc->sc_dev),
-			       lostcc);
+ tr_setup:
+	if (sc->sc_flags & UBSER_FLAG_READ_STALL) {
+	    usbd_transfer_start(sc->sc_xfer[UBSER_TR_CS_READ]);
 	} else {
-		/* Give characters to tty layer. */
-		while (cc > 0) {
-			DPRINTFN(7, ("ubserreadcb: char = 0x%02x\n", *cp));
-			if (ttyld_rint(tp, *cp) == -1) {
-				/* XXX what should we do? */
-				printf("%s: lost %d chars\n",
-				       device_get_nameunit(sc->sc_dev), cc);
-				break;
-			}
-			cc--;
-			cp++;
-		}
+	    usbd_start_hardware(xfer);
 	}
-
-resubmit:
-	err = ubserstartread(sc);
-	if (err) {
-		printf("%s: read start failed\n", device_get_nameunit(sc->sc_dev));
-		/* XXX what should we do now? */
-	}
-
+	return;
 }
 
 static void
-ubser_cleanup(struct ubser_softc *sc)
+ubser_set_break(struct ucom_softc *ucom, u_int8_t onoff)
 {
-	int i;
-	struct ubser_port *pp;
+	struct ubser_softc *sc = ucom->sc_parent;
+	uint8_t x = ucom->sc_portno;
 
-	DPRINTF(("ubser_cleanup: closing pipes\n"));
+	if (onoff) {
+	    sc->sc_send_break[x/8] |= (1<<(x%8));
+	    usbd_transfer_start(sc->sc_xfer[UBSER_TR_DT_BREAK]);
+	}
+	return;
+}
 
-	if (sc->sc_bulkin_pipe != NULL) {
-		usbd_abort_pipe(sc->sc_bulkin_pipe);
-		usbd_close_pipe(sc->sc_bulkin_pipe);
-		sc->sc_bulkin_pipe = NULL;
+static __inline void
+ubser_inc_break_unit(struct ubser_softc *sc)
+{
+	sc->sc_curr_break_unit ++;
+	if (sc->sc_curr_break_unit >= sc->sc_numser) {
+	    sc->sc_curr_break_unit = 0;
 	}
-	if (sc->sc_bulkout_pipe != NULL) {
-		usbd_abort_pipe(sc->sc_bulkout_pipe);
-		usbd_close_pipe(sc->sc_bulkout_pipe);
-		sc->sc_bulkout_pipe = NULL;
-	}
-	if (sc->sc_ixfer != NULL) {
-		usbd_free_xfer(sc->sc_ixfer);
-		sc->sc_ixfer = NULL;
-	}
-	for (i = 0; i < sc->sc_numser; i++) {
-		pp = &sc->sc_port[i];
-		if (pp->p_oxfer != NULL) {
-			usbd_free_xfer(pp->p_oxfer);
-			pp->p_oxfer = NULL;
-		}
-	}
+	return;
+}
+
+static void
+ubser_send_break_callback(struct usbd_xfer *xfer)
+{
+	struct ubser_softc *sc = xfer->priv_sc;
+	usb_device_request_t *req = xfer->buffer;
+	uint8_t first_unit = sc->sc_curr_break_unit;
+	uint8_t x;
+
+	USBD_CHECK_STATUS(xfer);
+
+ tr_error:
+	DPRINTF(sc, -1, "transfer error: %s\n",
+		usbd_errstr(xfer->error));
+ tr_setup:
+ tr_transferred:
+
+	do {
+	    x = sc->sc_curr_break_unit;
+
+	    if (sc->sc_send_break[x/8] & (1<<(x%8))) {
+	        sc->sc_send_break[x/8] &= ~(1<<(x%8));
+
+		req->bmRequestType = UT_READ_VENDOR_INTERFACE;
+		req->bRequest = VENDOR_SET_BREAK;
+		USETW(req->wValue, x);
+		USETW(req->wIndex, sc->sc_iface_no);
+		USETW(req->wLength, 0);
+
+		usbd_start_hardware(xfer);
+
+		ubser_inc_break_unit(sc); /* round robin */
+
+		break;
+	    }
+
+	    ubser_inc_break_unit(sc);
+
+	} while (sc->sc_curr_break_unit != first_unit);
+	return;
 }
 
 static int
-ubseropen(struct tty *tp, struct cdev *dev)
+ubser_open(struct ucom_softc *ucom)
 {
-	struct ubser_softc *sc;
-	struct ubser_port *pp;
-
-	pp = tp->t_sc;
-	sc = pp->p_sc;
-
-	sc->sc_refcnt++;	/* XXX: wrong refcnt on error later on */
-	return (0);
+	/* fake status bits */
+	ucom->sc_mcr |= (SER_DTR | SER_RTS);
+	ucom->sc_msr |= (SER_DCD);
+	return 0;
 }
 
 static void
-ubserclose(struct tty *tp)
+ubser_start_write(struct ucom_softc *ucom)
 {
-	struct ubser_softc *sc;
-	struct ubser_port *pp;
-
-	pp = tp->t_sc;
-	sc = pp->p_sc;
-	if (--sc->sc_refcnt < 0)
-		usb_detach_wakeup(USBDEV(sc->sc_dev));
+	struct ubser_softc *sc = ucom->sc_parent;
+	usbd_transfer_start(sc->sc_xfer[UBSER_TR_DT_WRITE]);
+	return;
 }
-
-static void
-ubserbreak(struct tty *tp, int sig)
-{
-	usb_device_request_t req;
-	struct ubser_softc *sc;
-	struct ubser_port *pp;
-	int error;
-	int alen;
-
-	pp = tp->t_sc;
-	sc = pp->p_sc;
-	if (sig) {
-		DPRINTF(("ubser_break: TIOCSBRK\n"));
-		req.bmRequestType = UT_READ_VENDOR_INTERFACE;
-		req.bRequest = VENDOR_SET_BREAK;
-		USETW(req.wValue, pp->p_port);
-		USETW(req.wIndex, sc->sc_ifaceno);
-		USETW(req.wLength, 0);
-		error = usbd_do_request_flags(sc->sc_udev, &req, &sc->sc_numser,
-		    USBD_SHORT_XFER_OK, &alen, USBD_DEFAULT_TIMEOUT);
-	}
-}
-
-static int
-ubsermodem(struct tty *tp, int sigon, int sigoff)
-{
-
-	return (SER_DTR | SER_RTS | SER_DCD);
-}
-
-DRIVER_MODULE(ubser, uhub, ubser_driver, ubser_devclass, usbd_driver_load, 0);
-#endif
 

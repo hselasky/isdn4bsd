@@ -42,10 +42,10 @@
 #include <sys/taskqueue.h>
 #include <sys/malloc.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_hid.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_hid.h>
 
 #include "usbdevs.h"
 
@@ -191,13 +191,15 @@ static device_method_t ucycom_methods[] = {
     { 0, 0 }
 };
 
+static devclass_t ucycom_devclass;
+
 static driver_t ucycom_driver = {
-    .name    = "ucom",
+    .name    = "ucycom",
     .methods = ucycom_methods,
     .size    = sizeof(struct ucycom_softc),
 };
 
-DRIVER_MODULE(ucycom, uhub, ucycom_driver, ucom_devclass, usbd_driver_load, 0);
+DRIVER_MODULE(ucycom, uhub, ucycom_driver, ucycom_devclass, usbd_driver_load, 0);
 MODULE_VERSION(ucycom, 1);
 MODULE_DEPEND(ucycom, usb, 1, 1, 1);
 
@@ -339,11 +341,8 @@ ucycom_attach(device_t dev)
 	    goto detach;
 	}
 
-        sc->sc_ucom.sc_parent = sc;
-	sc->sc_ucom.sc_portno = 0;
-	sc->sc_ucom.sc_callback = &ucycom_callback;
-
-	error = ucom_attach(&(sc->sc_ucom), dev);
+	error = ucom_attach(&(sc->sc_ucom), 1, sc,
+			    &ucycom_callback, &Giant);
 
 	if (error) {
 	    goto detach;
@@ -368,7 +367,7 @@ ucycom_detach(device_t dev)
 {
 	struct ucycom_softc *sc = device_get_softc(dev);
 
-	ucom_detach(&(sc->sc_ucom));
+	ucom_detach(&(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UCYCOM_ENDPT_MAX);
 

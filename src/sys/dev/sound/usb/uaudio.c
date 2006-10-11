@@ -59,10 +59,10 @@
 #include <sys/malloc.h>
 #include <sys/reboot.h>	/* for bootverbose */
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_quirks.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_quirks.h>
 
 #include <dev/sound/pcm/sound.h>
 #include <dev/sound/chip.h>

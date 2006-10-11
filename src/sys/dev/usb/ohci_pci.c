@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ohci_pci.c,v 1.48 2006/09/03 00:27:42 jmg Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ohci_pci.c,v 1.48 2006/09/03 00:27:42 jmg Exp $");
 
 /*
  * USB Open Host Controller driver.
@@ -61,10 +61,10 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/ohci_pci.c,v 1.48 2006/09/03 00:27:42 jmg E
 
 #define INCLUDE_PCIXXX_H
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/ohci.h> 
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/ohci.h> 
 
 #define PCI_OHCI_VENDORID_ACERLABS	0x10b9
 #define PCI_OHCI_VENDORID_AMD		0x1022

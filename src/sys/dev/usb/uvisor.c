@@ -62,9 +62,9 @@
 #include <sys/serial.h>
 #include <sys/taskqueue.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
 #include <dev/usb/ucomvar.h>
 
 #include "usbdevs.h"
@@ -281,13 +281,15 @@ static device_method_t uvisor_methods[] = {
     { 0, 0 }
 };
 
+static devclass_t uvisor_devclass;
+
 static driver_t uvisor_driver = {
-    .name    = "ucom",
+    .name    = "uvisor",
     .methods = uvisor_methods,
     .size    = sizeof (struct uvisor_softc),
 };
 
-DRIVER_MODULE(uvisor, uhub, uvisor_driver, ucom_devclass, usbd_driver_load, 0);
+DRIVER_MODULE(uvisor, uhub, uvisor_driver, uvisor_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(uvisor, usb, 1, 1, 1);
 MODULE_DEPEND(uvisor, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 MODULE_VERSION(uvisor, UVISOR_MODVER);
@@ -407,12 +409,8 @@ uvisor_attach(device_t dev)
 	    goto detach;
 	}
 
-	sc->sc_ucom.sc_parent = sc;
-	sc->sc_ucom.sc_portno = 0;
-	sc->sc_ucom.sc_callback = &uvisor_callback;
-
-	error = ucom_attach(&(sc->sc_ucom), dev);
-
+	error = ucom_attach(&(sc->sc_ucom), 1, sc,
+			    &uvisor_callback, &Giant);
 	if (error) {
 	    DPRINTF(0, "ucom_attach failed\n");
 	    goto detach;
@@ -432,7 +430,7 @@ uvisor_detach(device_t dev)
 
 	DPRINTF(0, "sc=%p\n", sc);
 
-	ucom_detach(&(sc->sc_ucom));
+	ucom_detach(&(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UVISOR_N_TRANSFER);
 

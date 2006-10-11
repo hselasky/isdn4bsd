@@ -58,10 +58,10 @@
 #include <sys/signalvar.h>
 #include <sys/vnode.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_quirks.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_quirks.h>
 
 __FBSDID("$FreeBSD: src/sys/dev/usb2/usb.c $");
 
@@ -105,6 +105,10 @@ static TAILQ_HEAD(, usb_event_wrapper) usb_events =
 #ifndef usb_global_lock
 struct mtx usb_global_lock;
 #endif
+
+static device_probe_t usb_probe;
+static device_attach_t usb_attach;
+static device_detach_t usb_detach;
 
 /* these variables are protected by "usb_global_lock" */
 static int usb_nevents = 0;
@@ -565,7 +569,7 @@ usb_post_init(void *arg)
 SYSINIT(usb_post_init, SI_SUB_PSEUDO, SI_ORDER_ANY, usb_post_init, NULL);
 
 static int
-usb_detach(device_t dev, int flags)
+usb_detach(device_t dev)
 {
 	struct usbd_bus *bus = device_get_softc(dev);
 	struct usb_event ue;

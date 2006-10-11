@@ -64,9 +64,9 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.45 2006/09/07 00:06:41 imp Exp
 #define usbd_config_td_cc ural_config_copy
 #define usbd_config_td_softc ural_softc
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
 
 #include "usbdevs.h"
 

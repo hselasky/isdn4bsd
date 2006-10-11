@@ -8,7 +8,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ugen.c,v 1.108 2006/09/06 23:29:53 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ugen.c,v 1.108 2006/09/06 23:29:53 imp Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -58,9 +58,9 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/ugen.c,v 1.108 2006/09/06 23:29:53 imp Exp 
 #include <sys/vnode.h>
 #include <sys/poll.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
 
 #define	UGEN_BULK_BUFFER_SIZE	(1024*64) /* bytes */
 

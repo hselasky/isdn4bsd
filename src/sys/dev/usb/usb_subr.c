@@ -11,7 +11,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/usb_subr.c,v 1.86 2006/09/10 15:20:39 trhodes Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.86 2006/09/10 15:20:39 trhodes Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -61,12 +61,12 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/usb_subr.c,v 1.86 2006/09/10 15:20:39 trhod
 #include <sys/kthread.h>
 #include <sys/unistd.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_hid.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_hid.h>
 #include "usbdevs.h"
-#include <dev/usb2/usb_quirks.h>
+#include <dev/usb/usb_quirks.h>
 
 #ifdef USBVERBOSE
 /*

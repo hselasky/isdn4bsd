@@ -74,11 +74,11 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ucom.c,v 1.60 2006/09/07 00:06:41 imp Exp $"
 #include <sys/serial.h>
 #include <sys/taskqueue.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_quirks.h>
-#include <dev/usb2/usb_cdc.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_quirks.h>
+#include <dev/usb/usb_cdc.h>
 
 #include <dev/usb/ucomvar.h>
 
@@ -96,6 +96,18 @@ SYSCTL_INT(_hw_usb_ucom, OID_AUTO, debug, CTLFLAG_RW,
 #else
 #define DPRINTF(...)
 #endif
+
+static uint8_t
+ucom_units_alloc(uint32_t sub_units, uint32_t *p_root_unit);
+
+static void
+ucom_units_free(uint32_t root_unit, uint32_t sub_units);
+
+static int
+ucom_attach_sub(struct ucom_softc *sc);
+
+static void
+ucom_detach_sub(struct ucom_softc *sc);
 
 static void
 ucom_shutdown(struct ucom_softc *sc);
@@ -134,8 +146,6 @@ ucom_start_write(struct tty *tp);
 static void
 ucom_stop_write(struct tty *tp, int fflags);
 
-devclass_t ucom_devclass;
-
 static moduledata_t ucom_mod = {
 	"ucom",
 	NULL,
@@ -146,25 +156,153 @@ DECLARE_MODULE(ucom, ucom_mod, SI_SUB_DRIVERS, SI_ORDER_MIDDLE);
 MODULE_DEPEND(ucom, usb, 1, 1, 1);
 MODULE_VERSION(ucom, UCOM_MODVER);
 
+#define UCOM_UNIT_MAX 0x1000 /* exclusive */
+
+static uint8_t ucom_bitmap[(UCOM_UNIT_MAX+7)/8];
+
+static uint8_t
+ucom_units_alloc(uint32_t sub_units, uint32_t *p_root_unit)
+{
+    uint32_t n;
+    uint32_t o;
+    uint32_t x;
+    uint32_t max = UCOM_UNIT_MAX - (UCOM_UNIT_MAX % sub_units);
+    uint8_t error = 1;
+
+    mtx_lock(&Giant);
+
+    for (n = 0; n < max; n += sub_units) {
+
+        /* check for free consecutive bits */
+
+        for (o = 0; o < sub_units; o++) {
+
+	    x = n + o;
+
+	    if (ucom_bitmap[x/8] & (1<< (x % 8))) {
+	        goto skip;
+	    }
+	}
+
+	/* allocate */
+
+        for (o = 0; o < sub_units; o++) {
+
+	    x = n + o;
+
+	    ucom_bitmap[x/8] |= (1<< (x % 8));
+	}
+
+	*p_root_unit = n;
+
+	error = 0;
+
+	break;
+
+    skip: ;
+    }
+
+    mtx_unlock(&Giant);
+
+    return error;
+}
+
+static void
+ucom_units_free(uint32_t root_unit, uint32_t sub_units)
+{
+    uint32_t x;
+
+    mtx_lock(&Giant);
+
+    while(sub_units--) {
+        x = root_unit + sub_units;
+	ucom_bitmap[x/8] &= ~(1<<(x%8));
+    }
+
+    mtx_unlock(&Giant);
+
+    return;
+}
+
+/*
+ * "N" sub_units are setup at a time. All sub-units will
+ * be given sequential unit numbers. The number of 
+ * sub-units can be used to differentiate among 
+ * different types of devices.
+ *
+ * The mutex pointed to by "p_mtx" is applied before all
+ * callbacks are called back. Also "p_mtx" must be applied
+ * before calling into the ucom-layer! Currently only Giant
+ * is supported.
+ */
 int
-ucom_attach(struct ucom_softc *sc, device_t dev)
+ucom_attach(struct ucom_softc *sc, uint32_t sub_units, void *parent, 
+	    const struct ucom_callback *callback, struct mtx *p_mtx)
+{
+	uint32_t n;
+	uint32_t root_unit;
+	int error = 0;
+
+	if ((p_mtx != &Giant) || /* XXX TTY layer requires Giant */
+	    (sc == NULL) ||
+	    (sub_units == 0) ||
+	    (callback == NULL)) {
+	    return EINVAL;
+	}
+
+	if (ucom_units_alloc(sub_units, &root_unit)) {
+	    return ENOMEM;
+	}
+
+	for (n = 0; n < sub_units; n++, sc++) {
+	    sc->sc_unit = root_unit + n;
+	    sc->sc_parent_mtx = p_mtx;
+	    sc->sc_parent = parent;
+	    sc->sc_callback = callback;
+
+	    mtx_lock(&Giant); /* XXX TTY layer */
+	    error = ucom_attach_sub(sc);
+	    mtx_unlock(&Giant); /* XXX TTY layer */
+
+	    if (error) {
+	        ucom_detach(sc - n, n);
+	        ucom_units_free(root_unit + n, sub_units - n);
+		break;
+	    }
+	    sc->sc_flag |= UCOM_FLAG_ATTACHED;
+	}
+	return error;
+}
+
+/* NOTE: the following function will do nothing if 
+ * structure pointed to by "sc" is zero.
+ */
+void
+ucom_detach(struct ucom_softc *sc, uint32_t sub_units)
+{
+	uint32_t n;
+
+	for (n = 0; n < sub_units; n++, sc++) {
+	    if (sc->sc_flag & UCOM_FLAG_ATTACHED) {
+
+		mtx_lock(&Giant); /* XXX TTY layer */
+		ucom_detach_sub(sc);
+		mtx_unlock(&Giant); /* XXX TTY layer */
+
+	        ucom_units_free(sc->sc_unit, 1);
+
+		/* avoid duplicate detach: */
+		sc->sc_flag &= ~UCOM_FLAG_ATTACHED;
+	    }
+	}
+	return;
+}
+
+static int
+ucom_attach_sub(struct ucom_softc *sc)
 {
 	struct tty *tp;
 	int error = 0;
-	int unit;
-
-	mtx_assert(&Giant, MA_OWNED);
-
-	if (device_get_devclass(dev) != ucom_devclass) {
-	   /* NOTE: if all devices are not in the same
-	    * devclass, we get duplicate unit numbers
-	    * which will crash the TTY layer!
-	    */
-	   error = EINVAL;
-	   goto done;
-	}
-
-	unit = device_get_unit(dev);
 
 	tp = ttyalloc();
 
@@ -183,12 +321,12 @@ ucom_attach(struct ucom_softc *sc, device_t dev)
 	tp->t_modem = ucom_modem;
 	tp->t_ioctl = ucom_ioctl;
 
-	DPRINTF(0, "tp = %p\n", tp);
+	DPRINTF(0, "tp = %p, unit = %d\n", tp, sc->sc_unit);
 
 #ifndef TS_CALLOUT
-#define TS_CALLOUT NULL, unit, MINOR_CALLOUT /* compile fix for FreeBSD 6.x */
+#define TS_CALLOUT NULL, sc->sc_unit, MINOR_CALLOUT /* compile fix for FreeBSD 6.x */
 #endif
-	error = ttycreate(tp, TS_CALLOUT, "U%d", unit);
+	error = ttycreate(tp, TS_CALLOUT, "U%d", sc->sc_unit);
 	if (error) {
 	    ttyfree(tp);
 	    goto done;
@@ -198,23 +336,22 @@ ucom_attach(struct ucom_softc *sc, device_t dev)
 
 	TASK_INIT(&(sc->sc_task), 0, &ucom_notify, sc);
 
-	DPRINTF(0, "ttycreate: ttyU%d\n", unit);
+	DPRINTF(0, "ttycreate: ttyU%d\n", sc->sc_unit);
 
  done:
 	return error;
 }
 
-void
-ucom_detach(struct ucom_softc *sc)
+static void
+ucom_detach_sub(struct ucom_softc *sc)
 {
 	struct tty *tp = sc->sc_tty;
-
-	mtx_assert(&Giant, MA_OWNED);
 
 	DPRINTF(0, "sc = %p, tp = %p\n", sc, sc->sc_tty);
 
 	sc->sc_flag |= UCOM_FLAG_GONE;
-
+	sc->sc_flag &= ~(UCOM_FLAG_READ_ON|
+			 UCOM_FLAG_WRITE_ON);
 	if (tp) {
 
 	    ttygone(tp);
@@ -299,6 +436,8 @@ ucom_open(struct tty *tp, struct cdev *dev)
 	    }
 	}
 
+	sc->sc_flag |= UCOM_FLAG_READ_ON;
+
 	if (sc->sc_callback->ucom_start_read) {
 	    (sc->sc_callback->ucom_start_read)(sc);
 	}
@@ -320,6 +459,9 @@ ucom_close(struct tty *tp)
 	tp->t_state &= ~TS_BUSY;
 
 	ucom_shutdown(sc);
+
+	sc->sc_flag &= ~(UCOM_FLAG_READ_ON|
+			 UCOM_FLAG_WRITE_ON);
 
 	if (sc->sc_callback->ucom_stop_read) {
 	    (sc->sc_callback->ucom_stop_read)(sc);
@@ -547,6 +689,8 @@ ucom_param(struct tty *tp, struct termios *t)
 	}
 
 #if 0
+	sc->sc_flag &= ~UCOM_FLAG_READ_ON;
+
 	if (sc->sc_callback->ucom_stop_read) {
 	    (sc->sc_callback->ucom_stop_read)(sc);
 	}
@@ -570,6 +714,8 @@ ucom_param(struct tty *tp, struct termios *t)
 	ttyldoptim(tp);
 
 #if 0
+	sc->sc_flag |= UCOM_FLAG_READ_ON;
+
 	if (sc->sc_callback->ucom_start_read) {
 	    (sc->sc_callback->ucom_start_read)(sc);
 	}
@@ -592,6 +738,8 @@ ucom_start_write(struct tty *tp)
 	}
 
 	tp->t_state |= TS_BUSY;
+
+	sc->sc_flag |= UCOM_FLAG_WRITE_ON;
 
 	if (sc->sc_callback->ucom_start_write) {
 	    (sc->sc_callback->ucom_start_write)(sc);
@@ -644,6 +792,10 @@ ucom_get_data(struct ucom_softc *sc, u_int8_t *buf, u_int32_t len,
 	mtx_assert(&Giant, MA_OWNED);
 
 	actlen[0] = 0;
+
+	if (!(sc->sc_flag & UCOM_FLAG_WRITE_ON)) {
+	    return 0; /* multiport device polling */
+	}
 
 	if (tp->t_state & TS_TBLOCK) {
 	    if ((sc->sc_mcr & SER_RTS) &&
@@ -698,6 +850,10 @@ ucom_put_data(struct ucom_softc *sc, u_int8_t *ptr, u_int16_t len)
 	u_int16_t lostcc;
 
 	mtx_assert(&Giant, MA_OWNED);
+
+	if (!(sc->sc_flag & UCOM_FLAG_READ_ON)) {
+	    return; /* multiport device polling */
+	}
 
 	/* set a flag to prevent recursation */
 

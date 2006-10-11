@@ -1,9 +1,9 @@
 # $FreeBSD: src/sys/modules/ukbd/Makefile,v 1.21 2005/10/14 23:30:16 yar Exp $
 
-.PATH: ${.CURDIR}/../../dev/usb2
+.PATH: ${.CURDIR}/../../dev/usb
 
 KMOD=	ukbd
-SRCS=	bus_if.h device_if.h opt_usb.h opt_kbd.h opt_ukbd.h usbdevs.h _ukbd.c
+SRCS=	bus_if.h device_if.h opt_usb.h opt_kbd.h opt_ukbd.h usbdevs.h ukbd.c
 
 .if !defined(KERNBUILDDIR)
 opt_kbd.h:

@@ -58,11 +58,11 @@
 #include <dev/kbd/kbdreg.h>
 #include <dev/kbd/kbdtables.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_hid.h>
-#include <dev/usb2/usb_quirks.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_hid.h>
+#include <dev/usb/usb_quirks.h>
 
 /* the initial key map, accent map and fkey strings */
 #ifdef UKBD_DFLT_KEYMAP
@@ -70,7 +70,7 @@
 #include "ukbdmap.h"
 #endif
 
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ukbd.c,v 1.53 2006/02/28 03:34:06 emax Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.53 2006/02/28 03:34:06 emax Exp $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\

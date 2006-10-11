@@ -42,11 +42,11 @@
 #include <sys/lock.h>
 #include <sys/malloc.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_hid.h>
-#include <dev/usb2/usb_quirks.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_hid.h>
+#include <dev/usb/usb_quirks.h>
 
 __FBSDID("$FreeBSD: src/sys/dev/usb2/usbdi_util.c $");
 

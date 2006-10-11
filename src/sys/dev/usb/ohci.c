@@ -13,7 +13,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ohci.c,v 1.164 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ohci.c,v 1.164 2006/09/07 00:06:41 imp Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -69,10 +69,10 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/ohci.c,v 1.164 2006/09/07 00:06:41 imp Exp 
 
 #define INCLUDE_PCIXXX_H
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/ohci.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/ohci.h>
 
 #define MS_TO_TICKS(ms) (((ms) * hz) / 1000)
 #define OHCI_BUS2SC(bus) ((ohci_softc_t *)(((u_int8_t *)(bus)) - \

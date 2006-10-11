@@ -43,11 +43,11 @@
 #include <sys/serial.h>
 #include <sys/taskqueue.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_quirks.h>
-#include <dev/usb2/usb_cdc.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_quirks.h>
+#include <dev/usb/usb_cdc.h>
 
 #include <dev/usb/ucomvar.h>
 
@@ -377,13 +377,15 @@ static device_method_t uvscom_methods[] = {
     { 0, 0 }
 };
 
+static devclass_t uvscom_devclass;
+
 static driver_t uvscom_driver = {
-    .name    = "ucom",
+    .name    = "uvscom",
     .methods = uvscom_methods,
     .size    = sizeof (struct uvscom_softc),
 };
 
-DRIVER_MODULE(uvscom, uhub, uvscom_driver, ucom_devclass, usbd_driver_load, 0);
+DRIVER_MODULE(uvscom, uhub, uvscom_driver, uvscom_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(uvscom, usb, 1, 1, 1);
 MODULE_DEPEND(uvscom, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 MODULE_VERSION(uvscom, UVSCOM_MODVER);
@@ -462,12 +464,8 @@ uvscom_attach(device_t dev)
 	sc->sc_rts = -1;
 	sc->sc_line_ctrl = UVSCOM_LINE_INIT;
 
-	sc->sc_ucom.sc_parent = sc;
-	sc->sc_ucom.sc_portno = 0;
-	sc->sc_ucom.sc_callback = &uvscom_callback;
-
-	error = ucom_attach(&(sc->sc_ucom), dev);
-
+	error = ucom_attach(&(sc->sc_ucom), 1, sc,
+			    &uvscom_callback, &Giant);
 	if (error) {
 	    goto detach;
 	}
@@ -504,7 +502,7 @@ uvscom_detach(device_t dev)
 	    usbd_transfer_stop(sc->sc_xfer[4]);
 	}
 
-	ucom_detach(&(sc->sc_ucom));
+	ucom_detach(&(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UVSCOM_N_TRANSFER);
 

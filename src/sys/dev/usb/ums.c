@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ums.c,v 1.82 2006/09/07 00:06:42 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ums.c,v 1.82 2006/09/07 00:06:42 imp Exp $");
 
 /*
  * HID spec: http://www.usb.org/developers/devclass_docs/HID1_11.pdf
@@ -54,10 +54,10 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/ums.c,v 1.82 2006/09/07 00:06:42 imp Exp $"
 #include <sys/poll.h>
 #include <sys/mouse.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_hid.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_hid.h>
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\

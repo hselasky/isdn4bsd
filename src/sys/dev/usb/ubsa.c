@@ -69,11 +69,11 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.19 2006/09/07 00:06:41 imp Exp $"
 #include <sys/serial.h>
 #include <sys/taskqueue.h>
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/usb_quirks.h>
-#include <dev/usb2/usb_cdc.h>
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_quirks.h>
+#include <dev/usb/usb_cdc.h>
 
 #include <dev/usb/ucomvar.h>
 
@@ -440,13 +440,15 @@ static device_method_t ubsa_methods[] = {
     { 0, 0 }
 };
 
+static devclass_t ubsa_devclass;
+
 static driver_t ubsa_driver = {
-    .name    = "ucom",
+    .name    = "ubsa",
     .methods = ubsa_methods,
     .size    = sizeof(struct ubsa_softc),
 };
 
-DRIVER_MODULE(ubsa, uhub, ubsa_driver, ucom_devclass, usbd_driver_load, 0);
+DRIVER_MODULE(ubsa, uhub, ubsa_driver, ubsa_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(ubsa, usb, 1, 1, 1);
 MODULE_DEPEND(ubsa, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 MODULE_VERSION(ubsa, UBSA_MODVER);
@@ -526,12 +528,8 @@ ubsa_attach(device_t dev)
 	sc->sc_dtr = -1;
 	sc->sc_rts = -1;
 
-	sc->sc_ucom.sc_parent = sc;
-	sc->sc_ucom.sc_portno = 0;
-	sc->sc_ucom.sc_callback = &ubsa_callback;
-
-	error = ucom_attach(&(sc->sc_ucom), dev);
-
+	error = ucom_attach(&(sc->sc_ucom), 1, sc,
+			    &ubsa_callback, &Giant);
 	if (error) {
 	    DPRINTF(0, "ucom_attach failed\n");
 	    goto detach;
@@ -551,7 +549,7 @@ ubsa_detach(device_t dev)
 
 	DPRINTF(0, "sc=%p\n", sc);
 
-	ucom_detach(&(sc->sc_ucom));
+	ucom_detach(&(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UBSA_N_TRANSFER);
 

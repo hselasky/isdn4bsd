@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ehci_pci.c,v 1.23 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ehci_pci.c,v 1.23 2006/09/07 00:06:41 imp Exp $");
 
 /*
  * USB Enhanced Host Controller Driver, a.k.a. USB 2.0 controller.
@@ -64,10 +64,10 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/ehci_pci.c,v 1.23 2006/09/07 00:06:41 imp E
 
 #define INCLUDE_PCIXXX_H
 
-#include <dev/usb2/usb_port.h>
-#include <dev/usb2/usb.h>
-#include <dev/usb2/usb_subr.h>
-#include <dev/usb2/ehci.h> 
+#include <dev/usb/usb_port.h>
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_subr.h>
+#include <dev/usb/ehci.h> 
 
 #define PCI_EHCI_VENDORID_ACERLABS	0x10b9
 #define PCI_EHCI_VENDORID_AMD		0x1022

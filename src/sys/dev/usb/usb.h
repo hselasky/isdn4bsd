@@ -1,3 +1,6 @@
+/*	$NetBSD: usb.h,v 1.69 2002/09/22 23:20:50 augustss Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb/usb.h,v 1.41 2006/09/06 23:44:24 imp Exp $    */
+
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -46,7 +49,15 @@
 #endif
 
 #if defined(_KERNEL)
-#include <dev/usb2/usb_port.h>
+#if 1
+#include <dev/usb/usb_port.h>
+#else
+#include <sys/malloc.h>
+
+MALLOC_DECLARE(M_USB);
+MALLOC_DECLARE(M_USBDEV);
+MALLOC_DECLARE(M_USBHC);
+#endif
 #endif /* _KERNEL */
 
 /* These two defines are used by usbd to autoload the usb kld */
@@ -279,7 +290,9 @@ typedef struct {
 #define UE_SET_DIR(a,d)	((a) | (((d)&1) << 7))
 #define UE_DIR_IN	0x80
 #define UE_DIR_OUT	0x00
+#define UE_DIR_ANY	0xff /* for internal use only! */
 #define UE_ADDR		0x0f
+#define UE_ADDR_ANY	0xff /* for internal use only! */
 #define UE_GET_ADDR(a)	((a) & UE_ADDR)
 	uByte		bmAttributes;
 #define UE_XFERTYPE	0x03
@@ -287,6 +300,8 @@ typedef struct {
 #define  UE_ISOCHRONOUS	0x01
 #define  UE_BULK	0x02
 #define  UE_INTERRUPT	0x03
+#define  UE_BULK_INTR	0xfe /* for internal use only! */
+#define  UE_TYPE_ANY	0xff /* for internal use only! */
 #define UE_GET_XFERTYPE(a)	((a) & UE_XFERTYPE)
 #define UE_ISO_TYPE	0x0c
 #define  UE_ISO_ASYNC	0x04
@@ -301,7 +316,7 @@ typedef struct {
 typedef struct {
 	uByte		bLength;
 	uByte		bDescriptorType;
-	uWord		bString[127];
+	uWord		bString[126];
 } UPACKED usb_string_descriptor_t;
 #define USB_MAX_STRING_LEN 128
 #define USB_LANGUAGE_TABLE 0	/* # of the string language id table */

@@ -1,1 +1,2 @@
-#include <dev/usb/hid.h>
+#include <dev/usb2/usb_hid.h>
+

@@ -319,6 +319,7 @@ vendor SANWASUPPLY	0x0663	Sanwa Supply
 vendor LINKSYS		0x066b	Linksys
 vendor ACERSA		0x066e	Acer
 vendor SIGMATEL		0x066f	Sigmatel
+vendor DRAYTEK		0x0675	DrayTek
 vendor AIWA		0x0677	Aiwa
 vendor ACARD		0x0678	ACARD
 vendor PROLIFIC		0x067b	Prolific
@@ -359,6 +360,7 @@ vendor LOGITEC		0x0789	Logitec
 vendor BRIMAX		0x078e	Brimax
 vendor AXIS		0x0792	Axis
 vendor ABL		0x0794	ABL
+vendor SAGEM		0x079b	Sagem
 vendor SUNCOMM		0x079c	Sun Communications
 vendor ALFADATA		0x079d	Alfadata
 vendor NATIONALTECH	0x07a2	National Technical
@@ -451,6 +453,7 @@ vendor MEDIAGEAR	0x0a48	MediaGear
 vendor BROADCOM		0x0a5c	Broadcom
 vendor GREENHOUSE	0x0a6b	GREENHOUSE
 vendor GEOCAST		0x0a79	Geocast
+vendor ZYDAS		0x0ace	ZyDAS Technology
 vendor NEODIO		0x0aec	Neodio
 vendor VODAFONE		0x0af0	Vodafone
 vendor ASUS		0x0b05	ASUS
@@ -479,6 +482,7 @@ vendor ADDON		0x0d7d	Add-on Technology
 vendor ACDC		0x0d7e	ACDC
 vendor ABC		0x0d8c	ABC
 vendor MSI		0x0db0	Micro Star International
+vendor SITECOMEU	0x0df6	Sitecom Europe
 vendor HAWKING		0x0e66	Hawking
 vendor GMATE		0x0e7e	G.Mate, Inc
 vendor OTI		0x0ea0	Ours
@@ -501,16 +505,20 @@ vendor TWINMOS		0x126f	TwinMOS
 vendor TSUNAMI		0x1241	Tsunami
 vendor CREATIVE2	0x1292	Creative Labs
 vendor BELKIN2		0x1293	Belkin
+vendor CYBERTAN		0x129b	CyberTAN Technology
 vendor AINCOMM		0x12fd	Aincomm
 vendor MOBILITY		0x1342	Mobility
 vendor LINKSYS4		0x13b1	Linksys
 vendor SHARK		0x13d2	Shark
+vendor WISTRONNEWEB	0x1435	Wistron NeWeb
 vendor SILICOM		0x1485	Silicom
 vendor RALINK		0x148f	Ralink Technology
 vendor IMAGINATION	0x149a	Imagination Technologies
 vendor CONCEPTRONIC	0x14b2	Conceptronic
+vendor PLANEX3		0x14ea	Planex Communications
 vendor SILICONPORTALS	0x1527	Silicon Portals
 vendor PNY		0x154b	PNY
+vendor UMEDIA		0x157e	U-MEDIA Communications
 vendor SOHOWARE		0x15e8	SOHOware
 vendor UMAX		0x1606	UMAX
 vendor INSIDEOUT	0x1608	Inside Out Networks
@@ -518,6 +526,7 @@ vendor ENTREGA		0x1645	Entrega
 vendor ACTIONTEC	0x1668	Actiontec
 vendor LINKSYS3		0x1915	Linksys
 vendor DLINK		0x2001	D-Link
+vendor PLANEX2		0x2019	Planex Communications
 vendor ERICSSON		0x2282	Ericsson
 vendor MOTOROLA2	0x22b8	Motorola
 vendor TRIPPLITE	0x2478	Tripp-Lite
@@ -534,9 +543,11 @@ vendor IODATA2		0x40bb	I-O Data
 vendor IRIVER		0x4102	iRiver
 vendor DELL		0x413c	Dell
 vendor AVERATEC		0x50c2	Averatec
+vendor SWEEX		0x5173	Sweex
 vendor ONSPEC2		0x55aa	OnSpec
 vendor ZINWELL		0x5a57	Zinwell
 vendor SITECOM		0x6189	Sitecom
+vendor 3COM2		0x6891	3Com
 vendor INTEL		0x8086	Intel
 vendor HP2		0xf003	Hewlett Packard
 
@@ -558,6 +569,8 @@ product 3COMUSR USRISDN		0x008f	3Com U.S. Robotics Pro ISDN TA
 product 3COMUSR HOMECONN	0x009d	3Com HomeConnect camera
 product 3COMUSR USR56K		0x3021	U.S.Robotics 56000 Voice Faxmodem Pro
 
+product 3COM2 3CRUSB10075	0xa727	3CRUSB10075
+
 /* AboCom products */
 product ABOCOM XX1		0x110c	XX1
 product ABOCOM XX2		0x200c	XX2
@@ -570,6 +583,7 @@ product ABOCOM XX6		0x400b	XX6
 product ABOCOM XX7		0x400c	XX7
 product ABOCOM XX8		0x4102	XX8
 product ABOCOM XX9		0x4104	XX9
+product ABOCOM WL54		0x6001	WL54
 product ABOCOM XX10		0xabc1	XX10
 
 /* Accton products */
@@ -674,6 +688,7 @@ product ASIX AX88172		0x1720  10/100 ethernet
 
 /* ASUS products */
 product ASUS WL167G		0x1707	WL-167g wireless adapter
+product ASUS WL159G		0x170c	WL-159g
 
 /* ATen products */
 product ATEN UC1284		0x2001	Parallel printer
@@ -703,6 +718,7 @@ product BELKIN F5U208		0x0208	F5U208 VideoBus II
 product BELKIN F5U409		0x0409	F5U409 Serial
 product BELKIN F5U120		0x1203	F5U120-PC Hub
 product BELKIN F5D7050		0x7050	F5D7050 wireless adapter
+product BELKIN F5D7050C		0x705c	F5D705C 54g USB Network Adapter
 
 /* Billionton products */
 product BILLIONTON USB100	0x0986	USB100N 10/100 FastEthernet
@@ -783,6 +799,9 @@ product CONCEPTRONIC C54U	0x3c02	C54U wireless adapter
 /* CTX products */
 product CTX EX1300		0x9999	Ex1300 hub
 
+/* CyberTAN Technology */
+product CYBERTAN TG54USB	0x1666	TG54USB
+
 /* Cypress Semiconductor products */
 product CYPRESS MOUSE		0x0001	mouse
 product CYPRESS THERMO		0x0002	thermometer
@@ -822,6 +841,9 @@ product DLINK DSB650TX_PNA	0x4003	1/10/100 ethernet
 product DLINK DSB650TX3		0x400b	10/100 ethernet
 product DLINK DSB650TX2		0x4102	10/100 ethernet
 product DLINK DSB650		0xabc1	10/100 ethernet
+
+/* DrayTek products */
+product DRAYTEK VIGOR550	0x0550	Vigor550
 
 /* EIZO products */
 product EIZO HUB		0x0000	hub
@@ -1357,6 +1379,10 @@ product PHILIPSSEMI HUB1122	0x1122	hub
 /* P.I. Engineering products */
 product PIENGINEERING PS2USB	0x020b	PS2 to Mac USB Adapter
 
+/* Planex Communications products */
+product PLANEX3 GWUS54MINI	0xab13	GW-US54Mini
+product PLANEX2 GWUS54GZL	0xc007	GW-US54GZL
+
 /* Plextor Corp. */
 product PLEXTOR 40_12_40U	0x0011	PlexWriter 40/12/40U
 
@@ -1428,6 +1454,9 @@ product ROCKFIRE GAMEPAD	0x2033	gamepad 203USB
 /* RATOC Systems products */
 product RATOC REXUSB60		0xb000	REX-USB60
 
+/* Sagem products */
+product SAGEM XG760A		0x004a	XG-760A
+
 /* Samsung products */
 product SAMSUNG ML6060		0x3008	ML-6060 laser printer
 
@@ -1490,6 +1519,9 @@ product SIRIUS ROADSTER		0x0001	NetComm Roadster II 56 USB
 /* Sitecom products */
 product SITECOM LN029		0x182d	USB 2.0 Ethernet
 product SITECOM SERIAL		0x2068	USB to serial cable (v2)
+
+/* Sitecom Europe products */
+product SITECOMEU WL113		0x9071	WL-113
 
 /* SmartBridges products */
 product SMARTBRIDGES SMARTLINK	0x0001	SmartLink USB ethernet
@@ -1556,6 +1588,9 @@ product DIAMOND2 SUPRA2890	0x0b4a	SupraMax 2890 56K Modem
 product DIAMOND2 RIO600USB	0x5001	Rio 600 USB
 product DIAMOND2 RIO800USB	0x5002	Rio 800 USB
 
+/* Sweex products */
+product SWEEX ZD1211		0x1809	ZD1211
+
 /* System TALKS, Inc. */
 product SYSTEMTALKS SGCX2UL	0x1920	SGC-X2UL
 
@@ -1571,6 +1606,10 @@ product TDK BT_DONGLE		0x0309	Bluetooth USB dongle
 
 /* TEAC products */
 product TEAC FD05PUB		0x0000	FD-05PUB floppy
+
+/* Tekram Technology products */
+product TEKRAM QUICKWLAN	0x1630	QuickWLAN
+product TEKRAM ZD1211		0x5630	ZD1211
 
 /* Telex Communications products */
 product TELEX MIC1		0x0001	Enhanced USB Microphone
@@ -1595,8 +1634,9 @@ product TRIPPLITE U209		0x2008	Serial
 /* Trumpion products */
 product TRUMPION C3310		0x1100	Comotron C3310 MP3 player
 
-/* TwinMOS */
+/* TwinMOS products */
 product TWINMOS MDIV		0x1325	Memory Disk IV
+product TWINMOS G240		0xa006	G240
 
 /* Ultima products */
 product ULTIMA 1200UBPLUS	0x4002	1200 UB Plus scanner
@@ -1608,6 +1648,10 @@ product UMAX ASTRA2000U		0x0030	Astra 2000U Scanner
 product UMAX ASTRA2100U		0x0130	Astra 2100U Scanner
 product UMAX ASTRA2200U		0x0230	Astra 2200U Scanner
 product UMAX ASTRA3400		0x0060	Astra 3400 Scanner
+
+/* U-MEDIA Communications products */
+product UMEDIA TEW429UB_A	0x300a	TEW-429UB_A
+product UMEDIA TEW429UB		0x300b	TEW-429UB
 
 /* Universal Access products */
 product UNIACCESS PANACHE	0x0101	Panache Surf USB ISDN Adapter
@@ -1647,6 +1691,9 @@ product WESTERN HUB		0x0500	USB HUB
 /* Windbond Electronics */
 product WINBOND UH104		0x5518	4-port USB Hub
 
+/* Wistron NeWeb products */
+product WISTRONNEWEB UR055G	0x0711	UR055G
+
 /* Xirlink products */
 product XIRLINK PCCAM		0x8080	IBM PC Camera
 
@@ -1670,6 +1717,10 @@ product ZINWELL RT2570		0x0260	RT2570
 /* Zoom Telephonics, Inc. products */
 product ZOOM 2986L		0x9700	2986L Fax modem
 
+/* ZyDAS Technology products */
+product ZYDAS ZD1211		0x1211	ZD1211
+
 /* ZyXEL Communication Co. products */
 product ZYXEL OMNI56K		0x1500	Omni 56K Plus
 product ZYXEL 980N		0x2011	Scorpion-980N keyboard
+product ZYXEL ZYAIRG220		0x3401	ZyAIR G-220
