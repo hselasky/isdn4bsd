@@ -1,5 +1,5 @@
-VERSION=1_6_1_r2
-DATE=August 2006
+VERSION=1_6_2
+DATE=October 2006
 
 FILTER= grep -v "temp"   | \
 	grep -v "~"      | \
@@ -650,7 +650,11 @@ diffs: clean
 
 	bzip2 ${TEMP} && mv ${TEMP}.bz2 ${DIFF}
 
-package: diffs
+sorry:
+	@echo "The system is currently under reconstruction. Please check out again in some hours!"
+	@exit 1
+
+package: sorry diffs
 	@cd ${S}/lib/libcapi20 && make clean cleandepend
 
 	@cd ${S}/usr.sbin/i4b && make clean cleandepend
