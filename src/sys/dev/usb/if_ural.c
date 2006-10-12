@@ -942,7 +942,9 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	ic->ic_reset = &ural_reset_cb;
 
 	/* enable SW bmiss handling in sta mode */
+#if (defined(IEEE80211_FEXT_SWBMISS) || (__FreeBSD_version >= 700022))
 	ic->ic_flags_ext |= IEEE80211_FEXT_SWBMISS;
+#endif
 
 	/* override state transition machine */
 	sc->sc_newstate = ic->ic_newstate;

@@ -323,7 +323,7 @@ ucom_attach_sub(struct ucom_softc *sc)
 
 	DPRINTF(0, "tp = %p, unit = %d\n", tp, sc->sc_unit);
 
-#ifndef TS_CALLOUT
+#if !(defined(TS_CALLOUT) || (__FreeBSD_version >= 700022))
 #define TS_CALLOUT NULL, sc->sc_unit, MINOR_CALLOUT /* compile fix for FreeBSD 6.x */
 #endif
 	error = ttycreate(tp, TS_CALLOUT, "U%d", sc->sc_unit);

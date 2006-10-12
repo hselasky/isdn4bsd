@@ -7,7 +7,7 @@
 MAINTAINER=hselasky@c2i.net
 
 I4B_DIR=${.CURDIR}/../src/sys/i4b
-USB_DIR=${.CURDIR}/../src/sys/dev/usb2
+USB_DIR=${.CURDIR}/../src/sys/dev/usb
 
 .PATH:  ${I4B_DIR}/driver ${I4B_DIR}/layer4 \
 	${I4B_DIR}/layer1/ihfc2 ${I4B_DIR}/dss1 \
@@ -55,8 +55,8 @@ freebsd_kern_timeout.c freebsd_kern_mbuf.c
 # Generic EHCI / UHCI / OHCI USB controller driver
 #
 SRCS+= \
-_ehci.c _ehci_pci.c _ohci.c _ohci_pci.c _uhci.c _uhci_pci.c \
-_ugen.c _uhub.c _usb.c _usb_requests.c _usb_subr.c _usb_transfer.c \
+ehci.c ehci_pci.c ohci.c ohci_pci.c uhci.c uhci_pci.c \
+ugen.c uhub.c usb.c usb_requests.c usb_subr.c usb_transfer.c \
 freebsd_usb_quirks.c
 
 CFLAGS+= -DIHFC_USB_ENABLED

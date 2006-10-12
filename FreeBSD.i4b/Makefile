@@ -33,7 +33,7 @@ CONF_DIR=${S}/sys/i386/conf
 REMOVE_FILES=\
 ${S}/sys/i386/include/i4b*h \
 ${INCLUDE}/machine/i4b*h \
-${INCLUDE}/dev/usb2/*h \
+${INCLUDE}/dev/usb/*h \
 ${INCLUDE}/i4b/include/*h \
 
 I4B_FILES=\
@@ -62,15 +62,20 @@ ${S}/sys/modules/ums/Makefile \
 ${S}/sys/modules/ukbd/Makefile \
 ${S}/sys/modules/ulpt/Makefile \
 ${S}/sys/modules/uhid/Makefile \
-${S}/sys/tools/usbdevs2h.awk \
-${S}/sys/dev/usb/usb.h \
-${S}/sys/dev/usb/usb_port.h \
-${S}/sys/dev/usb/usbdi.h \
-${S}/sys/dev/usb/usbdi_util.h \
-${S}/sys/dev/usb/usbdivar.h \
-${S}/sys/dev/usb/hid.h \
-${S}/sys/dev/usb/usbhid.h \
-${S}/sys/dev/usb2 \
+${S}/sys/modules/ubser/Makefile \
+${S}/sys/tools/usbdevs2h.awk\
+${S}/sys/dev/ata/ata-usb.c \
+${S}/sys/dev/sound/pcm/mixer.c \
+${S}/sys/dev/sound/pcm/mixer.h \
+${S}/sys/dev/sound/usb/uaudio.c \
+${S}/sys/dev/sound/usb/uaudio.h \
+${S}/sys/dev/sound/usb/uaudio_pcm.c \
+${S}/sys/dev/sound/usb/uaudioreg.h \
+${S}/sys/dev/usb \
+${S}/sys/netgraph/bluetooth/drivers/ubt/TODO \
+${S}/sys/netgraph/bluetooth/drivers/ubt/ng_ubt.c \
+${S}/sys/netgraph/bluetooth/drivers/ubt/ng_ubt_var.h \
+${S}/sys/netgraph/bluetooth/drivers/ubtbcmfw/ubtbcmfw.c \
 
 USB_MODULES=\
 ${S}/sys/modules/aue \
@@ -124,7 +129,6 @@ DIFF_FILES=\
 ${HEADER_FIX_FILES} \
 ${S}/sys/i386/include/bus_at386.h \
 ${S}/sys/conf/kmod.mk \
-${S}/sys/dev/sound/usb/uaudio.c \
 ${S}/sys/dev/sound/pcm/sound.c \
 ${S}/sys/dev/sound/pcm/vchan.c \
 ${S}/sys/dev/sound/pcm/channel.c \
@@ -132,18 +136,6 @@ ${S}/sys/dev/sound/pcm/channel.h \
 ${S}/sys/dev/sound/pcm/dsp.c \
 ${S}/sys/dev/sound/isa/sb16.c \
 ${S}/sys/dev/sound/isa/sb8.c \
-${S}/sys/dev/usb/if_ural.c \
-${S}/sys/dev/usb/ufoma.c \
-${S}/sys/dev/usb/ums.c \
-${S}/sys/dev/usb/udbp.c \
-${S}/sys/dev/usb/ukbd.c \
-${S}/sys/dev/usb/umass.c \
-${S}/sys/dev/usb/umodem.c \
-${S}/sys/dev/usb/uvisor.c \
-${S}/sys/dev/usb/ucycom.c \
-${S}/sys/dev/usb/hid.c \
-${S}/sys/dev/usb/usb_quirks.c \
-${S}/sys/dev/usb/usbdevs \
 ${S}/etc/mtree/BSD.include.dist \
 ${S}/include/Makefile \
 ${S}/usr.sbin/Makefile.inc \
@@ -194,32 +186,14 @@ ${N}i4b/layer1/ihfc2/i4b_ihfc2_dev.c    optional ihfc \
 ${N}i4b/layer1/ihfc2/i4b_ihfc2_end.c    optional ihfc \
 ${N}\# \
 ${N}\# USB support \
-${N}dev/usb2/_uhci.c            optional usb \
-${N}dev/usb2/_uhci_pci.c        optional usb \
-${N}dev/usb2/_uhci.c            optional uhci \
-${N}dev/usb2/_uhci_pci.c        optional uhci \
-${N}dev/usb2/_ohci.c            optional usb \
-${N}dev/usb2/_ohci_pci.c        optional usb \
-${N}dev/usb2/_ohci.c            optional ohci \
-${N}dev/usb2/_ohci_pci.c        optional ohci \
-${N}dev/usb2/_ehci.c            optional ehci \
-${N}dev/usb2/_ehci_pci.c        optional ehci \
-${N}dev/usb2/_uhub.c            optional usb \
-${N}dev/usb2/_usb.c             optional usb \
-${N}dev/usb2/_usb_requests.c    optional usb \
-${N}dev/usb2/_usb_subr.c        optional usb \
-${N}dev/usb2/_usb_transfer.c    optional usb \
-${N}dev/usb2/_usb_cdev.c        optional usb \
-${N}dev/usb2/_usb_hid.c         optional usb \
-${N}dev/usb2/_ugen.c            optional ugen \
-${N}dev/usb2/_ulpt.c            optional ulpt \
-${N}dev/usb2/_ums.c             optional ums \
-${N}dev/usb2/_ukbd.c            optional ukbd \
-${N}dev/usb2/_uhid.c            optional uhid \
-${N}usbdevs.h                   optional usb dependency \"$$S/tools/usbdevs2h.awk $$S/dev/usb/usbdevs\" compile-with \"$${AWK} -f $$S/tools/usbdevs2h.awk $$S/dev/usb/usbdevs\" no-obj no-implicit-rule before-depend clean \"usbdevs.h\" \
+${N}dev/usb/usb.c             optional usb \
+${N}dev/usb/usb_requests.c    optional usb \
+${N}dev/usb/usb_subr.c        optional usb \
+${N}dev/usb/usb_transfer.c    optional usb \
+${N}dev/usb/usb_cdev.c        optional usb \
+${N}dev/usb/usb_hid.c         optional usb \
+${N}usbdevs.h                 optional usb dependency \"$$S/tools/usbdevs2h.awk $$S/dev/usb/usbdevs\" compile-with \"$${AWK} -f $$S/tools/usbdevs2h.awk $$S/dev/usb/usbdevs\" no-obj no-implicit-rule before-depend clean \"usbdevs.h\" \
 ${N}'
-
-FILES_I386_PC98_APPEND=''
 
 CHANNEL_H_APPEND='\
 ${N}void chn_rel(struct cdev *dev, struct pcm_channel *rdch, struct pcm_channel *wrch, u_int32_t prio);\
@@ -232,11 +206,10 @@ ${N}'
 #
 
 M=ше
-BSD_INCLUDE_DIST_APPEND_1="${M}usb2${M}.."
 BSD_INCLUDE_DIST_APPEND_2="еi4b${M}  include${M}  ..${M}..ш.."
 
 HELP='\#\
-${N}\# ISDN4BSD v.${VERSION:C/_/./g} for FreeBSD 5/6/7 - ${DATE} \
+${N}\# ISDN4BSD v.${VERSION:C/_/./g} for FreeBSD 6/7 - ${DATE} \
 ${N}\# \
 ${N}\# source directory:      ${S} \
 ${N}\# backup directory:      ${.CURDIR} \
@@ -351,15 +324,21 @@ backup:
 	mkdir ${S}/sys/dev/sound/isa   || echo -n
 	mkdir ${S}/sys/dev/sound/pcm   || echo -n
 	mkdir ${S}/sys/dev/sound/usb   || echo -n
+	mkdir ${S}/sys/dev/ata         || echo -n
 	mkdir ${S}/sys/dev/usb         || echo -n
-	mkdir ${S}/sys/dev/usb2        || echo -n
 	mkdir ${S}/sys/modules         || echo -n
+	mkdir ${S}/sys/modules/ubser   || echo -n
 	mkdir ${S}/sys/modules/ugen    || echo -n
 	mkdir ${S}/sys/modules/uhid    || echo -n
 	mkdir ${S}/sys/modules/ukbd    || echo -n
 	mkdir ${S}/sys/modules/ulpt    || echo -n
 	mkdir ${S}/sys/modules/ums     || echo -n
 	mkdir ${S}/sys/modules/usb     || echo -n
+	mkdir ${S}/sys/netgraph        || echo -n
+	mkdir ${S}/sys/netgraph/bluetooth  || echo -n
+	mkdir ${S}/sys/netgraph/bluetooth/drivers  || echo -n
+	mkdir ${S}/sys/netgraph/bluetooth/drivers/ubt  || echo -n
+	mkdir ${S}/sys/netgraph/bluetooth/drivers/ubtbcmfw  || echo -n
 	mkdir ${S}/sys/conf            || echo -n
 	mkdir ${S}/sys/i386            || echo -n
 	mkdir ${S}/sys/i386/include    || echo -n
@@ -378,7 +357,7 @@ backup:
 	mkdir ${INCLUDE}/i4b           || echo -n
 	mkdir ${INCLUDE}/i4b/include   || echo -n
 	mkdir ${INCLUDE}/dev           || echo -n
-	mkdir ${INCLUDE}/dev/usb2      || echo -n
+	mkdir ${INCLUDE}/dev/usb       || echo -n
 	mkdir ${INCLUDE}/machine       || echo -n
 
 #
@@ -388,7 +367,7 @@ backup:
 .for FILE in \
 ${S}/sys/i386/include/i4b_ioctl.h \
 ${INCLUDE}/i4b/include/i4b_ioctl.h \
-${INCLUDE}/dev/usb2/usb.h \
+${INCLUDE}/dev/usb/usb.h \
 ${INCLUDE}/machine/i4b_ioctl.h \
 ${I4B_FILES} \
 ${USB_FILES} \
@@ -461,23 +440,16 @@ update_config:
 	| grep -v " new_usb" \
 	| grep -v "i4b/" \
 	| grep -v "dev/usb2" \
-	| grep -v "dev/usb/ehci.c" \
-	| grep -v "dev/usb/ehci_pci.c" \
-	| grep -v "dev/usb/ohci.c" \
-	| grep -v "dev/usb/ohci_pci.c" \
-	| grep -v "dev/usb/uhci.c" \
-	| grep -v "dev/usb/uhci_pci.c" \
-	| grep -v "dev/usb/uhub.c" \
 	| grep -v "dev/usb/usb.c" \
 	| grep -v "dev/usb/usb_mem.c" \
+	| grep -v "dev/usb/usb_requests.c" \
 	| grep -v "dev/usb/usb_subr.c" \
+	| grep -v "dev/usb/usb_transfer.c" \
+	| grep -v "dev/usb/usb_cdev.c" \
+	| grep -v "dev/usb/usb_hid.c" \
+	| grep -v "dev/usb/usb_ethersubr.c" \
 	| grep -v "dev/usb/usbdi.c" \
 	| grep -v "dev/usb/usbdi_util.c" \
-	| grep -v "dev/usb/ugen.c" \
-	| grep -v "dev/usb/ums.c" \
-	| grep -v "dev/usb/ukbd.c" \
-	| grep -v "dev/usb/uhid.c" \
-	| grep -v "dev/usb/ulpt.c" \
 	| grep -v "dev/usb/hid.c" \
 	| sed -e s/"S\/dev\/usb\/usbdevs -h"/"S\/dev\/usb\/usbdevs"/g \
 	| sed -e s/"S\/dev\/usb\/usbdevs -d"/"S\/dev\/usb\/usbdevs"/g \
@@ -489,10 +461,6 @@ update_config:
 # update
 #
 	@printf ${FILES_APPEND}           >> ${S}/sys/conf/files
-#
-#	@printf ${FILES_I386_PC98_APPEND} >> ${S}/sys/conf/files.pc98
-#	@printf ${FILES_I386_PC98_APPEND} >> ${S}/sys/conf/files.i386
-#
 
 all:
 build:
@@ -511,7 +479,7 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_pcm
 # install header files
 
 	cp -v ${S}/sys/i4b/include/*h ${INCLUDE}/i4b/include/ || echo -n
-	cp -v ${S}/sys/dev/usb2/*h ${INCLUDE}/dev/usb2/ || echo -n 
+	cp -v ${S}/sys/dev/usb/*h ${INCLUDE}/dev/usb/ || echo -n 
 
 #
 # touch some files so that the kernel is rebuilt
@@ -519,7 +487,7 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_pcm
 #
 	touch \
 	${S}/sys/dev/usb/usbdevs \
-	${S}/sys/dev/usb2/*c || echo -n
+	${S}/sys/dev/usb/*c || echo -n
 
 # patch 1
 	@echo "These patches are not critical. Don't worry if they fail:"
@@ -535,9 +503,10 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_pcm
 
 # patch 3
 	cat ${S}/include/Makefile \
+	| sed -e s/" dev\/usb i4b\/include "//g \
 	| sed -e s/" dev\/usb2 i4b\/include "//g \
 	| sed -e s/" dev\/usb2 "//g \
-	| sed -e s/" dev\/usb "/" dev\/usb dev\/usb2 i4b\/include "/g \
+	| sed -e s/" dev\/usb "/" dev\/usb i4b\/include "/g \
 	> ${TEMP}
 	cat ${TEMP} > ${S}/include/Makefile
 
@@ -563,7 +532,6 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_pcm
 #
 	cat ${S}/etc/mtree/BSD.include.dist \
 	| grep -v "^	" \
-	| sed -e s/"^    dev *$$"/"    dev"${BSD_INCLUDE_DIST_APPEND_1}/g \
 	| sed -e s/"^\.\. *$$"/${BSD_INCLUDE_DIST_APPEND_2}/g \
 	| tr "ше" "\n\t" \
 	| cat - \
@@ -651,10 +619,11 @@ diffs: clean
 	bzip2 ${TEMP} && mv ${TEMP}.bz2 ${DIFF}
 
 sorry:
-	@echo "The system is currently under reconstruction. Please check out again in some hours!"
+	@echo "The system is currently under reconstruction. "
+	@echo "Please check out again in some hours!"
 	@exit 1
 
-package: sorry diffs
+package: diffs
 	@cd ${S}/lib/libcapi20 && make clean cleandepend
 
 	@cd ${S}/usr.sbin/i4b && make clean cleandepend
@@ -668,9 +637,7 @@ list_files:
 
 print_all:
 	@printf ${FILES_APPEND}
-	@printf ${FILES_I386_PC98_APPEND}
 	@printf ${CHANNEL_H_APPEND}
-	@printf '${BSD_INCLUDE_DIST_APPEND_1}'
 	@printf '${BSD_INCLUDE_DIST_APPEND_2}'
 
 backdate:
