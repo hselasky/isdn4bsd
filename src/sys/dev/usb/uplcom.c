@@ -217,7 +217,7 @@ static void
 uplcom_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr);
 
 static int
-uplcom_ioctl(struct ucom_softc *ucom, u_long cmd, caddr_t data, int flag,
+uplcom_ioctl(struct ucom_softc *ucom, uint32_t cmd, caddr_t data, int flag,
 	     struct thread *td);
 static void
 uplcom_set_line_state_callback(struct usbd_xfer *xfer);
@@ -843,14 +843,14 @@ uplcom_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr)
 }
 
 static int
-uplcom_ioctl(struct ucom_softc *ucom, u_long cmd, caddr_t data, int flag,
+uplcom_ioctl(struct ucom_softc *ucom, uint32_t cmd, caddr_t data, int flag,
 	     struct thread *td)
 {
 	int error = ENOTTY;
 
 	/* TODO: */
 
-	DPRINTF(0, "cmd = 0x%08lx\n", cmd);
+	DPRINTF(0, "cmd = 0x%08x\n", cmd);
 
 	switch (cmd) {
 	case TIOCNOTTY:

@@ -246,7 +246,7 @@ static void
 uvscom_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr);
 
 static int
-uvscom_ioctl(struct ucom_softc *ucom, u_long cmd, caddr_t data, int fflag,
+uvscom_ioctl(struct ucom_softc *ucom, uint32_t cmd, caddr_t data, int fflag,
 	     struct thread *td);
 
 static const struct usbd_config uvscom_config[UVSCOM_N_TRANSFER] = {
@@ -1046,12 +1046,12 @@ uvscom_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr)
 }
 
 static int
-uvscom_ioctl(struct ucom_softc *ucom, u_long cmd, caddr_t data, int fflag,
+uvscom_ioctl(struct ucom_softc *ucom, uint32_t cmd, caddr_t data, int fflag,
 	     struct thread *td)
 {
 	int error = ENOTTY;
 
-	DPRINTF(0, "cmd = 0x%08lx\n", cmd);
+	DPRINTF(0, "cmd = 0x%08x\n", cmd);
 
 	switch (cmd) {
 	case TIOCNOTTY:

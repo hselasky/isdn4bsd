@@ -317,6 +317,7 @@ typedef struct {
 	uByte		bLength;
 	uByte		bDescriptorType;
 	uWord		bString[126];
+	uByte		bUnused;
 } UPACKED usb_string_descriptor_t;
 #define USB_MAX_STRING_LEN 128
 #define USB_LANGUAGE_TABLE 0	/* # of the string language id table */

@@ -65,79 +65,68 @@
  */
 
 /* Module interface related macros */
-#define UCOM_MODVER	1
+#define	UCOM_MODVER	1
 
-#define UCOM_MINVER	1
-#define UCOM_PREFVER	UCOM_MODVER
-#define UCOM_MAXVER	1
+#define	UCOM_MINVER	1
+#define	UCOM_PREFVER	UCOM_MODVER
+#define	UCOM_MAXVER	1
 
 struct ucom_softc;
 struct thread;
 
 struct ucom_callback {
-    void (*ucom_get_status)(struct ucom_softc *, u_int8_t *, u_int8_t *);
-    void (*ucom_set_dtr)(struct ucom_softc *, u_int8_t);
-    void (*ucom_set_rts)(struct ucom_softc *, u_int8_t);
-    void (*ucom_set_break)(struct ucom_softc *, u_int8_t);
-    int  (*ucom_param)(struct ucom_softc *, struct termios *);
-    int  (*ucom_ioctl)(struct ucom_softc *, u_long, caddr_t, int, struct thread *);
-    int  (*ucom_open)(struct ucom_softc *);
-    void (*ucom_close)(struct ucom_softc *);
-    void (*ucom_start_read)(struct ucom_softc *);
-    void (*ucom_stop_read)(struct ucom_softc *);
-    void (*ucom_start_write)(struct ucom_softc *);
-    void (*ucom_stop_write)(struct ucom_softc *);
+	void (*ucom_get_status)(struct ucom_softc *, uint8_t *, uint8_t *);
+	void (*ucom_set_dtr)(struct ucom_softc *, uint8_t);
+	void (*ucom_set_rts)(struct ucom_softc *, uint8_t);
+	void (*ucom_set_break)(struct ucom_softc *, uint8_t);
+	int  (*ucom_param)(struct ucom_softc *, struct termios *);
+	int  (*ucom_ioctl)(struct ucom_softc *, uint32_t, caddr_t, int,
+	    struct thread *);
+	int  (*ucom_open)(struct ucom_softc *);
+	void (*ucom_close)(struct ucom_softc *);
+	void (*ucom_start_read)(struct ucom_softc *);
+	void (*ucom_stop_read)(struct ucom_softc *);
+	void (*ucom_start_write)(struct ucom_softc *);
+	void (*ucom_stop_write)(struct ucom_softc *);
 };
 
-/* line status register */
-#define ULSR_RCV_FIFO	0x80
-#define ULSR_TSRE	0x40	/* Transmitter empty: byte sent */
-#define ULSR_TXRDY	0x20	/* Transmitter buffer empty */
-#define ULSR_BI		0x10	/* Break detected */
-#define ULSR_FE		0x08	/* Framing error: bad stop bit */
-#define ULSR_PE		0x04	/* Parity error */
-#define ULSR_OE		0x02	/* Overrun, lost incoming byte */
-#define ULSR_RXRDY	0x01	/* Byte ready in Receive Buffer */
-#define ULSR_RCV_MASK	0x1f	/* Mask for incoming data or error */
+/* Line status register */
+#define	ULSR_RCV_FIFO	0x80
+#define	ULSR_TSRE	0x40	/* Transmitter empty: byte sent */
+#define	ULSR_TXRDY	0x20	/* Transmitter buffer empty */
+#define	ULSR_BI		0x10	/* Break detected */
+#define	ULSR_FE		0x08	/* Framing error: bad stop bit */
+#define	ULSR_PE		0x04	/* Parity error */
+#define	ULSR_OE		0x02	/* Overrun, lost incoming byte */
+#define	ULSR_RXRDY	0x01	/* Byte ready in Receive Buffer */
+#define	ULSR_RCV_MASK	0x1f	/* Mask for incoming data or error */
 
 struct ucom_softc {
-	struct task            sc_task;
-
-  const struct ucom_callback   *sc_callback;
-	struct tty             *sc_tty;
-	struct mtx	       *sc_parent_mtx;
-	void                   *sc_parent;
-
-	uint32_t	       sc_unit;
-
-	u_int16_t	       sc_portno;
-
-	u_int8_t               sc_flag;
-#define UCOM_FLAG_RTS_IFLOW    0x01 /* use RTS input flow control */
-#define UCOM_FLAG_GONE         0x02 /* the device is gone */
-#define UCOM_FLAG_ATTACHED     0x04 /* set if attached */
-#define UCOM_FLAG_READ_ON      0x08 /* set if read is enabled */
-#define UCOM_FLAG_WRITE_ON     0x10 /* set if write is enabled */
-
-	u_int8_t               sc_lsr;
-	u_int8_t               sc_msr;
-	u_int8_t               sc_mcr;
-	u_int8_t               sc_poll;
-        u_int8_t               sc_last_status;
+	struct task	sc_task;
+	const struct ucom_callback	*sc_callback;
+	struct tty	*sc_tty;
+	struct mtx	*sc_parent_mtx;
+	void		*sc_parent;
+	uint32_t	sc_unit;
+	uint16_t	sc_portno;
+	uint8_t		sc_flag;
+#define	UCOM_FLAG_RTS_IFLOW	0x01	/* use RTS input flow control */
+#define	UCOM_FLAG_GONE		0x02	/* the device is gone */
+#define	UCOM_FLAG_ATTACHED	0x04	/* set if attached */
+#define	UCOM_FLAG_READ_ON	0x08	/* set if read is enabled */
+#define	UCOM_FLAG_WRITE_ON	0x10	/* set if write is enabled */
+	uint8_t		sc_lsr;
+	uint8_t		sc_msr;
+	uint8_t		sc_mcr;
+	uint8_t		sc_poll;
+        uint8_t		sc_last_status;
 };
 
-extern int
-ucom_attach(struct ucom_softc *sc, uint32_t sub_units, void *parent, 
+int	ucom_attach(struct ucom_softc *sc, uint32_t sub_units, void *parent, 
 	    const struct ucom_callback *callback, struct mtx *p_mtx);
-extern void
-ucom_detach(struct ucom_softc *sc, uint32_t sub_units);
-
-extern void
-ucom_status_change(struct ucom_softc *);
-
-extern u_int8_t
-ucom_get_data(struct ucom_softc *sc, u_int8_t *buf, u_int32_t len,
-	      u_int32_t *actlen);
-extern void
-ucom_put_data(struct ucom_softc *sc, u_int8_t *ptr, u_int16_t len);
+void	ucom_detach(struct ucom_softc *sc, uint32_t sub_units);
+void	ucom_status_change(struct ucom_softc *);
+uint8_t	ucom_get_data(struct ucom_softc *sc, uint8_t *buf, uint32_t len,
+	    uint32_t *actlen);
+void	ucom_put_data(struct ucom_softc *sc, uint8_t *ptr, uint16_t len);
 

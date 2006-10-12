@@ -58,9 +58,9 @@
 # include <net/if.h>
 
 # ifdef IHFC_USB_ENABLED
-#  include <dev/usb2/usb_port.h>
-#  include <dev/usb2/usb.h>
-#  include <dev/usb2/usb_subr.h>
+#  include <dev/usb/usb_port.h>
+#  include <dev/usb/usb.h>
+#  include <dev/usb/usb_subr.h>
 # endif
 
 # ifdef __FreeBSD__

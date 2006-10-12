@@ -191,7 +191,7 @@ static int
 umodem_param(struct ucom_softc *ucom, struct termios *t);
 
 static int
-umodem_ioctl(struct ucom_softc *ucom, u_long cmd, caddr_t data, 
+umodem_ioctl(struct ucom_softc *ucom, uint32_t cmd, caddr_t data, 
 	     int flag, struct thread *td);
 static void
 umodem_set_dtr(struct ucom_softc *ucom, u_int8_t onoff);
@@ -669,13 +669,13 @@ umodem_param(struct ucom_softc *ucom, struct termios *t)
 }
 
 static int
-umodem_ioctl(struct ucom_softc *ucom, u_long cmd, caddr_t data, 
+umodem_ioctl(struct ucom_softc *ucom, uint32_t cmd, caddr_t data, 
 	     int flag, struct thread *td)
 {
 	struct umodem_softc *sc = ucom->sc_parent;
 	int error = 0;
 
-	DPRINTF(0, "cmd=0x%08lx\n", cmd);
+	DPRINTF(0, "cmd=0x%08x\n", cmd);
 
 	switch (cmd) {
 	case USB_GET_CM_OVER_DATA:

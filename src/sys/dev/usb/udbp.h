@@ -60,8 +60,8 @@ enum {
 
 /* This structure is returned by the NGM_UDBP_GET_STATUS command */
 struct ngudbpstat {
-	uint	packets_in;	/* packets in from downstream */
-	uint	packets_out;	/* packets out towards downstream */
+	uint32_t	packets_in;	/* packets in from downstream */
+	uint32_t	packets_out;	/* packets out towards downstream */
 };
 
 /*
