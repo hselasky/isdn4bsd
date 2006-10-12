@@ -402,9 +402,7 @@ usbd_fill_pipe_data(struct usbd_device *udev, u_int8_t iface_index,
 		    usb_endpoint_descriptor_t *edesc, struct usbd_pipe *pipe)
 {
 	bzero(pipe, sizeof(*pipe));
-#ifdef USB_COMPAT_OLD
-	pipe->udev = udev;
-#endif
+
 	pipe->edesc = edesc;
 	pipe->iface_index = iface_index;
 	LIST_INIT(&pipe->list_head);
@@ -481,9 +479,6 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 	{
 		return (USBD_INVAL);
 	}
-#ifdef USB_COMPAT_OLD
-	iface->udev = udev;
-#endif
 	iface->idesc = id;
 	iface->alt_index = alt_index;
 
@@ -990,17 +985,7 @@ usbd_probe_and_attach(device_t parent, int port, struct usbd_port *up)
 		uaa.configno = udev->cdesc->bConfigurationValue;
 		uaa.ifaces_start = &udev->ifaces[0];
 		uaa.ifaces_end = &udev->ifaces[udev->cdesc->bNumInterface];
-#ifdef USB_COMPAT_OLD
-		uaa.nifaces = udev->cdesc->bNumInterface;
 
-		for(i = 0; i < uaa.nifaces; i++)
-		{
-			if(USBD_GET_IFACE_NO_PROBE(udev, i))
-				uaa.ifaces[i] = NULL;
-			else
-				uaa.ifaces[i] = &udev->ifaces[i];
-		}
-#endif
 		for(iface = uaa.ifaces_start;
 		    iface < uaa.ifaces_end;
 		    iface++)
@@ -1015,9 +1000,7 @@ usbd_probe_and_attach(device_t parent, int port, struct usbd_port *up)
 					      "Too many subdevices\n");
 				break;
 			}
-#ifdef USB_COMPAT_OLD
-			if(uaa.ifaces[i])
-#endif
+
 			if((USBD_GET_IFACE_NO_PROBE(udev, i) == 0) &&
 			   (udev->subdevs[i] == NULL) &&
 			   (device_probe_and_attach(bdev) == 0))
@@ -1045,20 +1028,6 @@ usbd_probe_and_attach(device_t parent, int port, struct usbd_port *up)
 
 		if(udev->probed == USBD_PROBED_IFACE_AND_FOUND)
 		{
-#ifdef USB_COMPAT_OLD
-			uaa.nifaces = udev->cdesc->bNumInterface;
-
-			for(i = 0; i < uaa.nifaces; i++)
-			{
-				/* mark ifaces that should
-				 * not be probed
-				 */
-				if(uaa.ifaces[i] == NULL)
-				{
-					USBD_SET_IFACE_NO_PROBE(udev, i);
-				}
-			}
-#endif
 			break;
 		}
 	  }

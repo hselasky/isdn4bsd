@@ -477,40 +477,6 @@ usbreq_set_protocol(struct usbd_device *udev, u_int8_t iface_index,
 	return (usbd_do_request(udev, &req, 0));
 }
 
-#ifdef USB_COMPAT_OLD
-usbd_status
-usbreq_set_report_async(struct usbd_device *udev, u_int8_t iface_index,
-		  u_int8_t type, u_int8_t id, void *data, int len)
-{
-	struct usbd_interface *iface = usbd_get_iface(udev,iface_index);
-	usb_device_request_t req;
-
-	if((iface == NULL) || (iface->idesc == NULL))
-	{
-		return (USBD_INVAL);
-	}
-	/* this function call should be replaced by an allocated
-	 * transfer that is started when a transfer is needed, and
-	 * stopped when the device is detached. This implementation
-	 * use polling because it may be called from an interrupt
-	 * context.
-	 */
-
-	PRINTF(("this function is depreceated"));
-
-	PRINTFN(4, ("len=%d\n", len));
-
-	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
-	req.bRequest = UR_SET_REPORT;
-	USETW2(req.wValue, type, id);
-	USETW(req.wIndex, iface->idesc->bInterfaceNumber);
-	USETW(req.wLength, len);
-
-	return (usbd_do_request_flags
-		(udev, &req, data, USBD_USE_POLLING, 0, 500 /* ms */));
-}
-#endif
-
 usbd_status
 usbreq_set_report(struct usbd_device *udev, u_int8_t iface_index,
 		  u_int8_t type, u_int8_t id, void *data, int len)

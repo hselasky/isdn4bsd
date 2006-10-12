@@ -86,14 +86,6 @@ struct proc;
 typedef u_int8_t usbd_status;
 
 typedef void (*usbd_callback_t)(struct usbd_xfer *);
-#ifdef USB_COMPAT_OLD
-typedef void (*usbd_callback)(struct usbd_xfer *, void *, usbd_status);
-typedef struct usbd_xfer *usbd_xfer_handle;
-typedef struct usbd_device *usbd_device_handle;
-typedef struct usbd_pipe *usbd_pipe_handle;
-typedef struct usbd_interface *usbd_interface_handle;
-typedef void *usbd_private_handle;
-#endif
 
 struct usbd_bus_methods {
 	void (*pipe_init)(struct usbd_device *udev, 
@@ -203,9 +195,6 @@ struct usbd_bus {
 };
 
 struct usbd_interface {
-#ifdef USB_COMPAT_OLD
-	struct usbd_device	   *udev;
-#endif
 	usb_interface_descriptor_t *idesc;
 	u_int8_t		    alt_index;
 };
@@ -214,10 +203,6 @@ struct usbd_interface {
 (pipe)->clearstall = 0; (pipe)->toggle_next = 0; }
 
 struct usbd_pipe {
-#ifdef USB_COMPAT_OLD
-	struct usbd_device *	  udev;
-	struct usbd_xfer *	  alloc_xfer;
-#endif
 	usb_endpoint_descriptor_t *edesc;
 	LIST_HEAD(, usbd_xfer)	  list_head;
 	u_int16_t		  isoc_next;
@@ -315,12 +300,10 @@ struct usbd_config {
 					 * flag is also exported by usb.h
 					 */
 #endif
-#if (defined(USB_COMPAT_OLD) || 1)
 #define USBD_CUSTOM_CLEARSTALL   0x0008 /* used to disable automatic clear-stall
 					 * when a device reset request is needed
 					 * in addition to the clear stall request
 					 */
-#endif
 #define USBD_DEV_OPEN            0x0010
 #define USBD_DEV_RECURSED_1      0x0020
 #define USBD_DEV_RECURSED_2      0x0040
@@ -329,7 +312,7 @@ struct usbd_config {
 #define USBD_USE_POLLING         0x0200 /* used to make synchronous transfers
 					 * use polling instead of sleep/wakeup
 					 */
-#define USBD_SELF_DESTRUCT       0x0400 /* set if callback is allowed to unsetup itself */
+#define USBD_UNUSED_3            0x0400
 #define USBD_USE_DMA             0x0800
 #define USBD_UNUSED_4            0x1000
 #define USBD_UNUSED_5            0x2000
@@ -407,22 +390,6 @@ struct usbd_xfer {
 	void *td_transfer_first;
 	void *td_transfer_last;
         void *td_transfer_cache;
-
-#ifdef USB_COMPAT_OLD
-	struct usbd_xfer *	alloc_xfer; /* the real transfer */
-	void *			alloc_ptr;
-	u_int32_t		alloc_len;
-	void *			d_copy_ptr;
-	void *			d_copy_src;
-	void *			d_copy_dst;
-	u_int32_t		d_copy_len;
-	usbd_callback		d_callback;
-
-	void *			f_copy_ptr;
-	void *			f_copy_src;
-	void *			f_copy_dst;
-	u_int32_t		f_copy_len;
-#endif
 };
 
 struct usbd_memory_info {
@@ -570,10 +537,6 @@ struct usb_attach_arg
 	int			usegeneric;
 	struct usbd_interface  *ifaces_start; /* all interfaces */
 	struct usbd_interface  *ifaces_end; /* exclusive */
-#ifdef USB_COMPAT_OLD
-	int			nifaces;
-	struct usbd_interface * ifaces[USB_MAX_ENDPOINTS];
-#endif
 };
 
 /* return values for device_probe() method: */
@@ -936,101 +899,6 @@ usb_match_device(const struct usb_devno *tbl, u_int nentries, u_int size,
 int
 usbd_driver_load(struct module *mod, int what, void *arg);
 
-#ifdef USB_COMPAT_OLD
-usbd_status
-usbd_transfer(struct usbd_xfer *xfer);
-
-usbd_status
-usbd_sync_transfer(struct usbd_xfer *xfer);
-
-void *
-usbd_alloc_buffer(struct usbd_xfer *xfer, u_int32_t size);
-
-void
-usbd_free_buffer(struct usbd_xfer *xfer);
-
-void
-usbd_get_xfer_status(struct usbd_xfer *xfer, void **priv,
-		     void **buffer, u_int32_t *count, usbd_status *status);
-
-struct usbd_xfer *
-usbd_alloc_xfer(struct usbd_device *dev);
-
-usbd_status 
-usbd_free_xfer(struct usbd_xfer *xfer);
-
-usbd_status 
-usbd_open_pipe(struct usbd_interface *iface, u_int8_t address,
-               u_int8_t flags, struct usbd_pipe **pipe);
-
-usbd_status 
-usbd_open_pipe_intr(struct usbd_interface *iface, u_int8_t address,
-                    u_int8_t flags, struct usbd_pipe **pipe,
-                    void *priv, void *buffer, u_int32_t len,
-                    usbd_callback callback, int ival);
-
-usbd_status
-usbd_setup_xfer(struct usbd_xfer *xfer, struct usbd_pipe *pipe,
-                void *priv, void *buffer, u_int32_t length,
-                u_int32_t flags, u_int32_t timeout,
-                usbd_callback callback);
-
-usbd_status
-usbd_setup_default_xfer(struct usbd_xfer *xfer, struct usbd_device *dev,
-                        void *priv, u_int32_t timeout,
-                        usb_device_request_t *req, void *buffer,
-                        u_int32_t length, u_int16_t flags,
-                        usbd_callback callback);
-
-usbd_status
-usbd_setup_isoc_xfer(struct usbd_xfer *xfer, struct usbd_pipe *pipe,
-                     void *priv, u_int16_t *frlengths, u_int32_t nframes, 
-		     u_int16_t flags, usbd_callback callback);
-
-usbd_status
-usbd_bulk_transfer(struct usbd_xfer *xfer, struct usbd_pipe *pipe,
-                   u_int16_t flags, u_int32_t timeout, void *buf,
-                   u_int32_t *size, char *lbl);
-
-#define usbd_intr_transfer usbd_bulk_transfer
-
-usbd_status 
-usbd_abort_pipe(struct usbd_pipe *pipe);
-
-usbd_status 
-usbd_abort_default_pipe(struct usbd_device *udev);
-
-usbd_status
-usbd_close_pipe(struct usbd_pipe *pipe);
-
-usbd_status 
-usbd_clear_endpoint_stall(struct usbd_pipe *pipe);
-
-usbd_status 
-usbd_clear_endpoint_stall_async(struct usbd_pipe *pipe);
-
-usbd_status 
-usbd_endpoint_count(struct usbd_interface *iface, u_int8_t *count);
-
-void
-usbd_interface2device_handle(struct usbd_interface *iface,
-                             struct usbd_device **udev);
-
-struct usbd_device *
-usbd_pipe2device_handle(struct usbd_pipe *pipe);
-
-usbd_status 
-usbd_device2interface_handle(struct usbd_device *udev,
-                             u_int8_t iface_index, struct usbd_interface **iface);
-
-usb_endpoint_descriptor_t *
-usbd_interface2endpoint_descriptor(struct usbd_interface *iface, u_int8_t index);
-
-usb_endpoint_descriptor_t *
-usbd_get_endpoint_descriptor(struct usbd_interface *iface, u_int8_t address);
-
-#endif /* USB_COMPAT_OLD */
-
 /* routines from usb_requests.c */
 
 usbd_status
@@ -1095,12 +963,6 @@ usbreq_set_port_feature(struct usbd_device *udev, int port, int sel);
 usbd_status
 usbreq_set_protocol(struct usbd_device *udev, u_int8_t iface_index,
 		    u_int16_t report);
-
-#ifdef USB_COMPAT_OLD
-usbd_status
-usbreq_set_report_async(struct usbd_device *udev, u_int8_t iface_index,
-			u_int8_t type, u_int8_t id, void *data, int len);
-#endif
 
 usbd_status
 usbreq_set_report(struct usbd_device *udev, u_int8_t iface_index,

@@ -148,6 +148,8 @@ QUICK REFERENCE
   should be unsetup
 
 NOTE: This function can sleep, waiting for active mutexes to become unlocked!
+NOTE: It is not allowed to call "usbd_transfer_unsetup" from the callback
+      of a USB transfer.
 
 /*------------------------------------------------------------------------*
  * void
@@ -228,10 +230,6 @@ NOTE: if the transfer was in progress, the callback will called with
 	"usbd_transfer_start()" function to wait, using "DELAY()",
 	without exiting any mutexes, until the transfer is finished or
 	has timed out.
-
-  USBD_SELF_DESTRUCT
-	This flag allows one to free a transfer from its
-	callback function.
 
   USBD_USE_DMA
 	This flag will cause the USB host controller driver to not
