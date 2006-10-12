@@ -1,1 +1,1 @@
-#include <dev/usb2/usb_subr.h>
+#include <dev/usb/usb_subr.h>

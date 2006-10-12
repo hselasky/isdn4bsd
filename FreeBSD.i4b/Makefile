@@ -55,6 +55,17 @@ ${S}/usr.sbin/i4b \
 #${S}/share/doc/en_US.ISO_8859-1/books/handbook/isdn.html
 #
 
+UAUDIO_FILES=\
+${S}/sys/dev/sound/usb/uaudio.c \
+${S}/sys/dev/sound/usb/uaudio.h \
+${S}/sys/dev/sound/usb/uaudio_pcm.c \
+${S}/sys/dev/sound/usb/uaudioreg.h \
+
+#
+#${S}/sys/dev/sound/pcm/mixer.c \
+#${S}/sys/dev/sound/pcm/mixer.h \
+#
+
 USB_FILES=\
 ${S}/sys/modules/usb/Makefile \
 ${S}/sys/modules/ugen/Makefile \
@@ -65,12 +76,7 @@ ${S}/sys/modules/uhid/Makefile \
 ${S}/sys/modules/ubser/Makefile \
 ${S}/sys/tools/usbdevs2h.awk\
 ${S}/sys/dev/ata/ata-usb.c \
-${S}/sys/dev/sound/pcm/mixer.c \
-${S}/sys/dev/sound/pcm/mixer.h \
-${S}/sys/dev/sound/usb/uaudio.c \
-${S}/sys/dev/sound/usb/uaudio.h \
-${S}/sys/dev/sound/usb/uaudio_pcm.c \
-${S}/sys/dev/sound/usb/uaudioreg.h \
+${S}/sys/dev/if_ndis/if_ndis_usb.c \
 ${S}/sys/dev/usb \
 ${S}/sys/netgraph/bluetooth/drivers/ubt/TODO \
 ${S}/sys/netgraph/bluetooth/drivers/ubt/ng_ubt.c \
@@ -320,6 +326,7 @@ backup:
 	mkdir ${S}/sys                 || echo -n
 	mkdir ${S}/sys/i4b             || echo -n
 	mkdir ${S}/sys/dev             || echo -n
+	mkdir ${S}/sys/dev/if_ndis     || echo -n
 	mkdir ${S}/sys/dev/sound       || echo -n
 	mkdir ${S}/sys/dev/sound/isa   || echo -n
 	mkdir ${S}/sys/dev/sound/pcm   || echo -n
@@ -571,6 +578,12 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_pcm
 	> ${TEMP}
 	cat ${TEMP} > ${FILE}
 .endfor
+
+# patch 11
+#
+#
+	rm -f ${UAUDIO_FILES} || echo -n
+	touch ${UAUDIO_FILES} || echo -n
 
 #
 # final install

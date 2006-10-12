@@ -105,10 +105,7 @@ USB device driver examples:
 /sys/dev/usb/ugen.c
 /sys/dev/usb/ulpt.c
 /sys/dev/usb/uhid.c
-
-http://www.turbocat.net/~hselasky/isdn4bsd/sources/src/sys/i4b/layer1/ihfc2/i4b_regdata.h
-http://www.turbocat.net/~hselasky/isdn4bsd/sources/src/sys/i4b/layer1/ihfc2/i4b_wibusb.h
-
+/sys/dev/usb/...
 
 QUICK REFERENCE
 ===============

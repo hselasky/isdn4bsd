@@ -132,6 +132,10 @@ struct ipr_softc {
 	struct i4b_accounting sc_accounting;
 #endif	
 
+#ifndef IPR_LOG
+#define IPR_LOG 0
+#endif
+
 #if IPR_LOG
 	int		sc_log_first;	/* log first n packets          */
 #endif

@@ -1,10 +1,8 @@
-# $FreeBSD: src/sys/modules/ugen/Makefile,v 1.12 2004/06/27 12:33:18 imp Exp $ 
+# $FreeBSD: src/sys/modules/ugen/Makefile,v 1.14 2005/06/04 10:58:38 schweikh Exp $
 
-MAINTAINER=	n_hibma@freebsd.org
-
-.PATH: ${.CURDIR}/../../dev/usb ${.CURDIR}/../../dev/usb2
+.PATH: ${.CURDIR}/../../dev/usb
 
 KMOD=	ugen
-SRCS=	bus_if.h device_if.h vnode_if.h opt_usb.h _ugen.c usbdevs.h
+SRCS=	bus_if.h device_if.h opt_usb.h ugen.c usbdevs.h
 
 .include <bsd.kmod.mk>
