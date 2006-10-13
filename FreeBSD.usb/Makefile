@@ -103,6 +103,7 @@ ${S}/sys/conf/files.pc98 \
 ${S}/sys/conf/files.i386 \
 
 DIFF_FILES=\
+${UAUDIO_FILES} \
 ${S}/sys/conf/kmod.mk \
 
 BACKUP_FILES=\

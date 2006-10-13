@@ -133,6 +133,7 @@ ${S}/share/examples/isdn/i4brunppp/i4brunppp.c \
 
 DIFF_FILES=\
 ${HEADER_FIX_FILES} \
+${UAUDIO_FILES} \
 ${S}/sys/i386/include/bus_at386.h \
 ${S}/sys/conf/kmod.mk \
 ${S}/sys/dev/sound/pcm/sound.c \
