@@ -531,7 +531,7 @@ static void
 uhci_dump_qh(uhci_qh_t *sqh)
 {
 	DPRINTFN(-1,("QH(%p) at 0x%08x: h_next=%08x e_next=%08x\n", sqh,
-		     sqh->qh_self, le32toh(sqh->qh_h_next),
+		     le32toh(sqh->qh_self), le32toh(sqh->qh_h_next),
 		     le32toh(sqh->qh_e_next)));
 	return;
 }
