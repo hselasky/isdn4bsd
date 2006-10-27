@@ -532,7 +532,7 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 
 	dx = stats.max_x - ec->coeffs_last_max_x;
 
-	if (ec->coeffs_bad || (dx >= 3) || (dx <= -3)) {
+	if ((dx >= 3) || (dx <= -3)) {
 
 	    /* coeffs are bad, reset echo canceller */
 
