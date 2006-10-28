@@ -36,7 +36,7 @@ MTX_SYSINIT(Giant,  &Giant,  "Giant",  MTX_DEF|MTX_RECURSE);
 MTX_SYSINIT(Atomic, &Atomic, "Atomic", MTX_DEF);
 
 static void
-mtx_warning(void *)
+mtx_warning(void *arg)
 {
 	printf("NOTE: The FreeBSD emulation layer"
 	       "will not work reliably on "
