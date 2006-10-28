@@ -38,7 +38,7 @@ MTX_SYSINIT(Atomic, &Atomic, "Atomic", MTX_DEF);
 static void
 mtx_warning(void *arg)
 {
-	printf("NOTE: The FreeBSD emulation layer"
+	printf("NOTE: The FreeBSD emulation layer "
 	       "will not work reliably on "
 	       "multiprocessor systems!\n");
 	return;
