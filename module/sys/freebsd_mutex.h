@@ -28,7 +28,6 @@
 #define __FREEBSD_SYS_MUTEX_H__
 
 struct mtx {
-  struct simplelock lock;
   u_int32_t mtx_recurse;
   u_int32_t s;
   u_int8_t init;

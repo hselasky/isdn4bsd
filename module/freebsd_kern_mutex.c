@@ -35,6 +35,18 @@ struct mtx Atomic;
 MTX_SYSINIT(Giant,  &Giant,  "Giant",  MTX_DEF|MTX_RECURSE);
 MTX_SYSINIT(Atomic, &Atomic, "Atomic", MTX_DEF);
 
+static void
+mtx_warning(void *)
+{
+	printf("NOTE: The FreeBSD emulation layer"
+	       "will not work reliably on "
+	       "multiprocessor systems!\n");
+	return;
+}
+
+SYSINIT(mtx_warning, SI_SUB_LOCK, SI_ORDER_ANY, 
+        mtx_warning, NULL);
+
 void
 atomic_add_int(u_int *p, u_int v)
 {
@@ -113,7 +125,7 @@ mtx_init(struct mtx *mtx, const char *name,
 	 const char *type, u_int32_t opts)
 {
     bzero(mtx, sizeof(*mtx));
-    simple_lock_init(&mtx->lock);
+    /* simple_lock_init() */
 
     if(name == NULL)
     {
@@ -163,7 +175,7 @@ mtx_lock(struct mtx *mtx)
 	}
     }
 
-    simple_lock(&mtx->lock);
+    /* simple_lock() */
 
     mtx->s = s;
     mtx->owner_td = (void *)curthread;
@@ -190,7 +202,7 @@ mtx_trylock(struct mtx *mtx)
 	return 0;
     }
 
-    r = simple_lock_try(&mtx->lock);
+    r = 1; /* simple_lock_try() */
 
     if(r == 0)
     {
@@ -221,7 +233,8 @@ _mtx_unlock(struct mtx *mtx)
         s = mtx->s;
 	mtx->owner_td = NULL;
 	mtx->s = 0;
-	simple_unlock(&mtx->lock);
+
+	/* simple_unlock() */
 
 	if(mtx->waiting) {
 	   mtx->waiting = 0;
@@ -286,7 +299,7 @@ msleep(void *ident, struct mtx *mtx, int priority,
 	       "unknown", wmesg ? wmesg : "unknown");
     }
 
-    error = ltsleep(ident, priority, wmesg, timeout, &mtx->lock);
+    error = tsleep(ident, priority, wmesg, timeout);
 
     if(held)
     {
@@ -296,7 +309,7 @@ msleep(void *ident, struct mtx *mtx, int priority,
 	{
 	    mtx->waiting = 1;
 
-	    (void) ltsleep(mtx, 0, "wait lock", 0, &mtx->lock);
+	    (void) tsleep(mtx, 0, "wait lock", 0);
 	}
         mtx->s = s;
 	mtx->mtx_recurse = mtx_recurse;
