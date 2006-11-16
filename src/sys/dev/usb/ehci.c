@@ -1966,11 +1966,32 @@ ehci_device_done(struct usbd_xfer *xfer, usbd_status error)
 	/* remove interrupt info (if any) */
 	ehci_remove_interrupt_info(xfer);
 
-	if(((xfer->pipe->methods == &ehci_device_ctrl_methods) ||
-	    (xfer->pipe->methods == &ehci_device_bulk_methods)) &&
-	   (sc->sc_doorbell_disable == 0))
-	{
+	if ((xfer->pipe->methods != &ehci_root_ctrl_methods) &&
+	    (xfer->pipe->methods != &ehci_root_intr_methods)) {
+
+	  if(((xfer->pipe->methods == &ehci_device_ctrl_methods) ||
+	      (xfer->pipe->methods == &ehci_device_bulk_methods)) &&
+	     (sc->sc_doorbell_disable == 0)) {
+
 		u_int32_t to = 100*1000;
+
+		/*
+		 * This implementation does not use the doorbell
+		 * interrupt. The reason is that one gets more
+		 * throughput by waiting for the doorbell inline,
+		 * than by using the doorbell interrupt. A typical
+		 * result reading from an USB mass storage disk:
+		 *
+		 * With doorbell interrupt: 27 seconds for 512MB
+		 * With inline doorbell: 21 seconds for 512MB
+		 *
+		 * Although the inline version causes a slightly
+		 * higher CPU usage, it does not block the system
+		 * in any way, because this USB driver uses its
+		 * own mutex.
+		 *
+		 * --hps
+		 */
 
 		/* wait for doorbell ~32us */
 		EOWRITE4(sc, EHCI_USBCMD, 
@@ -1987,10 +2008,13 @@ ehci_device_done(struct usbd_xfer *xfer, usbd_status error)
 		    }
 		    DELAY(1);
 		}
-		need_delay = 0;
-	}
-	else
-	{
+
+		/* acknowledge any doorbell interrupt 
+		 * (SiS chipsets require this)
+		 */
+		EOWRITE4(sc, EHCI_USBSTS, EHCI_STS_IAA);
+
+	  } else {
 		/* wait until the hardware has finished any possible
 		 * use of the transfer descriptor and QH
 		 *
@@ -1999,12 +2023,8 @@ ehci_device_done(struct usbd_xfer *xfer, usbd_status error)
 		 * frame is started
 		 */
 		DELAY(need_delay ? ((3*1000)/(2*8)) : (5));
+	  }
 	}
-
-	/* acknowledge any doorbell interrupt 
-	 * (SiS chipsets require this)
-	 */
-	EOWRITE4(sc, EHCI_USBSTS, EHCI_STS_IAA);
 
 	if(error)
 	{
@@ -2516,8 +2536,8 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 {
 	struct usbd_page_search buf_res;
 	ehci_softc_t *sc = xfer->usb_sc;
+	bus_size_t page_addr;
 	u_int32_t status;
-	u_int32_t page_addr;
 	u_int32_t buf_offset;
 	u_int32_t nframes;
 	u_int16_t *plen;
