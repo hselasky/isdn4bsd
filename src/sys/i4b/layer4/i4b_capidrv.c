@@ -1364,6 +1364,9 @@ capi_ai_connect_active_ind(struct call_desc *cd)
 
 	CAPI_INIT(CAPI_CONNECT_ACTIVE_IND, &connect_active_ind);
 
+	connect_active_ind.date_time.ptr = cd->idate_time_data;
+	connect_active_ind.date_time.len = cd->idate_time_len;
+
 	len = capi_encode(&msg.data, sizeof(msg.data), &connect_active_ind);
 	len += sizeof(msg.head);
 
@@ -2982,6 +2985,13 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      cd->shorthold_data.idle_time = 0; /* seconds (disabled) */
 
 	      cd->isdntxdelay = 0; /* seconds (disabled) */
+
+	      cd->odate_time_len = min(connect_resp.date_time.len,
+				       sizeof(cd->odate_time_data));
+
+	      bcopy(connect_resp.date_time.ptr,
+		    cd->odate_time_data,
+		    cd->odate_time_len);
 
 	      N_CONNECT_RESPONSE(cd, response, cause);
 	      break;

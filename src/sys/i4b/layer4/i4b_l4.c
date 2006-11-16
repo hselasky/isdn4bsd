@@ -1020,8 +1020,19 @@ i4b_l4_connect_active_ind(call_desc_t *cd)
 
 		mp->channel = cd->channel_id;
 
-		strlcpy(mp->datetime, cd->datetime,
-			sizeof(mp->datetime));
+		if (cd->idate_time_len != 0) {
+		    if (cd->idate_time_len < 6) {
+			bzero(cd->idate_time_data + cd->idate_time_len,
+			      6 - cd->idate_time_len);
+		    }
+		    snprintf(mp->datetime, sizeof(mp->datetime),
+			     "%02d%02d%02d%02d%02d%02d",
+			     cd->idate_time_data[0] % 100, cd->idate_time_data[1] % 100,
+			     cd->idate_time_data[2] % 100, cd->idate_time_data[3] % 100, 
+			     cd->idate_time_data[4] % 100, cd->idate_time_data[5] % 100);
+		} else {
+		    mp->datetime[0] = 0;
+		}
 
 		i4b_ai_putqueue(cd->ai_ptr,0,m);
 	    }

@@ -893,7 +893,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	       dss1_l3_tx_call_proceeding(cd,NT_MODE(sc),0);
 	     }
 
-	     dss1_l3_tx_connect(cd);
+	     dss1_l3_tx_connect(cd,NT_MODE(sc));
 
 	     cd->cause_out = 0;
 	     cd->need_release = 1;

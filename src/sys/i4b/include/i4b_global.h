@@ -536,7 +536,10 @@ typedef struct call_desc {
 	int	isdntxdelay;		/* isdn tx delay after connect	*/
 
 	u_char	display[DISPLAY_MAX];	/* display information element	*/
-	u_char	datetime[DATETIME_MAX];	/* date/time information element*/
+	u_char	idate_time_data[8];
+	u_char  idate_time_len;
+	u_char  odate_time_data[8];
+	u_char  odate_time_len;
 	u_char	keypad[KEYPAD_MAX];	/* keypad facility		*/
 	u_char  user_user[USER_USER_MAX]; /* user-user information element */
 } call_desc_t;

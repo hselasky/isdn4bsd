@@ -292,24 +292,29 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct dss1_buffer *buf)
 	    break;
 			
 	case IEI_DATETIME:	/* date/time */
-	    cd->datetime[0] = '\0';
-	    temp = 0;
+	{
+	    DSS1_TCP_pipe_t *pipe = cd->pipe;
+	    l2softc_t *sc = pipe->L5_sc;
 
-	    buf->offset += 2;
-
-	    while(dss1_get_valid(buf,0))
-	    {
-	        temp += snprintf(&(cd->datetime[temp]), DATETIME_MAX-temp, 
-				 "%02d", dss1_get_1(buf,0));
-
-		if(temp >= DATETIME_MAX)
-		{
-		    break;
-		}
-		buf->offset++;
+	    if(cd->dir_incoming || NT_MODE(sc)) {
+	        /* invalid */
+	        break;
 	    }
-	    NDBGL3(L3_P_MSG, "IEI_DATETIME = %s", &(cd->datetime[0]));
+
+	    cd->idate_time_len = 6;
+	    cd->idate_time_data[0] = dss1_get_1(buf,2);
+	    cd->idate_time_data[1] = dss1_get_1(buf,3);
+	    cd->idate_time_data[2] = dss1_get_1(buf,4);
+	    cd->idate_time_data[3] = dss1_get_1(buf,5);
+	    cd->idate_time_data[4] = dss1_get_1(buf,6);
+	    cd->idate_time_data[5] = dss1_get_1(buf,7);
+
+	    NDBGL3(L3_P_MSG, "IEI_DATETIME, Y%02d/M%02d/D%02d %02d:%02d:%02d",
+		   cd->idate_time_data[0], cd->idate_time_data[1],
+		   cd->idate_time_data[2], cd->idate_time_data[3],
+		   cd->idate_time_data[4], cd->idate_time_data[5]);
 	    break;
+	}
 			
 	case IEI_KEYPAD:	/* keypad facility */
 	    break;
@@ -733,7 +738,7 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, struct dss1_buffer *buf,
 
 	if(event == EV_L3_CONNECT)
 	{
-	    cd->datetime[0] = '\0';
+	    cd->idate_time_len = 0;
 	}
 
 	if(event == EV_L3_SETUP)

@@ -423,9 +423,10 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	dss1_l3_tx_message(cd,INFORMATION,		\
 			   L3_TX_HEADER|L3_TX_CALLEDPN)
 
-#define dss1_l3_tx_connect(cd)			\
-	dss1_l3_tx_message(cd,CONNECT,		\
-			   L3_TX_HEADER)
+#define dss1_l3_tx_connect(cd, send_date_time)				\
+	dss1_l3_tx_message(cd,CONNECT,					\
+			   L3_TX_HEADER|				\
+			   ((send_date_time) ? L3_TX_DATE_TIME : 0))
 
 #define dss1_l3_tx_connect_acknowledge(cd)		\
 	dss1_l3_tx_message(cd,CONNECT_ACKNOWLEDGE,	\
@@ -507,21 +508,22 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	(cd)->cause_out = 0;				\
 }
 
-#define L3_TX_HEADER     0x00
-#define L3_TX_CAUSE      0x01
-#define L3_TX_CALLSTATE  0x02
-#define L3_TX_CHANNELID  0x04
-#define L3_TX_CALLEDPN   0x08
-#define L3_TX_PROGRESSI  0x10
-#define L3_TX_RESTARTI   0x20
-#define L3_TX_DEFLECT    0x40
-#define L3_TX_MCID_REQ   0x80
+#define L3_TX_HEADER     0x0000
+#define L3_TX_CAUSE      0x0001
+#define L3_TX_CALLSTATE  0x0002
+#define L3_TX_CHANNELID  0x0004
+#define L3_TX_CALLEDPN   0x0008
+#define L3_TX_PROGRESSI  0x0010
+#define L3_TX_RESTARTI   0x0020
+#define L3_TX_DEFLECT    0x0040
+#define L3_TX_MCID_REQ   0x0080
+#define L3_TX_DATE_TIME  0x0100
 
 /*---------------------------------------------------------------------------*
  *	send message
  *---------------------------------------------------------------------------*/
 static void
-dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
+dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int16_t flag)
 {
 	DSS1_TCP_pipe_t *pipe = cd->pipe;
 	l2softc_t *sc = pipe->L5_sc;
@@ -657,6 +659,18 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
 	    *ptr++ = 0x03; /* Data: Operation Value = MCID request */
 	  }
 
+	  if ((flag & L3_TX_DATE_TIME) &&
+	      (cd->odate_time_len)) {
+	    *ptr++ = IEI_DATETIME; /* Date/Time IE */
+	    if (cd->odate_time_len > 8) {
+		cd->odate_time_len = 8;
+	    }
+	    *ptr++ = cd->odate_time_len;
+	    bcopy(cd->odate_time_data, ptr, cd->odate_time_len);
+	    ptr += cd->odate_time_len;
+	  }
+
+
 	  /* check length */
 #if (I_HEADER_LEN   +\
     3               +\
@@ -677,6 +691,9 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int8_t flag)
     TELNO_MAX       +\
      	        \
     8		    +\
+		\
+    2               +\
+    8               +\
                 \
     0) > DCH_MAX_DATALEN
 #error " > DCH_MAX_DATALEN"

@@ -95,7 +95,7 @@ typedef struct u_int64_p u_int64_p_t;
 
 /* global defines */
 
-#define CAPI_STACK_VERSION     207
+#define CAPI_STACK_VERSION     208
 #define CAPI_APPLICATION_MAX   0x80 /* units */
 #define CAPI_DEVICE_NAME       "/dev/capi20"
 #define CAPI_SHLIB_BASENAME    "libcapi20.so"
@@ -666,6 +666,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, STRUCT, dst_subaddr,)\
   m(n, STRUCT, LLC,)\
   m(n, STRUCT, add_info, ADDITIONAL_INFO)\
+  m(n, STRUCT, date_time,) /* BSD specific */\
   END
 
 /* definition of "wReject": */
@@ -714,6 +715,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, STRUCT, connected_telno,)\
   m(n, STRUCT, connected_subaddr,)\
   m(n, STRUCT, LLC,)\
+  m(n, STRUCT, date_time,) /* BSD specific */\
   END
 
 #define CAPI_CONNECT_ACTIVE_RESP(m,n) \
@@ -2523,9 +2525,11 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 #define CONNECT_RESP_USERUSERDATA(x) ((x)->ADDITIONAL_INFO.useruser.ppbyte[0])
 #define CONNECT_RESP_FACILITYDATAARRAY(x) ((x)->ADDITIONAL_INFO.facility.ppbyte[0])
 #define CONNECT_RESP_SENDINGCOMPLETE(x) ((x)->ADDITIONAL_INFO.sending_complete.ppbyte[0])
+#define CONNECT_RESP_DATE_TIME(x) ((x)->data.CONNECT_RESP.date_time.ppbyte[0])
 #define CONNECT_ACTIVE_IND_CONNECTEDNUMBER(x) ((x)->data.CONNECT_ACTIVE_IND.connected_telno.ppbyte[0])
 #define CONNECT_ACTIVE_IND_CONNECTEDSUBADDRESS(x) ((x)->data.CONNECT_ACTIVE_IND.connected_subaddr.ppbyte[0])
 #define CONNECT_ACTIVE_IND_LLC(x) ((x)->data.CONNECT_ACTIVE_IND.LLC.ppbyte[0])
+#define CONNECT_ACTIVE_IND_DATE_TIME(x) ((x)->data.CONNECT_ACTIVE_IND.date_time.ppbyte[0])
 #define DISCONNECT_REQ_ADDITIONALINFO(x) ((x)->data.DISCONNECT_REQ.add_info_STRUCT)
 #define DISCONNECT_REQ_BCHANNELINFORMATION(x) ((x)->ADDITIONAL_INFO.b_channel_info.ppbyte[0])
 #define DISCONNECT_REQ_KEYPADFACILITY(x) ((x)->ADDITIONAL_INFO.keypad.ppbyte[0])
