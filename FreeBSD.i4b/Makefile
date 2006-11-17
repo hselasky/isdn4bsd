@@ -1,5 +1,5 @@
 VERSION=1_6_2
-DATE=October 2006
+DATE=November 2006
 
 FILTER= grep -v "temp"   | \
 	grep -v "~"      | \
@@ -131,10 +131,13 @@ ${S}/share/examples/isdn/contrib/hplay.c \
 ${S}/share/examples/isdn/contrib/isdntelmux.c \
 ${S}/share/examples/isdn/i4brunppp/i4brunppp.c \
 
+#
+# ${S}/sys/i386/include/bus_at386.h
+#
+
 DIFF_FILES=\
 ${HEADER_FIX_FILES} \
 ${UAUDIO_FILES} \
-${S}/sys/i386/include/bus_at386.h \
 ${S}/sys/conf/kmod.mk \
 ${S}/sys/dev/sound/pcm/sound.c \
 ${S}/sys/dev/sound/pcm/vchan.c \
@@ -223,14 +226,15 @@ ${N}\# backup directory:      ${.CURDIR} \
 ${N}\# targets:               help fetch all install install_mod deinstall clean \
 ${N}\# \
 ${N}\# \
+${N}\# 0. If you installed an older \
+${N}\#    version of this package, try \
+${N}\#    to deinstall it first or do a \
+${N}\#    cvsup of your kernel source code. \
+${N}\# \
 ${N}\# 1. Install this package:\
 ${N}\#    \"make install\" \
 ${N}\# \
-${N}\# 2. Recompile and install all modules \
-${N}\#    that are depending on this package: \
-${N}\#    \"make install_mod\" \
-${N}\# \
-${N}\# 3. Make sure that the following lines are  \
+${N}\# 2. Make sure that the following lines are  \
 ${N}\#    in your kernel configuration file, \
 ${N}\#    for example \"${CONF_DIR}/custom\": \
 ${N}\# \
@@ -258,19 +262,15 @@ ${N}\#or device sound \
 ${N}\#if device pcm does not exist \
 ${N}\
 ${N}\# \
-${N}\# 4. Recompile and install the kernel:  \
+${N}\# 3. Recompile and install the kernel:  \
 ${N}\#    \"cd ${S} && make buildkernel installkernel  \
-${N}\#    KERNCONF=custom -DNO_MODULES -DNOCLEAN -DNO_CLEAN\" \
+${N}\#    KERNCONF=custom -DNOCLEAN -DNO_CLEAN\" \
 ${N}\# \
 ${N}\#    The second time you run make  \
 ${N}\#    you can add -DNO_KERNELDEPEND  \
 ${N}\#    to speed up the compilation. \
 ${N}\# \
-${N}\#    If the system does not boot, you \
-${N}\#    might want to compile the kernel without \
-${N}\#    \"-DNO_MODULES\" \
-${N}\# \
-${N}\# 5. Write down the kernel backup location, \
+${N}\# 4. Write down the kernel backup location, \
 ${N}\#    \"${.CURDIR}/kernel\", and reboot. \
 ${N}\# \
 ${N}\
