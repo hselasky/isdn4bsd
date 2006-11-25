@@ -811,7 +811,13 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	    }
 
 	    /* tell l4 we have an incoming setup */	
-	    i4b_l4_connect_ind(cd);
+	    cd->connect_ind_count = 
+	        i4b_l4_connect_ind(cd);
+
+	    if (cd->connect_ind_count == 0) {
+	        /* no one wants the call */
+	        goto sms_release;
+	    }
 	  }
 	  break;
 

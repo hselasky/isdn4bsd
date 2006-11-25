@@ -367,7 +367,7 @@ SYSINIT(capi_ai_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, capi_ai_attach, NULL);
  *---------------------------------------------------------------------------*/
 static void
 capi_ai_putqueue(struct capi_ai_softc *sc, 
-		 u_int8_t flags, struct mbuf *m1)
+		 u_int8_t flags, struct mbuf *m1, uint16_t *p_copy_count)
 {
 	struct capi_ai_softc *sc_exclude;
 	struct capi_message_encoded *mp;
@@ -412,7 +412,7 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 				    m2 = m_copypacket(m1, M_DONTWAIT);
 				}
 
-				capi_ai_putqueue(sc,flags,m2);
+				capi_ai_putqueue(sc,flags,m2,p_copy_count);
 			}
 			sc = sc->sc_next;
 		}
@@ -500,6 +500,10 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 				/* data overflow */
 				goto done;
 			}
+		}
+
+		if (p_copy_count) {
+		  (*p_copy_count) ++;
 		}
 
 		_IF_ENQUEUE(&sc->sc_rdqueue, m1);
@@ -793,7 +797,7 @@ capi_ai_facility_ind(struct call_desc *cd, u_int16_t wSelector,
 	    bcopy(&msg, m->m_data, m->m_len);
 	}
 	
-	capi_ai_putqueue(cd->ai_ptr,flags,m);
+	capi_ai_putqueue(cd->ai_ptr,flags,m,NULL);
 	return;
 }
 
@@ -1110,7 +1114,7 @@ capi_ai_connect_b3_active_ind(struct call_desc *cd)
 	    bcopy(&msg, m->m_data, m->m_len);
 	}
 
-	capi_ai_putqueue(cd->ai_ptr,0,m);
+	capi_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	return;
 }
 
@@ -1184,7 +1188,7 @@ capi_ai_info_ind(struct call_desc *cd, u_int8_t complement,
 	}
 
 	capi_ai_putqueue(cd->ai_ptr,complement ? 
-			 CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT : 0,m);
+			 CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT : 0,m,NULL);
 	return;
 }
 
@@ -1195,7 +1199,7 @@ capi_ai_info_ind(struct call_desc *cd, u_int8_t complement,
  * times using the same cdid with updated information !
  *---------------------------------------------------------------------------*/
 void
-capi_ai_connect_ind(struct call_desc *cd)
+capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 {
 	struct mbuf *m;
 	u_int16_t len;
@@ -1341,7 +1345,7 @@ capi_ai_connect_ind(struct call_desc *cd)
 	    bcopy(&msg, m->m_data, m->m_len);
 	}
 
-	capi_ai_putqueue(cd->ai_ptr,0,m);
+	capi_ai_putqueue(cd->ai_ptr,0,m,p_copy_count);
 	return;
 }
 
@@ -1383,7 +1387,7 @@ capi_ai_connect_active_ind(struct call_desc *cd)
 	    bcopy(&msg, m->m_data, m->m_len);
 	}
 
-	capi_ai_putqueue(cd->ai_ptr,0,m);
+	capi_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	return;
 }
 
@@ -1423,7 +1427,7 @@ capi_ai_disconnect_b3_ind(struct call_desc *cd)
 	    bcopy(&msg, m->m_data, m->m_len);
 	}
 
-	capi_ai_putqueue(cd->ai_ptr,0,m);
+	capi_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	return;
 }
 
@@ -1464,7 +1468,7 @@ capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement)
 	}
 
 	capi_ai_putqueue(cd->ai_ptr,complement ? 
-			 CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT : 0,m);
+			 CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT : 0,m,NULL);
 	return;
 }
 
@@ -2064,7 +2068,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      m2 = capi_make_conf(&msg, CAPI_CONF(CONNECT), 0x0000);
 
-	      capi_ai_putqueue(sc,0,m2);
+	      capi_ai_putqueue(sc,0,m2,NULL);
 
 	      if(m2 == NULL) break;
 
@@ -2385,7 +2389,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      msg.head.dwCid = CDID2CAPI_ID(cd->cdid)|CAPI_ID_NCCI;
 
 	      m2 = capi_make_conf(&msg, CAPI_CONF(CONNECT_B3), 0x0000);
-	      capi_ai_putqueue(sc,0,m2);
+	      capi_ai_putqueue(sc,0,m2,NULL);
 
 	      if(i4b_link_bchandrvr(cd, 1))
 	      {
@@ -2405,7 +2409,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		  /* disconnect request, actively terminate connection */
 
 		  m2 = capi_make_conf(&msg, CAPI_CONF(DISCONNECT_B3), 0x0000);
-		  capi_ai_putqueue(sc,0,m2);
+		  capi_ai_putqueue(sc,0,m2,NULL);
 
 		  (void)i4b_link_bchandrvr(cd, 0);
 	      }
@@ -2573,7 +2577,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(cd->dir_incoming)
 	      {
-		  capi_ai_putqueue(sc,0,m2);
+		  capi_ai_putqueue(sc,0,m2,NULL);
 
 		  m2 = capi_make_connect_b3_ind(cd);
 	      }
@@ -2806,7 +2810,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 		      m2 = capi_make_li_conn_conf(&msg, 0x0000,
 						  li_conn_req_part.dwCid);
-		      capi_ai_putqueue(sc,0,m2);
+		      capi_ai_putqueue(sc,0,m2,NULL);
 
 		      capi_connect_bridge(cd, sc, 
 					  CAPI_ID2CDID(li_conn_req_part.dwCid));
@@ -2843,7 +2847,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 		      m2 = capi_make_li_disc_conf(&msg, 0x0000,
 						  li_disc_req_part.dwCid);
-		      capi_ai_putqueue(sc,0,m2);
+		      capi_ai_putqueue(sc,0,m2,NULL);
 
 		      capi_disconnect_bridge(cd, sc,
 					     CAPI_ID2CDID(li_disc_req_part.dwCid));
@@ -2900,12 +2904,12 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      }
 	      else if(connect_resp.wReject == 1)
 	      {
-			/* this response is not supported
-			 * when there are multiple user
-			 * interfaces, hence it will
-			 * prevent other application interfaces
-			 * from answering the call
-			 */
+			/* ignore the call */
+
+			cause = (CAUSET_I4B << 8) | CAUSE_I4B_NORMAL;
+			response = SETUP_RESP_DNTCRE;
+
+			N_CONNECT_RESPONSE(cd, response, cause);
 			break;
 	      }
 	      else if((connect_resp.wReject >= 2) &&
@@ -3073,7 +3077,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      break;
 
 	    send_confirmation:
-	      capi_ai_putqueue(sc,0,m2);
+	      capi_ai_putqueue(sc,0,m2,NULL);
 	      break;
 
 	    default:
@@ -3809,7 +3813,7 @@ capi_put_mbuf(struct fifo_translator *f, struct mbuf *m1)
 		 * only call "capi_ai_putqueue()"
 		 * when there is an mbuf
 		 */
-		capi_ai_putqueue(sc,CAPI_PUTQUEUE_FLAG_DROP_OK,m2);
+		capi_ai_putqueue(sc,CAPI_PUTQUEUE_FLAG_DROP_OK,m2,NULL);
 		return;
 	    }
 	}
@@ -3844,7 +3848,7 @@ capi_get_mbuf(struct fifo_translator *f)
 			m2->m_next = NULL;
 
 			/* send acknowledge back */
-			capi_ai_putqueue(sc,0,m2);
+			capi_ai_putqueue(sc,0,m2,NULL);
 		}
 	}
 	else

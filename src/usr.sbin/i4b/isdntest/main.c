@@ -405,7 +405,7 @@ handle_connect_ind(msg_connect_ind_t *msi)
 
 	in_cdid = msi->header.cdid;
 	
-	if(strcmp(msi->dst_telno, outgoingnumber))
+	if(strcmp(msi->dst_telno, incomingnumber))
 	{
 		msg_connect_resp_t msr = { /* zero */ };
 		int ret;

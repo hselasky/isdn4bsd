@@ -384,6 +384,9 @@ cd_event(struct call_desc *cd, u_int8_t event)
 		 __FILE__, __FUNCTION__);
 
 	  capi_send_connect_resp(cd, 0);
+      } else {
+	  /* ignore the call */
+	  capi_send_connect_resp(cd, 1);
       }
       break;
 

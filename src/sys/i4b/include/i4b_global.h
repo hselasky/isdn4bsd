@@ -515,6 +515,10 @@ typedef struct call_desc {
 	u_int8_t  tone_gen_state; /* current state of tone generator */
 	u_int16_t tone_gen_pos;   /* current sine table position */
 
+	uint16_t  connect_ind_count; /* number of connect indication
+				      * messages sent to userland
+				      */
+
 	struct  __callout idle_callout;
 	struct  __callout set_state_callout;
 

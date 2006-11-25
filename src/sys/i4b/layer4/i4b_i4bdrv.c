@@ -340,7 +340,8 @@ SYSINIT(i4b_ai_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, i4b_ai_attach, NULL);
  *	i4b_ai_putqueue - put message into application interface queue(s)
  *---------------------------------------------------------------------------*/
 void
-i4b_ai_putqueue(struct i4b_ai_softc *sc, u_int8_t sc_complement, struct mbuf *m1)
+i4b_ai_putqueue(struct i4b_ai_softc *sc, u_int8_t sc_complement,
+		struct mbuf *m1, uint16_t *p_copy_count)
 {
 	struct mbuf *m2;
 	struct i4b_ai_softc *sc_exclude;
@@ -376,7 +377,7 @@ i4b_ai_putqueue(struct i4b_ai_softc *sc, u_int8_t sc_complement, struct mbuf *m1
 					NDBGL4(L4_ERR, "out of mbufs!");
 					break;
 				}
- 				i4b_ai_putqueue(sc, 0, m2);
+ 				i4b_ai_putqueue(sc, 0, m2, p_copy_count);
 			}
 			sc = sc->sc_next;
 		}
@@ -398,6 +399,10 @@ i4b_ai_putqueue(struct i4b_ai_softc *sc, u_int8_t sc_complement, struct mbuf *m1
 			m_freem(m2);
 
 			NDBGL4(L4_ERR, "ERROR: queue full, removing entry!");
+		}
+
+		if (p_copy_count) {
+		  (*p_copy_count) ++;
 		}
 
 		_IF_ENQUEUE(&sc->sc_rdqueue, m1);
@@ -955,7 +960,7 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 			{
 			    if(cd->ai_type == I4B_AI_BROADCAST)
 			    {
-			        i4b_ai_connect_ind(cd, sc);
+			        i4b_ai_connect_ind(cd, sc, NULL);
 			    }
 			}
 			else
@@ -973,12 +978,9 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 
 			if(mcrsp->response == SETUP_RESP_DNTCRE)
 			{
-				/* this response is not supported
-				 * when there are multiple user
-				 * interfaces, hence it will
-				 * prevent other application interfaces
-				 * from answering the call
-				 */
+				/* ignore the call */
+
+				N_CONNECT_RESPONSE(cd,mcrsp->response,mcrsp->cause);
 				break;
 			}
 

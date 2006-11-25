@@ -59,17 +59,19 @@ extern int i4b_controller_download(struct i4b_controller *cntl,
 				   struct isdn_download_request *req);
 
 extern void i4b_ai_putqueue(struct i4b_ai_softc *sc, 
-			    u_int8_t sc_complement, struct mbuf *m);
+			    u_int8_t sc_complement, struct mbuf *m,
+			    uint16_t *p_copy_count);
 
 extern void i4b_ai_connect_ind(struct call_desc *cd, 
-			       struct i4b_ai_softc *ai_ptr);
+			       struct i4b_ai_softc *ai_ptr, 
+			       uint16_t *p_copy_count);
 
 extern int i4b_link_bchandrvr(call_desc_t *cd, int activate);
 
 extern void i4b_l4_alert_ind(struct call_desc *cd);
 extern void i4b_l4_charging_ind(struct call_desc *cd);
 extern void i4b_l4_connect_active_ind(struct call_desc *cd);
-extern void i4b_l4_connect_ind(struct call_desc *cd);
+extern uint16_t i4b_l4_connect_ind(struct call_desc *cd);
 extern void i4b_l4_information_ind(call_desc_t *cd);
 extern void i4b_l4_pre_disconnect_ind(struct call_desc *cd);
 extern void i4b_l4_disconnect_ind(struct call_desc *cd, u_int8_t complement);
@@ -134,7 +136,7 @@ struct capi_ai_softc;
 
 extern void capi_ai_info_ind(struct call_desc *cd, u_int8_t complement, 
 			     u_int16_t wInfoNumber, void *ptr, u_int16_t len);
-extern void capi_ai_connect_ind(struct call_desc *cd);
+extern void capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count);
 extern void capi_ai_connect_active_ind(struct call_desc *cd);
 extern void capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement);
 

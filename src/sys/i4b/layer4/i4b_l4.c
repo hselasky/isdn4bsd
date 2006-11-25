@@ -65,7 +65,7 @@ i4b_l4_l12stat(int controller, int layer, int state)
 		md->layer = layer;
 		md->state = state;
 
-		i4b_ai_putqueue(NULL,0,m);
+		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
 	return;
 }
@@ -87,7 +87,7 @@ i4b_l4_teiasg(int controller, int tei)
 
 		md->tei = tei;
 
-		i4b_ai_putqueue(NULL,0,m);
+		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
 	return;
 }
@@ -110,7 +110,7 @@ i4b_l4_dialout(int driver, int driver_unit)
 		md->driver = driver;
 		md->driver_unit = driver_unit;	
 
-		i4b_ai_putqueue(NULL,0,m);
+		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
 	return;
 }
@@ -162,7 +162,7 @@ i4b_l4_dialoutnumber(int driver, int driver_unit, int cmdlen, char *cmd)
 
 		NDBGL4(L4_TIMO, "cmd[%d]=%s, subaddr[%d]=%s",
 		       md->cmdlen, md->cmd, md->subaddrlen, md->subaddr);
-		i4b_ai_putqueue(NULL,0,m);
+		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
 	return;
 }
@@ -192,7 +192,7 @@ i4b_l4_keypad(int driver, int driver_unit, int cmdlen, char *cmd)
 
 		md->cmdlen = cmdlen;
 		bcopy(cmd, md->cmd, cmdlen);
-		i4b_ai_putqueue(NULL,0,m);
+		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
 	return;
 }
@@ -214,7 +214,7 @@ i4b_l4_negcomplete_ind(call_desc_t *cd)
 		md->header.type = MSG_NEGCOMP_IND;
 		md->header.cdid = cd->cdid;
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	return;
@@ -238,7 +238,7 @@ i4b_l4_ifstate_changed(call_desc_t *cd, int new_state)
 		md->header.cdid = cd->cdid;
 		md->state = new_state;
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	return;
@@ -262,7 +262,7 @@ i4b_l4_drvrdisc(int driver, int driver_unit)
 		md->driver = driver;
 		md->driver_unit = driver_unit;	
 
-		i4b_ai_putqueue(NULL,0,m);
+		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
 	return;
 }
@@ -285,7 +285,7 @@ i4b_l4_drvranswer(int driver, int driver_unit)
 		md->driver = driver;
 		md->driver_unit = driver_unit;
 
-		i4b_ai_putqueue(NULL,0,m);
+		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
 	return;
 }
@@ -308,7 +308,7 @@ i4b_l4_drvrreject(int driver, int driver_unit)
 		md->driver = driver;
 		md->driver_unit = driver_unit;
 
-		i4b_ai_putqueue(NULL,0,m);
+		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
 	return;
 }
@@ -341,7 +341,7 @@ i4b_l4_accounting(int driver, int driver_unit, int accttype, int ioutbytes,
 		md->outbytes = outbytes;
 		md->inbytes = inbytes;
 		
-		i4b_ai_putqueue(NULL,0,m);
+		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
 	return;
 }
@@ -428,7 +428,8 @@ telno_copy(char *dst, const char *src, u_int16_t len)
  *	send MSG_CONNECT_IND message to userland
  *---------------------------------------------------------------------------*/
 void
-i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ai_ptr)
+i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ai_ptr,
+		   uint16_t *p_copy_count)
 {
 	msg_connect_ind_t *mp;
 	struct mbuf *m;
@@ -477,29 +478,34 @@ i4b_ai_connect_ind(struct call_desc *cd, struct i4b_ai_softc *ai_ptr)
 		mp->scr_ind = cd->src[0].scr_ind;
 		mp->prs_ind = cd->src[0].prs_ind;
 
-		i4b_ai_putqueue(ai_ptr,0,m);
+		i4b_ai_putqueue(ai_ptr,0,m,p_copy_count);
 	}
 	return;
 }
 
-void
+/* The following function returns the number of connect 
+ * indication messages sent to userland:
+ */
+uint16_t
 i4b_l4_connect_ind(call_desc_t *cd)
 {
+	uint16_t count = 0;
+
 	if((cd->ai_type == I4B_AI_I4B) || (cd->ai_type == I4B_AI_BROADCAST))
 	{
-		i4b_ai_connect_ind(cd, cd->ai_ptr);
+		i4b_ai_connect_ind(cd, cd->ai_ptr, &count);
 	}
 
 	if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
 	{
-		capi_ai_connect_ind(cd);
+		capi_ai_connect_ind(cd, &count);
 
 		/* send info indication last
 		 * to make software happy:
 		 */
 		capi_ai_info_ind(cd, 0, 0x8005 /* SETUP */, NULL, 0);
 	}
-	return;
+	return count;
 }
 
 /*---------------------------------------------------------------------------*
@@ -549,7 +555,7 @@ i4b_l4_information_ind(call_desc_t *cd)
 		bcopy(&(buffer[1]), &(mp->dst_telno[0]), len);
 		mp->dst_telno[len] = 0;
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
@@ -577,7 +583,7 @@ i4b_l4_idle_timeout_ind(call_desc_t *cd)
 		mp->header.type = MSG_IDLE_TIMEOUT_IND;
 		mp->header.cdid = cd->cdid;
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
@@ -610,7 +616,7 @@ i4b_l4_charging_ind(call_desc_t *cd)
 		else
 			mp->units = cd->units;
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
@@ -637,7 +643,7 @@ i4b_l4_alert_ind(call_desc_t *cd)
 		mp->header.type = MSG_ALERT_IND;
 		mp->header.cdid = cd->cdid;
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
@@ -666,7 +672,7 @@ i4b_l4_proceeding_ind(call_desc_t *cd, u_int8_t sending_complete,
 		mp->header.cdid = cd->cdid;
 		mp->sending_complete = sending_complete;
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
@@ -711,7 +717,7 @@ i4b_l4_retrieve_ind(call_desc_t *cd)
 		mp->header.type = MSG_RETRIEVE_IND;
 		mp->header.cdid = cd->cdid;
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || 
@@ -745,7 +751,7 @@ i4b_l4_hold_ind(call_desc_t *cd)
 		mp->header.type = MSG_HOLD_IND;
 		mp->header.cdid = cd->cdid;
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || 
@@ -781,7 +787,7 @@ i4b_l4_packet_ind(int driver, int driver_unit, int dir_out, struct mbuf *pkt)
 		mp->direction_out = dir_out;
 		memcpy(mp->pktdata, ip, min(len,MAX_PACKET_LOG));
 
-		i4b_ai_putqueue(NULL,0,m);
+		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
 	return;
 }
@@ -1034,7 +1040,7 @@ i4b_l4_connect_active_ind(call_desc_t *cd)
 		    mp->datetime[0] = 0;
 		}
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
@@ -1073,7 +1079,7 @@ i4b_l4_pre_disconnect_ind(call_desc_t *cd)
 		mp->header.cdid = cd->cdid;
 		mp->cause = cd->cause_in;
 
-		i4b_ai_putqueue(cd->ai_ptr,0,m);
+		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
 	    }
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || 
@@ -1108,7 +1114,7 @@ i4b_l4_disconnect_ind(call_desc_t *cd, u_int8_t complement)
 		mp->header.cdid = cd->cdid;
 		mp->cause = cd->cause_in;
 
-		i4b_ai_putqueue(cd->ai_ptr,complement,m);
+		i4b_ai_putqueue(cd->ai_ptr,complement,m,NULL);
 	    }
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || 

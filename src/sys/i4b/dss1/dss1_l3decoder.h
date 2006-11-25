@@ -947,7 +947,11 @@ n_connect_response(call_desc_t *cd, int response, int cause)
 	    break;
 
 	case SETUP_RESP_DNTCRE:
-	    cd_update(cd, NULL, EV_L3_RELEASE);
+	    if (cd->connect_ind_count < 2) {
+	        cd_update(cd, NULL, EV_L3_RELEASE);
+	    } else {
+	        cd->connect_ind_count --;
+	    }
 	    break;
 
 	default:	/* failsafe */
