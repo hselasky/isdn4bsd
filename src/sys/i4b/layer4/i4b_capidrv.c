@@ -1746,6 +1746,18 @@ capi_close(struct cdev *dev, int flag, int fmt, struct thread *td)
 	return(0);
 }
 
+static const uint8_t cause_table[9] = {
+	[0] = CAUSE_I4B_NORMAL, 
+	[1] = CAUSE_I4B_NORMAL, 
+	[2] = CAUSE_I4B_NORMAL,  /* Reject call, normal call clearing */
+	[3] = CAUSE_I4B_BUSY,    /* Reject call, user busy */
+	[4] = CAUSE_I4B_NOCHAN,  /* Reject call, requested circuit/channel not available */
+	[5] = CAUSE_I4B_REJECT,  /* Reject call, facility rejected */
+	[6] = CAUSE_I4B_NOCHAN,  /* Reject call, channel unacceptable */
+	[7] = CAUSE_I4B_INCOMP,  /* Reject call, incompatible destination */
+	[8] = CAUSE_I4B_OOO,     /* Reject call, destination out of order */
+};
+
 /*---------------------------------------------------------------------------*
  *	capi_read - device driver read routine
  *---------------------------------------------------------------------------*/
@@ -2896,39 +2908,27 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      capi_decode(&msg.data, msg.head.wLen, &connect_resp);
 
-	      if(connect_resp.wReject == 0)
-	      {
-			/* Accept call */
-			cause = (CAUSET_I4B << 8) | CAUSE_I4B_NORMAL;
-			response = SETUP_RESP_ACCEPT;
-	      }
-	      else if(connect_resp.wReject == 1)
-	      {
-			/* ignore the call */
+	      if (connect_resp.wReject < 9) {
+		  cause = (CAUSET_I4B << 8) | cause_table[connect_resp.wReject];
 
-			cause = (CAUSET_I4B << 8) | CAUSE_I4B_NORMAL;
+		  if(connect_resp.wReject == 0) {
+
+			/* accept the call */
+			response = SETUP_RESP_ACCEPT;
+
+		  } else if(connect_resp.wReject == 1) {
+
+			/* ignore the call */
 			response = SETUP_RESP_DNTCRE;
 
 			N_CONNECT_RESPONSE(cd, response, cause);
 			break;
-	      }
-	      else if((connect_resp.wReject >= 2) &&
-		      (connect_resp.wReject <= 8))
-	      {
-		static const u_int8_t table[9] = 
-		  { [0] = CAUSE_I4B_NORMAL, 
-		    [1] = CAUSE_I4B_NORMAL, 
-		    [2] = CAUSE_I4B_NORMAL,  /* Reject call, normal call clearing */
-		    [3] = CAUSE_I4B_BUSY,    /* Reject call, user busy */
-		    [4] = CAUSE_I4B_NOCHAN,  /* Reject call, requested circuit/channel not available */
-		    [5] = CAUSE_I4B_REJECT,  /* Reject call, facility rejected */
-		    [6] = CAUSE_I4B_NOCHAN,  /* Reject call, channel unacceptable */
-		    [7] = CAUSE_I4B_INCOMP,  /* Reject call, incompatible destination */
-		    [8] = CAUSE_I4B_OOO,     /* Reject call, destination out of order */
-		  };
 
-		cause = (CAUSET_I4B << 8) | table[connect_resp.wReject];
-		response = SETUP_RESP_REJECT;
+		  } else {
+
+			/* reject the call */
+			response = SETUP_RESP_REJECT;
+		  }
 	      }
 	      else if((connect_resp.wReject & 0xFF00) == 0x3400)
 	      {

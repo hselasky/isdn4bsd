@@ -371,7 +371,6 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
  */
 	case EV_L3_SETRJRS:
 	  /* call rejected */
-	  cd->cause_out = CAUSE_Q850_CALLREJ;
 	  cd->need_release = 1;
 	  cd_set_state(cd,ST_L3_U0);
 	  break;

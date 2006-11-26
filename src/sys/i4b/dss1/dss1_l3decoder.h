@@ -771,6 +771,7 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, struct dss1_buffer *buf,
 	{
 	    if((event == EV_L3_RELEASE) &&
 	       (cd->cause_in != CAUSE_Q850_CALLREJ) &&
+	       (cd->cause_in != CAUSE_Q850_USRBSY) &&
 	       (cd->pipe == (void *)&(sc->sc_pipe[0])))
 	    {
 	        /* just ignore it */
@@ -946,17 +947,15 @@ n_connect_response(call_desc_t *cd, int response, int cause)
 	    cd_update(cd, NULL, EV_L3_SETRJRS);
 	    break;
 
+	default:
+	    NDBGL3(L3_ERR, "unknown response, doing SETUP_RESP_DNTCRE");
+
 	case SETUP_RESP_DNTCRE:
 	    if (cd->connect_ind_count < 2) {
 	        cd_update(cd, NULL, EV_L3_RELEASE);
 	    } else {
 	        cd->connect_ind_count --;
 	    }
-	    break;
-
-	default:	/* failsafe */
-	    cd_update(cd, NULL, EV_L3_RELEASE);
-	    NDBGL3(L3_ERR, "unknown response, doing SETUP_RESP_DNTCRE");
 	    break;
 	}
 	return;
