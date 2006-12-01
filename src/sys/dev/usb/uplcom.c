@@ -421,7 +421,7 @@ uplcom_find_up(struct usb_attach_arg *uaa)
 	const struct uplcom_product *up = uplcom_products;
 
 	if (uaa->iface == NULL) {
-	    while(up->product) {
+	    while(up->vendor) {
 	        if ((up->vendor == uaa->vendor) &&
 		    (up->product == uaa->product) &&
 		    (up->release <= uaa->release)) {
