@@ -923,6 +923,13 @@ hfc4s8s_chip_status_read CHIP_STATUS_READ_T(sc)
 	HFC4S8S_BUS_VAR(sc);
 	register u_int8_t temp;
 
+	/* read S/T status
+	 * NOTE: If this register is not read
+	 * an IRQ loop will start on some of
+	 * the newer HFC-4S/8S chips!
+	 */
+	HFC4S8S_READ_1(REG_hfc4s8s_r_sci_read, temp);
+
 	/* read status */
 	HFC4S8S_READ_1(REG_hfc4s8s_r_irq_misc_read, temp);
 
