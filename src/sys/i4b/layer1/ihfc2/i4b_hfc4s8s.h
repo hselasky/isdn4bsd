@@ -536,7 +536,7 @@ hfc4s8s_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	     * enabling interrupts can generate
 	     * a new interrupt immediately !
 	     */
-	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_irqmsk_misc_write, 0x03);
+	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_irqmsk_misc_write, 0x02);
 	}
 	else
 	{

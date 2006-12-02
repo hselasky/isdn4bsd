@@ -1121,7 +1121,7 @@ I4B_DBASE(wibusb_dbase_root)
   I4B_DBASE_ADD(c_chip_status_read      , &wibusb_chip_status_read);
   I4B_DBASE_ADD(c_chip_status_check     , &wibusb_chip_status_check);
   I4B_DBASE_ADD(d_interrupt_delay       , hz / 2);
-  I4B_DBASE_ADD(o_POLLED_MODE           , 1);
+  I4B_DBASE_ADD(i4b_option_value        , I4B_OPTION_POLLED_MODE|XXX);
 #endif
 
 #if 0
