@@ -424,7 +424,8 @@ uplcom_find_up(struct usb_attach_arg *uaa)
 	    while(up->vendor) {
 	        if ((up->vendor == uaa->vendor) &&
 		    (up->product == uaa->product) &&
-		    (up->release <= uaa->release)) {
+		    ((up->release <= uaa->release) ||
+		     (up->release == 0xFFFF))) {
 		    return up;
 		}
 		up++;
