@@ -636,6 +636,127 @@ get_multi_1(const u_int8_t *src_ptr, u_int16_t src_len,
     return;
 }
 
+void
+capi_connect_ind(struct i4b_controller *cntl, struct mbuf *m_in)
+{
+    struct CAPI_CONNECT_IND_DECODED conn_ind;
+    struct CAPI_ADDITIONAL_INFO_DECODED add_info;
+    struct CAPI_HEADER_ENCODED *hdr = (void *)(m_in->m_data);
+    struct call_desc *cd;
+
+    CAPI_INIT(CAPI_CONNECT_IND, &conn_ind);
+    CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
+
+    /* perform recursive decoding */
+
+    conn_ind.add_info.ptr = &add_info;
+    conn_ind.add_info_STRUCT = IE_STRUCT_DECODED;
+
+    capi_decode_mbuf(m_in, &conn_ind);
+
+    cd = N_ALLOCATE_CD(cntl, ((void *)1), 0, 0, NULL);
+
+    if (cd == NULL) {
+       /* just let it time out */
+       return;
+    }
+
+    cd_allocate_channel(cd);
+
+    if (cd->channel_allocated == 0) {
+        cd_set_state(cd, ST_L3_U0);
+	return;
+    }
+
+    cd->capi_dwCid   = hdr->dwCid;
+    cd->capi_wMsgNum = hdr->wNum;
+
+    switch (conn_ind.wCIP) {
+    default:
+        NDBGL4(L4_CAPIDBG, "capi%d: cdid=%d, unknown CIP = %d", 
+	       CDID2CONTROLLER(cd->cdid), cd->cdid, conn_ind.wCIP);
+
+    case 0x0010:
+    case 0x0001: 
+        cd->channel_bprot = BPROT_NONE; 
+	break;
+    case 0x0002: 
+        cd->channel_bprot = BPROT_RHDLC; 
+	break;
+    }
+
+    /* get destination telephone number */
+
+    get_multi_1(conn_ind.dst_telno.ptr,
+		conn_ind.dst_telno.len,
+		cd->dst_telno,
+		sizeof(cd->dst_telno)-1, 1);
+
+    /* get source telephone number */
+
+    get_ton_prs_src(conn_ind.src_telno.ptr,
+		    conn_ind.src_telno.len, &(cd->src[0]));
+
+    get_multi_1(conn_ind.src_telno.ptr,
+		conn_ind.src_telno.len,
+		cd->src[0].telno,
+		sizeof(cd->src[0].telno)-1, 2);
+
+    /* get second source telephone number */
+
+    get_ton_prs_src(conn_ind.src_telno_2.ptr,
+		    conn_ind.src_telno_2.len, &(cd->src[1]));
+
+    get_multi_1(conn_ind.src_telno_2.ptr,
+		conn_ind.src_telno_2.len,
+		cd->src[1].telno,
+		sizeof(cd->src[1].telno)-1, 2);
+
+    /* get destination subaddress number */
+
+    get_multi_1(conn_ind.dst_subaddr.ptr,
+		conn_ind.dst_subaddr.len,
+		cd->dst_subaddr,
+		sizeof(cd->dst_subaddr)-1, 1);
+
+    /* get source subaddress number */
+
+    get_multi_1(conn_ind.src_subaddr.ptr,
+		conn_ind.src_subaddr.len,
+		cd->src_subaddr,
+		sizeof(cd->src_subaddr)-1, 1);
+
+    /* get keypad string */
+
+    get_multi_1(add_info.keypad.ptr,
+		add_info.keypad.len,
+		cd->keypad,
+		sizeof(cd->keypad)-1, 0);
+
+    /* get user-user string */
+
+    get_multi_1(add_info.useruser.ptr,
+		add_info.useruser.len,
+		cd->user_user,
+		sizeof(cd->user_user)-1, 0);
+
+    /* get sending complete */
+
+    if (add_info.sending_complete.len >= 2) {
+        u_int8_t *ptr = add_info.sending_complete.ptr;
+
+	if((ptr[0] == 0x01) &&
+	   (ptr[1] == 0x00)) {
+
+	   cd->sending_complete = 1;
+	}
+    }
+
+    i4b_l4_connect_ind(cd);
+
+    return;
+}
+
 u_int16_t
 capi_connect_resp(struct call_desc *cd, struct mbuf *m_in, u_int16_t wReject)
 {
