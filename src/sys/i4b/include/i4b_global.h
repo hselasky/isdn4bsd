@@ -459,6 +459,9 @@ typedef struct call_desc {
 
 	u_int32_t driver_type_copy;	/* copy of "driver_type" */
 	u_int32_t driver_unit_copy;	/* copy of "driver_unit" */
+
+	uint16_t curr_max_packet_size;  /* used by CAPI */
+	uint16_t new_max_packet_size;   /* used by CAPI */
 	
 	cause_t	cause_in;		/* cause value from remote */
 	cause_t	cause_out;		/* cause value to remote */

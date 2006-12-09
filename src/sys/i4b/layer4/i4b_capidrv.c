@@ -71,6 +71,8 @@ struct capi_ai_softc {
 	u_int32_t sc_CIP_mask_2[MAX_CONTROLLERS]; /* used to select incoming calls */
 
 	u_int16_t sc_max_b_data_len;
+#define MIN_B_DATA_LEN 128 /* bytes */
+
 	u_int16_t sc_max_b_data_blocks;
 
 	struct cdev *sc_dev;
@@ -1636,6 +1638,71 @@ capi_disconnect_bridge(struct call_desc *cd, void *sc, cdid_t dst_cdid)
 }
 
 /*---------------------------------------------------------------------------*
+ *	capi_decode_b_protocol - decode the B_PROTOCOL structure
+ *
+ * Return values:
+ *   0 success else failure
+ *---------------------------------------------------------------------------*/
+static uint8_t
+capi_decode_b_protocol(struct call_desc *cd, 
+		       struct CAPI_B_PROTOCOL_DECODED *b_prot)
+{
+    uint8_t error = 0;
+
+    if (b_prot->wB1_protocol == 0) {
+        if (cd->channel_bprot == BPROT_NONE) {
+	    /* data over voice */
+	    cd->channel_bprot = BPROT_RHDLC_DOV;
+	} else {
+	    cd->channel_bprot = BPROT_RHDLC;
+	}
+    } else if (b_prot->wB1_protocol == 1) {
+        if (cd->channel_bprot == BPROT_RHDLC) {
+	    /* voice over data */
+	    cd->channel_bprot = BPROT_NONE_VOD;
+	} else {
+	    cd->channel_bprot = BPROT_NONE;
+	}
+    } else {
+        NDBGL4(L4_MSG, "cdid=%d: unsupported "
+	       "B1 protocol=%d ignored!",
+	       cd->cdid, b_prot->wB1_protocol);
+        error = 1;
+    }
+
+    if (b_prot->wB2_protocol != 1) {
+        NDBGL4(L4_MSG, "cdid=%d: unsupported "
+	       "B2 protocol=%d ignored!",
+	       cd->cdid, b_prot->wB2_protocol);
+	if (!error) {
+	    error = 2;
+	}
+    }
+
+    if(b_prot->wB3_protocol != 0) {
+        NDBGL4(L4_MSG, "cdid=%d, unsupported "
+	       "B3 protocol=%d ignored!",
+	       cd->cdid, b_prot->wB3_protocol);
+	if (!error) {
+	    error = 3;
+	}
+    }
+
+    cd->new_max_packet_size = b_prot->wMaxPacketSize;
+
+    if (error) {
+        cd->channel_bprot = BPROT_NONE;
+    }
+
+    /*
+     * TODO: add support for decoding of
+     * b_protocol.global_config
+     */
+
+    return error;
+}
+
+/*---------------------------------------------------------------------------*
  *	capi_open - device driver open routine
  *---------------------------------------------------------------------------*/
 static int
@@ -2235,40 +2302,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 			      connect_req.b_protocol.len, 
 			      &b_protocol);
 
-		  if((b_protocol.wB1_protocol == 0) &&
-		     (cd->channel_bprot == BPROT_NONE))
-		  {
-		      /* data over voice */
-		      cd->channel_bprot = BPROT_RHDLC_DOV;
-		  }
-
-		  if((b_protocol.wB1_protocol == 1) &&
-		     (cd->channel_bprot == BPROT_RHDLC))
-		  {
-		      /* voice over data */
-		      cd->channel_bprot = BPROT_NONE_VOD;
-		  }
-
-		  if(b_protocol.wB1_protocol >= 2)
-		  {
-		      NDBGL4(L4_ERR, "cdid=%d: unsupported "
-			     "B1 protocol=%d ignored!",
-			     cd->cdid, b_protocol.wB1_protocol);
-		  }
-
-		  if(b_protocol.wB2_protocol != 1)
-		  {
-		      NDBGL4(L4_ERR, "cdid=%d: unsupported "
-			     "B2 protocol=%d ignored!",
-			     cd->cdid, b_protocol.wB2_protocol);
-		  }
-
-		  if(b_protocol.wB3_protocol != 0)
-		  {
-		      NDBGL4(L4_ERR, "cdid=%d, unsupported "
-			     "B3 protocol=%d ignored!",
-			     cd->cdid, b_protocol.wB3_protocol);
-		  }
+		  capi_decode_b_protocol(cd, &b_protocol);
 	      }
 
 	      if(connect_req.bFlag_0 & CAPI_FLAG0_WANT_LATE_INBAND)
@@ -2535,48 +2569,23 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(select_b_protocol_req.b_protocol.len)
 	      {
+		  uint8_t berr;
+
 		  CAPI_INIT(CAPI_B_PROTOCOL, &b_protocol);
 
 		  capi_decode(select_b_protocol_req.b_protocol.ptr,
 			      select_b_protocol_req.b_protocol.len, 
 			      &b_protocol);
 
-		  if(b_protocol.wB1_protocol >= 2)
-		  {
+		  cd->channel_bprot = 0xff;
+
+		  berr = capi_decode_b_protocol(cd, &b_protocol);
+
+		  if (berr) {
 		      m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
-					  0x3001);
+					  0x3000 | berr);
 		      goto send_confirmation;
 		  }
- 
-		  if(b_protocol.wB2_protocol != 1)
-		  {
-		      m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
-					  0x3002);
-		      goto send_confirmation;
-		  }
-
-		  if(b_protocol.wB3_protocol != 0)
-		  {
-		      m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
-					  0x3003);
-		      goto send_confirmation;
-		  }
-
-		  if(b_protocol.wB1_protocol == 0)
-		  {
-		      /* data over voice */
-		      cd->channel_bprot = BPROT_RHDLC;
-		  }
-		  else /* if(b_protocol.wB1_protocol == 1) */
-		  {
-		      /* voice over data */
-		      cd->channel_bprot = BPROT_NONE;
-		  }
-
-		  /*
-		   * TODO: add support for decoding of
-		   * b_protocol.global_config
-		   */
 	      }
 
 	      capi_disconnect_broadcast(cd, sc);
@@ -2945,37 +2954,16 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(connect_resp.b_protocol.len)
 	      {
+		  uint8_t berr;
+
 		  CAPI_INIT(CAPI_B_PROTOCOL, &b_protocol);
 
 		  capi_decode(connect_resp.b_protocol.ptr,
 			      connect_resp.b_protocol.len, &b_protocol);
 
-		  if(b_protocol.wB1_protocol == 0)
-		  {
-			cd->channel_bprot = BPROT_RHDLC;
-		  }
+		  cd->channel_bprot = 0xff;
 
-		  if(b_protocol.wB1_protocol == 1)
-		  {
-			cd->channel_bprot = BPROT_NONE;
-		  }
-
-		  if(b_protocol.wB1_protocol >= 2)
-		  {
-			NDBGL4(L4_ERR, "cdid=%d, unsupported B1 protocol=%d, "
-			       " (ignored)", cd->cdid, b_protocol.wB1_protocol);
-		  }
-
-		  if(b_protocol.wB2_protocol != 1)
-		  {
-			NDBGL4(L4_ERR, "cdid=%d, unsupported B2 protocol=%d, "
-			       " (ignored)", cd->cdid, b_protocol.wB2_protocol);
-		  }
-		  if(b_protocol.wB3_protocol != 0)
-		  {
-			NDBGL4(L4_ERR, "cdid=%d, unsupported B3 protocol=%d, "
-			       " (ignored)", cd->cdid, b_protocol.wB3_protocol);
-		  }
+		  berr = capi_decode_b_protocol(cd, &b_protocol);
 	      }
 
 	      capi_disconnect_broadcast(cd, sc);
@@ -3279,8 +3267,8 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		  req->max_b_data_len = BCH_MAX_DATALEN;
 		}
 
-		if(req->max_b_data_len < 128) {
-		   req->max_b_data_len = 128;
+		if(req->max_b_data_len < MIN_B_DATA_LEN) {
+		   req->max_b_data_len = MIN_B_DATA_LEN;
 		}
 
 		if(req->max_b_data_blocks > 128) {
@@ -3871,12 +3859,11 @@ static struct mbuf *
 capi_alloc_mbuf(struct fifo_translator *f, u_int16_t def_len, u_int16_t tr_len)
 {
 	struct call_desc *cd = f->L5_sc;
-	struct capi_ai_softc *sc = cd->ai_ptr;
 
-	if(def_len > sc->sc_max_b_data_len)
-	{
-	   def_len = sc->sc_max_b_data_len;
+	if (def_len > cd->curr_max_packet_size) {
+	    def_len = cd->curr_max_packet_size;
 	}
+
 	return i4b_getmbuf(def_len, M_NOWAIT);
 }
 
@@ -3916,10 +3903,20 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 		f->L5_GET_MBUF = &capi_get_mbuf;
 		f->L5_ALLOC_MBUF = &capi_alloc_mbuf;
 
-		if(sc)
-		{
+		if (sc == NULL) {
+		    pp->protocol_1 = P_DISABLE;
+		} else {
 		    mtx_lock(&sc->sc_mtx);
 		    f->tx_queue.ifq_maxlen = sc->sc_max_b_data_blocks;
+
+		    if (cd->new_max_packet_size == 0) {
+		        cd->curr_max_packet_size = sc->sc_max_b_data_len;
+		    } else {
+		        cd->curr_max_packet_size = cd->new_max_packet_size;
+		    }
+		    if (cd->curr_max_packet_size < MIN_B_DATA_LEN) {
+		        cd->curr_max_packet_size = MIN_B_DATA_LEN;
+		    }
 		    mtx_unlock(&sc->sc_mtx);
 		}
 

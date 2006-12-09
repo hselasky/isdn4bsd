@@ -323,6 +323,7 @@ capi20_register(u_int32_t max_logical_connections,
 	struct data_buffer *mp;
 	struct capi_register_req req = { /* zero */ };
 	u_int32_t size;
+	int32_t temp = 1;
 
 	if(app_id_ptr == NULL)
 	{
@@ -362,7 +363,7 @@ capi20_register(u_int32_t max_logical_connections,
 	}
 
 	/* set non-blocking operation */
-	if(ioctl(sc->sc_fd, FIONBIO, "\1\1\1") < 0)
+	if(ioctl(sc->sc_fd, FIONBIO, &temp) < 0)
 	{
 	    free_app(sc);
 	    app_id_ptr[0] = -1;
@@ -545,7 +546,7 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 
 		temp = le32toh(pmsg->data.DATA_B3_REQ.dwPtr_1);
 
-		iov[1].iov_base = ((void_p_t *)(&temp))->data;
+		iov[1].iov_base = temp + ((uint8_t *)0);
 		iov[1].iov_len = le16toh(pmsg->data.DATA_B3_REQ.wLen);
 	    }
 	    else if(sizeof(void *) <= 8)
@@ -559,7 +560,7 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 
 		temp = le64toh(pmsg->data.DATA_B3_REQ.qwPtr_2);
 
-		iov[1].iov_base = ((void_p_t *)(&temp))->data;
+		iov[1].iov_base = temp + ((uint8_t *)0);
 		iov[1].iov_len = le16toh(pmsg->data.DATA_B3_REQ.wLen);
 	    }
 	    else
@@ -670,7 +671,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 {
 	struct app_softc *sc;
 	struct data_buffer *mp;
-	void *data_ptr;
+	uint8_t *data_ptr;
 	u_int16_t cmd;
 	u_int16_t msg_len;
 	u_int16_t retval;
@@ -781,9 +782,10 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 		    goto again;
 		}
 
-		((void_p_t *)(&temp))->data = data_ptr;
+		temp = data_ptr - ((uint8_t *)0);
 
 		mp->msg.data.DATA_B3_IND.dwPtr_1 = htole32(temp);
+		mp->msg.data.DATA_B3_IND.qwPtr_2 = 0;
 	    }
 	    else if(sizeof(void *) <= 8)
 	    {
@@ -795,7 +797,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 		    goto again;
 		}
 
-		((void_p_t *)(&temp))->data = data_ptr;
+		temp = data_ptr - ((uint8_t *)0);
 
 		mp->msg.data.DATA_B3_IND.dwPtr_1 = 0;
 		mp->msg.data.DATA_B3_IND.qwPtr_2 = htole64(temp);

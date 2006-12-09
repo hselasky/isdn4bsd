@@ -95,7 +95,7 @@ typedef struct u_int64_p u_int64_p_t;
 
 /* global defines */
 
-#define CAPI_STACK_VERSION     208
+#define CAPI_STACK_VERSION     209
 #define CAPI_APPLICATION_MAX   0x80 /* units */
 #define CAPI_DEVICE_NAME       "/dev/capi20"
 #define CAPI_SHLIB_BASENAME    "libcapi20.so"
@@ -709,6 +709,23 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
 /* definition of "bFlag_0": */
 #define CAPI_FLAG0_WANT_LATE_INBAND   0x01
 
+/* definition of number type bits in "src_telno" */
+#define CAPI_TON_OTHER    0x00
+#define CAPI_TON_INTERNAT 0x10
+#define CAPI_TON_NATIONAL 0x20
+
+/* definition of presentation bits in "src_telno" */
+#define CAPI_PRS_ALLOWED  0x00
+#define CAPI_PRS_RESTRICT 0x20
+#define CAPI_PRS_NNINTERW 0x40
+#define CAPI_PRS_RESERVED 0x60
+
+/* definition of screening bits in "src_telno" */
+#define CAPI_SCR_USR_NOSC 0x00
+#define CAPI_SCR_USR_PASS 0x01
+#define CAPI_SCR_USR_FAIL 0x02
+#define CAPI_SCR_NET      0x03
+
 /* ================================================ */
 
 #define CAPI_CONNECT_ACTIVE_IND(m,n) \
@@ -1028,6 +1045,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, STRUCT, B2_config,)\
   m(n, STRUCT, B3_config,)\
   m(n, STRUCT, global_config,)\
+  m(n, WORD  , wMaxPacketSize,) /* BSD specific */\
   END
 
 /* definition of "wB1_protocol": */
@@ -1066,6 +1084,9 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
 #define CAPI_B3_T30_FAX_G3_EXT          5
 #define CAPI_B3_RESERVED                6
 #define CAPI_B3_MODEM                   7
+
+/* definition of "wMaxPacketSize": */
+#define CAPI_MAX_PKT_SIZE_DEFAULT       0 /* use default value */
 
 /* ================================================ */
 
@@ -1122,6 +1143,9 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
 #define CAPI_DTMF_START_LISTEN  1
 #define CAPI_DTMF_STOP_LISTEN   2
 #define CAPI_DTMF_SEND_DIGITS   3
+
+/* definition of "wToneDuration" and "wGapDuration" */
+#define CAPI_DTMF_DEFAULT_DURATION 64 /* milliseconds */
 
 #define CAPI_FACILITY_CONF_DTMF_PARAM(m,n) \
   m(n, WORD  , wInfo,)\
@@ -1622,6 +1646,25 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, WORD   , wFunction,)\
   m(n, STRUCT , Parm,)\
   END
+
+/* definition of "wOptions" */
+#define CAPI_EC_OPTION_DISABLE_NEVER         0x0000
+#define CAPI_EC_OPTION_DISABLE_G165          0x0004
+#define CAPI_EC_OPTION_DISABLE_G164_OR_G165  (0x0002 | 0x0004)
+
+/* definition of "wTail" */
+#define CAPI_EC_TAIL_DEFAULT                 64 /* milliseconds */
+
+/* definition of "wFunction" */
+#define CAPI_EC_FUNCTION_GET_SUPPORT         0x0000
+#define CAPI_EC_FUNCTION_ENABLE              0x0001
+#define CAPI_EC_FUNCTION_DISABLE             0x0002
+#define CAPI_EC_FUNCTION_FREEZE              0x0003
+#define CAPI_EC_FUNCTION_RESUME              0x0004
+#define CAPI_EC_FUNCTION_RESET               0x0005
+
+/* definition of "wPreDelay" */
+#define CAPI_EC_PRE_DELAY_DEFAULT            0 /* milliseconds */
 
 /*---------------------------------------------------------------------------*
  *	declare all CAPI structures and some enums
@@ -4679,6 +4722,7 @@ enum { ENUM = (value) };
   m(n, CAPI_ERROR_INVALID_CONTROLLER          , 0x10F3)\
   m(n, CAPI_ERROR_RESET_NOT_SUPPORTED         , 0x10F4)\
   m(n, CAPI_ERROR_NO_RIGHTS_TO_RESET          , 0x10F5)\
+  m(n, CAPI_ERROR_TIMEOUT                     , 0x10F6)\
 \
   /* class 0x11xx - CAPI message exchange error */\
   m(n, CAPI_ERROR_INVALID_APPLICATION_ID      , 0x1101)\
