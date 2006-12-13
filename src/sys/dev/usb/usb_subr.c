@@ -873,6 +873,53 @@ usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di,
 	return 0;
 }
 
+/* The following function will remove detached 
+ * devices from the interface list. This can
+ * happen during USB device module unload.
+ */
+static void
+usbd_remove_detached_devices(struct usbd_device *udev)
+{
+	device_t *subdev = udev->subdevs;
+	device_t *subdev_end = udev->subdevs_end;
+	uint8_t detached_first = 0;
+
+	PRINTFN(3,("udev=%p\n", udev));
+
+	while (subdev < subdev_end) {
+	    if (subdev[0]) {
+	        if (device_is_attached(subdev[0]) == 0) {
+		    if (device_delete_child(device_get_parent(subdev[0]), 
+					    subdev[0]) == 0) {
+		        subdev[0] = NULL;
+			if (subdev == udev->subdevs) {
+			    detached_first = 1;
+			}
+
+		    } else {
+		        /* Panic here, else one can get a double call to 
+			 * device_detach(). USB devices should never fail
+			 * on detach!
+			 */
+		        panic("device_delete_child() failed!\n");
+		    }
+		}
+	    }
+	    subdev++;
+	}
+
+	if (detached_first) {
+	  if ((udev->probed == USBD_PROBED_SPECIFIC_AND_FOUND) ||
+	      (udev->probed == USBD_PROBED_GENERIC_AND_FOUND)) {
+	      /* The first and only device is gone. 
+	       * Reset the "probed" variable.
+	       */
+	      udev->probed = USBD_PROBED_NOTHING;
+	  }
+	}
+	return;
+}
+
 /* "usbd_probe_and_attach()" is called 
  * from "usbd_new_device()" and "uhub_explore()"
  */
@@ -894,6 +941,8 @@ usbd_probe_and_attach(device_t parent, int port, struct usbd_port *up)
 			device_get_nameunit(parent), port));
 		return (USBD_INVAL);
 	}
+
+	usbd_remove_detached_devices(udev);
 
 	bzero(&uaa, sizeof(uaa));
 
