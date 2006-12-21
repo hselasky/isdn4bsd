@@ -72,10 +72,12 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ehci_pci.c,v 1.23 2006/09/07 00:06:41 imp Ex
 #define PCI_EHCI_VENDORID_ACERLABS	0x10b9
 #define PCI_EHCI_VENDORID_AMD		0x1022
 #define PCI_EHCI_VENDORID_APPLE		0x106b
+#define PCI_EHCI_VENDORID_ATI		0x1002
 #define PCI_EHCI_VENDORID_CMDTECH	0x1095
 #define PCI_EHCI_VENDORID_INTEL		0x8086
 #define PCI_EHCI_VENDORID_NEC		0x1033
 #define PCI_EHCI_VENDORID_OPTI		0x1045
+#define PCI_EHCI_VENDORID_PHILIPS	0x1131
 #define PCI_EHCI_VENDORID_SIS		0x1039
 #define PCI_EHCI_VENDORID_NVIDIA	0x12D2
 #define PCI_EHCI_VENDORID_NVIDIA2	0x10DE
@@ -132,8 +134,45 @@ ehci_pci_match(device_t self)
 {
 	u_int32_t device_id = pci_get_devid(self);
 
+	if (device_id == 0x523910b9)
+	    return "ALi M5239 USB 2.0 controller";
+
+	if (device_id == 0x10227463)
+	    return "AMD 8111 USB 2.0 controller";
+
+	if (device_id == 0x43451002)
+	    return "ATI SB200 USB 2.0 controller";
+	if (device_id == 0x43731002)
+	    return "ATI SB400 USB 2.0 controller";
+
+	if (device_id == 0x25ad8086)
+	    return "Intel 6300ESB USB 2.0 controller";
+	if (device_id == 0x24cd8086)
+	    return "Intel 82801DB/L/M (ICH4) USB 2.0 controller";
+	if (device_id == 0x24dd8086)
+	    return "Intel 82801EB/R (ICH5) USB 2.0 controller";
+	if (device_id == 0x265c8086)
+	    return "Intel 82801FB (ICH6) USB 2.0 controller";
+	if (device_id == 0x27cc8086)
+	    return "Intel 82801GB/R (ICH7) USB 2.0 controller";
+
 	if(device_id == 0x00e01033)
 	  { return ("NEC uPD 720100 USB 2.0 controller"); }
+
+	if (device_id == 0x006810de)
+	    return "NVIDIA nForce2 USB 2.0 controller";
+	if (device_id == 0x008810de)
+	    return "NVIDIA nForce2 Ultra 400 USB 2.0 controller";
+	if (device_id == 0x00d810de)
+	    return "NVIDIA nForce3 USB 2.0 controller";
+	if (device_id == 0x00e810de)
+	    return "NVIDIA nForce3 250 USB 2.0 controller";
+	if (device_id == 0x005b10de)
+	    return "NVIDIA nForce4 USB 2.0 controller";
+
+	if (device_id == 0x15621131)
+	    return "Philips ISP156x USB 2.0 controller";
+
 	if(device_id == 0x31041106)
 	  { return ("VIA VT6202 USB 2.0 controller"); }
 
@@ -257,6 +296,9 @@ ehci_pci_attach(device_t self)
 	case PCI_EHCI_VENDORID_APPLE:
 		sprintf(sc->sc_vendor, "Apple");
 		break;
+	case PCI_EHCI_VENDORID_ATI:
+		sprintf(sc->sc_vendor, "ATI");
+		break;
 	case PCI_EHCI_VENDORID_CMDTECH:
 		sprintf(sc->sc_vendor, "CMDTECH");
 		break;
@@ -268,6 +310,9 @@ ehci_pci_attach(device_t self)
 		break;
 	case PCI_EHCI_VENDORID_OPTI:
 		sprintf(sc->sc_vendor, "OPTi");
+		break;
+	case PCI_EHCI_VENDORID_PHILIPS:
+		sprintf(sc->sc_vendor, "Philips");
 		break;
 	case PCI_EHCI_VENDORID_SIS:
 		sprintf(sc->sc_vendor, "SiS");
