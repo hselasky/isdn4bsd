@@ -69,12 +69,14 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ohci_pci.c,v 1.48 2006/09/03 00:27:42 jmg Ex
 #define PCI_OHCI_VENDORID_ACERLABS	0x10b9
 #define PCI_OHCI_VENDORID_AMD		0x1022
 #define PCI_OHCI_VENDORID_APPLE		0x106b
+#define PCI_OHCI_VENDORID_ATI		0x1002
 #define PCI_OHCI_VENDORID_CMDTECH	0x1095
 #define PCI_OHCI_VENDORID_NEC		0x1033
 #define PCI_OHCI_VENDORID_NVIDIA	0x12D2
 #define PCI_OHCI_VENDORID_NVIDIA2	0x10DE
 #define PCI_OHCI_VENDORID_OPTI		0x1045
 #define PCI_OHCI_VENDORID_SIS		0x1039
+#define PCI_OHCI_VENDORID_SUN		0x108e
 
 #define PCI_OHCI_BASE_REG	0x10
 
@@ -132,6 +134,12 @@ ohci_pci_match(device_t self)
 	  { return ("AMD-756 USB Controller"); }
         if(device_id == 0x74141022)
 	  { return ("AMD-766 USB Controller"); }
+
+	if (device_id == 0x43741002)
+	    return "ATI SB400 USB Controller";
+	if (device_id == 0x43751002)
+	    return "ATI SB400 USB Controller";
+
         if(device_id == 0x06701095)
 	  { return ("CMD Tech 670 (USB0670) USB controller"); }
         if(device_id == 0x06731095)
@@ -144,6 +152,10 @@ ohci_pci_match(device_t self)
 	  { return ("nVidia nForce3 USB Controller"); }
         if(device_id == 0x70011039)
 	  { return ("SiS 5571 USB controller"); }
+
+	if (device_id == 0x1103108e)
+	    return "Sun PCIO-2 USB controller";
+
         if(device_id == 0x0019106b)
 	  { return ("Apple KeyLargo USB controller"); }
 
@@ -252,6 +264,9 @@ ohci_pci_attach(device_t self)
 	case PCI_OHCI_VENDORID_APPLE:
 		sprintf(sc->sc_vendor, "Apple");
 		break;
+	case PCI_OHCI_VENDORID_ATI:
+		sprintf(sc->sc_vendor, "ATI");
+		break;
 	case PCI_OHCI_VENDORID_CMDTECH:
 		sprintf(sc->sc_vendor, "CMDTECH");
 		break;
@@ -267,6 +282,9 @@ ohci_pci_attach(device_t self)
 		break;
 	case PCI_OHCI_VENDORID_SIS:
 		sprintf(sc->sc_vendor, "SiS");
+		break;
+	case PCI_OHCI_VENDORID_SUN:
+		sprintf(sc->sc_vendor, "SUN");
 		break;
 	default:
 		if(bootverbose)
