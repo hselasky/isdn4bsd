@@ -73,6 +73,7 @@ ${S}/sys/modules/netgraph/bluetooth/ubtbcmfw \
 ${S}/sys/modules/netgraph/bluetooth/ubt \
 ${S}/sys/modules/rue \
 ${S}/sys/modules/sound/driver/uaudio \
+${S}/sys/modules/uark \
 ${S}/sys/modules/ubsa \
 ${S}/sys/modules/ubser \
 ${S}/sys/modules/ucom \
