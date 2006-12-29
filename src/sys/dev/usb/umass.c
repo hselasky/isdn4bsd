@@ -2975,15 +2975,18 @@ static u_int8_t
 umass_ufi_transform(struct umass_softc *sc, u_int8_t *cmd_ptr, 
 		    u_int8_t cmd_len)
 {
-	/* A UFI command is always 12 bytes in length */
-	if ((cmd_len < UFI_COMMAND_LENGTH) ||
+	if ((cmd_len == 0) ||
 	    (cmd_len > sizeof(sc->sc_transfer.cmd_data))) {
 		DPRINTF(sc, UDMASS_SCSI, "Invalid command "
 			"length: %d bytes\n", cmd_len);
 		return 0;	/* failure */
 	}
 
+	/* An UFI command is always 12 bytes in length */
 	sc->sc_transfer.cmd_len = UFI_COMMAND_LENGTH;
+
+	/* Zero the command data */
+	bzero(sc->sc_transfer.cmd_data, UFI_COMMAND_LENGTH);
 
 	switch (cmd_ptr[0]) {
 	/* Commands of which the format has been verified. They should work.
@@ -2997,7 +3000,6 @@ umass_ufi_transform(struct umass_softc *sc, u_int8_t *cmd_ptr,
 			DPRINTF(sc, UDMASS_UFI, "Converted TEST_UNIT_READY "
 				"to START_UNIT\n");
 
-			bzero(sc->sc_transfer.cmd_data, UFI_COMMAND_LENGTH);
 			sc->sc_transfer.cmd_data[0] = START_STOP_UNIT;
 			sc->sc_transfer.cmd_data[4] = SSS_START;
 			return 1;
@@ -3030,8 +3032,7 @@ umass_ufi_transform(struct umass_softc *sc, u_int8_t *cmd_ptr,
 		return 0;	/* failure */
 	}
 
-	bcopy(cmd_ptr, sc->sc_transfer.cmd_data, 
-	      UFI_COMMAND_LENGTH);
+	bcopy(cmd_ptr, sc->sc_transfer.cmd_data, cmd_len);
 	return 1;	/* success */
 }
 
@@ -3042,15 +3043,18 @@ static u_int8_t
 umass_atapi_transform(struct umass_softc *sc, u_int8_t *cmd_ptr, 
 		      u_int8_t cmd_len)
 {
-	/* An ATAPI command is always 12 bytes in length. */
-	if ((cmd_len < ATAPI_COMMAND_LENGTH) ||
+	if ((cmd_len == 0) ||
 	    (cmd_len > sizeof(sc->sc_transfer.cmd_data))) {
 		DPRINTF(sc, UDMASS_SCSI, "Invalid command "
 			"length: %d bytes\n", cmd_len);
 		return 0;	/* failure */
 	}
 
+	/* An ATAPI command is always 12 bytes in length. */
 	sc->sc_transfer.cmd_len = ATAPI_COMMAND_LENGTH;
+
+	/* Zero the command data */
+	bzero(sc->sc_transfer.cmd_data, ATAPI_COMMAND_LENGTH);
 
 	switch (cmd_ptr[0]) {
 	/* Commands of which the format has been verified. They should work.
@@ -3059,8 +3063,8 @@ umass_atapi_transform(struct umass_softc *sc, u_int8_t *cmd_ptr,
 	case INQUIRY:
 		/* some drives wedge when asked for full inquiry information. */
 		if (sc->sc_quirks & FORCE_SHORT_INQUIRY) {
-			bcopy(cmd_ptr, sc->sc_transfer.cmd_data, 
-			      ATAPI_COMMAND_LENGTH);
+			bcopy(cmd_ptr, sc->sc_transfer.cmd_data, cmd_len);
+
 			sc->sc_transfer.cmd_data[4] = SHORT_INQUIRY_LENGTH;
 			return 1;
 		}
@@ -3070,7 +3074,6 @@ umass_atapi_transform(struct umass_softc *sc, u_int8_t *cmd_ptr,
 		if (sc->sc_quirks & NO_TEST_UNIT_READY) {
 			DPRINTF(sc, UDMASS_SCSI, "Converted TEST_UNIT_READY "
 				"to START_UNIT\n");
-			bzero(sc->sc_transfer.cmd_data, ATAPI_COMMAND_LENGTH);
 			sc->sc_transfer.cmd_data[0] = START_STOP_UNIT;
 			sc->sc_transfer.cmd_data[4] = SSS_START;
 			return 1;
@@ -3121,8 +3124,7 @@ umass_atapi_transform(struct umass_softc *sc, u_int8_t *cmd_ptr,
 		break;;
 	}
 
-	bcopy(cmd_ptr, sc->sc_transfer.cmd_data, 
-	      ATAPI_COMMAND_LENGTH);
+	bcopy(cmd_ptr, sc->sc_transfer.cmd_data, cmd_len);
 	return 1;	/* success */
 }
 
