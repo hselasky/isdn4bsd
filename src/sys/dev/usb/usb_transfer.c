@@ -1116,6 +1116,13 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 	u_int32_t level = 0;
 	usbd_status err;
 
+	PRINTFN(4,("udev=%p bmRequestType=0x%02x bRequest=0x%02x "
+		   "wValue=0x%02x%02x wIndex=0x%02x%02x wLength=0x%02x%02x\n",
+		   udev, req->bmRequestType, req->bRequest,
+		   req->wValue[1], req->wValue[0],
+		   req->wIndex[1], req->wIndex[0],
+		   req->wLength[1], req->wLength[0]));
+
 	usbd_config[0].type = UE_CONTROL;
 	usbd_config[0].endpoint = 0; /* control pipe */
 	usbd_config[0].direction = -1;
