@@ -104,10 +104,8 @@ __m_length(struct mbuf *m0, struct mbuf **last);
 #  define pp_last_sent pp_last_activity
 # endif
 
-# if 0
-extern int
-if_printf(struct ifnet *ifp, const char * fmt, ...);
-# endif
+extern void if_printf(struct ifnet *, const char *, ...)
+    __attribute__((__format__(__printf__,2,3)));
 
 extern void
 if_initname(struct ifnet *ifp, const char *name, int unit);

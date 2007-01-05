@@ -78,9 +78,7 @@ if_initname(struct ifnet *ifp, const char *name, int unit)
     return;
 }
 
-#if 0
-int
-if_printf(struct ifnet *ifp, const char * fmt, ...)
+void if_printf(struct ifnet *ifp, const char *fmt, ...)
 {
     va_list ap;
 
@@ -95,9 +93,8 @@ if_printf(struct ifnet *ifp, const char * fmt, ...)
      * NetBSD kernel does
      * not support that!
      */
-    return 2;
+    return;
 }
-#endif
 
 int
 netisr_queue(u_int32_t num, struct mbuf *m)
