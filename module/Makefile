@@ -22,7 +22,6 @@ CFLAGS+=  -Wall -I${.CURDIR}/../src/sys
 #
 #CFLAGS+= -DDEBUG -g
 #CFLAGS+= -DDIAGNOSTIC
-CFLAGS+= -DMULTIPROCESSOR
 #
 # Uncomment to enable USB:
 #
