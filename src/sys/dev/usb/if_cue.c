@@ -582,6 +582,8 @@ cue_cfg_first_time_setup(struct cue_softc *sc,
 	    goto done;
 	}
 
+	sc->sc_evilhack = ifp;
+
 	ifp->if_softc = sc;
 	if_initname(ifp, "cue", sc->sc_unit);
 	ifp->if_mtu = ETHERMTU;
@@ -595,7 +597,12 @@ cue_cfg_first_time_setup(struct cue_softc *sc,
 
 	sc->sc_ifp = ifp;
 
+	mtx_unlock(&(sc->sc_mtx));
+
 	ether_ifattach(ifp, eaddr);
+
+	mtx_lock(&(sc->sc_mtx));
+
  done:
 	return;
 }

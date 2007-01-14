@@ -108,6 +108,7 @@ struct ural_bbp_prom {
 } __packed;
 
 struct ural_softc {
+	void				*sc_evilhack; /* XXX this pointer must be first */
 
 	struct usbd_config_td		sc_config_td;
 	struct ural_tx_desc		sc_tx_desc;

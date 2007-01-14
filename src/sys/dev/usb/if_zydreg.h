@@ -1278,6 +1278,8 @@ struct zyd_tx_radiotap_header {
 	 (1 << IEEE80211_RADIOTAP_CHANNEL))
 
 struct zyd_softc {
+	void			*sc_evilhack; /* XXX this pointer must be first */
+
 	struct ieee80211com	sc_ic;
 	struct zyd_rf		sc_rf;
 	struct __callout	sc_scan_callout;

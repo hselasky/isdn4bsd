@@ -617,6 +617,8 @@ kue_cfg_first_time_setup(struct kue_softc *sc,
 	    goto done;
 	}
 
+	sc->sc_evilhack = ifp;
+
 	ifp->if_softc = sc;
 	if_initname(ifp, "kue", sc->sc_unit);
 	ifp->if_mtu = ETHERMTU;
@@ -630,7 +632,11 @@ kue_cfg_first_time_setup(struct kue_softc *sc,
 
 	sc->sc_ifp = ifp;
 
+	mtx_unlock(&(sc->sc_mtx));
+
 	ether_ifattach(ifp, sc->sc_desc.kue_macaddr);
+
+	mtx_lock(&(sc->sc_mtx));
  done:
 	return;
 }

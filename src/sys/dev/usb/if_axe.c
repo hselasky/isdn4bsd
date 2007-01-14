@@ -149,14 +149,10 @@ static device_shutdown_t axe_shutdown;
 static void
 axe_cfg_cmd(struct axe_softc *sc, u_int16_t cmd, u_int16_t index, 
 	    u_int16_t val, void *buf);
-static int
-axe_cfg_miibus_readreg(device_t dev, int phy, int reg);
 
-static int
-axe_cfg_miibus_writereg(device_t dev, int phy, int reg, int val);
-
-static void
-axe_cfg_miibus_statchg(device_t dev);
+static miibus_readreg_t axe_cfg_miibus_readreg;
+static miibus_writereg_t axe_cfg_miibus_writereg;
+static miibus_statchg_t axe_cfg_miibus_statchg;
 
 static int
 axe_ifmedia_upd_cb(struct ifnet *ifp);
@@ -723,6 +719,8 @@ axe_cfg_first_time_setup(struct axe_softc *sc,
 	    goto done;
 	}
 
+	sc->sc_evilhack = ifp;
+
 	ifp->if_softc = sc;
 	if_initname(ifp, "axe", sc->sc_unit);
 	ifp->if_mtu = ETHERMTU;
@@ -757,11 +755,15 @@ axe_cfg_first_time_setup(struct axe_softc *sc,
 
 	sc->sc_ifp = ifp;
 
+	mtx_unlock(&(sc->sc_mtx));
+
 	/*
 	 * Call MI attach routine.
 	 */
 
 	ether_ifattach(ifp, eaddr);
+
+	mtx_lock(&(sc->sc_mtx));
 
  done:
 	return;

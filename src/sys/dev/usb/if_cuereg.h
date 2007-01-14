@@ -121,6 +121,8 @@ struct cue_type {
 };
 
 struct cue_softc {
+	void			*sc_evilhack; /* XXX this pointer must be first */
+
 	struct usbd_config_td	sc_config_td;
 	struct __callout	sc_watchdog;
 	struct mtx		sc_mtx;

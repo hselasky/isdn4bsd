@@ -174,15 +174,10 @@ udav_ifmedia_status_cb(struct ifnet *ifp, struct ifmediareq *ifmr);
 static void
 udav_cfg_tick(struct udav_softc *sc,
 	      struct udav_config_copy *cc, u_int16_t refcount);
-static int
-udav_cfg_miibus_readreg(device_t dev, int phy, int reg);
 
-static void
-udav_cfg_miibus_writereg(device_t dev, int phy, int reg, int data);
-
-static void
-udav_cfg_miibus_statchg(device_t dev);
-
+static miibus_readreg_t udav_cfg_miibus_readreg;
+static miibus_writereg_t udav_cfg_miibus_writereg;
+static miibus_statchg_t udav_cfg_miibus_statchg;
 
 static const struct usbd_config udav_config[UDAV_ENDPT_MAX] = {
 
@@ -430,6 +425,8 @@ udav_cfg_first_time_setup(struct udav_softc *sc,
 	    goto done;
 	}
 
+	sc->sc_evilhack = ifp;
+
 	ifp->if_softc = sc;
 	if_initname(ifp, "udav",  sc->sc_unit);
 	ifp->if_mtu = ETHERMTU;
@@ -464,11 +461,15 @@ udav_cfg_first_time_setup(struct udav_softc *sc,
 
 	sc->sc_ifp = ifp;
 
+	mtx_unlock(&(sc->sc_mtx));
+
 	/*
 	 * Call MI attach routine.
 	 */
 
 	ether_ifattach(ifp, eaddr);
+
+	mtx_lock(&(sc->sc_mtx));
 
  done:
 	return;
@@ -1430,7 +1431,7 @@ udav_cfg_miibus_readreg(device_t dev, int phy, int reg)
 	return data16;
 }
 
-static void
+static int
 udav_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 {
 	struct udav_softc *sc = device_get_softc(dev);
@@ -1438,7 +1439,7 @@ udav_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 
 	/* XXX: one PHY only for the internal PHY */
 	if (phy != 0) {
-	    return;
+	    return 0;
 	}
 
 	mtx_lock(&(sc->sc_mtx)); /* XXX */
@@ -1462,7 +1463,7 @@ udav_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 
 	mtx_unlock(&(sc->sc_mtx)); /* XXX */
 
-	return;
+	return 0;
 }
 
 static void

@@ -162,14 +162,9 @@ rue_cfg_csr_write_2(struct rue_softc *sc, u_int16_t reg, u_int16_t val);
 static void
 rue_cfg_csr_write_4(struct rue_softc *sc, int reg, u_int32_t val);
 
-static int
-rue_cfg_miibus_readreg(device_t dev, int phy, int reg);
-
-static int
-rue_cfg_miibus_writereg(device_t dev, int phy, int reg, int data);
-
-static void
-rue_cfg_miibus_statchg(device_t dev);
+static miibus_readreg_t rue_cfg_miibus_readreg;
+static miibus_writereg_t rue_cfg_miibus_writereg;
+static miibus_statchg_t rue_cfg_miibus_statchg;
 
 static void
 rue_config_copy(struct rue_softc *sc, 
@@ -822,6 +817,8 @@ rue_cfg_first_time_setup(struct rue_softc *sc,
 	    goto done;
 	}
 
+	sc->sc_evilhack = ifp;
+
 	ifp->if_softc = sc;
 	if_initname(ifp, "rue", sc->sc_unit);
 	ifp->if_mtu = ETHERMTU;
@@ -857,11 +854,15 @@ rue_cfg_first_time_setup(struct rue_softc *sc,
 
 	sc->sc_ifp = ifp;
 
+	mtx_unlock(&(sc->sc_mtx));
+
 	/*
 	 * Call MI attach routine.
 	 */
 
 	ether_ifattach(ifp, eaddr);
+
+	mtx_lock(&(sc->sc_mtx));
 
  done:
 	return;

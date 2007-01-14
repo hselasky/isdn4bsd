@@ -2060,6 +2060,7 @@ zyd_cfg_first_time_setup(struct zyd_softc *sc,
 	    goto done;
 	}
 
+	sc->sc_evilhack = ifp;
 	sc->sc_ifp = ifp;
 
 	ifp->if_softc = sc;

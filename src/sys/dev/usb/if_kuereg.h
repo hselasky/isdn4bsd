@@ -126,6 +126,7 @@ struct kue_type {
 };
 
 struct kue_softc {
+	void			*sc_evilhack; /* XXX this pointer must be first */
 
 	struct usbd_config_td	sc_config_td;
 	struct __callout	sc_watchdog;

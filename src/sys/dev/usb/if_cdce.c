@@ -379,6 +379,8 @@ cdce_attach(device_t dev)
 	    goto detach;
 	}
 
+	sc->sc_evilhack = ifp;
+
 	ifp->if_softc = sc;
 	if_initname(ifp, "cdce", sc->sc_unit);
 	ifp->if_mtu = ETHERMTU;
@@ -396,7 +398,11 @@ cdce_attach(device_t dev)
 
 	sc->sc_ifp = ifp;
 
+	mtx_unlock(&(sc->sc_mtx));
+
 	ether_ifattach(ifp, eaddr);
+
+	mtx_lock(&(sc->sc_mtx));
 
 	return 0; /* success */
 

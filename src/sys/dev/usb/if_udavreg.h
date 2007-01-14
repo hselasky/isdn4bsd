@@ -137,6 +137,8 @@
 			    device_get_softc((sc)->sc_miibus) : NULL)
 
 struct udav_softc {
+	void			*sc_evilhack; /* XXX this pointer must be first */
+
 	struct usbd_config_td	sc_config_td;
 	struct __callout	sc_watchdog;
 	struct mtx		sc_mtx;

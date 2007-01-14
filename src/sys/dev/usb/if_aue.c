@@ -215,14 +215,10 @@ aue_cfg_eeprom_getword(struct aue_softc *sc, u_int8_t addr,
 static void
 aue_cfg_read_eeprom(struct aue_softc *sc, u_int8_t *dest, 
 		    u_int16_t off, u_int16_t len);
-static int
-aue_cfg_miibus_readreg(device_t dev, int phy, int reg);
 
-static int
-aue_cfg_miibus_writereg(device_t dev, int phy, int reg, int data);
-
-static void
-aue_cfg_miibus_statchg(device_t dev);
+static miibus_readreg_t aue_cfg_miibus_readreg;
+static miibus_writereg_t aue_cfg_miibus_writereg;
+static miibus_statchg_t aue_cfg_miibus_statchg;
 
 static void
 aue_cfg_setmulti(struct aue_softc *sc,
@@ -758,19 +754,17 @@ aue_cfg_reset(struct aue_softc *sc)
 	 * Note: We force all of the GPIO pins low first, *then*
 	 * enable the ones we want.
 	 */
-	aue_cfg_csr_write_1(sc, AUE_GPIO0, (AUE_GPIO_OUT0|AUE_GPIO_SEL0));
-	aue_cfg_csr_write_1(sc, AUE_GPIO0, (AUE_GPIO_OUT0|AUE_GPIO_SEL0|
-					    AUE_GPIO_SEL1));
-
 	if (sc->sc_flags & AUE_FLAG_LSYS) {
 		/* Grrr. LinkSys has to be different from everyone else. */
 		aue_cfg_csr_write_1(sc, AUE_GPIO0,
 				    (AUE_GPIO_SEL0 | AUE_GPIO_SEL1));
+	} else {
 		aue_cfg_csr_write_1(sc, AUE_GPIO0,
-				    (AUE_GPIO_SEL0 | 
-				     AUE_GPIO_SEL1 | 
-				     AUE_GPIO_OUT0));
+				    (AUE_GPIO_OUT0 | AUE_GPIO_SEL0));
 	}
+
+	aue_cfg_csr_write_1(sc, AUE_GPIO0, 
+			    (AUE_GPIO_OUT0 | AUE_GPIO_SEL0 | AUE_GPIO_SEL1));
 
 	if (sc->sc_flags & AUE_FLAG_PII) {
 	    aue_cfg_reset_pegasus_II(sc);
@@ -909,6 +903,8 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 	    goto done;
 	}
 
+	sc->sc_evilhack = ifp;
+
 	ifp->if_softc = sc;
 	if_initname(ifp, "aue", sc->sc_unit);
 	ifp->if_mtu = ETHERMTU;
@@ -957,10 +953,14 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 
 	sc->sc_ifp = ifp;
 
+	mtx_unlock(&(sc->sc_mtx));
+
 	/*
 	 * Call MI attach routine.
 	 */
 	ether_ifattach(ifp, eaddr);
+
+	mtx_lock(&(sc->sc_mtx));
 
  done:
 	return;
@@ -1118,6 +1118,8 @@ aue_bulk_read_callback(struct usbd_xfer *xfer)
 	return;
 
  tr_transferred:
+
+	DPRINTF(sc, 0, "transferred %d bytes\n", xfer->actlen);
 
 	if (xfer->actlen <= (4 + ETHER_CRC_LEN)) {
 	    ifp->if_ierrors++;
@@ -1390,7 +1392,7 @@ aue_start_transfers(struct aue_softc *sc)
 	    /* start the USB transfers, 
 	     * if not already started:
 	     */
-	    usbd_transfer_start(sc->sc_xfer[4]);
+//	    usbd_transfer_start(sc->sc_xfer[4]);
 	    usbd_transfer_start(sc->sc_xfer[1]);
 	    usbd_transfer_start(sc->sc_xfer[0]);
 	}
@@ -1530,7 +1532,6 @@ aue_ifmedia_sts_cb(struct ifnet *ifp, struct ifmediareq *ifmr)
 	ifmr->ifm_status = sc->sc_media_status;
 
 	mtx_unlock(&(sc->sc_mtx));
-
 	return;
 }
 
@@ -1681,3 +1682,4 @@ aue_shutdown(device_t dev)
 
 	return 0;
 }
+

@@ -43,6 +43,8 @@ struct cdce_type {
 };
 
 struct cdce_softc {
+	void			*sc_evilhack; /* XXX this pointer must be first */
+
 	struct ifmedia		sc_ifmedia;
 	struct mtx		sc_mtx;
 
