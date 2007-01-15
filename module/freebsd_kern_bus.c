@@ -1078,7 +1078,7 @@ device_get_children(device_t dev, device_t **devlistp, int *devcountp)
     list = malloc(n, M_TEMP, M_NOWAIT|M_ZERO);
     if (!list) {
         *devlistp = NULL;
-	*devcountp = NULL;
+	*devcountp = 0;
 	return ENOMEM;
     }
 
