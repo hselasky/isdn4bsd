@@ -1064,7 +1064,7 @@ device_get_children(device_t dev, device_t **devlistp, int *devcountp)
     device_t *list;
 
     count = 0;
-    TAILQ_FOREACH(child, &dev->children, dev_link) {
+    TAILQ_FOREACH(child, &dev->dev_children, dev_link) {
 	count++;
     }
 
@@ -1083,7 +1083,7 @@ device_get_children(device_t dev, device_t **devlistp, int *devcountp)
     }
 
     n = 0;
-    TAILQ_FOREACH(child, &dev->children, dev_link) {
+    TAILQ_FOREACH(child, &dev->dev_children, dev_link) {
         if (n < count) {
 	    list[n] = child;
 	    n++;
