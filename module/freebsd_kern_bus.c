@@ -796,6 +796,23 @@ bus_teardown_intr(device_t dev, struct resource *r, void *cookie)
     return 0;
 }
 
+int32_t
+bus_generic_detach(device_t dev)
+{
+    device_t child;
+    int error;
+
+    if (!dev->attached)
+	return (EBUSY);
+
+    TAILQ_FOREACH(child, &dev->dev_children, dev_link) {
+	if ((error = device_detach(child)) != 0)
+        	return (error);
+    }
+
+    return (0);
+}
+
 const char *
 device_get_nameunit(device_t dev)
 {

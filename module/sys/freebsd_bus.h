@@ -187,6 +187,9 @@ bus_set_resource(device_t dev, int type, int rid, u_int32_t start,
 extern int
 bus_teardown_intr(device_t dev, struct resource *r, void *cookie);
 
+extern int32_t
+bus_generic_detach(device_t dev);
+
 extern int
 bus_setup_intr(device_t dev, struct resource *r, int flags,
 	       driver_intr_t *handler, void *arg, void **cookiep);
