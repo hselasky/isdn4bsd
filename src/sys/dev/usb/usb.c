@@ -587,6 +587,9 @@ usb_detach(device_t dev)
 		       "usb wait explore", 0);
 	}
 
+	/* detach children first */
+	bus_generic_detach(dev);
+
 	if(bus->root_port.device != NULL)
 	{
 		/* free device, but not sub-devices,

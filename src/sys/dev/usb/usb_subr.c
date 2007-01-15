@@ -1439,8 +1439,12 @@ usbd_free_device(struct usbd_port *up, u_int8_t free_subdev)
 
 			printf("(addr %d) disconnected\n", udev->address);
 
-			/* device_delete_child() will detach all sub-devices ! */
-			if(device_delete_child
+			/* first detach the child to give the child's detach routine
+			 * a chance to detach the sub-devices in the correct order.
+			 * Then delete the child using "device_delete_child()" which
+			 * will detach all sub-devices from the bottom and upwards!
+			 */
+			if (device_detach(subdev[0]) || device_delete_child
 				(device_get_parent(subdev[0]), subdev[0]))
 			{
 				/* if detach fails sub-devices will still
@@ -2649,4 +2653,27 @@ usbd_ether_get_mbuf(void)
 	    m_adj(m_new, ETHER_ALIGN);
 	}
 	return (m_new);
+}
+
+/*---------------------------------------------------------------------------*
+ * device_delete_all_children - delete all children of a device
+ *---------------------------------------------------------------------------*/
+int32_t
+device_delete_all_children(device_t dev)
+{
+	device_t *devlist;
+	int32_t devcount;
+	int32_t error;
+
+	error = device_get_children(dev, &devlist, &devcount);
+	if (error == 0) {
+	    while (devcount-- > 0) {
+	        error = device_delete_child(dev, devlist[devcount]);
+		if (error) {
+		    break;
+		}
+	    }
+	    free(devlist, M_TEMP);
+	}
+	return error;
 }

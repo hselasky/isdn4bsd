@@ -353,6 +353,9 @@ extern int
 device_delete_child(device_t dev, device_t child);
 
 extern int
+device_get_children(device_t dev, device_t **devlistp, int *devcountp);
+
+extern int
 device_is_attached(device_t dev);
 
 extern void

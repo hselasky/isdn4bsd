@@ -88,6 +88,13 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ehci_pci.c,v 1.23 2006/09/07 00:06:41 imp Ex
 static void ehci_pci_givecontroller(device_t self);
 static void ehci_pci_takecontroller(device_t self);
 
+static device_probe_t ehci_pci_probe;
+static device_attach_t ehci_pci_attach;
+static device_detach_t ehci_pci_detach;
+static device_suspend_t ehci_pci_suspend;
+static device_resume_t ehci_pci_resume;
+static device_shutdown_t ehci_pci_shutdown;
+
 static int
 ehci_pci_suspend(device_t self)
 {
@@ -198,9 +205,6 @@ ehci_pci_probe(device_t self)
 		return ENXIO;
 	}
 }
-
-static int
-ehci_pci_detach(device_t self);
 
 static int
 ehci_pci_attach(device_t self)
@@ -364,9 +368,13 @@ ehci_pci_detach(device_t self)
 
 	if(sc->sc_bus.bdev)
 	{
+		device_detach(sc->sc_bus.bdev);
 		device_delete_child(self, sc->sc_bus.bdev);
 		sc->sc_bus.bdev = NULL;
 	}
+
+	/* during module unload there are lots of children leftover */
+	device_delete_all_children(self);
 
 	pci_disable_busmaster(self);
 

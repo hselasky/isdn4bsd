@@ -73,10 +73,11 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/uhci_pci.c,v 1.58 2006/05/28 05:27:08 iedows
 
 #define PCI_UHCI_BASE_REG               0x20
 
-static int uhci_pci_attach(device_t self);
-static int uhci_pci_detach(device_t self);
-static int uhci_pci_suspend(device_t self);
-static int uhci_pci_resume(device_t self);
+static device_probe_t uhci_pci_probe;
+static device_attach_t uhci_pci_attach;
+static device_detach_t uhci_pci_detach;
+static device_suspend_t uhci_pci_suspend;
+static device_resume_t uhci_pci_resume;
 
 static int
 uhci_pci_suspend(device_t self)
@@ -330,9 +331,13 @@ uhci_pci_detach(device_t self)
 
 	if(sc->sc_bus.bdev)
 	{
+		device_detach(sc->sc_bus.bdev);
 		device_delete_child(self, sc->sc_bus.bdev);
 		sc->sc_bus.bdev = NULL;
 	}
+
+	/* during module unload there are lots of children leftover */
+	device_delete_all_children(self);
 
 	/*
 	 * disable interrupts that might have been switched on in

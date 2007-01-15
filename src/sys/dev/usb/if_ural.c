@@ -608,6 +608,9 @@ ural_detach(device_t dev)
 
 	mtx_unlock(&(sc->sc_mtx));
 
+	/* get rid of any late children */
+	bus_generic_detach(dev);
+
 	if (ifp) {
 	    bpfdetach(ifp);
 	    ieee80211_ifdetach(ic);

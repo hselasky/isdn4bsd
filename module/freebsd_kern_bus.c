@@ -1055,7 +1055,54 @@ device_delete_child(device_t dev, device_t child)
     return error;
 }
 
- void
+int
+device_get_children(device_t dev, device_t **devlistp, int *devcountp)
+{
+    int count;
+    int n;
+    device_t child;
+    device_t *list;
+
+    count = 0;
+    TAILQ_FOREACH(child, &dev->children, dev_link) {
+	count++;
+    }
+
+    if (count == 0) {
+        /* avoid zero size allocation */
+        n = 1 * sizeof(device_t);
+    } else {
+        n = count * sizeof(device_t);
+    }
+
+    list = malloc(n, M_TEMP, M_NOWAIT|M_ZERO);
+    if (!list) {
+        *devlistp = NULL;
+	*devcountp = NULL;
+	return ENOMEM;
+    }
+
+    n = 0;
+    TAILQ_FOREACH(child, &dev->children, dev_link) {
+        if (n < count) {
+	    list[n] = child;
+	    n++;
+	}
+    }
+
+    if (n != count) {
+        printf("%s: WARNING: Number of "
+	       "devices changed %d -> %d!\n",
+	       __FILE__, count, n);
+    }
+
+    *devlistp = list;
+    *devcountp = count;
+
+    return 0;
+}
+
+void
 device_quiet(device_t dev)
 {
     dev->dev_quiet = 1;

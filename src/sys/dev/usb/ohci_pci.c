@@ -80,10 +80,11 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ohci_pci.c,v 1.48 2006/09/03 00:27:42 jmg Ex
 
 #define PCI_OHCI_BASE_REG	0x10
 
-static int ohci_pci_attach(device_t self);
-static int ohci_pci_detach(device_t self);
-static int ohci_pci_suspend(device_t self);
-static int ohci_pci_resume(device_t self);
+static device_probe_t ohci_pci_probe;
+static device_attach_t ohci_pci_attach;
+static device_detach_t ohci_pci_detach;
+static device_suspend_t ohci_pci_suspend;
+static device_resume_t ohci_pci_resume;
 
 static int
 ohci_pci_suspend(device_t self)
@@ -331,9 +332,13 @@ ohci_pci_detach(device_t self)
 
 	if(sc->sc_bus.bdev)
 	{
+		device_detach(sc->sc_bus.bdev);
 		device_delete_child(self, sc->sc_bus.bdev);
 		sc->sc_bus.bdev = NULL;
 	}
+
+	/* during module unload there are lots of children leftover */
+	device_delete_all_children(self);
 
 	pci_disable_busmaster(self);
 

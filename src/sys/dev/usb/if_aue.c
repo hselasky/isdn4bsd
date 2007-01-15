@@ -1392,7 +1392,7 @@ aue_start_transfers(struct aue_softc *sc)
 	    /* start the USB transfers, 
 	     * if not already started:
 	     */
-//	    usbd_transfer_start(sc->sc_xfer[4]);
+	    usbd_transfer_start(sc->sc_xfer[4]);
 	    usbd_transfer_start(sc->sc_xfer[1]);
 	    usbd_transfer_start(sc->sc_xfer[0]);
 	}

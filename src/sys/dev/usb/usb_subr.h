@@ -739,6 +739,8 @@ usbd_config_td_sleep(struct usbd_config_td *ctd, u_int32_t timeout);
 struct mbuf *
 usbd_ether_get_mbuf(void);
 
+int32_t device_delete_all_children(device_t dev);
+
 /* routines from usb.c */
 
 #if 0

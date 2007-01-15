@@ -599,6 +599,9 @@ uhub_detach(device_t dev)
 
 	DPRINTF(("sc=%port\n", sc));
 
+	/* detach all children first */
+	bus_generic_detach(dev);
+
 	if(hub == NULL)		/* must be partially working */
 	{
 		return (0);
