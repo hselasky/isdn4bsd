@@ -802,7 +802,7 @@ bus_generic_detach(device_t dev)
     device_t child;
     int error;
 
-    if (!dev->attached)
+    if (!dev->dev_attached)
 	return (EBUSY);
 
     TAILQ_FOREACH(child, &dev->dev_children, dev_link) {
