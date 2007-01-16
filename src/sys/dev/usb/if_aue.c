@@ -754,17 +754,19 @@ aue_cfg_reset(struct aue_softc *sc)
 	 * Note: We force all of the GPIO pins low first, *then*
 	 * enable the ones we want.
 	 */
+	aue_cfg_csr_write_1(sc, AUE_GPIO0, (AUE_GPIO_OUT0|AUE_GPIO_SEL0));
+	aue_cfg_csr_write_1(sc, AUE_GPIO0, (AUE_GPIO_OUT0|AUE_GPIO_SEL0|
+					    AUE_GPIO_SEL1));
+
 	if (sc->sc_flags & AUE_FLAG_LSYS) {
 		/* Grrr. LinkSys has to be different from everyone else. */
 		aue_cfg_csr_write_1(sc, AUE_GPIO0,
 				    (AUE_GPIO_SEL0 | AUE_GPIO_SEL1));
-	} else {
 		aue_cfg_csr_write_1(sc, AUE_GPIO0,
-				    (AUE_GPIO_OUT0 | AUE_GPIO_SEL0));
+				    (AUE_GPIO_SEL0 | 
+				     AUE_GPIO_SEL1 | 
+				     AUE_GPIO_OUT0));
 	}
-
-	aue_cfg_csr_write_1(sc, AUE_GPIO0, 
-			    (AUE_GPIO_OUT0 | AUE_GPIO_SEL0 | AUE_GPIO_SEL1));
 
 	if (sc->sc_flags & AUE_FLAG_PII) {
 	    aue_cfg_reset_pegasus_II(sc);
@@ -813,6 +815,10 @@ aue_attach(device_t dev)
 	sc->sc_flags = aue_lookup(uaa->vendor, uaa->product)->aue_flags;
 	sc->sc_product = uaa->product;
 	sc->sc_vendor = uaa->vendor;
+
+	if (uaa->release >= 0x0201) {
+	    sc->sc_flags |= AUE_FLAG_VER_2; /* XXX currently undocumented */
+	}
 
 	usbd_set_desc(dev, uaa->device);
 
@@ -1118,29 +1124,38 @@ aue_bulk_read_callback(struct usbd_xfer *xfer)
 	return;
 
  tr_transferred:
+	DPRINTF(sc, 10, "received %d bytes\n", xfer->actlen);
 
-	DPRINTF(sc, 0, "transferred %d bytes\n", xfer->actlen);
+	if (sc->sc_flags & AUE_FLAG_VER_2) {
 
-	if (xfer->actlen <= (4 + ETHER_CRC_LEN)) {
-	    ifp->if_ierrors++;
-	    goto tr_setup;
+	    if (xfer->actlen == 0) {
+		ifp->if_ierrors++;
+		goto tr_setup;
+	    }
+
+	} else {
+
+	    if (xfer->actlen <= (4 + ETHER_CRC_LEN)) {
+		ifp->if_ierrors++;
+		goto tr_setup;
+	    }
+
+	    usbd_copy_out(&(xfer->buf_data), xfer->actlen - 4, &(sc->sc_rxpkt), 
+			  sizeof(sc->sc_rxpkt));
+
+	    /* turn off all the non-error bits 
+	     * in the rx status word:
+	     */
+	    sc->sc_rxpkt.aue_rxstat &= AUE_RXSTAT_MASK;
+
+	    if (sc->sc_rxpkt.aue_rxstat) {
+		ifp->if_ierrors++;
+		goto tr_setup;
+	    }
+
+	    /* No errors; receive the packet. */
+	    xfer->actlen -= (4 + ETHER_CRC_LEN);
 	}
-
-	usbd_copy_out(&(xfer->buf_data), xfer->actlen - 4, &(sc->sc_rxpkt), 
-		      sizeof(sc->sc_rxpkt));
-
-	/* turn off all the non-error bits 
-	 * in the rx status word:
-	 */
-	sc->sc_rxpkt.aue_rxstat &= AUE_RXSTAT_MASK;
-
-	if (sc->sc_rxpkt.aue_rxstat) {
-	    ifp->if_ierrors++;
-	    goto tr_setup;
-	}
-
-	/* No errors; receive the packet. */
-	xfer->actlen -= (4 + ETHER_CRC_LEN);
 
 	m = usbd_ether_get_mbuf();
 
@@ -1221,7 +1236,7 @@ aue_bulk_write_callback(struct usbd_xfer *xfer)
 	return;
 
  tr_transferred:
-	DPRINTF(sc, 10, "transfer complete\n");
+	DPRINTF(sc, 10, "transfer of %d bytes complete\n", xfer->actlen);
 
 	ifp->if_opackets++;
 	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
@@ -1250,21 +1265,31 @@ aue_bulk_write_callback(struct usbd_xfer *xfer)
 	    m->m_pkthdr.len = MCLBYTES;
 	}
 
-	xfer->length = (m->m_pkthdr.len + 2);
+	if (sc->sc_flags & AUE_FLAG_VER_2) {
 
-	/*
-	 * The ADMtek documentation says that the packet length is
-	 * supposed to be specified in the first two bytes of the
-	 * transfer, however it actually seems to ignore this info
-	 * and base the frame size on the bulk transfer length.
-	 */
-	buf[0] = (u_int8_t)(m->m_pkthdr.len);
-	buf[1] = (u_int8_t)(m->m_pkthdr.len >> 8);
+	    xfer->length = m->m_pkthdr.len;
 
-	usbd_copy_in(&(xfer->buf_data), 0, buf, 2);
+	    usbd_m_copy_in(&(xfer->buf_data), 0, 
+			   m, 0, m->m_pkthdr.len);
 
-	usbd_m_copy_in(&(xfer->buf_data), 2, 
-		       m, 0, m->m_pkthdr.len);
+	} else {
+
+	    xfer->length = (m->m_pkthdr.len + 2);
+
+	    /*
+	     * The ADMtek documentation says that the packet length is
+	     * supposed to be specified in the first two bytes of the
+	     * transfer, however it actually seems to ignore this info
+	     * and base the frame size on the bulk transfer length.
+	     */
+	    buf[0] = (u_int8_t)(m->m_pkthdr.len);
+	    buf[1] = (u_int8_t)(m->m_pkthdr.len >> 8);
+
+	    usbd_copy_in(&(xfer->buf_data), 0, buf, 2);
+
+	    usbd_m_copy_in(&(xfer->buf_data), 2, 
+			   m, 0, m->m_pkthdr.len);
+	}
 
 	/*
 	 * if there's a BPF listener, bounce a copy 

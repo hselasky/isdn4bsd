@@ -227,6 +227,7 @@ struct aue_softc {
 #define	AUE_FLAG_LL_READY	0x0040  /* Lower Layer Ready */
 #define	AUE_FLAG_HL_READY	0x0080  /* Higher Layer Ready */
 #define	AUE_FLAG_INTR_STALL	0x0100  /* wait for clearing of stall */
+#define	AUE_FLAG_VER_2		0x0200  /* chip is version 2 */
 
 	uint8_t			sc_name[16];
 };
