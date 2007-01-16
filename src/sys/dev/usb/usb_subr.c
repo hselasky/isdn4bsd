@@ -512,38 +512,27 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 
 		if(udev->speed == USB_SPEED_HIGH)
 		{
-			u_int16_t mps;
-			/* control and bulk endpoints have max packet limits */
+			/* control and bulk endpoints have fixed max packet sizes */
 			switch (UE_GET_XFERTYPE(ed->bmAttributes)) {
 			case UE_CONTROL:
-				mps = USB_2_MAX_CTRL_PACKET;
-				goto check;
-			case UE_BULK:
-				mps = USB_2_MAX_BULK_PACKET;
-			check:
-				if(UGETW(ed->wMaxPacketSize) != mps)
-				{
-					USETW(ed->wMaxPacketSize, mps);
-#ifdef DIAGNOSTIC
-					printf("%s: bad wMaxPacketSize, addr=%d!\n",
-					       __FUNCTION__, udev->address);
-#endif
-				}
+				USETW(ed->wMaxPacketSize, USB_2_MAX_CTRL_PACKET);
 				break;
-			default:
+			case UE_BULK:
+				USETW(ed->wMaxPacketSize, USB_2_MAX_BULK_PACKET);
 				break;
 			}
 		}
-		if(UGETW(ed->wMaxPacketSize) == 0)
-		{
+
+		if (usbd_get_max_frame_size(ed) == 0) {
 #ifdef USB_DEBUG
-			printf("%s: invalid wMaxPacketSize, addr=%d!\n",
-			     __FUNCTION__, udev->address);
+			printf("%s: invalid wMaxPacketSize=0x%04x, addr=%d!\n",
+			       __FUNCTION__, UGETW(ed->wMaxPacketSize),
+			       udev->address);
 #endif
-		      /* avoid division by zero 
-		       * (in EHCI/UHCI/OHCI drivers) 
-		       */
-		      USETW(ed->wMaxPacketSize, USB_MAX_IPACKET);
+			/* avoid division by zero 
+			 * (in EHCI/UHCI/OHCI drivers) 
+			 */
+			usbd_set_max_packet_size_count(ed, USB_MAX_IPACKET, 1);
 		}
 
 		/* find a free pipe */
@@ -1293,20 +1282,13 @@ usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 	if(speed == USB_SPEED_HIGH)
 	{
 		/* max packet size must be 64 (sec 5.5.3) */
-		if(udev->ddesc.bMaxPacketSize != USB_2_MAX_CTRL_PACKET)
-		{
-#ifdef DIAGNOSTIC
-			printf("%s: addr=%d bad max packet size\n",
-			       __FUNCTION__, udev->address);
-#endif
-			udev->ddesc.bMaxPacketSize = USB_2_MAX_CTRL_PACKET;
-		}
+		udev->ddesc.bMaxPacketSize = USB_2_MAX_CTRL_PACKET;
 	}
 
 	if(udev->ddesc.bMaxPacketSize == 0)
 	{
 #ifdef USB_DEBUG
-		printf("%s: addr=%d invalid bMaxPacketSize!\n",
+		printf("%s: addr=%d invalid bMaxPacketSize=0x00!\n",
 		       __FUNCTION__, udev->address);
 #endif
 		/* avoid division by zero */
@@ -2212,7 +2194,8 @@ usbd_mem_free_sub(struct usbd_page *page)
 void
 usbd_std_transfer_setup(struct usbd_xfer *xfer, 
 			const struct usbd_config *setup, 
-			u_int16_t max_packet_size, u_int16_t max_frame_size)
+			u_int16_t max_packet_size, u_int16_t max_frame_size,
+			uint8_t max_packet_count)
 {
 	__callout_init_mtx(&xfer->timeout_handle, xfer->usb_mtx,
 			   CALLOUT_RETURNUNLOCKED);
@@ -2223,16 +2206,18 @@ usbd_std_transfer_setup(struct usbd_xfer *xfer,
 	xfer->callback = setup->callback;
 	xfer->interval = setup->interval;
 	xfer->endpoint = xfer->pipe->edesc->bEndpointAddress;
-	xfer->max_packet_size = UGETW(xfer->pipe->edesc->wMaxPacketSize);
+	xfer->max_packet_size = usbd_get_max_packet_size(xfer->pipe->edesc);
+	xfer->max_packet_count = usbd_get_max_packet_count(xfer->pipe->edesc);
+	xfer->max_frame_size = usbd_get_max_frame_size(xfer->pipe->edesc);
 	xfer->length = setup->bufsize;
 
-	if(xfer->interval == 0)
-	{
+	/* check interrupt interval */
+
+	if (xfer->interval == 0) {
 	    xfer->interval = xfer->pipe->edesc->bInterval;
 	}
 
-	if(xfer->interval == 0)
-	{
+	if (xfer->interval == 0) {
 	    /* one is the smallest interval */
 	    xfer->interval = 1;
 	}
@@ -2247,17 +2232,26 @@ usbd_std_transfer_setup(struct usbd_xfer *xfer,
 	    xfer->max_packet_size = max_packet_size;
 	}
 
-	/* frame_size: isochronous frames only */
+	/* check the maximum packet count */
 
-	xfer->max_frame_size = max_frame_size;
+	if (xfer->max_packet_count == 0) {
+	    xfer->max_packet_count = 1;
+	}
+
+	if (xfer->max_packet_count > max_packet_count) {
+	    xfer->max_packet_count = max_packet_count;
+	}
+
+	/* check the maximum frame size */
+
+	if (xfer->max_frame_size > max_frame_size) {
+	    xfer->max_frame_size = max_frame_size;
+	}
 
 	if (xfer->length == 0) {
-	    xfer->length = xfer->max_packet_size;
+	    xfer->length = xfer->max_frame_size;
 	    if (xfer->nframes) {
 	        xfer->length *= xfer->nframes;
-	    }
-	    if (setup->sub_frames) {
-	        xfer->length *= setup->sub_frames;
 	    }
 	}
 	return;
@@ -2676,4 +2670,46 @@ device_delete_all_children(device_t dev)
 	    free(devlist, M_TEMP);
 	}
 	return error;
+}
+
+/*---------------------------------------------------------------------------*
+ * usbd_get_max_packet_size - get maximum packet size
+ *---------------------------------------------------------------------------*/
+uint16_t
+usbd_get_max_packet_size(usb_endpoint_descriptor_t *edesc)
+{
+	return (UGETW(edesc->wMaxPacketSize) & 0x7FF);
+}
+
+/*---------------------------------------------------------------------------*
+ * usbd_get_max_packet_count - get maximum packet count
+ *---------------------------------------------------------------------------*/
+uint16_t
+usbd_get_max_packet_count(usb_endpoint_descriptor_t *edesc)
+{
+	return (1 + ((UGETW(edesc->wMaxPacketSize) >> 11) & 3));
+}
+
+/*---------------------------------------------------------------------------*
+ * usbd_get_max_frame_size - get maximum frame size
+ *---------------------------------------------------------------------------*/
+uint16_t
+usbd_get_max_frame_size(usb_endpoint_descriptor_t *edesc)
+{
+	uint16_t n;
+	n = UGETW(edesc->wMaxPacketSize);
+	return (n & 0x7FF) * (1 + ((n >> 11) & 3));
+}
+
+/*---------------------------------------------------------------------------*
+ * usbd_set_max_packet_size_count - set maximum packet size and count
+ *---------------------------------------------------------------------------*/
+void
+usbd_set_max_packet_size_count(usb_endpoint_descriptor_t *edesc,
+			       uint16_t size, uint16_t count)
+{
+	uint16_t n;
+	n = (size & 0x7FF)|(((count-1) & 3) << 11);
+	USETW(edesc->wMaxPacketSize, n);
+	return;
 }

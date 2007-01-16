@@ -2873,7 +2873,7 @@ uhci_xfer_setup(struct usbd_device *udev,
 	  }
 	  else
 	  {
-		usbd_std_transfer_setup(xfer, setup, 0x500, 0x500);
+		usbd_std_transfer_setup(xfer, setup, 0x500, 0x500, 1);
 
 		/*
 		 * compute ntd and nqh

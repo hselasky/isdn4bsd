@@ -279,11 +279,6 @@ struct usbd_config {
 					 * used in isochronous
 					 * mode
 					 */
-	u_int8_t	sub_frames;	/* number of sub-frames
-					 * contained within each
-					 * frame. Used in High-Speed
-					 * isochronous mode.
-					 */
 	u_int8_t	index;	/* pipe index to use, if more
 				 * than one descriptor matches
 				 * type, address, direction ...
@@ -376,6 +371,7 @@ struct usbd_xfer {
 	u_int8_t		address;
 	u_int8_t		endpoint;
 	u_int8_t		interval; /* milliseconds */
+	uint8_t			max_packet_count;
 
 	u_int16_t		max_packet_size;
 	u_int16_t		max_frame_size;
@@ -702,9 +698,8 @@ usbd_mem_free_sub(struct usbd_page *page);
 #endif
 #endif
 
-void
-usbd_std_transfer_setup(struct usbd_xfer *xfer, const struct usbd_config *setup,
-			u_int16_t max_packet_size, u_int16_t max_frame_size);
+void usbd_std_transfer_setup(struct usbd_xfer *xfer, const struct usbd_config *setup, u_int16_t max_packet_size, u_int16_t max_frame_size, uint8_t max_packet_count);
+
 u_int8_t
 usbd_make_str_desc(void *ptr, u_int16_t max_len, const char *s);
 
@@ -740,6 +735,12 @@ struct mbuf *
 usbd_ether_get_mbuf(void);
 
 int32_t device_delete_all_children(device_t dev);
+
+uint16_t usbd_get_max_packet_size(usb_endpoint_descriptor_t *edesc);
+uint16_t usbd_get_max_packet_count(usb_endpoint_descriptor_t *edesc);
+uint16_t usbd_get_max_frame_size(usb_endpoint_descriptor_t *edesc);
+
+void usbd_set_max_packet_size_count(usb_endpoint_descriptor_t *edesc, uint16_t size, uint16_t count);
 
 /* routines from usb.c */
 

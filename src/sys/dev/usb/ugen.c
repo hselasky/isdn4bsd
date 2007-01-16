@@ -642,9 +642,9 @@ ugen_open_pipe_write(struct ugen_softc *sc, struct ugen_endpoint *sce)
 			break;
 
 		case UE_ISOCHRONOUS:
-			isize = UGETW(ed->wMaxPacketSize);
+			isize = usbd_get_max_frame_size(ed);
 
-			/* wMaxPacketSize is validated 
+			/* the maximum frame size is validated
 			 * by "usbd_fill_iface_data()" 
 			 */
 
@@ -736,14 +736,15 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 		switch(ed->bmAttributes & UE_XFERTYPE)
 		{
 		case UE_INTERRUPT:
+		  isize = usbd_get_max_frame_size(ed);
 		  usbd_config[0].flags = USBD_SHORT_XFER_OK;
 		  usbd_config[0].callback = ugen_interrupt_callback;
-		  usbd_config[0].bufsize = UGETW(ed->wMaxPacketSize);
+		  usbd_config[0].bufsize = isize;
 		  usbd_config[0].interval = USBD_DEFAULT_INTERVAL;
 
 		  if(ugen_allocate_blocks
 		     (sc, sce, UGEN_RD_CFG,
-		      &sce->in_queue, 1, UGETW(ed->wMaxPacketSize)) == 0)
+		      &sce->in_queue, 1, isize) == 0)
 		  {
 			return ENOMEM;
 		  }
@@ -786,9 +787,11 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 
 		case UE_ISOCHRONOUS:
 
-		  isize = UGETW(ed->wMaxPacketSize);
+		  isize = usbd_get_max_frame_size(ed);
 
-		  /* wMaxPacketSize is validated by "usbd_fill_iface_data()" */
+		  /* the maximum frame size is validated
+		   * by "usbd_fill_iface_data()" 
+		   */
 
 		  if(usbd_get_speed(sc->sc_udev) == USB_SPEED_HIGH)
 		  {
@@ -1385,7 +1388,7 @@ ugenisoc_read_callback(struct usbd_xfer *xfer)
 	plen1 = xfer->frlengths;
 	ptr1 = xfer->buffer;
 
-	isize = UGETW(sce->pipe_in->edesc->wMaxPacketSize);
+	isize = usbd_get_max_frame_size(sce->pipe_in->edesc);
 	n = sce->in_frames;
 	while(n--)
 	{
@@ -1423,7 +1426,7 @@ ugenisoc_read_callback(struct usbd_xfer *xfer)
 
  tr_setup:
  tr_error:
-	isize = UGETW(sce->pipe_in->edesc->wMaxPacketSize);
+	isize = usbd_get_max_frame_size(sce->pipe_in->edesc);
 	for(n = 0; n < sce->in_frames; n++)
 	{
 		/* setup size for next transfer */
@@ -1454,7 +1457,7 @@ ugenisoc_write_callback(struct usbd_xfer *xfer)
 	plen1 = xfer->frlengths;
 	ptr1 = xfer->buffer;
 
-	isize = UGETW(sce->pipe_out->edesc->wMaxPacketSize);
+	isize = usbd_get_max_frame_size(sce->pipe_out->edesc);
 	n = sce->out_frames;
 	while(n--)
 	{
@@ -1663,7 +1666,7 @@ ugenioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *p
 	case USB_GET_FRAME_SIZE:
 		if(sce->pipe_in)
 		{
-			*(int *)addr = UGETW(sce->pipe_in->edesc->wMaxPacketSize);
+			*(int *)addr = usbd_get_max_frame_size(sce->pipe_in->edesc);
 		}
 		else
 		{

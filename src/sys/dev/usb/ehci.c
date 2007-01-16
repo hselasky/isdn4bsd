@@ -1672,7 +1672,7 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 	}
 
 	qh->qh_endphub = htole32
-	  (EHCI_QH_SET_MULT(1)|
+	  (EHCI_QH_SET_MULT(xfer->max_packet_count & 3)|
 	   EHCI_QH_SET_CMASK(0xf0));
 
 	if(xfer->udev->myhsport)
@@ -2517,9 +2517,6 @@ ehci_device_isoc_hs_open(struct usbd_xfer *xfer)
 		{
 			td->itd_bp[1] |= htole32(EHCI_ITD_SET_DIR_IN);
 		}
-
-		/* set transfer multiplier */
-		td->itd_bp[2] = htole32(1);
 	}
 	return;
 }
@@ -2628,6 +2625,10 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 			/* update page address */
 			td->itd_bp[page_no] &= htole32(0xFFF);
 			td->itd_bp[page_no] |= htole32(page_addr);
+
+			/* set transfer multiplier */
+			td->itd_bp[2] &= htole32(~3);
+			td->itd_bp[2] |= htole32(xfer->max_packet_count & 3);
 
 			if(nframes < 7)
 			{
@@ -3545,8 +3546,11 @@ ehci_xfer_setup(struct usbd_device *udev,
 		   (xfer->pipe->methods == &ehci_device_bulk_methods) ||
 		   (xfer->pipe->methods == &ehci_device_intr_methods))
 		{
-			usbd_std_transfer_setup(xfer, setup, 0x400, 0x400);
-
+			if ((xfer->pipe->methods == &ehci_device_intr_methods) &&
+			    (udev->speed == USB_SPEED_HIGH))
+			    usbd_std_transfer_setup(xfer, setup, 0x400, 0xC00, 3);
+			else
+			    usbd_std_transfer_setup(xfer, setup, 0x400, 0x400, 1);
 			nqh = 1;
 			nqtd = (1+ /* SETUP */ 1+ /* STATUS */
 			       1  /* SHORTPKT */) +
@@ -3554,7 +3558,7 @@ ehci_xfer_setup(struct usbd_device *udev,
 		}
 		else if(xfer->pipe->methods == &ehci_device_isoc_fs_methods)
 		{
-			usbd_std_transfer_setup(xfer, setup, 188, 188);
+			usbd_std_transfer_setup(xfer, setup, 188, 188, 1);
 
 			if(xfer->nframes == 0)
 			{
@@ -3578,7 +3582,7 @@ ehci_xfer_setup(struct usbd_device *udev,
 		}
 		else if(xfer->pipe->methods == &ehci_device_isoc_hs_methods)
 		{
-			usbd_std_transfer_setup(xfer, setup, 0x400, 0xC00);
+			usbd_std_transfer_setup(xfer, setup, 0x400, 0xC00, 3);
 
 			if(xfer->nframes == 0)
 			{
@@ -3602,7 +3606,7 @@ ehci_xfer_setup(struct usbd_device *udev,
 		}
 		else
 		{
-			usbd_std_transfer_setup(xfer, setup, 0x400, 0x400);
+			usbd_std_transfer_setup(xfer, setup, 0x400, 0x400, 1);
 		}
 	  }
 
