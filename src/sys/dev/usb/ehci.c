@@ -2517,6 +2517,9 @@ ehci_device_isoc_hs_open(struct usbd_xfer *xfer)
 		{
 			td->itd_bp[1] |= htole32(EHCI_ITD_SET_DIR_IN);
 		}
+
+		/* set transfer multiplier */
+		td->itd_bp[2] = htole32(xfer->max_packet_count & 3);
 	}
 	return;
 }
@@ -2625,10 +2628,6 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 			/* update page address */
 			td->itd_bp[page_no] &= htole32(0xFFF);
 			td->itd_bp[page_no] |= htole32(page_addr);
-
-			/* set transfer multiplier */
-			td->itd_bp[2] &= htole32(~3);
-			td->itd_bp[2] |= htole32(xfer->max_packet_count & 3);
 
 			if(nframes < 7)
 			{

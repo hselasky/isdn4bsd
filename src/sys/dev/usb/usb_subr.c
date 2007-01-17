@@ -1858,7 +1858,7 @@ usbd_page_fit_obj(struct usbd_page *page, u_int32_t size, u_int32_t obj_len)
 	    panic("%s:%d Too large object, %d bytes, will "
 		  "not fit on a USB page, %d bytes!\n", 
 		  __FUNCTION__, __LINE__, obj_len, 
-		  USB_PAGE_SIZE);
+		  (int32_t)USB_PAGE_SIZE);
 	}
 
 	if (obj_len > (USB_PAGE_SIZE - (size & (USB_PAGE_SIZE-1)))) {
