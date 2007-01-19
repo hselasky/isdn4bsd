@@ -151,8 +151,15 @@ struct usbd_page {
 
 struct usbd_page_search {
 	void *buffer;
+	struct usbd_page *page;
 	bus_size_t physaddr;
 	u_int32_t length;
+};
+
+struct usbd_page_info {
+	struct usbd_page	*page;
+	void			*buffer;
+	bus_size_t		physaddr;
 };
 
 struct usbd_page_cache {
@@ -660,6 +667,8 @@ usbd_page_get_buf(struct usbd_page *page, u_int32_t size);
 bus_size_t
 usbd_page_get_phy(struct usbd_page *page, u_int32_t size);
 
+void usbd_page_get_info(struct usbd_page *page, u_int32_t size, struct usbd_page_info *info);
+
 void
 usbd_page_set_start(struct usbd_page_cache *pc, struct usbd_page *page_ptr,
 		    u_int32_t size);
@@ -669,14 +678,9 @@ usbd_page_set_end(struct usbd_page_cache *pc, struct usbd_page *page_ptr,
 u_int32_t
 usbd_page_fit_obj(struct usbd_page *page, u_int32_t size, u_int32_t obj_len);
 
-void *
-usbd_mem_alloc(bus_dma_tag_t parent, u_int32_t size, 
-	       u_int8_t align_power);
-bus_size_t
-usbd_mem_vtophys(void *ptr, u_int32_t size);
+void * usbd_mem_alloc(bus_dma_tag_t parent, struct usbd_page *page, uint32_t size, uint8_t align_power);
 
-void
-usbd_mem_free(void *ptr, u_int32_t size);
+void	usbd_mem_free(struct usbd_page *page);
 
 bus_dma_tag_t 
 usbd_dma_tag_alloc(bus_dma_tag_t parent, u_int32_t size, u_int32_t alignment);
@@ -689,6 +693,8 @@ usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
 		   u_int32_t size, u_int32_t alignment);
 void
 usbd_mem_free_sub(struct usbd_page *page);
+
+void	usbd_page_sync(struct usbd_page *page, uint8_t op);
 
 #ifdef __FreeBSD__
 #if (__FreeBSD_version >= 700020)

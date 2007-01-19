@@ -563,7 +563,8 @@ const   struct resource_tab *ptr;
 		{
 		    sc->sc_resources.mwba_size [0] = (1<<15);
 		    sc->sc_resources.mwba_start[0] = 
-		      usbd_mem_alloc(device_get_dma_tag(dev),(1<<15),15);
+		      usbd_mem_alloc(device_get_dma_tag(dev),
+				     &(sc->sc_hw_page),(1<<15),15);
 
 		    if(!sc->sc_resources.mwba_start[0])
 		    {
@@ -590,7 +591,8 @@ const   struct resource_tab *ptr;
 		{
 		    sc->sc_resources.mwba_size [0] = (1<<14);
 		    sc->sc_resources.mwba_start[0] = 
-		      usbd_mem_alloc(device_get_dma_tag(dev),(1<<14),2);
+		      usbd_mem_alloc(device_get_dma_tag(dev),
+				     &(sc->sc_hw_page),(1<<14),2);
 
 		    if(!sc->sc_resources.mwba_start[0])
 		    {
@@ -611,9 +613,7 @@ const   struct resource_tab *ptr;
 	/* get physical memory address */
 	if(sc->sc_resources.mwba_start[0])
 	{
-		sc->sc_resources.mwba_phys_start[0] =
-		  usbd_mem_vtophys(sc->sc_resources.mwba_start[0],
-				   sc->sc_resources.mwba_size[0]);
+		sc->sc_resources.mwba_phys_start[0] = sc->sc_hw_page.physaddr;
 	}
 
 #ifdef IHFC_USB_ENABLED
@@ -770,8 +770,7 @@ ihfc_unsetup_resource(device_t dev)
 	 */
 	if(sc->sc_resources.mwba_start[0])
         {
-		usbd_mem_free(sc->sc_resources.mwba_start[0],
-			      sc->sc_resources.mwba_size[0]);
+		usbd_mem_free(&(sc->sc_hw_page));
 	}
 
 	bzero(&sc->sc_resources,sizeof(sc->sc_resources));

@@ -101,12 +101,14 @@ extern struct usbd_pipe_methods ehci_device_isoc_hs_methods;
 extern struct usbd_pipe_methods ehci_root_ctrl_methods;
 extern struct usbd_pipe_methods ehci_root_intr_methods;
 
-#define PHYSADDR(sc,what) \
-  ((sc)->sc_physaddr + POINTER_TO_UNSIGNED(&(((struct ehci_softc *)0)->what)))
+#define SC_HW_PHYSADDR(sc,what) \
+  ((sc)->sc_hw_page.physaddr +	\
+   POINTER_TO_UNSIGNED(&(((struct ehci_hw_softc *)0)->what)))
 
 usbd_status
 ehci_init(ehci_softc_t *sc)
 {
+	struct ehci_hw_softc *hw_ptr;
 	u_int32_t version, sparams, cparams, hcr;
 	u_int i;
 	u_int16_t x;
@@ -115,6 +117,8 @@ ehci_init(ehci_softc_t *sc)
 	usbd_status err = 0;
 
 	mtx_lock(&sc->sc_bus.mtx);
+
+	hw_ptr = sc->sc_hw_ptr;
 
 	DPRINTF(("start\n"));
 
@@ -193,26 +197,31 @@ ehci_init(ehci_softc_t *sc)
 
 	sc->sc_eintrs = EHCI_NORMAL_INTRS;
 
+	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_PREWRITE);
+
 	for(i = 0; i < EHCI_VIRTUAL_FRAMELIST_COUNT; i++)
 	{
-		sc->sc_hw.intr_start[i].qh_self = 
-		  htole32(PHYSADDR(sc,sc_hw.intr_start[i])|EHCI_LINK_QH);
+		hw_ptr->intr_start[i].qh_self = 
+		  htole32(SC_HW_PHYSADDR(sc,intr_start[i])|EHCI_LINK_QH);
 
-		sc->sc_hw.intr_start[i].qh_endp = 
+		hw_ptr->intr_start[i].qh_endp = 
 		  htole32(EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH));
-		sc->sc_hw.intr_start[i].qh_endphub = 
+		hw_ptr->intr_start[i].qh_endphub = 
 		  htole32(EHCI_QH_SET_MULT(1));
-		sc->sc_hw.intr_start[i].qh_curqtd = 0;
+		hw_ptr->intr_start[i].qh_curqtd = 0;
 
-		sc->sc_hw.intr_start[i].qh_qtd.qtd_next = 
+		hw_ptr->intr_start[i].qh_qtd.qtd_next = 
 		  htole32(EHCI_LINK_TERMINATE);
-		sc->sc_hw.intr_start[i].qh_qtd.qtd_altnext = 
+		hw_ptr->intr_start[i].qh_qtd.qtd_altnext = 
 		  htole32(EHCI_LINK_TERMINATE);
-		sc->sc_hw.intr_start[i].qh_qtd.qtd_status = 
+		hw_ptr->intr_start[i].qh_qtd.qtd_status = 
 		  htole32(EHCI_QTD_HALTED);
 
+		hw_ptr->intr_start[i].page =
+		  &(sc->sc_hw_page);
+
 		sc->sc_intr_p_last[i] = 
-		  &sc->sc_hw.intr_start[i];
+		  &(hw_ptr->intr_start[i]);
 	}
 
 	/*
@@ -230,43 +239,49 @@ ehci_init(ehci_softc_t *sc)
 			/* the next QH has half the
 			 * poll interval
 			 */
-			sc->sc_hw.intr_start[x].qh_link =
-			  sc->sc_hw.intr_start[y].qh_self;
+			hw_ptr->intr_start[x].qh_link =
+			  hw_ptr->intr_start[y].qh_self;
 			x++;
 		}
 		bit >>= 1;
 	}
 
 	/* the last (1ms) QH terminates */
-	sc->sc_hw.intr_start[0].qh_link = htole32(EHCI_LINK_TERMINATE);
+	hw_ptr->intr_start[0].qh_link = htole32(EHCI_LINK_TERMINATE);
 
 	for(i = 0; i < EHCI_VIRTUAL_FRAMELIST_COUNT; i++)
 	{
 		/* initialize full speed isochronous */
 
-		sc->sc_hw.isoc_fs_start[i].sitd_self = 
-		  htole32(PHYSADDR(sc,sc_hw.isoc_fs_start[i])|EHCI_LINK_SITD);
+		hw_ptr->isoc_fs_start[i].sitd_self = 
+		  htole32(SC_HW_PHYSADDR(sc,isoc_fs_start[i])|EHCI_LINK_SITD);
 
-		sc->sc_hw.isoc_fs_start[i].sitd_back = 
+		hw_ptr->isoc_fs_start[i].sitd_back = 
 		  htole32(EHCI_LINK_TERMINATE);
 
-		sc->sc_hw.isoc_fs_start[i].sitd_next = 
-		  sc->sc_hw.intr_start[i|(EHCI_VIRTUAL_FRAMELIST_COUNT/2)].qh_self;
+		hw_ptr->isoc_fs_start[i].sitd_next = 
+		  hw_ptr->intr_start[i|(EHCI_VIRTUAL_FRAMELIST_COUNT/2)].qh_self;
+
+		hw_ptr->isoc_fs_start[i].page =
+		  &(sc->sc_hw_page);
 
 		sc->sc_isoc_fs_p_last[i] = 
-		  &sc->sc_hw.isoc_fs_start[i];
+		  &(hw_ptr->isoc_fs_start[i]);
 
 
 		/* initialize high speed isochronous */
 
-		sc->sc_hw.isoc_hs_start[i].itd_self = 
-		  htole32(PHYSADDR(sc,sc_hw.isoc_hs_start[i])|EHCI_LINK_ITD);
+		hw_ptr->isoc_hs_start[i].itd_self = 
+		  htole32(SC_HW_PHYSADDR(sc,isoc_hs_start[i])|EHCI_LINK_ITD);
 
-		sc->sc_hw.isoc_hs_start[i].itd_next = 
-		  sc->sc_hw.isoc_fs_start[i].sitd_self;
+		hw_ptr->isoc_hs_start[i].itd_next = 
+		  hw_ptr->isoc_fs_start[i].sitd_self;
+
+		hw_ptr->isoc_hs_start[i].page =
+		  &(sc->sc_hw_page);
 
 		sc->sc_isoc_hs_p_last[i] = 
-		  &sc->sc_hw.isoc_hs_start[i];
+		  &(hw_ptr->isoc_hs_start[i]);
 	}
 
 	/*
@@ -276,43 +291,49 @@ ehci_init(ehci_softc_t *sc)
 	 */
 	for(i = 0; i < EHCI_FRAMELIST_COUNT; i++)
 	{
-		sc->sc_hw.pframes[i] = sc->sc_hw.isoc_hs_start
+		hw_ptr->pframes[i] = hw_ptr->isoc_hs_start
 		  [i & (EHCI_VIRTUAL_FRAMELIST_COUNT-1)].itd_self;
 	}
 
 	/* setup sync list pointer */
-	EOWRITE4(sc, EHCI_PERIODICLISTBASE, PHYSADDR(sc,sc_hw.pframes[0]));
+	EOWRITE4(sc, EHCI_PERIODICLISTBASE, SC_HW_PHYSADDR(sc,pframes[0]));
 
 
 	/* init dummy QH that starts the async list */
 
-	sc->sc_hw.async_start.qh_self = 
-	  htole32(PHYSADDR(sc,sc_hw.async_start)|EHCI_LINK_QH);
+	hw_ptr->async_start.qh_self = 
+	  htole32(SC_HW_PHYSADDR(sc,async_start)|EHCI_LINK_QH);
 
 	/* fill the QH */
-	sc->sc_hw.async_start.qh_endp =
+	hw_ptr->async_start.qh_endp =
 	    htole32(EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) | EHCI_QH_HRECL);
-	sc->sc_hw.async_start.qh_endphub = htole32(EHCI_QH_SET_MULT(1));
-	sc->sc_hw.async_start.qh_link = sc->sc_hw.async_start.qh_self;
-	sc->sc_hw.async_start.qh_curqtd = 0;
+	hw_ptr->async_start.qh_endphub = htole32(EHCI_QH_SET_MULT(1));
+	hw_ptr->async_start.qh_link = hw_ptr->async_start.qh_self;
+	hw_ptr->async_start.qh_curqtd = 0;
 
 	/* fill the overlay qTD */
-	sc->sc_hw.async_start.qh_qtd.qtd_next = htole32(EHCI_LINK_TERMINATE);
-	sc->sc_hw.async_start.qh_qtd.qtd_altnext = htole32(EHCI_LINK_TERMINATE);
-	sc->sc_hw.async_start.qh_qtd.qtd_status = htole32(EHCI_QTD_HALTED);
+	hw_ptr->async_start.qh_qtd.qtd_next = htole32(EHCI_LINK_TERMINATE);
+	hw_ptr->async_start.qh_qtd.qtd_altnext = htole32(EHCI_LINK_TERMINATE);
+	hw_ptr->async_start.qh_qtd.qtd_status = htole32(EHCI_QTD_HALTED);
+
+	/* fill the page pointer */
+	hw_ptr->async_start.page =
+	  &(sc->sc_hw_page);
 
 	sc->sc_async_p_last = 
-	  &sc->sc_hw.async_start;
+	  &(hw_ptr->async_start);
+
+	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_POSTWRITE);
 
 #ifdef USB_DEBUG
 	if(ehcidebug)
 	{
-		ehci_dump_sqh(&sc->sc_hw.async_start);
+		ehci_dump_sqh(&(hw_ptr->async_start));
 	}
 #endif
 
 	/* setup async list pointer */
-	EOWRITE4(sc, EHCI_ASYNCLISTADDR, PHYSADDR(sc,sc_hw.async_start)|EHCI_LINK_QH);
+	EOWRITE4(sc, EHCI_ASYNCLISTADDR, SC_HW_PHYSADDR(sc,async_start)|EHCI_LINK_QH);
 
 
 	/* enable interrupts */
@@ -451,8 +472,8 @@ ehci_resume(struct ehci_softc *sc)
 
 	/* restore things in case the bios doesn't */
 	EOWRITE4(sc, EHCI_CTRLDSSEGMENT, 0);
-	EOWRITE4(sc, EHCI_PERIODICLISTBASE, PHYSADDR(sc,sc_hw.pframes[0]));
-	EOWRITE4(sc, EHCI_ASYNCLISTADDR, PHYSADDR(sc,sc_hw.async_start)|EHCI_LINK_QH);
+	EOWRITE4(sc, EHCI_PERIODICLISTBASE, SC_HW_PHYSADDR(sc,pframes[0]));
+	EOWRITE4(sc, EHCI_ASYNCLISTADDR, SC_HW_PHYSADDR(sc,async_start)|EHCI_LINK_QH);
 
 	EOWRITE4(sc, EHCI_USBINTR, sc->sc_eintrs);
 
@@ -661,25 +682,28 @@ ehci_dump_qtd(ehci_qtd_t *qtd)
 	return;
 }
 
-static void
+static uint8_t
 ehci_dump_sqtd(ehci_qtd_t *sqtd)
 {
+	uint8_t temp;
+	usbd_page_sync(sqtd->page, BUS_DMASYNC_PREREAD);
 	printf("QTD(%p) at 0x%08x:\n", sqtd, le32toh(sqtd->qtd_self));
 	ehci_dump_qtd(sqtd);
-	return;
+	temp = (sqtd->qtd_next & htole32(EHCI_LINK_TERMINATE)) ? 1 : 0;
+	usbd_page_sync(sqtd->page, BUS_DMASYNC_POSTREAD);
+	return temp;
 }
 
 static void
 ehci_dump_sqtds(ehci_qtd_t *sqtd)
 {
 	u_int16_t i;
-	u_int32_t stop;
+	uint8_t stop;
 
 	stop = 0;
 	for(i = 0; sqtd && (i < 20) && !stop; sqtd = sqtd->obj_next, i++)
 	{
-		ehci_dump_sqtd(sqtd);
-		stop = sqtd->qtd_next & htole32(EHCI_LINK_TERMINATE);
+		stop = ehci_dump_sqtd(sqtd);
 	}
 	if(sqtd)
 	{
@@ -693,6 +717,7 @@ ehci_dump_sqh(ehci_qh_t *qh)
 {
 	u_int32_t endp, endphub;
 
+	usbd_page_sync(qh->page, BUS_DMASYNC_PREREAD);
 	printf("QH(%p) at 0x%08x:\n", qh, le32toh(qh->qh_self) & ~0x1F);
 	printf("  link="); ehci_dump_link(qh->qh_link, 1); printf("\n");
 	endp = le32toh(qh->qh_endp);
@@ -713,12 +738,14 @@ ehci_dump_sqh(ehci_qh_t *qh)
 	printf("  curqtd="); ehci_dump_link(qh->qh_curqtd, 0); printf("\n");
 	printf("Overlay qTD:\n");
 	ehci_dump_qtd((void *)&qh->qh_qtd);
+	usbd_page_sync(qh->page, BUS_DMASYNC_POSTREAD);
 	return;
 }
 
 static void
 ehci_dump_sitd(ehci_sitd_t *sitd)
 {
+	usbd_page_sync(sitd->page, BUS_DMASYNC_PREREAD);
 	printf("SITD(%p) at 0x%08x\n", sitd, le32toh(sitd->sitd_self) & ~0x1F);
 	printf(" next=0x%08x\n", le32toh(sitd->sitd_next));
 	printf(" portaddr=0x%08x dir=%s addr=%d endpt=0x%x port=0x%x huba=0x%x\n", 
@@ -739,12 +766,14 @@ ehci_dump_sitd(ehci_sitd_t *sitd)
 		le32toh(sitd->sitd_bp[1]),
 		le32toh(sitd->sitd_bp_hi[0]),
 		le32toh(sitd->sitd_bp_hi[1]));
+	usbd_page_sync(sitd->page, BUS_DMASYNC_POSTREAD);
 	return;
 }
 
 static void
 ehci_dump_itd(ehci_itd_t *itd)
 {
+	usbd_page_sync(itd->page, BUS_DMASYNC_PREREAD);
 	printf("ITD(%p) at 0x%08x\n", itd, le32toh(itd->itd_self) & ~0x1F);
 	printf(" next=0x%08x\n", le32toh(itd->itd_next));
 	printf(" status[0]=0x%08x; <%s>\n", le32toh(itd->itd_status[0]),
@@ -786,6 +815,7 @@ ehci_dump_itd(ehci_itd_t *itd)
 		le32toh(itd->itd_bp_hi[4]),
 		le32toh(itd->itd_bp_hi[5]),
 		le32toh(itd->itd_bp_hi[6]));
+	usbd_page_sync(itd->page, BUS_DMASYNC_POSTREAD);
 	return;
 }
 
@@ -829,16 +859,23 @@ _ehci_append_fs_td(ehci_sitd_t *std, ehci_sitd_t *last)
 
 	/* (sc->sc_bus.mtx) must be locked */
 
+	usbd_page_sync(std->page, BUS_DMASYNC_PREWRITE);
+
 	std->next = last->next;
 	std->sitd_next = last->sitd_next;
 
 	std->prev = last;
+
+	usbd_page_sync(std->page, BUS_DMASYNC_POSTWRITE);
+	usbd_page_sync(last->page, BUS_DMASYNC_PREWRITE);
 
 	/* the last->next->prev is never followed:
 	 * std->next->prev = std;
 	 */
 	last->next = std;
 	last->sitd_next = std->sitd_self;
+
+	usbd_page_sync(last->page, BUS_DMASYNC_POSTWRITE);
 
 	return(std);
 }
@@ -851,16 +888,24 @@ _ehci_append_hs_td(ehci_itd_t *std, ehci_itd_t *last)
 
 	/* (sc->sc_bus.mtx) must be locked */
 
+	usbd_page_sync(std->page, BUS_DMASYNC_PREWRITE);
+
 	std->next = last->next;
 	std->itd_next = last->itd_next;
 
 	std->prev = last;
+
+	usbd_page_sync(std->page, BUS_DMASYNC_POSTWRITE);
+	usbd_page_sync(last->page, BUS_DMASYNC_PREWRITE);
 
 	/* the last->next->prev is never followed:
 	 * std->next->prev = std;
 	 */
 	last->next = std;
 	last->itd_next = std->itd_self;
+
+	usbd_page_sync(last->page, BUS_DMASYNC_POSTWRITE);
+
 	return(std);
 }
 
@@ -872,17 +917,24 @@ _ehci_append_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 
 	/* (sc->sc_bus.mtx) must be locked */
 
+	usbd_page_sync(sqh->page, BUS_DMASYNC_PREWRITE);
+
 	sqh->next = last->next;
 	sqh->qh_link = last->qh_link;
 
 	sqh->prev = last;
-	
+
+	usbd_page_sync(sqh->page, BUS_DMASYNC_POSTWRITE);
+	usbd_page_sync(last->page, BUS_DMASYNC_PREWRITE);
+
 	/* the last->next->prev is never followed:
 	 * sqh->next->prev = sqh;
 	 */
 
 	last->next = sqh;
 	last->qh_link = sqh->qh_self;
+
+	usbd_page_sync(last->page, BUS_DMASYNC_POSTWRITE);
 
 #ifdef USB_DEBUG
 	if(ehcidebug > 5)
@@ -902,8 +954,12 @@ _ehci_remove_fs_td(ehci_sitd_t *std, ehci_sitd_t *last)
 
 	/* (sc->sc_bus.mtx) must be locked */
 
+	usbd_page_sync(std->prev->page, BUS_DMASYNC_PREWRITE);
+
 	std->prev->next = std->next;
 	std->prev->sitd_next = std->sitd_next;
+
+	usbd_page_sync(std->prev->page, BUS_DMASYNC_POSTWRITE);
 
 	if(std->next)
 	{
@@ -920,8 +976,12 @@ _ehci_remove_hs_td(ehci_itd_t *std, ehci_itd_t *last)
 
 	/* (sc->sc_bus.mtx) must be locked */
 
+	usbd_page_sync(std->prev->page, BUS_DMASYNC_PREWRITE);
+
 	std->prev->next = std->next;
 	std->prev->itd_next = std->itd_next;
+
+	usbd_page_sync(std->prev->page, BUS_DMASYNC_POSTWRITE);
 
 	if(std->next)
 	{
@@ -941,13 +1001,19 @@ _ehci_remove_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 	/* only remove if not removed from a queue */
 	if(sqh->prev)
 	{
+		usbd_page_sync(sqh->prev->page, BUS_DMASYNC_PREWRITE);
+
 		sqh->prev->next = sqh->next;
 		sqh->prev->qh_link = sqh->qh_link;
+
+		usbd_page_sync(sqh->prev->page, BUS_DMASYNC_POSTWRITE);
 
 		if(sqh->next)
 		{
 			sqh->next->prev = sqh->prev;
 		}
+
+		usbd_page_sync(sqh->page, BUS_DMASYNC_PREWRITE);
 
 		/* set the Terminate-bit in the e_next of the QH,
 		 * in case the transferred packet was short so
@@ -955,6 +1021,8 @@ _ehci_remove_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 		 */
 
 		sqh->qh_qtd.qtd_next = htole32(EHCI_LINK_TERMINATE);
+
+		usbd_page_sync(sqh->page, BUS_DMASYNC_POSTWRITE);
 
 		last = ((last == sqh) ? sqh->prev : last);
 
@@ -971,6 +1039,7 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 {
 	u_int32_t status = 0;
 	u_int32_t actlen = 0;
+	uint32_t qtd_next;
 	u_int16_t len;
 	ehci_qtd_t *td = xfer->td_transfer_first;
 
@@ -987,17 +1056,21 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 	/* the transfer is done, compute actual length and status */
 	for (;
 	     td != NULL;
-	     td = ((td == xfer->td_transfer_last) ? NULL : td->obj_next))
+	     td = td->obj_next)
 	{
-		if(td->qtd_status & htole32(EHCI_QTD_ACTIVE))
-		{
+		usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
+
+		status = le32toh(td->qtd_status);
+		qtd_next = le32toh(td->qtd_next);
+
+		usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
+
+		if (status & EHCI_QTD_ACTIVE) {
 			break;
 		}
 
-		status = le32toh(td->qtd_status);
-
 		/* halt is ok if descriptor is last, and complete */
-		if((td->qtd_next == htole32(EHCI_LINK_TERMINATE)) &&
+		if((qtd_next == EHCI_LINK_TERMINATE) &&
 		   (EHCI_QTD_GET_BYTES(status) == 0))
 		{
 			status &= ~EHCI_QTD_HALTED;
@@ -1008,6 +1081,11 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 		if(len <= td->len)
 		{
 			actlen += td->len - len;
+		}
+
+		if (((void *)td) == xfer->td_transfer_last) {
+			td = NULL;
+			break;
 		}
 	}
 
@@ -1030,11 +1108,8 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 
 	xfer->actlen = actlen;
 
-	status &= EHCI_QTD_STATERRS;
-
 #ifdef USB_DEBUG
-	if(status == EHCI_QTD_HALTED)
-	{
+	if (status & EHCI_QTD_STATERRS) {
 		DPRINTFN(10,
 			 ("error, addr=%d, endpt=0x%02x, "
 			  "status=%s%s%s%s%s%s%s%s\n",
@@ -1050,10 +1125,9 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 			  (status & EHCI_QTD_PINGSTATE) ? "-PING" : ""));
 	}
 #endif
-
-	ehci_device_done(xfer, 
-			 (status == 0) ? USBD_NORMAL_COMPLETION :
-			 (status == EHCI_QTD_HALTED) ? USBD_STALLED : USBD_IOERROR);
+	ehci_device_done(xfer, (status & EHCI_QTD_HALTED) ? 
+			 USBD_STALLED : 
+			 USBD_NORMAL_COMPLETION);
 	return;
 }
 
@@ -1063,7 +1137,7 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 static u_int8_t
 ehci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 {
-	DPRINTFN(15, ("xfer=%p\n", xfer));
+	uint32_t status;
 
 	if(xfer->usb_thread != ctd)
 	{
@@ -1073,13 +1147,21 @@ ehci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 	    goto done;
 	}
 
+	DPRINTFN(12, ("xfer=%p checking transfer\n", xfer));
+
 	if(xfer->pipe->methods == &ehci_device_isoc_fs_methods)
 	{
 		ehci_sitd_t *td = xfer->td_transfer_last;
 
 		/* isochronous full speed transfer */
-		if(!(td->sitd_status & htole32(EHCI_SITD_ACTIVE)))
-		{
+
+		usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
+
+		status = le32toh(td->sitd_status);
+
+		usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
+
+		if (!(status & EHCI_SITD_ACTIVE)) {
 			ehci_device_done(xfer, USBD_NORMAL_COMPLETION);
 			goto transferred;
 		}
@@ -1089,70 +1171,71 @@ ehci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 		ehci_itd_t *td = xfer->td_transfer_last;
 
 		/* isochronous high speed transfer */
-		if((!(td->itd_status[0] & htole32(EHCI_ITD_ACTIVE))) &&
-		   (!(td->itd_status[1] & htole32(EHCI_ITD_ACTIVE))) &&
-		   (!(td->itd_status[2] & htole32(EHCI_ITD_ACTIVE))) &&
-		   (!(td->itd_status[3] & htole32(EHCI_ITD_ACTIVE))) &&
-		   (!(td->itd_status[4] & htole32(EHCI_ITD_ACTIVE))) &&
-		   (!(td->itd_status[5] & htole32(EHCI_ITD_ACTIVE))) &&
-		   (!(td->itd_status[6] & htole32(EHCI_ITD_ACTIVE))) &&
-		   (!(td->itd_status[7] & htole32(EHCI_ITD_ACTIVE))))
-		{
+
+		usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
+
+		status = ((!(td->itd_status[0] & htole32(EHCI_ITD_ACTIVE))) &&
+			  (!(td->itd_status[1] & htole32(EHCI_ITD_ACTIVE))) &&
+			  (!(td->itd_status[2] & htole32(EHCI_ITD_ACTIVE))) &&
+			  (!(td->itd_status[3] & htole32(EHCI_ITD_ACTIVE))) &&
+			  (!(td->itd_status[4] & htole32(EHCI_ITD_ACTIVE))) &&
+			  (!(td->itd_status[5] & htole32(EHCI_ITD_ACTIVE))) &&
+			  (!(td->itd_status[6] & htole32(EHCI_ITD_ACTIVE))) &&
+			  (!(td->itd_status[7] & htole32(EHCI_ITD_ACTIVE))));
+
+		usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
+
+		if (status) {
 			ehci_device_done(xfer, USBD_NORMAL_COMPLETION);
 			goto transferred;
 		}
 	}
 	else
 	{
-		ehci_qtd_t *td = xfer->td_transfer_last;
+		ehci_qtd_t *td;
 
 		/* non-isochronous transfer */
-		if(td->qtd_status & htole32(EHCI_QTD_ACTIVE))
+
+		/* check whether there is an error somewhere
+		 * in the middle, or whether there was a short
+		 * packet (SPD and not ACTIVE)
+		 */
+		for (td = xfer->td_transfer_cache;
+		     td != NULL;
+		     td = td->obj_next)
 		{
-			/*
-			 * if the last TD is still active we need to
-			 * check whether there is an error somewhere
-			 * in the middle, or whether there was a short
-			 * packet (SPD and not ACTIVE)
+			usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
+
+			status = le32toh(td->qtd_status);
+
+			usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
+
+			/* if there is an active TD 
+			 * the transfer isn't done
 			 */
+			if (status & EHCI_QTD_ACTIVE) {
+				/* update cache */
+				xfer->td_transfer_cache = td;
+				goto done;
+			}
 
-			DPRINTFN(12, ("xfer=%p active\n", xfer));
+			/* any kind of error makes
+			 * the transfer done 
+			 */
+			if (status & EHCI_QTD_HALTED) {
+				break;
+			}
 
-			for(td = xfer->td_transfer_cache;
-			    td != NULL;
-			    td = ((td == xfer->td_transfer_last) ? NULL : td->obj_next))
-			{
-				u_int32_t status;
+			/* a short packet also makes
+			 * the transfer done
+			 */
+			if (EHCI_QTD_GET_BYTES(status)) {
+				break;
+			}
 
-				status = le32toh(td->qtd_status);
-
-				/* if there's an active TD 
-				 * the transfer isn't done
-				 */
-				if(status & EHCI_QTD_ACTIVE)
-				{
-					DPRINTFN(12, ("xfer=%p is still "
-						      "active\n", xfer));
-					/* update cache */
-					xfer->td_transfer_cache = td;
-					goto done;
-				}
-
-				/* any kind of error makes
-				 * the transfer done 
-				 */
-				if(status & EHCI_QTD_HALTED)
-				{
-					break;
-				}
-
-				/* we want short packets, 
-				 * and if it is short: it's done 
-				 */
-				if(EHCI_QTD_GET_BYTES(status) != 0)
-				{
-					break;
-				}
+			if (((void *)td) == xfer->td_transfer_last) {
+				td = NULL;
+				break;
 			}
 		}
 		ehci_non_isoc_done(xfer);
@@ -1160,6 +1243,7 @@ ehci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 	}
 
  done:
+	DPRINTFN(12, ("xfer=%p is still active\n", xfer));
 	return 0;
 
  transferred:
@@ -1431,6 +1515,8 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 	u_int32_t average = (EHCI_PAGE_SIZE - (EHCI_PAGE_SIZE % 
 					       xfer->max_packet_size));
 	u_int32_t qtd_status;
+	uint32_t qh_endp;
+	uint32_t qh_endphub;
 	u_int32_t buf_offset;
 	u_int32_t len = xfer->length;
 	u_int32_t c_error = 
@@ -1464,6 +1550,8 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 		 */
 		xfer->pipe->toggle_next = 1;
 
+		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
+
 		/* SETUP message */
 
 		td->qtd_status = c_error | htole32
@@ -1486,6 +1574,15 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 		len -= sizeof(usb_device_request_t);
 		td_last = td;
 		td = td->obj_next;
+
+		if (td) {
+		    /* link the last TD with the next one */
+		    td_last->qtd_next = td->qtd_self;
+		    /* short transfers should terminate the transfer: */
+		    td_last->qtd_altnext = htole32(EHCI_LINK_TERMINATE);
+		}
+
+		usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
 	}
 	else
 	{
@@ -1549,13 +1646,7 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 			      "than there is in the buffer!", __FUNCTION__);
 		}
 
-		/* link in last TD */
-
-		if (td_last) {
-		    td_last->qtd_next = td->qtd_self;
-		    /* short transfers should terminate the transfer: */
-		    td_last->qtd_altnext = htole32(EHCI_LINK_TERMINATE);
-		}
+		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
 
 		/* fill out current TD */
 
@@ -1590,15 +1681,20 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 		len -= average;
 		td_last = td;
 		td = td->obj_next;
+
+		if (td) {
+		    /* link the last TD with the next one */
+		    td_last->qtd_next = td->qtd_self;
+		    /* short transfers should terminate the transfer: */
+		    td_last->qtd_altnext = htole32(EHCI_LINK_TERMINATE);
+		}
+
+		usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
 	}
 
 	if(xfer->pipe->methods == &ehci_device_ctrl_methods)
 	{
-		/* link in last TD */
-
-		td_last->qtd_next = td->qtd_self;
-		/* short transfers should terminate the transfer: */
-		td_last->qtd_altnext = htole32(EHCI_LINK_TERMINATE);
+		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
 
 		/* STATUS message */
 
@@ -1619,11 +1715,18 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 
 		td->len = 0;
 		td_last = td;
+
+		usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
 	}
 
+	usbd_page_sync(td_last->page, BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
+
+	/* the last TD terminates the transfer: */
 	td_last->qtd_next = htole32(EHCI_LINK_TERMINATE);
 	td_last->qtd_altnext = htole32(EHCI_LINK_TERMINATE);
 	td_last->qtd_status |= htole32(EHCI_QTD_IOC);
+
+	usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
 
 	/* must have at least one frame! */
 
@@ -1640,9 +1743,11 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 
 	qh = xfer->qh_start;
 
+	usbd_page_sync(qh->page, BUS_DMASYNC_PREWRITE);
+
 	/* the "qh_link" field is filled when the QH is added */
 
-	qh->qh_endp = htole32
+	qh_endp =
 	  (EHCI_QH_SET_ADDR(xfer->address) |
 	   EHCI_QH_SET_ENDPT(UE_GET_ADDR(xfer->endpoint)) |
 	   EHCI_QH_DTC |
@@ -1652,14 +1757,15 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 
 	switch (xfer->udev->speed) {
 	case USB_SPEED_LOW:  
-	  qh->qh_endp |= htole32(EHCI_QH_SET_EPS(EHCI_QH_SPEED_LOW)|
-				 EHCI_QH_CTL);  
+	  qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_LOW)|
+		      EHCI_QH_CTL);  
 	  break;
 	case USB_SPEED_FULL: 
-	  qh->qh_endp |= htole32(EHCI_QH_SET_EPS(EHCI_QH_SPEED_FULL)|
-				 EHCI_QH_CTL); break;
+	  qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_FULL)|
+		      EHCI_QH_CTL);
+	  break;
 	case USB_SPEED_HIGH: 
-	  qh->qh_endp |= htole32(EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH)); 
+	  qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH)); 
 	  break;
 	default:
 	  panic("%s: bad device speed %d!", __FUNCTION__, xfer->udev->speed);
@@ -1668,16 +1774,18 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 
 	if(xfer->pipe->methods != &ehci_device_ctrl_methods)
 	{
-		qh->qh_endp &= htole32(~EHCI_QH_CTL);
+		qh_endp &= ~EHCI_QH_CTL;
 	}
 
-	qh->qh_endphub = htole32
+	qh->qh_endp = htole32(qh_endp);
+
+	qh_endphub =
 	  (EHCI_QH_SET_MULT(xfer->max_packet_count & 3)|
 	   EHCI_QH_SET_CMASK(0xf0));
 
 	if(xfer->udev->myhsport)
 	{
-		qh->qh_endphub |= htole32
+		qh_endphub |= 
 		  (EHCI_QH_SET_HUBA(xfer->udev->myhsport->parent->address)|
 		   EHCI_QH_SET_PORT(xfer->udev->myhsport->portno));
 	}
@@ -1685,9 +1793,10 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 	if(xfer->pipe->methods == &ehci_device_intr_methods)
 	{
 		/* execute the transfer one time per 1ms */
-		qh->qh_endphub |= htole32(EHCI_QH_SET_SMASK(0x04));
+		qh_endphub |= EHCI_QH_SET_SMASK(0x04);
 	}
 
+	qh->qh_endphub = htole32(qh_endphub);
 	qh->qh_curqtd = htole32(0);
 
 	/* fill the overlay qTD */
@@ -1697,6 +1806,8 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 
 	qh->qh_qtd.qtd_next = td->qtd_self;
 	qh->qh_qtd.qtd_altnext = htole32(EHCI_LINK_TERMINATE);
+
+	usbd_page_sync(qh->page, BUS_DMASYNC_POSTWRITE);
 
 	EHCI_APPEND_QH(qh, *qh_last);
 	return;
@@ -1744,6 +1855,7 @@ ehci_isoc_fs_done(ehci_softc_t *sc, struct usbd_xfer *xfer)
 {
 	u_int32_t nframes = xfer->nframes;
 	u_int32_t actlen = 0;
+	uint32_t status;
 	u_int16_t *plen = xfer->frlengths;
 	u_int16_t len = 0;
 	u_int8_t need_delay = 0;
@@ -1773,13 +1885,16 @@ ehci_isoc_fs_done(ehci_softc_t *sc, struct usbd_xfer *xfer)
 		ehci_dump_sitd(td);
 	  }
 #endif
+	  usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
+	  status = le32toh(td->sitd_status);
+	  usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
+
 	  /* check for active transfers */
-	  if(td->sitd_status & htole32(EHCI_SITD_ACTIVE))
-	  {
+	  if (status & EHCI_SITD_ACTIVE) {
 		need_delay = 1;
 	  }
 
-	  len = EHCI_SITD_GET_LEN(le32toh(td->sitd_status));
+	  len = EHCI_SITD_GET_LEN(status);
 
 	  if(*plen >= len)
 	  {
@@ -1810,6 +1925,7 @@ ehci_isoc_hs_done(ehci_softc_t *sc, struct usbd_xfer *xfer)
 {
 	u_int32_t nframes = xfer->nframes;
 	u_int32_t actlen = 0;
+	uint32_t status;
 	u_int16_t *plen = xfer->frlengths;
 	u_int16_t len = 0;
 	u_int8_t td_no = 0;
@@ -1840,12 +1956,16 @@ ehci_isoc_hs_done(ehci_softc_t *sc, struct usbd_xfer *xfer)
 		ehci_dump_itd(td);
 	  }
 #endif
-	  if(td->itd_status[td_no] & htole32(EHCI_ITD_ACTIVE))
-	  {
+
+	  usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
+	  status = le32toh(td->itd_status[td_no]);
+	  usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
+
+	  if (status & EHCI_ITD_ACTIVE) {
 		need_delay = 1;
 	  }
 
-	  len = EHCI_ITD_GET_LEN(le32toh(td->itd_status[td_no]));
+	  len = EHCI_ITD_GET_LEN(status);
 
 	  if(*plen >= len)
 	  {
@@ -2277,6 +2397,8 @@ ehci_device_isoc_fs_open(struct usbd_xfer *xfer)
 
 	for(td = xfer->td_start; td; td = td->obj_next)
 	{
+		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
+
 		td->sitd_portaddr = sitd_portaddr;
 
 		/* TODO: make some kind of automatic SMASK/CMASK selection
@@ -2303,6 +2425,8 @@ ehci_device_isoc_fs_open(struct usbd_xfer *xfer)
 						EHCI_SITD_SET_CMASK(0xF8));
 		}
 		td->sitd_back = htole32(EHCI_LINK_TERMINATE);
+
+		usbd_page_sync(td->page, BUS_DMASYNC_POSTWRITE);
 	}
 	return;
 }
@@ -2321,6 +2445,7 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 	ehci_softc_t *sc = xfer->usb_sc;
 	u_int32_t buf_offset;
 	u_int32_t nframes;
+	uint32_t temp;
 	u_int16_t *plen;
 #ifdef USB_DEBUG
 	u_int8_t once = 1;
@@ -2401,17 +2526,21 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 			*plen = xfer->max_frame_size;
 		}
 
+		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
+
 		td->sitd_bp[0] = htole32(buf_res.physaddr);
 
 		buf_offset += *plen;
 		usbd_get_page(&(xfer->buf_data), buf_offset, &buf_res);
 
-		td->sitd_bp[1] = htole32(buf_res.physaddr & (~0xFFF));
+		temp = buf_res.physaddr & (~0xFFF);
 
 		if(UE_GET_DIR(xfer->endpoint) == UE_DIR_OUT)
 		{
-			td->sitd_bp[1] |= htole32(1); /* T-count == 1 */
+			temp |= 1; /* T-count == 1*/
 		}
+
+		td->sitd_bp[1] = htole32(temp);
 
 		if(nframes == 0)
 		{
@@ -2426,6 +2555,8 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 			  (EHCI_SITD_ACTIVE|
 			   EHCI_SITD_SET_LEN(*plen));
 		}
+		usbd_page_sync(td->page, BUS_DMASYNC_POSTWRITE);
+
 #ifdef USB_DEBUG
 		if(ehcidebug > 15)
 		{
@@ -2488,11 +2619,14 @@ static void
 ehci_device_isoc_hs_open(struct usbd_xfer *xfer)
 {
 	ehci_itd_t *td;
+	uint32_t temp;
 
 	/* initialize all TD's */
 
 	for(td = xfer->td_start; td; td = td->obj_next)
 	{
+		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
+
 		/* set TD inactive */
 		td->itd_status[0] = 0;
 		td->itd_status[1] = 0;
@@ -2508,18 +2642,21 @@ ehci_device_isoc_hs_open(struct usbd_xfer *xfer)
 		  (EHCI_ITD_SET_ADDR(xfer->address)|
 		   EHCI_ITD_SET_ENDPT(UE_GET_ADDR(xfer->endpoint)));
 
-		/* set maximum packet size */
-		td->itd_bp[1] = htole32
-		  (EHCI_ITD_SET_MPL(xfer->max_packet_size & 0x7FF));
+		temp = EHCI_ITD_SET_MPL(xfer->max_packet_size & 0x7FF);
 
 		/* set direction */
 		if(UE_GET_DIR(xfer->endpoint) == UE_DIR_IN)
 		{
-			td->itd_bp[1] |= htole32(EHCI_ITD_SET_DIR_IN);
+			temp |= EHCI_ITD_SET_DIR_IN;
 		}
+
+		/* set maximum packet size */
+		td->itd_bp[1] = htole32(temp);
 
 		/* set transfer multiplier */
 		td->itd_bp[2] = htole32(xfer->max_packet_count & 3);
+
+		usbd_page_sync(td->page, BUS_DMASYNC_POSTWRITE);
 	}
 	return;
 }
@@ -2625,6 +2762,8 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 
 		if(td_no == 0)
 		{
+			usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
+
 			/* update page address */
 			td->itd_bp[page_no] &= htole32(0xFFF);
 			td->itd_bp[page_no] |= htole32(page_addr);
@@ -2707,6 +2846,7 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 
 		if((td_no == 8) || (nframes == 0))
 		{
+			usbd_page_sync(td->page, BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
 #ifdef USB_DEBUG
 			if(ehcidebug > 15)
 			{
@@ -3444,11 +3584,12 @@ ehci_xfer_setup(struct usbd_device *udev,
 		const struct usbd_config *setup_start,
 		const struct usbd_config *setup_end)
 {
+	struct usbd_page_info page_info;
+	struct usbd_xfer dummy;
 	ehci_softc_t *sc = EHCI_BUS2SC(udev->bus);
 	const struct usbd_config *setup;
 	struct usbd_memory_info *info;
 	struct usbd_page *page_ptr;
-	struct usbd_xfer dummy;
 	struct usbd_xfer *xfer;
 	u_int32_t size[2];
 	u_int32_t total_size[2];
@@ -3458,9 +3599,7 @@ ehci_xfer_setup(struct usbd_device *udev,
 	u_int32_t nitd;
 	u_int32_t n;
 	void *buf;
-	void *temp_ptr;
 	void *last_obj;
-	bus_size_t temp_phy;
 	usbd_status error = 0;
 
 	buf = NULL;
@@ -3678,16 +3817,22 @@ ehci_xfer_setup(struct usbd_device *udev,
 					 sizeof(ehci_itd_t));
 	    if(buf)
 	    {
-	        temp_ptr = usbd_page_get_buf(page_ptr,size[1]);
-		temp_phy = usbd_page_get_phy(page_ptr,size[1]);
+		register ehci_itd_t *td;
+
+		usbd_page_get_info(page_ptr, size[1], &page_info);
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_PREWRITE);
+
+		td = page_info.buffer;
 
 		/* init TD */
-		((ehci_itd_t *)temp_ptr)->itd_self = 
-		  htole32(temp_phy|EHCI_LINK_ITD);
-		((ehci_itd_t *)temp_ptr)->obj_next = 
-		  last_obj;
+		td->itd_self = htole32(page_info.physaddr|EHCI_LINK_ITD);
+		td->obj_next = last_obj;
+		td->page = page_info.page;
 
-		last_obj = temp_ptr;
+		last_obj = td;
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_POSTWRITE);
 	    }
 	    size[1] += sizeof(ehci_itd_t);
 	  }
@@ -3700,15 +3845,22 @@ ehci_xfer_setup(struct usbd_device *udev,
 					 sizeof(ehci_sitd_t));
 	    if(buf)
 	    {
-	        temp_ptr = usbd_page_get_buf(page_ptr,size[1]);
-		temp_phy = usbd_page_get_phy(page_ptr,size[1]);
+	        register ehci_sitd_t *td;
+
+		usbd_page_get_info(page_ptr, size[1], &page_info);
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_PREWRITE);
+
+		td = page_info.buffer;
 
 		/* init TD */
-		((ehci_sitd_t *)temp_ptr)->sitd_self = 
-		  htole32(temp_phy|EHCI_LINK_SITD);
-		((ehci_sitd_t *)temp_ptr)->obj_next = last_obj;
+		td->sitd_self = htole32(page_info.physaddr|EHCI_LINK_SITD);
+		td->obj_next = last_obj;
+		td->page = page_info.page;
 
-		last_obj = temp_ptr;
+		last_obj = td;
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_POSTWRITE);
 	    }
 	    size[1] += sizeof(ehci_sitd_t);
 	  }
@@ -3721,16 +3873,22 @@ ehci_xfer_setup(struct usbd_device *udev,
 					 sizeof(ehci_qtd_t));
 	    if(buf)
 	    {
-	        temp_ptr = usbd_page_get_buf(page_ptr,size[1]);
-		temp_phy = usbd_page_get_phy(page_ptr,size[1]);
+		register ehci_qtd_t *qtd;
+
+		usbd_page_get_info(page_ptr, size[1], &page_info);
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_PREWRITE);
+
+		qtd = page_info.buffer;
 
 		/* init TD */
-		((ehci_qtd_t *)temp_ptr)->qtd_self = 
-		  htole32(temp_phy);
-		((ehci_qtd_t *)temp_ptr)->obj_next = 
-		  last_obj;
+		qtd->qtd_self = htole32(page_info.physaddr);
+		qtd->obj_next = last_obj;
+		qtd->page = page_info.page;
 
-		last_obj = temp_ptr;
+		last_obj = qtd;
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_POSTWRITE);
 	    }
 	    size[1] += sizeof(ehci_qtd_t);
 	  }
@@ -3753,16 +3911,22 @@ ehci_xfer_setup(struct usbd_device *udev,
 					 sizeof(ehci_qh_t));
 	    if(buf)
 	    {
-	        temp_ptr = usbd_page_get_buf(page_ptr,size[1]);
-		temp_phy = usbd_page_get_phy(page_ptr,size[1]);
+		register ehci_qh_t *qh;
+
+		usbd_page_get_info(page_ptr, size[1], &page_info);
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_PREWRITE);
+
+		qh = page_info.buffer;
 
 		/* init QH */
-		((ehci_qh_t *)temp_ptr)->qh_self = 
-		  htole32(temp_phy|EHCI_LINK_QH);
-		((ehci_qh_t *)temp_ptr)->obj_next = 
-		  last_obj;
+		qh->qh_self = htole32(page_info.physaddr|EHCI_LINK_QH);
+		qh->obj_next = last_obj;
+		qh->page = page_info.page;
 
-		last_obj = temp_ptr;
+		last_obj = qh;
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_POSTWRITE);
 	    }
 	    size[1] += sizeof(ehci_qh_t);
 	  }

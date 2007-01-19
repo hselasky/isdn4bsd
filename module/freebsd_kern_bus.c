@@ -1411,91 +1411,84 @@ devclass_find(const char *classname)
 
 #ifndef IHFC_USB_ENABLED
 
-struct usb_dma {
-    bus_dma_tag_t     tag;
-    bus_dmamap_t      map;
-    bus_dma_segment_t seg;
-    int               seg_count;
-} __packed;
-
 void *
-usbd_mem_alloc(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power)
+usbd_mem_alloc(bus_dma_tag_t dma_tag, struct usbd_page *page, u_int32_t size, u_int8_t align_power)
 {
     caddr_t ptr = NULL;
-    struct usb_dma temp;
 
-    bzero(&temp, sizeof(temp));
+    page->tag = dma_tag;
+    page->seg_count = 1;
 
-    temp.tag = dma_tag;
-    temp.seg_count = 1;
-
-    size += sizeof(temp);
-
-    if(bus_dmamem_alloc(temp.tag, size, (1 << align_power), 0,
-			&temp.seg, 1,
-			&temp.seg_count, BUS_DMA_NOWAIT))
+    if(bus_dmamem_alloc(page->tag, size, (1 << align_power), 0,
+			&page->seg, 1,
+			&page->seg_count, BUS_DMA_WAITOK))
     {
         goto done_4;
     }
 
-    if(bus_dmamem_map(temp.tag, &temp.seg, temp.seg_count, size,
-		      &ptr, BUS_DMA_NOWAIT|BUS_DMA_COHERENT))
+    if(bus_dmamem_map(page->tag, &page->seg, page->seg_count, size,
+		      &ptr, BUS_DMA_WAITOK|BUS_DMA_COHERENT))
     {
         goto done_3;
     }
 
-    if(bus_dmamap_create(temp.tag, size, 1, size,
-			 0, BUS_DMA_NOWAIT, &temp.map))
+    if(bus_dmamap_create(page->tag, size, 1, size,
+			 0, BUS_DMA_WAITOK, &page->map))
     {
         goto done_2;
     }
 
-    if(bus_dmamap_load(temp.tag, temp.map, ptr, size, NULL, 
-		       BUS_DMA_NOWAIT))
+    if(bus_dmamap_load(page->tag, page->map, ptr, size, NULL, 
+		       BUS_DMA_WAITOK))
     {
         goto done_1;
     }
 
-    size -= sizeof(temp);
+    page->physaddr = page->map->dm_segs[0].ds_addr;
+    page->buffer = ptr;
+    page->length = size;
 
-    bcopy(&temp, ((u_int8_t *)ptr) + size, sizeof(temp));
+    usbd_page_sync(page, BUS_DMASYNC_PREWRITE);
+
+    bzero(ptr, size);
+
+    usbd_page_sync(page, BUS_DMASYNC_POSTWRITE);
  
     return ptr;
 
  done_1:
-    bus_dmamap_destroy(temp.tag, temp.map);
+    bus_dmamap_destroy(page->tag, page->map);
 
  done_2:
-    bus_dmamem_unmap(temp.tag, ptr, size);
+    bus_dmamem_unmap(page->tag, ptr, size);
 
  done_3:
-    bus_dmamem_free(temp.tag, &temp.seg, temp.seg_count);
+    bus_dmamem_free(page->tag, &page->seg, page->seg_count);
 
  done_4:
     return NULL;
 }
 
-bus_size_t
-usbd_mem_vtophys(void *ptr, u_int32_t size)
-{
-    struct usb_dma *arg = (void *)(((u_int8_t *)ptr) + size);
-#if 1
-    return arg->map->dm_segs[0].ds_addr;
-#else
-    return arg->seg.ds_addr;
-#endif
-}
-
 void
-usbd_mem_free(void *ptr, u_int32_t size)
+usbd_mem_free(struct usbd_page *page)
 {
-    struct usb_dma *arg = (void *)(((u_int8_t *)ptr) + size);
-    struct usb_dma temp = *arg; /* make a copy ! */
+    /* NOTE: make a copy of "tag", "map", 
+     * and "buffer" in case "page" is part 
+     * of the allocated memory:
+     */
+    struct usbd_page temp = *page;
 
     bus_dmamap_unload(temp.tag, temp.map);
     bus_dmamap_destroy(temp.tag, temp.map);
-    bus_dmamem_unmap(temp.tag, ptr, size);
+    bus_dmamem_unmap(temp.tag, temp.buffer, temp.length);
     bus_dmamem_free(temp.tag, &temp.seg, temp.seg_count);
+    return;
+}
+
+void
+usbd_page_sync(struct usbd_page *page, uint8_t op)
+{
+    bus_dmamap_sync(page->tag, page->map, 0, page->length, op);
     return;
 }
 

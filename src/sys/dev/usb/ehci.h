@@ -228,6 +228,7 @@ typedef struct ehci_itd {
 	struct ehci_itd		*next;
 	struct ehci_itd		*prev;
 	struct ehci_itd		*obj_next;
+	struct usbd_page 	*page;
 } __aligned(EHCI_ITD_ALIGN) ehci_itd_t;
 
 /*
@@ -273,6 +274,7 @@ typedef struct ehci_sitd {
 	struct ehci_sitd	*next;
 	struct ehci_sitd	*prev;
 	struct ehci_sitd	*obj_next;
+	struct usbd_page 	*page;
 } __aligned(EHCI_SITD_ALIGN) ehci_sitd_t;
 
 /* Queue Element Transfer Descriptor */
@@ -314,6 +316,7 @@ typedef struct ehci_qtd {
  * Extra information needed:
  */
 	struct ehci_qtd		*obj_next;
+	struct usbd_page 	*page;
 	uint32_t		qtd_self;
 	uint16_t		len;
 } __aligned(EHCI_QTD_ALIGN) ehci_qtd_t;
@@ -370,6 +373,7 @@ typedef struct ehci_qh {
 	struct ehci_qh		*next;
 	struct ehci_qh		*prev;
 	struct ehci_qh		*obj_next;
+	struct usbd_page 	*page;
 	uint32_t		qh_self;
 } __aligned(EHCI_QH_ALIGN) ehci_qh_t;
 
@@ -390,14 +394,14 @@ struct ehci_hw_softc {
 };
 
 typedef struct ehci_softc {
-	struct ehci_hw_softc	sc_hw; /* hardware structures first */
+	struct usbd_page 	sc_hw_page;
+	struct ehci_hw_softc	*sc_hw_ptr;
 
 	ehci_qh_t		*sc_async_p_last;
 	ehci_qh_t		*sc_intr_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
 	u_int16_t		sc_intr_stat[EHCI_VIRTUAL_FRAMELIST_COUNT];
 	ehci_sitd_t		*sc_isoc_fs_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
 	ehci_itd_t		*sc_isoc_hs_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
-	uint32_t		sc_physaddr;
 	struct usbd_bus		sc_bus; /* base device */
 
 	bus_space_tag_t		iot;
@@ -426,7 +430,7 @@ typedef struct ehci_softc {
 	uint8_t			sc_noport;
 	uint8_t			sc_addr; /* device address */
 	uint8_t			sc_conf; /* device configuration */
-	struct usbd_xfer	*sc_intrxfer;
+	struct usbd_xfer 	*sc_intrxfer;
 	uint8_t			sc_isreset;
 
 	uint32_t		sc_eintrs;

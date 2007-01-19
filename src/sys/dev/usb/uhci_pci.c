@@ -187,12 +187,9 @@ uhci_pci_probe(device_t self)
 static int
 uhci_pci_attach(device_t self)
 {
-	uhci_softc_t *sc;
+	uhci_softc_t *sc = device_get_softc(self);
 	int rid;
 	int err;
-
-	sc = usbd_mem_alloc(device_get_dma_tag(self),
-			    sizeof(*sc), LOG2(UHCI_FRAMELIST_ALIGN));
 
 	if(sc == NULL)
 	{
@@ -200,15 +197,20 @@ uhci_pci_attach(device_t self)
 		return ENXIO;
 	}
 
-#if 1
-	bzero(sc, sizeof(*sc));
-#endif
-	sc->sc_physaddr = usbd_mem_vtophys(sc, sizeof(*sc)); /* physical address of sc */
+	sc->sc_hw_ptr = 
+	  usbd_mem_alloc(device_get_dma_tag(self),
+			 &(sc->sc_hw_page), sizeof(*(sc->sc_hw_ptr)),
+			 LOG2(UHCI_FRAMELIST_ALIGN));
+
+	if (sc->sc_hw_ptr == NULL) {
+		device_printf(self, "Could not allocate DMA-able "
+			      "memory, %d bytes!\n", sizeof(*(sc->sc_hw_ptr)));
+		return ENXIO;
+	}
 
 	mtx_init(&sc->sc_bus.mtx, "usb lock",
 		 NULL, MTX_DEF|MTX_RECURSE);
 
-	device_set_softc(self, sc);
 	sc->sc_dev = self;
 
 	pci_enable_busmaster(self);
@@ -386,9 +388,8 @@ uhci_pci_detach(device_t self)
 
 	mtx_destroy(&sc->sc_bus.mtx);
 
-	usbd_mem_free(sc, sizeof(*sc));
+	usbd_mem_free(&(sc->sc_hw_page));
 
-	device_set_softc(self, NULL);
 	return 0;
 }
 
@@ -410,7 +411,7 @@ static driver_t uhci_driver =
 	  DEVMETHOD(bus_print_child, bus_generic_print_child),
 	  {0, 0}
 	},
-	.size = 0,
+	.size = sizeof(struct uhci_softc),
 };
 
 static devclass_t uhci_devclass;

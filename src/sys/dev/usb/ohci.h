@@ -183,6 +183,7 @@ typedef struct ohci_ed {
 	struct ohci_ed		*next;
 	struct ohci_ed		*prev;
 	struct ohci_ed		*obj_next;
+	struct usbd_page 	*page;
 	uint32_t		ed_self;
 } __aligned(OHCI_ED_ALIGN) ohci_ed_t;
 
@@ -211,6 +212,7 @@ typedef struct ohci_td {
  * Extra information needed:
  */
 	struct ohci_td		*obj_next;
+	struct usbd_page 	*page;
 	uint32_t		td_self;
 	uint16_t		len;
 } __aligned(OHCI_TD_ALIGN) ohci_td_t;
@@ -239,6 +241,7 @@ typedef struct ohci_itd {
  * Extra information needed:
  */
 	struct ohci_itd		*obj_next;
+	struct usbd_page 	*page;
 	uint32_t		itd_self;
 	uint8_t			frames;
 } __aligned(OHCI_ITD_ALIGN) ohci_itd_t;
@@ -272,7 +275,8 @@ struct ohci_hw_softc {
 };
 
 typedef struct ohci_softc {
-	struct ohci_hw_softc	sc_hw;	/* hardware structures first */
+	struct usbd_page 	sc_hw_page;
+	struct ohci_hw_softc	*sc_hw_ptr;
 
 	ohci_ed_t		*sc_ctrl_p_last;
 	ohci_ed_t		*sc_bulk_p_last;

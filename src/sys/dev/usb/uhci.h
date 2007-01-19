@@ -170,9 +170,10 @@ typedef struct uhci_td {
 	struct uhci_td		*next;
 	struct uhci_td		*prev;
 	struct uhci_td		*obj_next;
-	void			*fixup_ptr;
+	struct usbd_page 	*page;
 	uint32_t		td_self;
-	uint32_t		fixup_offset;
+	uint32_t		fixup_src_offset;
+	uint32_t		fixup_dst_offset;
 } __aligned(UHCI_TD_ALIGN) uhci_td_t;
 
 #define	UHCI_TD_ERROR	(UHCI_TD_BITSTUFF | UHCI_TD_CRCTO | 		\
@@ -206,6 +207,7 @@ typedef struct uhci_qh {
 	struct uhci_qh		*h_prev;
 	struct uhci_qh		*obj_next;
 	struct uhci_td		*e_next;
+	struct usbd_page 	*page;
 	uint32_t		qh_self;
 	uint16_t		intr_pos;
 } __aligned(UHCI_QH_ALIGN) uhci_qh_t;
@@ -233,8 +235,8 @@ struct uhci_hw_softc {
 };
 
 typedef struct uhci_softc {
-	struct uhci_hw_softc	sc_hw;	/* hardware structures first */
-	uint32_t		sc_physaddr;	/* physical address of this structure */
+	struct usbd_page 	sc_hw_page;
+	struct uhci_hw_softc 	*sc_hw_ptr;
 
 	struct uhci_td		*sc_isoc_p_last[UHCI_VFRAMELIST_COUNT];	/* pointer to last TD for isochronous */
 	struct uhci_qh		*sc_intr_p_last[UHCI_IFRAMELIST_COUNT];	/* pointer to last QH for interrupt */

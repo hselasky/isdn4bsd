@@ -89,9 +89,9 @@ SYSCTL_INT(_hw_usb_ohci, OID_AUTO, debug, CTLFLAG_RW,
 	   &ohcidebug, 0, "ohci debug level");
 static void		ohci_dumpregs(ohci_softc_t *);
 static void		ohci_dump_tds(ohci_td_t *);
-static void		ohci_dump_td(ohci_td_t *);
+static uint8_t		ohci_dump_td(ohci_td_t *);
 static void		ohci_dump_ed(ohci_ed_t *);
-static void		ohci_dump_itd(ohci_itd_t *);
+static uint8_t		ohci_dump_itd(ohci_itd_t *);
 static void		ohci_dump_itds(ohci_itd_t *);
 #endif
 
@@ -117,8 +117,9 @@ extern struct usbd_pipe_methods ohci_device_isoc_methods;
 extern struct usbd_pipe_methods ohci_root_ctrl_methods;
 extern struct usbd_pipe_methods ohci_root_intr_methods;
 
-#define PHYSADDR(sc,what) \
-  ((sc)->sc_physaddr + POINTER_TO_UNSIGNED(&(((struct ohci_softc *)0)->what)))
+#define SC_HW_PHYSADDR(sc,what) \
+  ((sc)->sc_hw_page.physaddr + \
+   POINTER_TO_UNSIGNED(&(((struct ohci_hw_softc *)0)->what)))
 
 static usbd_status
 ohci_controller_init(ohci_softc_t *sc)
@@ -199,9 +200,9 @@ ohci_controller_init(ohci_softc_t *sc)
 	/* The controller is now in SUSPEND state, we have 2ms to finish. */
 
 	/* set up HC registers */
-	OWRITE4(sc, OHCI_HCCA, PHYSADDR(sc, sc_hw.hcca));
-	OWRITE4(sc, OHCI_CONTROL_HEAD_ED, PHYSADDR(sc, sc_hw.ctrl_start));
-	OWRITE4(sc, OHCI_BULK_HEAD_ED, PHYSADDR(sc, sc_hw.bulk_start));
+	OWRITE4(sc, OHCI_HCCA, SC_HW_PHYSADDR(sc,hcca));
+	OWRITE4(sc, OHCI_CONTROL_HEAD_ED, SC_HW_PHYSADDR(sc,ctrl_start));
+	OWRITE4(sc, OHCI_BULK_HEAD_ED, SC_HW_PHYSADDR(sc,bulk_start));
 	/* disable all interrupts and then switch on all desired interrupts */
 	OWRITE4(sc, OHCI_INTERRUPT_DISABLE, OHCI_ALL_INTRS);
 	OWRITE4(sc, OHCI_INTERRUPT_ENABLE, sc->sc_eintrs | OHCI_MIE);
@@ -254,6 +255,7 @@ ohci_controller_init(ohci_softc_t *sc)
 usbd_status
 ohci_init(ohci_softc_t *sc)
 {
+	struct ohci_hw_softc *hw_ptr;
 	u_int i;
 	u_int16_t bit;
 	u_int16_t x;
@@ -263,30 +265,38 @@ ohci_init(ohci_softc_t *sc)
 
 	DPRINTF(("start\n"));
 
+	hw_ptr = sc->sc_hw_ptr;
+
 	sc->sc_eintrs = OHCI_NORMAL_INTRS;
+
+	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_PREWRITE);
 
 	/*
 	 * setup self pointers
 	 */
-	sc->sc_hw.ctrl_start.ed_self = htole32(PHYSADDR(sc,sc_hw.ctrl_start));
-	sc->sc_hw.ctrl_start.ed_flags = htole32(OHCI_ED_SKIP);
-	sc->sc_ctrl_p_last = &sc->sc_hw.ctrl_start;
+	hw_ptr->ctrl_start.ed_self = htole32(SC_HW_PHYSADDR(sc,ctrl_start));
+	hw_ptr->ctrl_start.ed_flags = htole32(OHCI_ED_SKIP);
+	hw_ptr->ctrl_start.page = &(sc->sc_hw_page);
+	sc->sc_ctrl_p_last = &(hw_ptr->ctrl_start);
 
-	sc->sc_hw.bulk_start.ed_self = htole32(PHYSADDR(sc,sc_hw.bulk_start));
-	sc->sc_hw.bulk_start.ed_flags = htole32(OHCI_ED_SKIP);
-	sc->sc_bulk_p_last = &sc->sc_hw.bulk_start;
+	hw_ptr->bulk_start.ed_self = htole32(SC_HW_PHYSADDR(sc,bulk_start));
+	hw_ptr->bulk_start.ed_flags = htole32(OHCI_ED_SKIP);
+	hw_ptr->bulk_start.page = &(sc->sc_hw_page);
+	sc->sc_bulk_p_last = &(hw_ptr->bulk_start);
 
-	sc->sc_hw.isoc_start.ed_self = htole32(PHYSADDR(sc,sc_hw.isoc_start));
-	sc->sc_hw.isoc_start.ed_flags = htole32(OHCI_ED_SKIP);
-	sc->sc_isoc_p_last = &sc->sc_hw.isoc_start;
+	hw_ptr->isoc_start.ed_self = htole32(SC_HW_PHYSADDR(sc,isoc_start));
+	hw_ptr->isoc_start.ed_flags = htole32(OHCI_ED_SKIP);
+	hw_ptr->isoc_start.page = &(sc->sc_hw_page);
+	sc->sc_isoc_p_last = &(hw_ptr->isoc_start);
 
 	for(i = 0;
 	    i < OHCI_NO_EDS;
 	    i++)
 	{
-		sc->sc_hw.intr_start[i].ed_self = htole32(PHYSADDR(sc,sc_hw.intr_start[i]));
-		sc->sc_hw.intr_start[i].ed_flags = htole32(OHCI_ED_SKIP);
-		sc->sc_intr_p_last[i] = &sc->sc_hw.intr_start[i];
+		hw_ptr->intr_start[i].ed_self = htole32(SC_HW_PHYSADDR(sc,intr_start[i]));
+		hw_ptr->intr_start[i].ed_flags = htole32(OHCI_ED_SKIP);
+		hw_ptr->intr_start[i].page = &(sc->sc_hw_page);
+		sc->sc_intr_p_last[i] = &(hw_ptr->intr_start[i]);
 	}
 
 	/*
@@ -303,17 +313,17 @@ ohci_init(ohci_softc_t *sc)
 			/* the next QH has half the
 			 * poll interval
 			 */
-			sc->sc_hw.intr_start[x].next = NULL;
-			sc->sc_hw.intr_start[x].ed_next =
-			  sc->sc_hw.intr_start[y].ed_self;
+			hw_ptr->intr_start[x].next = NULL;
+			hw_ptr->intr_start[x].ed_next =
+			  hw_ptr->intr_start[y].ed_self;
 			x++;
 		}
 		bit >>= 1;
 	}
 
 	/* the last (1ms) QH */
-	sc->sc_hw.intr_start[0].next = &sc->sc_hw.isoc_start;
-	sc->sc_hw.intr_start[0].ed_next = sc->sc_hw.isoc_start.ed_self;
+	hw_ptr->intr_start[0].next = &(hw_ptr->isoc_start);
+	hw_ptr->intr_start[0].ed_next = hw_ptr->isoc_start.ed_self;
 
 	/*
 	 * Fill HCCA interrupt table.  The bit reversal is to get
@@ -323,9 +333,11 @@ ohci_init(ohci_softc_t *sc)
 	    i < OHCI_NO_INTRS;
 	    i++)
 	{
-		sc->sc_hw.hcca.hcca_interrupt_table[i] =
-		  sc->sc_hw.intr_start[i|(OHCI_NO_EDS/2)].ed_self;
+		hw_ptr->hcca.hcca_interrupt_table[i] =
+		  hw_ptr->intr_start[i|(OHCI_NO_EDS/2)].ed_self;
 	}
+
+	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_POSTWRITE);
 
 	LIST_INIT(&sc->sc_interrupt_list_head);
 
@@ -343,10 +355,10 @@ ohci_init(ohci_softc_t *sc)
 		    i++)
 		{
 			printf("ed#%d ", i);
-			ohci_dump_ed(&sc->sc_hw.intr_start[i]);
+			ohci_dump_ed(&(hw_ptr->intr_start[i]));
 		}
 		printf("iso ");
-		ohci_dump_ed(&sc->sc_hw.isoc_start);
+		ohci_dump_ed(&(hw_ptr->isoc_start));
 	}
 #endif
 
@@ -467,6 +479,8 @@ ohci_resume(ohci_softc_t *sc)
 static void
 ohci_dumpregs(ohci_softc_t *sc)
 {
+	struct ohci_hw_softc *hw_ptr;
+
 	DPRINTF(("ohci_dumpregs: rev=0x%08x control=0x%08x command=0x%08x\n",
 		 OREAD4(sc, OHCI_REVISION),
 		 OREAD4(sc, OHCI_CONTROL),
@@ -498,9 +512,14 @@ ohci_dumpregs(ohci_softc_t *sc)
 	DPRINTF(("               port1=0x%08x port2=0x%08x\n",
 		 OREAD4(sc, OHCI_RH_PORT_STATUS(1)),
 		 OREAD4(sc, OHCI_RH_PORT_STATUS(2))));
+
+	hw_ptr = sc->sc_hw_ptr;
+
+	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_PREREAD);
 	DPRINTF(("         HCCA: frame_number=0x%04x done_head=0x%08x\n",
-		 le32toh(sc->sc_hw.hcca.hcca_frame_number),
-		 le32toh(sc->sc_hw.hcca.hcca_done_head)));
+		 le32toh(hw_ptr->hcca.hcca_frame_number),
+		 le32toh(hw_ptr->hcca.hcca_done_head)));
+	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_POSTREAD);
 	return;
 }
 static void
@@ -508,59 +527,74 @@ ohci_dump_tds(ohci_td_t *std)
 {
 	for(; std; std = std->obj_next)
 	{
-		ohci_dump_td(std);
-
-		if (std->td_next == 0) {
-		    break;
+		if (ohci_dump_td(std)) {
+			break;
 		}
 	}
 	return;
 }
 
-static void
+static uint8_t
 ohci_dump_td(ohci_td_t *std)
 {
-	u_int32_t td_flags = le32toh(std->td_flags);
+	uint32_t td_flags;
+	uint8_t temp;
 
-	printf("TD(%p) at %08lx: %s%s%s%s%s delay=%d ec=%d "
-	       "cc=%d\ncbp=0x%08lx next=0x%08lx be=0x%08lx\n",
-	       std, (long)le32toh(std->td_self),
+	usbd_page_sync(std->page, BUS_DMASYNC_PREREAD);
+
+	td_flags = le32toh(std->td_flags);
+	temp = (std->td_next == 0);
+
+	printf("TD(%p) at 0x%08x: %s%s%s%s%s delay=%d ec=%d "
+	       "cc=%d\ncbp=0x%08x next=0x%08x be=0x%08x\n",
+	       std, le32toh(std->td_self),
 	       (td_flags & OHCI_TD_R) ? "-R" : "",
 	       (td_flags & OHCI_TD_OUT) ? "-OUT" : "",
 	       (td_flags & OHCI_TD_IN) ? "-IN" : "",
 	       ((td_flags & OHCI_TD_TOGGLE_MASK) == OHCI_TD_TOGGLE_1) ? "-TOG1" : "",
 	       ((td_flags & OHCI_TD_TOGGLE_MASK) == OHCI_TD_TOGGLE_0) ? "-TOG0" : "",
-	       OHCI_TD_GET_DI(le32toh(std->td_flags)),
-	       OHCI_TD_GET_EC(le32toh(std->td_flags)),
-	       OHCI_TD_GET_CC(le32toh(std->td_flags)),
-	       (long)le32toh(std->td_cbp),
-	       (long)le32toh(std->td_next),
-	       (long)le32toh(std->td_be));
-	return;
+	       OHCI_TD_GET_DI(td_flags),
+	       OHCI_TD_GET_EC(td_flags),
+	       OHCI_TD_GET_CC(td_flags),
+	       le32toh(std->td_cbp),
+	       le32toh(std->td_next),
+	       le32toh(std->td_be));
+
+	usbd_page_sync(std->page, BUS_DMASYNC_POSTREAD);
+	return temp;
 }
 
-static void
+static uint8_t
 ohci_dump_itd(ohci_itd_t *sitd)
 {
-	int i;
+	uint32_t itd_flags;
+	uint16_t i;
+	uint8_t temp;
 
-	printf("ITD(%p) at %08lx: sf=%d di=%d fc=%d cc=%d\n"
-	       "bp0=0x%08lx next=0x%08lx be=0x%08lx\n",
-	       sitd, (long)le32toh(sitd->itd_self),
-	       OHCI_ITD_GET_SF(le32toh(sitd->itd_flags)),
-	       OHCI_ITD_GET_DI(le32toh(sitd->itd_flags)),
-	       OHCI_ITD_GET_FC(le32toh(sitd->itd_flags)),
-	       OHCI_ITD_GET_CC(le32toh(sitd->itd_flags)),
-	       (long)le32toh(sitd->itd_bp0),
-	       (long)le32toh(sitd->itd_next),
-	       (long)le32toh(sitd->itd_be));
+	usbd_page_sync(sitd->page, BUS_DMASYNC_PREREAD);
+
+	itd_flags = le32toh(sitd->itd_flags);
+	temp = (sitd->itd_next == 0);
+
+	printf("ITD(%p) at 0x%08x: sf=%d di=%d fc=%d cc=%d\n"
+	       "bp0=0x%08x next=0x%08x be=0x%08x\n",
+	       sitd, le32toh(sitd->itd_self),
+	       OHCI_ITD_GET_SF(itd_flags),
+	       OHCI_ITD_GET_DI(itd_flags),
+	       OHCI_ITD_GET_FC(itd_flags),
+	       OHCI_ITD_GET_CC(itd_flags),
+	       le32toh(sitd->itd_bp0),
+	       le32toh(sitd->itd_next),
+	       le32toh(sitd->itd_be));
 	for(i = 0; i < OHCI_ITD_NOFFSET; i++)
 	{
 		printf("offs[%d]=0x%04x ", i,
 		       (u_int)le16toh(sitd->itd_offset[i]));
 	}
 	printf("\n");
-	return;
+
+	usbd_page_sync(sitd->page, BUS_DMASYNC_POSTREAD);
+	return temp;
 }
 
 static void
@@ -568,11 +602,8 @@ ohci_dump_itds(ohci_itd_t *sitd)
 {
 	for(; sitd; sitd = sitd->obj_next)
 	{
-		ohci_dump_itd(sitd);
-
-		if (sitd->itd_next == 0)
-		{
-		    break;
+		if (ohci_dump_itd(sitd)) {
+			break;
 		}
 	}
 	return;
@@ -581,49 +612,66 @@ ohci_dump_itds(ohci_itd_t *sitd)
 static void
 ohci_dump_ed(ohci_ed_t *sed)
 {
-	u_int32_t ed_flags = le32toh(sed->ed_flags);
-	u_int32_t ed_headp = le32toh(sed->ed_headp);
+	uint32_t ed_flags;
+	u_int32_t ed_headp;
 
-	printf("ED(%p) at 0x%08lx: addr=%d endpt=%d maxp=%d flags=%s%s%s%s%s\n"
-	       "tailp=0x%08lx headflags=%s%s headp=0x%08lx nexted=0x%08lx\n",
-	       sed, (long)le32toh(sed->ed_self),
-	       OHCI_ED_GET_FA(le32toh(sed->ed_flags)),
-	       OHCI_ED_GET_EN(le32toh(sed->ed_flags)),
-	       OHCI_ED_GET_MAXP(le32toh(sed->ed_flags)),
+	usbd_page_sync(sed->page, BUS_DMASYNC_PREREAD);
+
+	ed_flags = le32toh(sed->ed_flags);
+	ed_headp = le32toh(sed->ed_headp);
+
+	printf("ED(%p) at 0x%08x: addr=%d endpt=%d maxp=%d flags=%s%s%s%s%s\n"
+	       "tailp=0x%08x headflags=%s%s headp=0x%08x nexted=0x%08x\n",
+	       sed, le32toh(sed->ed_self),
+	       OHCI_ED_GET_FA(ed_flags),
+	       OHCI_ED_GET_EN(ed_flags),
+	       OHCI_ED_GET_MAXP(ed_flags),
 	       (ed_flags & OHCI_ED_DIR_OUT) ? "-OUT" : "",
 	       (ed_flags & OHCI_ED_DIR_IN) ? "-IN" : "",
 	       (ed_flags & OHCI_ED_SPEED) ? "-LOWSPEED" : "",
 	       (ed_flags & OHCI_ED_SKIP) ? "-SKIP" : "",
 	       (ed_flags & OHCI_ED_FORMAT_ISO) ? "-ISO" : "",
-	       (long)le32toh(sed->ed_tailp), 
+	       le32toh(sed->ed_tailp), 
 	       (ed_headp & OHCI_HALTED) ? "-HALTED" : "",
 	       (ed_headp & OHCI_TOGGLECARRY) ? "-CARRY" : "",
-	       (long)le32toh(sed->ed_headp),
-	       (long)le32toh(sed->ed_next));
+	       le32toh(sed->ed_headp),
+	       le32toh(sed->ed_next));
+
+	usbd_page_sync(sed->page, BUS_DMASYNC_POSTREAD);
 	return;
 }
 #endif
 
 
-#define OHCI_APPEND_QH(sed,last) (last) = _ohci_append_qh(sed,last)
+#define OHCI_APPEND_QH(sed,td_self,last) (last) = _ohci_append_qh(sed,td_self,last)
 static ohci_ed_t *
-_ohci_append_qh(ohci_ed_t *sed, ohci_ed_t *last)
+_ohci_append_qh(ohci_ed_t *sed, uint32_t td_self, ohci_ed_t *last)
 {
 	DPRINTFN(10, ("%p to %p\n", sed, last));
 
 	/* (sc->sc_bus.mtx) must be locked */
 
+	usbd_page_sync(sed->page, BUS_DMASYNC_PREWRITE);
+
 	sed->next = last->next;
 	sed->ed_next = last->ed_next;
+	sed->ed_tailp = 0;
+	sed->ed_headp = td_self;
 
 	sed->prev = last;
-	
+
+	usbd_page_sync(sed->page, BUS_DMASYNC_POSTWRITE);
+	usbd_page_sync(last->page, BUS_DMASYNC_PREWRITE);
+
 	/* the last->next->prev is never followed:
 	 * sed->next->prev = sed;
 	 */
 
 	last->next = sed;
 	last->ed_next = sed->ed_self;
+
+	usbd_page_sync(last->page, BUS_DMASYNC_POSTWRITE);
+
 	return(sed);
 }
 
@@ -638,13 +686,19 @@ _ohci_remove_qh(ohci_ed_t *sed, ohci_ed_t *last)
 	/* only remove if not removed from a queue */
 	if(sed->prev)
 	{
+		usbd_page_sync(sed->prev->page, BUS_DMASYNC_PREWRITE);
+
 		sed->prev->next = sed->next;
 		sed->prev->ed_next = sed->ed_next;
+
+		usbd_page_sync(sed->prev->page, BUS_DMASYNC_POSTWRITE);
 
 		if(sed->next)
 		{
 			sed->next->prev = sed->prev;
 		}
+
+		usbd_page_sync(sed->page, BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
 
 		/* terminate transfer in case the
 		 * transferred packet was short so
@@ -653,6 +707,8 @@ _ohci_remove_qh(ohci_ed_t *sed, ohci_ed_t *last)
 		 */
 		sed->ed_flags |= htole32(OHCI_ED_SKIP);
 		sed->ed_headp = sed->ed_tailp;
+
+		usbd_page_sync(sed->page, BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
 
 		last = ((last == sed) ? sed->prev : last);
 
@@ -689,6 +745,8 @@ ohci_isoc_done(struct usbd_xfer *xfer)
 			ohci_dump_itd(td);
 		}
 #endif
+		usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
+
 		nframes = td->frames;
 		olen = &td->itd_offset[0];
 
@@ -709,11 +767,17 @@ ohci_isoc_done(struct usbd_xfer *xfer)
 				len &= ((1<<12)-1);
 			}
 
+			if (len > *plen) {
+			    len = 0; /* invalid length */
+			}
+
 			*plen = len;
 			actlen += len;
 			plen++;
 			olen++;
 		}
+
+		usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
 
 		if(((void *)td) == xfer->td_transfer_last)
 		{
@@ -762,6 +826,7 @@ ohci_non_isoc_done(struct usbd_xfer *xfer)
 	u_int32_t temp;
 	u_int32_t phy_start;
 	u_int32_t phy_end;
+	uint32_t td_flags;
 	ohci_td_t *td = xfer->td_transfer_first;
 
 	DPRINTFN(12, ("xfer=%p pipe=%p transfer done\n",
@@ -782,13 +847,16 @@ ohci_non_isoc_done(struct usbd_xfer *xfer)
 			      __FUNCTION__, __LINE__);
 		}
 
+		usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
+
+		phy_start = le32toh(td->td_cbp);
+		td_flags = le32toh(td->td_flags);
+
 		len = td->len;
-		if(td->td_cbp != 0)
-		{
+		if (phy_start) {
 			/* compute the number of remaining
 			 * bytes in the hardware buffer:
 			 */
-			phy_start = le32toh(td->td_cbp);
 			phy_end = le32toh(td->td_be);
 			temp = (OHCI_PAGE(phy_start ^ phy_end) ? 
 				(OHCI_PAGE_SIZE+1) : 0x0001);
@@ -802,26 +870,26 @@ ohci_non_isoc_done(struct usbd_xfer *xfer)
 			    len -= temp;
 			}
 		}
+
+		usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
+
 		DPRINTFN(10, ("len=%d\n", len));
 
 		actlen += len;
 
-		cc = OHCI_TD_GET_CC(le32toh(td->td_flags));
-		if(cc)
-		{
+		cc = OHCI_TD_GET_CC(td_flags);
+		if (cc) {
 			DPRINTFN(15,("error cc=%d (%s)\n",
 				     cc, ohci_cc_strs[cc]));
 			break;
 		}
 
-		if(td->td_cbp != 0)
-		{
+		if (phy_start) {
 			/* short transfer */
 			break;
 		}
 
-		if(((void *)td) == xfer->td_transfer_last)
-		{
+		if (((void *)td) == xfer->td_transfer_last) {
 			break;
 		}
 
@@ -845,8 +913,9 @@ static u_int8_t
 ohci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 {
 	ohci_ed_t *ed = xfer->qh_start;
-
-	DPRINTFN(15, ("xfer=%p\n", xfer));
+	uint32_t ed_flags;
+	uint32_t ed_headp;
+	uint32_t ed_tailp;
 
 	if(xfer->usb_thread != ctd)
 	{
@@ -856,9 +925,17 @@ ohci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 	    return 0;
 	}
 
-	if((ed->ed_flags & htole32(OHCI_ED_SKIP)) ||
-	   (ed->ed_headp & htole32(OHCI_HALTED)) ||
-	   (((ed->ed_headp ^ ed->ed_tailp) & htole32(-0x10)) == 0))
+	DPRINTFN(12, ("xfer=%p checking transfer\n", xfer));
+
+	usbd_page_sync(ed->page, BUS_DMASYNC_PREREAD);
+	ed_flags = le32toh(ed->ed_flags);
+	ed_headp = le32toh(ed->ed_headp);
+	ed_tailp = le32toh(ed->ed_tailp);
+	usbd_page_sync(ed->page, BUS_DMASYNC_POSTREAD);
+
+	if ((ed_flags & OHCI_ED_SKIP) ||
+	    (ed_headp & OHCI_HALTED) ||
+	    (((ed_headp ^ ed_tailp) & (~0xF)) == 0))
 	{
 		if(xfer->pipe->methods == &ohci_device_isoc_methods)
 		{
@@ -868,12 +945,9 @@ ohci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 		else
 		{
 			/* store data-toggle */
-			if(ed->ed_headp & htole32(OHCI_TOGGLECARRY))
-			{
+			if (ed_headp & OHCI_TOGGLECARRY) {
 				xfer->pipe->toggle_next = 1;
-			}
-			else
-			{
+			} else {
 				xfer->pipe->toggle_next = 0;
 			}
 
@@ -882,10 +956,9 @@ ohci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 		}
 		return 1;
 	}
-	else
-	{
-		return 0;
-	}
+
+	DPRINTFN(12, ("xfer=%p is still active\n", xfer));
+	return 0;
 }
 
 static void
@@ -935,6 +1008,7 @@ ohci_interrupt_td(ohci_softc_t *sc, struct thread *ctd)
 
 	struct usbd_callback_info info[FINISH_LIST_MAX];
 	struct usbd_callback_info *ptr = &info[0];
+	struct ohci_hw_softc *hw_ptr;
 	struct usbd_xfer *xfer;
 	u_int32_t status;
 	u_int32_t done;
@@ -958,6 +1032,7 @@ ohci_interrupt_td(ohci_softc_t *sc, struct thread *ctd)
 	}
 
 	sc->sc_bus.no_intrs++;
+	hw_ptr = sc->sc_hw_ptr;
 
 	DPRINTFN(15,("%s: real interrupt\n",
 		     device_get_nameunit(sc->sc_bus.bdev)));
@@ -971,7 +1046,9 @@ ohci_interrupt_td(ohci_softc_t *sc, struct thread *ctd)
 #endif
 
 	status = 0;
-	done = le32toh(sc->sc_hw.hcca.hcca_done_head);
+
+	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_PREREAD|BUS_DMASYNC_PREWRITE);
+	done = le32toh(hw_ptr->hcca.hcca_done_head);
 
 	/* The LSb of done is used to inform the HC Driver that an interrupt
 	 * condition exists for both the Done list and for another event
@@ -995,12 +1072,14 @@ ohci_interrupt_td(ohci_softc_t *sc, struct thread *ctd)
 			status |= OREAD4(sc, OHCI_INTERRUPT_STATUS);
 			done &= ~OHCI_DONE_INTRS;
 		}
-		sc->sc_hw.hcca.hcca_done_head = 0;
+		hw_ptr->hcca.hcca_done_head = 0;
 	}
 	else
 	{
 		status = OREAD4(sc, OHCI_INTERRUPT_STATUS) & ~OHCI_WDH;
 	}
+
+	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_POSTREAD|BUS_DMASYNC_POSTWRITE);
 
 	if(status == 0)		/* nothing to be done (PCI shared interrupt) */
 	{
@@ -1181,6 +1260,7 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 	u_int32_t average = (OHCI_PAGE_SIZE - (OHCI_PAGE_SIZE % 
 					       xfer->max_packet_size));
 	u_int32_t td_flags;
+	uint32_t ed_flags;
 	u_int32_t buf_offset;
 	u_int32_t len = xfer->length;
 	u_int8_t isread;
@@ -1210,6 +1290,8 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 		 */
 		xfer->pipe->toggle_next = 1;
 
+		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
+
 		/* SETUP message */
 
 		td->td_flags = htole32(OHCI_TD_SETUP | OHCI_TD_NOCC |
@@ -1229,6 +1311,13 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 		len -= sizeof(usb_device_request_t);
 		td_last = td;
 		td = td->obj_next;
+
+		if (td) {
+		    /* link the last TD with the next one */
+		    td_last->td_next = td->td_self;
+		}
+
+		usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
 	}
 	else
 	{
@@ -1302,11 +1391,7 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 			      "than there is in the buffer!", __FUNCTION__);
 		}
 
-		/* link in last TD */
-
-		if (td_last) {
-		    td_last->td_next = td->td_self;
-		}
+		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
 
 		/* fill out TD */
 
@@ -1337,36 +1422,47 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 		len -= average;
 		td_last = td;
 		td = td->obj_next;
+
+		if (td) {
+		    /* link the last TD with the next one */
+		    td_last->td_next = td->td_self;
+		}
+
+		usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
 	}
 
 	if(xfer->pipe->methods == &ohci_device_ctrl_methods)
 	{
-		/* link in last TD */
-
-		td_last->td_next = td->td_self;
+		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
 
 		/* STATUS message */
 
-		td->td_flags = htole32(OHCI_TD_NOCC | OHCI_TD_TOGGLE_1 |
-				       OHCI_TD_SET_DI(1));
-		if(isread)
-		{
-			td->td_flags |= htole32(OHCI_TD_OUT);
+		td_flags = (OHCI_TD_NOCC | OHCI_TD_TOGGLE_1 | 
+			    OHCI_TD_SET_DI(1));
+
+		if (isread) {
+			td_flags |= OHCI_TD_OUT;
+		} else {
+			td_flags |= OHCI_TD_IN;
 		}
-		else
-		{
-			td->td_flags |= htole32(OHCI_TD_IN);
-		}
+
+		td->td_flags = htole32(td_flags);
 		td->td_cbp = 0;
 		td->td_be = ~0;
 		td->len = 0;
 
 		td_last = td;
+
+		usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
 	}
+
+	usbd_page_sync(td_last->page, BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
 
 	td_last->td_next = 0;
 	td_last->td_flags &= htole32(~OHCI_TD_INTR_MASK);
 	td_last->td_flags |= htole32(OHCI_TD_SET_DI(1));
+
+	usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
 
 	/* must have at least one frame! */
 
@@ -1383,22 +1479,25 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 
 	ed = xfer->qh_start;
 
-	ed->ed_flags = htole32(OHCI_ED_FORMAT_GEN | OHCI_ED_DIR_TD);
-	ed->ed_flags |= htole32(OHCI_ED_SET_FA(xfer->address)|
-				OHCI_ED_SET_EN(UE_GET_ADDR(xfer->endpoint))|
-				OHCI_ED_SET_MAXP(xfer->max_packet_size));
+	usbd_page_sync(ed->page, BUS_DMASYNC_PREWRITE);
 
-	if(xfer->udev->speed == USB_SPEED_LOW)
-	{
-		ed->ed_flags |= htole32(OHCI_ED_SPEED);
+	ed_flags = (OHCI_ED_SET_FA(xfer->address)|
+		    OHCI_ED_SET_EN(UE_GET_ADDR(xfer->endpoint))|
+		    OHCI_ED_SET_MAXP(xfer->max_packet_size));
+
+	ed_flags |= (OHCI_ED_FORMAT_GEN | OHCI_ED_DIR_TD);
+	
+	if (xfer->udev->speed == USB_SPEED_LOW) {
+		ed_flags |= OHCI_ED_SPEED;
 	}
+
+	ed->ed_flags = htole32(ed_flags);
+
+	usbd_page_sync(ed->page, BUS_DMASYNC_POSTWRITE);
 
 	td = xfer->td_transfer_first;
 
-	ed->ed_tailp = 0;
-	ed->ed_headp = td->td_self;
-
-	OHCI_APPEND_QH(ed, *ed_last);
+	OHCI_APPEND_QH(ed, td->td_self, *ed_last);
 
 	if(xfer->pipe->methods == &ohci_device_bulk_methods)
 	{
@@ -1475,12 +1574,16 @@ ohci_device_done(struct usbd_xfer *xfer, usbd_status error)
 
 	for(ed = xfer->qh_start; ed; ed = ed->obj_next)
 	{
+		usbd_page_sync(ed->page, BUS_DMASYNC_PREREAD);
+
 		if((!(ed->ed_flags & htole32(OHCI_ED_SKIP))) &&
 		   (!(ed->ed_headp & htole32(OHCI_HALTED))) &&
 		   ((ed->ed_headp ^ ed->ed_tailp) & htole32(-0x10)))
 		{
 			need_delay = 1;
 		}
+
+		usbd_page_sync(ed->page, BUS_DMASYNC_POSTREAD);
 	}
 
 	if(xfer->pipe->methods == &ohci_device_bulk_methods)
@@ -1770,11 +1873,14 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 {
 	struct usbd_page_search buf_res;
 	ohci_softc_t *sc = xfer->usb_sc;
+	struct ohci_hw_softc *hw_ptr = sc->sc_hw_ptr;
 	u_int32_t buf_offset;
 	u_int32_t nframes;
 	u_int32_t bp0;
 	u_int32_t end_phy;
+	uint32_t ed_flags;
 	u_int16_t *plen;
+	uint16_t itd_offset[OHCI_ITD_NOFFSET];
 	u_int8_t ncur;
 	u_int8_t allzero = 1;
 	ohci_itd_t *td;
@@ -1784,7 +1890,9 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 	DPRINTFN(5,("xfer=%p next=%d nframes=%d\n",
 		    xfer, xfer->pipe->isoc_next, xfer->nframes));
 
-	nframes = le32toh(sc->sc_hw.hcca.hcca_frame_number);
+	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_PREREAD);
+	nframes = le32toh(hw_ptr->hcca.hcca_frame_number);
+	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_POSTREAD);
 
 	if((((nframes - xfer->pipe->isoc_next) & ((1<<16)-1)) < xfer->nframes) ||
 	   (((xfer->pipe->isoc_next - nframes) & ((1<<16)-1)) >= 256))
@@ -1831,8 +1939,8 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 			      __FUNCTION__, __LINE__);
 		}
 
-		td->itd_offset[ncur] = htole16(OHCI_ITD_MK_OFFS
-					       (buf_res.physaddr - bp0));
+		itd_offset[ncur] = htole16(OHCI_ITD_MK_OFFS
+					   (buf_res.physaddr - bp0));
 		if (*plen) {
 		    allzero = 0;
 		    buf_offset += (*plen) -1;
@@ -1850,10 +1958,7 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 		   (OHCI_PAGE(buf_res.physaddr) != bp0) ||
 		   (nframes == 0))
 		{
-			/* link in last TD */
-			if (td_last) {
-			    td_last->itd_next = td->itd_self;
-			}
+			usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
 
 			/* fill current ITD */
 			td->itd_flags = htole32(
@@ -1873,17 +1978,31 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 
 			xfer->pipe->isoc_next += ncur;
 			bp0 = OHCI_PAGE(buf_res.physaddr);
+			while (ncur--) {
+			    td->itd_offset[ncur] = itd_offset[ncur];
+			}
 			ncur = 0;
 			allzero = 1;
 			td_last = td;
 			td = td->obj_next;
+
+			if (td) {
+			    /* link the last TD with the next one */
+			    td_last->itd_next = td->itd_self;
+			}
+
+			usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
 		}
 	}
+
+	usbd_page_sync(td_last->page, BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
 
 	/* update the last TD */
 	td_last->itd_flags &= htole32(~OHCI_ITD_NOINTR);
 	td_last->itd_flags |= htole32(OHCI_ITD_SET_DI(0));
 	td_last->itd_next = 0;
+
+	usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
 
 	xfer->td_transfer_last = td_last;
 
@@ -1896,24 +2015,29 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 #endif
 	ed = xfer->qh_start;
 
-	if(UE_GET_DIR(xfer->endpoint) == UE_DIR_IN)
-		ed->ed_flags = htole32(OHCI_ED_DIR_IN|OHCI_ED_FORMAT_ISO);
-	else
-		ed->ed_flags = htole32(OHCI_ED_DIR_OUT|OHCI_ED_FORMAT_ISO);
+	usbd_page_sync(ed->page, BUS_DMASYNC_PREWRITE);
 
-	ed->ed_flags |= htole32(OHCI_ED_SET_FA(xfer->address)|
-				OHCI_ED_SET_EN(UE_GET_ADDR(xfer->endpoint))|
-				OHCI_ED_SET_MAXP(xfer->max_packet_size));
+	if(UE_GET_DIR(xfer->endpoint) == UE_DIR_IN)
+		ed_flags = (OHCI_ED_DIR_IN|OHCI_ED_FORMAT_ISO);
+	else
+		ed_flags = (OHCI_ED_DIR_OUT|OHCI_ED_FORMAT_ISO);
+
+	ed_flags |= (OHCI_ED_SET_FA(xfer->address)|
+		     OHCI_ED_SET_EN(UE_GET_ADDR(xfer->endpoint))|
+		     OHCI_ED_SET_MAXP(xfer->max_packet_size));
+
 	if(xfer->udev->speed == USB_SPEED_LOW)
 	{
-		ed->ed_flags |= htole32(OHCI_ED_SPEED);
+		ed_flags |= OHCI_ED_SPEED;
 	}
 
-	ed->ed_tailp = 0;
-	td = xfer->td_transfer_first;
-	ed->ed_headp = td->itd_self;
+	ed->ed_flags = htole32(ed_flags);
 
-	OHCI_APPEND_QH(ed, sc->sc_isoc_p_last);
+	usbd_page_sync(ed->page, BUS_DMASYNC_POSTWRITE);
+
+	td = xfer->td_transfer_first;
+
+	OHCI_APPEND_QH(ed, td->itd_self, sc->sc_isoc_p_last);
 
 	/**/
 	ohci_add_interrupt_info(sc, xfer);
@@ -2522,11 +2646,12 @@ ohci_xfer_setup(struct usbd_device *udev,
 		const struct usbd_config *setup_end)
 {
 	enum { max_frames = 128 };
+	struct usbd_page_info page_info;
+	struct usbd_xfer dummy;
 	ohci_softc_t *sc = OHCI_BUS2SC(udev->bus);
 	const struct usbd_config *setup;
 	struct usbd_memory_info *info;
 	struct usbd_page *page_ptr;
-	struct usbd_xfer dummy;
 	struct usbd_xfer *xfer;
 	u_int32_t size[2];
 	u_int32_t total_size[2];
@@ -2535,9 +2660,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 	u_int32_t nqh;
 	u_int32_t n;
 	void *buf;
-	void *temp_ptr;
 	void *last_obj;
-	bus_size_t temp_phy;
 	usbd_status error = 0;
 
 	buf = NULL;
@@ -2722,16 +2845,22 @@ ohci_xfer_setup(struct usbd_device *udev,
 					 sizeof(ohci_td_t));
 	    if(buf)
 	    {
-	        temp_ptr = usbd_page_get_buf(page_ptr,size[1]);
-		temp_phy = usbd_page_get_phy(page_ptr,size[1]);
+		register ohci_td_t *td;
+
+		usbd_page_get_info(page_ptr, size[1], &page_info);
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_PREWRITE);
+
+		td = page_info.buffer;
 
 		/* init TD */
-		((ohci_td_t *)temp_ptr)->td_self = 
-		  htole32(temp_phy);
-		((ohci_td_t *)temp_ptr)->obj_next = 
-		  last_obj;
+		td->td_self = htole32(page_info.physaddr);
+		td->obj_next = last_obj;
+		td->page = page_info.page;
 
-		last_obj = temp_ptr;
+		last_obj = td;
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_POSTWRITE);
 	    }
 	    size[1] += sizeof(ohci_td_t);
 	  }
@@ -2744,16 +2873,22 @@ ohci_xfer_setup(struct usbd_device *udev,
 					 sizeof(ohci_itd_t));
 	    if(buf)
 	    {
-	        temp_ptr = usbd_page_get_buf(page_ptr,size[1]);
-		temp_phy = usbd_page_get_phy(page_ptr,size[1]);
+		register ohci_itd_t *itd;
+
+		usbd_page_get_info(page_ptr, size[1], &page_info);
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_PREWRITE);
+
+		itd = page_info.buffer;
 
 		/* init TD */
-		((ohci_itd_t *)temp_ptr)->itd_self = 
-		  htole32(temp_phy);
-		((ohci_itd_t *)temp_ptr)->obj_next =
-		  last_obj;
+		itd->itd_self = htole32(page_info.physaddr);
+		itd->obj_next = last_obj;
+		itd->page = page_info.page;
 
-		last_obj = temp_ptr;
+		last_obj = itd;
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_POSTWRITE);
 	    }
 	    size[1] += sizeof(ohci_itd_t);
 	  }
@@ -2773,16 +2908,22 @@ ohci_xfer_setup(struct usbd_device *udev,
 					 sizeof(ohci_ed_t));
 	    if(buf)
 	    {
-	        temp_ptr = usbd_page_get_buf(page_ptr,size[1]);
-		temp_phy = usbd_page_get_phy(page_ptr,size[1]);
+		register ohci_ed_t *ed;
+
+		usbd_page_get_info(page_ptr, size[1], &page_info);
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_PREWRITE);
+
+		ed = page_info.buffer;
 
 		/* init QH */
-		((ohci_ed_t *)temp_ptr)->ed_self = 
-		  htole32(temp_phy);
-		((ohci_ed_t *)temp_ptr)->obj_next =
-		  last_obj;
+		ed->ed_self = htole32(page_info.physaddr);
+		ed->obj_next = last_obj;
+		ed->page = page_info.page;
 
-		last_obj = temp_ptr;
+		last_obj = ed;
+
+		usbd_page_sync(page_info.page, BUS_DMASYNC_POSTWRITE);
 	    }
 	    size[1] += sizeof(ohci_ed_t);
 	  }

@@ -2559,6 +2559,7 @@ struct ihfc_sc {
 			 */
 
 	struct mtx *		sc_mtx_p;	/* pointer to driver mutex */
+	struct usbd_page	sc_hw_page;
 
 	struct sc_resources	sc_resources;
 

@@ -258,14 +258,31 @@ static __inline time_t time_second() { return time.tv_sec; }
   { if_attach(ifp); if_alloc_sadl(ifp); }
 
 #ifndef IHFC_USB_ENABLED
-void *
-usbd_mem_alloc(bus_dma_tag_t dma_tag, u_int32_t size, u_int8_t align_power);
 
-bus_size_t
-usbd_mem_vtophys(void *ptr, u_int32_t size);
+struct usbd_page {
+	void *buffer;
+	bus_size_t physaddr;
 
-void
-usbd_mem_free(void *ptr, u_int32_t size);
+#ifdef __FreeBSD__
+	bus_dma_tag_t  tag;
+	bus_dmamap_t map;
+#endif
+
+#ifdef __NetBSD__
+	bus_dma_tag_t tag;
+	bus_dmamap_t map;
+	bus_dma_segment_t seg;
+	int32_t seg_count;
+#endif
+	u_int32_t  length;
+};
+
+void * usbd_mem_alloc(bus_dma_tag_t parent, struct usbd_page *page, uint32_t size, uint8_t align_power);
+
+void usbd_mem_free(struct usbd_page *page);
+
+void usbd_page_sync(struct usbd_page *page, uint8_t op);
+
 #endif
 
 #else

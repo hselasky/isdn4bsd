@@ -1598,6 +1598,7 @@ usbd_get_page(struct usbd_page_cache *cache, u_int32_t offset,
 	        res->length = 0;
 		res->buffer = NULL;
 		res->physaddr = 0;
+		res->page = NULL;
 		break;
 	    }
 
@@ -1608,6 +1609,7 @@ usbd_get_page(struct usbd_page_cache *cache, u_int32_t offset,
 	        res->length = page->length - offset;
 		res->buffer = ADD_BYTES(page->buffer, offset);
 		res->physaddr = page->physaddr + offset;
+		res->page = page;
 		break;
 	    }
 
@@ -1643,7 +1645,11 @@ usbd_copy_in(struct usbd_page_cache *cache, u_int32_t offset,
 	        res.length = len;
 	    }
 
+	    usbd_page_sync(res.page, BUS_DMASYNC_PREWRITE);
+
 	    bcopy(ptr, res.buffer, res.length);
+
+	    usbd_page_sync(res.page, BUS_DMASYNC_POSTWRITE);
 
 	    offset += res.length;
 	    len -= res.length;
@@ -1705,7 +1711,11 @@ usbd_copy_out(struct usbd_page_cache *cache, u_int32_t offset,
 	        res.length = len;
 	    }
 
+	    usbd_page_sync(res.page, BUS_DMASYNC_PREREAD);
+
 	    bcopy(res.buffer, ptr, res.length);
+
+	    usbd_page_sync(res.page, BUS_DMASYNC_POSTREAD);
 
 	    offset += res.length;
 	    len -= res.length;
@@ -1735,7 +1745,11 @@ usbd_bzero(struct usbd_page_cache *cache, u_int32_t offset, u_int32_t len)
 	        res.length = len;
 	    }
 
+	    usbd_page_sync(res.page, BUS_DMASYNC_PREWRITE);
+
 	    bzero(res.buffer, res.length);
+
+	    usbd_page_sync(res.page, BUS_DMASYNC_POSTWRITE);
 
 	    offset += res.length;
 	    len -= res.length;
@@ -1823,6 +1837,21 @@ usbd_page_get_phy(struct usbd_page *page, u_int32_t size)
 }
 
 /*------------------------------------------------------------------------------*
+ *  usbd_page_get_info - get USB page info by size offset
+ *------------------------------------------------------------------------------*/
+void
+usbd_page_get_info(struct usbd_page *page, u_int32_t size, 
+		   struct usbd_page_info *info)
+{
+	page += (size / USB_PAGE_SIZE);
+	size &= (USB_PAGE_SIZE-1);
+	info->buffer = ADD_BYTES(page->buffer,size);
+	info->physaddr = (page->physaddr + size);
+	info->page = page;
+	return;
+}
+
+/*------------------------------------------------------------------------------*
  *  usbd_page_set_start
  *------------------------------------------------------------------------------*/
 void
@@ -1885,16 +1914,12 @@ usbd_page_fit_obj(struct usbd_page *page, u_int32_t size, u_int32_t obj_len)
  *  usbd_mem_alloc - allocate DMA-able memory
  *------------------------------------------------------------------------------*/
 void *
-usbd_mem_alloc(bus_dma_tag_t parent, u_int32_t size, 
-	       u_int8_t align_power)
+usbd_mem_alloc(bus_dma_tag_t parent, struct usbd_page *page, uint32_t size, 
+	       uint8_t align_power)
 {
 	bus_dma_tag_t tag;
-	struct usbd_page temp;
 	u_int32_t alignment = (1 << align_power);
 	void *ptr;
-
-	size += (-size) & (USB_HOST_ALIGN-1);
-	size += sizeof(temp);
 
 	tag = usbd_dma_tag_alloc(parent, size, alignment);
 
@@ -1902,47 +1927,23 @@ usbd_mem_alloc(bus_dma_tag_t parent, u_int32_t size,
 	    return NULL;
 	}
 
-	ptr = usbd_mem_alloc_sub(tag, &temp, size, alignment);
+	ptr = usbd_mem_alloc_sub(tag, page, size, alignment);
 
 	if (ptr == NULL) {
 	    usbd_dma_tag_free(tag);
 	    return NULL;
 	}
 
-	size -= sizeof(temp);
-
-	bcopy(&temp, ADD_BYTES(ptr,size), sizeof(temp));
-
 	return ptr;
-}
-
-/*------------------------------------------------------------------------------*
- *  usbd_mem_vtophys - get the physical address of DMA-able memory
- *------------------------------------------------------------------------------*/
-bus_size_t
-usbd_mem_vtophys(void *ptr, u_int32_t size)
-{
-	struct usbd_page *page;
-
-	size += (-size) & (USB_HOST_ALIGN-1);
-
-	page = ADD_BYTES(ptr, size);
-
-	return page->physaddr;
 }
 
 /*------------------------------------------------------------------------------*
  *  usbd_mem_free - free DMA-able memory
  *------------------------------------------------------------------------------*/
 void
-usbd_mem_free(void *ptr, u_int32_t size)
+usbd_mem_free(struct usbd_page *page)
 {
-	struct usbd_page *page;
 	bus_dma_tag_t tag;
-
-	size += (-size) & (USB_HOST_ALIGN-1);
-
-	page = ADD_BYTES(ptr, size);
 
 	tag = page->tag;
 
@@ -2042,7 +2043,11 @@ usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
 	page->buffer = ptr;
 	page->length = size;
 
+	usbd_page_sync(page, BUS_DMASYNC_PREWRITE);
+
 	bzero(ptr, size);
+
+	usbd_page_sync(page, BUS_DMASYNC_POSTWRITE);
 
 #ifdef USB_DEBUG
 	if(usbdebug > 14)
@@ -2080,6 +2085,13 @@ usbd_mem_free_sub(struct usbd_page *page)
 		   __FUNCTION__, ptr);
 	}
 #endif
+	return;
+}
+
+void
+usbd_page_sync(struct usbd_page *page, uint8_t op)
+{
+	bus_dmamap_sync(page->tag, page->map, op);
 	return;
 }
 #endif
@@ -2138,7 +2150,11 @@ usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
 	page->buffer = ptr;
 	page->length = size;
 
+	usbd_page_sync(page, BUS_DMASYNC_PREWRITE);
+
 	bzero(ptr, size);
+
+	usbd_page_sync(page, BUS_DMASYNC_POSTWRITE);
 
 #ifdef USB_DEBUG
 	if(usbdebug > 14)
@@ -2186,6 +2202,14 @@ usbd_mem_free_sub(struct usbd_page *page)
 #endif
 	return;
 }
+
+void
+usbd_page_sync(struct usbd_page *page, uint8_t op)
+{
+	bus_dmamap_sync(page->tag, page->map, 0, page->length, op);
+	return;
+}
+
 #endif
 
 /*------------------------------------------------------------------------------*
