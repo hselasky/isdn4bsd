@@ -226,7 +226,8 @@ ehci_pci_attach(device_t self)
 
 	if (sc->sc_hw_ptr == NULL) {
 		device_printf(self, "Could not allocate DMA-able "
-			      "memory, %d bytes!\n", sizeof(*(sc->sc_hw_ptr)));
+			      "memory, %d bytes!\n",
+			      (int32_t)sizeof(*(sc->sc_hw_ptr)));
 		return ENXIO;
 	}
 
