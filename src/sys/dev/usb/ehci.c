@@ -1039,8 +1039,7 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 {
 	u_int32_t status = 0;
 	u_int32_t actlen = 0;
-	uint32_t qtd_next;
-	u_int16_t len;
+	u_int16_t len = 0;
 	ehci_qtd_t *td = xfer->td_transfer_first;
 
 	DPRINTFN(12, ("xfer=%p pipe=%p transfer done\n",
@@ -1059,50 +1058,43 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 	     td = td->obj_next)
 	{
 		usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
-
 		status = le32toh(td->qtd_status);
-		qtd_next = le32toh(td->qtd_next);
-
 		usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
 
 		if (status & EHCI_QTD_ACTIVE) {
-			break;
-		}
 
-		/* halt is ok if descriptor is last, and complete */
-		if((qtd_next == EHCI_LINK_TERMINATE) &&
-		   (EHCI_QTD_GET_BYTES(status) == 0))
-		{
-			status &= ~EHCI_QTD_HALTED;
+			/* if there are left over TDs 
+			 * the toggle needs to be updated
+			 */
+			xfer->pipe->toggle_next =
+			  (status & EHCI_QTD_SET_TOGGLE(1)) ? 1 : 0;
+			break;
 		}
 
 		len = EHCI_QTD_GET_BYTES(status);
 
-		if(len <= td->len)
-		{
+		if (len <= td->len) {
 			actlen += td->len - len;
 		}
 
 		if (((void *)td) == xfer->td_transfer_last) {
+			if (len == 0) {
+			    /* halt is ok if descriptor is last,
+			     * and complete:
+			     */
+			    status &= ~EHCI_QTD_HALTED;
+			}
 			td = NULL;
 			break;
 		}
 	}
 
-	/* if there are left over TDs 
-	 * the toggle needs to be updated
-	 */
-	if(td != NULL)
-	{
-		xfer->pipe->toggle_next =
-		  (td->qtd_status & htole32(EHCI_QTD_SET_TOGGLE(1))) ? 1 : 0;
+	if (len) {
+	    /* update toggle in case of
+	     * a short transfer
+	     */
+	    xfer->pipe->toggle_next ^= (len / xfer->max_packet_size) & 1;
 	}
-
-	/* update toggle in case of
-	 * a short transfer
-	 */
-	xfer->pipe->toggle_next ^= (EHCI_QTD_GET_BYTES(status) / 
-				    xfer->max_packet_size) & 1;
 
 	DPRINTFN(10, ("actlen=%d\n", actlen));
 
