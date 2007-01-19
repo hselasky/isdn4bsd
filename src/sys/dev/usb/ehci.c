@@ -1037,6 +1037,7 @@ ehci_device_done(struct usbd_xfer *xfer, usbd_status error);
 static void
 ehci_non_isoc_done(struct usbd_xfer *xfer)
 {
+	uint32_t temp;
 	u_int32_t status = 0;
 	u_int32_t actlen = 0;
 	u_int16_t len = 0;
@@ -1058,18 +1059,20 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 	     td = td->obj_next)
 	{
 		usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
-		status = le32toh(td->qtd_status);
+		temp = le32toh(td->qtd_status);
 		usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
 
-		if (status & EHCI_QTD_ACTIVE) {
+		if (temp & EHCI_QTD_ACTIVE) {
 
 			/* if there are left over TDs 
 			 * the toggle needs to be updated
 			 */
 			xfer->pipe->toggle_next =
-			  (status & EHCI_QTD_SET_TOGGLE(1)) ? 1 : 0;
+			  (temp & EHCI_QTD_SET_TOGGLE(1)) ? 1 : 0;
 			break;
 		}
+
+		status = temp;
 
 		len = EHCI_QTD_GET_BYTES(status);
 
