@@ -138,15 +138,18 @@ struct usbd_page {
 #ifdef __FreeBSD__
 	bus_dma_tag_t  tag;
 	bus_dmamap_t map;
+	register_t intr_temp;
 #endif
 
 #ifdef __NetBSD__
 	bus_dma_tag_t tag;
 	bus_dmamap_t map;
 	bus_dma_segment_t seg;
+	register_t intr_temp;
 	int32_t seg_count;
 #endif
 	u_int32_t  length;
+	uint16_t exit_level;
 };
 
 struct usbd_page_search {
@@ -661,12 +664,6 @@ usbd_page_alloc(bus_dma_tag_t tag, struct usbd_page *page,
 void
 usbd_page_free(struct usbd_page *page, u_int32_t npages);
 
-void *
-usbd_page_get_buf(struct usbd_page *page, u_int32_t size);
-
-bus_size_t
-usbd_page_get_phy(struct usbd_page *page, u_int32_t size);
-
 void usbd_page_get_info(struct usbd_page *page, u_int32_t size, struct usbd_page_info *info);
 
 void
@@ -694,7 +691,8 @@ usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
 void
 usbd_mem_free_sub(struct usbd_page *page);
 
-void	usbd_page_sync(struct usbd_page *page, uint8_t op);
+void	usbd_page_dma_exit(struct usbd_page *page);
+void	usbd_page_dma_enter(struct usbd_page *page);
 
 #ifdef __FreeBSD__
 #if (__FreeBSD_version >= 700020)

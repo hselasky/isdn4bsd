@@ -1645,11 +1645,11 @@ usbd_copy_in(struct usbd_page_cache *cache, u_int32_t offset,
 	        res.length = len;
 	    }
 
-	    usbd_page_sync(res.page, BUS_DMASYNC_PREWRITE);
+	    usbd_page_dma_exit(res.page);
 
 	    bcopy(ptr, res.buffer, res.length);
 
-	    usbd_page_sync(res.page, BUS_DMASYNC_POSTWRITE);
+	    usbd_page_dma_enter(res.page);
 
 	    offset += res.length;
 	    len -= res.length;
@@ -1711,11 +1711,11 @@ usbd_copy_out(struct usbd_page_cache *cache, u_int32_t offset,
 	        res.length = len;
 	    }
 
-	    usbd_page_sync(res.page, BUS_DMASYNC_PREREAD);
+	    usbd_page_dma_exit(res.page);
 
 	    bcopy(res.buffer, ptr, res.length);
 
-	    usbd_page_sync(res.page, BUS_DMASYNC_POSTREAD);
+	    usbd_page_dma_enter(res.page);
 
 	    offset += res.length;
 	    len -= res.length;
@@ -1745,11 +1745,11 @@ usbd_bzero(struct usbd_page_cache *cache, u_int32_t offset, u_int32_t len)
 	        res.length = len;
 	    }
 
-	    usbd_page_sync(res.page, BUS_DMASYNC_PREWRITE);
+	    usbd_page_dma_exit(res.page);
 
 	    bzero(res.buffer, res.length);
 
-	    usbd_page_sync(res.page, BUS_DMASYNC_POSTWRITE);
+	    usbd_page_dma_enter(res.page);
 
 	    offset += res.length;
 	    len -= res.length;
@@ -1812,28 +1812,6 @@ usbd_page_free(struct usbd_page *page, u_int32_t npages)
 	    usbd_mem_free_sub(page + npages);
 	}
 	return;
-}
-
-/*------------------------------------------------------------------------------*
- *  usbd_page_get_buf - get virtual buffer
- *------------------------------------------------------------------------------*/
-void *
-usbd_page_get_buf(struct usbd_page *page, u_int32_t size)
-{
-	page += (size / USB_PAGE_SIZE);
-	size &= (USB_PAGE_SIZE-1);
-	return ADD_BYTES(page->buffer,size);
-}
-
-/*------------------------------------------------------------------------------*
- *  usbd_page_get_phy - get physical buffer
- *------------------------------------------------------------------------------*/
-bus_size_t
-usbd_page_get_phy(struct usbd_page *page, u_int32_t size)
-{
-	page += (size / USB_PAGE_SIZE);
-	size &= (USB_PAGE_SIZE-1);
-	return (page->physaddr + size);
 }
 
 /*------------------------------------------------------------------------------*
@@ -2042,12 +2020,13 @@ usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
 	page->physaddr = physaddr;
 	page->buffer = ptr;
 	page->length = size;
-
-	usbd_page_sync(page, BUS_DMASYNC_PREWRITE);
+	page->exit_level = 0;
+	page->intr_temp = 0;
 
 	bzero(ptr, size);
 
-	usbd_page_sync(page, BUS_DMASYNC_POSTWRITE);
+	bus_dmamap_sync(page->tag, page->map, 
+			BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
 
 #ifdef USB_DEBUG
 	if(usbdebug > 14)
@@ -2074,6 +2053,14 @@ usbd_mem_free_sub(struct usbd_page *page)
 	bus_dmamap_t map = page->map;
 	void *ptr = page->buffer;
 
+	if (page->exit_level == 0) {
+	    bus_dmamap_sync(page->tag, page->map, 
+			    BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
+	} else {
+	    panic("%s:%d: exit_level is not zero!\n",
+		  __FUNCTION__, __LINE__);
+	}
+
 	bus_dmamap_unload(tag, map);
 
 	bus_dmamem_free(tag, ptr, map);
@@ -2089,9 +2076,30 @@ usbd_mem_free_sub(struct usbd_page *page)
 }
 
 void
-usbd_page_sync(struct usbd_page *page, uint8_t op)
+usbd_page_dma_exit(struct usbd_page *page)
 {
-	bus_dmamap_sync(page->tag, page->map, op);
+	if ((page->exit_level)++ == 0) {
+		/*
+		 * Disable interrupts so that the
+		 * PCI controller can continue
+		 * using the memory as quick as
+		 * possible:
+		 */
+		page->intr_temp = intr_disable();
+		bus_dmamap_sync(page->tag, page->map, 
+				BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
+	}
+	return;
+}
+
+void
+usbd_page_dma_enter(struct usbd_page *page)
+{
+	if (--(page->exit_level) == 0) {
+		bus_dmamap_sync(page->tag, page->map, 
+				BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
+		intr_restore(page->intr_temp);
+	}
 	return;
 }
 #endif
@@ -2149,12 +2157,13 @@ usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
 	page->physaddr = page->map->dm_segs[0].ds_addr;
 	page->buffer = ptr;
 	page->length = size;
-
-	usbd_page_sync(page, BUS_DMASYNC_PREWRITE);
+	page->exit_level = 0;
+	page->intr_temp = 0;
 
 	bzero(ptr, size);
 
-	usbd_page_sync(page, BUS_DMASYNC_POSTWRITE);
+	bus_dmamap_sync(page->tag, page->map, 0, page->length, 
+			BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
 
 #ifdef USB_DEBUG
 	if(usbdebug > 14)
@@ -2188,6 +2197,14 @@ usbd_mem_free_sub(struct usbd_page *page)
 	 */
 	struct usbd_page temp = *page;
 
+	if (temp.exit_level == 0) {
+	    bus_dmamap_sync(temp.tag, temp.map, 0, temp.length, 
+			    BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
+	} else {
+	    panic("%s:%d: exit_level is not zero!\n",
+		  __FUNCTION__, __LINE__);
+	}
+
 	bus_dmamap_unload(temp.tag, temp.map);
 	bus_dmamap_destroy(temp.tag, temp.map);
 	bus_dmamem_unmap(temp.tag, temp.buffer, temp.length);
@@ -2204,12 +2221,32 @@ usbd_mem_free_sub(struct usbd_page *page)
 }
 
 void
-usbd_page_sync(struct usbd_page *page, uint8_t op)
+usbd_page_dma_exit(struct usbd_page *page)
 {
-	bus_dmamap_sync(page->tag, page->map, 0, page->length, op);
+	if ((page->exit_level)++ == 0) {
+		/*
+		 * Disable interrupts so that the
+		 * PCI controller can continue
+		 * using the memory as quick as
+		 * possible:
+		 */
+		page->intr_temp = intr_disable();
+		bus_dmamap_sync(page->tag, page->map, 0, page->length,
+				BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
+	}
 	return;
 }
 
+void
+usbd_page_dma_enter(struct usbd_page *page)
+{
+	if (--(page->exit_level) == 0) {
+		bus_dmamap_sync(page->tag, page->map, 0, page->length,
+				BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
+		intr_restore(page->intr_temp);
+	}
+	return;
+}
 #endif
 
 /*------------------------------------------------------------------------------*

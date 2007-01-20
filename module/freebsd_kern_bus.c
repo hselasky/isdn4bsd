@@ -1448,11 +1448,9 @@ usbd_mem_alloc(bus_dma_tag_t dma_tag, struct usbd_page *page, u_int32_t size, u_
     page->buffer = ptr;
     page->length = size;
 
-    usbd_page_sync(page, BUS_DMASYNC_PREWRITE);
-
     bzero(ptr, size);
 
-    usbd_page_sync(page, BUS_DMASYNC_POSTWRITE);
+    usbd_page_sync(page, BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
  
     return ptr;
 
@@ -1477,6 +1475,8 @@ usbd_mem_free(struct usbd_page *page)
      * of the allocated memory:
      */
     struct usbd_page temp = *page;
+
+    usbd_page_sync(page, BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
 
     bus_dmamap_unload(temp.tag, temp.map);
     bus_dmamap_destroy(temp.tag, temp.map);

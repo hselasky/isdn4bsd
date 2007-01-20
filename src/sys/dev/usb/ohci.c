@@ -269,7 +269,7 @@ ohci_init(ohci_softc_t *sc)
 
 	sc->sc_eintrs = OHCI_NORMAL_INTRS;
 
-	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_PREWRITE);
+	usbd_page_dma_exit(&(sc->sc_hw_page));
 
 	/*
 	 * setup self pointers
@@ -337,7 +337,7 @@ ohci_init(ohci_softc_t *sc)
 		  hw_ptr->intr_start[i|(OHCI_NO_EDS/2)].ed_self;
 	}
 
-	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_POSTWRITE);
+	usbd_page_dma_enter(&(sc->sc_hw_page));
 
 	LIST_INIT(&sc->sc_interrupt_list_head);
 
@@ -515,11 +515,11 @@ ohci_dumpregs(ohci_softc_t *sc)
 
 	hw_ptr = sc->sc_hw_ptr;
 
-	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_PREREAD);
+	usbd_page_dma_exit(&(sc->sc_hw_page));
 	DPRINTF(("         HCCA: frame_number=0x%04x done_head=0x%08x\n",
 		 le32toh(hw_ptr->hcca.hcca_frame_number),
 		 le32toh(hw_ptr->hcca.hcca_done_head)));
-	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_POSTREAD);
+	usbd_page_dma_enter(&(sc->sc_hw_page));
 	return;
 }
 static void
@@ -540,7 +540,7 @@ ohci_dump_td(ohci_td_t *std)
 	uint32_t td_flags;
 	uint8_t temp;
 
-	usbd_page_sync(std->page, BUS_DMASYNC_PREREAD);
+	usbd_page_dma_exit(std->page);
 
 	td_flags = le32toh(std->td_flags);
 	temp = (std->td_next == 0);
@@ -560,7 +560,7 @@ ohci_dump_td(ohci_td_t *std)
 	       le32toh(std->td_next),
 	       le32toh(std->td_be));
 
-	usbd_page_sync(std->page, BUS_DMASYNC_POSTREAD);
+	usbd_page_dma_enter(std->page);
 	return temp;
 }
 
@@ -571,7 +571,7 @@ ohci_dump_itd(ohci_itd_t *sitd)
 	uint16_t i;
 	uint8_t temp;
 
-	usbd_page_sync(sitd->page, BUS_DMASYNC_PREREAD);
+	usbd_page_dma_exit(sitd->page);
 
 	itd_flags = le32toh(sitd->itd_flags);
 	temp = (sitd->itd_next == 0);
@@ -593,7 +593,7 @@ ohci_dump_itd(ohci_itd_t *sitd)
 	}
 	printf("\n");
 
-	usbd_page_sync(sitd->page, BUS_DMASYNC_POSTREAD);
+	usbd_page_dma_enter(sitd->page);
 	return temp;
 }
 
@@ -615,7 +615,7 @@ ohci_dump_ed(ohci_ed_t *sed)
 	uint32_t ed_flags;
 	u_int32_t ed_headp;
 
-	usbd_page_sync(sed->page, BUS_DMASYNC_PREREAD);
+	usbd_page_dma_exit(sed->page);
 
 	ed_flags = le32toh(sed->ed_flags);
 	ed_headp = le32toh(sed->ed_headp);
@@ -637,7 +637,7 @@ ohci_dump_ed(ohci_ed_t *sed)
 	       le32toh(sed->ed_headp),
 	       le32toh(sed->ed_next));
 
-	usbd_page_sync(sed->page, BUS_DMASYNC_POSTREAD);
+	usbd_page_dma_enter(sed->page);
 	return;
 }
 #endif
@@ -651,7 +651,7 @@ _ohci_append_qh(ohci_ed_t *sed, uint32_t td_self, ohci_ed_t *last)
 
 	/* (sc->sc_bus.mtx) must be locked */
 
-	usbd_page_sync(sed->page, BUS_DMASYNC_PREWRITE);
+	usbd_page_dma_exit(sed->page);
 
 	sed->next = last->next;
 	sed->ed_next = last->ed_next;
@@ -660,8 +660,8 @@ _ohci_append_qh(ohci_ed_t *sed, uint32_t td_self, ohci_ed_t *last)
 
 	sed->prev = last;
 
-	usbd_page_sync(sed->page, BUS_DMASYNC_POSTWRITE);
-	usbd_page_sync(last->page, BUS_DMASYNC_PREWRITE);
+	usbd_page_dma_enter(sed->page);
+	usbd_page_dma_exit(last->page);
 
 	/* the last->next->prev is never followed:
 	 * sed->next->prev = sed;
@@ -670,7 +670,7 @@ _ohci_append_qh(ohci_ed_t *sed, uint32_t td_self, ohci_ed_t *last)
 	last->next = sed;
 	last->ed_next = sed->ed_self;
 
-	usbd_page_sync(last->page, BUS_DMASYNC_POSTWRITE);
+	usbd_page_dma_enter(last->page);
 
 	return(sed);
 }
@@ -686,19 +686,21 @@ _ohci_remove_qh(ohci_ed_t *sed, ohci_ed_t *last)
 	/* only remove if not removed from a queue */
 	if(sed->prev)
 	{
-		usbd_page_sync(sed->prev->page, BUS_DMASYNC_PREWRITE);
+		usbd_page_dma_exit(sed->prev->page);
 
 		sed->prev->next = sed->next;
 		sed->prev->ed_next = sed->ed_next;
 
-		usbd_page_sync(sed->prev->page, BUS_DMASYNC_POSTWRITE);
+		usbd_page_dma_enter(sed->prev->page);
 
 		if(sed->next)
 		{
+			usbd_page_dma_exit(sed->next->page);
 			sed->next->prev = sed->prev;
+			usbd_page_dma_enter(sed->next->page);
 		}
 
-		usbd_page_sync(sed->page, BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
+		usbd_page_dma_exit(sed->page);
 
 		/* terminate transfer in case the
 		 * transferred packet was short so
@@ -708,7 +710,7 @@ _ohci_remove_qh(ohci_ed_t *sed, ohci_ed_t *last)
 		sed->ed_flags |= htole32(OHCI_ED_SKIP);
 		sed->ed_headp = sed->ed_tailp;
 
-		usbd_page_sync(sed->page, BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
+		usbd_page_dma_enter(sed->page);
 
 		last = ((last == sed) ? sed->prev : last);
 
@@ -745,7 +747,7 @@ ohci_isoc_done(struct usbd_xfer *xfer)
 			ohci_dump_itd(td);
 		}
 #endif
-		usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
+		usbd_page_dma_exit(td->page);
 
 		nframes = td->frames;
 		olen = &td->itd_offset[0];
@@ -777,7 +779,7 @@ ohci_isoc_done(struct usbd_xfer *xfer)
 			olen++;
 		}
 
-		usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
+		usbd_page_dma_enter(td->page);
 
 		if(((void *)td) == xfer->td_transfer_last)
 		{
@@ -847,7 +849,7 @@ ohci_non_isoc_done(struct usbd_xfer *xfer)
 			      __FUNCTION__, __LINE__);
 		}
 
-		usbd_page_sync(td->page, BUS_DMASYNC_PREREAD);
+		usbd_page_dma_exit(td->page);
 
 		phy_start = le32toh(td->td_cbp);
 		td_flags = le32toh(td->td_flags);
@@ -871,7 +873,7 @@ ohci_non_isoc_done(struct usbd_xfer *xfer)
 			}
 		}
 
-		usbd_page_sync(td->page, BUS_DMASYNC_POSTREAD);
+		usbd_page_dma_enter(td->page);
 
 		DPRINTFN(10, ("len=%d\n", len));
 
@@ -927,11 +929,11 @@ ohci_check_transfer(struct usbd_xfer *xfer, struct thread *ctd)
 
 	DPRINTFN(12, ("xfer=%p checking transfer\n", xfer));
 
-	usbd_page_sync(ed->page, BUS_DMASYNC_PREREAD);
+	usbd_page_dma_exit(ed->page);
 	ed_flags = le32toh(ed->ed_flags);
 	ed_headp = le32toh(ed->ed_headp);
 	ed_tailp = le32toh(ed->ed_tailp);
-	usbd_page_sync(ed->page, BUS_DMASYNC_POSTREAD);
+	usbd_page_dma_enter(ed->page);
 
 	if ((ed_flags & OHCI_ED_SKIP) ||
 	    (ed_headp & OHCI_HALTED) ||
@@ -1047,7 +1049,7 @@ ohci_interrupt_td(ohci_softc_t *sc, struct thread *ctd)
 
 	status = 0;
 
-	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_PREREAD|BUS_DMASYNC_PREWRITE);
+	usbd_page_dma_exit(&(sc->sc_hw_page));
 	done = le32toh(hw_ptr->hcca.hcca_done_head);
 
 	/* The LSb of done is used to inform the HC Driver that an interrupt
@@ -1079,7 +1081,7 @@ ohci_interrupt_td(ohci_softc_t *sc, struct thread *ctd)
 		status = OREAD4(sc, OHCI_INTERRUPT_STATUS) & ~OHCI_WDH;
 	}
 
-	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_POSTREAD|BUS_DMASYNC_POSTWRITE);
+	usbd_page_dma_enter(&(sc->sc_hw_page));
 
 	if(status == 0)		/* nothing to be done (PCI shared interrupt) */
 	{
@@ -1290,7 +1292,7 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 		 */
 		xfer->pipe->toggle_next = 1;
 
-		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
+		usbd_page_dma_exit(td->page);
 
 		/* SETUP message */
 
@@ -1317,7 +1319,7 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 		    td_last->td_next = td->td_self;
 		}
 
-		usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
+		usbd_page_dma_enter(td_last->page);
 	}
 	else
 	{
@@ -1391,7 +1393,7 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 			      "than there is in the buffer!", __FUNCTION__);
 		}
 
-		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
+		usbd_page_dma_exit(td->page);
 
 		/* fill out TD */
 
@@ -1428,12 +1430,12 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 		    td_last->td_next = td->td_self;
 		}
 
-		usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
+		usbd_page_dma_enter(td_last->page);
 	}
 
 	if(xfer->pipe->methods == &ohci_device_ctrl_methods)
 	{
-		usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
+		usbd_page_dma_exit(td->page);
 
 		/* STATUS message */
 
@@ -1453,16 +1455,16 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 
 		td_last = td;
 
-		usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
+		usbd_page_dma_enter(td_last->page);
 	}
 
-	usbd_page_sync(td_last->page, BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
+	usbd_page_dma_exit(td_last->page);
 
 	td_last->td_next = 0;
 	td_last->td_flags &= htole32(~OHCI_TD_INTR_MASK);
 	td_last->td_flags |= htole32(OHCI_TD_SET_DI(1));
 
-	usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
+	usbd_page_dma_enter(td_last->page);
 
 	/* must have at least one frame! */
 
@@ -1479,7 +1481,7 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 
 	ed = xfer->qh_start;
 
-	usbd_page_sync(ed->page, BUS_DMASYNC_PREWRITE);
+	usbd_page_dma_exit(ed->page);
 
 	ed_flags = (OHCI_ED_SET_FA(xfer->address)|
 		    OHCI_ED_SET_EN(UE_GET_ADDR(xfer->endpoint))|
@@ -1493,7 +1495,7 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 
 	ed->ed_flags = htole32(ed_flags);
 
-	usbd_page_sync(ed->page, BUS_DMASYNC_POSTWRITE);
+	usbd_page_dma_enter(ed->page);
 
 	td = xfer->td_transfer_first;
 
@@ -1574,7 +1576,7 @@ ohci_device_done(struct usbd_xfer *xfer, usbd_status error)
 
 	for(ed = xfer->qh_start; ed; ed = ed->obj_next)
 	{
-		usbd_page_sync(ed->page, BUS_DMASYNC_PREREAD);
+		usbd_page_dma_exit(ed->page);
 
 		if((!(ed->ed_flags & htole32(OHCI_ED_SKIP))) &&
 		   (!(ed->ed_headp & htole32(OHCI_HALTED))) &&
@@ -1583,7 +1585,7 @@ ohci_device_done(struct usbd_xfer *xfer, usbd_status error)
 			need_delay = 1;
 		}
 
-		usbd_page_sync(ed->page, BUS_DMASYNC_POSTREAD);
+		usbd_page_dma_enter(ed->page);
 	}
 
 	if(xfer->pipe->methods == &ohci_device_bulk_methods)
@@ -1890,9 +1892,9 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 	DPRINTFN(5,("xfer=%p next=%d nframes=%d\n",
 		    xfer, xfer->pipe->isoc_next, xfer->nframes));
 
-	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_PREREAD);
+	usbd_page_dma_exit(&(sc->sc_hw_page));
 	nframes = le32toh(hw_ptr->hcca.hcca_frame_number);
-	usbd_page_sync(&(sc->sc_hw_page), BUS_DMASYNC_POSTREAD);
+	usbd_page_dma_enter(&(sc->sc_hw_page));
 
 	if((((nframes - xfer->pipe->isoc_next) & ((1<<16)-1)) < xfer->nframes) ||
 	   (((xfer->pipe->isoc_next - nframes) & ((1<<16)-1)) >= 256))
@@ -1958,7 +1960,7 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 		   (OHCI_PAGE(buf_res.physaddr) != bp0) ||
 		   (nframes == 0))
 		{
-			usbd_page_sync(td->page, BUS_DMASYNC_PREWRITE);
+			usbd_page_dma_exit(td->page);
 
 			/* fill current ITD */
 			td->itd_flags = htole32(
@@ -1991,18 +1993,18 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 			    td_last->itd_next = td->itd_self;
 			}
 
-			usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE);
+			usbd_page_dma_enter(td_last->page);
 		}
 	}
 
-	usbd_page_sync(td_last->page, BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
+	usbd_page_dma_exit(td_last->page);
 
 	/* update the last TD */
 	td_last->itd_flags &= htole32(~OHCI_ITD_NOINTR);
 	td_last->itd_flags |= htole32(OHCI_ITD_SET_DI(0));
 	td_last->itd_next = 0;
 
-	usbd_page_sync(td_last->page, BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
+	usbd_page_dma_enter(td_last->page);
 
 	xfer->td_transfer_last = td_last;
 
@@ -2015,7 +2017,7 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 #endif
 	ed = xfer->qh_start;
 
-	usbd_page_sync(ed->page, BUS_DMASYNC_PREWRITE);
+	usbd_page_dma_exit(ed->page);
 
 	if(UE_GET_DIR(xfer->endpoint) == UE_DIR_IN)
 		ed_flags = (OHCI_ED_DIR_IN|OHCI_ED_FORMAT_ISO);
@@ -2033,7 +2035,7 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 
 	ed->ed_flags = htole32(ed_flags);
 
-	usbd_page_sync(ed->page, BUS_DMASYNC_POSTWRITE);
+	usbd_page_dma_enter(ed->page);
 
 	td = xfer->td_transfer_first;
 
@@ -2849,7 +2851,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 
 		usbd_page_get_info(page_ptr, size[1], &page_info);
 
-		usbd_page_sync(page_info.page, BUS_DMASYNC_PREWRITE);
+		usbd_page_dma_exit(page_info.page);
 
 		td = page_info.buffer;
 
@@ -2860,7 +2862,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 
 		last_obj = td;
 
-		usbd_page_sync(page_info.page, BUS_DMASYNC_POSTWRITE);
+		usbd_page_dma_enter(page_info.page);
 	    }
 	    size[1] += sizeof(ohci_td_t);
 	  }
@@ -2877,7 +2879,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 
 		usbd_page_get_info(page_ptr, size[1], &page_info);
 
-		usbd_page_sync(page_info.page, BUS_DMASYNC_PREWRITE);
+		usbd_page_dma_exit(page_info.page);
 
 		itd = page_info.buffer;
 
@@ -2888,7 +2890,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 
 		last_obj = itd;
 
-		usbd_page_sync(page_info.page, BUS_DMASYNC_POSTWRITE);
+		usbd_page_dma_enter(page_info.page);
 	    }
 	    size[1] += sizeof(ohci_itd_t);
 	  }
@@ -2912,7 +2914,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 
 		usbd_page_get_info(page_ptr, size[1], &page_info);
 
-		usbd_page_sync(page_info.page, BUS_DMASYNC_PREWRITE);
+		usbd_page_dma_exit(page_info.page);
 
 		ed = page_info.buffer;
 
@@ -2923,7 +2925,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 
 		last_obj = ed;
 
-		usbd_page_sync(page_info.page, BUS_DMASYNC_POSTWRITE);
+		usbd_page_dma_enter(page_info.page);
 	    }
 	    size[1] += sizeof(ohci_ed_t);
 	  }
