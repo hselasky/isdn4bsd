@@ -226,21 +226,20 @@ ohci_pci_attach(device_t self)
 	}
 
 	rid = PCI_CBMEM;
-	sc->io_res = bus_alloc_resource_any(self, SYS_RES_MEMORY, &rid,
+	sc->sc_io_res = bus_alloc_resource_any(self, SYS_RES_MEMORY, &rid,
 					    RF_ACTIVE);
-	if(!sc->io_res)
-	{
+	if (!sc->sc_io_res) {
 		device_printf(self, "Could not map memory\n");
 		goto error;
 	}
-	sc->iot = rman_get_bustag(sc->io_res);
-	sc->ioh = rman_get_bushandle(sc->io_res);
+	sc->sc_io_tag = rman_get_bustag(sc->sc_io_res);
+	sc->sc_io_hdl = rman_get_bushandle(sc->sc_io_res);
+	sc->sc_io_size = rman_get_size(sc->sc_io_res);
 
 	rid = 0;
-	sc->irq_res = bus_alloc_resource_any(self, SYS_RES_IRQ, &rid,
+	sc->sc_irq_res = bus_alloc_resource_any(self, SYS_RES_IRQ, &rid,
 					     RF_SHAREABLE | RF_ACTIVE);
-	if(sc->irq_res == NULL)
-	{
+	if (sc->sc_irq_res == NULL) {
 		device_printf(self, "Could not allocate irq\n");
 		goto error;
 	}
@@ -300,12 +299,12 @@ ohci_pci_attach(device_t self)
 
 	/* sc->sc_bus.usbrev; set by ohci_init() */
 
-	err = bus_setup_intr(self, sc->irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
-			     (void *)(void *)ohci_interrupt, sc, &sc->ih);
+	err = bus_setup_intr(self, sc->sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
+			     (void *)(void *)ohci_interrupt, sc, &(sc->sc_intr_hdl));
 	if(err)
 	{
 		device_printf(self, "Could not setup irq, %d\n", err);
-		sc->ih = NULL;
+		sc->sc_intr_hdl = NULL;
 		goto error;
 	}
 
@@ -344,14 +343,13 @@ ohci_pci_detach(device_t self)
 
 	pci_disable_busmaster(self);
 
-	if(sc->irq_res && sc->ih)
-	{
+	if(sc->sc_irq_res && sc->sc_intr_hdl) {
 		/* only call ohci_detach()
 		 * after ohci_init()
 		 */
 		ohci_detach(sc);
 
-		int err = bus_teardown_intr(self, sc->irq_res, sc->ih);
+		int err = bus_teardown_intr(self, sc->sc_irq_res, sc->sc_intr_hdl);
 
 		if(err)
 		{
@@ -359,18 +357,18 @@ ohci_pci_detach(device_t self)
 			device_printf(self, "Could not tear down irq, %d\n",
 				      err);
 		}
-		sc->ih = NULL;
+		sc->sc_intr_hdl = NULL;
 	}
-	if(sc->irq_res)
-	{
-		bus_release_resource(self, SYS_RES_IRQ, 0, sc->irq_res);
-		sc->irq_res = NULL;
+
+	if (sc->sc_irq_res) {
+		bus_release_resource(self, SYS_RES_IRQ, 0, sc->sc_irq_res);
+		sc->sc_irq_res = NULL;
 	}
-	if(sc->io_res)
-	{
+
+	if (sc->sc_io_res) {
 		bus_release_resource(self, SYS_RES_MEMORY, PCI_CBMEM,
-		    sc->io_res);
-		sc->io_res = NULL;
+		    sc->sc_io_res);
+		sc->sc_io_res = NULL;
 	}
 
 	if(sc->sc_bus.dma_tag)

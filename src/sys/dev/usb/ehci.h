@@ -395,71 +395,62 @@ struct ehci_hw_softc {
 
 typedef struct ehci_softc {
 	struct usbd_page 	sc_hw_page;
-	struct ehci_hw_softc	*sc_hw_ptr;
-
-	ehci_qh_t		*sc_async_p_last;
-	ehci_qh_t		*sc_intr_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
-	u_int16_t		sc_intr_stat[EHCI_VIRTUAL_FRAMELIST_COUNT];
-	ehci_sitd_t		*sc_isoc_fs_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
-	ehci_itd_t		*sc_isoc_hs_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
 	struct usbd_bus		sc_bus; /* base device */
-
-	bus_space_tag_t		iot;
-	bus_space_handle_t	ioh;
-	bus_size_t		sc_size;
-
-	void			*ih;
-
-	struct resource		*io_res;
-	struct resource		*irq_res;
-
-	device_t		sc_dev;
-
-	uint8_t			sc_offs; /* offset to operational registers */
-	uint8_t			sc_doorbell_disable; /* set on doorbell failure */
-
-	char			sc_vendor[16]; /* vendor string for root hub */
-	int			sc_id_vendor; /* vendor ID for root hub */
-
-#if defined(__NetBSD__)
-	void			*sc_powerhook; /* cookie from power hook */
-	void			*sc_shutdownhook; /* cookie from shutdown hook */
-#endif
+	struct __callout	sc_tmo_pcd;	
 	LIST_HEAD(, usbd_xfer)	sc_interrupt_list_head;
 
-	uint8_t			sc_noport;
-	uint8_t			sc_addr; /* device address */
-	uint8_t			sc_conf; /* device configuration */
+	struct ehci_hw_softc	*sc_hw_ptr;
+	struct resource		*sc_io_res;
+	struct resource		*sc_irq_res;
 	struct usbd_xfer 	*sc_intrxfer;
-	uint8_t			sc_isreset;
+	struct ehci_qh		*sc_async_p_last;
+	struct ehci_qh		*sc_intr_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
+	struct ehci_sitd	*sc_isoc_fs_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
+	struct ehci_itd		*sc_isoc_hs_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
+	void			*sc_intr_hdl;
+	device_t		sc_dev;
+	bus_size_t		sc_io_size;
+	bus_space_tag_t		sc_io_tag;
+	bus_space_handle_t	sc_io_hdl;
 
 	uint32_t		sc_eintrs;
 	uint32_t		sc_cmd;	/* shadow of cmd register during suspend */
 
-	struct __callout	sc_tmo_pcd;
+	uint16_t		sc_intr_stat[EHCI_VIRTUAL_FRAMELIST_COUNT];
+	uint16_t		sc_id_vendor; /* vendor ID for root hub */
+
+	uint8_t			sc_offs; /* offset to operational registers */
+	uint8_t			sc_doorbell_disable; /* set on doorbell failure */
+	uint8_t			sc_noport;
+	uint8_t			sc_addr; /* device address */
+	uint8_t			sc_conf; /* device configuration */
+	uint8_t			sc_isreset;
+
+	char			sc_vendor[16]; /* vendor string for root hub */
+
 } ehci_softc_t;
 
-#define	EREAD1(sc, a)	bus_space_read_1((sc)->iot, (sc)->ioh, (a))
-#define	EREAD2(sc, a)	bus_space_read_2((sc)->iot, (sc)->ioh, (a))
-#define	EREAD4(sc, a)	bus_space_read_4((sc)->iot, (sc)->ioh, (a))
+#define	EREAD1(sc, a)	bus_space_read_1((sc)->sc_io_tag, (sc)->sc_io_hdl, (a))
+#define	EREAD2(sc, a)	bus_space_read_2((sc)->sc_io_tag, (sc)->sc_io_hdl, (a))
+#define	EREAD4(sc, a)	bus_space_read_4((sc)->sc_io_tag, (sc)->sc_io_hdl, (a))
 #define	EWRITE1(sc, a, x)						\
-	    bus_space_write_1((sc)->iot, (sc)->ioh, (a), (x))
+	    bus_space_write_1((sc)->sc_io_tag, (sc)->sc_io_hdl, (a), (x))
 #define	EWRITE2(sc, a, x)						\
-	    bus_space_write_2((sc)->iot, (sc)->ioh, (a), (x))
+	    bus_space_write_2((sc)->sc_io_tag, (sc)->sc_io_hdl, (a), (x))
 #define	EWRITE4(sc, a, x)						\
-	    bus_space_write_4((sc)->iot, (sc)->ioh, (a), (x))
+	    bus_space_write_4((sc)->sc_io_tag, (sc)->sc_io_hdl, (a), (x))
 #define	EOREAD1(sc, a)							\
-	    bus_space_read_1((sc)->iot, (sc)->ioh, (sc)->sc_offs+(a))
+	    bus_space_read_1((sc)->sc_io_tag, (sc)->sc_io_hdl, (sc)->sc_offs+(a))
 #define	EOREAD2(sc, a)							\
-	    bus_space_read_2((sc)->iot, (sc)->ioh, (sc)->sc_offs+(a))
+	    bus_space_read_2((sc)->sc_io_tag, (sc)->sc_io_hdl, (sc)->sc_offs+(a))
 #define	EOREAD4(sc, a)							\
-	    bus_space_read_4((sc)->iot, (sc)->ioh, (sc)->sc_offs+(a))
+	    bus_space_read_4((sc)->sc_io_tag, (sc)->sc_io_hdl, (sc)->sc_offs+(a))
 #define	EOWRITE1(sc, a, x)						\
-	    bus_space_write_1((sc)->iot, (sc)->ioh, (sc)->sc_offs+(a), (x))
+	    bus_space_write_1((sc)->sc_io_tag, (sc)->sc_io_hdl, (sc)->sc_offs+(a), (x))
 #define	EOWRITE2(sc, a, x)						\
-	    bus_space_write_2((sc)->iot, (sc)->ioh, (sc)->sc_offs+(a), (x))
+	    bus_space_write_2((sc)->sc_io_tag, (sc)->sc_io_hdl, (sc)->sc_offs+(a), (x))
 #define	EOWRITE4(sc, a, x)						\
-	    bus_space_write_4((sc)->iot, (sc)->ioh, (sc)->sc_offs+(a), (x))
+	    bus_space_write_4((sc)->sc_io_tag, (sc)->sc_io_hdl, (sc)->sc_offs+(a), (x))
 
 usbd_status	ehci_init(ehci_softc_t *sc);
 void		ehci_detach(struct ehci_softc *sc);

@@ -276,48 +276,37 @@ struct ohci_hw_softc {
 
 typedef struct ohci_softc {
 	struct usbd_page 	sc_hw_page;
-	struct ohci_hw_softc	*sc_hw_ptr;
-
-	ohci_ed_t		*sc_ctrl_p_last;
-	ohci_ed_t		*sc_bulk_p_last;
-	ohci_ed_t		*sc_isoc_p_last;
-	ohci_ed_t		*sc_intr_p_last[OHCI_NO_EDS];
-	uint16_t		sc_intr_stat[OHCI_NO_EDS];
-
 	struct usbd_bus		sc_bus; /* base device */
-	uint32_t		sc_physaddr;
+	struct __callout	sc_tmo_rhsc;
+	LIST_HEAD(, usbd_xfer)	sc_interrupt_list_head;
 
-	bus_space_tag_t		iot;
-	bus_space_handle_t	ioh;
-	bus_size_t		sc_size;
-
-	void			*ih;
-
-	struct resource		*io_res;
-	struct resource		*irq_res;
+	struct ohci_hw_softc	*sc_hw_ptr;
+	struct usbd_xfer	*sc_intrxfer;
+	struct resource		*sc_io_res;
+	struct resource		*sc_irq_res;
+	struct ohci_ed		*sc_ctrl_p_last;
+	struct ohci_ed		*sc_bulk_p_last;
+	struct ohci_ed		*sc_isoc_p_last;
+	struct ohci_ed		*sc_intr_p_last[OHCI_NO_EDS];
+	void			*sc_intr_hdl;
+	device_t		sc_dev;
+	bus_size_t		sc_io_size;
+	bus_space_tag_t		sc_io_tag;
+	bus_space_handle_t	sc_io_hdl;
 
 	uint32_t		sc_eintrs;	/* enabled interrupts */
+	uint32_t		sc_control;	/* Preserved during suspend/standby */
+	uint32_t		sc_intre;
+
+	uint16_t		sc_intr_stat[OHCI_NO_EDS];
+	uint16_t		sc_id_vendor;
 
 	uint8_t			sc_noport;
 	uint8_t			sc_addr;	/* device address */
 	uint8_t			sc_conf;	/* device configuration */
 
-	device_t		sc_dev;
+	char			sc_vendor[16];
 
-	struct usbd_xfer	*sc_intrxfer;
-
-	uint8_t			sc_vendor[16];
-	int			sc_id_vendor;
-#if defined(__NetBSD__)
-	void			*sc_powerhook;	/* cookie from power hook */
-	void			*sc_shutdownhook;	/* cookie from shutdown hook */
-#endif
-	uint32_t		sc_control;	/* Preserved during suspend/standby */
-	uint32_t		sc_intre;
-
-	LIST_HEAD(, usbd_xfer)	sc_interrupt_list_head;
-
-	struct __callout	sc_tmo_rhsc;
 } ohci_softc_t;
 
 usbd_status	ohci_init(ohci_softc_t *sc);

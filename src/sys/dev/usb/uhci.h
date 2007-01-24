@@ -236,39 +236,32 @@ struct uhci_hw_softc {
 
 typedef struct uhci_softc {
 	struct usbd_page 	sc_hw_page;
-	struct uhci_hw_softc 	*sc_hw_ptr;
+	struct usbd_bus		sc_bus;		/* base device */
+	LIST_HEAD(, usbd_xfer)	sc_interrupt_list_head;
 
+	struct uhci_hw_softc 	*sc_hw_ptr;
 	struct uhci_td		*sc_isoc_p_last[UHCI_VFRAMELIST_COUNT];	/* pointer to last TD for isochronous */
 	struct uhci_qh		*sc_intr_p_last[UHCI_IFRAMELIST_COUNT];	/* pointer to last QH for interrupt */
-
-	uint16_t		sc_intr_stat[UHCI_IFRAMELIST_COUNT];
-
 	struct uhci_qh		*sc_ls_ctl_p_last;	/* pointer to last QH for low speed control */
 	struct uhci_qh		*sc_hs_ctl_p_last;	/* pointer to last QH for high speed control */
 	struct uhci_qh		*sc_bulk_p_last;	/* pointer to last QH for bulk */
-
-	struct usbd_bus		sc_bus;		/* base device */
-
-	bus_space_tag_t		iot;
-	bus_space_handle_t	ioh;
-	bus_size_t		ios;
-
-	void			*ih;
-
-	struct resource		*io_res;
-	struct resource		*irq_res;
-
+	struct resource		*sc_io_res;
+	struct resource		*sc_irq_res;
+	void			*sc_intr_hdl;
 	device_t		sc_dev;
+	bus_size_t		sc_io_size;
+	bus_space_tag_t		sc_io_tag;
+	bus_space_handle_t	sc_io_hdl;
 
 	uint32_t		sc_loops;	/* number of QHs that wants looping */
+
+	uint16_t		sc_intr_stat[UHCI_IFRAMELIST_COUNT];
+	uint16_t		sc_saved_frnum;
+
 	uint8_t			sc_addr;	/* device address */
 	uint8_t			sc_conf;	/* device configuration */
 	uint8_t			sc_isreset;
-
 	uint8_t			sc_saved_sof;
-	uint16_t		sc_saved_frnum;
-
-	LIST_HEAD(, usbd_xfer)	sc_interrupt_list_head;
 
 	char			sc_vendor[16];	/* vendor string for root hub */
 } uhci_softc_t;

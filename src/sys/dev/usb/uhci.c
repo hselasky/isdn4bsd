@@ -98,21 +98,20 @@ static void
 uhci_dump_tds(uhci_td_t *td);
 #endif
 
-/* NOTE: ``(sc)->ios'' is not setup */
-#define UBARR(sc) bus_space_barrier((sc)->iot, (sc)->ioh, 0, (sc)->ios, \
+#define UBARR(sc) bus_space_barrier((sc)->sc_io_tag, (sc)->sc_io_hdl, 0, (sc)->sc_io_size, \
 			BUS_SPACE_BARRIER_READ|BUS_SPACE_BARRIER_WRITE)
 #define UWRITE1(sc, r, x) \
- do { UBARR(sc); bus_space_write_1((sc)->iot, (sc)->ioh, (r), (x)); \
+ do { UBARR(sc); bus_space_write_1((sc)->sc_io_tag, (sc)->sc_io_hdl, (r), (x)); \
  } while (/*CONSTCOND*/0)
 #define UWRITE2(sc, r, x) \
- do { UBARR(sc); bus_space_write_2((sc)->iot, (sc)->ioh, (r), (x)); \
+ do { UBARR(sc); bus_space_write_2((sc)->sc_io_tag, (sc)->sc_io_hdl, (r), (x)); \
  } while (/*CONSTCOND*/0)
 #define UWRITE4(sc, r, x) \
- do { UBARR(sc); bus_space_write_4((sc)->iot, (sc)->ioh, (r), (x)); \
+ do { UBARR(sc); bus_space_write_4((sc)->sc_io_tag, (sc)->sc_io_hdl, (r), (x)); \
  } while (/*CONSTCOND*/0)
-#define UREAD1(sc, r) (UBARR(sc), bus_space_read_1((sc)->iot, (sc)->ioh, (r)))
-#define UREAD2(sc, r) (UBARR(sc), bus_space_read_2((sc)->iot, (sc)->ioh, (r)))
-#define UREAD4(sc, r) (UBARR(sc), bus_space_read_4((sc)->iot, (sc)->ioh, (r)))
+#define UREAD1(sc, r) (UBARR(sc), bus_space_read_1((sc)->sc_io_tag, (sc)->sc_io_hdl, (r)))
+#define UREAD2(sc, r) (UBARR(sc), bus_space_read_2((sc)->sc_io_tag, (sc)->sc_io_hdl, (r)))
+#define UREAD4(sc, r) (UBARR(sc), bus_space_read_4((sc)->sc_io_tag, (sc)->sc_io_hdl, (r)))
 
 #define UHCICMD(sc, cmd) UWRITE2(sc, UHCI_CMD, cmd)
 #define UHCISTS(sc) UREAD2(sc, UHCI_STS)
