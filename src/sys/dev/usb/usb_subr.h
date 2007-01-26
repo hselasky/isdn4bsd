@@ -362,6 +362,9 @@ struct usbd_xfer {
 	uint16_t		max_frame_size;
 	uint16_t		qh_pos;
 
+#define USBD_ISOC_TIME_MAX 128 /* ms */
+
+	uint8_t			isoc_complete_time; /* in ms */
 	uint8_t			address;
 	uint8_t			endpoint;
 	uint8_t			interval; /* milliseconds */

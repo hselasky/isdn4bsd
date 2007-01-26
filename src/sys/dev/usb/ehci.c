@@ -2470,6 +2470,8 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 		DPRINTFN(2,("start next=%d\n", xfer->pipe->isoc_next));
 	}
 
+	xfer->isoc_complete_time = (xfer->pipe->isoc_next + xfer->nframes) % USBD_ISOC_TIME_MAX;
+
 	nframes = xfer->nframes;
 
 	if(nframes == 0)
@@ -2702,6 +2704,8 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 		  (EHCI_VIRTUAL_FRAMELIST_COUNT-1);
 		DPRINTFN(2,("start next=%d\n", xfer->pipe->isoc_next));
 	}
+
+	xfer->isoc_complete_time = (xfer->pipe->isoc_next + xfer->nframes) % USBD_ISOC_TIME_MAX;
 
 	nframes = xfer->nframes;
 
