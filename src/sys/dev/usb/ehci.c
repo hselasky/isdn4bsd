@@ -341,7 +341,7 @@ ehci_init(ehci_softc_t *sc)
 
 	/* turn on controller */
 	EOWRITE4(sc, EHCI_USBCMD,
-		 EHCI_CMD_ITC_2 | /* 2 microframes interrupt delay */
+		 EHCI_CMD_ITC_1 | /* 1 microframes interrupt delay */
 		 (EOREAD4(sc, EHCI_USBCMD) & EHCI_CMD_FLS_M) |
 		 EHCI_CMD_ASE |
 		 EHCI_CMD_PSE |
