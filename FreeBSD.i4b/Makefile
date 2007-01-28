@@ -67,6 +67,7 @@ ${S}/sys/dev/sound/usb/uaudioreg.h \
 #
 
 USB_FILES=\
+${S}/sys/arm/at91/ohci_atmelarm.c \
 ${S}/sys/modules/usb/Makefile \
 ${S}/sys/modules/ugen/Makefile \
 ${S}/sys/modules/ums/Makefile \
@@ -320,6 +321,8 @@ backup:
 # make directory tree
 #
 	mkdir ${S}                     || echo -n
+	mkdir ${S}/arm                 || echo -n
+	mkdir ${S}/arm/at91            || echo -n
 	mkdir ${S}/lib                 || echo -n
 	mkdir ${S}/lib/libcapi20       || echo -n
 	mkdir ${S}/usr.sbin            || echo -n
