@@ -1,5 +1,5 @@
 /*	$NetBSD: usb_quirks.h,v 1.20 2001/04/15 09:38:01 augustss Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb/usb_quirks.h,v 1.22 2006/02/19 14:48:02 iedowse Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb/usb_quirks.h,v 1.23 2006/11/28 21:13:07 flz Exp $	*/
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -56,6 +56,7 @@ struct usbd_quirks {
 #define UQ_BROKEN_BIDIR	0x2000	/* printer has broken bidir mode */
 #define UQ_OPEN_CLEARSTALL	0x4000	/* device needs clear endpoint stall */
 #define UQ_HID_IGNORE	0x8000	/* device should be ignored by hid class */
+#define UQ_KBD_IGNORE  0x18000	/* device should be ignored by both kbd and hid class */
 					
 };
 

@@ -25,7 +25,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.19 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.20 2006/10/31 02:27:24 kevlo Exp $");
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -418,19 +418,23 @@ static const struct ubsa_product {
 	u_int16_t	vendor;
 	u_int16_t	product;
 } ubsa_products [] = {
-    /* BELKIN F5U103 */
-    { USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5U103 },
-    /* BELKIN F5U120 */
-    { USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5U120 },
-    /* GoHubs GO-COM232 */
-    { USB_VENDOR_ETEK, USB_PRODUCT_ETEK_1COM },
-    /* GoHubs GO-COM232 */
-    { USB_VENDOR_GOHUBS, USB_PRODUCT_GOHUBS_GOCOM232 },
-    /* Peracom */
-    { USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_SERIAL1 },
-    /* Vodafone */
-    { USB_VENDOR_VODAFONE, USB_PRODUCT_VODAFONE_MC3G },
-    { 0, 0 }
+	/* BELKIN F5U103 */
+	{ USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5U103 },
+	/* BELKIN F5U120 */
+	{ USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5U120 },
+	/* GoHubs GO-COM232 */
+	{ USB_VENDOR_ETEK, USB_PRODUCT_ETEK_1COM },
+	/* GoHubs GO-COM232 */
+	{ USB_VENDOR_GOHUBS, USB_PRODUCT_GOHUBS_GOCOM232 },
+	/* Peracom */
+	{ USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_SERIAL1 },
+	/* Option Vodafone MC3G */
+	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_VODAFONEMC3G },
+	/* Option GlobeTrotter 3G */
+	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3G },
+	/* Option GlobeTrotter 3G QUAD */
+	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GQUAD },
+	{ 0, 0 }
 };
 
 static device_method_t ubsa_methods[] = {

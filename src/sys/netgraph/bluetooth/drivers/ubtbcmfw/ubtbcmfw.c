@@ -28,7 +28,7 @@
  * SUCH DAMAGE.
  *
  * $Id: ubtbcmfw.c,v 1.3 2003/10/10 19:15:08 max Exp $
- * $FreeBSD: src/sys/netgraph/bluetooth/drivers/ubtbcmfw/ubtbcmfw.c,v 1.10 2005/01/07 01:45:42 imp Exp $
+ * $FreeBSD: src/sys/netgraph/bluetooth/drivers/ubtbcmfw/ubtbcmfw.c,v 1.11 2006/09/07 06:18:34 mjacob Exp $
  */
 
 #include <sys/param.h>

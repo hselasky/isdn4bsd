@@ -186,6 +186,7 @@ static const struct aue_type aue_devs[] = {
  {{ USB_VENDOR_SMC,		USB_PRODUCT_SMC_2202USB},	  0 },
  {{ USB_VENDOR_SMC,		USB_PRODUCT_SMC_2206USB},	  AUE_FLAG_PII },
  {{ USB_VENDOR_SOHOWARE,	USB_PRODUCT_SOHOWARE_NUB100},	  0 },
+ {{ USB_VENDOR_NETGEAR,		USB_PRODUCT_NETGEAR_FA101},	  AUE_FLAG_PII },
 };
 #define aue_lookup(v, p) ((const struct aue_type *)usb_lookup(aue_devs, v, p))
 

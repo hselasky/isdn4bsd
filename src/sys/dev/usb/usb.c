@@ -1,3 +1,6 @@
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb.c,v 1.111 2006/10/19 01:15:58 iedowse Exp $");
+
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -41,7 +44,6 @@
  * http://www.usb.org/developers/devclass_docs/
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -62,8 +64,6 @@
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_subr.h>
 #include <dev/usb/usb_quirks.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/usb.c $");
 
 #define DEV2UNIT(d)	(minor(d))
 #define DEV2BUS(d)	(*((struct usbd_bus **)&((d)->si_drv1)))

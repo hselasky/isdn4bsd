@@ -38,7 +38,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb_quirks.c,v 1.50 2006/09/06 23:44:24 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_quirks.c,v 1.57 2006/11/28 21:13:07 flz Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -75,6 +75,8 @@ static const struct usbd_quirk_entry {
  { USB_VENDOR_TELEX, USB_PRODUCT_TELEX_MIC1,	    0x009, { UQ_AU_NO_FRAC }},
  { USB_VENDOR_SILICONPORTALS, USB_PRODUCT_SILICONPORTALS_YAPPHONE,
    						    0x100, { UQ_AU_INP_ASYNC }},
+ { USB_VENDOR_LOGITECH, USB_PRODUCT_LOGITECH_UN53B, ANY, { UQ_NO_STRINGS }},
+ { USB_VENDOR_CMOTECH, USB_PRODUCT_CMOTECH_CDMAMODEM, ANY, { UQ_ASSUME_CM_OVER_DATA }},
  /* XXX These should have a revision number, but I don't know what they are. */
  { USB_VENDOR_HP, USB_PRODUCT_HP_895C,		    ANY,   { UQ_BROKEN_BIDIR }},
  { USB_VENDOR_HP, USB_PRODUCT_HP_880C,		    ANY,   { UQ_BROKEN_BIDIR }},
@@ -82,6 +84,7 @@ static const struct usbd_quirk_entry {
  { USB_VENDOR_HP, USB_PRODUCT_HP_810C,		    ANY,   { UQ_BROKEN_BIDIR }},
  { USB_VENDOR_HP, USB_PRODUCT_HP_830C,		    ANY,   { UQ_BROKEN_BIDIR }},
  { USB_VENDOR_HP, USB_PRODUCT_HP_1220C,		    ANY,   { UQ_BROKEN_BIDIR }},
+ { USB_VENDOR_XEROX, USB_PRODUCT_XEROX_WCM15,	    ANY,   { UQ_BROKEN_BIDIR }},
  /* YAMAHA router's ucdDevice is the version of farmware and often changes. */
  { USB_VENDOR_YAMAHA, USB_PRODUCT_YAMAHA_RTA54I,
 	ANY, { UQ_ASSUME_CM_OVER_DATA }},
@@ -97,15 +100,24 @@ static const struct usbd_quirk_entry {
 	ANY, { UQ_ASSUME_CM_OVER_DATA }},
  { USB_VENDOR_SUNTAC, USB_PRODUCT_SUNTAC_AS64LX,
 	0x100, { UQ_ASSUME_CM_OVER_DATA }},
+ { USB_VENDOR_MOTOROLA2, USB_PRODUCT_MOTOROLA2_A41XV32X,
+	ANY, { UQ_ASSUME_CM_OVER_DATA }},
  /* Devices which should be ignored by uhid */
  { USB_VENDOR_APC, USB_PRODUCT_APC_UPS,
 	ANY, { UQ_HID_IGNORE }},
+ { USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F6C550AVR,
+	ANY, { UQ_HID_IGNORE }},
  { USB_VENDOR_DELORME, USB_PRODUCT_DELORME_EARTHMATE,
+	ANY, { UQ_HID_IGNORE }},
+ { USB_VENDOR_ITUNERNET, USB_PRODUCT_ITUNERNET_USBLCD2X20,
 	ANY, { UQ_HID_IGNORE }},
  { USB_VENDOR_MGE, USB_PRODUCT_MGE_UPS1,
 	ANY, { UQ_HID_IGNORE }},
  { USB_VENDOR_MGE, USB_PRODUCT_MGE_UPS2,
 	ANY, { UQ_HID_IGNORE }},
+ /* Devices which should be ignored by both ukbd and uhid */
+ { USB_VENDOR_CYPRESS, USB_PRODUCT_CYPRESS_WISPY,
+	ANY, { UQ_KBD_IGNORE }},
  { 0, 0, 0, { 0 } }
 };
 

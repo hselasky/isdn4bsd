@@ -52,7 +52,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ehci.c,v 1.49 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ehci.c,v 1.52 2006/10/19 01:15:58 iedowse Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -2458,11 +2458,18 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 	DPRINTFN(5,("xfer=%p next=%d nframes=%d\n",
 		    xfer, xfer->pipe->isoc_next, xfer->nframes));
 
+	/* get the current frame index */
+
 	nframes = EOREAD4(sc, EHCI_FRINDEX) / 8;
 
-	if(((nframes - xfer->pipe->isoc_next) & 
-	    (EHCI_VIRTUAL_FRAMELIST_COUNT-1)) < xfer->nframes)
-	{
+	/* check if the frame index is within
+	 * the window where the frames will be
+	 * inserted
+	 */
+	buf_offset = (nframes - xfer->pipe->isoc_next) & 
+	  (EHCI_VIRTUAL_FRAMELIST_COUNT-1);
+
+	if (buf_offset < xfer->nframes) {
 		/* not in use yet, schedule it a few frames ahead */
 		/* data underflow */
 		xfer->pipe->isoc_next = (nframes + 3) & 
@@ -2470,7 +2477,21 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 		DPRINTFN(2,("start next=%d\n", xfer->pipe->isoc_next));
 	}
 
-	xfer->isoc_complete_time = (xfer->pipe->isoc_next + xfer->nframes) % USBD_ISOC_TIME_MAX;
+	/* compute how many milliseconds the
+	 * insertion is ahead of the current
+	 * frame position:
+	 */
+	buf_offset = (xfer->pipe->isoc_next - nframes) & 
+	  (EHCI_VIRTUAL_FRAMELIST_COUNT-1);
+
+	/* pre-compute when the isochronous transfer
+	 * will be finished:
+	 */
+	xfer->isoc_time_complete = 
+	  usbd_isoc_time_expand(&(sc->sc_bus), nframes) + buf_offset + 
+	  xfer->nframes;
+
+	/* get the real number of frames */
 
 	nframes = xfer->nframes;
 
@@ -2693,11 +2714,18 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 	DPRINTFN(5,("xfer=%p next=%d nframes=%d\n",
 		    xfer, xfer->pipe->isoc_next, xfer->nframes));
 
+	/* get the current frame index */
+
 	nframes = EOREAD4(sc, EHCI_FRINDEX) / 8;
 
-	if(((nframes - xfer->pipe->isoc_next) & 
-	    (EHCI_VIRTUAL_FRAMELIST_COUNT-1)) < xfer->nframes)
-	{
+	/* check if the frame index is within
+	 * the window where the frames will be
+	 * inserted
+	 */
+	buf_offset = (nframes - xfer->pipe->isoc_next) & 
+	  (EHCI_VIRTUAL_FRAMELIST_COUNT-1);
+
+	if (buf_offset < xfer->nframes) {
 		/* not in use yet, schedule it a few frames ahead */
 		/* data underflow */
 		xfer->pipe->isoc_next = (nframes + 3) & 
@@ -2705,7 +2733,21 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 		DPRINTFN(2,("start next=%d\n", xfer->pipe->isoc_next));
 	}
 
-	xfer->isoc_complete_time = (xfer->pipe->isoc_next + ((xfer->nframes+7)/8)) % USBD_ISOC_TIME_MAX;
+	/* compute how many milliseconds the
+	 * insertion is ahead of the current
+	 * frame position:
+	 */
+	buf_offset = (xfer->pipe->isoc_next - nframes) & 
+	  (EHCI_VIRTUAL_FRAMELIST_COUNT-1);
+
+	/* pre-compute when the isochronous transfer
+	 * will be finished:
+	 */
+	xfer->isoc_time_complete = 
+	  usbd_isoc_time_expand(&(sc->sc_bus), nframes) + buf_offset + 
+	  ((xfer->nframes+7)/8);
+
+	/* get the real number of frames */
 
 	nframes = xfer->nframes;
 

@@ -13,7 +13,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ohci.c,v 1.164 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ohci.c,v 1.167 2006/10/19 01:15:58 iedowse Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -363,8 +363,6 @@ ohci_init(ohci_softc_t *sc)
 #endif
 
 	sc->sc_control = sc->sc_intre = 0;
-
-	device_printf(sc->sc_bus.bdev, " ");
 
 	sc->sc_bus.usbrev = USBREV_1_0;
 
@@ -1441,7 +1439,6 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 
 		td_flags = (OHCI_TD_NOCC | OHCI_TD_TOGGLE_1 | 
 			    OHCI_TD_SET_DI(1));
-
 		if (isread) {
 			td_flags |= OHCI_TD_OUT;
 		} else {
@@ -1896,16 +1893,34 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 	nframes = le32toh(hw_ptr->hcca.hcca_frame_number);
 	usbd_page_dma_enter(&(sc->sc_hw_page));
 
-	if((((nframes - xfer->pipe->isoc_next) & ((1<<16)-1)) < xfer->nframes) ||
-	   (((xfer->pipe->isoc_next - nframes) & ((1<<16)-1)) >= 256))
+	/* check if the frame index is within
+	 * the window where the frames will be
+	 * inserted and if the delay until start
+	 * is too long
+	 */
+	if ((((nframes - xfer->pipe->isoc_next) & 0xFFFF) < xfer->nframes) ||
+	    (((xfer->pipe->isoc_next - nframes) & 0xFFFF) >= 128))
 	{
 		/* not in use yet, schedule it a few frames ahead */
 		/* data underflow */
-		xfer->pipe->isoc_next = (nframes + 5) & ((1<<16)-1);
+		xfer->pipe->isoc_next = (nframes + 3) & 0xFFFF;
 		DPRINTFN(2,("start next=%d\n", xfer->pipe->isoc_next));
 	}
 
-	xfer->isoc_complete_time = (xfer->pipe->isoc_next + xfer->nframes) % USBD_ISOC_TIME_MAX;
+	/* compute how many milliseconds the
+	 * insertion is ahead of the current
+	 * frame position:
+	 */
+	buf_offset = ((xfer->pipe->isoc_next - nframes) & 0xFFFF);
+
+	/* pre-compute when the isochronous transfer
+	 * will be finished:
+	 */
+	xfer->isoc_time_complete = 
+	  (usbd_isoc_time_expand(&(sc->sc_bus), nframes) + buf_offset + 
+	   xfer->nframes);
+
+	/* get the real number of frames */
 
 	nframes = xfer->nframes;
 

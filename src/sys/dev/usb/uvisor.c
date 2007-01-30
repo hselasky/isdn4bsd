@@ -1,5 +1,5 @@
 /*	$NetBSD: uvisor.c,v 1.9 2001/01/23 14:04:14 augustss Exp $	*/
-/*      $FreeBSD: src/sys/dev/usb/uvisor.c,v 1.25 2005/12/04 07:34:19 bmah Exp $	*/
+/*      $FreeBSD: src/sys/dev/usb/uvisor.c,v 1.28 2006/09/07 00:06:42 imp Exp $	*/
 
 /* Also already merged from NetBSD:
  *	$NetBSD: uvisor.c,v 1.12 2001/11/13 06:24:57 lukem Exp $
@@ -295,6 +295,7 @@ MODULE_DEPEND(uvisor, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 MODULE_VERSION(uvisor, UVISOR_MODVER);
 
 static const struct uvisor_product uvisor_products[] = {
+    { USB_VENDOR_ACEECA, USB_PRODUCT_ACEECA_MEZ1000 , UVISOR_FLAG_PALM4 },
     { USB_VENDOR_HANDSPRING, USB_PRODUCT_HANDSPRING_VISOR, UVISOR_FLAG_VISOR },
     { USB_VENDOR_HANDSPRING, USB_PRODUCT_HANDSPRING_TREO, UVISOR_FLAG_PALM4 },
     { USB_VENDOR_HANDSPRING, USB_PRODUCT_HANDSPRING_TREO600, UVISOR_FLAG_PALM4 },

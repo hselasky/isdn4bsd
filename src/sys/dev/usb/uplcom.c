@@ -1,5 +1,8 @@
 /*	$NetBSD: uplcom.c,v 1.21 2001/11/13 06:24:56 lukem Exp $	*/
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/uplcom.c,v 1.40 2006/12/26 17:43:46 jkim Exp $");
+
 /*-
  * Copyright (c) 2001-2003, 2005 Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.
  * All rights reserved.
@@ -83,7 +86,6 @@
 
 #include "opt_uplcom.h" /* XXX remove this */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -100,8 +102,6 @@
 #include <dev/usb/ucomvar.h>
 
 #include "usbdevs.h"
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/uplcom.c $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\
@@ -392,6 +392,11 @@ static const struct uplcom_product {
     { USB_VENDOR_SITECOM, USB_PRODUCT_SITECOM_SERIAL, 0xFFFF, TYPE_PL2303 },
     /* Tripp-Lite U209-000-R */
     { USB_VENDOR_TRIPPLITE, USB_PRODUCT_TRIPPLITE_U209, 0xFFFF, TYPE_PL2303X },
+    { USB_VENDOR_RADIOSHACK, USB_PRODUCT_RADIOSHACK_USBCABLE, 0xFFFF, TYPE_PL2303 },
+    /* Prolific Pharos */
+    { USB_VENDOR_PROLIFIC, USB_PRODUCT_PROLIFIC_PHAROS, 0xFFFF, TYPE_PL2303 },
+    /* Willcom W-SIM*/
+    { USB_VENDOR_PROLIFIC2, USB_PRODUCT_PROLIFIC2_WSIM, 0xFFFF, TYPE_PL2303X },
     { 0, 0 }
 };
 

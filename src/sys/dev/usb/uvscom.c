@@ -1,4 +1,8 @@
 /*	$NetBSD: usb/uvscom.c,v 1.1 2002/03/19 15:08:42 augustss Exp $	*/
+
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/uvscom.c,v 1.29 2006/09/07 00:06:42 imp Exp $");
+
 /*-
  * Copyright (c) 2001-2003, 2005 Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.
  * All rights reserved.
@@ -35,7 +39,6 @@
 
 #include "opt_uvscom.h" /* XXX remove this */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -52,8 +55,6 @@
 #include <dev/usb/ucomvar.h>
 
 #include "usbdevs.h"
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/uvscom.c $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\

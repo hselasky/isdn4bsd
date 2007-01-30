@@ -42,6 +42,7 @@
  * HID spec: http://www.usb.org/developers/devclass_docs/HID1_11.pdf
  */
 
+#include "opt_compat.h"
 #include "opt_kbd.h"
 #include "opt_ukbd.h"
 
@@ -65,12 +66,12 @@
 #include <dev/usb/usb_quirks.h>
 
 /* the initial key map, accent map and fkey strings */
-#ifdef UKBD_DFLT_KEYMAP
+#if defined(UKBD_DFLT_KEYMAP) && !defined(KLD_MODULE)
 #define KBD_DFLT_KEYMAP
 #include "ukbdmap.h"
 #endif
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.53 2006/02/28 03:34:06 emax Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.59 2006/11/28 21:13:07 flz Exp $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\
@@ -592,6 +593,10 @@ ukbd_probe(device_t dev)
 
 	if (uaa->iface == NULL) {
 	    /* attach to ifaces only */
+	    return UMATCH_NONE;
+	}
+
+	if (usbd_get_quirks(uaa->device)->uq_flags & UQ_KBD_IGNORE) {
 	    return UMATCH_NONE;
 	}
 
@@ -1162,7 +1167,10 @@ ukbd_ioctl(keyboard_t *kbd, u_long cmd, caddr_t arg)
 	};
 	struct ukbd_softc *sc = kbd->kb_data;
 	int i;
-
+#if defined(COMPAT_FREEBSD6) || defined(COMPAT_FREEBSD5) || \
+    defined(COMPAT_FREEBSD4) || defined(COMPAT_43)
+	int ival;
+#endif
 	if (!mtx_owned(&Giant)) {
 	    /* XXX big problem: 
 	     * If scroll lock is pressed and
@@ -1184,6 +1192,13 @@ ukbd_ioctl(keyboard_t *kbd, u_long cmd, caddr_t arg)
 	case KDGKBMODE:		/* get keyboard mode */
 		*(int *)arg = sc->sc_mode;
 		break;
+#if defined(COMPAT_FREEBSD6) || defined(COMPAT_FREEBSD5) || \
+    defined(COMPAT_FREEBSD4) || defined(COMPAT_43)
+	case _IO('K', 7):
+		ival = IOCPARM_IVAL(arg);
+		arg = (caddr_t)&ival;
+		/* FALLTHROUGH */
+#endif
 	case KDSKBMODE:		/* set keyboard mode */
 		switch (*(int *)arg) {
 		case K_XLATE:
@@ -1208,6 +1223,13 @@ ukbd_ioctl(keyboard_t *kbd, u_long cmd, caddr_t arg)
 	case KDGETLED:		/* get keyboard LED */
 		*(int *)arg = KBD_LED_VAL(kbd);
 		break;
+#if defined(COMPAT_FREEBSD6) || defined(COMPAT_FREEBSD5) || \
+    defined(COMPAT_FREEBSD4) || defined(COMPAT_43)
+	case _IO('K', 66):
+		ival = IOCPARM_IVAL(arg);
+		arg = (caddr_t)&ival;
+		/* FALLTHROUGH */
+#endif
 	case KDSETLED:		/* set keyboard LED */
 		/* NOTE: lock key state in "sc_state" won't be changed */
 		if (*(int *)arg & ~LOCK_MASK) {
@@ -1215,7 +1237,8 @@ ukbd_ioctl(keyboard_t *kbd, u_long cmd, caddr_t arg)
 		}
 		i = *(int *)arg;
 		/* replace CAPS LED with ALTGR LED for ALTGR keyboards */
-		if (kbd->kb_keymap->n_keys > ALTGR_OFFSET) {
+		if (sc->sc_mode == K_XLATE &&
+		    kbd->kb_keymap->n_keys > ALTGR_OFFSET) {
 		    if (i & ALKED)
 		        i |= CLKED;
 		    else
@@ -1226,10 +1249,16 @@ ukbd_ioctl(keyboard_t *kbd, u_long cmd, caddr_t arg)
 		}
 		KBD_LED_VAL(kbd) = *(int *)arg;
 		break;
-
 	case KDGKBSTATE:	/* get lock key state */
 		*(int *)arg = sc->sc_state & LOCK_MASK;
 		break;
+#if defined(COMPAT_FREEBSD6) || defined(COMPAT_FREEBSD5) || \
+    defined(COMPAT_FREEBSD4) || defined(COMPAT_43)
+	case _IO('K', 20):
+		ival = IOCPARM_IVAL(arg);
+		arg = (caddr_t)&ival;
+		/* FALLTHROUGH */
+#endif
 	case KDSKBSTATE:	/* set lock key state */
 		if (*(int *)arg & ~LOCK_MASK) {
 		    return EINVAL;
@@ -1257,6 +1286,13 @@ ukbd_ioctl(keyboard_t *kbd, u_long cmd, caddr_t arg)
 		kbd->kb_delay2 = ((int *)arg)[1];
 		return 0;
 
+#if defined(COMPAT_FREEBSD6) || defined(COMPAT_FREEBSD5) || \
+    defined(COMPAT_FREEBSD4) || defined(COMPAT_43)
+	case _IO('K', 67):
+		ival = IOCPARM_IVAL(arg);
+		arg = (caddr_t)&ival;
+		/* FALLTHROUGH */
+#endif
 	case KDSETRAD:		/* set keyboard repeat rate (old interface) */
 		return ukbd_set_typematic(kbd, *(int *)arg);
 

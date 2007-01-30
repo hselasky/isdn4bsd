@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_kue.c,v 1.70 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_kue.c,v 1.71 2006/10/07 18:03:39 flz Exp $");
 
 /*
  * Kawasaki LSI KL5KUSB101B USB to ethernet adapter driver.
@@ -123,6 +123,7 @@ static struct kue_type kue_devs[] = {
 	{ USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_ENET3 },
 	{ USB_VENDOR_IODATA, USB_PRODUCT_IODATA_USBETT },
 	{ USB_VENDOR_ABOCOM, USB_PRODUCT_ABOCOM_URE450 },
+	{ USB_VENDOR_SILICOM, USB_PRODUCT_SILICOM_GPE },
 	{ 0, 0 }
 };
 

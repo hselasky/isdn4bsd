@@ -1,5 +1,8 @@
 /*	$NetBSD: umodem.c,v 1.45 2002/09/23 05:51:23 simonb Exp $	*/
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/umodem.c,v 1.60 2006/09/07 00:06:42 imp Exp $");
+
 /*-
  * Copyright (c) 2003, M. Warner Losh <imp@freebsd.org>.
  * All rights reserved.
@@ -76,7 +79,6 @@
  *
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -93,8 +95,6 @@
 #include <dev/usb/ucomvar.h>
 
 #include "usbdevs.h"
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/umodem.c $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\
@@ -116,6 +116,8 @@ static const struct umodem_product {
 } umodem_products[] = {
 	/* Kyocera AH-K3001V*/
 	{ USB_VENDOR_KYOCERA, USB_PRODUCT_KYOCERA_AHK3001V, 0 },
+	{ USB_VENDOR_SIERRA, USB_PRODUCT_SIERRA_MC5720, 0 },
+	{ USB_VENDOR_CURITEL, USB_PRODUCT_CURITEL_PC5740, 0 },
 	{ 0, 0, 0 },
 };
 

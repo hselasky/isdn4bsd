@@ -178,6 +178,9 @@ struct usbd_bus {
 
  	uint32_t		no_intrs;
 
+	uint16_t		isoc_time_last; /* ms */
+#define USBD_ISOC_TIME_MAX 128 /* ms */
+
 	uint8_t			is_exploring;
 	uint8_t			wait_explore;
 	uint8_t			needs_explore;/* Set if a hub signalled a change.
@@ -361,10 +364,8 @@ struct usbd_xfer {
 	uint16_t		max_packet_size;
 	uint16_t		max_frame_size;
 	uint16_t		qh_pos;
+	uint16_t		isoc_time_complete; /* in ms */
 
-#define USBD_ISOC_TIME_MAX 128 /* ms */
-
-	uint8_t			isoc_complete_time; /* in ms */
 	uint8_t			address;
 	uint8_t			endpoint;
 	uint8_t			interval; /* milliseconds */
@@ -602,6 +603,7 @@ uint16_t	usbd_get_max_packet_size(usb_endpoint_descriptor_t *edesc);
 uint16_t	usbd_get_max_packet_count(usb_endpoint_descriptor_t *edesc);
 uint16_t	usbd_get_max_frame_size(usb_endpoint_descriptor_t *edesc);
 void		usbd_set_max_packet_size_count(usb_endpoint_descriptor_t *edesc, uint16_t size, uint16_t count);
+uint16_t	usbd_isoc_time_expand(struct usbd_bus *bus, uint16_t isoc_time_curr);
 
 /* prototypes from usb.c */
 

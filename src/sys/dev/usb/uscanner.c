@@ -4,6 +4,9 @@
  *	$NetBSD: uscanner.c,v 1.33 2002/09/23 05:51:24 simonb Exp $
  */
 
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/uscanner.c,v 1.76 2006/10/07 18:09:27 flz Exp $");
+
 /*-
  * Copyright (c) 2000 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -42,7 +45,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -53,8 +55,6 @@
 #include <dev/usb/usb_subr.h>
 
 #include "usbdevs.h"
-
-__FBSDID("$FreeBSD: src/sys/dev/usb/uscanner.c,v 1.70 2006/04/11 10:44:31 flz Exp $");
 
 /*
  * uscanner debugging statements.
@@ -235,6 +235,7 @@ static const struct uscanner_info uscanner_devs[] = {
 	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_1200 }, 0 },
 	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_1240 }, 0 },
 	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_1250 }, 0 },
+	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_1270 }, 0 },
 	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_1600 }, 0 },
 	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_1640 }, 0 },
 	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_640U }, 0 },
@@ -247,6 +248,10 @@ static const struct uscanner_info uscanner_devs[] = {
 	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_GT9700F }, USCANNER_FLAG_KEEP_OPEN },
 	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_GT9300UF }, 0 },
 	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_2480 }, 0 },
+	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_3500 }, USCANNER_FLAG_KEEP_OPEN },
+	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_3590 }, 0 },
+	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_4200 }, 0 },
+	{ { USB_VENDOR_EPSON, USB_PRODUCT_EPSON_4990 }, 0 },
 		/* HP */
 	{ { USB_VENDOR_HP, USB_PRODUCT_HP_2200C }, 0 },
 	{ { USB_VENDOR_HP, USB_PRODUCT_HP_3300C }, 0 },

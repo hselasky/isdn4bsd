@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ums.c,v 1.82 2006/09/07 00:06:42 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ums.c,v 1.83 2007/01/17 03:50:45 markus Exp $");
 
 /*
  * HID spec: http://www.usb.org/developers/devclass_docs/HID1_11.pdf
@@ -200,8 +200,10 @@ ums_intr_callback(struct usbd_xfer *xfer)
 	DPRINTF(5, "sc=%p actlen=%d\n", sc, len);
 	DPRINTF(5, "data = %02x %02x %02x %02x "
 		"%02x %02x %02x %02x\n",
-		buf[0], buf[1], buf[2], buf[3], 
-		buf[4], buf[5], buf[6], buf[7]);
+		(len > 0) ? buf[0] : 0, (len > 1) ? buf[1] : 0,
+		(len > 2) ? buf[2] : 0, (len > 3) ? buf[3] : 0, 
+		(len > 4) ? buf[4] : 0, (len > 5) ? buf[5] : 0, 
+		(len > 6) ? buf[6] : 0, (len > 7) ? buf[7] : 0);
 
 	/*
 	 * The M$ Wireless Intellimouse 2.0 sends 1 extra leading byte of

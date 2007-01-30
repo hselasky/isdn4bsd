@@ -11,7 +11,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.86 2006/09/10 15:20:39 trhodes Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.87 2006/10/03 01:13:26 iedowse Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -2773,4 +2773,31 @@ usbd_set_max_packet_size_count(usb_endpoint_descriptor_t *edesc,
 	n = (size & 0x7FF)|(((count-1) & 3) << 11);
 	USETW(edesc->wMaxPacketSize, n);
 	return;
+}
+
+/*---------------------------------------------------------------------------*
+ * usbd_isoc_time_expand - expand time counter from 7-bit to 16-bit
+ *---------------------------------------------------------------------------*/
+uint16_t
+usbd_isoc_time_expand(struct usbd_bus *bus, uint16_t isoc_time_curr)
+{
+	uint16_t rem;
+
+	mtx_assert(&(bus->mtx), MA_OWNED);
+
+	rem = bus->isoc_time_last & (USBD_ISOC_TIME_MAX-1);
+
+	isoc_time_curr &= (USBD_ISOC_TIME_MAX-1);
+
+	if (isoc_time_curr < rem) {
+	    /* the time counter wrapped around */
+	    bus->isoc_time_last += USBD_ISOC_TIME_MAX;
+	}
+
+	/* update the remainder */
+
+	bus->isoc_time_last &= ~(USBD_ISOC_TIME_MAX-1);
+	bus->isoc_time_last |= isoc_time_curr;
+
+	return bus->isoc_time_last;
 }

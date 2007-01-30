@@ -11,7 +11,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uhci.c,v 1.171 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uhci.c,v 1.172 2006/10/19 01:15:58 iedowse Exp $");
 
 
 /*-
@@ -1407,13 +1407,13 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 		usbd_page_dma_exit(td->page);
 
 		td->td_status = td_status & htole32(~UHCI_TD_SPD);
-		td->td_token = 
-		  htole32(UHCI_TD_SET_ENDPT(xfer->endpoint)) |
-		  htole32(UHCI_TD_SET_DEVADDR(xfer->address)) |
-		  htole32(UHCI_TD_SET_MAXLEN(sizeof(usb_device_request_t))) |
-		  htole32(UHCI_TD_PID_SETUP)|
-		  htole32(UHCI_TD_SET_DT(0));
-
+		td_token = 
+		  (UHCI_TD_SET_ENDPT(xfer->endpoint) |
+		   UHCI_TD_SET_DEVADDR(xfer->address) |
+		   UHCI_TD_SET_MAXLEN(sizeof(usb_device_request_t)) |
+		   UHCI_TD_PID_SETUP|
+		   UHCI_TD_SET_DT(0));
+		td->td_token = htole32(td_token);
 		td->td_buffer = htole32(buf_res.physaddr);
 
 		buf_offset += sizeof(usb_device_request_t);
@@ -1444,14 +1444,14 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 	}
 
 	td_token =
-	  htole32(UHCI_TD_SET_ENDPT(xfer->endpoint)) |
-	  htole32(UHCI_TD_SET_DEVADDR(xfer->address)) |
-	  htole32(UHCI_TD_SET_MAXLEN(average)) |
-	  (isread ? htole32(UHCI_TD_PID_IN) : htole32(UHCI_TD_PID_OUT));
+	  (UHCI_TD_SET_ENDPT(xfer->endpoint) |
+	   UHCI_TD_SET_DEVADDR(xfer->address) |
+	   UHCI_TD_SET_MAXLEN(average) |
+	   (isread ? UHCI_TD_PID_IN : UHCI_TD_PID_OUT));
 
 	if(xfer->pipe->toggle_next)
 	{
-		td_token |= htole32(UHCI_TD_SET_DT(1));
+		td_token |= UHCI_TD_SET_DT(1);
 	}
 
 	while(1)
@@ -1476,8 +1476,8 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 			average = len;
 
 			/* update length */
-			td_token &= htole32(~(0x7ff<<21));
-			td_token |= htole32(UHCI_TD_SET_MAXLEN(average));
+			td_token &= ~(0x7ff << 21);
+			td_token |= UHCI_TD_SET_MAXLEN(average);
 		}
 
 		if(td == NULL)
@@ -1491,10 +1491,10 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 		/* fill out current TD */
        
 		td->td_status = td_status;
-		td->td_token = td_token;
+		td->td_token = htole32(td_token);
 		td->td_buffer = htole32(buf_res.physaddr);
 
-		td_token ^= htole32(UHCI_TD_SET_DT(1));
+		td_token ^= UHCI_TD_SET_DT(1);
 
 		buf_offset += average;
 		usbd_get_page(&(xfer->buf_data), buf_offset, &buf_res);
@@ -1518,13 +1518,13 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 		/* STATUS message */
 
 		/* update length and PID */
-		td_token &= htole32(~(0x7ff<<21));
-		td_token |= htole32(UHCI_TD_SET_MAXLEN(0)|UHCI_TD_SET_DT(1));
-		td_token ^= htole32(0x88);
+		td_token &= ~(0x7ff << 21);
+		td_token |= (UHCI_TD_SET_MAXLEN(0)|UHCI_TD_SET_DT(1));
+		td_token ^= 0x00000088;
 
 		usbd_page_dma_exit(td->page);
 
-		td->td_token = td_token;
+		td->td_token = htole32(td_token);
 		td->td_buffer = htole32(0);
 
 		td_last = td;
@@ -1544,12 +1544,9 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 	xfer->td_transfer_last = td_last;
 
 	/* store data-toggle */
-	if(td_token & htole32(UHCI_TD_SET_DT(1)))
-	{
+	if (td_token & UHCI_TD_SET_DT(1)) {
 		xfer->pipe->toggle_next = 1;
-	}
-	else
-	{
+	} else {
 		xfer->pipe->toggle_next = 0;
 	}
 
@@ -2001,16 +1998,31 @@ uhci_device_isoc_enter(struct usbd_xfer *xfer)
 
 	nframes = UREAD2(sc, UHCI_FRNUM);
 
-	if(((nframes - xfer->pipe->isoc_next) & 
-	    (UHCI_VFRAMELIST_COUNT-1)) < xfer->nframes)
-	{
+	buf_offset = (nframes - xfer->pipe->isoc_next) & 
+	  (UHCI_VFRAMELIST_COUNT-1);
+
+	if (buf_offset < xfer->nframes) {
 		/* not in use yet, schedule it a few frames ahead */
 		/* data underflow */
 		xfer->pipe->isoc_next = (nframes + 3) & (UHCI_VFRAMELIST_COUNT-1);
 		DPRINTFN(2,("start next=%d\n", xfer->pipe->isoc_next));
 	}
 
-	xfer->isoc_complete_time = (xfer->pipe->isoc_next + xfer->nframes) % USBD_ISOC_TIME_MAX;
+	/* compute how many milliseconds the
+	 * insertion is ahead of the current
+	 * frame position:
+	 */
+	buf_offset = (xfer->pipe->isoc_next - nframes) & 
+	  (UHCI_VFRAMELIST_COUNT-1);
+
+	/* pre-compute when the isochronous transfer
+	 * will be finished:
+	 */
+	xfer->isoc_time_complete = 
+	  usbd_isoc_time_expand(&(sc->sc_bus), nframes) + buf_offset + 
+	  xfer->nframes;
+
+	/* get the real number of frames */
 
 	nframes = xfer->nframes;
 
