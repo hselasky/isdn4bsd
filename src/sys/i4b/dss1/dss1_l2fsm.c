@@ -1141,16 +1141,34 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 
 	/* check if response is needed
 	 *
-	 * (I-frame) and ((P == 1) or NT-mode)
+	 * (I-frame) 
 	 *
-	 * NOTE: Some buggy PBXs does not set P = 1
-	 * when sending I-frames, but still expects
-	 * a response.
+	 * See "ETS 300 125" and the 
+	 * section about "Receiving I frames".
+	 *
+	 * With regard to the C/R bit the specification
+	 * is violated a little to make this code as
+	 * simple as possible, but the F bit is according
+	 * to the specification.
 	 */
-	if((((~cntl) & 1) && 
-	    ((dss1_get_1(&buf,OFF_RX_NR) & 1) || NT_MODE(sc))) || (resp == CNTL_REJ))
-	{
-	  dss1_cntl_tx_frame(sc,pipe,CR_COMMAND,resp);
+	if (!(cntl & 1)) {
+	    if (resp == CNTL_REJ) {
+	        dss1_cntl_tx_frame(sc,pipe,CR_COMMAND /* F=0 */,CNTL_REJ);
+	    } else {
+	        /* check if P == 1 */
+	        if (dss1_get_1(&buf,OFF_RX_NR) & 1)
+		    dss1_cntl_tx_frame(sc,pipe,CR_RESPONSE /* F=1 */,resp);
+		else {
+		    /* If there are more frames on the queue than
+		     * in our current transmit window, then don't 
+		     * send a RR message, hence our RX-NR will be 
+		     * sent in an I-frame.
+		     */
+		    if (pipe->ifq_len <= pipe->tx_window_size) {
+		        dss1_cntl_tx_frame(sc,pipe,CR_COMMAND /* F=0 */,resp);
+		    }
+		}
+	    }
 	}
 
 	/* check if response is needed
