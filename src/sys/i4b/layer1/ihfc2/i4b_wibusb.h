@@ -283,6 +283,12 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 
 	USBD_CHECK_STATUS(xfer);
 
+ tr_error:
+	if (xfer->error == USBD_CANCELLED) {
+		return;
+	}
+	goto tr_setup;
+
  tr_transferred:
 
 #if WIBUSB_RX_FRAMESIZE < (8+16+16)
@@ -558,7 +564,6 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 	/* restore frlengths */
 	frlengths -= WIBUSB_RX_FRAMES;
 
- tr_error:
 	/* [re-]transfer ``xfer->buffer'' */
 	usbd_start_hardware(xfer);
 	return;
@@ -582,6 +587,10 @@ wibusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 
 	USBD_CHECK_STATUS(xfer);
 
+ tr_error:
+	if (xfer->error == USBD_CANCELLED) {
+		return;
+	}
  tr_setup:
  tr_transferred:
 
@@ -732,15 +741,6 @@ wibusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 			       (tmp     ) -= b_average; /* restore tmp */
 			       (tmp     ) += p_average; /* */
    	}
-
- tr_error:
-	/* [re-]transfer ``xfer->buffer''
-	 *
-	 * Reuse xfer->buffer and
-	 * xfer->nframes
-	 *
-	 * xfer->nframes == WIBUSB_TX_FRAMES;
-	 */
 
 	usbd_start_hardware(xfer);
 	return;

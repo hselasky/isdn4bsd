@@ -858,11 +858,15 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 /* prototypes from i4b_echo_cancel.c */
 
 #define I4B_ECHO_CANCEL_SAMPLE_MAX 0x7FC0 /* units */
-#define I4B_ECHO_CANCEL_F_SIZE       1024 /* samples */
+#define I4B_ECHO_CANCEL_T_MAX        1024 /* samples (max delay) */
+#define I4B_ECHO_CANCEL_R_MAX  (I4B_ECHO_CANCEL_F_SIZE + \
+				I4B_ECHO_CANCEL_T_MAX) /* samples */
+#define I4B_ECHO_CANCEL_F_SIZE ((2*I4B_ECHO_CANCEL_N_TAPS) + \
+				(1*I4B_ECHO_CANCEL_T_MAX)) /* samples */
 #define I4B_ECHO_CANCEL_N_TAPS        256 /* samples */
 #define I4B_ECHO_CANCEL_K_TAPS         32 /* samples */
-#define I4B_ECHO_CANCEL_N_SUB           2 /* units */
-#define I4B_ECHO_CANCEL_N_COPY          2 /* units */
+#define I4B_ECHO_CANCEL_N_SUB           3 /* units */
+#define I4B_ECHO_CANCEL_W_SUB           3 /* units */
 #define I4B_ECHO_CANCEL_STEP            1 /* units */
 #define I4B_ECHO_CANCEL_X_DP (1<<15)
 #define I4B_ECHO_CANCEL_W_DP (I4B_ECHO_CANCEL_N_TAPS * \
@@ -877,10 +881,7 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 
 struct i4b_echo_cancel {
 
-    int32_t buf_W0[I4B_ECHO_CANCEL_N_TAPS]; /* FIR filter weights */
-    int32_t buf_W1[I4B_ECHO_CANCEL_N_TAPS]; /* FIR filter weights  */
-    int32_t buf_WA[I4B_ECHO_CANCEL_ADAPT_HIST][I4B_ECHO_CANCEL_N_TAPS];
-
+    int32_t buf_W[I4B_ECHO_CANCEL_W_SUB][I4B_ECHO_CANCEL_N_TAPS]; /* FIR filter weights */
     int32_t buf_PH[I4B_ECHO_CANCEL_N_SUB]; /* sum of power */
 
     int32_t low_pass_1;
@@ -908,11 +909,13 @@ struct i4b_echo_cancel {
 
     int16_t coeffs_last_max_x;
 
-    int16_t buf_XH[I4B_ECHO_CANCEL_N_SUB][2*I4B_ECHO_CANCEL_N_TAPS];
-    int16_t buf_X0[3*I4B_ECHO_CANCEL_N_TAPS]; /* TX buffer */
-    int16_t buf_E0[2*I4B_ECHO_CANCEL_N_TAPS]; /* error buffer */
+    int16_t offset_adjust;
 
-  u_int8_t  buffer_y[2*I4B_ECHO_CANCEL_F_SIZE];
+    int16_t buf_XH[I4B_ECHO_CANCEL_N_SUB][2*I4B_ECHO_CANCEL_F_SIZE];
+
+    int16_t buf_X0[2*I4B_ECHO_CANCEL_F_SIZE]; /* copy of transmitted data */
+
+    int16_t buf_E0[2*I4B_ECHO_CANCEL_K_TAPS]; /* error buffer */
 
   u_int8_t  rx_speaking : 1;
   u_int8_t  tx_speaking : 1;
@@ -920,9 +923,10 @@ struct i4b_echo_cancel {
   u_int8_t  coeffs_adapt : 1;
   u_int8_t  coeffs_bad : 1;
   u_int8_t  max_trained : 1;
-  u_int8_t  last_byte;
-  u_int8_t  adapt_index;
+  u_int8_t  coeffs_last_valid : 1;
+  u_int8_t  max_coeff_set : 1;
   u_int8_t  coeffs_wait;
+  u_int8_t  last_byte;
 };
 
 extern void

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2006 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2006-2007 Hans Petter Selasky. All rights reserved.
  * Copyright (c) 2004-2005 DFS Deutsche Flugsicherung. All rights reserved.
  * Copyright (c) 2004-2005 Andre Adrian. All rights reserved.
  * 
@@ -25,7 +25,7 @@
  * SUCH DAMAGE.
  *
  *
- * i4b_echo_cancel.c - An integer, dual sub-band, Normalized Least 
+ * i4b_echo_cancel.c - An integer, trippel sub-band, Normalized Least 
  *                     Mean Square, NLMS, echo canceller.
  */
 #include <sys/param.h>
@@ -45,7 +45,7 @@ struct ec_stats {
     int16_t max_x;
 };
 
-#if (I4B_ECHO_CANCEL_N_SUB != 0x2)
+#if (I4B_ECHO_CANCEL_N_SUB != 0x3)
 #error "Please update code!"
 #endif
 
@@ -58,73 +58,73 @@ struct ec_stats {
 #endif
 
 static const int32_t buf_H[2][32] = {
-  {
-             7,
-     -11392754,
-            -7,
-      13145486,
-             7,
-     -15535574,
-            -7,
-      18987924,
-             7,
-     -24413045,
-            -7,
-      34178263,
-             7,
-     -56963772,
-            -7,
-     170891318,
-     268435456,
-     170891318,
-            -7,
-     -56963772,
-             7,
-      34178263,
-            -7,
-     -24413045,
-             7,
-      18987924,
-            -7,
-     -15535574,
-             7,
-      13145486,
-            -7,
+  { /* 1kHz low-pass filter */
              0,
+      -8055894,
+     -12206523,
+      -9295262,
+             0,
+      10985310,
+      17089132,
+      13426490,
+             0,
+     -17262630,
+     -28481886,
+     -24167682,
+             0,
+      40279472,
+      85445656,
+     120838408,
+     134217728,
+     120838408,
+      85445656,
+      40279472,
+             0,
+     -24167682,
+     -28481886,
+     -17262630,
+             0,
+      13426490,
+      17089132,
+      10985310,
+             0,
+      -9295262,
+     -12206523,
+      -8055894,
   },
-  {
-            -7,
-      11392754,
-             7,
-     -13145486,
-            -7,
-      15535574,
-             7,
-     -18987924,
-            -7,
-      24413045,
-             7,
-     -34178263,
-            -7,
-      56963772,
-             7,
-    -170891318,
-     268435456,
-    -170891318,
-             7,
-      56963772,
-            -7,
-     -34178263,
-             7,
-      24413045,
-            -7,
-     -18987924,
-             7,
-      15535574,
-            -7,
-     -13145486,
-             7,
+  { /* 2kHz low-pass filter */
              0,
+     -11392755,
+             0,
+      13145486,
+             0,
+     -15535574,
+             0,
+      18987924,
+             0,
+     -24413046,
+             0,
+      34178264,
+             0,
+     -56963772,
+             0,
+     170891312,
+     268435456,
+     170891312,
+             0,
+     -56963772,
+             0,
+      34178264,
+             0,
+     -24413046,
+             0,
+      18987924,
+             0,
+     -15535574,
+             0,
+      13145486,
+             0,
+     -11392755,
   },
 };
 
@@ -147,7 +147,11 @@ i4b_echo_cancel_init(struct i4b_echo_cancel *ec,
 
     ec->is_ulaw = (sub_bprot != BSUBPROT_G711_ALAW);
 
-    ec->offset_x = (I4B_ECHO_CANCEL_N_TAPS-1);
+    ec->offset_x = (I4B_ECHO_CANCEL_K_TAPS-1);
+
+    ec->offset_wr = (I4B_ECHO_CANCEL_F_SIZE-1);
+
+    ec->offset_rd = (I4B_ECHO_CANCEL_F_SIZE-1);
 
     return;
 }
@@ -289,6 +293,119 @@ i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c,
 }
 
 /*---------------------------------------------------------------------------*
+ * i4b_echo_cancel_reset_adjust - reset all adjustments
+ *---------------------------------------------------------------------------*/
+static void
+i4b_echo_cancel_reset_adjust(struct i4b_echo_cancel *ec)
+{
+    /* coeffs are bad, reset echo canceller */
+
+    I4B_DBG(1, L1_EC_MSG, "resetting EC");
+
+    bzero(ec->buf_W, sizeof(ec->buf_W));
+
+    ec->stable_count = 0;
+    ec->max_trained = 0;
+    ec->max_coeff_set = 0;
+    ec->coeffs_last_valid = 0;
+
+    return;
+}
+
+/*---------------------------------------------------------------------------*
+ * i4b_echo_cancel_offset_adjust - adjust coefficients 
+ *---------------------------------------------------------------------------*/
+static void
+i4b_echo_cancel_offset_adjust(struct i4b_echo_cancel *ec)
+{
+    int32_t temp0;
+    int32_t temp1;
+
+    uint16_t p;
+    uint16_t n;
+
+    if ((ec->offset_adjust < -16) ||
+	(ec->offset_adjust > 16)) {
+
+	  ec->offset_rd += ec->offset_adjust;
+	  ec->offset_adjust = 0;
+
+	  for (p = 0; p < I4B_ECHO_CANCEL_N_SUB; p++) {
+
+	      temp0 = 0;
+	      for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
+		  temp1 = ec->buf_XH[p][ec->offset_rd + n];
+		  temp0 += (temp1 * temp1) / I4B_ECHO_CANCEL_N_TAPS;
+	      }
+	      ec->buf_PH[p] = temp0;
+	  }
+
+	  i4b_echo_cancel_reset_adjust(ec);
+
+	  I4B_DBG(1, L1_EC_MSG, "adjust reset to %d", ec->offset_rd);
+
+    } else if (ec->offset_adjust < 0) {
+
+	for (p = 0; p < I4B_ECHO_CANCEL_N_SUB; p++) {
+
+	    temp0 = ec->buf_XH[p][ec->offset_rd];
+
+	    ec->buf_PH[p] += (temp0 * temp0) / I4B_ECHO_CANCEL_N_TAPS;
+
+	    temp0 = ec->buf_XH[p][ec->offset_rd + I4B_ECHO_CANCEL_N_TAPS];
+
+	    ec->buf_PH[p] -= (temp0 * temp0) / I4B_ECHO_CANCEL_N_TAPS;
+	}
+
+	for (p = 0; p < I4B_ECHO_CANCEL_W_SUB; p++) {
+	    for (n = (I4B_ECHO_CANCEL_N_TAPS-1); n > 0; n--) {
+	        ec->buf_W[p][n] = ec->buf_W[p][n-1];
+	    }
+	    ec->buf_W[p][n] = 0;
+	}
+
+	if (ec->coeffs_last_max_x < (I4B_ECHO_CANCEL_N_TAPS-1)) {
+	    ec->coeffs_last_max_x ++;
+	}
+
+	ec->offset_rd --;
+	ec->offset_adjust ++;
+
+        I4B_DBG(1, L1_EC_MSG, "adjusting down to %d", ec->offset_rd);
+
+    } else if (ec->offset_adjust > 0) {
+
+	for (p = 0; p < I4B_ECHO_CANCEL_N_SUB; p++) {
+
+	    temp0 = ec->buf_XH[p][ec->offset_rd];
+
+	    ec->buf_PH[p] -= (temp0 * temp0) / I4B_ECHO_CANCEL_N_TAPS;
+
+	    temp0 = ec->buf_XH[p][ec->offset_rd + I4B_ECHO_CANCEL_N_TAPS];
+
+	    ec->buf_PH[p] += (temp0 * temp0) / I4B_ECHO_CANCEL_N_TAPS;
+	}
+
+	for (p = 0; p < I4B_ECHO_CANCEL_W_SUB; p++) {
+	    for (n = 0; n < (I4B_ECHO_CANCEL_N_TAPS-1); n++) {
+	        ec->buf_W[p][n] = ec->buf_W[p][n+1];
+	    }
+	    ec->buf_W[p][n] = 0;
+	}
+
+	if (ec->coeffs_last_max_x > 0) {
+	    ec->coeffs_last_max_x --;
+	}
+
+	ec->offset_rd ++;
+	ec->offset_adjust --;
+
+        I4B_DBG(1, L1_EC_MSG, "adjusting up to %d", ec->offset_rd);
+    }
+    return;
+}
+
+/*---------------------------------------------------------------------------*
  * i4b_echo_cancel_lms - an implementation of a self adapting FIR filter
  *
  * inputs:
@@ -299,69 +416,86 @@ i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c,
  *   sample from microphone without echo from speaker
  *---------------------------------------------------------------------------*/
 static int16_t
-i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x0, int16_t y0)
+i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t y0)
 {
+#if (I4B_ECHO_CANCEL_N_SUB != 0x3)
+#error "Please update i4b_echo_cancel_lms()!"
+#endif
+
     int32_t y1;
     int32_t y2;
-    int32_t y3;
 
     u_int16_t n;
     u_int16_t p;
 
-    ec->buf_X0[ec->offset_x] = x0;
+    int16_t lp_1kHz;
+    int16_t lp_2kHz;
+    int16_t temp;
+    int16_t EH[I4B_ECHO_CANCEL_N_SUB];
 
-    /* compute the estimated signal */
+    /* compute estimated echo */
 
     y1 = i4b_echo_cancel_inner_product
-      (ec->buf_X0 + ec->offset_x, ec->buf_W1, I4B_ECHO_CANCEL_N_TAPS);
-
-    y1 = (y0 * I4B_ECHO_CANCEL_X_DP) - y1;
+      (ec->buf_X0 + ec->offset_rd,
+       ec->buf_W[0], I4B_ECHO_CANCEL_N_TAPS);
 
     /* store error */
 
-    ec->buf_E0[ec->offset_x] = i4b_echo_cancel_clamp(y1);
+    y0 -= i4b_echo_cancel_clamp(y1);
+
+    ec->buf_E0[ec->offset_x] = y0;
+
+    /* compute E-sub-band */
+
+    lp_1kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product
+	    (ec->buf_E0 + ec->offset_x, buf_H[0], I4B_ECHO_CANCEL_K_TAPS));
+
+    /* compute E-sub-band */
+
+    lp_2kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product
+	    (ec->buf_E0 + ec->offset_x, buf_H[1], I4B_ECHO_CANCEL_K_TAPS));
+
+    /* compute E-sub-band */
+
+    temp = ec->buf_E0[ec->offset_x + (I4B_ECHO_CANCEL_K_TAPS/2)];
+
+    /* store E-sub-bands */
+
+    EH[0] = lp_1kHz; /* low-pass filter */
+    EH[1] = lp_2kHz - lp_1kHz; /* band-pass filter */
+    EH[2] = temp - lp_2kHz; /* high-pass filter */
 
     /* iterate over the sub-bands */
 
     for (p = 0; p < I4B_ECHO_CANCEL_N_SUB; p++) {
 
-        /* compute X-sub-band */
+        /* get error */
 
-        y2 = i4b_echo_cancel_inner_product
-	  (ec->buf_X0 + ec->offset_x, buf_H[p], I4B_ECHO_CANCEL_K_TAPS);
-      
-	/* store X-sub-band */
-
-	ec->buf_XH[p][ec->offset_x] = i4b_echo_cancel_clamp(y2);
-
-	/* compute E-sub-band */
-
-        y2 = i4b_echo_cancel_inner_product
-	  (ec->buf_E0 + ec->offset_x, buf_H[p], I4B_ECHO_CANCEL_K_TAPS);
+        y1 = EH[p] * I4B_ECHO_CANCEL_X_DP;
 
 	/* compute sum of XH squared (optimized) */
 
-	y3 = ec->buf_XH[p][ec->offset_x];
+	y2 = ec->buf_XH[p][ec->offset_rd];
 
-	ec->buf_PH[p] += (y3 * y3) / I4B_ECHO_CANCEL_N_TAPS;
+	ec->buf_PH[p] += (y2 * y2) / I4B_ECHO_CANCEL_N_TAPS;
 
-	y3 = ec->buf_XH[p][ec->offset_x + I4B_ECHO_CANCEL_N_TAPS];
+	y2 = ec->buf_XH[p][ec->offset_rd + I4B_ECHO_CANCEL_N_TAPS];
 
-	ec->buf_PH[p] -= (y3 * y3) / I4B_ECHO_CANCEL_N_TAPS;
+	ec->buf_PH[p] -= (y2 * y2) / I4B_ECHO_CANCEL_N_TAPS;
 
-	y3 = ec->buf_PH[p];
+	y2 = ec->buf_PH[p];
+
+	/* update W1 */
 
 	if (ec->coeffs_adapt) {
 
-	    /* update W1 */
+	    if (y2 > (32 * 32)) {
 
-	    if (y3 > (64 * 64)) {
+	        y1 /= y2;
 
-	        y2 /= y3;
-
-		if (y2) {
+		if (y1) {
 		    for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
-		        ec->buf_W1[n] += y2 * ec->buf_XH[p][ec->offset_x + n];
+		        ec->buf_W[0][n] += y1 * ec->buf_XH[p][ec->offset_rd + n];
 		    }
 		}
 	    }
@@ -370,39 +504,22 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t x0, int16_t y0)
 
     if (ec->offset_x == 0) {
 
-        ec->offset_x = (I4B_ECHO_CANCEL_N_TAPS-1);
+        ec->offset_x = (I4B_ECHO_CANCEL_K_TAPS-1);
 
-	bcopy(ec->buf_X0 + (1*I4B_ECHO_CANCEL_N_TAPS),
-	      ec->buf_X0 + (2*I4B_ECHO_CANCEL_N_TAPS),
-	      sizeof(ec->buf_X0[0]) * I4B_ECHO_CANCEL_N_TAPS);
-
-        bcopy(ec->buf_X0,
-	      ec->buf_X0 + I4B_ECHO_CANCEL_N_TAPS,
-	      sizeof(ec->buf_X0[0]) * I4B_ECHO_CANCEL_N_TAPS);
-
-        bcopy(ec->buf_E0,
-	      ec->buf_E0 + I4B_ECHO_CANCEL_N_TAPS,
-	      sizeof(ec->buf_E0[0]) * I4B_ECHO_CANCEL_N_TAPS);
-
-	for (p = 0; p < I4B_ECHO_CANCEL_N_SUB; p++) {
-
-	    bcopy(ec->buf_XH[p],
-		  ec->buf_XH[p] + I4B_ECHO_CANCEL_N_TAPS,
-		  sizeof(ec->buf_XH[0][0]) * I4B_ECHO_CANCEL_N_TAPS);
-	}
+	bcopy(ec->buf_E0,
+	      ec->buf_E0 + I4B_ECHO_CANCEL_K_TAPS,
+	      sizeof(ec->buf_E0[0]) * I4B_ECHO_CANCEL_K_TAPS);
 
     } else {
         ec->offset_x --;
     }
 
-    y1 = i4b_echo_cancel_clamp(y1);
-
     /*
      * Add a little comfort noise
      */
-    y1 += i4b_echo_cancel_noise(ec) / (1<<21);
+    y0 += (i4b_echo_cancel_noise(ec) / (1<<21));
 
-    return y1;
+    return y0;
 }
 
 /*---------------------------------------------------------------------------*
@@ -445,17 +562,17 @@ i4b_echo_cancel_quick_train(struct i4b_echo_cancel *ec, u_int16_t max_x)
 	factor *= I4B_ECHO_CANCEL_W_DP;
 	factor /= pa;
 
-	ec->buf_W1[max_x] += factor;
+	ec->buf_W[0][max_x] += factor;
 
 	I4B_DBG(1, L1_EC_MSG, "forcing max = %d / 65536",
-		ec->buf_W1[max_x] / 
+		ec->buf_W[0][max_x] / 
 		(I4B_ECHO_CANCEL_W_DP / (1<<16)));
 
 	/* zero all the other coefficients */
 
 	for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
 	    if (n != max_x) {
-	        ec->buf_W1[n] = 0;
+	        ec->buf_W[0][n] = 0;
 	    }
 	}
 
@@ -478,7 +595,7 @@ i4b_echo_cancel_quick_train(struct i4b_echo_cancel *ec, u_int16_t max_x)
  *---------------------------------------------------------------------------*/
 static __inline int16_t
 i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec, 
-		    int16_t x, int16_t y, int16_t z)
+		    int16_t y, int16_t z)
 {
     const u_int32_t max = 256; /* this constant can be tuned */
     const u_int32_t diff_level = 64 * 64; /* this constant can be tuned */
@@ -490,6 +607,9 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
     struct ec_stats stats;
 
     int16_t dx;
+    int16_t x;
+
+    x = ec->buf_X0[ec->offset_rd];
 
     ec->cur_power_tx += (x * x) / max;
     ec->cur_power_rx0 += (y * y) / max; /* after echo cancel */
@@ -497,6 +617,8 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
     ec->cur_power_count ++;
 
     if (ec->cur_power_count >= max) {
+
+        i4b_echo_cancel_offset_adjust(ec);
 
         ec->rx_speaking = ((ec->cur_power_rx0 > min_level) &&
 			   (ec->cur_power_rx0 > 
@@ -513,7 +635,7 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 	ec->coeffs_adapt = (ec->tx_speaking && 
 			    (!(ec->rx_speaking)));
 
-	stats = i4b_echo_cancel_stats(ec->buf_W1);
+	stats = i4b_echo_cancel_stats(ec->buf_W[0]);
 
 	/* check adapt boolean */
 
@@ -530,21 +652,16 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 
 	/* check for stable "max_x" */
 
+	if (ec->max_coeff_set == 0) {
+	    ec->max_coeff_set = 1;
+	    ec->coeffs_last_max_x = stats.max_x;
+	}
+
 	dx = stats.max_x - ec->coeffs_last_max_x;
 
-	if ((dx >= 3) || (dx <= -3)) {
+	if ((dx >= 4) || (dx <= -4)) {
 
-	    /* coeffs are bad, reset echo canceller */
-
-	    I4B_DBG(1, L1_EC_MSG, "resetting EC");
-
-	    bzero(ec->buf_W0, sizeof(ec->buf_W0));
-	    bzero(ec->buf_W1, sizeof(ec->buf_W1));
-	    bzero(ec->buf_WA, sizeof(ec->buf_WA));
-
-	    ec->stable_count = 0;
-	    ec->max_trained = 0;
-	    ec->coeffs_last_max_x = stats.max_x;
+	    i4b_echo_cancel_reset_adjust(ec);
 
 	} else {
 
@@ -559,44 +676,35 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 		     */
 		    I4B_DBG(1, L1_EC_MSG, "reverting bad current coeffs!");
 
-		    bcopy(ec->buf_W0,
-			  ec->buf_W1, sizeof(ec->buf_W1));
+		    bcopy(ec->buf_W[2],
+			  ec->buf_W[0], sizeof(ec->buf_W[0]));
+
+		    ec->coeffs_last_valid = 0;
 		} else {
+
+		    if (ec->coeffs_last_valid) {
+		        bcopy(ec->buf_W[1],
+			      ec->buf_W[2], sizeof(ec->buf_W[2]));
+		    }
+
+		    ec->coeffs_last_valid = 1;
+
+		    bcopy(ec->buf_W[0],
+			  ec->buf_W[1], sizeof(ec->buf_W[1]));
 
 		    if (ec->stable_count < 8) {
 		        ec->stable_count ++;
 		    } else {
 		        i4b_echo_cancel_quick_train(ec, stats.max_x);
 		    }
-
-		    bcopy(ec->buf_W1,
-			  ec->buf_W0, sizeof(ec->buf_W0));
-
-		    bcopy(ec->buf_W1,
-			  ec->buf_WA[ec->adapt_index], sizeof(ec->buf_WA[0]));
-
-		    /* update adapt index */
-
-		    ec->adapt_index ++;
-		    ec->adapt_index %= I4B_ECHO_CANCEL_ADAPT_HIST;
 		}
+
 	    } else {
 
-	        u_int8_t n;
+	        ec->coeffs_last_valid = 0;
 
-		for (n = 0; n < I4B_ECHO_CANCEL_ADAPT_HIST; n++) {
-		    if (n != ec->adapt_index) {
-		        bcopy(ec->buf_WA[ec->adapt_index],
-			      ec->buf_WA[n],
-			      sizeof(ec->buf_WA[0]));
-		    }
-		}
-
-		bcopy(ec->buf_WA[ec->adapt_index],
-		      ec->buf_W1, sizeof(ec->buf_W1));
-
-		bcopy(ec->buf_WA[ec->adapt_index],
-		      ec->buf_W0, sizeof(ec->buf_W0));
+	        bcopy(ec->buf_W[2],
+		      ec->buf_W[0], sizeof(ec->buf_W[0]));
 	    }
 	}
 
@@ -618,9 +726,11 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 	ec->cur_power_rx1 = 0;
     }
 
+#if 0
     if (!(ec->max_trained)) {
         y = z;
     }
+#endif
 
 #if 1
     if (ec->tx_speaking && 
@@ -658,8 +768,19 @@ void
 i4b_echo_cancel_feed(struct i4b_echo_cancel *ec, 
 		     u_int8_t *ptr, u_int16_t len)
 {
-    if(len) {
-        ec->last_byte = ptr[len-1];
+#if (I4B_ECHO_CANCEL_N_SUB != 0x3)
+#error "Please update i4b_echo_cancel_feed()!"
+#endif
+
+    const int16_t *convert_fwd = 
+      ((ec->is_ulaw) ? i4b_ulaw_to_signed : i4b_alaw_to_signed);
+
+    int16_t lp_1kHz;
+    int16_t lp_2kHz;
+    int16_t temp;
+
+    if (len) {
+	ec->last_byte = ptr[len-1];
     }
 
     /* extra range check, just in case */
@@ -670,21 +791,62 @@ i4b_echo_cancel_feed(struct i4b_echo_cancel *ec,
 
     while(len) {
 
-        ec->buffer_y[ec->offset_wr] = *ptr;
+        temp = convert_fwd[*ptr];
+
+	/* high pass sound to remove DC */
+
+	temp = i4b_echo_cancel_hp_f1(ec, temp);
+
+	/* store sample */
+
+        ec->buf_X0[ec->offset_wr] = temp;
+
+	/* compute X-sub-band */
+
+	lp_1kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product
+		(ec->buf_X0 + ec->offset_wr, buf_H[0], I4B_ECHO_CANCEL_K_TAPS));
+
+	/* compute X-sub-band */
+
+	lp_2kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product
+		(ec->buf_X0 + ec->offset_wr, buf_H[1], I4B_ECHO_CANCEL_K_TAPS));
+
+	/* compute X-sub-band */
+
+	temp = ec->buf_X0[ec->offset_wr + (I4B_ECHO_CANCEL_K_TAPS/2)];
+
+	/* store X-sub-bands */
+
+	ec->buf_XH[0][ec->offset_wr] = lp_1kHz; /* low-pass filter */
+	ec->buf_XH[1][ec->offset_wr] = lp_2kHz - lp_1kHz; /* band-pass filter */
+	ec->buf_XH[2][ec->offset_wr] = temp - lp_2kHz; /* high-pass filter */
 
 	if (ec->offset_wr == 0) {
 
 	    /* update input offset */
 
             ec->offset_wr = (I4B_ECHO_CANCEL_F_SIZE-1);
-	    bcopy(ec->buffer_y, ec->buffer_y + I4B_ECHO_CANCEL_F_SIZE,
-		  I4B_ECHO_CANCEL_F_SIZE * sizeof(ec->buffer_y[0]));
+
+	    /* move data to new location */
+
+	    bcopy(ec->buf_X0, ec->buf_X0 + I4B_ECHO_CANCEL_F_SIZE,
+		  I4B_ECHO_CANCEL_F_SIZE * sizeof(ec->buf_X0[0]));
+
+	    bcopy(ec->buf_XH[0], ec->buf_XH[0] + I4B_ECHO_CANCEL_F_SIZE,
+		  I4B_ECHO_CANCEL_F_SIZE * sizeof(ec->buf_XH[0][0]));
+
+	    bcopy(ec->buf_XH[1], ec->buf_XH[1] + I4B_ECHO_CANCEL_F_SIZE,
+		  I4B_ECHO_CANCEL_F_SIZE * sizeof(ec->buf_XH[0][0]));
+
+	    bcopy(ec->buf_XH[2], ec->buf_XH[2] + I4B_ECHO_CANCEL_F_SIZE,
+		  I4B_ECHO_CANCEL_F_SIZE * sizeof(ec->buf_XH[0][0]));
 
 	    /* update output offset */
 
 	    ec->offset_rd += I4B_ECHO_CANCEL_F_SIZE;
-	    if (ec->offset_rd > ((2*I4B_ECHO_CANCEL_F_SIZE)-1)) {
-	        ec->offset_rd = ((2*I4B_ECHO_CANCEL_F_SIZE)-1);
+
+	    if (ec->offset_rd > (I4B_ECHO_CANCEL_R_MAX-1)) {
+	        ec->offset_rd = (I4B_ECHO_CANCEL_R_MAX-1);
 	    }
 
 	} else {
@@ -716,8 +878,8 @@ i4b_echo_cancel_update_merger(struct i4b_echo_cancel *ec,
 
     d_time = (ec->tx_time - ec->rx_time) + ec->pre_delay;
 
-    if (d_time > (I4B_ECHO_CANCEL_F_SIZE-1)) {
-        d_time = (I4B_ECHO_CANCEL_F_SIZE-1);
+    if (d_time > (I4B_ECHO_CANCEL_T_MAX-1)) {
+        d_time = (I4B_ECHO_CANCEL_T_MAX-1);
     }
 
     /* extra range checks, just in case */
@@ -726,8 +888,8 @@ i4b_echo_cancel_update_merger(struct i4b_echo_cancel *ec,
         ec->offset_wr = (I4B_ECHO_CANCEL_F_SIZE-1);
     }
 
-    if (ec->offset_rd > ((2*I4B_ECHO_CANCEL_F_SIZE)-1)) {
-        ec->offset_rd = ((2*I4B_ECHO_CANCEL_F_SIZE)-1);
+    if (ec->offset_rd > (I4B_ECHO_CANCEL_R_MAX-1)) {
+        ec->offset_rd = (I4B_ECHO_CANCEL_R_MAX-1);
     }
 
     if (ec->offset_rd < ec->offset_wr) {
@@ -749,7 +911,7 @@ i4b_echo_cancel_update_merger(struct i4b_echo_cancel *ec,
 
 	/* adjust */
 
-	ec->offset_rd = d_time + ec->offset_wr;
+	ec->offset_adjust = d_time - d_len;
     }
     return;
 }
@@ -765,10 +927,8 @@ void
 i4b_echo_cancel_merge(struct i4b_echo_cancel *ec, 
 		      u_int8_t *read_ptr, u_int16_t read_len)
 {
-    u_int8_t once = 0;
-      int16_t sample_x; /* sample from speaker */
-      int16_t sample_y; /* sample from microphone */
-      int16_t sample_z; /* sample from microphone (copy) */
+    int16_t sample_y; /* sample from microphone */
+    int16_t sample_z; /* sample from microphone (copy) */
 
     const int16_t *convert_fwd = 
       ((ec->is_ulaw) ? i4b_ulaw_to_signed : i4b_alaw_to_signed);
@@ -778,30 +938,17 @@ i4b_echo_cancel_merge(struct i4b_echo_cancel *ec,
 
     while(read_len) {
 
-        if (ec->offset_rd <= ec->offset_wr) {
-	    sample_x = convert_fwd[ec->last_byte];
-
-	    if (once == 0) {
-	        once = 1;
-		I4B_DBG(1, L1_EC_MSG, "repeating last byte");
-	    }
-	} else {
-	    sample_x = convert_fwd[ec->buffer_y[ec->offset_rd]];
-	    ec->offset_rd--;
-	}
-
-	sample_y = convert_fwd[read_ptr[0]];
+	sample_y = convert_fwd[*read_ptr];
 
 	/* high pass sound to remove DC */
 
-	sample_x = i4b_echo_cancel_hp_f1(ec, sample_x);
 	sample_y = i4b_echo_cancel_hp_f2(ec, sample_y);
 	sample_z = sample_y;
 
 	/* filter */
 
-	sample_y = i4b_echo_cancel_lms(ec, sample_x, sample_y);
-	sample_y = i4b_echo_cancel_pwr(ec, sample_x, sample_y, sample_z);
+	sample_y = i4b_echo_cancel_lms(ec, sample_y);
+	sample_y = i4b_echo_cancel_pwr(ec, sample_y, sample_z);
 
 	/* update */
 
@@ -809,6 +956,15 @@ i4b_echo_cancel_merge(struct i4b_echo_cancel *ec,
 
         read_len--;
 	read_ptr++;
+
+	/* increment read pointer */
+
+        if (ec->offset_rd <= ec->offset_wr) {
+	    I4B_DBG(1, L1_EC_MSG, "repeating last byte");
+	    break;
+	} else {
+	    ec->offset_rd--;
+	}
     }
     return;
 }

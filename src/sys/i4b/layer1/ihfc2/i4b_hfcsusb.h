@@ -79,10 +79,10 @@
 
 #define HFCSUSB_FIFOSIZE	  128 /* bytes */
 
-#define HFCSUSB_RX_FRAMES          50 /* units (total) */
+#define HFCSUSB_RX_FRAMES          25 /* units (total) */
 #define HFCSUSB_RX_FRAMESIZE       12 /* bytes */
 
-#define HFCSUSB_TX_FRAMES          50 /* units (total) */
+#define HFCSUSB_TX_FRAMES          25 /* units (total) */
 #define HFCSUSB_TX_ADJUST           1 /* units */
 #define HFCSUSB_TX_FRAMESIZE       12 /* bytes */
 
@@ -386,7 +386,7 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t  *sc = xfer->priv_sc;
 	ihfc_fifo_t *f = xfer->priv_fifo;
-#define FRAME_NUMBER  0x20 /*frames*/
+#define FRAME_NUMBER    25 /* frames */
 #define FRAME_SIZE    0x08 /*bytes*/
 
 	/* get pointers to store frame lengths */
@@ -404,6 +404,10 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 
 	USBD_CHECK_STATUS(xfer);
 
+ tr_error:
+	if (xfer->error == USBD_CANCELLED) {
+		return;
+	}
  tr_transferred:
  tr_setup:
 
@@ -548,11 +552,6 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 	  *(tmp) = control_byte; /**/
 	}
 
- tr_error:
-	/* [re-]transfer ``xfer->buffer''
-	 *
-	 * Reuse xfer->buffer
-	 */
 	xfer->nframes = FRAME_NUMBER;
 
 	usbd_start_hardware(xfer);
@@ -636,6 +635,9 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	ihfc_sc_t  *sc = xfer->priv_sc;
 	ihfc_fifo_t *f = xfer->priv_fifo;
 
+	uint16_t
+	  Z_chip_written;
+
 	u_int8_t 
 	  *d1_start, *d1_end, *tmp, fifo_level,
 	  average = 8; /* default */
@@ -654,11 +656,18 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 
 	USBD_CHECK_STATUS(xfer);
 
+ tr_error:
+	if (xfer->error == USBD_CANCELLED) {
+		return;
+	}
  tr_setup:
  tr_transferred:
 
 	/* get FIFO fill level (cleared elsewhere) */
 	fifo_level = sc->sc_config.fifo_level & (1 << (f->s_fifo_sel));
+
+	/* increase frame counter */
+	f->F_drvr++;
 
 	/* setup Z_chip */
 	if(FIFO_CMP(f,<,(b1t & b1r)))
@@ -666,15 +675,12 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	  /* D-channel 2 Kbyte/sec */
 	  f->Z_chip = (2*HFCSUSB_TX_FRAMES);    /* length of data */
 
-	  /* increase frame counter */
-	  f->F_drvr++;
-
 	  /* only one of four callbacks
 	   * should send out +/- 4 bytes
 	   */
 	  if(f->F_drvr & 3)
 	  {
-	    frlengths_adj -= 8; /* XXX temporary */
+	    frlengths_adj = frlengths-1;
 	    goto no_adjust;
 	  }
 	}
@@ -682,6 +688,14 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	{
 	  /* B-channel 8 Kbyte/sec */
 	  f->Z_chip = (8*HFCSUSB_TX_FRAMES);    /* length of data */
+
+	  /* only one of two callbacks
+	   * should send out +/- 1 byte
+	   */
+	  if (f->F_drvr & 1) {
+	      frlengths_adj = frlengths-1;
+	      goto no_adjust;
+	  }
 	}
 
 	/*
@@ -706,6 +720,7 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	}
 
  no_adjust:
+	Z_chip_written = f->Z_chip;
 
 	/* get start of 2nd buffer */
 	d1_start = xfer->buffer;
@@ -723,14 +738,6 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	/* update ``d1_end'' */
 	d1_end = f->Z_ptr;
 
-#if 0
-	/* regularly update the last byte */
-	if(f->Z_chip != 0)
-	{
-	  /* f->Z_chip--; */
-	  *d1_end++ = f->last_byte;
-	}
-#else
 	/*
 	 * fill unused FIFO space
 	 * with the last byte:
@@ -741,7 +748,6 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 		 f->Z_chip);
 
 	d1_end += f->Z_chip;
-#endif
 
 	/* it is not possible to write
 	 * any data to the fifo outside
@@ -771,13 +777,10 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 #endif
 	  /* increase adjustment to +/- 4 bytes
 	   * [after expansion].
-	   *
-	   * In the case of no adjustment,
-	   * ``F_USAGE(reg=0x1A)'' will be
-	   * +3 units off the actual value.
 	   */
-	  frlengths_adj -= (1*HFCSUSB_TX_ADJUST);
-	  frlengths_adj += (4*HFCSUSB_TX_ADJUST);
+	  if (frlengths_adj >= frlengths) {
+	      frlengths_adj = frlengths + (4*HFCSUSB_TX_ADJUST);
+	  }
 
 	  /* 0                    1                    2
 	   * |----------- d1_start|--------------------|
@@ -867,19 +870,21 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	  }
 	}
 
- tr_error:
-	/* [re-]transfer ``xfer->buffer''
-	 *
-	 * Reuse xfer->buffer, but
-	 * update xfer->nframes,
-	 * because D-HDLC does 
-	 * not use same number
-	 * of frames!
-	 */
 	xfer->nframes = HFCSUSB_TX_FRAMES; 
 
 	usbd_start_hardware(xfer);
 
+	/* the completion-time of the last transfer
+	 * gives you the start time of the next
+	 * transfer!
+	 */
+	f->Z_read_time = (xfer->isoc_time_complete * 8);
+	f->Z_chip_written = 16; /* Approximation on the number
+				 * of bytes left in the FIFO
+				 * at "Z_read_time". This number
+				 * should be less than the FIFO
+				 * threshold value.
+				 */
  done:
 	return;
 }
@@ -900,7 +905,17 @@ hfcsusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 
 	USBD_CHECK_STATUS(xfer);
 
+ tr_error:
+	if (xfer->error == USBD_CANCELLED) {
+		return;
+	}
+	goto tr_setup;
+
  tr_transferred:
+
+	/* store "Z_read_time", which is used by echo-cancelling */
+
+	f->Z_read_time = (xfer->isoc_time_complete * 8);
 
 	/* get start of 1st buffer */
 	tmp = xfer->buffer;
@@ -1055,12 +1070,6 @@ hfcsusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 	/* restore frlengths */
 	frlengths -= HFCSUSB_RX_FRAMES;
 
- tr_error:
-	/* [re-]transfer ``xfer->buffer''
-	 *
-	 * Reuse xfer->buffer and
-	 * xfer->nframes
-	 */
 	usbd_start_hardware(xfer);
 	return;
 }
@@ -1429,6 +1438,7 @@ I4B_DBASE(hfcsusb_dbase_root)
 
   I4B_DBASE_ADD(o_PORTABLE              , 1); /* enable */
   I4B_DBASE_ADD(o_TRANSPARENT_BYTE_REPETITION, 1); /* enable */
+  I4B_DBASE_ADD(o_ECHO_CANCEL_ENABLED, 1); /* enable */
 
   I4B_DBASE_ADD(i4b_option_mask         , (I4B_OPTION_NT_MODE|
 					   I4B_OPTION_DLOWPRI));
