@@ -138,12 +138,13 @@ i4b_echo_cancel_init(struct i4b_echo_cancel *ec,
 {
     bzero(ec, sizeof(*ec));
 
+    ec->last_byte = 0xFF;
+
     ec->adapt_count = I4B_ECHO_CANCEL_ADAPT_COUNT;
 
     ec->noise_rem = 1;
 
     ec->pre_delay = pre_delay;
-    ec->last_byte = 0xFF;
 
     ec->is_ulaw = (sub_bprot != BSUBPROT_G711_ALAW);
 
@@ -489,7 +490,7 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t y0)
 
 	if (ec->coeffs_adapt) {
 
-	    if (y2 > (32 * 32)) {
+	    if (y2 > (64 * 64)) {
 
 	        y1 /= y2;
 
@@ -535,7 +536,7 @@ i4b_echo_cancel_quick_train(struct i4b_echo_cancel *ec, u_int16_t max_x)
 
     u_int16_t n;
 
-    if (ec->stable_count > 12) {
+    if (ec->stable_count > 10) {
         return;
     }
 

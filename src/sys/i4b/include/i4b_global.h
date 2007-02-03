@@ -872,7 +872,7 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 #define I4B_ECHO_CANCEL_W_DP (I4B_ECHO_CANCEL_N_TAPS * \
 			      I4B_ECHO_CANCEL_STEP * \
 			      I4B_ECHO_CANCEL_X_DP * 64)
-#define I4B_ECHO_CANCEL_ADAPT_COUNT     8000  /* samples */
+#define I4B_ECHO_CANCEL_ADAPT_COUNT     4000  /* samples */
 #define I4B_ECHO_CANCEL_ADAPT_HIST         2  /* units */
 
 #if (I4B_ECHO_CANCEL_K_TAPS > I4B_ECHO_CANCEL_N_TAPS)
