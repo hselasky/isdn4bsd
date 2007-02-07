@@ -45,88 +45,55 @@ struct ec_stats {
     int16_t max_x;
 };
 
-#if (I4B_ECHO_CANCEL_N_SUB != 0x3)
-#error "Please update code!"
+static int32_t
+i4b_echo_cancel_inner_product_H0(register const int16_t *p_x)
+{
+#if (I4B_ECHO_CANCEL_X_DP != 0x8000)
+#error "Please regenerate this code!"
 #endif
-
 #if (I4B_ECHO_CANCEL_K_TAPS != 0x20)
-#error "Please update code!"
+#error "Please regenerate this code!"
 #endif
+    /* 1kHz low-pass filter */
+    register int32_t temp = 0;
+    temp += ((p_x[1] + p_x[31]) * -491);
+    temp += ((p_x[2] + p_x[30]) * -745);
+    temp += ((p_x[3] + p_x[29]) * -567);
+    temp += ((p_x[5] + p_x[27]) * 670);
+    temp += ((p_x[6] + p_x[26]) * 1043);
+    temp += ((p_x[7] + p_x[25]) * 819);
+    temp += ((p_x[9] + p_x[23]) * -1053);
+    temp += ((p_x[10] + p_x[22]) * -1738);
+    temp += ((p_x[11] + p_x[21]) * -1475);
+    temp += ((p_x[13] + p_x[19]) * 2458);
+    temp += ((p_x[14] + p_x[18]) * 5215);
+    temp += ((p_x[15] + p_x[17]) * 7375);
+    temp += ((p_x[16]) * 8192);
+    return temp;
+}
 
-#if (I4B_ECHO_CANCEL_W_DP != 0x20000000)
-#error "Please update code!"
+static int32_t
+i4b_echo_cancel_inner_product_H1(register const int16_t *p_x)
+{
+#if (I4B_ECHO_CANCEL_X_DP != 0x8000)
+#error "Please regenerate this code!"
 #endif
-
-static const int32_t buf_H[2][32] = {
-  { /* 1kHz low-pass filter */
-             0,
-      -8055894,
-     -12206523,
-      -9295262,
-             0,
-      10985310,
-      17089132,
-      13426490,
-             0,
-     -17262630,
-     -28481886,
-     -24167682,
-             0,
-      40279472,
-      85445656,
-     120838408,
-     134217728,
-     120838408,
-      85445656,
-      40279472,
-             0,
-     -24167682,
-     -28481886,
-     -17262630,
-             0,
-      13426490,
-      17089132,
-      10985310,
-             0,
-      -9295262,
-     -12206523,
-      -8055894,
-  },
-  { /* 2kHz low-pass filter */
-             0,
-     -11392755,
-             0,
-      13145486,
-             0,
-     -15535574,
-             0,
-      18987924,
-             0,
-     -24413046,
-             0,
-      34178264,
-             0,
-     -56963772,
-             0,
-     170891312,
-     268435456,
-     170891312,
-             0,
-     -56963772,
-             0,
-      34178264,
-             0,
-     -24413046,
-             0,
-      18987924,
-             0,
-     -15535574,
-             0,
-      13145486,
-             0,
-     -11392755,
-  },
-};
+#if (I4B_ECHO_CANCEL_K_TAPS != 0x20)
+#error "Please regenerate this code!"
+#endif
+    /* 2kHz low-pass filter */
+    register int32_t temp = 0;
+    temp += ((p_x[1] + p_x[31]) * -695);
+    temp += ((p_x[3] + p_x[29]) * 802);
+    temp += ((p_x[5] + p_x[27]) * -948);
+    temp += ((p_x[7] + p_x[25]) * 1158);
+    temp += ((p_x[9] + p_x[23]) * -1490);
+    temp += ((p_x[11] + p_x[21]) * 2086);
+    temp += ((p_x[13] + p_x[19]) * -3476);
+    temp += ((p_x[15] + p_x[17]) * 10430);
+    temp += ((p_x[16]) * 16384);
+    return temp;
+}
 
 /*---------------------------------------------------------------------------*
  * i4b_echo_cancel_init - initialize echo canceller
@@ -283,169 +250,24 @@ static int32_t
 i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c,
 			      u_int16_t n)
 {
-    int32_t   temp = 0;	
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
-    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                I4B_ECHO_CANCEL_X_DP));
-    ++p_x; 
-    ++p_c; 
-
+    int32_t temp = 0;
+    while(n--) {
+        temp += (p_x[n]) * ((p_c[n]) / (I4B_ECHO_CANCEL_W_DP /
+					I4B_ECHO_CANCEL_X_DP));
+    }
     return temp;
+}
+
+/*---------------------------------------------------------------------------*
+ * i4b_echo_cancel_add_product - add product
+ *---------------------------------------------------------------------------*/
+static void
+i4b_echo_cancel_add_product(int32_t *p_w, int16_t *p_x, int32_t y1, uint16_t n)
+{
+    while (n--) {
+        p_w[n] += y1 * p_x[n];
+    }
+    return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -581,7 +403,6 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t y0)
     int32_t y1;
     int32_t y2;
 
-    u_int16_t n;
     u_int16_t p;
 
     int16_t lp_1kHz;
@@ -603,13 +424,13 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t y0)
 
     /* compute E-sub-band */
 
-    lp_1kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product
-	    (ec->buf_E0 + ec->offset_x, buf_H[0], I4B_ECHO_CANCEL_K_TAPS));
+    lp_1kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product_H0
+	(ec->buf_E0 + ec->offset_x));
 
     /* compute E-sub-band */
 
-    lp_2kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product
-	    (ec->buf_E0 + ec->offset_x, buf_H[1], I4B_ECHO_CANCEL_K_TAPS));
+    lp_2kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product_H1
+	(ec->buf_E0 + ec->offset_x));
 
     /* compute E-sub-band */
 
@@ -650,9 +471,8 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t y0)
 	        y1 /= y2;
 
 		if (y1) {
-		    for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
-		        ec->buf_W[0][n] += y1 * ec->buf_XH[p][ec->offset_rd + n];
-		    }
+		    i4b_echo_cancel_add_product(ec->buf_W[0], ec->buf_XH[p] + 
+						ec->offset_rd, y1, I4B_ECHO_CANCEL_N_TAPS);
 		}
 	    }
 	}
@@ -959,13 +779,13 @@ i4b_echo_cancel_feed(struct i4b_echo_cancel *ec,
 
 	/* compute X-sub-band */
 
-	lp_1kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product
-		(ec->buf_X0 + ec->offset_wr, buf_H[0], I4B_ECHO_CANCEL_K_TAPS));
+	lp_1kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product_H0
+		(ec->buf_X0 + ec->offset_wr));
 
 	/* compute X-sub-band */
 
-	lp_2kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product
-		(ec->buf_X0 + ec->offset_wr, buf_H[1], I4B_ECHO_CANCEL_K_TAPS));
+	lp_2kHz = i4b_echo_cancel_clamp(i4b_echo_cancel_inner_product_H1
+		(ec->buf_X0 + ec->offset_wr));
 
 	/* compute X-sub-band */
 
