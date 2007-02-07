@@ -285,49 +285,166 @@ i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c,
 {
     int32_t   temp = 0;	
 
-    while(n>7) {
-        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                    I4B_ECHO_CANCEL_X_DP));
-        ++p_x; 
-        ++p_c; 
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
 
-        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                    I4B_ECHO_CANCEL_X_DP));
-        ++p_x; 
-        ++p_c; 
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
 
-        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                    I4B_ECHO_CANCEL_X_DP));
-        ++p_x; 
-        ++p_c; 
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
 
-        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                    I4B_ECHO_CANCEL_X_DP));
-        ++p_x; 
-        ++p_c; 
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
 
-        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                    I4B_ECHO_CANCEL_X_DP));
-        ++p_x; 
-        ++p_c; 
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
 
-        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                    I4B_ECHO_CANCEL_X_DP));
-        ++p_x; 
-        ++p_c; 
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
 
-        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                    I4B_ECHO_CANCEL_X_DP));
-        ++p_x; 
-        ++p_c; 
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
 
-        temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
-                                    I4B_ECHO_CANCEL_X_DP));
-        ++p_x; 
-        ++p_c; 
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
 
-        n-=8;                  /* we computed 8 times */
-    }
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
+    temp += (*p_x) * ((*p_c) / (I4B_ECHO_CANCEL_W_DP /
+                                I4B_ECHO_CANCEL_X_DP));
+    ++p_x; 
+    ++p_c; 
+
     return temp;
 }
 
