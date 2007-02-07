@@ -247,25 +247,63 @@ i4b_echo_cancel_clamp(int32_t val)
  * i4b_echo_cancel_inner_product - compute inner-product
  *---------------------------------------------------------------------------*/
 static int32_t
-i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c,
-			      u_int16_t n)
+i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c, uint16_t n)
 {
-    int32_t temp = 0;
-    while(n--) {
-        temp += (p_x[n]) * ((p_c[n]) / (I4B_ECHO_CANCEL_W_DP /
-					I4B_ECHO_CANCEL_X_DP));
+    int64_t temp = 0;
+    while (n >= 16) {
+        temp += p_x[0] * p_c[0];
+        temp += p_x[1] * p_c[1];
+        temp += p_x[2] * p_c[2];
+        temp += p_x[3] * p_c[3];
+        temp += p_x[4] * p_c[4];
+        temp += p_x[5] * p_c[5];
+        temp += p_x[6] * p_c[6];
+        temp += p_x[7] * p_c[7];
+        temp += p_x[8] * p_c[8];
+        temp += p_x[9] * p_c[9];
+        temp += p_x[10] * p_c[10];
+        temp += p_x[11] * p_c[11];
+        temp += p_x[12] * p_c[12];
+        temp += p_x[13] * p_c[13];
+        temp += p_x[14] * p_c[14];
+        temp += p_x[15] * p_c[15];
+
+	p_c += 16;
+	p_x += 16;
+	n -= 16;
     }
-    return temp;
+    return (temp / (I4B_ECHO_CANCEL_W_DP /
+		    I4B_ECHO_CANCEL_X_DP));
 }
 
 /*---------------------------------------------------------------------------*
  * i4b_echo_cancel_add_product - add product
  *---------------------------------------------------------------------------*/
 static void
-i4b_echo_cancel_add_product(int32_t *p_w, int16_t *p_x, int32_t y1, uint16_t n)
+i4b_echo_cancel_add_product(int32_t *p_w, const int16_t *p_x, const int32_t y1,
+			    uint16_t n)
 {
-    while (n--) {
-        p_w[n] += y1 * p_x[n];
+    while (n >= 16) {
+	p_w[0] += y1 * p_x[0];
+	p_w[1] += y1 * p_x[1];
+	p_w[2] += y1 * p_x[2];
+	p_w[3] += y1 * p_x[3];
+	p_w[4] += y1 * p_x[4];
+	p_w[5] += y1 * p_x[5];
+	p_w[6] += y1 * p_x[6];
+	p_w[7] += y1 * p_x[7];
+	p_w[8] += y1 * p_x[8];
+	p_w[9] += y1 * p_x[9];
+	p_w[10] += y1 * p_x[10];
+	p_w[11] += y1 * p_x[11];
+	p_w[12] += y1 * p_x[12];
+	p_w[13] += y1 * p_x[13];
+	p_w[14] += y1 * p_x[14];
+	p_w[15] += y1 * p_x[15];
+
+	p_w += 16;
+	p_x += 16;
+	n -= 16;
     }
     return;
 }
