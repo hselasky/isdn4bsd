@@ -58,6 +58,8 @@
 # include <net/if.h>
 
 # ifdef IHFC_USB_ENABLED
+#  define usbd_config_td_cc ihfc_config_copy
+#  define usbd_config_td_softc ihfc_sc
 #  include <dev/usb/usb_port.h>
 #  include <dev/usb/usb.h>
 #  include <dev/usb/usb_subr.h>
@@ -977,8 +979,9 @@ struct sc_default {
 
   void (*c_chip_write) CHIP_WRITE_T(,,, ) ;
 
-# define      CONFIG_WRITE_RELOAD ((ihfc_fifo_t *)0)
-# define      CONFIG_WRITE_UPDATE ((ihfc_fifo_t *)1)
+# define IHFC_CONFIG_WRITE_RELOAD ((ihfc_fifo_t *)0)
+# define IHFC_CONFIG_WRITE_UPDATE ((ihfc_fifo_t *)1)
+
 # define CHIP_CONFIG_WRITE_T(sc,f)		\
         (struct ihfc_sc		*sc,		\
 	 struct sc_fifo          *f)
@@ -1336,24 +1339,6 @@ struct sc_config {
         m(s_fifo_en,            ,NO ,NO )       \
        /*(                      ,NO ,NO )*      \
         *(                      ,NO ,NO )*      \
-        *( hfc (s2m PCI)        ,NO ,NO )*      \
-        *(                      ,NO ,NO )*      \
-        *(                      ,NO ,NO )*/     \
-        m(s_int_ctl,            ,NO ,NO )       \
-        m(s_x_acc_en,           ,NO ,NO )       \
-        m(s_mst_mode0,          ,NO ,NO )       \
-        m(s_mst_mode1,          ,NO ,NO )       \
-        m(s_receive0,           ,NO ,NO )       \
-        m(s_rec_frame,          ,NO ,NO )       \
-        m(s_transm0,            ,NO ,NO )       \
-        m(s_transm1,            ,NO ,NO )       \
-        m(s_trans_fra0,         ,NO ,NO )       \
-        m(s_trans_fra1,         ,NO ,NO )       \
-        m(s_trans_fra2,         ,NO ,NO )       \
-        m(s_receive_off,        ,NO ,NO )       \
-        m(s_trans_off,          ,NO ,NO )       \
-       /*(                      ,NO ,NO )*      \
-        *(                      ,NO ,NO )*      \
         *( tiger 300            ,NO ,NO )*      \
         *(                      ,NO ,NO )*      \
         *(                      ,NO ,NO )*/     \
@@ -1610,68 +1595,6 @@ struct sc_stack {
  *              S_CLKDEL_USB    = 0x37,                                      *
  *              S_CON_HDLC_USB  = 0xfa,                                      *
  *              S_HDLC_PAR_USB  = 0xfb,                                      *
- *                                                                           *
- *---------------+ HFC S2M PnP / PCI begins here +---------------------------*
- *                                                                           *
- *              S_CIRM_S2M      = 0x00,                                      *
- *              S_X_ACC_EN_S2M  = 0x01,                                      *
- *              S_FIF_Z1L_S2M   = 0x04,                                      *
- *              S_FIF_Z1H_S2M   = 0x05,                                      *
- *              S_FIF_Z2L_S2M   = 0x06,                                      *
- *              S_FIF_Z2H_S2M   = 0x07,                                      *
- *              S_RAM_ADR_0_S2M = 0x08,                                      *
- *              S_RAM_ADR_1_S2M = 0x09,                                      *
- *              S_RAM_ADR_2_S2M = 0x0a,                                      *
- *              S_F_INIT_S2M    = 0x0b,                                      *
- *              S_FIF_F1_S2M    = 0x0c,                                      *
- *              S_R_SIZE_S2M    = 0x0c,                                      *
- *              S_F_MODE_S2M    = 0x0d,                                      *
- *              S_FIF_F2_S2M    = 0x0d,                                      *
- *              S_INC_RES_F_S2M = 0x0e,                                      *
- *              S_FIFO_S2M      = 0x0f,                                      *
- *              S_SLOT_S2M      = 0x10,                                      *
- *              S_INT_OVIEW_S2M = 0x10,                                      *
- *              S_SLOT_MODE_S2M = 0x11,                                      *
- *              S_INT_CTRL_S2M  = 0x13,                                      *
- *              S_MST_MODE0_S2M = 0x14,                                      *
- *              S_MST_MODE1_S2M = 0x15,                                      *
- *              S_CHIP_ID_S2M   = 0x16,                                      *
- *              S_F0_CNT_L_S2M  = 0x18,                                      *
- *              S_CONF_EN_S2M   = 0x18,                                      *
- *              S_F0_CNT_H_S2M  = 0x19,                                      *
- *              S_STATUS_S2M    = 0x1c,                                      *
- *              S_STATES_S2M    = 0x20,                                      *
- *              S_LOS0_S2M      = 0x20,                                      *
- *              S_LOS1_S2M      = 0x23,                                      *
- *              S_RECEIVE0_S2M  = 0x24,                                      *
- *              S_SYNC_STAT_S2M = 0x24,                                      *
- *              S_REC_FRAME_S2M = 0x25,                                      *
- *              S_TRANSM0_S2M   = 0x28,                                      *
- *              S_TRANSM1_S2M   = 0x29,                                      *
- *              S_TRANS_FRA0_S2M = 0x2c,                                     *
- *              S_TRANS_FRA1_S2M = 0x2d,                                     *
- *              S_TRANS_FRA2_S2M = 0x2e,                                     *
- *              S_RECEIVE_OFF_S2M= 0x30,                                     *
- *              S_TRANSM_OFF_S2M = 0x34,                                     *
- *              S_FIF_DATA_1_S2M = 0x80,                                     *
- *              S_FIF_DATA_4_S2M = 0x83,                                     *
- *              S_RAM_DATA_S2M  = 0xc0,                                      *
- *              S_INT_FIF_0_S2M = 0xc8,                                      *
- *              S_INT_FIF_1_S2M = 0xc9,                                      *
- *              S_INT_FIF_2_S2M = 0xca,                                      *
- *              S_INT_FIF_3_S2M = 0xcb,                                      *
- *              S_INT_FIF_4_S2M = 0xcc,                                      *
- *              S_INT_FIF_5_S2M = 0xcd,                                      *
- *              S_INT_FIF_6_S2M = 0xce,                                      *
- *              S_INT_FIF_7_S2M = 0xcf,                                      *
- *              S_CONFER_S2M    = 0xd0,                                      *
- *              S_SLOT_DATA_S2M = 0xd0,                                      *
- *              S_CH_MASK_S2M   = 0xf4,                                      *
- *              S_CON_HDLC_S2M  = 0xfa,                                      *
- *              S_HDCL_PAR_S2M  = 0xfb,                                      *
- *              S_CHANNEL_S2M   = 0xfc,                                      *
- *              S_F_SEQ_S2M     = 0xfd,                                      *
- *              S_INT_MASK_S2M  = 0xff,                                      *
  *                                                                           *
  *---------------+ HFC 2BDS0 PCI begins here +-------------------------------*
  *                                                                           *
@@ -2527,6 +2450,15 @@ struct sc_state {
   struct fsm_state state;	/* last known state */
 };
 
+struct sc_reg_temp {
+  uint16_t reg;
+  uint16_t data;
+};
+
+struct ihfc_config_copy {
+
+};
+
 /*---------------------------------------------------------------------------*
  * : IHFC softc
  *---------------------------------------------------------------------------*/
@@ -2562,7 +2494,10 @@ struct ihfc_sc {
 	struct usbd_page	sc_hw_page;
 
 	struct sc_resources	sc_resources;
-
+	struct sc_reg_temp	sc_reg_temp;
+#ifdef IHFC_USB_ENABLED
+	struct usbd_config_td	sc_config_td;
+#endif
 	struct sc_config	sc_config;
 	struct sc_config	sc_config2;	/* shadow config */
 	struct sc_config_buffer sc_config_buffer; /* used by USB */

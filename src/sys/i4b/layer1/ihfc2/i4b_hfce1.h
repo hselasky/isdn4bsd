@@ -649,9 +649,9 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	u_int8_t temp;
 	u_int8_t cable;
 
-	if((f == CONFIG_WRITE_UPDATE) ||
-	   (f == CONFIG_WRITE_RELOAD))
-	{
+	if ((f == IHFC_CONFIG_WRITE_UPDATE) ||
+	    (f == IHFC_CONFIG_WRITE_RELOAD)) {
+
 	    /* enable interrupts:
 	     * - statemachine change
 	     * - timer elapsed
@@ -1142,12 +1142,6 @@ hfce1_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 	return program;
 }
 
-register_list_t
-hfce1_register_list [] =
-{
-	{ 0, 0 }
-};
-
 #if (IHFC_CHANNELS < 62)
 #error "HFC-E1 needs 62 channels, RX + TX"
 #endif
@@ -1178,7 +1172,6 @@ I4B_DBASE(hfce1_dbase_root)
   I4B_DBASE_ADD(c_fifo_inc_fx_pre    , &hfce1_fifo_inc_fx_pre);
   I4B_DBASE_ADD(c_fifo_frame_check   , &hfce1_fifo_frame_check);
 
-  I4B_DBASE_ADD(d_register_list      , &hfce1_register_list[0]);
   I4B_DBASE_ADD(d_channels           , 62);
   I4B_DBASE_ADD(d_L1_type            , L1_TYPE_ISDN_PRI);
 

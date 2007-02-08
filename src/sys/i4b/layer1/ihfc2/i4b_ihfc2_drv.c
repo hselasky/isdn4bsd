@@ -112,14 +112,49 @@ ihfc_fifos_active(ihfc_sc_t *sc)
 }
 
 /*---------------------------------------------------------------------------*
+ * : ihfc_config_write_sub
+ *---------------------------------------------------------------------------*/
+void
+ihfc_config_write_sub(ihfc_sc_t *sc, ihfc_fifo_t *f)
+{
+    register_list_t *r;
+
+    /*
+     * configure chip,
+     * write new configuration
+     */
+    REGISTER_FOREACH(r,sc->sc_default.d_register_list) {
+	u_int8_t *data  = &OFF2REG(sc->sc_config, r->offset);
+	u_int8_t *data2 = &OFF2REG(sc->sc_config2, r->offset);
+
+	if ((f == IHFC_CONFIG_WRITE_RELOAD) || (*data != *data2)) {
+		IHFC_MSG("0x%02x->%s (0x%02x).\n",
+			 *data, reg_get_desc(r->offset), r->regval);
+		/*
+		 * Write 8-bit register
+		 */
+
+		CHIP_WRITE_1(sc, r->regval, data);
+
+		/*
+		 * Update shadow config
+		 */
+
+		*data2 = *data;
+	}
+    }
+    return;
+}
+
+/*---------------------------------------------------------------------------*
  * : write config (sc_config)					(ALL CHIPS)
  *
  * Which register(s) that will be written to chip, depends on the
  * second parameter given to this function, called `f':
  *
  * `f == &sc->sc_fifo[...]'   :  All register(s) used in `struct sc_fifo' ***
- * `f == CONFIG_WRITE_RELOAD' :  All register(s) used in `struct sc_config'
- * `f == CONFIG_WRITE_UPDATE' :  Only changed register(s) ------ || ------
+ * `f == IHFC_CONFIG_WRITE_RELOAD' :  All register(s) used in `struct sc_config'
+ * `f == IHFC_CONFIG_WRITE_UPDATE' :  Only changed register(s) ------ || ------
  *
  *
  * *** NOTE: if `f == &sc->sc_fifo[...]' that means:
@@ -138,10 +173,8 @@ ihfc_config_write(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
   struct sc_config *c = &sc->sc_config;
 
-  if((f == CONFIG_WRITE_UPDATE) ||
-     (f == CONFIG_WRITE_RELOAD))
-  {
-	register_list_t *r;
+  if ((f == IHFC_CONFIG_WRITE_UPDATE) ||
+      (f == IHFC_CONFIG_WRITE_RELOAD)) {
 
 	/* Update interrupt delay for
 	 * ihfc_poll_interrupt
@@ -190,34 +223,6 @@ ihfc_config_write(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	  c->i_mask     |=  0x08; /* disable TIN */
 	  c->b_mask     |=  0x08; /* disable AUX */
 	  c->t_dma_oper &= ~0x01; /* disable DMA */
-	}
-
- 	/*
-	 * configure chip,
-	 * write new configuration
-	 */
-
-	REGISTER_FOREACH(r,sc->sc_default.d_register_list)
-	{
-	  u_int8_t *data  = &OFF2REG(sc->sc_config, r->offset);
-	  u_int8_t *data2 = &OFF2REG(sc->sc_config2, r->offset);
-
-	  if((f == CONFIG_WRITE_RELOAD) || (*data != *data2))
-	  {
-	    IHFC_MSG("0x%02x->%s (0x%02x).\n",
-		     *data, reg_get_desc(r->offset), r->regval);
-	    /*
-	     * Write 8-bit register
-	     */
-
-	    CHIP_WRITE_1(sc, r->regval, data);
-
-	    /*
-	     * Update shadow config
-	     */
-
-	    *data2 = *data;
-	  }
 	}
   }
   else
@@ -293,7 +298,7 @@ ihfc_reset(ihfc_sc_t *sc, u_int8_t *error)
 	sc->sc_fifo_select_last = (ihfc_fifo_t *)0;
 
 	/* reload configuration first */
-	ihfc_config_write(sc, CONFIG_WRITE_RELOAD);
+	ihfc_config_write(sc, IHFC_CONFIG_WRITE_RELOAD);
 
 	/*
 	 * ========
@@ -602,7 +607,7 @@ ihfc_fsm_update(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag)
 	 * Update timer
 	 */
 
-	ihfc_config_write(sc,CONFIG_WRITE_UPDATE);
+	ihfc_config_write(sc, IHFC_CONFIG_WRITE_UPDATE);
 	return;
 }
 
@@ -1413,11 +1418,7 @@ ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 	 * Setup timer with interval 64ms, 50ms, 25ms
 	 * or other interval and update changed registers
 	 */
-	ihfc_config_write(sc,CONFIG_WRITE_UPDATE);
-
-	/* clear reset bits */
-	c->w_cmdr1    &= ~0xC0;
-	c->w_cmdr2    &= ~0xCC;
+	ihfc_config_write(sc, IHFC_CONFIG_WRITE_UPDATE);
 
 	/* update last protocol */
 	f->prot_last = f->prot_curr;
@@ -1496,21 +1497,6 @@ static const struct sc_config ihfc_config_default =
 	.s_int_m2_pci      = 0x00 | 0x08, /* int. enable */
 	.s_fifo_en         = 0x00 | 0x00,
 
-	/* hfc (s2m) write only: */
-	.s_int_ctl         = 0x00 | 0x00,
-	.s_x_acc_en        = 0x00 | 0x00,
-	.s_mst_mode0       = 0x00 | 0x00,
-	.s_mst_mode1       = 0x00 | 0x00,
-	.s_receive0        = 0x00 | 0x00,
-	.s_rec_frame       = 0x00 | 0x00,
-	.s_transm0         = 0x00 | 0x00,
-	.s_transm1         = 0x00 | 0x00,
-	.s_trans_fra0      = 0x00 | 0x00,
-	.s_trans_fra1      = 0x00 | 0x00,
-	.s_trans_fra2      = 0x00 | 0x00,
-	.s_receive_off     = 0x00 | 0x00,
-	.s_trans_off       = 0x00 | 0x00,
-        
 	/* tiger write only: */
 	.t_dma_oper        = 0x00 | 0x00, /* DMA disabled */
 	.t_prct            = 0x00 | 0x20, /* DMA edge trigger + 12CLK I/O */
@@ -1962,7 +1948,7 @@ ihfc_unsetup_softc(register ihfc_sc_t *sc)
         c->w_b2_mode         &= ~0x40; /* 0xff as inter frame fill */
 
         /* write the config (flush all registers) */
-        ihfc_config_write(sc,CONFIG_WRITE_RELOAD);
+        ihfc_config_write(sc, IHFC_CONFIG_WRITE_RELOAD);
 
         IHFC_UNLOCK(sc);
 }

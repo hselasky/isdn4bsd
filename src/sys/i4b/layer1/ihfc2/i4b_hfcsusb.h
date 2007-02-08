@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2002-2003 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2002-2007 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,8 +34,6 @@
 #define _I4B_HFCSUSB_H_
 
 #include <i4b/layer1/ihfc2/i4b_hfc.h>
-#include <i4b/layer1/ihfc2/i4b_wibusb.h>
-#include <i4b/layer1/ihfc2/i4b_regdata.h>
 
 /*
  * MAXIMUM_TRANSMIT_DRIFT =
@@ -74,6 +72,11 @@
  * NOTE: D-channel transmit: Z_chip is
  * also used to store the FIFO-usage!
  *
+ * NOTE: All functions with name
+ * starting like "hfcsusb_cfg" can
+ * only be called from the config
+ * thread!
+ *
  * TODO: speedup F_USAGE reads?
  */
 
@@ -86,12 +89,13 @@
 #define HFCSUSB_TX_ADJUST           1 /* units */
 #define HFCSUSB_TX_FRAMESIZE       12 /* bytes */
 
+#define HFCSUSB_CONF_XFER_WRITE     0
+#define HFCSUSB_CONF_XFER_READ      1
 #define HFCSUSB_FIFO_XFER_START    (2)       /* offset (inclusive) */
 #define HFCSUSB_FIFO_XFER_DCHAN    (2)       /* offset (inclusive)
 					      * for D-channel transmit
 					      */
 #define HFCSUSB_FIFO_XFER_END      (2*(6+1)) /* offset (exclusive) */
-#define HFCSUSB_D1T_PRE_SELECT
 
 #if HFCSUSB_TX_FRAMESIZE != HFCSUSB_RX_FRAMESIZE
 #error "FRAMESIZES are not equal!"
@@ -108,14 +112,47 @@
 
 #define s_ldata aux_data_0
 #define hfcsusb_chip_status_check default_chip_status_check
-#define hfcsusb_chip_write regdata_usb_chip_write
-#define hfcsusb_chip_read regdata_usb_chip_read  /* BUFFERED! */
 #define hfcsusb_fsm_table hfc_fsm_table
 
-/* forward declaration(s) */
-
 static void
-hfcsusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f);
+hfcsusb_cfg_write_1(ihfc_sc_t *sc, uint8_t reg, uint8_t data)
+{
+	sc->sc_reg_temp.reg = reg;
+	sc->sc_reg_temp.data = data;
+
+        if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
+	    goto done;
+        }
+
+	IHFC_MSG("0x%02x->0x%02x\n", data, reg);
+
+	usbd_transfer_start(sc->sc_resources.usb_xfer[HFCSUSB_CONF_XFER_WRITE]);
+
+	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "write reg", 0)) {
+
+	}
+ done:
+	return;
+}
+
+static uint8_t
+hfcsusb_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
+{
+	sc->sc_reg_temp.reg = reg;
+	sc->sc_reg_temp.data = 0xff;
+
+        if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
+	    goto done;
+        }
+
+	usbd_transfer_start(sc->sc_resources.usb_xfer[HFCSUSB_CONF_XFER_READ]);
+
+	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "read reg", 0)) {
+
+	}
+ done:
+	return sc->sc_reg_temp.data;
+}
 
 /* driver */
 
@@ -123,9 +160,7 @@ static void
 hfcsusb_callback_chip_read USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t              *sc  = xfer->priv_sc;
-	ihfc_fifo_t             *f  = &sc->sc_fifo[d1t];
 	usb_device_request_t   *req = xfer->buffer;
-	struct regdata_usb     *buf = xfer->buffer;
 
 	USBD_CHECK_STATUS(xfer);
 
@@ -134,73 +169,11 @@ hfcsusb_callback_chip_read USBD_CALLBACK_T(xfer)
 	IHFC_MSG("ReadReg:0x%02x, Val:0x%02x\n",
 		 req->wIndex[0], req->bData[0]);
 
-	switch(req->wIndex[0]) {
-	case 0x30:
-	  /* check for statemachine change */
-	  if(sc->sc_config.s_states != req->bData[0])
-	  {
-		/* update s_states */
-		sc->sc_config.s_states = req->bData[0];
+	sc->sc_reg_temp.data = req->bData[0];
 
-		ihfc_fsm_update(sc,&sc->sc_fifo[0],0);
-	  }
-	  break;
-
-	case 0x0C:
-	  /* F1 - counter */
-	  f->F_drvr = req->bData[0];
-	  break;
-
-	case 0x0D:
-	  /* F2 - counter */
-	  if(f->F_drvr != req->bData[0])
-	  {
-		if(!PROT_IS_HDLC(&(f->prot_curr)))
-		{
-			IHFC_ERR("F1 != F2\n");
-
-			/* reset and re-configure FIFO */
-			hfcsusb_chip_config_write (sc,f);
-		}
-	  }
-	  break;
-
-	case 0x1A:
-	  /* check if callback is ready and
-	   * if F_USAGE is out of regdata-queue
-	   */
-	  if((f->Z_chip & 0x01) && !regdata_count(sc,REGDATA_XFER_READ,0x1A))
-	  {
-		/* update F_USAGE */
-		f->Z_chip = req->bData[0] & ~0x81;
-
-		/* re-start any stopped pipes,
-		 * hence the D-channel transmit
-		 * pipe is allowed to be stopped, to
-		 * reduce CPU usage:
-		 */
-		hfcsusb_chip_config_write (sc,CONFIG_WRITE_UPDATE);
-	  }
-	  /* else the current F_USAGE value
-	   * is outdated: wait for next
-	   * F_USAGE read
-	   */
-	  break;
-
-	case 0x1B:
-	  /* update F_FILL (FIFO-threshold-bits) */
-	  sc->sc_config.fifo_level = req->bData[0];
-	  break;
-
-	default:
-	  /* unknown */
-	  IHFC_ERR("Unknown reg=0x%02x; data=0x%02x\n",
-		   req->wIndex[0], req->bData[0]);
-	  break;
-	}
-
-	regdata_usb_update(sc);
-	goto done;
+ tr_error:
+	wakeup(&(sc->sc_reg_temp));
+	return;
 
  tr_setup:
 
@@ -209,7 +182,7 @@ hfcsusb_callback_chip_read USBD_CALLBACK_T(xfer)
 	req->bRequest      = 0x01; /* register read access HFC_REG_RD */
 	req->wValue[0]     = 0x00; /* data (low byte, ignored) */
 	req->wValue[1]     = 0x00; /* data (high byte, ignored) */
-	req->wIndex[0]     = buf->current_register; /* index (low byte) */
+	req->wIndex[0]     = sc->sc_reg_temp.reg; /* index (low byte) */
 	req->wIndex[1]     = 0x00; /* index (high byte, ignored) */
 	req->wLength[0]    = 0x01; /* length (0x0001 for read) */
 	req->wLength[1]    = 0x00; /* length (0x0001 for read) */
@@ -217,11 +190,8 @@ hfcsusb_callback_chip_read USBD_CALLBACK_T(xfer)
 	/* setup data length (including one data byte) */
 	xfer->length = sizeof(*req) + 1;
 
- tr_error:
-	/* [re-]transfer ``xfer->buffer'' */
 	usbd_start_hardware(xfer);
 
- done:
 	return;
 }
 
@@ -230,23 +200,21 @@ hfcsusb_callback_chip_write USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t             *sc  = xfer->priv_sc;
 	usb_device_request_t  *req = xfer->buffer;
-	struct regdata_usb    *buf = xfer->buffer;
 
 	USBD_CHECK_STATUS(xfer);
 
  tr_transferred:
-
-	regdata_usb_update(sc);
-	goto done;
+ tr_error:
+	wakeup(&(sc->sc_reg_temp));
+	return;
 
  tr_setup:
-
 	/* setup request (8-bytes) */
 	req->bmRequestType = 0x40; /* write data */
 	req->bRequest      = 0x00; /* register write access HFC_REG_WR */
-	req->wValue[0]     = buf->current_data; /* data (low byte) */
+	req->wValue[0]     = sc->sc_reg_temp.data; /* data (low byte) */
 	req->wValue[1]     = 0x00; /* data (high byte, ignored) */
-	req->wIndex[0]     = buf->current_register; /* index (low byte) */
+	req->wIndex[0]     = sc->sc_reg_temp.reg; /* index (low byte) */
 	req->wIndex[1]     = 0x00; /* index (high byte, ignored) */
 	req->wLength[0]    = 0x00; /* length (0x0000 for write) */
 	req->wLength[1]    = 0x00; /* length (0x0000 for write) */
@@ -254,11 +222,9 @@ hfcsusb_callback_chip_write USBD_CALLBACK_T(xfer)
 	/* setup data length */
 	xfer->length = sizeof(*req);
 
- tr_error:
 	/* [re-]transfer ``xfer->buffer'' */
 	usbd_start_hardware(xfer);
 
- done:
 	return;
 }
 
@@ -293,7 +259,8 @@ hfcsusb_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 }
 
 static void
-hfcsusb_chip_reset CHIP_RESET_T(sc,error)
+hfcsusb_cfg_reset(struct ihfc_sc *sc,
+		  struct ihfc_config_copy *cc, uint16_t refcount)
 {
 	/* CIRM_USB: AUX latch enable: data out is
 	 * valid until next AUX write
@@ -312,15 +279,35 @@ hfcsusb_chip_reset CHIP_RESET_T(sc,error)
 	  { .reg = 0x0B, .data = 0x00 }, /* F_CROSS */
 	  { .reg = 0x0C, .data = 0x44 }, /* F_THRES - 32 bytes */
 	  { .reg = 0x0D, .data = 0x00 }, /* F_MODE */
-#ifdef HFCSUSB_D1T_PRE_SELECT
-	  { .reg = 0x0F, .data = 0x04 }, /* FIFO# - pre-select d1t */
-#endif
 	  { .reg = 0x2C, .data = 0xff }, /* send 1's only */
 	  { .reg = 0x2D, .data = 0xff }, /* send 1's only */
 	  { .reg = 0xff, .data = 0xff }, /* END */
 	};
-	const struct regdata *ptr = &regdata[0];
 
+	const struct regdata *ptr;
+
+	if (cc == NULL) {
+	    return;
+	}
+
+	/* reset and reload configuration */
+	for(ptr = regdata;
+	    ptr->reg != 0xff;
+	    ptr++)
+	{
+	    /* assuming 1ms hardware delay
+	     * between register writes
+	     *
+	     * write register
+	     */
+	    hfcsusb_cfg_write_1(sc, ptr->reg, ptr->data);
+	}
+	return;
+}
+
+static void
+hfcsusb_chip_reset CHIP_RESET_T(sc,error)
+{
 	/*
 	 * setup fifo pointers
 	 */
@@ -366,17 +353,51 @@ hfcsusb_chip_reset CHIP_RESET_T(sc,error)
 	sc->sc_fifo[d1t].s_par_hdlc = 2; /* 2-bits per millisecond */
 	sc->sc_fifo[d1r].s_par_hdlc = 2; /* 2-bits per millisecond */
 
-	/* reset and reload configuration */
-	for(;
-	    ptr->reg != 0xff;
-	    ptr++)
-	{
-	  /* assuming 1ms hardware delay
-	   * between register writes
-	   *
-	   * write register
-	   */
-	  hfcsusb_chip_write(sc,ptr->reg, &ptr->data, 1);
+	usbd_config_td_queue_command
+	  (&(sc->sc_config_td), &hfcsusb_cfg_reset, 0);
+	return;
+}
+
+static void
+hfcsusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f);
+
+static void
+hfcsusb_cfg_read_f_usage(struct ihfc_sc *sc,
+			 struct ihfc_config_copy *cc, uint16_t refcount)
+{
+	ihfc_fifo_t *f;
+	uint8_t temp;
+
+	if (cc == NULL) {
+	    return;
+	}
+
+	f = sc->sc_fifo + d1t;
+
+	/* check if callback is ready */
+
+	if ((f->Z_chip & 0x81) == 0x81) {
+
+	    /* write FIFO_SEL */
+	    hfcsusb_cfg_write_1(sc, 0x0F, f->s_fifo_sel);
+
+	    /* read F_USAGE */
+	    temp = hfcsusb_cfg_read_1(sc, 0x1A);
+
+	    /* check if callback is still ready */
+
+	    if ((f->Z_chip & 0x81) == 0x81) {
+
+	        /* update Z_chip */
+	        f->Z_chip = temp & ~0x81;
+
+		/* re-start any stopped pipes,
+		 * hence the D-channel transmit
+		 * pipe is allowed to be stopped, to
+		 * reduce CPU usage:
+		 */
+		hfcsusb_chip_config_write(sc, IHFC_CONFIG_WRITE_UPDATE);
+	    }
 	}
 	return;
 }
@@ -424,23 +445,11 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 	/* need to re-read F_USAGE */
 	if(f->Z_chip & 0x80)
 	{
-	  if(!(f->Z_chip & 0x01))
-	  {
-	    f->Z_chip |= 0x01;
-#ifdef HFCSUSB_D1T_PRE_SELECT
-	    /* FIFO already selected */
-#else
-	    /* write FIFO_SEL(reg=0x0F) */
-	    hfcsusb_chip_write(sc,0x0F, &f->s_fifo_sel, 1);
-#endif
-#ifdef HFCSUSB_DEBUG
-	    hfcsusb_chip_read(sc,0x04,NULL,1);
-	    hfcsusb_chip_read(sc,0x06,NULL,1);
-	    hfcsusb_chip_read(sc,0x0C,NULL,1);
-	    hfcsusb_chip_read(sc,0x0D,NULL,1);
-#endif
-	    /* read F_USAGE(reg=0x1A) */
-	    hfcsusb_chip_read(sc,0x1A,NULL,1);
+	  if(!(f->Z_chip & 0x01)) {
+	      f->Z_chip |= 0x01;
+
+	      usbd_config_td_queue_command
+		(&(sc->sc_config_td), &hfcsusb_cfg_read_f_usage, 0);
 	  }
 
 	  /* waiting for F_USAGE read */
@@ -1075,14 +1084,118 @@ hfcsusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 }
 
 static void
+hfcsusb_cfg_chip_config_write_f(struct ihfc_sc *sc,
+				struct ihfc_config_copy *cc, uint16_t refcount)
+{
+	ihfc_fifo_t *f;
+	ihfc_fifo_t *f_other;
+	uint8_t regtemp[6];
+
+	if (cc == NULL) {
+	    return;
+	}
+
+	f = sc->sc_fifo + refcount;
+
+	/*
+	 * write FIFO configuration
+	 */
+
+	/* bits[5..7] must be the same
+	 * in registers ``f_rx->s_con_hdlc''
+	 * and ``f_tx->s_con_hdlc''
+	 */
+	if (FIFO_DIR(f) == transmit) {
+	    f_other = f - transmit + receive;
+	} else {
+	    f_other = f - receive + transmit;
+	}
+
+	/* buffer up the registers so that what is
+	 * written to the chip is consistent, hence
+	 * the "hfcsusb_cfg_write_1()" function will
+	 * sleep:
+	 */
+	regtemp[0] = f_other->s_fifo_sel;
+	regtemp[1] = f_other->s_con_hdlc;
+	regtemp[2] = f->s_fifo_sel;
+	regtemp[3] = f->s_con_hdlc;
+	regtemp[4] = f->s_par_hdlc;
+	regtemp[5] = f->last_byte;
+
+	/* write FIFO_SEL */
+	hfcsusb_cfg_write_1(sc, 0x0F, regtemp[0]);
+
+	/* write CON_HDLC */
+	hfcsusb_cfg_write_1(sc, 0xFA, regtemp[1]);
+
+	/* write FIFO_SEL */
+	hfcsusb_cfg_write_1(sc, 0x0F, regtemp[2]);
+
+	/* write CON_HDLC */
+	hfcsusb_cfg_write_1(sc, 0xFA, regtemp[3]);
+
+	/* write PAR_HDLC */
+	hfcsusb_cfg_write_1(sc, 0xFB, regtemp[4]);
+
+	/* write INC_RES_F */
+	hfcsusb_cfg_write_1(sc, 0x0E, 0x02);
+
+	if (FIFO_DIR(f) == transmit) {
+	    /* write FIFO_DATA (update repeating byte) */
+	    hfcsusb_cfg_write_1(sc, 0x84, regtemp[5]);
+	}
+	return;
+}
+
+static void
+hfcsusb_cfg_chip_config_write_r(struct ihfc_sc *sc,
+				struct ihfc_config_copy *cc, uint16_t refcount)
+{
+	register_list_t *r;
+
+	if (cc == NULL) {
+	    return;
+	}
+
+	/*
+	 * configure chip,
+	 * write new configuration
+	 */
+	REGISTER_FOREACH(r,sc->sc_default.d_register_list) {
+	    u_int8_t *data  = &OFF2REG(sc->sc_config, r->offset);
+	    u_int8_t *data2 = &OFF2REG(sc->sc_config2, r->offset);
+
+	    if (refcount || (*data != *data2)) {
+
+	        /* must update the shadow config before writing
+		 * the register, hence "hfcsusb_cfg_write_1()" will
+		 * sleep, and then the config value can change:
+		 */
+
+		*data2 = *data;
+
+		/* write the register */
+
+		hfcsusb_cfg_write_1(sc, r->regval, *data);
+	    }
+	}
+	return;
+}
+
+static void
 hfcsusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 {
-	if((f == CONFIG_WRITE_UPDATE) ||
-	   (f == CONFIG_WRITE_RELOAD))
+	if ((f == IHFC_CONFIG_WRITE_UPDATE) ||
+	    (f == IHFC_CONFIG_WRITE_RELOAD))
 	{
 	  __typeof(sc->sc_resources.usb_xfer[0])
 	    *xfer = &sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START],
 	    *xfer_end = &sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_END];
+
+	  usbd_config_td_queue_command
+	    (&(sc->sc_config_td), &hfcsusb_cfg_chip_config_write_r, 
+	     (f == IHFC_CONFIG_WRITE_RELOAD) ? 1 : 0);
 
 	  /*
 	   * Update pipes:
@@ -1116,70 +1229,19 @@ hfcsusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	}
 	else
 	{
-	  ihfc_fifo_t *f_other;
-
-	  /* FIFO reset command */
-	  u_int8_t tmp;
-
 	  /* reset frame counter */
-	  f->F_drvr    = -1;
-
-	  /* clear FIFO level */
-	  sc->sc_config.fifo_level &= ~(1 << (f->s_fifo_sel));
-
-	  /*
-	   * write FIFO configuration
-	   */
-
-	  /* bits[5..7] must be the same
-	   * in registers ``f_rx->s_con_hdlc''
-	   * and ``f_tx->s_con_hdlc''
-	   */
-	  if(FIFO_DIR(f) == transmit)
-	  {
-	    f_other = f - transmit + receive;
-	  }
-	  else
-	  {
-	    f_other = f - receive + transmit;
-	  }
-
-	  /* write FIFO_SEL(reg=0x0F) */
-	  hfcsusb_chip_write(sc,0x0F, &f_other->s_fifo_sel, 1);
-
-	  /* write CON_HDLC(reg=0xFA) */
-	  hfcsusb_chip_write(sc,0xFA, &f_other->s_con_hdlc, 1);
-
-	  /* write FIFO_SEL(reg=0x0F) */
-	  hfcsusb_chip_write(sc,0x0F, &f->s_fifo_sel, 1);
-
-	  /* write CON_HDLC(reg=0xFA) */
-	  hfcsusb_chip_write(sc,0xFA, &f->s_con_hdlc, 1);
-
-	  /* write PAR_HDLC(reg=0xFB) */
-	  hfcsusb_chip_write(sc,0xFB, &f->s_par_hdlc, 1);
-
-	  tmp = 0x02;
-	  /* write INC_RES_F(reg=0x0E) */
-	  hfcsusb_chip_write(sc,0x0E, &tmp, 1);
-
-	  if(FIFO_DIR(f) == transmit)
-	  {
-	    /* write FIFO_DATA(reg=0x84) (update repeating byte) */
-	    hfcsusb_chip_write(sc,0x84, &f->last_byte, 1);
-	  }
+	  f->F_drvr = -1;
 
 	  /* need to re-read F_USAGE */
 	  f->Z_chip = 0x80;
 
-#ifdef HFCSUSB_D1T_PRE_SELECT
-	  /* pre-select D-channel transmit FIFO
-	   * write FIFO_SEL(reg=0x0F)
-	   */
-	  hfcsusb_chip_write(sc,0x0F, &sc->sc_fifo[d1t].s_fifo_sel, 1);
-#endif
-	}
+	  /* clear FIFO level */
+	  sc->sc_config.fifo_level &= ~(1 << (f->s_fifo_sel));
 
+	  usbd_config_td_queue_command
+	    (&(sc->sc_config_td), &hfcsusb_cfg_chip_config_write_f,
+	     FIFO_NO(f));
+	}
 	return;
 }
 
@@ -1198,23 +1260,38 @@ hfcsusb_fsm_read FSM_READ_T(sc,f,ptr)
 }
 
 static void
-hfcsusb_fsm_write FSM_WRITE_T(sc,f,ptr)
+hfcsusb_cfg_fsm_write(struct ihfc_sc *sc,
+		      struct ihfc_config_copy *cc, uint16_t refcount)
 {
-	/* write STATES(reg=0x30) */
-	hfcsusb_chip_write(sc,0x30,ptr,1);
+	uint8_t temp;
+
+	if (cc == NULL) {
+	    return;
+	}
+
+	temp = refcount;
+
+	/* write STATES */
+	hfcsusb_cfg_write_1(sc,0x30,temp);
 
 #ifdef HFC_FSM_RESTART
-	if((*ptr) & 0x10)
-	{
-	   u_int8_t tmp = (*ptr) ^ 0x10;
+	if (temp & 0x10) {
+	    temp ^= 0x10;
 
-	   /* assuming more than 5.21us delay
-	    * in xxxusb_chip_write
-	    */
-
-	   hfcsusb_chip_write(sc,0x30,&tmp,1);
+	    /* assuming more than 5.21us delay
+	     * in "hfcsusb_cfg_write_1":
+	     */
+	    hfcsusb_cfg_write_1(sc,0x30,temp);
 	}
 #endif
+	return;
+}
+
+static void
+hfcsusb_fsm_write FSM_WRITE_T(sc,f,ptr)
+{
+	usbd_config_td_queue_command
+          (&(sc->sc_config_td), &hfcsusb_cfg_fsm_write, *ptr);
 	return;
 }
 
@@ -1251,10 +1328,6 @@ hfcsusb_register_list[] =
   { 0, 0 }
 };
 
-#if (REGDATA_XFER_WRITE != 0) || (REGDATA_XFER_READ != 1)
-#error "(REGDATA_XFER_WRITE != 0) || (REGDATA_XFER_READ != 1)"
-#endif
-
 static const struct usbd_config
 hfcsusb_usb[] =
 {
@@ -1265,20 +1338,22 @@ hfcsusb_usb[] =
    * for the HFC-SP.
    */
 
-  [REGDATA_XFER_WRITE] = {
+  [HFCSUSB_CONF_XFER_WRITE] = {
     .type      = UE_CONTROL,
     .endpoint  = 0x00, /* Control pipe */
     .direction = -1,
-    .bufsize   = REGDATA_BUFFER_WRITE_SIZE, /* wMaxPacketSize == 8 bytes */
+    .bufsize   = sizeof(usb_device_request_t), /* bytes */
     .callback  = &hfcsusb_callback_chip_write,
+    .timeout   = 1000, /* ms */
   },
 
-  [REGDATA_XFER_READ] = {
+  [HFCSUSB_CONF_XFER_READ] = {
     .type      = UE_CONTROL,
     .endpoint  = 0x00, /* Control pipe */
     .direction = -1,
-    .bufsize   = REGDATA_BUFFER_READ_SIZE, /* wMaxPacketSize == 8 bytes */
+    .bufsize   = sizeof(usb_device_request_t)+1, /* bytes */
     .callback  = &hfcsusb_callback_chip_read,
+    .timeout   = 1000, /* ms */
   },
 
 #define HFCSUSB_XFER(index, pipe_no, fifo)\
@@ -1329,33 +1404,64 @@ hfcsusb_usb[] =
 };
 
 static void
-hfcsusb_chip_status_read(ihfc_sc_t *sc)
+hfcsusb_cfg_read_status(struct ihfc_sc *sc,
+			struct ihfc_config_copy *cc, uint16_t refcount)
 {
+	ihfc_fifo_t *f;
+	uint8_t temp;
+
+	if (cc == NULL) {
+	    return;
+	}
+
 	IHFC_MSG("\n");
 
-	/* read STATES(reg=0x30) */
-	hfcsusb_chip_read(sc,0x30,NULL,1);
+	f = sc->sc_fifo + d1t;
 
-	if(!PROT_IS_HDLC(&(sc->sc_fifo[d1t].prot_curr)))
-	{
-	  /* check FIFO frame counters */
+	/* read STATES */
+	temp = hfcsusb_cfg_read_1(sc,0x30);
 
-#ifdef HFCSUSB_D1T_PRE_SELECT
-	  /* FIFO already selected */
-#else
-	  /* write FIFO_SEL(reg=0x0F) */
-	  hfcsusb_chip_write(sc,0x0F, &sc->sc_fifo[d1t].s_fifo_sel, 1);
-#endif
-	  /* read F1(reg=0x0C) */
-	  hfcsusb_chip_read(sc,0x0C,NULL,1);
+	/* check for statemachine change */
+	if (sc->sc_config.s_states != temp) {
 
-	  /* read F2(reg=0x0D) */
-	  hfcsusb_chip_read(sc,0x0D,NULL,1);
+	    /* update s_states */
+	    sc->sc_config.s_states = temp;
+
+	    ihfc_fsm_update(sc,f,0);
+	}
+
+	if (!PROT_IS_HDLC(&(f->prot_curr))) {
+
+	    /* check FIFO frame counters */
+
+	    /* write FIFO_SEL */
+	    hfcsusb_cfg_write_1(sc, 0x0F, f->s_fifo_sel);
+
+	    /* read F1 and F2 */
+	    if (hfcsusb_cfg_read_1(sc,0x0C) !=
+		hfcsusb_cfg_read_1(sc,0x0D)) {
+
+	        IHFC_ERR("F1 != F2\n");
+
+		/* reset and re-configure FIFO */
+		hfcsusb_chip_config_write(sc,f);
+	    }
 	}
 
 	/* read F_FILL(reg=0x1B) */
-	hfcsusb_chip_read(sc,0x1B,NULL,1);
+	temp = hfcsusb_cfg_read_1(sc,0x1B);
 
+	/* update F_FILL (FIFO-threshold-bits) */
+	sc->sc_config.fifo_level = temp;
+
+	return;
+}
+
+static void
+hfcsusb_chip_status_read(ihfc_sc_t *sc)
+{
+	usbd_config_td_queue_command
+	  (&(sc->sc_config_td), &hfcsusb_cfg_read_status, 0);
 	return;
 }
 
@@ -1367,7 +1473,7 @@ hfcsusb_d1t_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	 * pipe is allowed to be stopped, to
 	 * reduce CPU usage:
 	 */
-	hfcsusb_chip_config_write (sc,CONFIG_WRITE_UPDATE);
+	hfcsusb_chip_config_write (sc,IHFC_CONFIG_WRITE_UPDATE);
 	return PROGRAM_DONE;
 }
 
@@ -1403,8 +1509,6 @@ I4B_DBASE(hfcsusb_dbase_root)
 {
   I4B_DBASE_ADD(desc                    , "HFC-2BDS0 128K USB ISDN adapter");
 
-  I4B_DBASE_ADD(c_chip_read             , &hfcsusb_chip_read);
-  I4B_DBASE_ADD(c_chip_write            , &hfcsusb_chip_write);
   I4B_DBASE_ADD(c_chip_reset            , &hfcsusb_chip_reset);
 
   I4B_DBASE_ADD(c_chip_config_write     , &hfcsusb_chip_config_write);
@@ -1603,16 +1707,16 @@ I4B_USB_DRIVER(/* Billion tinyUSB
 #undef HFCSUSB_TX_ADJUST
 #undef HFCSUSB_TX_FRAMESIZE
 
+#undef HFCSUSB_CONF_XFER_WRITE
+#undef HFCSUSB_CONF_XFER_READ
 #undef HFCSUSB_FIFO_XFER_START
 #undef HFCSUSB_FIFO_XFER_DCHAN
 
 #undef HFCSUSB_FIFO_XFER_END
-#undef HFCSUSB_D1T_PRE_SELECT
 
 #undef HFCSUSB_MEM_BASE
 
 #undef HFCSUSB_XFER
-#undef HFCSUSB_D1T_PRE_SELECT
 #undef HFCSUSB_DEBUG
 #undef HFCSUSB_DEBUG_INTR
 #undef HFCSUSB_DEBUG_STAT

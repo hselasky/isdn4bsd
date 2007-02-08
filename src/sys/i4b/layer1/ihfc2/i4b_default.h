@@ -248,6 +248,10 @@ default_chip_write CHIP_WRITE_T(sc,reg,ptr,len)
 static void
 default_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)		
 {
+	if((f == IHFC_CONFIG_WRITE_UPDATE) ||
+	   (f == IHFC_CONFIG_WRITE_RELOAD)) {
+		ihfc_config_write_sub(sc,f);
+	}
 	return;
 }
 

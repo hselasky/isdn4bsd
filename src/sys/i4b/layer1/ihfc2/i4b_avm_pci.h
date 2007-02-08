@@ -183,21 +183,6 @@ avm_pci_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 }
 
 static void
-avm_pci_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
-{
-        if((f == CONFIG_WRITE_UPDATE) ||
-           (f == CONFIG_WRITE_RELOAD))
-        {
-
-	}
-	else
-	{
-
-	}
-	return;
-}
-
-static void
 avm_pci_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	u_int8_t temp;
@@ -595,7 +580,6 @@ I4B_DBASE(avm_pci_dbase_root)
   I4B_DBASE_ADD(c_chip_reset       , &avm_pci_chip_reset);
   I4B_DBASE_ADD(c_chip_read        , &avm_pci_chip_read);
   I4B_DBASE_ADD(c_chip_write       , &avm_pci_chip_write);
-  I4B_DBASE_ADD(c_chip_config_write, &avm_pci_chip_config_write);
   I4B_DBASE_ADD(c_chip_unselect    , &avm_pci_chip_unselect);
   I4B_DBASE_ADD(c_chip_status_read , &avm_pci_chip_status_read);
   I4B_DBASE_ADD(c_chip_status_check, &avm_pci_chip_status_check);

@@ -226,21 +226,6 @@ avm_pnp_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 }
 
 static void
-avm_pnp_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
-{
-        if((f == CONFIG_WRITE_UPDATE) ||
-           (f == CONFIG_WRITE_RELOAD))
-        {
-
-	}
-	else
-	{
-
-	}
-	return;
-}
-
-static void
 avm_pnp_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
 {
 	IPAC_BUS_VAR(sc);
@@ -552,7 +537,6 @@ I4B_DBASE(avm_pnp_dbase_root)
   I4B_DBASE_ADD(c_chip_reset       , &avm_pnp_chip_reset);
   I4B_DBASE_ADD(c_chip_read        , &avm_pnp_chip_read);
   I4B_DBASE_ADD(c_chip_write       , &avm_pnp_chip_write);
-  I4B_DBASE_ADD(c_chip_config_write, &avm_pnp_chip_config_write);
   I4B_DBASE_ADD(c_chip_unselect    , &avm_pnp_chip_unselect);
   I4B_DBASE_ADD(c_chip_status_read , &avm_pnp_chip_status_read);
   I4B_DBASE_ADD(c_chip_status_check, &avm_pnp_chip_status_check);

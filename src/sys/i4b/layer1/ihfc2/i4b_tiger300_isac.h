@@ -1413,13 +1413,13 @@ tiger300_chip_status_read CHIP_STATUS_READ_T(sc)
 static void
 tiger300_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 {
-	if((f == CONFIG_WRITE_UPDATE) ||
-	   (f == CONFIG_WRITE_RELOAD))
-	{
-	  /* nothing to configure */
-	}
-	else
-	{
+	if ((f == IHFC_CONFIG_WRITE_UPDATE) ||
+	    (f == IHFC_CONFIG_WRITE_RELOAD)) {
+
+	    ihfc_config_write_sub(sc,f);
+
+	} else {
+
 	  /* reset FIFO */
 	  f->Z_drvr = (f->fm.h.Zend - f->fm.h.Zsize); /* min */
 	  f->Z_chip = (f->fm.h.Zsize);

@@ -515,9 +515,9 @@ hfc4s8s_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	u_int8_t temp;
 	u_int8_t cable;
 
-	if((f == CONFIG_WRITE_UPDATE) ||
-	   (f == CONFIG_WRITE_RELOAD))
-	{
+	if ((f == IHFC_CONFIG_WRITE_UPDATE) ||
+	    (f == IHFC_CONFIG_WRITE_RELOAD)) {
+
 	    /* enable interrupts:
 	     * - statemachine change
 	     * - timer elapsed
@@ -1025,12 +1025,6 @@ hfc4s8s_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 	return program;
 }
 
-register_list_t
-hfc4s8s_register_list [] =
-{
-	{ 0, 0 }
-};
-
 #if (IHFC_CHANNELS < 48)
 #error "HFC-8S needs 48 channels, RX + TX"
 #endif
@@ -1061,7 +1055,6 @@ I4B_DBASE(hfc4s8s_dbase_root)
   I4B_DBASE_ADD(c_fifo_inc_fx_pre    , &hfc4s8s_fifo_inc_fx_pre);
   I4B_DBASE_ADD(c_fifo_frame_check   , &hfc4s8s_fifo_frame_check);
 
-  I4B_DBASE_ADD(d_register_list      , &hfc4s8s_register_list[0]);
   I4B_DBASE_ADD(d_L1_type            , L1_TYPE_ISDN_BRI);
 
   /* delay 25 milliseconds */ 

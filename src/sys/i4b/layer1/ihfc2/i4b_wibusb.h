@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2002 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2002-2007 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,7 +34,6 @@
 #define _I4B_WIBUSB_H_
 
 #include <i4b/layer1/ihfc2/i4b_isac.h>
-#include <i4b/layer1/ihfc2/i4b_regdata.h>
 
 /*
  * MAXIMUM_TRANSMIT_DRIFT =
@@ -61,6 +60,11 @@
  * register, and then the next read will read
  * the register. The read-register-value is ignored!
  *
+ * NOTE: All functions with name
+ * starting like "hfcsusb_cfg" can
+ * only be called from the config
+ * thread!
+ *
  * The W6694 uses an internal microprocessor.
  *
  * TODO: stop D-channel output on D-channel collision?
@@ -71,6 +75,9 @@
 #define WIBUSB_TX_FRAMES	50 /* units (total) */
 #define WIBUSB_TX_ADJUST         1 /* units */
 #define WIBUSB_TX_FRAMESIZE	23 /* bytes */
+
+#define WIBUSB_CONF_XFER_WRITE   0
+#define WIBUSB_CONF_XFER_READ    1
 
 #if 0
 # define WIBUSB_DEBUG
@@ -83,77 +90,122 @@
 
 #define w_po1 aux_data_0
 #define wibusb_chip_status_check default_chip_status_check
-#define wibusb_chip_write regdata_usb_chip_write
-#define wibusb_chip_read regdata_usb_chip_read /* BUFFERED! */
 #define wibusb_fsm_table isac_fsm_table
+
+/* prototypes */
+
+static void
+wibusb_cfg_chip_config_write_r(struct ihfc_sc *sc,
+			       struct ihfc_config_copy *cc, uint16_t refcount);
 
 /* driver */
 
 static void
+wibusb_cfg_write_1(ihfc_sc_t *sc, uint8_t reg, uint8_t data)
+{
+	sc->sc_reg_temp.reg = reg;
+	sc->sc_reg_temp.data = data;
+
+        if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
+	    goto done;
+        }
+
+	IHFC_MSG("0x%02x->0x%02x\n", data, reg);
+
+	usbd_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE]);
+
+	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "write reg", 0)) {
+
+	}
+ done:
+	return;
+}
+
+#if 0
+static uint8_t
+wibusb_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
+{
+	sc->sc_reg_temp.reg = reg;
+	sc->sc_reg_temp.data = 0xff;
+
+        if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
+	    goto done;
+        }
+
+	usbd_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE]);
+
+	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "write reg", 0)) {
+
+	}
+
+        if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
+	    goto done;
+        }
+
+	usbd_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_READ]);
+
+	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "read reg", 0)) {
+
+	}
+ done:
+	return sc->sc_reg_temp.data;
+}
+#endif
+
+static void
 wibusb_callback_chip_write USBD_CALLBACK_T(xfer)
 {
-	ihfc_sc_t             *sc  = xfer->priv_sc;
-	struct regdata_usb    *buf = xfer->buffer;
+	ihfc_sc_t	*sc  = xfer->priv_sc;
+	uint8_t		*buf = xfer->buffer;
 
 	USBD_CHECK_STATUS(xfer);
 
  tr_transferred:
-
-	regdata_usb_update(sc);
-	goto done;
+ tr_error:
+	wakeup(&(sc->sc_reg_temp));
+	return;
 
  tr_setup:
-
 	/* setup packet for register access (2 bytes):
 	 *
 	 * WIBUSB is capable of doing 4 register
 	 * accesses in one packet. Currently only
 	 * one register is written per packet
 	 */
-
-	buf->data[0] = buf->current_register; /* register */
-	buf->data[1] = buf->current_data; /* data */
+	buf[0] = sc->sc_reg_temp.reg; /* register */
+	buf[1] = sc->sc_reg_temp.data; /* data */
 
 	xfer->length = 2; /* bytes */
 
- tr_error:
-	/* [re-]transfer ``xfer->buffer'' */
 	usbd_start_hardware(xfer);
- done:
 	return;
 }
 
 static void
 wibusb_callback_chip_read USBD_CALLBACK_T(xfer)
 {
-	ihfc_sc_t             *sc  = xfer->priv_sc;
-	struct regdata_usb    *buf = xfer->buffer;
+	ihfc_sc_t	*sc  = xfer->priv_sc;
+	uint8_t		*buf = xfer->buffer;
 
 	USBD_CHECK_STATUS(xfer);
 
  tr_transferred:
+
 	IHFC_MSG("ReadReg:0x%02x, Val:0x%02x\n",
-		 buf->data[0], buf->data[1]);
+		 buf[0], buf[1]);
 
-	switch(buf->data[0]) {
-	default:
-	  /* unknown */
-	  IHFC_ERR("Unknown reg=0x%02x; data=0x%02x\n",
-		   buf->data[0], buf->data[1]);
-	  break;
-	}
+	sc->sc_reg_temp.data = buf[1];
 
-	regdata_usb_update(sc);
-	goto done;
+ tr_error:
+	wakeup(&(sc->sc_reg_temp));
+	return;
 
  tr_setup:
 	/* setup data length */
 	xfer->length = 2; /* bytes */
 
- tr_error:
-	/* [re-]transfer ``xfer->buffer'' */
 	usbd_start_hardware(xfer);
- done:
+
 	return;
 }
 
@@ -475,12 +527,8 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 		  sc->sc_config.w_cmdr2 |= 0x04;
 		}
 
-		/* write CMDR2(reg=(0x02|0x80), WIBUSB) */
-		wibusb_chip_write(sc,(0x02|0x80),
-				 &sc->sc_config.w_cmdr2, 1);
-
-		/* disable reset */
-		sc->sc_config.w_cmdr2 &= ~0xcc;
+		usbd_config_td_queue_command
+		  (&(sc->sc_config_td), &wibusb_cfg_chip_config_write_r, 0);
 	}
 	
 	if(d1_stat & 0x78)
@@ -515,12 +563,8 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 		  sc->sc_config.w_cmdr1 |= 0x80;
 		}
 
-		/* write CMDR1(reg=(0x01|0x80), WIBUSB) */
-		wibusb_chip_write(sc,(0x01|0x80),
-				 &sc->sc_config.w_cmdr1, 1);
-
-		/* disable reset */
-		sc->sc_config.w_cmdr1 &= ~0xc0;
+		usbd_config_td_queue_command
+		  (&(sc->sc_config_td), &wibusb_cfg_chip_config_write_r, 0);
 	}
 
 	/*
@@ -564,7 +608,6 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 	/* restore frlengths */
 	frlengths -= WIBUSB_RX_FRAMES;
 
-	/* [re-]transfer ``xfer->buffer'' */
 	usbd_start_hardware(xfer);
 	return;
 }
@@ -591,6 +634,7 @@ wibusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	if (xfer->error == USBD_CANCELLED) {
 		return;
 	}
+
  tr_setup:
  tr_transferred:
 
@@ -762,6 +806,12 @@ wibusb_callback_interrupt USBD_CALLBACK_T(xfer)
 
 	USBD_CHECK_STATUS(xfer);
 
+ tr_error:
+	if (xfer->error == USBD_CANCELLED) {
+	    return;
+	}
+	goto tr_setup;
+
  tr_transferred:
 
 	/* if(stat->w_ista & 0x80)
@@ -781,17 +831,56 @@ wibusb_callback_interrupt USBD_CALLBACK_T(xfer)
 	/* setup data length */
 	xfer->length = sizeof(wibusb_status_t); /* == 5 */
 
- tr_error:
-	/* [re-]transfer ``xfer->buffer'' */
 	usbd_start_hardware(xfer);
+	return;
+}
+
+static void
+wibusb_cfg_reset(struct ihfc_sc *sc,
+		 struct ihfc_config_copy *cc, uint16_t refcount)
+{
+	if (cc == NULL) {
+	    return;
+	}
+
+	/* perform reset
+	 *
+	 * according to the datasheet the reset bit
+	 * must be set alone
+	 */
+
+	/* write CMDR1 */
+	wibusb_cfg_write_1(sc, (0x01|0x80), 0x08);
+
+	/* assuming 1ms hardware delay
+	 * between register writes
+	 *
+	 * clear reset
+	 */
+	sc->sc_config.w_cmdr1 &= ~0x08;
+
+	/* write CMDR1 */
+	wibusb_cfg_write_1(sc, (0x01|0x80), sc->sc_config.w_cmdr1);
+
+	/* trying to force the wibusb
+	 * to generate an interrupt:
+	 *
+	 * NOTE: ``L1 reset command'' does not allow NT to activate,
+	 * unless ``internal clock is enabled''.
+	 */
+
+	/* write CIX - L1 reset */
+	wibusb_cfg_write_1(sc,(0x04|0x80), 0x01);
+
+	/* write CIX - enable clock */
+	wibusb_cfg_write_1(sc, (0x04|0x80), 0x00);
+
 	return;
 }
 
 static void
 wibusb_chip_reset CHIP_RESET_T(sc,error)
 {
-	u_int8_t tmp;
-
 	/* setup clear stall */
 	sc->sc_resources.usb_xfer[0]->clearstall_xfer =
 	  sc->sc_resources.usb_xfer[7];
@@ -818,52 +907,68 @@ wibusb_chip_reset CHIP_RESET_T(sc,error)
 	  (0x80 >> b1t) | /* XFR */
 	  (0x80 >> b2t) ; /* XFR */
 
-	/* perform reset
-	 *
-	 * according to manual reset bit
-	 * must be set alone
+	usbd_config_td_queue_command
+	  (&(sc->sc_config_td), &wibusb_cfg_reset, 0);
+
+	return;
+}
+
+static void
+wibusb_cfg_chip_config_write_r(struct ihfc_sc *sc,
+			       struct ihfc_config_copy *cc, uint16_t refcount)
+{
+	register_list_t *r;
+
+	if (cc == NULL) {
+	    return;
+	}
+
+	/*
+	 * configure chip,
+	 * write new configuration
 	 */
+	REGISTER_FOREACH(r,sc->sc_default.d_register_list) {
+	    uint8_t *data  = &OFF2REG(sc->sc_config, r->offset);
+	    uint8_t *data2 = &OFF2REG(sc->sc_config2, r->offset);
+	    uint8_t temp;
 
-	tmp = 0x08;
+	    if (refcount || (*data != *data2)) {
 
-	/* write CMDR1(reg=(0x01|0x80), WIBUSB) */
-	wibusb_chip_write(sc,(0x01|0x80), &tmp, 1);
+	        /* must update the shadow config before writing
+		 * the register, hence "wibusb_cfg_write_1()" will
+		 * sleep, and then the config value can change:
+		 */
 
-	/* assuming 1ms hardware delay
-	 * between register writes
-	 *
-	 * clear reset
-	 */
-	sc->sc_config.w_cmdr1 &= ~0x08;
+	        temp = *data;
 
-	/* write CMDR1(reg=(0x01|0x80), WIBUSB) */
-	wibusb_chip_write(sc,(0x01|0x80), &sc->sc_config.w_cmdr1, 1);
+		if (r->offset == REG2OFF(w_cmdr1)) {
+		    /* clear reset bits */
+		    *data &= ~0xC0;
+		} else if (r->offset == REG2OFF(w_cmdr2)) {
+		    /* clear reset bits */
+		    *data &= ~0xCC;
+		}
 
-	/* trying to force the wibusb
-	 * to generate an interrupt:
-	 *
-	 * NOTE: ``L1 reset command'' does not allow NT to activate,
-	 * unless ``internal clock is enabled''.
-	 */
+		*data2 = *data;
 
-	tmp = 0x01; /* L1 reset */
+		/* write the register */
 
-	/* write CIX(reg=(0x04|0x80), WIBUSB) */
-	wibusb_chip_write(sc,(0x04|0x80),&tmp,1);
-
-	tmp = 0x00; /* enable clock */
-
-	/* write CIX(reg=(0x04|0x80), WIBUSB) */
-	wibusb_chip_write(sc,(0x04|0x80),&tmp,1);
+		wibusb_cfg_write_1(sc, r->regval, temp);
+	    }
+	}
 	return;
 }
 
 static void
 wibusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 {
-	if((f == CONFIG_WRITE_UPDATE) ||
-	   (f == CONFIG_WRITE_RELOAD))
+	if ((f == IHFC_CONFIG_WRITE_UPDATE) ||
+	    (f == IHFC_CONFIG_WRITE_RELOAD))
 	{
+	  usbd_config_td_queue_command
+	    (&(sc->sc_config_td), &wibusb_cfg_chip_config_write_r, 
+	     (f == IHFC_CONFIG_WRITE_RELOAD) ? 1 : 0);
+
 	  /*
 	   * If the device is not connected
 	   * or the line is powered down,
@@ -903,7 +1008,7 @@ wibusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	}
 	else
 	{
-	  /* nothing to configure for fifo */
+	  /* nothing to configure for FIFO */
 	}
 
 	return;
@@ -933,14 +1038,27 @@ wibusb_fsm_read FSM_READ_T(sc,f,ptr)
  */
 
 static void
+wibusb_cfg_fsm_write(struct ihfc_sc *sc,
+		     struct ihfc_config_copy *cc, uint16_t refcount)
+{
+	if (cc == NULL) {
+	    return;
+	}
+
+	/* write (CIX, WIBUSB) */
+	wibusb_cfg_write_1(sc, (0x04|0x80), refcount);
+
+	return;
+}
+
+static void
 wibusb_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	u_int8_t tmp   = (*ptr) | sc->sc_config.i_cirq;
 		 tmp >>= 2;
 
-	/* write CIX(reg=(0x04|0x80), WIBUSB) */
-	wibusb_chip_write(sc,(0x04|0x80),&tmp,1);
-
+	usbd_config_td_queue_command
+          (&(sc->sc_config_td), &wibusb_cfg_fsm_write, tmp);
 	return;
 }
 
@@ -956,19 +1074,6 @@ wibusb_fifo_get_program FIFO_GET_PROGRAM_T(sc,f)
 
 	return program;
 }
-
-#if 0
-static void
-wibusb_chip_status_read(ihfc_sc_t *sc)
-{
-	u_int8_t tmp = 0;
-	IHFC_MSG("\n");
-
-	wibusb_chip_write(sc,0x04,&tmp,1);
-	wibusb_chip_read(sc,0x04,NULL,1);
-	return;
-}
-#endif
 
 register_list_t
 wibusb_register_list[] =
@@ -991,10 +1096,6 @@ wibusb_register_list[] =
   { 0, 0 }
 };
 
-#if (REGDATA_XFER_WRITE != 0) || (REGDATA_XFER_READ != 1)
-#error "(REGDATA_XFER_WRITE != 0) || (REGDATA_XFER_READ != 1)"
-#endif
-
 static const struct usbd_config
 wibusb_usb[] =
 {
@@ -1008,20 +1109,22 @@ wibusb_usb[] =
    * by this setup is 13Kbyte
    */
 
-  [REGDATA_XFER_WRITE] = {
+  [WIBUSB_CONF_XFER_WRITE] = {
     .type      = UE_BULK,
     .endpoint  = 0x01, /* Bulk Out */
     .direction = UE_DIR_OUT,
-    .bufsize   = REGDATA_BUFFER_WRITE_SIZE, /* wMaxPacketSize == 8 bytes */
+    .bufsize   = (4*2), /* bytes */
     .callback  = &wibusb_callback_chip_write,
+    .flags     = 0,
   },
 
-  [REGDATA_XFER_READ] = {
+  [WIBUSB_CONF_XFER_READ] = {
     .type      = UE_BULK,
     .endpoint  = 0x02, /* Bulk In  */
     .direction = UE_DIR_IN,
-    .bufsize   = REGDATA_BUFFER_READ_SIZE, /* wMaxPacketSize == 8 bytes */
+    .bufsize   = (4*2), /* bytes */
     .callback  = &wibusb_callback_chip_read,
+    .flags     = 0,
   },
 
   [2] = {
@@ -1110,23 +1213,9 @@ I4B_DBASE(wibusb_dbase_root)
 {
   I4B_DBASE_ADD(desc                    , "Winbond 128K USB ISDN adapter");
 
-  I4B_DBASE_ADD(c_chip_read             , &wibusb_chip_read);
-  I4B_DBASE_ADD(c_chip_write            , &wibusb_chip_write);
   I4B_DBASE_ADD(c_chip_reset            , &wibusb_chip_reset);
 
   I4B_DBASE_ADD(c_chip_config_write     , &wibusb_chip_config_write);
-
-#if 0
-  /* delay 1/2 second */
-  I4B_DBASE_ADD(c_chip_status_read      , &wibusb_chip_status_read);
-  I4B_DBASE_ADD(c_chip_status_check     , &wibusb_chip_status_check);
-  I4B_DBASE_ADD(d_interrupt_delay       , hz / 2);
-  I4B_DBASE_ADD(i4b_option_value        , I4B_OPTION_POLLED_MODE|XXX);
-#endif
-
-#if 0
-  I4B_DBASE_ADD(c_chip_unselect         , &wibusb_chip_unselect);
-#endif
 
   I4B_DBASE_ADD(c_fsm_read              , &wibusb_fsm_read);
   I4B_DBASE_ADD(c_fsm_write             , &wibusb_fsm_write);
@@ -1182,6 +1271,9 @@ I4B_USB_DRIVER(/* Asuscom ISDNlink 128K (USB)
 #undef WIBUSB_TX_FRAMES
 #undef WIBUSB_TX_ADJUST
 #undef WIBUSB_TX_FRAMESIZE
+
+#undef WIBUSB_CONF_XFER_WRITE
+#undef WIBUSB_CONF_XFER_READ
 
 #undef WIBUSB_MEM_BASE
 

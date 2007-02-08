@@ -645,6 +645,16 @@ const   struct resource_tab *ptr;
 		{
 			IHFC_ADD_ERR(error, "def->usb_conf_no == 0");
 			goto done;
+		}        /* setup config thread */
+
+		err = usbd_config_td_setup
+		  (&(sc->sc_config_td), sc, sc->sc_mtx_p,
+		   NULL, NULL, sizeof(struct ihfc_config_copy), 32);
+
+		if (err) {
+			IHFC_ADD_ERR(error, "could not setup config "
+				     "thread!");
+			goto done;
 		}
 
 		/* set the configuration which bConfigurationValue matches
@@ -759,10 +769,16 @@ ihfc_unsetup_resource(device_t dev)
 	}
 
 #ifdef IHFC_USB_ENABLED
+        mtx_lock(sc->sc_mtx_p);
+        usbd_config_td_stop(&(sc->sc_config_td));
+        mtx_unlock(sc->sc_mtx_p);
+
 	/*
 	 * USB unsetup
 	 */
 	usbd_transfer_unsetup(&sc->sc_resources.usb_xfer[0], IHFC_NUSB);
+
+	usbd_config_td_unsetup(&(sc->sc_config_td));
 #endif
 
 	/* release allocated

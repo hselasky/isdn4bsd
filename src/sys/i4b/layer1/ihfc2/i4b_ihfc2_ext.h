@@ -53,6 +53,7 @@ void		ihfc_chip_interrupt     (void *);
 u_int8_t	ihfc_fifos_active	(ihfc_sc_t *sc);
 u_int8_t	ihfc_fifo_setup		(ihfc_sc_t *sc, ihfc_fifo_t *f);
 void		ihfc_fifo_call		(ihfc_sc_t *sc, ihfc_fifo_t *f);
+void		ihfc_config_write_sub   (ihfc_sc_t *sc, ihfc_fifo_t *f);
 void		ihfc_reset		(ihfc_sc_t *sc, u_int8_t *error);
 
 void		ihfc_fsm_update		(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag);

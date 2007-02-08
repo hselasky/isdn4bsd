@@ -162,13 +162,13 @@ hfcspci_chip_reset CHIP_RESET_T(sc,error)
 static void
 hfcspci_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 {
-	if((f == CONFIG_WRITE_UPDATE) ||
-	   (f == CONFIG_WRITE_RELOAD))
-	{
-	  /* nothing to configure */
-	}
-	else
-	{
+	if ((f == IHFC_CONFIG_WRITE_UPDATE) ||
+	    (f == IHFC_CONFIG_WRITE_RELOAD)) {
+
+	  ihfc_config_write_sub(sc,f);
+
+	} else {
+
 	  /* reset FIFO */
 	  u_int8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
 			       (f->fm.h.Zdata)+(f->fm.h.Zend - f->fm.h.Zsize);

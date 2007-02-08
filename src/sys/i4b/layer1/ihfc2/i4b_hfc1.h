@@ -247,9 +247,11 @@ hfc1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
    * or ``ihfc_fsm_update(..)''
    */
 
-  if((f == CONFIG_WRITE_UPDATE) ||
-     (f == CONFIG_WRITE_RELOAD))
-  {
+  if ((f == IHFC_CONFIG_WRITE_UPDATE) ||
+      (f == IHFC_CONFIG_WRITE_RELOAD)) {
+
+    ihfc_config_write_sub(sc, f);
+
     bus_space_write_1(t,h,1, sc->sc_config.s_cirm_0);
     bus_space_write_1(t,h,1, sc->sc_config.s_ctmt_0);
   }
