@@ -45,6 +45,8 @@ struct ec_stats {
     int16_t max_x;
 };
 
+#define I32(x) ((int32_t)(x))
+
 static int32_t
 i4b_echo_cancel_inner_product_H0(register const int16_t *p_x)
 {
@@ -56,19 +58,19 @@ i4b_echo_cancel_inner_product_H0(register const int16_t *p_x)
 #endif
     /* 1kHz low-pass filter */
     register int32_t temp = 0;
-    temp += ((p_x[1] + p_x[31]) * -491);
-    temp += ((p_x[2] + p_x[30]) * -745);
-    temp += ((p_x[3] + p_x[29]) * -567);
-    temp += ((p_x[5] + p_x[27]) * 670);
-    temp += ((p_x[6] + p_x[26]) * 1043);
-    temp += ((p_x[7] + p_x[25]) * 819);
-    temp += ((p_x[9] + p_x[23]) * -1053);
-    temp += ((p_x[10] + p_x[22]) * -1738);
-    temp += ((p_x[11] + p_x[21]) * -1475);
-    temp += ((p_x[13] + p_x[19]) * 2458);
-    temp += ((p_x[14] + p_x[18]) * 5215);
-    temp += ((p_x[15] + p_x[17]) * 7375);
-    temp += ((p_x[16]) * 8192);
+    temp += ((I32(p_x[1]) + I32(p_x[31])) * -491);
+    temp += ((I32(p_x[2]) + I32(p_x[30])) * -745);
+    temp += ((I32(p_x[3]) + I32(p_x[29])) * -567);
+    temp += ((I32(p_x[5]) + I32(p_x[27])) * 670);
+    temp += ((I32(p_x[6]) + I32(p_x[26])) * 1043);
+    temp += ((I32(p_x[7]) + I32(p_x[25])) * 819);
+    temp += ((I32(p_x[9]) + I32(p_x[23])) * -1053);
+    temp += ((I32(p_x[10]) + I32(p_x[22])) * -1738);
+    temp += ((I32(p_x[11]) + I32(p_x[21])) * -1475);
+    temp += ((I32(p_x[13]) + I32(p_x[19])) * 2458);
+    temp += ((I32(p_x[14]) + I32(p_x[18])) * 5215);
+    temp += ((I32(p_x[15]) + I32(p_x[17])) * 7375);
+    temp += ((I32(p_x[16])) * 8192);
     return temp;
 }
 
@@ -83,15 +85,15 @@ i4b_echo_cancel_inner_product_H1(register const int16_t *p_x)
 #endif
     /* 2kHz low-pass filter */
     register int32_t temp = 0;
-    temp += ((p_x[1] + p_x[31]) * -695);
-    temp += ((p_x[3] + p_x[29]) * 802);
-    temp += ((p_x[5] + p_x[27]) * -948);
-    temp += ((p_x[7] + p_x[25]) * 1158);
-    temp += ((p_x[9] + p_x[23]) * -1490);
-    temp += ((p_x[11] + p_x[21]) * 2086);
-    temp += ((p_x[13] + p_x[19]) * -3476);
-    temp += ((p_x[15] + p_x[17]) * 10430);
-    temp += ((p_x[16]) * 16384);
+    temp += ((I32(p_x[1]) + I32(p_x[31])) * -695);
+    temp += ((I32(p_x[3]) + I32(p_x[29])) * 802);
+    temp += ((I32(p_x[5]) + I32(p_x[27])) * -948);
+    temp += ((I32(p_x[7]) + I32(p_x[25])) * 1158);
+    temp += ((I32(p_x[9]) + I32(p_x[23])) * -1490);
+    temp += ((I32(p_x[11]) + I32(p_x[21])) * 2086);
+    temp += ((I32(p_x[13]) + I32(p_x[19])) * -3476);
+    temp += ((I32(p_x[15]) + I32(p_x[17])) * 10430);
+    temp += ((I32(p_x[16])) * 16384);
     return temp;
 }
 
@@ -178,7 +180,7 @@ i4b_subtract_safe(int16_t a, int16_t b)
 static __inline int16_t
 i4b_echo_cancel_hp_f1(struct i4b_echo_cancel *ec, int16_t in)
 {
-    ec->low_pass_1 += ((in * (1<<8)) - (ec->low_pass_1 / (1<<8)));
+    ec->low_pass_1 += ((I32(in) * (1<<8)) - (ec->low_pass_1 / (1<<8)));
     return i4b_subtract_safe(in, (ec->low_pass_1 / (1<<16)));
 }
 
@@ -188,7 +190,7 @@ i4b_echo_cancel_hp_f1(struct i4b_echo_cancel *ec, int16_t in)
 static __inline int16_t
 i4b_echo_cancel_hp_f2(struct i4b_echo_cancel *ec, int16_t in)
 {
-    ec->low_pass_2 += ((in * (1<<8)) - (ec->low_pass_2 / (1<<8)));
+    ec->low_pass_2 += ((I32(in) * (1<<8)) - (ec->low_pass_2 / (1<<8)));
     return i4b_subtract_safe(in, (ec->low_pass_2 / (1<<16)));
 }
 
@@ -249,26 +251,28 @@ i4b_echo_cancel_clamp(int32_t val)
  * i4b_echo_cancel_inner_product - compute inner-product
  *---------------------------------------------------------------------------*/
 static int32_t
-i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c, uint16_t n)
+i4b_echo_cancel_inner_product(const int16_t *p_x, const int32_t *p_c,
+			      uint16_t n)
 {
     int64_t temp = 0;
+
     while (n >= 16) {
-        temp += p_x[0] * p_c[0];
-        temp += p_x[1] * p_c[1];
-        temp += p_x[2] * p_c[2];
-        temp += p_x[3] * p_c[3];
-        temp += p_x[4] * p_c[4];
-        temp += p_x[5] * p_c[5];
-        temp += p_x[6] * p_c[6];
-        temp += p_x[7] * p_c[7];
-        temp += p_x[8] * p_c[8];
-        temp += p_x[9] * p_c[9];
-        temp += p_x[10] * p_c[10];
-        temp += p_x[11] * p_c[11];
-        temp += p_x[12] * p_c[12];
-        temp += p_x[13] * p_c[13];
-        temp += p_x[14] * p_c[14];
-        temp += p_x[15] * p_c[15];
+        temp += ((int64_t) p_x[0]) * p_c[0];
+        temp += ((int64_t) p_x[1]) * p_c[1];
+        temp += ((int64_t) p_x[2]) * p_c[2];
+        temp += ((int64_t) p_x[3]) * p_c[3];
+        temp += ((int64_t) p_x[4]) * p_c[4];
+        temp += ((int64_t) p_x[5]) * p_c[5];
+        temp += ((int64_t) p_x[6]) * p_c[6];
+        temp += ((int64_t) p_x[7]) * p_c[7];
+        temp += ((int64_t) p_x[8]) * p_c[8];
+        temp += ((int64_t) p_x[9]) * p_c[9];
+        temp += ((int64_t) p_x[10]) * p_c[10];
+        temp += ((int64_t) p_x[11]) * p_c[11];
+        temp += ((int64_t) p_x[12]) * p_c[12];
+        temp += ((int64_t) p_x[13]) * p_c[13];
+        temp += ((int64_t) p_x[14]) * p_c[14];
+        temp += ((int64_t) p_x[15]) * p_c[15];
 
 	p_c += 16;
 	p_x += 16;
@@ -360,7 +364,7 @@ i4b_echo_cancel_offset_adjust(struct i4b_echo_cancel *ec)
 
 	  i4b_echo_cancel_reset_adjust(ec);
 
-	  I4B_DBG(1, L1_EC_MSG, "adjust reset to %d", ec->offset_rd);
+	  I4B_DBG(1, L1_EC_MSG, "adjust reset");
 
     } else if (ec->offset_adjust < 0) {
 
@@ -389,7 +393,7 @@ i4b_echo_cancel_offset_adjust(struct i4b_echo_cancel *ec)
 	ec->offset_rd --;
 	ec->offset_adjust ++;
 
-        I4B_DBG(1, L1_EC_MSG, "adjusting down to %d", ec->offset_rd);
+        I4B_DBG(1, L1_EC_MSG, "adjusting down to xm=%d", ec->coeffs_last_max_x);
 
     } else if (ec->offset_adjust > 0) {
 
@@ -418,7 +422,7 @@ i4b_echo_cancel_offset_adjust(struct i4b_echo_cancel *ec)
 	ec->offset_rd ++;
 	ec->offset_adjust --;
 
-        I4B_DBG(1, L1_EC_MSG, "adjusting up to %d", ec->offset_rd);
+        I4B_DBG(1, L1_EC_MSG, "adjusting up to xm=%d", ec->coeffs_last_max_x);
     }
     return;
 }
@@ -562,12 +566,12 @@ i4b_echo_cancel_quick_train(struct i4b_echo_cancel *ec, u_int16_t max_x)
 
     for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
 
-        pa += ((ec->buf_X0[ec->offset_x + 1 + n + max_x] *
-		ec->buf_X0[ec->offset_x + 1 + n + max_x]) 
+        pa += ((I32(ec->buf_X0[ec->offset_x + 1 + n + max_x]) *
+		I32(ec->buf_X0[ec->offset_x + 1 + n + max_x])) 
 	       / I4B_ECHO_CANCEL_N_TAPS);
 
-	pb += ((ec->buf_X0[ec->offset_x + 1 + n + max_x] *
-		ec->buf_E0[ec->offset_x + 1 + n]) 
+	pb += ((I32(ec->buf_X0[ec->offset_x + 1 + n + max_x]) *
+		I32(ec->buf_E0[ec->offset_x + 1 + n])) 
 	       / I4B_ECHO_CANCEL_N_TAPS);
     }
 
@@ -627,9 +631,9 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 
     x = ec->buf_X0[ec->offset_rd];
 
-    ec->cur_power_tx += (x * x) / max;
-    ec->cur_power_rx0 += (y * y) / max; /* after echo cancel */
-    ec->cur_power_rx1 += (z * z) / max; /* before echo cancel */
+    ec->cur_power_tx += (I32(x) * I32(x)) / max;
+    ec->cur_power_rx0 += (I32(y) * I32(y)) / max; /* after echo cancel */
+    ec->cur_power_rx1 += (I32(z) * I32(z)) / max; /* before echo cancel */
     ec->cur_power_count ++;
 
     if (ec->cur_power_count >= max) {
@@ -669,7 +673,9 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 	/* check for stable "max_x" */
 
 	if (ec->max_coeff_set == 0) {
-	    ec->max_coeff_set = 1;
+	    if (ec->max_trained && stats.max_y) {
+		ec->max_coeff_set = 1;
+	    }
 	    ec->coeffs_last_max_x = stats.max_x;
 	}
 
