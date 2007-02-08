@@ -109,6 +109,8 @@ i4b_echo_cancel_init(struct i4b_echo_cancel *ec,
 
     ec->adapt_count = I4B_ECHO_CANCEL_ADAPT_COUNT;
 
+    ec->coeffs_wait = I4B_ECHO_CANCEL_ADAPT_HIST;
+
     ec->noise_rem = 1;
 
     ec->pre_delay = pre_delay;
@@ -660,7 +662,7 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 	    }
 	} else {
 	    if (ec->adapt_count == 0) {
-	        ec->coeffs_wait = I4B_ECHO_CANCEL_ADAPT_HIST + 1;
+	        ec->coeffs_wait = I4B_ECHO_CANCEL_ADAPT_HIST;
 	    }
 	}
 
@@ -695,16 +697,32 @@ i4b_echo_cancel_pwr(struct i4b_echo_cancel *ec,
 
 		    ec->coeffs_last_valid = 0;
 		} else {
-
-		    if (ec->coeffs_last_valid) {
+		    switch(ec->coeffs_last_valid) {
+		    case 0:
+		        bcopy(ec->buf_W[0],
+			      ec->buf_W[1], sizeof(ec->buf_W[1]));
+			ec->coeffs_last_valid = 1;
+			break;
+		    case 1:
+		        bcopy(ec->buf_W[0],
+			      ec->buf_W[3], sizeof(ec->buf_W[3]));
+			ec->coeffs_last_valid = 2;
+			break;
+		    case 2:
 		        bcopy(ec->buf_W[1],
 			      ec->buf_W[2], sizeof(ec->buf_W[2]));
+		        bcopy(ec->buf_W[0],
+			      ec->buf_W[1], sizeof(ec->buf_W[1]));
+			ec->coeffs_last_valid = 3;
+			break;
+		    case 3:
+		        bcopy(ec->buf_W[3],
+			      ec->buf_W[2], sizeof(ec->buf_W[2]));
+		        bcopy(ec->buf_W[0],
+			      ec->buf_W[3], sizeof(ec->buf_W[3]));
+			ec->coeffs_last_valid = 2;
+			break;
 		    }
-
-		    ec->coeffs_last_valid = 1;
-
-		    bcopy(ec->buf_W[0],
-			  ec->buf_W[1], sizeof(ec->buf_W[1]));
 
 		    if (ec->stable_count < 8) {
 		        ec->stable_count ++;

@@ -866,14 +866,14 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 #define I4B_ECHO_CANCEL_N_TAPS        256 /* samples */
 #define I4B_ECHO_CANCEL_K_TAPS         32 /* samples */
 #define I4B_ECHO_CANCEL_N_SUB           3 /* units */
-#define I4B_ECHO_CANCEL_W_SUB           3 /* units */
+#define I4B_ECHO_CANCEL_W_SUB           4 /* units */
 #define I4B_ECHO_CANCEL_STEP            1 /* units */
 #define I4B_ECHO_CANCEL_X_DP (1<<15)
 #define I4B_ECHO_CANCEL_W_DP (I4B_ECHO_CANCEL_N_TAPS * \
 			      I4B_ECHO_CANCEL_STEP * \
 			      I4B_ECHO_CANCEL_X_DP * 64)
-#define I4B_ECHO_CANCEL_ADAPT_COUNT     4000  /* samples */
-#define I4B_ECHO_CANCEL_ADAPT_HIST         2  /* units */
+#define I4B_ECHO_CANCEL_ADAPT_COUNT     8000  /* samples */
+#define I4B_ECHO_CANCEL_ADAPT_HIST         3  /* units */
 
 #if (I4B_ECHO_CANCEL_K_TAPS > I4B_ECHO_CANCEL_N_TAPS)
 #error "I4B_ECHO_CANCEL_K_TAPS is invalid"
@@ -923,7 +923,7 @@ struct i4b_echo_cancel {
   u_int8_t  coeffs_adapt : 1;
   u_int8_t  coeffs_bad : 1;
   u_int8_t  max_trained : 1;
-  u_int8_t  coeffs_last_valid : 1;
+  u_int8_t  coeffs_last_valid : 2;
   u_int8_t  max_coeff_set : 1;
   u_int8_t  coeffs_wait;
   u_int8_t  last_byte;
