@@ -25,7 +25,7 @@
  * SUCH DAMAGE.
  *
  *
- * i4b_echo_cancel.c - An integer, trippel sub-band, Normalized Least 
+ * i4b_echo_cancel.c - An integer, tripple subband, Normalized Least 
  *                     Mean Square, NLMS, echo canceller.
  */
 #include <sys/param.h>
@@ -119,7 +119,7 @@ i4b_echo_cancel_init(struct i4b_echo_cancel *ec,
 
     ec->is_ulaw = (sub_bprot != BSUBPROT_G711_ALAW);
 
-    ec->offset_x = (I4B_ECHO_CANCEL_K_TAPS-1);
+    ec->offset_x = (I4B_ECHO_CANCEL_F_SIZE-1);
 
     ec->offset_wr = (I4B_ECHO_CANCEL_F_SIZE-1);
 
@@ -524,11 +524,11 @@ i4b_echo_cancel_lms(struct i4b_echo_cancel *ec, int16_t y0)
 
     if (ec->offset_x == 0) {
 
-        ec->offset_x = (I4B_ECHO_CANCEL_K_TAPS-1);
+        ec->offset_x = (I4B_ECHO_CANCEL_F_SIZE-1);
 
 	bcopy(ec->buf_E0,
-	      ec->buf_E0 + I4B_ECHO_CANCEL_K_TAPS,
-	      sizeof(ec->buf_E0[0]) * I4B_ECHO_CANCEL_K_TAPS);
+	      ec->buf_E0 + I4B_ECHO_CANCEL_F_SIZE,
+	      sizeof(ec->buf_E0[0]) * I4B_ECHO_CANCEL_F_SIZE);
 
     } else {
         ec->offset_x --;
@@ -566,11 +566,11 @@ i4b_echo_cancel_quick_train(struct i4b_echo_cancel *ec, u_int16_t max_x)
 
     for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
 
-        pa += ((I32(ec->buf_X0[ec->offset_x + 1 + n + max_x]) *
-		I32(ec->buf_X0[ec->offset_x + 1 + n + max_x])) 
+        pa += ((I32(ec->buf_X0[ec->offset_rd + 1 + n + max_x]) *
+		I32(ec->buf_X0[ec->offset_rd + 1 + n + max_x])) 
 	       / I4B_ECHO_CANCEL_N_TAPS);
 
-	pb += ((I32(ec->buf_X0[ec->offset_x + 1 + n + max_x]) *
+	pb += ((I32(ec->buf_X0[ec->offset_rd + 1 + n + max_x]) *
 		I32(ec->buf_E0[ec->offset_x + 1 + n])) 
 	       / I4B_ECHO_CANCEL_N_TAPS);
     }

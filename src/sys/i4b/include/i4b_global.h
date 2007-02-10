@@ -915,7 +915,7 @@ struct i4b_echo_cancel {
 
     int16_t buf_X0[2*I4B_ECHO_CANCEL_F_SIZE]; /* copy of transmitted data */
 
-    int16_t buf_E0[2*I4B_ECHO_CANCEL_K_TAPS]; /* error buffer */
+    int16_t buf_E0[2*I4B_ECHO_CANCEL_F_SIZE]; /* error buffer */
 
   u_int8_t  rx_speaking : 1;
   u_int8_t  tx_speaking : 1;
