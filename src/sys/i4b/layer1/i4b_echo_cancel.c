@@ -566,11 +566,11 @@ i4b_echo_cancel_quick_train(struct i4b_echo_cancel *ec, u_int16_t max_x)
 
     for (n = 0; n < I4B_ECHO_CANCEL_N_TAPS; n++) {
 
-        pa += ((I32(ec->buf_X0[ec->offset_rd + 1 + n + max_x]) *
-		I32(ec->buf_X0[ec->offset_rd + 1 + n + max_x])) 
+        pa += ((I32(ec->buf_X0[ec->offset_rd + n + max_x]) *
+		I32(ec->buf_X0[ec->offset_rd + n + max_x])) 
 	       / I4B_ECHO_CANCEL_N_TAPS);
 
-	pb += ((I32(ec->buf_X0[ec->offset_rd + 1 + n + max_x]) *
+	pb += ((I32(ec->buf_X0[ec->offset_rd + n + max_x]) *
 		I32(ec->buf_E0[ec->offset_x + 1 + n])) 
 	       / I4B_ECHO_CANCEL_N_TAPS);
     }
