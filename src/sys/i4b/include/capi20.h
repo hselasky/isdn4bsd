@@ -2382,15 +2382,11 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 		      temp = ((((u_int8_t *)(var))[1]) |
 			      (((u_int8_t *)(var))[2] << 8));
 		      var = ADD_BYTES(var, 3);
-
-		      if(temp < 3) goto error; /* overflow */
 		    }
 		    else
 		    {
 		      temp = ((u_int8_t *)(var))[0];
 		      var = ADD_BYTES(var, 1);
-
-		      if(temp < 1) goto error; /* overflow */
 		    }
 		  }
 	      }
