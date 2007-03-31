@@ -60,7 +60,6 @@
 #include <sys/kernel.h>
 #include <sys/termios.h>
 #include <sys/serial.h>
-#include <sys/taskqueue.h>
 
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
@@ -84,8 +83,7 @@ SYSCTL_INT(_hw_usb_uvisor, OID_AUTO, debug, CTLFLAG_RW,
 
 #define UVISOR_CONFIG_INDEX	0
 #define UVISOR_IFACE_INDEX	0
-#define UVISOR_MODVER		1
-#define UVISOR_N_TRANSFER       5 /* units */
+#define UVISOR_N_TRANSFER       4 /* units */
 #define UVISOR_BUFSIZE       1024 /* bytes */
 
 /* From the Linux driver */
@@ -151,9 +149,11 @@ struct uvisor_palm_connection_info {
 } UPACKED;
 
 struct uvisor_softc {
+	struct ucom_super_softc	sc_super_ucom;
 	struct ucom_softc	sc_ucom;
 
 	struct usbd_xfer *	sc_xfer[UVISOR_N_TRANSFER];
+	struct usbd_device	*sc_udev;
 
 	u_int16_t		sc_flag;
 #define UVISOR_FLAG_PALM4       0x0001
@@ -173,48 +173,26 @@ struct uvisor_product {
 	u_int16_t flags;
 };
 
-static const struct uvisor_product *
-uvisor_find_up(struct usb_attach_arg *uaa);
+/* prototypes */
+
+static const struct uvisor_product *	uvisor_find_up(struct usb_attach_arg *uaa);
 
 static device_probe_t uvisor_probe;
 static device_attach_t uvisor_attach;
 static device_detach_t uvisor_detach;
 
-usbd_status
-uvisor_init(struct uvisor_softc *sc, struct usbd_device *udev, struct usbd_config *config);
+static usbd_callback_t uvisor_write_callback;
+static usbd_callback_t uvisor_write_clear_stall_callback;
+static usbd_callback_t uvisor_read_callback;
+static usbd_callback_t uvisor_read_clear_stall_callback;
 
-static int
-uvisor_open(struct ucom_softc *ucom);
-
-static void
-uvisor_close(struct ucom_softc *ucom);
-
-static void
-uvisor_start_read(struct ucom_softc *ucom);
-
-static void
-uvisor_stop_read(struct ucom_softc *ucom);
-
-static void
-uvisor_start_write(struct ucom_softc *ucom);
-
-static void
-uvisor_stop_write(struct ucom_softc *ucom);
-
-static void
-uvisor_write_callback(struct usbd_xfer *xfer);
-
-static void
-uvisor_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-uvisor_read_callback(struct usbd_xfer *xfer);
-
-static void
-uvisor_read_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-usbd_close_notify_callback(struct usbd_xfer *xfer);
+static usbd_status	uvisor_init(struct uvisor_softc *sc, struct usbd_device *udev, struct usbd_config *config);
+static void	uvisor_cfg_open(struct ucom_softc *ucom);
+static void	uvisor_cfg_close(struct ucom_softc *ucom);
+static void	uvisor_start_read(struct ucom_softc *ucom);
+static void	uvisor_stop_read(struct ucom_softc *ucom);
+static void	uvisor_start_write(struct ucom_softc *ucom);
+static void	uvisor_stop_write(struct ucom_softc *ucom);
 
 static const struct usbd_config uvisor_config[UVISOR_N_TRANSFER] = {
 
@@ -253,25 +231,15 @@ static const struct usbd_config uvisor_config[UVISOR_N_TRANSFER] = {
       .callback  = &uvisor_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
     },
-
-    [4] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
-      .bufsize   = (sizeof(usb_device_request_t) + sizeof(struct uvisor_connection_info)),
-      .flags     = USBD_SHORT_XFER_OK,
-      .callback  = &usbd_close_notify_callback,
-      .timeout   = 1000, /* 1 second */
-    },
 };
 
 static const struct ucom_callback uvisor_callback = {
-    .ucom_open        = &uvisor_open,
-    .ucom_close       = &uvisor_close,
-    .ucom_start_read  = &uvisor_start_read,
-    .ucom_stop_read   = &uvisor_stop_read,
-    .ucom_start_write = &uvisor_start_write,
-    .ucom_stop_write  = &uvisor_stop_write,
+    .ucom_cfg_open        = &uvisor_cfg_open,
+    .ucom_cfg_close       = &uvisor_cfg_close,
+    .ucom_start_read      = &uvisor_start_read,
+    .ucom_stop_read       = &uvisor_stop_read,
+    .ucom_start_write     = &uvisor_start_write,
+    .ucom_stop_write      = &uvisor_stop_write,
 };
 
 static device_method_t uvisor_methods[] = {
@@ -292,7 +260,6 @@ static driver_t uvisor_driver = {
 DRIVER_MODULE(uvisor, uhub, uvisor_driver, uvisor_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(uvisor, usb, 1, 1, 1);
 MODULE_DEPEND(uvisor, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
-MODULE_VERSION(uvisor, UVISOR_MODVER);
 
 static const struct uvisor_product uvisor_products[] = {
     { USB_VENDOR_ACEECA, USB_PRODUCT_ACEECA_MEZ1000 , UVISOR_FLAG_PALM4 },
@@ -366,6 +333,8 @@ uvisor_attach(device_t dev)
 
 	usbd_set_desc(dev, uaa->device);
 
+	sc->sc_udev = uaa->device;
+
 	/* configure the device */
 
 	error = usbd_set_config_index(uaa->device, UVISOR_CONFIG_INDEX, 1);
@@ -410,7 +379,11 @@ uvisor_attach(device_t dev)
 	    goto detach;
 	}
 
-	error = ucom_attach(&(sc->sc_ucom), 1, sc,
+	/* clear stall at first run */
+	sc->sc_flag |= (UVISOR_FLAG_WRITE_STALL|
+			UVISOR_FLAG_READ_STALL);
+
+	error = ucom_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
 			    &uvisor_callback, &Giant);
 	if (error) {
 	    DPRINTF(0, "ucom_attach failed\n");
@@ -431,14 +404,14 @@ uvisor_detach(device_t dev)
 
 	DPRINTF(0, "sc=%p\n", sc);
 
-	ucom_detach(&(sc->sc_ucom), 1);
+	ucom_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UVISOR_N_TRANSFER);
 
 	return 0;
 }
 
-usbd_status
+static usbd_status
 uvisor_init(struct uvisor_softc *sc, struct usbd_device *udev, struct usbd_config *config)
 {
 	usbd_status err = 0;
@@ -589,23 +562,32 @@ uvisor_init(struct uvisor_softc *sc, struct usbd_device *udev, struct usbd_confi
 	return err;
 }
 
-static int
-uvisor_open(struct ucom_softc *ucom)
+static void
+uvisor_cfg_open(struct ucom_softc *ucom)
 {
-	struct uvisor_softc *sc = ucom->sc_parent;
-
-	/* clear stall first */
-	sc->sc_flag |= (UVISOR_FLAG_WRITE_STALL|
-			UVISOR_FLAG_READ_STALL);
-	return 0;
+	return;
 }
 
 static void
-uvisor_close(struct ucom_softc *ucom)
+uvisor_cfg_close(struct ucom_softc *ucom)
 {
 	struct uvisor_softc *sc = ucom->sc_parent;
-	sc->sc_flag |= UVISOR_FLAG_SEND_NOTIFY;
-	usbd_transfer_start(sc->sc_xfer[4]);
+	uint8_t buffer[UVISOR_CONNECTION_INFO_SIZE];
+	usb_device_request_t req;
+	usbd_status err;
+
+	req.bmRequestType = UT_READ_VENDOR_ENDPOINT; /* XXX read? */
+	req.bRequest = UVISOR_CLOSE_NOTIFICATION;
+	USETW(req.wValue, 0);
+	USETW(req.wIndex, 0);
+	USETW(req.wLength, UVISOR_CONNECTION_INFO_SIZE);
+
+	err = usbd_do_request_flags_mtx(sc->sc_udev, &Giant, &req, 
+					&buffer, 0, NULL, 1000);
+	if (err) {
+	    DPRINTF(-1, "close notification failed, error=%s\n",
+		    usbd_errstr(err));
+	}
 	return;
 }
 
@@ -746,30 +728,5 @@ uvisor_read_clear_stall_callback(struct usbd_xfer *xfer)
 	sc->sc_flag &= ~UVISOR_FLAG_READ_STALL;
 	DPRINTF(0, "clear stall failed, error=%s\n",
 		usbd_errstr(xfer->error));
-	return;
-}
-
-static void
-usbd_close_notify_callback(struct usbd_xfer *xfer)
-{
-	usb_device_request_t *req = xfer->buffer;
-	struct uvisor_softc *sc = xfer->priv_sc;
-
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
- tr_transferred:
- tr_setup:
-	if (sc->sc_flag &   UVISOR_FLAG_SEND_NOTIFY) {
-	    sc->sc_flag &= ~UVISOR_FLAG_SEND_NOTIFY;
-
-	    req->bmRequestType = UT_READ_VENDOR_ENDPOINT; /* XXX read? */
-	    req->bRequest = UVISOR_CLOSE_NOTIFICATION;
-	    USETW(req->wValue, 0);
-	    USETW(req->wIndex, 0);
-	    USETW(req->wLength, UVISOR_CONNECTION_INFO_SIZE);
-	    usbd_start_hardware(xfer);
-	}
 	return;
 }

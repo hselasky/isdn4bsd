@@ -86,7 +86,7 @@ struct usb_hid_descriptor;
 
 typedef uint8_t usbd_status;
 
-typedef void (*usbd_callback_t)(struct usbd_xfer *);
+typedef void (usbd_callback_t)(struct usbd_xfer *);
 
 struct usbd_bus_methods {
 	void (*pipe_init)(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc, struct usbd_pipe *pipe);
@@ -266,7 +266,7 @@ struct usbd_device {
 };
 
 struct usbd_config {
-	usbd_callback_t	callback;
+	usbd_callback_t	*callback;
 
 	uint32_t	flags;	/* flags */
 #define	USBD_SYNCHRONOUS         0x0001 /* wait for completion */
@@ -349,7 +349,7 @@ struct usbd_xfer {
 	void 			*buffer;
 	uint16_t 		*frlengths;
 	uint16_t 		*frlengths_old;
-	usbd_callback_t 	callback;
+	usbd_callback_t 	*callback;
 
 	uint32_t		length; /* bytes */
 	uint32_t		actlen; /* bytes */
@@ -455,7 +455,6 @@ struct usbd_config_td_softc;
 struct usbd_config_td_cc;
 
 typedef void (usbd_config_td_command_t)(struct usbd_config_td_softc *sc, struct usbd_config_td_cc *cc, uint16_t reference);
-typedef void (usbd_config_td_config_copy_t)(struct usbd_config_td_softc *sc, struct usbd_config_td_cc *cc, uint16_t reference);
 typedef void (usbd_config_td_end_of_commands_t)(struct usbd_config_td_softc *sc);
 
 struct usbd_config_td {
@@ -466,7 +465,6 @@ struct usbd_config_td {
 	struct mtx			*p_mtx;
 	void				*p_softc;
 	void				*p_cmd_queue;
-	usbd_config_td_config_copy_t	*p_config_copy;
 	usbd_config_td_end_of_commands_t *p_end_of_commands;
 
 	uint8_t				wakeup_config_td;
@@ -591,10 +589,10 @@ void		usbd_std_transfer_setup(struct usbd_xfer *xfer, const struct usbd_config *
 uint8_t		usbd_make_str_desc(void *ptr, uint16_t max_len, const char *s);
 uint32_t	mtx_drop_recurse(struct mtx *mtx);
 void		mtx_pickup_recurse(struct mtx *mtx, uint32_t recurse_level);
-uint8_t		usbd_config_td_setup(struct usbd_config_td *ctd, void *priv_sc, struct mtx *priv_mtx, usbd_config_td_config_copy_t *p_func_cc, usbd_config_td_end_of_commands_t *p_func_eoc, uint16_t item_size, uint16_t item_count);
+uint8_t		usbd_config_td_setup(struct usbd_config_td *ctd, void *priv_sc, struct mtx *priv_mtx, usbd_config_td_end_of_commands_t *p_func_eoc, uint16_t item_size, uint16_t item_count);
 void		usbd_config_td_stop(struct usbd_config_td *ctd);
 void		usbd_config_td_unsetup(struct usbd_config_td *ctd);
-void		usbd_config_td_queue_command(struct usbd_config_td *ctd, usbd_config_td_command_t *command_func, uint16_t command_ref);
+void		usbd_config_td_queue_command(struct usbd_config_td *ctd, usbd_config_td_command_t *pre_func, usbd_config_td_command_t *post_func, uint16_t command_qcount, uint16_t command_ref);
 uint8_t		usbd_config_td_is_gone(struct usbd_config_td *ctd);
 uint8_t		usbd_config_td_sleep(struct usbd_config_td *ctd, uint32_t timeout);
 struct mbuf *	usbd_ether_get_mbuf(void);

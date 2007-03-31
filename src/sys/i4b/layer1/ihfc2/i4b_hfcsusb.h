@@ -286,10 +286,6 @@ hfcsusb_cfg_reset(struct ihfc_sc *sc,
 
 	const struct regdata *ptr;
 
-	if (cc == NULL) {
-	    return;
-	}
-
 	/* reset and reload configuration */
 	for(ptr = regdata;
 	    ptr->reg != 0xff;
@@ -354,7 +350,8 @@ hfcsusb_chip_reset CHIP_RESET_T(sc,error)
 	sc->sc_fifo[d1r].s_par_hdlc = 2; /* 2-bits per millisecond */
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &hfcsusb_cfg_reset, 0);
+	  (&(sc->sc_config_td), NULL,
+	   &hfcsusb_cfg_reset, 0, 0);
 	return;
 }
 
@@ -367,10 +364,6 @@ hfcsusb_cfg_read_f_usage(struct ihfc_sc *sc,
 {
 	ihfc_fifo_t *f;
 	uint8_t temp;
-
-	if (cc == NULL) {
-	    return;
-	}
 
 	f = sc->sc_fifo + d1t;
 
@@ -449,7 +442,8 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 	      f->Z_chip |= 0x01;
 
 	      usbd_config_td_queue_command
-		(&(sc->sc_config_td), &hfcsusb_cfg_read_f_usage, 0);
+		(&(sc->sc_config_td), NULL, 
+		 &hfcsusb_cfg_read_f_usage, 0, 0);
 	  }
 
 	  /* waiting for F_USAGE read */
@@ -1091,10 +1085,6 @@ hfcsusb_cfg_chip_config_write_f(struct ihfc_sc *sc,
 	ihfc_fifo_t *f_other;
 	uint8_t regtemp[6];
 
-	if (cc == NULL) {
-	    return;
-	}
-
 	f = sc->sc_fifo + refcount;
 
 	/*
@@ -1154,10 +1144,6 @@ hfcsusb_cfg_chip_config_write_r(struct ihfc_sc *sc,
 {
 	register_list_t *r;
 
-	if (cc == NULL) {
-	    return;
-	}
-
 	/*
 	 * configure chip,
 	 * write new configuration
@@ -1194,7 +1180,8 @@ hfcsusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	    *xfer_end = &sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_END];
 
 	  usbd_config_td_queue_command
-	    (&(sc->sc_config_td), &hfcsusb_cfg_chip_config_write_r, 
+	    (&(sc->sc_config_td), NULL,
+	     &hfcsusb_cfg_chip_config_write_r, 0, 
 	     (f == IHFC_CONFIG_WRITE_RELOAD) ? 1 : 0);
 
 	  /*
@@ -1239,7 +1226,8 @@ hfcsusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	  sc->sc_config.fifo_level &= ~(1 << (f->s_fifo_sel));
 
 	  usbd_config_td_queue_command
-	    (&(sc->sc_config_td), &hfcsusb_cfg_chip_config_write_f,
+	    (&(sc->sc_config_td), NULL,
+	     &hfcsusb_cfg_chip_config_write_f, 0, 
 	     FIFO_NO(f));
 	}
 	return;
@@ -1265,10 +1253,6 @@ hfcsusb_cfg_fsm_write(struct ihfc_sc *sc,
 {
 	uint8_t temp;
 
-	if (cc == NULL) {
-	    return;
-	}
-
 	temp = refcount;
 
 	/* write STATES */
@@ -1291,7 +1275,8 @@ static void
 hfcsusb_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	usbd_config_td_queue_command
-          (&(sc->sc_config_td), &hfcsusb_cfg_fsm_write, *ptr);
+          (&(sc->sc_config_td), NULL,
+	   &hfcsusb_cfg_fsm_write, 0, *ptr);
 	return;
 }
 
@@ -1410,10 +1395,6 @@ hfcsusb_cfg_read_status(struct ihfc_sc *sc,
 	ihfc_fifo_t *f;
 	uint8_t temp;
 
-	if (cc == NULL) {
-	    return;
-	}
-
 	IHFC_MSG("\n");
 
 	f = sc->sc_fifo + d1t;
@@ -1461,7 +1442,8 @@ static void
 hfcsusb_chip_status_read(ihfc_sc_t *sc)
 {
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &hfcsusb_cfg_read_status, 0);
+	  (&(sc->sc_config_td), NULL, 
+	   &hfcsusb_cfg_read_status, 0, 0);
 	return;
 }
 

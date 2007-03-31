@@ -103,6 +103,19 @@ struct ulpt_softc {
 	u_int8_t		sc_last_status;
 };
 
+/* prototypes */
+
+static device_probe_t ulpt_probe;
+static device_attach_t ulpt_attach;
+static device_detach_t ulpt_detach;
+
+static usbd_callback_t ulpt_write_callback;
+static usbd_callback_t ulpt_write_clear_stall_callback;
+static usbd_callback_t ulpt_read_callback;
+static usbd_callback_t ulpt_read_clear_stall_callback;
+static usbd_callback_t ulpt_status_callback;
+static usbd_callback_t ulpt_reset_callback;
+
 static void
 ulpt_watchdog(void *__sc)
 {
@@ -488,13 +501,6 @@ ulpt_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t data,
 {
 	return ENODEV;
 }
-
-
-/* prototypes */
-
-static device_probe_t ulpt_probe;
-static device_attach_t ulpt_attach;
-static device_detach_t ulpt_detach;
 
 static int
 ulpt_probe(device_t dev)

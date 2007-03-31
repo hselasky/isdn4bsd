@@ -127,10 +127,26 @@ static struct kue_type kue_devs[] = {
 	{ 0, 0 }
 };
 
+/* prototypes */
+
 static device_probe_t kue_probe;
 static device_attach_t kue_attach;
 static device_detach_t kue_detach;
 static device_shutdown_t kue_shutdown;
+
+static usbd_callback_t kue_bulk_read_clear_stall_callback;
+static usbd_callback_t kue_bulk_read_callback;
+static usbd_callback_t kue_bulk_write_clear_stall_callback;
+static usbd_callback_t kue_bulk_write_callback;
+
+static usbd_config_td_command_t kue_cfg_promisc_upd;
+static usbd_config_td_command_t kue_config_copy;
+static usbd_config_td_command_t kue_cfg_first_time_setup;
+static usbd_config_td_command_t kue_cfg_pre_init;
+static usbd_config_td_command_t kue_cfg_init;
+static usbd_config_td_command_t kue_cfg_tick;
+static usbd_config_td_command_t kue_cfg_pre_stop;
+static usbd_config_td_command_t kue_cfg_stop;
 
 static void
 kue_cfg_do_request(struct kue_softc *sc, usb_device_request_t *req, 
@@ -145,28 +161,7 @@ static void
 kue_cfg_load_fw(struct kue_softc *sc);
 
 static void
-kue_cfg_promisc_upd(struct kue_softc *sc,
-		    struct kue_config_copy *cc, u_int16_t refcount);
-static void
-kue_config_copy(struct kue_softc *sc, 
-		struct kue_config_copy *cc, u_int16_t refcount);
-static void
 kue_cfg_reset(struct kue_softc *sc);
-
-static void
-kue_cfg_first_time_setup(struct kue_softc *sc,
-			 struct kue_config_copy *cc, u_int16_t refcount);
-static void
-kue_bulk_read_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-kue_bulk_read_callback(struct usbd_xfer *xfer);
-
-static void
-kue_bulk_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-kue_bulk_write_callback(struct usbd_xfer *xfer);
 
 static void
 kue_start_cb(struct ifnet *ifp);
@@ -177,21 +172,11 @@ kue_start_transfers(struct kue_softc *sc);
 static void
 kue_init_cb(void *arg);
 
-static void
-kue_cfg_init(struct kue_softc *sc,
-	     struct kue_config_copy *cc, u_int16_t refcount);
 static int
 kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
 
 static void
-kue_cfg_tick(struct kue_softc *sc,
-	     struct kue_config_copy *cc, u_int16_t refcount);
-static void
 kue_watchdog(void *arg);
-
-static void
-kue_cfg_stop(struct kue_softc *sc,
-	     struct kue_config_copy *cc, u_int16_t refcount);
 
 #define DPRINTF(...)
 
@@ -376,11 +361,6 @@ static void
 kue_cfg_promisc_upd(struct kue_softc *sc,
 		    struct kue_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
 	kue_cfg_ctl(sc, KUE_CTL_WRITE, KUE_CMD_SET_MCAST_FILTERS,
 		    cc->if_nhash, cc->if_hash, cc->if_nhash * ETHER_ADDR_LEN);
 
@@ -553,8 +533,7 @@ kue_attach(device_t dev)
 	}
 
 	error = usbd_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
-				     &kue_config_copy, NULL,
-				     sizeof(struct kue_config_copy), 16);
+				     NULL, sizeof(struct kue_config_copy), 16);
 	if (error) {
 		device_printf(dev, "could not setup config "
 			      "thread!\n");
@@ -566,7 +545,7 @@ kue_attach(device_t dev)
 	/* start setup */
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &kue_cfg_first_time_setup, 0);
+	  (&(sc->sc_config_td), NULL, &kue_cfg_first_time_setup, 0, 0);
 
 	/* start watchdog (will exit mutex) */
 
@@ -584,10 +563,6 @@ kue_cfg_first_time_setup(struct kue_softc *sc,
 			 struct kue_config_copy *cc, u_int16_t refcount)
 {
 	struct ifnet * ifp;
-
-	if (cc == NULL) {
-	    return;
-	}
 
 	/* load the firmware into the NIC */
 
@@ -654,7 +629,7 @@ kue_detach(device_t dev)
 
 	__callout_stop(&(sc->sc_watchdog));
 
-	kue_cfg_stop(sc, NULL, 0);
+	kue_cfg_pre_stop(sc, NULL, 0);
 
 	ifp = sc->sc_ifp;
 
@@ -916,8 +891,27 @@ kue_init_cb(void *arg)
 
 	mtx_lock(&(sc->sc_mtx));
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &kue_cfg_init, 0);
+	  (&(sc->sc_config_td), &kue_cfg_pre_init, 
+	   &kue_cfg_init, 0, 0);
 	mtx_unlock(&(sc->sc_mtx));
+
+	return;
+}
+
+static void
+kue_cfg_pre_init(struct kue_softc *sc,
+		 struct kue_config_copy *cc, u_int16_t refcount)
+{
+	struct ifnet *ifp = sc->sc_ifp;
+
+	/* immediate configuration */
+
+	kue_cfg_pre_stop(sc, cc, 0);
+
+	ifp->if_drv_flags |= IFF_DRV_RUNNING;
+	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
+
+	sc->sc_flags |= KUE_FLAG_HL_READY;
 
 	return;
 }
@@ -926,22 +920,6 @@ static void
 kue_cfg_init(struct kue_softc *sc,
 	     struct kue_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-
-	    /* immediate configuration */
-
-	    struct ifnet *ifp = sc->sc_ifp;
-
-	    kue_cfg_stop(sc, NULL, 0);
-
-	    ifp->if_drv_flags |= IFF_DRV_RUNNING;
-	    ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
-
-	    sc->sc_flags |= KUE_FLAG_HL_READY;
-
-	    return;
-	}
-
 	/* set MAC address */
 	kue_cfg_ctl(sc, KUE_CTL_WRITE, KUE_CMD_SET_MAC,
 		    0, cc->if_lladdr, ETHER_ADDR_LEN);
@@ -980,15 +958,18 @@ kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 	    if (ifp->if_flags & IFF_UP) {
 	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &kue_cfg_promisc_upd, 0);
+		      (&(sc->sc_config_td), &kue_config_copy,
+		       &kue_cfg_promisc_upd, 0, 0);
 		} else {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &kue_cfg_init, 0); 
+		      (&(sc->sc_config_td), &kue_cfg_pre_init,
+		       &kue_cfg_init, 0, 0); 
 		}
 	    } else {
 	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &kue_cfg_stop, 0);
+		      (&(sc->sc_config_td), &kue_cfg_pre_stop,
+		       &kue_cfg_stop, 0, 0);
 		}
 	    }
 	    break;
@@ -996,7 +977,8 @@ kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 	case SIOCADDMULTI:
 	case SIOCDELMULTI:
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &kue_cfg_promisc_upd, 0);
+	      (&(sc->sc_config_td), &kue_config_copy, 
+	       &kue_cfg_promisc_upd, 0, 0);
 	    break;
 
 	default:
@@ -1015,8 +997,7 @@ kue_cfg_tick(struct kue_softc *sc,
 {
 	struct ifnet * ifp = sc->sc_ifp;
 
-	if ((cc == NULL) ||
-	    (ifp == NULL)) {
+	if ((ifp == NULL)) {
 	    /* not ready */
 	    return;
 	}
@@ -1038,7 +1019,7 @@ kue_watchdog(void *arg)
 	struct kue_softc * sc = arg;
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &kue_cfg_tick, 0);
+	  (&(sc->sc_config_td), NULL, &kue_cfg_tick, 0, 0);
 
 	__callout_reset(&(sc->sc_watchdog), 
 			hz, &kue_watchdog, sc);
@@ -1048,41 +1029,49 @@ kue_watchdog(void *arg)
 }
 
 static void
+kue_cfg_pre_stop(struct kue_softc *sc,
+		 struct kue_config_copy *cc, u_int16_t refcount)
+{
+	struct ifnet *ifp = sc->sc_ifp;
+
+	if (cc) {
+	    /* copy the needed configuration */
+	    kue_config_copy(sc, cc, refcount);
+	}
+
+	/* immediate configuration */
+
+	if (ifp) {
+	    /* clear flags */
+	    ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
+				   IFF_DRV_OACTIVE);
+	}
+
+	sc->sc_flags &= ~(KUE_FLAG_HL_READY|
+			  KUE_FLAG_LL_READY);
+
+	/* stop all the transfers, 
+	 * if not already stopped:
+	 */
+	if (sc->sc_xfer[0]) {
+	    usbd_transfer_stop(sc->sc_xfer[0]);
+	}
+	if (sc->sc_xfer[1]) {
+	    usbd_transfer_stop(sc->sc_xfer[1]);
+	}
+	if (sc->sc_xfer[2]) {
+	    usbd_transfer_stop(sc->sc_xfer[2]);
+	}
+	if (sc->sc_xfer[3]) {
+	    usbd_transfer_stop(sc->sc_xfer[3]);
+	}
+	return;
+}
+
+static void
 kue_cfg_stop(struct kue_softc *sc,
 	     struct kue_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-
-	    /* immediate configuration */
-
-	    struct ifnet *ifp = sc->sc_ifp;
-
-	    if (ifp) {
-	        /* clear flags */
-		ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
-				       IFF_DRV_OACTIVE);
-	    }
-
-	    sc->sc_flags &= ~(KUE_FLAG_HL_READY|
-			      KUE_FLAG_LL_READY);
-
-	    /* stop all the transfers, 
-	     * if not already stopped:
-	     */
-	    if (sc->sc_xfer[0]) {
-	        usbd_transfer_stop(sc->sc_xfer[0]);
-	    }
-	    if (sc->sc_xfer[1]) {
-	        usbd_transfer_stop(sc->sc_xfer[1]);
-	    }
-	    if (sc->sc_xfer[2]) {
-	        usbd_transfer_stop(sc->sc_xfer[2]);
-	    }
-	    if (sc->sc_xfer[3]) {
-	        usbd_transfer_stop(sc->sc_xfer[3]);
-	    }
-	    return;
-	}
 	return;
 }
 
@@ -1098,7 +1087,8 @@ kue_shutdown(device_t dev)
 	mtx_lock(&(sc->sc_mtx));
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &kue_cfg_stop, 0);
+	  (&(sc->sc_config_td), &kue_cfg_pre_stop,
+	   &kue_cfg_stop, 0, 0);
 
 	mtx_unlock(&(sc->sc_mtx));
 

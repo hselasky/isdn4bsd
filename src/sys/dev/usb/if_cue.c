@@ -103,6 +103,20 @@ static device_attach_t cue_attach;
 static device_detach_t cue_detach;
 static device_shutdown_t cue_shutdown;
 
+static usbd_callback_t cue_bulk_read_clear_stall_callback;
+static usbd_callback_t cue_bulk_read_callback;
+static usbd_callback_t cue_bulk_write_clear_stall_callback;
+static usbd_callback_t cue_bulk_write_callback;
+
+static usbd_config_td_command_t cue_cfg_promisc_upd;
+static usbd_config_td_command_t cue_config_copy;
+static usbd_config_td_command_t cue_cfg_first_time_setup;
+static usbd_config_td_command_t cue_cfg_tick;
+static usbd_config_td_command_t cue_cfg_pre_init;
+static usbd_config_td_command_t cue_cfg_init;
+static usbd_config_td_command_t cue_cfg_pre_stop;
+static usbd_config_td_command_t cue_cfg_stop;
+
 static void
 cue_cfg_do_request(struct cue_softc *sc, usb_device_request_t *req, 
 		   void *data);
@@ -125,26 +139,8 @@ static uint32_t
 cue_mchash(const uint8_t *addr);
 
 static void
-cue_cfg_promisc_upd(struct cue_softc *sc,
-		    struct cue_config_copy *cc, u_int16_t refcount);
-static void
-cue_config_copy(struct cue_softc *sc, 
-		struct cue_config_copy *cc, u_int16_t refcount);
-static void
 cue_cfg_reset(struct cue_softc *sc);
 
-static void
-cue_cfg_first_time_setup(struct cue_softc *sc,
-			 struct cue_config_copy *cc, u_int16_t refcount);
-static void
-cue_bulk_read_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-cue_bulk_read_callback(struct usbd_xfer *xfer);
-
-static void
-cue_cfg_tick(struct cue_softc *sc,
-	     struct cue_config_copy *cc, u_int16_t refcount);
 static void
 cue_start_cb(struct ifnet *ifp);
 
@@ -152,26 +148,13 @@ static void
 cue_start_transfers(struct cue_softc *sc);
 
 static void
-cue_bulk_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-cue_bulk_write_callback(struct usbd_xfer *xfer);
-
-static void
 cue_init_cb(void *arg);
 
-static void
-cue_cfg_init(struct cue_softc *sc,
-	     struct cue_config_copy *cc, u_int16_t refcount);
 static int
 cue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
 
 static void
 cue_watchdog(void *arg);
-
-static void
-cue_cfg_stop(struct cue_softc *sc,
-	     struct cue_config_copy *cc, u_int16_t refcount);
 
 #define DPRINTF(...)
 
@@ -373,11 +356,6 @@ static void
 cue_cfg_promisc_upd(struct cue_softc *sc,
 		    struct cue_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
 	/* if we want promiscuous mode, set the allframes bit */
 
 	if (cc->if_flags & IFF_PROMISC) {
@@ -525,8 +503,7 @@ cue_attach(device_t dev)
 	}
 
 	error = usbd_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
-				     &cue_config_copy, NULL,
-				     sizeof(struct cue_config_copy), 16);
+				     NULL, sizeof(struct cue_config_copy), 16);
 	if (error) {
 		device_printf(dev, "could not setup config "
 			      "thread!\n");
@@ -538,7 +515,7 @@ cue_attach(device_t dev)
 	/* start setup */
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &cue_cfg_first_time_setup, 0);
+	  (&(sc->sc_config_td), NULL, &cue_cfg_first_time_setup, 0, 0);
 
 	/* start watchdog (will exit mutex) */
 
@@ -558,9 +535,6 @@ cue_cfg_first_time_setup(struct cue_softc *sc,
 	u_int8_t eaddr[ETHER_ADDR_LEN];
 	struct ifnet * ifp;
 
-	if (cc == NULL) {
-	    return;
-	}
 #if 0
 	/* Reset the adapter. */
 	cue_cfg_reset(sc);
@@ -619,7 +593,7 @@ cue_detach(device_t dev)
 
 	__callout_stop(&(sc->sc_watchdog));
 
-	cue_cfg_stop(sc, NULL, 0);
+	cue_cfg_pre_stop(sc, NULL, 0);
 
 	ifp = sc->sc_ifp;
 
@@ -739,8 +713,7 @@ cue_cfg_tick(struct cue_softc *sc,
 {
 	struct ifnet * ifp = sc->sc_ifp;
 
-	if ((cc == NULL) ||
-	    (ifp == NULL)) {
+	if ((ifp == NULL)) {
 	    /* not ready */
 	    return;
 	}
@@ -897,8 +870,27 @@ cue_init_cb(void *arg)
 
 	mtx_lock(&(sc->sc_mtx));
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &cue_cfg_init, 0);
+	  (&(sc->sc_config_td), &cue_cfg_pre_init, 
+	   &cue_cfg_init, 0, 0);
 	mtx_unlock(&(sc->sc_mtx));
+
+	return;
+}
+
+static void
+cue_cfg_pre_init(struct cue_softc *sc,
+		 struct cue_config_copy *cc, u_int16_t refcount)
+{
+	struct ifnet *ifp = sc->sc_ifp;
+
+	/* immediate configuration */
+
+	cue_cfg_pre_stop(sc, cc, 0);
+
+	ifp->if_drv_flags |= IFF_DRV_RUNNING;
+	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
+
+	sc->sc_flags |= CUE_FLAG_HL_READY;
 
 	return;
 }
@@ -908,22 +900,6 @@ cue_cfg_init(struct cue_softc *sc,
 	     struct cue_config_copy *cc, u_int16_t refcount)
 {
 	u_int8_t i;
-
-	if (cc == NULL) {
-
-	    /* immediate configuration */
-
-	    struct ifnet *ifp = sc->sc_ifp;
-
-	    cue_cfg_stop(sc, NULL, 0);
-
-	    ifp->if_drv_flags |= IFF_DRV_RUNNING;
-	    ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
-
-	    sc->sc_flags |= CUE_FLAG_HL_READY;
-
-	    return;
-	}
 
 	/*
 	 * Cancel pending I/O and free all RX/TX buffers.
@@ -979,15 +955,18 @@ cue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 	    if (ifp->if_flags & IFF_UP) {
 	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &cue_cfg_promisc_upd, 0);
+		      (&(sc->sc_config_td), &cue_config_copy,
+		       &cue_cfg_promisc_upd, 0, 0);
 		} else {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &cue_cfg_init, 0); 
+		      (&(sc->sc_config_td), &cue_cfg_pre_init,
+		       &cue_cfg_init, 0, 0); 
 		}
 	    } else {
 	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &cue_cfg_stop, 0);
+		      (&(sc->sc_config_td), &cue_cfg_pre_stop,
+		       &cue_cfg_stop, 0, 0);
 		}
 	    }
 	    break;
@@ -995,7 +974,8 @@ cue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 	case SIOCADDMULTI:
 	case SIOCDELMULTI:
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &cue_cfg_promisc_upd, 0);
+	      (&(sc->sc_config_td), &cue_config_copy, 
+	       &cue_cfg_promisc_upd, 0, 0);
 	    break;
 
 	default:
@@ -1016,7 +996,7 @@ cue_watchdog(void *arg)
 	mtx_assert(&(sc->sc_mtx), MA_OWNED);
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &cue_cfg_tick, 0);
+	  (&(sc->sc_config_td), NULL, &cue_cfg_tick, 0, 0);
 
 	__callout_reset(&(sc->sc_watchdog), 
 			hz, &cue_watchdog, sc);
@@ -1030,42 +1010,49 @@ cue_watchdog(void *arg)
  * RX and TX lists.
  */
 static void
+cue_cfg_pre_stop(struct cue_softc *sc,
+		 struct cue_config_copy *cc, u_int16_t refcount)
+{
+	struct ifnet *ifp = sc->sc_ifp;
+
+	if (cc) {
+	    /* copy the needed configuration */
+	    cue_config_copy(sc, cc, refcount);
+	}
+
+	/* immediate configuration */
+
+	if (ifp) {
+	    /* clear flags */
+	    ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
+				   IFF_DRV_OACTIVE);
+	}
+
+	sc->sc_flags &= ~(CUE_FLAG_HL_READY|
+			  CUE_FLAG_LL_READY);
+
+	/* stop all the transfers, 
+	 * if not already stopped:
+	 */
+	if (sc->sc_xfer[0]) {
+	    usbd_transfer_stop(sc->sc_xfer[0]);
+	}
+	if (sc->sc_xfer[1]) {
+	    usbd_transfer_stop(sc->sc_xfer[1]);
+	}
+	if (sc->sc_xfer[2]) {
+	    usbd_transfer_stop(sc->sc_xfer[2]);
+	}
+	if (sc->sc_xfer[3]) {
+	    usbd_transfer_stop(sc->sc_xfer[3]);
+	}
+	return;
+}
+
+static void
 cue_cfg_stop(struct cue_softc *sc,
 	     struct cue_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-
-	    /* immediate configuration */
-
-	    struct ifnet *ifp = sc->sc_ifp;
-
-	    if (ifp) {
-	        /* clear flags */
-		ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
-				       IFF_DRV_OACTIVE);
-	    }
-
-	    sc->sc_flags &= ~(CUE_FLAG_HL_READY|
-			      CUE_FLAG_LL_READY);
-
-	    /* stop all the transfers, 
-	     * if not already stopped:
-	     */
-	    if (sc->sc_xfer[0]) {
-	        usbd_transfer_stop(sc->sc_xfer[0]);
-	    }
-	    if (sc->sc_xfer[1]) {
-	        usbd_transfer_stop(sc->sc_xfer[1]);
-	    }
-	    if (sc->sc_xfer[2]) {
-	        usbd_transfer_stop(sc->sc_xfer[2]);
-	    }
-	    if (sc->sc_xfer[3]) {
-	        usbd_transfer_stop(sc->sc_xfer[3]);
-	    }
-	    return;
-	}
-
 	cue_cfg_csr_write_1(sc, CUE_ETHCTL, 0);
 	cue_cfg_reset(sc);
 	return;
@@ -1083,7 +1070,8 @@ cue_shutdown(device_t dev)
 	mtx_lock(&(sc->sc_mtx));
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &cue_cfg_stop, 0);
+	  (&(sc->sc_config_td), &cue_cfg_pre_stop, 
+	   &cue_cfg_stop, 0, 0);
 
 	mtx_unlock(&(sc->sc_mtx));
 

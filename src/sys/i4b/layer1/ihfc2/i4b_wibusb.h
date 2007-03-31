@@ -528,7 +528,8 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 		}
 
 		usbd_config_td_queue_command
-		  (&(sc->sc_config_td), &wibusb_cfg_chip_config_write_r, 0);
+		  (&(sc->sc_config_td), NULL, 
+		   &wibusb_cfg_chip_config_write_r, 0, 0);
 	}
 	
 	if(d1_stat & 0x78)
@@ -564,7 +565,8 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 		}
 
 		usbd_config_td_queue_command
-		  (&(sc->sc_config_td), &wibusb_cfg_chip_config_write_r, 0);
+		  (&(sc->sc_config_td), NULL,
+		   &wibusb_cfg_chip_config_write_r, 0, 0);
 	}
 
 	/*
@@ -839,10 +841,6 @@ static void
 wibusb_cfg_reset(struct ihfc_sc *sc,
 		 struct ihfc_config_copy *cc, uint16_t refcount)
 {
-	if (cc == NULL) {
-	    return;
-	}
-
 	/* perform reset
 	 *
 	 * according to the datasheet the reset bit
@@ -908,7 +906,8 @@ wibusb_chip_reset CHIP_RESET_T(sc,error)
 	  (0x80 >> b2t) ; /* XFR */
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &wibusb_cfg_reset, 0);
+	  (&(sc->sc_config_td), NULL,
+	   &wibusb_cfg_reset, 0, 0);
 
 	return;
 }
@@ -918,10 +917,6 @@ wibusb_cfg_chip_config_write_r(struct ihfc_sc *sc,
 			       struct ihfc_config_copy *cc, uint16_t refcount)
 {
 	register_list_t *r;
-
-	if (cc == NULL) {
-	    return;
-	}
 
 	/*
 	 * configure chip,
@@ -966,7 +961,8 @@ wibusb_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	    (f == IHFC_CONFIG_WRITE_RELOAD))
 	{
 	  usbd_config_td_queue_command
-	    (&(sc->sc_config_td), &wibusb_cfg_chip_config_write_r, 
+	    (&(sc->sc_config_td), NULL, 
+	     &wibusb_cfg_chip_config_write_r, 0, 
 	     (f == IHFC_CONFIG_WRITE_RELOAD) ? 1 : 0);
 
 	  /*
@@ -1041,10 +1037,6 @@ static void
 wibusb_cfg_fsm_write(struct ihfc_sc *sc,
 		     struct ihfc_config_copy *cc, uint16_t refcount)
 {
-	if (cc == NULL) {
-	    return;
-	}
-
 	/* write (CIX, WIBUSB) */
 	wibusb_cfg_write_1(sc, (0x04|0x80), refcount);
 
@@ -1058,7 +1050,8 @@ wibusb_fsm_write FSM_WRITE_T(sc,f,ptr)
 		 tmp >>= 2;
 
 	usbd_config_td_queue_command
-          (&(sc->sc_config_td), &wibusb_cfg_fsm_write, tmp);
+          (&(sc->sc_config_td), NULL, 
+	   &wibusb_cfg_fsm_write, 0, tmp);
 	return;
 }
 

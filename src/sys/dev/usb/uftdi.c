@@ -53,10 +53,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/uftdi.c,v 1.24 2006/09/07 00:06:41 imp Exp $
 #include <sys/kernel.h>
 #include <sys/termios.h>
 #include <sys/serial.h>
-#include <sys/taskqueue.h>
-
-#define usbd_config_td_cc uftdi_config_copy
-#define usbd_config_td_softc uftdi_softc
 
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
@@ -95,8 +91,8 @@ SYSCTL_INT(_hw_usb_uftdi, OID_AUTO, debug, CTLFLAG_RW,
 #define UFTDI_OBUFSIZE 64
 
 struct uftdi_softc {
+	struct ucom_super_softc sc_super_ucom;
 	struct ucom_softc	sc_ucom;
-	struct usbd_config_td	sc_config_td;
 
 	struct usbd_device *	sc_udev;
 	struct usbd_xfer *	sc_xfer[UFTDI_ENDPT_MAX];
@@ -106,21 +102,12 @@ struct uftdi_softc {
 	enum uftdi_type		sc_type;
 
 	u_int16_t		sc_last_lcr;
-	u_int16_t		sc_rate;
 
 	u_int8_t		sc_iface_index;
 	u_int8_t		sc_hdrlen;
 
 	u_int8_t		sc_msr;
 	u_int8_t		sc_lsr;
-
-	u_int8_t		sc_dtr_onoff;
-	u_int8_t		sc_rts_onoff;
-	u_int8_t		sc_break_onoff;
-
-	u_int8_t		sc_flow;
-	u_int8_t		sc_flow_v_start;
-	u_int8_t		sc_flow_v_stop;
 
 	u_int8_t		sc_flag;
 #define UFTDI_FLAG_WRITE_STALL  0x01
@@ -129,17 +116,12 @@ struct uftdi_softc {
 	u_int8_t		sc_name[16];
 };
 
-struct uftdi_config_copy {
-	u_int16_t	last_lcr;
-	u_int16_t	rate;
-
-	u_int8_t	dtr_onoff;
-	u_int8_t	rts_onoff;
-	u_int8_t	break_onoff;
-
-	u_int8_t	flow;
-	u_int8_t	v_start;
-	u_int8_t	v_stop;
+struct uftdi_param_config {
+	uint16_t rate;
+	uint16_t lcr;
+	uint8_t v_start;
+	uint8_t v_stop;
+	uint8_t v_flow;
 };
 
 /* prototypes */
@@ -148,72 +130,24 @@ static device_probe_t uftdi_probe;
 static device_attach_t uftdi_attach;
 static device_detach_t uftdi_detach;
 
-static void
-uftdi_config_copy(struct uftdi_softc *sc, 
-		  struct uftdi_config_copy *cc, u_int16_t refcount);
-static void
-uftdi_cfg_do_request(struct uftdi_softc *sc, usb_device_request_t *req, 
-		     void *data);
-static int
-uftdi_open(struct ucom_softc *ucom);
+static usbd_callback_t uftdi_write_callback;
+static usbd_callback_t uftdi_write_clear_stall_callback;
+static usbd_callback_t uftdi_read_callback;
+static usbd_callback_t uftdi_read_clear_stall_callback;
 
-static void
-uftdi_cfg_open(struct uftdi_softc *sc,
-	       struct uftdi_config_copy *cc, u_int16_t refcount);
-static void
-uftdi_write_callback(struct usbd_xfer *xfer);
-
-static void
-uftdi_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-uftdi_read_callback(struct usbd_xfer *xfer);
-
-static void
-uftdi_read_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-uftdi_set_dtr(struct ucom_softc *ucom, u_int8_t onoff);
-
-static void
-uftdi_cfg_set_dtr(struct uftdi_softc *sc,
-		  struct uftdi_config_copy *cc, u_int16_t refcount);
-static void
-uftdi_set_rts(struct ucom_softc *ucom, u_int8_t onoff);
-
-static void
-uftdi_cfg_set_rts(struct uftdi_softc *sc,
-		  struct uftdi_config_copy *cc, u_int16_t refcount);
-static void
-uftdi_set_break(struct ucom_softc *ucom, u_int8_t onoff);
-
-static void
-uftdi_cfg_set_break(struct uftdi_softc *sc,
-		    struct uftdi_config_copy *cc, u_int16_t refcount);
-static int
-uftdi_set_parm_soft(struct uftdi_softc *sc, u_int32_t ospeed, 
-		    u_int8_t v_start, u_int8_t v_stop, 
-		    u_int32_t cflag, u_int32_t iflag);
-static int
-uftdi_param(struct ucom_softc *ucom, struct termios *t);
-
-static void
-uftdi_cfg_parm(struct uftdi_softc *sc,
-	       struct uftdi_config_copy *cc, u_int16_t refcount);
-static void
-uftdi_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr);
-
-static void
-uftdi_start_read(struct ucom_softc *ucom);
-
-static void
-uftdi_stop_read(struct ucom_softc *ucom);
-
-static void
-uftdi_start_write(struct ucom_softc *ucom);
-
-static void
-uftdi_stop_write(struct ucom_softc *ucom);
+static void	uftdi_cfg_do_request(struct uftdi_softc *sc, usb_device_request_t *req, void *data);
+static void	uftdi_cfg_open(struct ucom_softc *ucom);
+static void	uftdi_cfg_set_dtr(struct ucom_softc *ucom, u_int8_t onoff);
+static void	uftdi_cfg_set_rts(struct ucom_softc *ucom, u_int8_t onoff);
+static void	uftdi_cfg_set_break(struct ucom_softc *ucom, u_int8_t onoff);
+static int	uftdi_set_parm_soft(struct termios *t, struct uftdi_param_config *cfg, uint8_t type);
+static int	uftdi_pre_param(struct ucom_softc *ucom, struct termios *t);
+static void	uftdi_cfg_param(struct ucom_softc *ucom, struct termios *t);
+static void	uftdi_cfg_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr);
+static void	uftdi_start_read(struct ucom_softc *ucom);
+static void	uftdi_stop_read(struct ucom_softc *ucom);
+static void	uftdi_start_write(struct ucom_softc *ucom);
+static void	uftdi_stop_write(struct ucom_softc *ucom);
 
 static const struct usbd_config uftdi_config[UFTDI_ENDPT_MAX] = {
 
@@ -257,16 +191,17 @@ static const struct usbd_config uftdi_config[UFTDI_ENDPT_MAX] = {
 };
 
 static const struct ucom_callback uftdi_callback = {
-    .ucom_get_status  = &uftdi_get_status,
-    .ucom_set_dtr     = &uftdi_set_dtr,
-    .ucom_set_rts     = &uftdi_set_rts,
-    .ucom_set_break   = &uftdi_set_break,
-    .ucom_param       = &uftdi_param,
-    .ucom_open        = &uftdi_open,
-    .ucom_start_read  = &uftdi_start_read,
-    .ucom_stop_read   = &uftdi_stop_read,
-    .ucom_start_write = &uftdi_start_write,
-    .ucom_stop_write  = &uftdi_stop_write,
+    .ucom_cfg_get_status  = &uftdi_cfg_get_status,
+    .ucom_cfg_set_dtr     = &uftdi_cfg_set_dtr,
+    .ucom_cfg_set_rts     = &uftdi_cfg_set_rts,
+    .ucom_cfg_set_break   = &uftdi_cfg_set_break,
+    .ucom_cfg_param       = &uftdi_cfg_param,
+    .ucom_cfg_open        = &uftdi_cfg_open,
+    .ucom_pre_param       = &uftdi_pre_param,
+    .ucom_start_read      = &uftdi_start_read,
+    .ucom_stop_read       = &uftdi_stop_read,
+    .ucom_start_write     = &uftdi_start_write,
+    .ucom_stop_write      = &uftdi_stop_write,
 };
 
 static device_method_t uftdi_methods[] = {
@@ -455,15 +390,6 @@ uftdi_attach(device_t dev)
 	    goto detach;
 	}
 
-	error = usbd_config_td_setup(&(sc->sc_config_td), sc, &Giant,
-				     &uftdi_config_copy, NULL,
-				     sizeof(struct uftdi_config_copy), 16);
-	if (error) {
-	    device_printf(dev, "could not setup config "
-			  "thread!\n");
-	    goto detach;
-	}
-
 	sc->sc_ucom.sc_portno = FTDI_PIT_SIOA;
 
 	if (uaa->iface) {
@@ -476,9 +402,20 @@ uftdi_attach(device_t dev)
 	    sc->sc_ucom.sc_portno += id->bInterfaceNumber;
 	}
 
-	error = ucom_attach(&(sc->sc_ucom), 1, sc, 
-			    &uftdi_callback, &Giant);
+	/* clear stall at first run */
 
+	sc->sc_flag |= (UFTDI_FLAG_WRITE_STALL|
+			UFTDI_FLAG_READ_STALL);
+
+	/* set a valid "lcr" value */
+
+	sc->sc_last_lcr = 
+	  (FTDI_SIO_SET_DATA_STOP_BITS_2|
+	   FTDI_SIO_SET_DATA_PARITY_NONE|
+	   FTDI_SIO_SET_DATA_BITS(8));
+
+	error = ucom_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc, 
+			    &uftdi_callback, &Giant);
 	if (error) {
 	    goto detach;
 	}
@@ -495,37 +432,11 @@ uftdi_detach(device_t dev)
 {
 	struct uftdi_softc *sc = device_get_softc(dev);
 
-	mtx_lock(&Giant);
-
-	usbd_config_td_stop(&(sc->sc_config_td));
-
-	mtx_unlock(&Giant);
-
-	ucom_detach(&(sc->sc_ucom), 1);
+	ucom_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UFTDI_ENDPT_MAX);
 
-	usbd_config_td_unsetup(&(sc->sc_config_td));
-
 	return 0;
-}
-
-static void
-uftdi_config_copy(struct uftdi_softc *sc, 
-		  struct uftdi_config_copy *cc, u_int16_t refcount)
-{
-	bzero(cc, sizeof(*cc));
-
-	cc->dtr_onoff = sc->sc_dtr_onoff;
-	cc->rts_onoff = sc->sc_rts_onoff;
-	cc->break_onoff = sc->sc_break_onoff;
-	cc->last_lcr = sc->sc_last_lcr;
-	cc->rate = sc->sc_rate;
-	cc->v_stop = sc->sc_flow_v_stop;
-	cc->v_start = sc->sc_flow_v_start;
-	cc->flow = sc->sc_flow;
-
-	return;
 }
 
 static void
@@ -535,7 +446,7 @@ uftdi_cfg_do_request(struct uftdi_softc *sc, usb_device_request_t *req,
 	u_int16_t length;
 	usbd_status err;
 
-	if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
+	if (ucom_cfg_is_gone(&(sc->sc_ucom))) {
 	    goto error;
 	}
 
@@ -544,7 +455,7 @@ uftdi_cfg_do_request(struct uftdi_softc *sc, usb_device_request_t *req,
 
 	if (err) {
 
-	    DPRINTF(sc, 0, "device request failed, err=%s "
+	    DPRINTF(sc, -1, "device request failed, err=%s "
 		    "(ignored)\n", usbd_errstr(err));
 
 	error:
@@ -557,37 +468,12 @@ uftdi_cfg_do_request(struct uftdi_softc *sc, usb_device_request_t *req,
 	return;
 }
 
-static int
-uftdi_open(struct ucom_softc *ucom)
+static void
+uftdi_cfg_open(struct ucom_softc *ucom)
 {
 	struct uftdi_softc *sc = ucom->sc_parent;
-
-	sc->sc_flag |= (UFTDI_FLAG_WRITE_STALL|
-			UFTDI_FLAG_READ_STALL);
-
-	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &uftdi_cfg_open, 0);
-
-	return 0;
-}
-
-static void
-uftdi_cfg_open(struct uftdi_softc *sc,
-	       struct uftdi_config_copy *cc, u_int16_t refcount)
-{
-	u_int16_t wIndex = sc->sc_ucom.sc_portno;
+	u_int16_t wIndex = ucom->sc_portno;
 	usb_device_request_t req;
-
-	if (cc == NULL) {
-
-	    /* set 9600 baud, 2 stop bits, 
-	     * no parity, 8 bits
-	     */
-	    (void) uftdi_set_parm_soft
-	      (sc, 9600, 0, 0, CSTOPB | CS8, 0);
-
-	    return;
-	}
 
 	DPRINTF(sc, 0, "");
 
@@ -600,10 +486,6 @@ uftdi_cfg_open(struct uftdi_softc *sc,
 	USETW(req.wLength, 0);
 	uftdi_cfg_do_request(sc, &req, NULL);
 
-	/* write parameters */
-
-	uftdi_cfg_parm(sc, cc, 0);
-
 	/* turn on RTS/CTS flow control */
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
@@ -613,6 +495,11 @@ uftdi_cfg_open(struct uftdi_softc *sc,
 	USETW(req.wLength, 0);
 	uftdi_cfg_do_request(sc, &req, NULL);
 
+	/* NOTE: with the new UCOM layer there will always
+	 * be a "uftdi_cfg_param()" call after "open()",
+	 * so there is no need for "open()" to configure
+	 * anything
+	 */
 	return;
 }
 
@@ -759,32 +646,14 @@ uftdi_read_clear_stall_callback(struct usbd_xfer *xfer)
 }
 
 static void
-uftdi_set_dtr(struct ucom_softc *ucom, u_int8_t onoff)
+uftdi_cfg_set_dtr(struct ucom_softc *ucom, u_int8_t onoff)
 {
 	struct uftdi_softc *sc = ucom->sc_parent;
-
-	sc->sc_dtr_onoff = onoff;
-
-	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &uftdi_cfg_set_dtr, 0);
-
-	return;
-}
-
-static void
-uftdi_cfg_set_dtr(struct uftdi_softc *sc,
-		  struct uftdi_config_copy *cc, u_int16_t refcount)
-{
-	u_int16_t wIndex = sc->sc_ucom.sc_portno;
+	u_int16_t wIndex = ucom->sc_portno;
 	u_int16_t wValue;
 	usb_device_request_t req;
 
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
-	wValue = cc->dtr_onoff ? FTDI_SIO_SET_DTR_HIGH : FTDI_SIO_SET_DTR_LOW;
+	wValue = onoff ? FTDI_SIO_SET_DTR_HIGH : FTDI_SIO_SET_DTR_LOW;
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = FTDI_SIO_MODEM_CTRL;
@@ -792,37 +661,18 @@ uftdi_cfg_set_dtr(struct uftdi_softc *sc,
 	USETW(req.wIndex, wIndex);
 	USETW(req.wLength, 0);
 	uftdi_cfg_do_request(sc, &req, NULL);
-
 	return;
 }
 
 static void
-uftdi_set_rts(struct ucom_softc *ucom, u_int8_t onoff)
+uftdi_cfg_set_rts(struct ucom_softc *ucom, u_int8_t onoff)
 {
 	struct uftdi_softc *sc = ucom->sc_parent;
-
-	sc->sc_rts_onoff = onoff;
-
-	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &uftdi_cfg_set_rts, 0);
-
-	return;
-}
-
-static void
-uftdi_cfg_set_rts(struct uftdi_softc *sc,
-		  struct uftdi_config_copy *cc, u_int16_t refcount)
-{
-	u_int16_t wIndex = sc->sc_ucom.sc_portno;
+	u_int16_t wIndex = ucom->sc_portno;
 	u_int16_t wValue;
 	usb_device_request_t req;
 
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
-	wValue = cc->rts_onoff ? FTDI_SIO_SET_RTS_HIGH : FTDI_SIO_SET_RTS_LOW;
+	wValue = onoff ? FTDI_SIO_SET_RTS_HIGH : FTDI_SIO_SET_RTS_LOW;
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = FTDI_SIO_MODEM_CTRL;
@@ -830,41 +680,24 @@ uftdi_cfg_set_rts(struct uftdi_softc *sc,
 	USETW(req.wIndex, wIndex);
 	USETW(req.wLength, 0);
 	uftdi_cfg_do_request(sc, &req, NULL);
-
 	return;
 }
 
 static void
-uftdi_set_break(struct ucom_softc *ucom, u_int8_t onoff)
+uftdi_cfg_set_break(struct ucom_softc *ucom, u_int8_t onoff)
 {
 	struct uftdi_softc *sc = ucom->sc_parent;
-
-	sc->sc_break_onoff = onoff;
-
-	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &uftdi_cfg_set_break, 0);
-
-	return;
-}
-
-static void
-uftdi_cfg_set_break(struct uftdi_softc *sc,
-		    struct uftdi_config_copy *cc, u_int16_t refcount)
-{
-	u_int16_t wIndex = sc->sc_ucom.sc_portno;
+	u_int16_t wIndex = ucom->sc_portno;
 	u_int16_t wValue;
 	usb_device_request_t req;
 
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
-	if (cc->break_onoff) {
-		wValue = cc->last_lcr | FTDI_SIO_SET_BREAK;
+	if (onoff) {
+	    sc->sc_last_lcr |= FTDI_SIO_SET_BREAK;
 	} else {
-		wValue = cc->last_lcr;
+	    sc->sc_last_lcr &= ~FTDI_SIO_SET_BREAK;
 	}
+
+	wValue = sc->sc_last_lcr;
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = FTDI_SIO_SET_DATA;
@@ -872,162 +705,148 @@ uftdi_cfg_set_break(struct uftdi_softc *sc,
 	USETW(req.wIndex, wIndex);
 	USETW(req.wLength, 0);
 	uftdi_cfg_do_request(sc, &req, NULL);
-
 	return;
 }
 
 static int
-uftdi_set_parm_soft(struct uftdi_softc *sc, u_int32_t ospeed, 
-		    u_int8_t v_start, u_int8_t v_stop, 
-		    u_int32_t cflag, u_int32_t iflag)
+uftdi_set_parm_soft(struct termios *t,
+		    struct uftdi_param_config *cfg, uint8_t type)
 {
-	u_int16_t rate = 0;
-	u_int16_t data = 0;
-	u_int8_t flow = 0;
+	bzero(cfg, sizeof(*cfg));
 
-	switch (sc->sc_type) {
+	switch (type) {
 	case UFTDI_TYPE_SIO:
-		switch (ospeed) {
-		case 300: rate = ftdi_sio_b300; break;
-		case 600: rate = ftdi_sio_b600; break;
-		case 1200: rate = ftdi_sio_b1200; break;
-		case 2400: rate = ftdi_sio_b2400; break;
-		case 4800: rate = ftdi_sio_b4800; break;
-		case 9600: rate = ftdi_sio_b9600; break;
-		case 19200: rate = ftdi_sio_b19200; break;
-		case 38400: rate = ftdi_sio_b38400; break;
-		case 57600: rate = ftdi_sio_b57600; break;
-		case 115200: rate = ftdi_sio_b115200; break;
+		switch (t->c_ospeed) {
+		case 300: cfg->rate = ftdi_sio_b300; break;
+		case 600: cfg->rate = ftdi_sio_b600; break;
+		case 1200: cfg->rate = ftdi_sio_b1200; break;
+		case 2400: cfg->rate = ftdi_sio_b2400; break;
+		case 4800: cfg->rate = ftdi_sio_b4800; break;
+		case 9600: cfg->rate = ftdi_sio_b9600; break;
+		case 19200: cfg->rate = ftdi_sio_b19200; break;
+		case 38400: cfg->rate = ftdi_sio_b38400; break;
+		case 57600: cfg->rate = ftdi_sio_b57600; break;
+		case 115200: cfg->rate = ftdi_sio_b115200; break;
 		default:
 		    return (EINVAL);
 		}
 		break;
 
 	case UFTDI_TYPE_8U232AM:
-		switch(ospeed) {
-		case 300: rate = ftdi_8u232am_b300; break;
-		case 600: rate = ftdi_8u232am_b600; break;
-		case 1200: rate = ftdi_8u232am_b1200; break;
-		case 2400: rate = ftdi_8u232am_b2400; break;
-		case 4800: rate = ftdi_8u232am_b4800; break;
-		case 9600: rate = ftdi_8u232am_b9600; break;
-		case 19200: rate = ftdi_8u232am_b19200; break;
-		case 38400: rate = ftdi_8u232am_b38400; break;
-		case 57600: rate = ftdi_8u232am_b57600; break;
-		case 115200: rate = ftdi_8u232am_b115200; break;
-		case 230400: rate = ftdi_8u232am_b230400; break;
-		case 460800: rate = ftdi_8u232am_b460800; break;
-		case 921600: rate = ftdi_8u232am_b921600; break;
-		case 2000000: rate = ftdi_8u232am_b2000000; break;
-		case 3000000: rate = ftdi_8u232am_b3000000; break;
+		switch(t->c_ospeed) {
+		case 300: cfg->rate = ftdi_8u232am_b300; break;
+		case 600: cfg->rate = ftdi_8u232am_b600; break;
+		case 1200: cfg->rate = ftdi_8u232am_b1200; break;
+		case 2400: cfg->rate = ftdi_8u232am_b2400; break;
+		case 4800: cfg->rate = ftdi_8u232am_b4800; break;
+		case 9600: cfg->rate = ftdi_8u232am_b9600; break;
+		case 19200: cfg->rate = ftdi_8u232am_b19200; break;
+		case 38400: cfg->rate = ftdi_8u232am_b38400; break;
+		case 57600: cfg->rate = ftdi_8u232am_b57600; break;
+		case 115200: cfg->rate = ftdi_8u232am_b115200; break;
+		case 230400: cfg->rate = ftdi_8u232am_b230400; break;
+		case 460800: cfg->rate = ftdi_8u232am_b460800; break;
+		case 921600: cfg->rate = ftdi_8u232am_b921600; break;
+		case 2000000: cfg->rate = ftdi_8u232am_b2000000; break;
+		case 3000000: cfg->rate = ftdi_8u232am_b3000000; break;
 		default:
 		    return (EINVAL);
 		}
 		break;
 	}
-	sc->sc_rate = rate;
 
-	if (cflag & CSTOPB)
-	    data = FTDI_SIO_SET_DATA_STOP_BITS_2;
+	if (t->c_cflag & CSTOPB)
+	    cfg->lcr = FTDI_SIO_SET_DATA_STOP_BITS_2;
 	else
-	    data = FTDI_SIO_SET_DATA_STOP_BITS_1;
+	    cfg->lcr = FTDI_SIO_SET_DATA_STOP_BITS_1;
 
-	if (cflag & PARENB) {
-	    if (cflag & PARODD) {
-	        data |= FTDI_SIO_SET_DATA_PARITY_ODD;
+	if (t->c_cflag & PARENB) {
+	    if (t->c_cflag & PARODD) {
+	        cfg->lcr |= FTDI_SIO_SET_DATA_PARITY_ODD;
 	    } else {
-	        data |= FTDI_SIO_SET_DATA_PARITY_EVEN;
+	        cfg->lcr |= FTDI_SIO_SET_DATA_PARITY_EVEN;
 	    }
 	} else {
-	    data |= FTDI_SIO_SET_DATA_PARITY_NONE;
+	    cfg->lcr |= FTDI_SIO_SET_DATA_PARITY_NONE;
 	}
 
-	switch (cflag & CSIZE) {
+	switch (t->c_cflag & CSIZE) {
 	case CS5:
-	    data |= FTDI_SIO_SET_DATA_BITS(5);
+	    cfg->lcr |= FTDI_SIO_SET_DATA_BITS(5);
 	    break;
 
 	case CS6:
-	    data |= FTDI_SIO_SET_DATA_BITS(6);
+	    cfg->lcr |= FTDI_SIO_SET_DATA_BITS(6);
 	    break;
 
 	case CS7:
-	    data |= FTDI_SIO_SET_DATA_BITS(7);
+	    cfg->lcr |= FTDI_SIO_SET_DATA_BITS(7);
 	    break;
 
 	case CS8:
-	    data |= FTDI_SIO_SET_DATA_BITS(8);
+	    cfg->lcr |= FTDI_SIO_SET_DATA_BITS(8);
 	    break;
 	}
-	sc->sc_last_lcr = data;
 
-	if (cflag & CRTSCTS) {
-	    flow = FTDI_SIO_RTS_CTS_HS;
-	    v_start = 0;
-	    v_stop = 0;
-	} else if (iflag & (IXON|IXOFF)) {
-	    flow = FTDI_SIO_XON_XOFF_HS;
+	if (t->c_cflag & CRTSCTS) {
+	    cfg->v_flow = FTDI_SIO_RTS_CTS_HS;
+	} else if (t->c_iflag & (IXON|IXOFF)) {
+	    cfg->v_flow = FTDI_SIO_XON_XOFF_HS;
+	    cfg->v_start = t->c_cc[VSTART];
+	    cfg->v_stop = t->c_cc[VSTOP];
 	} else {
-	    flow = FTDI_SIO_DISABLE_FLOW_CTRL;
-	    v_start = 0;
-	    v_stop = 0;
+	    cfg->v_flow = FTDI_SIO_DISABLE_FLOW_CTRL;
 	}
 
-	sc->sc_flow = flow;
-	sc->sc_flow_v_start = v_start;
-	sc->sc_flow_v_stop = v_stop;
 	return 0;
 }
 
 static int
-uftdi_param(struct ucom_softc *ucom, struct termios *t)
+uftdi_pre_param(struct ucom_softc *ucom, struct termios *t)
 {
 	struct uftdi_softc *sc = ucom->sc_parent;
+	struct uftdi_param_config cfg;
 
 	DPRINTF(sc, 0, "\n");
 
-	if (uftdi_set_parm_soft(sc, t->c_ospeed,
-				t->c_cc[VSTART], t->c_cc[VSTOP],
-				t->c_cflag, t->c_iflag)) {
-	    return EIO;
-	}
-
-	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &uftdi_cfg_parm, 0);
-
-	return 0;
+	return uftdi_set_parm_soft(t, &cfg, sc->sc_type);
 }
 
 static void
-uftdi_cfg_parm(struct uftdi_softc *sc,
-	       struct uftdi_config_copy *cc, u_int16_t refcount)
+uftdi_cfg_param(struct ucom_softc *ucom, struct termios *t)
 {
-	u_int16_t wIndex = sc->sc_ucom.sc_portno;
+	struct uftdi_softc *sc = ucom->sc_parent;
+	u_int16_t wIndex = ucom->sc_portno;
+	struct uftdi_param_config cfg;
 	usb_device_request_t req;
 
-	if (cc == NULL) {
-	    /* nothing to do */
+	if (uftdi_set_parm_soft(t, &cfg, sc->sc_type)) {
+	    /* should not happen */
 	    return;
 	}
-			       
+
+	sc->sc_last_lcr = cfg.lcr;
+
+	DPRINTF(sc, 0, "\n");
+
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = FTDI_SIO_SET_BAUD_RATE;
-	USETW(req.wValue, cc->rate);
+	USETW(req.wValue, cfg.rate);
 	USETW(req.wIndex, wIndex);
 	USETW(req.wLength, 0);
 	uftdi_cfg_do_request(sc, &req, NULL);
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = FTDI_SIO_SET_DATA;
-	USETW(req.wValue, cc->last_lcr);
+	USETW(req.wValue, cfg.lcr);
 	USETW(req.wIndex, wIndex);
 	USETW(req.wLength, 0);
 	uftdi_cfg_do_request(sc, &req, NULL);
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = FTDI_SIO_SET_FLOW_CTRL;
-	USETW2(req.wValue, cc->v_stop, cc->v_start);
-	USETW2(req.wIndex, cc->flow, wIndex);
+	USETW2(req.wValue, cfg.v_stop, cfg.v_start);
+	USETW2(req.wIndex, cfg.v_flow, wIndex);
 	USETW(req.wLength, 0);
 	uftdi_cfg_do_request(sc, &req, NULL);
 
@@ -1035,19 +854,15 @@ uftdi_cfg_parm(struct uftdi_softc *sc,
 }
 
 static void
-uftdi_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr)
+uftdi_cfg_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr)
 {
 	struct uftdi_softc *sc = ucom->sc_parent;
 
 	DPRINTF(sc, 0, "msr=0x%02x lsr=0x%02x\n",
 		sc->sc_msr, sc->sc_lsr);
 
-	if (msr) {
-		*msr = sc->sc_msr;
-	}
-	if (lsr) {
-		*lsr = sc->sc_lsr;
-	}
+	*msr = sc->sc_msr;
+	*lsr = sc->sc_lsr;
 	return;
 }
 

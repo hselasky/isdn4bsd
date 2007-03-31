@@ -2412,6 +2412,52 @@ usbd_config_td_thread(void *arg)
 	        break;
 	    }
 
+	    /* NOTE to reimplementors: dequeueing a command from the
+	     * "used" queue and executing it must be atomic, with
+	     * regard to the "p_mtx" mutex. That means any attempt to
+	     * queue a command by another thread must be blocked until
+	     * either:
+	     *
+	     * 1) the command sleeps
+	     *
+	     * 2) the command returns
+	     *
+	     * Here is a practical example that shows how this
+	     * helps solving a problem:
+	     *
+	     * Assume that you want to set the baud rate on a USB
+	     * serial device. During the programming of the device you
+	     * don't want to receive nor transmit any data, because it
+	     * will be garbage most likely anyway. The programming of
+	     * our USB device takes 20 milliseconds and it needs to
+	     * call functions that sleep.
+	     *
+	     * Non-working solution: Before we queue the programming command,
+	     * we stop transmission and reception of data. Then we
+	     * queue a programming command. At the end of the programming
+	     * command we enable transmission and reception of data.
+	     *
+	     * Problem: If a second programming command is queued
+	     * while the first one is sleeping, we end up enabling
+	     * transmission and reception of data too early.
+	     *
+	     * Working solution: Before we queue the programming
+	     * command, we stop transmission and reception of
+	     * data. Then we queue a programming command. Then we
+	     * queue a second command that only enables transmission
+	     * and reception of data.
+	     *
+	     * Why it works: If a second programming command is queued
+	     * while the first one is sleeping, then the queueing of a
+	     * second command to enable the data transfers, will cause
+	     * the previous one, which is still on the queue, to be
+	     * removed from the queue, and re-inserted after the last
+	     * baud rate programming command, which then gives the
+	     * desired result.
+	     *
+	     * This example assumes that you use a "qcount" of zero.
+	     */
+
 	    USBD_IF_DEQUEUE(&(ctd->cmd_used), m);
 
 	    if (m) {
@@ -2462,13 +2508,11 @@ usbd_config_td_thread(void *arg)
 u_int8_t
 usbd_config_td_setup(struct usbd_config_td *ctd, void *priv_sc, 
 		     struct mtx *priv_mtx, 
-		     usbd_config_td_config_copy_t *p_func_cc,
 		     usbd_config_td_end_of_commands_t *p_func_eoc,
 		     u_int16_t item_size, u_int16_t item_count)
 {
 	ctd->p_mtx = priv_mtx;
 	ctd->p_softc = priv_sc;
-	ctd->p_config_copy = p_func_cc;
 	ctd->p_end_of_commands = p_func_eoc;
 
 	if (item_count >= 256) {
@@ -2521,23 +2565,37 @@ usbd_config_td_dummy_cmd(struct usbd_config_td_softc *sc,
 void
 usbd_config_td_stop(struct usbd_config_td *ctd)
 {
-	register int error;
+	uint32_t level;
+	int error;
 
-	while (ctd->config_thread) {
+	if (ctd->p_mtx) {
 
-	    mtx_assert(ctd->p_mtx, MA_OWNED);
+	  mtx_lock(ctd->p_mtx);
 
+	  while (ctd->config_thread) {
+
+	    usbd_config_td_queue_command(ctd, NULL, &usbd_config_td_dummy_cmd, 
+					 0, 0);
+
+	    /* set the gone flag after queueing the
+	     * last command:
+	     */
 	    ctd->flag_config_td_gone = 1;
-
-	    usbd_config_td_queue_command(ctd, &usbd_config_td_dummy_cmd, 0);
 
 	    if (cold) {
 	        panic("%s:%d: cannot stop config thread!\n",
 		      __FUNCTION__, __LINE__);
 	    }
 
+	    level = mtx_drop_recurse(ctd->p_mtx);
+
 	    error = msleep(&(ctd->wakeup_config_td_gone), 
 			   ctd->p_mtx, 0, "wait config TD", 0);
+
+	    mtx_pickup_recurse(ctd->p_mtx, level);
+	  }
+
+	  mtx_unlock(ctd->p_mtx);
 	}
 	return;
 }
@@ -2551,11 +2609,8 @@ usbd_config_td_stop(struct usbd_config_td *ctd)
 void
 usbd_config_td_unsetup(struct usbd_config_td *ctd)
 {
-	if (ctd->p_mtx) {
-	    mtx_lock(ctd->p_mtx);
-	    usbd_config_td_stop(ctd);
-	    mtx_unlock(ctd->p_mtx);
-	}
+	usbd_config_td_stop(ctd);
+
 	if (ctd->p_cmd_queue) {
 	    free(ctd->p_cmd_queue, M_DEVBUF);
 	    ctd->p_cmd_queue = NULL;
@@ -2568,14 +2623,19 @@ usbd_config_td_unsetup(struct usbd_config_td *ctd)
  *---------------------------------------------------------------------------*/
 void
 usbd_config_td_queue_command(struct usbd_config_td *ctd,
-			     usbd_config_td_command_t *command_func,
+			     usbd_config_td_command_t *command_pre_func,
+			     usbd_config_td_command_t *command_post_func,
+			     u_int16_t command_qcount,
 			     u_int16_t command_ref)
 {
 	struct usbd_config_td_item *item;
 	struct usbd_mbuf *m;
 	int32_t qlen;
 
-	mtx_assert(ctd->p_mtx, MA_OWNED);
+	if (usbd_config_td_is_gone(ctd)) {
+	    /* nothing more to do */
+	    return;
+	}
 
 	/*
 	 * first check if the command was
@@ -2595,22 +2655,16 @@ usbd_config_td_queue_command(struct usbd_config_td *ctd,
 
 	    item = (void *)(m->cur_data_ptr);
 
-	    if ((item->command_func == command_func) &&
+	    if ((item->command_func == command_post_func) &&
 		(item->command_ref == command_ref)) {
-	        USBD_IF_ENQUEUE(&(ctd->cmd_free), m);
-	    } else {
-	        USBD_IF_ENQUEUE(&(ctd->cmd_used), m);
+	        if (command_qcount == 0) {
+		  USBD_IF_ENQUEUE(&(ctd->cmd_free), m);
+		  continue;
+		}
+		command_qcount--;
 	    }
+	    USBD_IF_ENQUEUE(&(ctd->cmd_used), m);
 	}
-
-	/* first call to command function
-	 * (do this before calling the 
-	 *  config copy function, so that
-	 *  the immediate part of the command
-	 *  function gets a chance to change 
-	 *  the config before it is copied)
-	 */
-	(command_func)(ctd->p_softc, NULL, command_ref);
 
 	USBD_IF_DEQUEUE(&(ctd->cmd_free), m);
 
@@ -2624,11 +2678,23 @@ usbd_config_td_queue_command(struct usbd_config_td *ctd,
 
 	item = (void *)(m->cur_data_ptr);
 
-	if (ctd->p_config_copy) {
-	    (ctd->p_config_copy)(ctd->p_softc, (void *)(item+1), command_ref);
+	/* The job of the pre-command
+	 * function is to copy the needed 
+	 * configuration to the provided
+	 * structure and to execute other
+	 * commands that must happen
+	 * immediately
+	 */
+	if (command_pre_func) {
+	    (command_pre_func)(ctd->p_softc, (void *)(item+1), command_ref);
 	}
 
-	item->command_func = command_func;
+	/* The job of the post-command
+	 * function is to finish the command
+	 * in a separate context to allow calls
+	 * to sleeping functions basically
+	 */
+	item->command_func = command_post_func;
 	item->command_ref = command_ref;
 
 	USBD_IF_ENQUEUE(&(ctd->cmd_used), m);

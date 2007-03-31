@@ -81,7 +81,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ubser.c,v 1.20 2006/09/07 00:06:41 imp Exp $
 #include <sys/kernel.h>
 #include <sys/termios.h>
 #include <sys/serial.h>
-#include <sys/taskqueue.h>
 
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
@@ -115,18 +114,18 @@ SYSCTL_INT(_hw_usb_ubser, OID_AUTO, debug, CTLFLAG_RW,
 #define UBSER_TR_DT_READ  1
 #define UBSER_TR_CS_WRITE 2
 #define UBSER_TR_CS_READ  3
-#define UBSER_TR_DT_BREAK 4
-#define UBSER_TR_MAX      5
+#define UBSER_TR_MAX      4
 
 struct ubser_softc {
+	struct ucom_super_softc	sc_super_ucom;
 	struct ucom_softc	sc_ucom[UBSER_UNIT_MAX];
 
 	struct usbd_xfer	*sc_xfer[UBSER_TR_MAX];
+	struct usbd_device	*sc_udev;
 
 	uint16_t		sc_tx_size;
 
 	uint8_t			sc_numser;
-	uint8_t			sc_send_break[(UBSER_UNIT_MAX+7)/8];
 	uint8_t			sc_flags;
 #define UBSER_FLAG_READ_STALL  0x01
 #define UBSER_FLAG_WRITE_STALL 0x02
@@ -134,23 +133,27 @@ struct ubser_softc {
 	uint8_t			sc_iface_no;
 	uint8_t			sc_iface_index;
 	uint8_t			sc_curr_tx_unit;
-	uint8_t			sc_curr_break_unit;
 	uint8_t			sc_name[16];
 };
+
+/* prototypes */
 
 static device_probe_t ubser_probe;
 static device_attach_t ubser_attach;
 static device_detach_t ubser_detach;
 
-static int   ubser_param(struct ucom_softc *ucom, struct termios *t);
-static void  ubser_write_clear_stall_callback(struct usbd_xfer *xfer);
-static void  ubser_write_callback(struct usbd_xfer *xfer);
-static void  ubser_read_clear_stall_callback(struct usbd_xfer *xfer);
-static void  ubser_read_callback(struct usbd_xfer *xfer);
-static void  ubser_set_break(struct ucom_softc *ucom, u_int8_t onoff);
-static void  ubser_send_break_callback(struct usbd_xfer *xfer);
-static int   ubser_open(struct ucom_softc *ucom);
+static usbd_callback_t ubser_write_clear_stall_callback;
+static usbd_callback_t ubser_write_callback;
+static usbd_callback_t ubser_read_clear_stall_callback;
+static usbd_callback_t ubser_read_callback;
+
+static int   ubser_pre_param(struct ucom_softc *ucom, struct termios *t);
+static void  ubser_cfg_set_break(struct ucom_softc *ucom, u_int8_t onoff);
+static void  ubser_cfg_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr);
+static void  ubser_start_read(struct ucom_softc *ucom);
+static void  ubser_stop_read(struct ucom_softc *ucom);
 static void  ubser_start_write(struct ucom_softc *ucom);
+static void  ubser_stop_write(struct ucom_softc *ucom);
 
 static const struct usbd_config ubser_config[UBSER_TR_MAX] = {
 
@@ -191,23 +194,16 @@ static const struct usbd_config ubser_config[UBSER_TR_MAX] = {
       .callback  = &ubser_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
     },
-
-    [UBSER_TR_DT_BREAK] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
-      .bufsize   = sizeof(usb_device_request_t),
-      .flags     = 0,
-      .callback  = &ubser_send_break_callback,
-      .timeout   = 1000, /* 1 second */
-    },
 };
 
 static const struct ucom_callback ubser_callback = {
-  .ucom_open        = &ubser_open,
-  .ucom_set_break   = &ubser_set_break,
-  .ucom_param       = &ubser_param,
-  .ucom_start_write = &ubser_start_write,
+  .ucom_cfg_set_break   = &ubser_cfg_set_break,
+  .ucom_cfg_get_status  = &ubser_cfg_get_status,
+  .ucom_pre_param       = &ubser_pre_param,
+  .ucom_start_read      = &ubser_start_read,
+  .ucom_stop_read       = &ubser_stop_read,
+  .ucom_start_write     = &ubser_start_write,
+  .ucom_stop_write      = &ubser_stop_write,
 };
 
 static device_method_t ubser_methods[] = {
@@ -288,12 +284,14 @@ ubser_attach(device_t dev)
 
 	sc->sc_iface_no = id->bInterfaceNumber;
 	sc->sc_iface_index = uaa->iface_index;
+	sc->sc_udev = uaa->device;
 
 	/* get number of serials */
 	req.bmRequestType = UT_READ_VENDOR_INTERFACE;
 	req.bRequest = VENDOR_GET_NUMSER;
 	USETW(req.wValue, 0);
-	USETW(req.wIndex, sc->sc_iface_no);
+	req.wIndex[0] = sc->sc_iface_no;
+	req.wIndex[1] = 0;
 	USETW(req.wLength, 1);
 	error = usbd_do_request_flags(uaa->device, &req, &sc->sc_numser,
 				    0, NULL, USBD_DEFAULT_TIMEOUT);
@@ -329,7 +327,7 @@ ubser_attach(device_t dev)
 	    sc->sc_ucom[n].sc_portno = n;
 	}
 
-	error = ucom_attach(sc->sc_ucom, sc->sc_numser, sc,
+	error = ucom_attach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_numser, sc,
 			    &ubser_callback, &Giant);
 	if (error) {
 	    goto detach;
@@ -359,7 +357,7 @@ ubser_detach(device_t dev)
 
 	DPRINTF(sc, 0, "\n");
 
-	ucom_detach(sc->sc_ucom, sc->sc_numser);
+	ucom_detach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_numser);
 
 	/* need to stop all transfers atomically,
 	 * hence when clear stall completes, it
@@ -379,7 +377,7 @@ ubser_detach(device_t dev)
 }
 
 static int
-ubser_param(struct ucom_softc *ucom, struct termios *t)
+ubser_pre_param(struct ucom_softc *ucom, struct termios *t)
 {
 	struct ubser_softc *sc = ucom->sc_parent;
 
@@ -391,7 +389,7 @@ ubser_param(struct ucom_softc *ucom, struct termios *t)
 	 * We refuse to accept other configurations.
 	 */
 
-	/* enshure 9600bps */
+	/* ensure 9600bps */
 	switch (t->c_ospeed) {
 	case 9600:
 		break;
@@ -576,76 +574,57 @@ ubser_read_callback(struct usbd_xfer *xfer)
 }
 
 static void
-ubser_set_break(struct ucom_softc *ucom, u_int8_t onoff)
+ubser_cfg_set_break(struct ucom_softc *ucom, u_int8_t onoff)
 {
 	struct ubser_softc *sc = ucom->sc_parent;
 	uint8_t x = ucom->sc_portno;
+	usb_device_request_t req;
+	usbd_status err;
 
 	if (onoff) {
-	    sc->sc_send_break[x/8] |= (1<<(x%8));
-	    usbd_transfer_start(sc->sc_xfer[UBSER_TR_DT_BREAK]);
-	}
-	return;
-}
 
-static __inline void
-ubser_inc_break_unit(struct ubser_softc *sc)
-{
-	sc->sc_curr_break_unit ++;
-	if (sc->sc_curr_break_unit >= sc->sc_numser) {
-	    sc->sc_curr_break_unit = 0;
+	    req.bmRequestType = UT_READ_VENDOR_INTERFACE;
+	    req.bRequest = VENDOR_SET_BREAK;
+	    req.wValue[0] = x;
+	    req.wValue[1] = 0;
+	    req.wIndex[0] = sc->sc_iface_no;
+	    req.wIndex[1] = 0;
+	    USETW(req.wLength, 0);
+
+	    err = usbd_do_request_flags_mtx(sc->sc_udev, &Giant, &req, 
+					    NULL, 0, NULL, 1000);
+	    if (err) {
+	        DPRINTF(sc, -1, "send break failed, error=%s\n",
+			usbd_errstr(err));
+	    }
 	}
 	return;
 }
 
 static void
-ubser_send_break_callback(struct usbd_xfer *xfer)
+ubser_cfg_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr)
 {
-	struct ubser_softc *sc = xfer->priv_sc;
-	usb_device_request_t *req = xfer->buffer;
-	uint8_t first_unit = sc->sc_curr_break_unit;
-	uint8_t x;
-
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	DPRINTF(sc, -1, "transfer error: %s\n",
-		usbd_errstr(xfer->error));
- tr_setup:
- tr_transferred:
-
-	do {
-	    x = sc->sc_curr_break_unit;
-
-	    if (sc->sc_send_break[x/8] & (1<<(x%8))) {
-	        sc->sc_send_break[x/8] &= ~(1<<(x%8));
-
-		req->bmRequestType = UT_READ_VENDOR_INTERFACE;
-		req->bRequest = VENDOR_SET_BREAK;
-		USETW(req->wValue, x);
-		USETW(req->wIndex, sc->sc_iface_no);
-		USETW(req->wLength, 0);
-
-		usbd_start_hardware(xfer);
-
-		ubser_inc_break_unit(sc); /* round robin */
-
-		break;
-	    }
-
-	    ubser_inc_break_unit(sc);
-
-	} while (sc->sc_curr_break_unit != first_unit);
+	/* fake status bits */
+	*lsr = 0;
+	*msr = SER_DCD;
 	return;
 }
 
-static int
-ubser_open(struct ucom_softc *ucom)
+static void
+ubser_start_read(struct ucom_softc *ucom)
 {
-	/* fake status bits */
-	ucom->sc_mcr |= (SER_DTR | SER_RTS);
-	ucom->sc_msr |= (SER_DCD);
-	return 0;
+	struct ubser_softc *sc = ucom->sc_parent;
+	usbd_transfer_start(sc->sc_xfer[UBSER_TR_DT_READ]);
+	return;
+}
+
+static void
+ubser_stop_read(struct ucom_softc *ucom)
+{
+	struct ubser_softc *sc = ucom->sc_parent;
+	usbd_transfer_stop(sc->sc_xfer[UBSER_TR_CS_READ]);
+	usbd_transfer_stop(sc->sc_xfer[UBSER_TR_DT_READ]);
+	return;
 }
 
 static void
@@ -656,3 +635,11 @@ ubser_start_write(struct ucom_softc *ucom)
 	return;
 }
 
+static void
+ubser_stop_write(struct ucom_softc *ucom)
+{
+	struct ubser_softc *sc = ucom->sc_parent;
+	usbd_transfer_stop(sc->sc_xfer[UBSER_TR_CS_WRITE]);
+	usbd_transfer_stop(sc->sc_xfer[UBSER_TR_DT_WRITE]);
+	return;
+}

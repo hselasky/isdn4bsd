@@ -130,6 +130,17 @@ static device_probe_t atausb_probe;
 static device_attach_t atausb_attach;
 static device_detach_t atausb_detach;
 
+static usbd_callback_t atausb_t_bbb_reset1_callback;
+static usbd_callback_t atausb_t_bbb_reset2_callback;
+static usbd_callback_t atausb_t_bbb_reset3_callback;
+static usbd_callback_t atausb_t_bbb_command_callback;
+static usbd_callback_t atausb_t_bbb_data_read_callback;
+static usbd_callback_t atausb_t_bbb_data_rd_cs_callback;
+static usbd_callback_t atausb_t_bbb_data_write_callback;
+static usbd_callback_t atausb_t_bbb_data_wr_cs_callback;
+static usbd_callback_t atausb_t_bbb_status_callback;
+static usbd_callback_t atausb_tr_error;
+
 static void
 atausb_watchdog(void *arg);
 
@@ -137,39 +148,9 @@ static void
 atausb_transfer_start(struct atausb_softc *sc, u_int8_t xfer_no);
 
 static void
-atausb_t_bbb_reset1_callback(struct usbd_xfer *xfer);
-
-static void
-atausb_t_bbb_reset2_callback(struct usbd_xfer *xfer);
-
-static void
-atausb_t_bbb_reset3_callback(struct usbd_xfer *xfer);
-
-static void
 atausb_t_bbb_data_clear_stall_callback(struct usbd_xfer *xfer,
 				       u_int8_t next_xfer,
 				       u_int8_t stall_xfer);
-static void
-atausb_t_bbb_command_callback(struct usbd_xfer *xfer);
-
-static void
-atausb_t_bbb_data_read_callback(struct usbd_xfer *xfer);
-
-static void
-atausb_t_bbb_data_rd_cs_callback(struct usbd_xfer *xfer);
-
-static void
-atausb_t_bbb_data_write_callback(struct usbd_xfer *xfer);
-
-static void
-atausb_t_bbb_data_wr_cs_callback(struct usbd_xfer *xfer);
-
-static void
-atausb_t_bbb_status_callback(struct usbd_xfer *xfer);
-
-static void
-atausb_tr_error(struct usbd_xfer *xfer);
-
 static int
 ata_usbchannel_begin_transaction(struct ata_request *request);
 

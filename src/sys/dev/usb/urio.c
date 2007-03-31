@@ -88,7 +88,6 @@ struct urio_softc {
 	struct usb_cdev         sc_cdev;
 	struct mtx		sc_mtx;
 
-	device_t		sc_dev;
 	struct usbd_device *	sc_udev;
 	struct usbd_xfer *	sc_xfer[URIO_T_MAX];
 
@@ -105,17 +104,10 @@ static device_probe_t urio_probe;
 static device_attach_t urio_attach;
 static device_detach_t urio_detach;
 
-static void
-urio_write_callback(struct usbd_xfer *xfer);
-
-static void
-urio_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-urio_read_callback(struct usbd_xfer *xfer);
-
-static void
-urio_read_clear_stall_callback(struct usbd_xfer *xfer);
+static usbd_callback_t urio_write_callback;
+static usbd_callback_t urio_write_clear_stall_callback;
+static usbd_callback_t urio_read_callback;
+static usbd_callback_t urio_read_clear_stall_callback;
 
 static void
 urio_start_read(struct usb_cdev *cdev);
@@ -233,7 +225,6 @@ urio_attach(device_t dev)
 
 	usbd_set_desc(dev, uaa->device);
 
-	sc->sc_dev = dev;
 	sc->sc_udev = uaa->device;
 
 	mtx_init(&(sc->sc_mtx), "urio lock", NULL, MTX_DEF|MTX_RECURSE);

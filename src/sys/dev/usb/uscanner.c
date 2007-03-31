@@ -105,7 +105,6 @@ struct uscanner_softc {
 	struct usb_cdev		sc_cdev;
 	struct mtx		sc_mtx;
 
-	device_t		sc_dev;
 	struct usbd_xfer *	sc_xfer[USCANNER_N_TRANSFER];
 
 	uint8_t			sc_flags;	/* Used to prevent stalls */
@@ -121,10 +120,10 @@ static device_detach_t	uscanner_detach;
 /*
  * Prototypes for xfer transfer callbacks.
  */
-static void	uscanner_read_callback(struct usbd_xfer *xfer);
-static void	uscanner_read_clear_stall_callback(struct usbd_xfer *xfer);
-static void	uscanner_write_callback(struct usbd_xfer *xfer);
-static void	uscanner_write_clear_stall_callback(struct usbd_xfer *xfer);
+static usbd_callback_t uscanner_read_callback;
+static usbd_callback_t uscanner_read_clear_stall_callback;
+static usbd_callback_t uscanner_write_callback;
+static usbd_callback_t uscanner_write_clear_stall_callback;
 
 /*
  * Prototypes for the character device handling routines.
@@ -379,7 +378,6 @@ uscanner_attach(device_t dev)
 	 * A first path softc structure filling.  sc_cdev and
 	 * sc_xfer are filled later with appropriate functions.
 	 */
-	sc->sc_dev = dev;
 	sc->sc_flags = uscanner_lookup(uaa->vendor, uaa->product)->flags;
 	mtx_init(&(sc->sc_mtx), "uscanner mutex", NULL, MTX_DEF | MTX_RECURSE);
 

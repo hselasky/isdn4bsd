@@ -124,6 +124,18 @@ static u_int8_t uhid_xb360gp_report_descr[] = { UHID_XB360GP_REPORT_DESCR() };
 static u_int8_t uhid_graphire_report_descr[] = { UHID_GRAPHIRE_REPORT_DESCR() };
 static u_int8_t uhid_graphire3_4x5_report_descr[] = { UHID_GRAPHIRE3_4X5_REPORT_DESCR() };
 
+/* prototypes */
+
+static device_probe_t uhid_probe;
+static device_attach_t uhid_attach;
+static device_detach_t uhid_detach;
+
+static usbd_callback_t uhid_intr_callback;
+static usbd_callback_t uhid_intr_clear_stall_callback;
+static usbd_callback_t uhid_write_callback;
+static usbd_callback_t uhid_read_callback;
+static usbd_callback_t uhid_ioctl_callback;
+
 static void
 uhid_intr_callback(struct usbd_xfer *xfer)
 {
@@ -585,10 +597,6 @@ uhid_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t addr,
  done:
 	return error;
 }
-
-static device_probe_t uhid_probe;
-static device_attach_t uhid_attach;
-static device_detach_t uhid_detach;
 
 static int
 uhid_probe(device_t dev)

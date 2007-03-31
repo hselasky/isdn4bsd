@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/sound/usb/uaudio_pcm.c,v 1.18 2005/11/13 14:20:26 netchild Exp $ */
+/* $FreeBSD: src/sys/dev/sound/usb/uaudio_pcm.c,v 1.20 2007/01/26 19:14:41 ariff Exp $ */
 
 /*-
  * Copyright (c) 2000-2002 Hiroyuki Aizu <aizu@navi.org>

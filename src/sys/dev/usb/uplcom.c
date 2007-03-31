@@ -91,7 +91,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/uplcom.c,v 1.40 2006/12/26 17:43:46 jkim Exp
 #include <sys/kernel.h>
 #include <sys/termios.h>
 #include <sys/serial.h>
-#include <sys/taskqueue.h>
 
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
@@ -126,13 +125,9 @@ SYSCTL_INT(_hw_usb_uplcom, OID_AUTO, debug, CTLFLAG_RW,
 #define UPLCOM_INTR_INTERVAL		0 /* default */
 #endif
 
-/*
- * These are the maximum number of bytes transferred per frame.
- * The output buffer size cannot be increased due to the size encoding.
- */
 #define UPLCOM_IBUFSIZE 256
 #define UPLCOM_OBUFSIZE 256
-#define UPLCOM_N_DATA_TRANSFER 7
+#define UPLCOM_N_DATA_TRANSFER 4
 #define UPLCOM_N_INTR_TRANSFER 2
 
 #define	UPLCOM_SET_REQUEST		0x01
@@ -146,24 +141,20 @@ SYSCTL_INT(_hw_usb_uplcom, OID_AUTO, debug, CTLFLAG_RW,
 #define TYPE_PL2303X			1
 
 struct	uplcom_softc {
+	struct ucom_super_softc	sc_super_ucom;
 	struct ucom_softc	sc_ucom;
-	usb_cdc_line_state_t	sc_line_state;	/* current line state */
 
 	struct usbd_xfer *	sc_xfer_intr[UPLCOM_N_INTR_TRANSFER];
 	struct usbd_xfer *	sc_xfer_data[UPLCOM_N_DATA_TRANSFER];
+	struct usbd_device	*sc_udev;
 
-	u_int16_t		sc_flag;
-#define UPLCOM_FLAG_SET_LS      0x0001
-#define UPLCOM_FLAG_SET_BREAK   0x0002
-#define UPLCOM_FLAG_SET_LC      0x0004
-#define UPLCOM_FLAG_SET_CRTSCTS 0x0008
-#define UPLCOM_FLAG_INTR_STALL  0x0010
-#define UPLCOM_FLAG_READ_STALL  0x0020
-#define UPLCOM_FLAG_WRITE_STALL 0x0040
+	u_int16_t		sc_line;
 
-	u_int8_t		sc_dtr; /* current DTR state */
-	u_int8_t		sc_rts; /* current RTS state */
-	u_int8_t		sc_break; /* current BREAK state */
+	u_int8_t		sc_flag;
+#define UPLCOM_FLAG_INTR_STALL  0x01
+#define UPLCOM_FLAG_READ_STALL  0x02
+#define UPLCOM_FLAG_WRITE_STALL 0x04
+
 	u_int8_t		sc_lsr; /* local status register */
 	u_int8_t		sc_msr; /* uplcom status register */
 	u_int8_t		sc_chiptype; /* type of chip */
@@ -171,84 +162,37 @@ struct	uplcom_softc {
 	u_int8_t		sc_ctrl_iface_index;
 	u_int8_t		sc_data_iface_no;
 	u_int8_t		sc_data_iface_index;
-	u_int8_t		sc_crtscts;
 };
 
-static const struct uplcom_product *
-uplcom_find_up(struct usb_attach_arg *uaa);
+/* prototypes */
 
-static usbd_status
-uplcom_reset(struct uplcom_softc *sc, struct usbd_device *udev);
+static const struct uplcom_product *	uplcom_find_up(struct usb_attach_arg *uaa);
 
-static int
-uplcom_pl2303x_init(struct usbd_device *udev);
-
-static void
-uplcom_set_dtr(struct ucom_softc *ucom, u_int8_t onoff);
-
-static void
-uplcom_set_rts(struct ucom_softc *ucom, u_int8_t onoff);
-
-static void
-uplcom_set_break(struct ucom_softc *sc, u_int8_t onoff);
-
-static int
-uplcom_param(struct ucom_softc *ucom, struct termios *t);
-
-static int
-uplcom_open(struct ucom_softc *ucom);
-
-static void
-uplcom_close(struct ucom_softc *ucom);
-
-static void
-uplcom_start_read(struct ucom_softc *ucom);
-
-static void
-uplcom_stop_read(struct ucom_softc *ucom);
-
-static void
-uplcom_start_write(struct ucom_softc *ucom);
-
-static void
-uplcom_stop_write(struct ucom_softc *ucom);
-
-static void
-uplcom_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr);
-
-static int
-uplcom_ioctl(struct ucom_softc *ucom, uint32_t cmd, caddr_t data, int flag,
-	     struct thread *td);
-static void
-uplcom_set_line_state_callback(struct usbd_xfer *xfer);
-
-static void
-uplcom_set_break_callback(struct usbd_xfer *xfer);
-
-static void
-uplcom_set_line_coding_callback(struct usbd_xfer *xfer);
-
-static void
-uplcom_intr_callback(struct usbd_xfer *xfer);
-
-static void
-uplcom_intr_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-uplcom_write_callback(struct usbd_xfer *xfer);
-
-static void
-uplcom_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-uplcom_read_callback(struct usbd_xfer *xfer);
-
-static void
-uplcom_read_clear_stall_callback(struct usbd_xfer *xfer);
+static usbd_status	uplcom_reset(struct uplcom_softc *sc, struct usbd_device *udev);
+static int	uplcom_pl2303x_init(struct usbd_device *udev);
+static void	uplcom_cfg_set_dtr(struct ucom_softc *ucom, u_int8_t onoff);
+static void	uplcom_cfg_set_rts(struct ucom_softc *ucom, u_int8_t onoff);
+static void	uplcom_cfg_set_break(struct ucom_softc *sc, u_int8_t onoff);
+static int 	uplcom_pre_param(struct ucom_softc *ucom, struct termios *t);
+static void	uplcom_cfg_param(struct ucom_softc *ucom, struct termios *t);
+static void	uplcom_start_read(struct ucom_softc *ucom);
+static void	uplcom_stop_read(struct ucom_softc *ucom);
+static void	uplcom_start_write(struct ucom_softc *ucom);
+static void	uplcom_stop_write(struct ucom_softc *ucom);
+static void	uplcom_cfg_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr);
+static int	uplcom_ioctl(struct ucom_softc *ucom, uint32_t cmd, caddr_t data, int flag, struct thread *td);
+static void	uplcom_cfg_do_request(struct uplcom_softc *sc, usb_device_request_t *req, void *data);
 
 static device_probe_t uplcom_probe;
 static device_attach_t uplcom_attach;
 static device_detach_t uplcom_detach;
+
+static usbd_callback_t uplcom_intr_callback;
+static usbd_callback_t uplcom_intr_clear_stall_callback;
+static usbd_callback_t uplcom_write_callback;
+static usbd_callback_t uplcom_write_clear_stall_callback;
+static usbd_callback_t uplcom_read_callback;
+static usbd_callback_t uplcom_read_clear_stall_callback;
 
 static const struct usbd_config uplcom_config_data[UPLCOM_N_DATA_TRANSFER] = {
 
@@ -287,33 +231,6 @@ static const struct usbd_config uplcom_config_data[UPLCOM_N_DATA_TRANSFER] = {
       .callback  = &uplcom_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
     },
-
-    [4] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &uplcom_set_line_state_callback,
-      .timeout   = 1000, /* 1 second */
-    },
-
-    [5] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &uplcom_set_break_callback,
-      .timeout   = 1000, /* 1 second */
-    },
-
-    [6] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
-      .bufsize   = sizeof(usb_device_request_t) + sizeof(usb_cdc_line_state_t),
-      .callback  = &uplcom_set_line_coding_callback,
-      .timeout   = 1000, /* 1 second */
-    },
 };
 
 static const struct usbd_config uplcom_config_intr[UPLCOM_N_INTR_TRANSFER] = {
@@ -337,18 +254,17 @@ static const struct usbd_config uplcom_config_intr[UPLCOM_N_INTR_TRANSFER] = {
 };
 
 struct ucom_callback uplcom_callback = {
-  .ucom_get_status  = &uplcom_get_status,
-  .ucom_set_dtr     = &uplcom_set_dtr,
-  .ucom_set_rts     = &uplcom_set_rts,
-  .ucom_set_break   = &uplcom_set_break,
-  .ucom_param       = &uplcom_param,
-  .ucom_open        = &uplcom_open,
-  .ucom_close       = &uplcom_close,
-  .ucom_ioctl       = &uplcom_ioctl,
-  .ucom_start_read  = &uplcom_start_read,
-  .ucom_stop_read   = &uplcom_stop_read,
-  .ucom_start_write = &uplcom_start_write,
-  .ucom_stop_write  = &uplcom_stop_write,
+  .ucom_cfg_get_status  = &uplcom_cfg_get_status,
+  .ucom_cfg_set_dtr     = &uplcom_cfg_set_dtr,
+  .ucom_cfg_set_rts     = &uplcom_cfg_set_rts,
+  .ucom_cfg_set_break   = &uplcom_cfg_set_break,
+  .ucom_cfg_param       = &uplcom_cfg_param,
+  .ucom_pre_param       = &uplcom_pre_param,
+  .ucom_ioctl           = &uplcom_ioctl,
+  .ucom_start_read      = &uplcom_start_read,
+  .ucom_stop_read       = &uplcom_stop_read,
+  .ucom_start_write     = &uplcom_start_write,
+  .ucom_stop_write      = &uplcom_stop_write,
 };
 
 static const struct uplcom_product {
@@ -470,6 +386,7 @@ uplcom_attach(device_t dev)
 	DPRINTF(0, "sc = %p\n", sc);
 
 	sc->sc_chiptype = up->chiptype;
+	sc->sc_udev = uaa->device;
 
 	DPRINTF(0, "chiptype: %s\n", 
 		(sc->sc_chiptype == TYPE_PL2303X) ? 
@@ -551,10 +468,6 @@ uplcom_attach(device_t dev)
 	    goto detach;
 	}
 
-	sc->sc_dtr = -1;
-	sc->sc_rts = -1;
-	sc->sc_break = -1;
-
 	error = uplcom_reset(sc, uaa->device);
 
 	if (error) {
@@ -563,7 +476,11 @@ uplcom_attach(device_t dev)
 	    goto detach;
 	}
 
-	error = ucom_attach(&(sc->sc_ucom), 1, sc,
+	/* clear stall at first run */
+	sc->sc_flag |= (UPLCOM_FLAG_READ_STALL|
+			UPLCOM_FLAG_WRITE_STALL);
+
+	error = ucom_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
 			    &uplcom_callback, &Giant);
 	if (error) {
 	    goto detach;
@@ -593,7 +510,7 @@ uplcom_detach(device_t dev)
 
 	DPRINTF(0, "sc=%p\n", sc);
 
-	ucom_detach(&(sc->sc_ucom), 1);
+	ucom_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer_intr, UPLCOM_N_INTR_TRANSFER);
 
@@ -610,7 +527,8 @@ uplcom_reset(struct uplcom_softc *sc, struct usbd_device *udev)
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = UPLCOM_SET_REQUEST;
 	USETW(req.wValue, 0);
-	USETW(req.wIndex, sc->sc_data_iface_no);
+	req.wIndex[0] = sc->sc_data_iface_no;
+	req.wIndex[1] = 0;
 	USETW(req.wLength, 0);
 
 	return usbd_do_request(udev, &req, NULL);
@@ -663,45 +581,72 @@ uplcom_pl2303x_init(struct usbd_device *udev)
 }
 
 static void
-uplcom_set_dtr(struct ucom_softc *ucom, u_int8_t onoff)
+uplcom_cfg_set_dtr(struct ucom_softc *ucom, u_int8_t onoff)
 {
 	struct uplcom_softc *sc = ucom->sc_parent;
+	usb_device_request_t req;
 
 	DPRINTF(0, "onoff = %d\n", onoff);
 
-	if (sc->sc_dtr != onoff) {
-	    sc->sc_dtr = onoff;
-	    sc->sc_flag |= UPLCOM_FLAG_SET_LS;
-	    usbd_transfer_start(sc->sc_xfer_data[4]);
-	}
+	if (onoff)
+	  sc->sc_line |= UCDC_LINE_DTR;
+	else
+	  sc->sc_line &= ~UCDC_LINE_DTR;
+
+	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
+	req.bRequest = UCDC_SET_CONTROL_LINE_STATE;
+	USETW(req.wValue, sc->sc_line);
+	req.wIndex[0] = sc->sc_data_iface_no;
+	req.wIndex[1] = 0;
+	USETW(req.wLength, 0);
+
+	uplcom_cfg_do_request(sc, &req, NULL);
 	return;
 }
 
 static void
-uplcom_set_rts(struct ucom_softc *ucom, u_int8_t onoff)
+uplcom_cfg_set_rts(struct ucom_softc *ucom, u_int8_t onoff)
 {
 	struct uplcom_softc *sc = ucom->sc_parent;
+	usb_device_request_t req;
 
 	DPRINTF(0, "onoff = %d\n", onoff);
 
-	if (sc->sc_rts != onoff) {
-	    sc->sc_rts = onoff;
-	    sc->sc_flag |= UPLCOM_FLAG_SET_LS;
-	    usbd_transfer_start(sc->sc_xfer_data[4]);
-	}
+	if (onoff)
+	  sc->sc_line |= UCDC_LINE_RTS;
+	else
+	  sc->sc_line &= ~UCDC_LINE_RTS;
+
+	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
+	req.bRequest = UCDC_SET_CONTROL_LINE_STATE;
+	USETW(req.wValue, sc->sc_line);
+	req.wIndex[0] = sc->sc_data_iface_no;
+	req.wIndex[1] = 0;
+	USETW(req.wLength, 0);
+
+	uplcom_cfg_do_request(sc, &req, NULL);
 	return;
 }
 
 static void
-uplcom_set_break(struct ucom_softc *ucom, u_int8_t onoff)
+uplcom_cfg_set_break(struct ucom_softc *ucom, u_int8_t onoff)
 {
 	struct uplcom_softc *sc = ucom->sc_parent;
+	usb_device_request_t req;
+	u_int16_t temp;
 
 	DPRINTF(0, "onoff = %d\n", onoff);
 
-	sc->sc_break = onoff;
-	sc->sc_flag |= UPLCOM_FLAG_SET_BREAK;
-	usbd_transfer_start(sc->sc_xfer_data[5]);
+	temp = (onoff ? UCDC_BREAK_ON : UCDC_BREAK_OFF);
+
+	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
+	req.bRequest = UCDC_SEND_BREAK;
+	USETW(req.wValue, temp);
+	req.wIndex[0] = sc->sc_data_iface_no;
+	req.wIndex[1] = 0;
+	USETW(req.wLength, 0);
+
+	uplcom_cfg_do_request(sc, &req, NULL);
 	return;
 }
 
@@ -717,12 +662,11 @@ static const int32_t uplcom_rates[] = {
 #define N_UPLCOM_RATES	(sizeof(uplcom_rates)/sizeof(uplcom_rates[0]))
 
 static int
-uplcom_param(struct ucom_softc *ucom, struct termios *t)
+uplcom_pre_param(struct ucom_softc *ucom, struct termios *t)
 {
-	struct uplcom_softc *sc = ucom->sc_parent;
 	u_int32_t i;
 
-	DPRINTF(0, "sc = %p\n", sc);
+	DPRINTF(0, "\n");
 
 	/* check requested baud rate */
 
@@ -738,62 +682,72 @@ uplcom_param(struct ucom_softc *ucom, struct termios *t)
 	    }
 	}
 
-	USETDW(sc->sc_line_state.dwDTERate, t->c_ospeed);
+	return 0;
+}
 
-	sc->sc_line_state.bCharFormat = (t->c_cflag & CSTOPB) ?
+static void
+uplcom_cfg_param(struct ucom_softc *ucom, struct termios *t)
+{
+	struct uplcom_softc *sc = ucom->sc_parent;
+	usb_cdc_line_state_t ls;
+	usb_device_request_t req;
+
+	DPRINTF(0, "sc = %p\n", sc);
+
+	bzero(&ls, sizeof(ls));
+
+	USETDW(ls.dwDTERate, t->c_ospeed);
+
+	ls.bCharFormat = (t->c_cflag & CSTOPB) ?
 	  UCDC_STOP_BIT_2 : UCDC_STOP_BIT_1;
 
-	sc->sc_line_state.bParityType = (t->c_cflag & PARENB) ?
+	ls.bParityType = (t->c_cflag & PARENB) ?
 	  ((t->c_cflag & PARODD) ? 
 	   UCDC_PARITY_ODD : UCDC_PARITY_EVEN) : UCDC_PARITY_NONE;
 
 	switch (t->c_cflag & CSIZE) {
 	case CS5:
-		sc->sc_line_state.bDataBits = 5;
+		ls.bDataBits = 5;
 		break;
 	case CS6:
-		sc->sc_line_state.bDataBits = 6;
+		ls.bDataBits = 6;
 		break;
 	case CS7:
-		sc->sc_line_state.bDataBits = 7;
+		ls.bDataBits = 7;
 		break;
 	case CS8:
-		sc->sc_line_state.bDataBits = 8;
+		ls.bDataBits = 8;
 		break;
 	}
 
-	sc->sc_crtscts = (t->c_cflag & CRTSCTS) ? 1 : 0;
+	DPRINTF(0, "rate=%d fmt=%d parity=%d bits=%d\n",
+		UGETDW(ls.dwDTERate), ls.bCharFormat,
+		ls.bParityType, ls.bDataBits);
 
-	sc->sc_flag |= (UPLCOM_FLAG_SET_LC|UPLCOM_FLAG_SET_CRTSCTS);
-	usbd_transfer_start(sc->sc_xfer_data[6]);
-	return 0;
-}
+	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
+	req.bRequest = UCDC_SET_LINE_CODING;
+	USETW(req.wValue, 0);
+	req.wIndex[0] = sc->sc_data_iface_no;
+	req.wIndex[1] = 0;
+	USETW(req.wLength, UCDC_LINE_STATE_LENGTH);
 
-static int
-uplcom_open(struct ucom_softc *ucom)
-{
-	struct uplcom_softc *sc = ucom->sc_parent;
+	uplcom_cfg_do_request(sc, &req, &ls);
 
-	DPRINTF(0, "sc=%p\n", sc);
+	if (t->c_cflag & CRTSCTS) {
 
-	/* clear stall first */
-	sc->sc_flag |= (UPLCOM_FLAG_READ_STALL|
-			UPLCOM_FLAG_WRITE_STALL);
+	    DPRINTF(0, "crtscts = on\n");
 
-	usbd_transfer_start(sc->sc_xfer_intr[0]);
+	    req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
+	    req.bRequest = UPLCOM_SET_REQUEST;
+	    USETW(req.wValue, 0);
+	    if (sc->sc_chiptype == TYPE_PL2303X)
+	        USETW(req.wIndex, UPLCOM_SET_CRTSCTS_PL2303X);
+	    else
+	        USETW(req.wIndex, UPLCOM_SET_CRTSCTS);
+	    USETW(req.wLength, 0);
 
-	return (0);
-}
-
-static void
-uplcom_close(struct ucom_softc *ucom)
-{
-	struct uplcom_softc *sc = ucom->sc_parent;
-
-	DPRINTF(0, "sc=%p\n", sc);
-
-	usbd_transfer_stop(sc->sc_xfer_intr[0]);
-
+	    uplcom_cfg_do_request(sc, &req, NULL);
+	}
 	return;
 }
 
@@ -801,6 +755,11 @@ static void
 uplcom_start_read(struct ucom_softc *ucom)
 {
 	struct uplcom_softc *sc = ucom->sc_parent;
+
+	/* start interrupt endpoint */
+	usbd_transfer_start(sc->sc_xfer_intr[0]);
+
+	/* start read endpoint */
 	usbd_transfer_start(sc->sc_xfer_data[1]);
 	return;
 }
@@ -809,6 +768,11 @@ static void
 uplcom_stop_read(struct ucom_softc *ucom)
 {
 	struct uplcom_softc *sc = ucom->sc_parent;
+
+	/* stop interrupt endpoint */
+	usbd_transfer_stop(sc->sc_xfer_intr[0]);
+
+	/* stop read endpoint */
 	usbd_transfer_stop(sc->sc_xfer_data[3]);
 	usbd_transfer_stop(sc->sc_xfer_data[1]);
 	return;
@@ -832,19 +796,14 @@ uplcom_stop_write(struct ucom_softc *ucom)
 }
 
 static void
-uplcom_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr)
+uplcom_cfg_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr)
 {
 	struct uplcom_softc *sc = ucom->sc_parent;
 
 	DPRINTF(0, "\n");
 
-	if (lsr) {
-	    *lsr = sc->sc_lsr;
-	}
-
-	if (msr) {
-	    *msr = sc->sc_msr;
-	}
+	*lsr = sc->sc_lsr;
+	*msr = sc->sc_msr;
 	return;
 }
 
@@ -852,148 +811,7 @@ static int
 uplcom_ioctl(struct ucom_softc *ucom, uint32_t cmd, caddr_t data, int flag,
 	     struct thread *td)
 {
-	int error = ENOTTY;
-
-	/* TODO: */
-
-	DPRINTF(0, "cmd = 0x%08x\n", cmd);
-
-	switch (cmd) {
-	case TIOCNOTTY:
-	case TIOCMGET:
-	case TIOCMSET:
-	case USB_GET_CM_OVER_DATA:
-	case USB_SET_CM_OVER_DATA:
-		break;
-
-	default:
-		DPRINTF(0, "unknown command\n");
-		error = ENOTTY;
-		break;
-	}
-
-	return error;
-}
-
-static void
-uplcom_set_line_state_callback(struct usbd_xfer *xfer)
-{
-	usb_device_request_t *req = xfer->buffer;
-	struct uplcom_softc *sc = xfer->priv_sc;
-	u_int16_t temp;
-
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
-
- tr_setup:
- tr_transferred:
-	if (sc->sc_flag &   UPLCOM_FLAG_SET_LS) {
-	    sc->sc_flag &= ~UPLCOM_FLAG_SET_LS;
-
-	    temp = ((sc->sc_dtr ? UCDC_LINE_DTR : 0) |
-		    (sc->sc_rts ? UCDC_LINE_RTS : 0));
-
-	    req->bmRequestType = UT_WRITE_CLASS_INTERFACE;
-	    req->bRequest = UCDC_SET_CONTROL_LINE_STATE;
-	    USETW(req->wValue, temp);
-	    USETW(req->wIndex, sc->sc_data_iface_no);
-	    USETW(req->wLength, 0);
-
-	    usbd_start_hardware(xfer);
-	}
-	return;
-}
-
-static void
-uplcom_set_break_callback(struct usbd_xfer *xfer)
-{
-	usb_device_request_t *req = xfer->buffer;
-	struct uplcom_softc *sc = xfer->priv_sc;
-	u_int16_t temp;
-
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
-
- tr_setup:
- tr_transferred:
-	if (sc->sc_flag &   UPLCOM_FLAG_SET_BREAK) {
-	    sc->sc_flag &= ~UPLCOM_FLAG_SET_BREAK;
-
-	    temp = (sc->sc_break ? UCDC_BREAK_ON : UCDC_BREAK_OFF);
-
-	    req->bmRequestType = UT_WRITE_CLASS_INTERFACE;
-	    req->bRequest = UCDC_SEND_BREAK;
-	    USETW(req->wValue, temp);
-	    USETW(req->wIndex, sc->sc_data_iface_no);
-	    USETW(req->wLength, 0);
-
-	    usbd_start_hardware(xfer);
-	}
-	return;
-}
-
-static void
-uplcom_set_line_coding_callback(struct usbd_xfer *xfer)
-{
-	usb_device_request_t *req = xfer->buffer;
-	usb_cdc_line_state_t *ls = (void *)(req+1);
-	struct uplcom_softc *sc = xfer->priv_sc;
-
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
-
- tr_setup:
- tr_transferred:
-	if (sc->sc_flag &   UPLCOM_FLAG_SET_LC) {
-	    sc->sc_flag &= ~UPLCOM_FLAG_SET_LC;
-
-	    DPRINTF(0, "rate=%d fmt=%d parity=%d bits=%d\n",
-		    UGETDW(ls->dwDTERate), ls->bCharFormat,
-		    ls->bParityType, ls->bDataBits);
-
-	    req->bmRequestType = UT_WRITE_CLASS_INTERFACE;
-	    req->bRequest = UCDC_SET_LINE_CODING;
-	    USETW(req->wValue, 0);
-	    USETW(req->wIndex, sc->sc_data_iface_no);
-	    USETW(req->wLength, UCDC_LINE_STATE_LENGTH);
-
-	    *ls = sc->sc_line_state;
-
-	    xfer->length = (sizeof(*req) + sizeof(*ls));
-
-	    usbd_start_hardware(xfer);
-	    return;
-	}
-
-	if (sc->sc_flag &   UPLCOM_FLAG_SET_CRTSCTS) {
-	    sc->sc_flag &= ~UPLCOM_FLAG_SET_CRTSCTS;
-
-	    if (sc->sc_crtscts) {
-
-	        DPRINTF(0, "crtscts = on\n");
-
-	        req->bmRequestType = UT_WRITE_VENDOR_DEVICE;
-		req->bRequest = UPLCOM_SET_REQUEST;
-		USETW(req->wValue, 0);
-		if (sc->sc_chiptype == TYPE_PL2303X)
-		    USETW(req->wIndex, UPLCOM_SET_CRTSCTS_PL2303X);
-		else
-		    USETW(req->wIndex, UPLCOM_SET_CRTSCTS);
-		USETW(req->wLength, 0);
-
-		xfer->length = sizeof(*req);
-
-		usbd_start_hardware(xfer);
-		return;
-	    }
-	}
-	return;
+	return ENOTTY;
 }
 
 static void
@@ -1171,5 +989,34 @@ uplcom_read_clear_stall_callback(struct usbd_xfer *xfer)
 	sc->sc_flag &= ~UPLCOM_FLAG_READ_STALL;
 	DPRINTF(0, "clear stall failed, error=%s\n",
 		usbd_errstr(xfer->error));
+	return;
+}
+
+static void
+uplcom_cfg_do_request(struct uplcom_softc *sc, usb_device_request_t *req, 
+		      void *data)
+{
+	u_int16_t length;
+	usbd_status err;
+
+	if (ucom_cfg_is_gone(&(sc->sc_ucom))) {
+	    goto error;
+	}
+
+	err = usbd_do_request_flags_mtx(sc->sc_udev, &Giant, req, 
+					data, 0, NULL, 1000);
+
+	if (err) {
+
+	    DPRINTF(-1, "device request failed, err=%s "
+		    "(ignored)\n", usbd_errstr(err));
+
+	error:
+	    length = UGETW(req->wLength);
+
+	    if ((req->bmRequestType & UT_READ) && length) {
+		bzero(data, length);
+	    }
+	}
 	return;
 }

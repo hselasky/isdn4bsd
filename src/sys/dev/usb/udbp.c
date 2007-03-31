@@ -119,6 +119,8 @@ struct udbp_softc {
 	u_int8_t		sc_name[16];
 };
 
+/* prototypes */
+
 static int
 udbp_modload(module_t mod, int event, void *data);
 
@@ -126,20 +128,13 @@ static device_probe_t udbp_probe;
 static device_attach_t udbp_attach;
 static device_detach_t udbp_detach;
 
-static void
-udbp_bulk_read_callback(struct usbd_xfer *xfer);
-
-static void
-udbp_bulk_read_clear_stall_callback(struct usbd_xfer *xfer);
+static usbd_callback_t udbp_bulk_read_callback;
+static usbd_callback_t udbp_bulk_read_clear_stall_callback;
+static usbd_callback_t udbp_bulk_write_callback;
+static usbd_callback_t udbp_bulk_write_clear_stall_callback;
 
 static void
 udbp_bulk_read_complete(node_p node, hook_p hook, void *arg1, int arg2);
-
-static void
-udbp_bulk_write_callback(struct usbd_xfer *xfer);
-
-static void
-udbp_bulk_write_clear_stall_callback(struct usbd_xfer *xfer);
 
 static ng_constructor_t	ng_udbp_constructor;
 static ng_rcvmsg_t	ng_udbp_rcvmsg;

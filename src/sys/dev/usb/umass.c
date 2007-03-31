@@ -24,7 +24,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$FreeBSD: src/sys/dev/usb/umass.c,v 1.135 2006/03/17 18:16:22 iedowse Exp $
+ *	$FreeBSD: src/sys/dev/usb/umass.c,v 1.140 2006/11/02 00:54:38 mjacob Exp $
  *	$NetBSD: umass.c,v 1.28 2000/04/02 23:46:53 augustss Exp $
  */
 
@@ -444,6 +444,10 @@ static const struct umass_devdescr umass_devdescr[] = {
 	  UMASS_PROTO_ATAPI | UMASS_PROTO_BBB,
 	  NO_INQUIRY | NO_GETMAXLUN
 	},
+	{ USB_VENDOR_PANASONIC, USB_PRODUCT_PANASONIC_KXL840AN, RID_WILDCARD,
+	  UMASS_PROTO_ATAPI | UMASS_PROTO_BBB,
+	  NO_GETMAXLUN
+	},
 	{ USB_VENDOR_PANASONIC, USB_PRODUCT_PANASONIC_KXLCB20AN, RID_WILDCARD,
 	  UMASS_PROTO_SCSI | UMASS_PROTO_BBB,
 	  NO_QUIRKS
@@ -595,6 +599,27 @@ static device_probe_t umass_probe;
 static device_attach_t umass_attach;
 static device_detach_t umass_detach;
 
+static usbd_callback_t umass_tr_error;
+static usbd_callback_t umass_t_bbb_reset1_callback;
+static usbd_callback_t umass_t_bbb_reset2_callback;
+static usbd_callback_t umass_t_bbb_reset3_callback;
+static usbd_callback_t umass_t_bbb_command_callback;
+static usbd_callback_t umass_t_bbb_data_read_callback;
+static usbd_callback_t umass_t_bbb_data_rd_cs_callback;
+static usbd_callback_t umass_t_bbb_data_write_callback;
+static usbd_callback_t umass_t_bbb_data_wr_cs_callback;
+static usbd_callback_t umass_t_bbb_status_callback;
+static usbd_callback_t umass_t_cbi_reset1_callback;
+static usbd_callback_t umass_t_cbi_reset2_callback;
+static usbd_callback_t umass_t_cbi_reset3_callback;
+static usbd_callback_t umass_t_cbi_reset4_callback;
+static usbd_callback_t umass_t_cbi_command_callback;
+static usbd_callback_t umass_t_cbi_data_read_callback;
+static usbd_callback_t umass_t_cbi_data_rd_cs_callback;
+static usbd_callback_t umass_t_cbi_data_write_callback;
+static usbd_callback_t umass_t_cbi_data_wr_cs_callback;
+static usbd_callback_t umass_t_cbi_status_callback;
+
 static void
 umass_init_shuttle(struct umass_softc *sc);
 
@@ -602,39 +627,9 @@ static void
 umass_reset(struct umass_softc *sc);
 
 static void
-umass_tr_error(struct usbd_xfer *xfer);
-
-static void
-umass_t_bbb_reset1_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_bbb_reset2_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_bbb_reset3_callback(struct usbd_xfer *xfer);
-
-static void
 umass_t_bbb_data_clear_stall_callback(struct usbd_xfer *xfer,
 				      u_int8_t next_xfer,
 				      u_int8_t stall_xfer);
-static void
-umass_t_bbb_command_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_bbb_data_read_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_bbb_data_rd_cs_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_bbb_data_write_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_bbb_data_wr_cs_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_bbb_status_callback(struct usbd_xfer *xfer);
-
 static void
 umass_command_start(struct umass_softc *sc, u_int8_t dir, 
 		    void *data_ptr, u_int32_t data_len, 
@@ -647,39 +642,9 @@ static void
 umass_cbi_start_status(struct umass_softc *sc);
 
 static void
-umass_t_cbi_reset1_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_cbi_reset2_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_cbi_reset3_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_cbi_reset4_callback(struct usbd_xfer *xfer);
-
-static void
 umass_t_cbi_data_clear_stall_callback(struct usbd_xfer *xfer,
 				      u_int8_t next_xfer,
 				      u_int8_t stall_xfer);
-static void
-umass_t_cbi_command_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_cbi_data_read_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_cbi_data_rd_cs_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_cbi_data_write_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_cbi_data_wr_cs_callback(struct usbd_xfer *xfer);
-
-static void
-umass_t_cbi_status_callback(struct usbd_xfer *xfer);
-
 static int
 umass_cam_attach_sim(struct umass_softc *sc);
 
@@ -1714,6 +1679,13 @@ umass_t_bbb_status_callback(struct usbd_xfer *xfer)
 
  tr_transferred:
 
+	/* Do a full reset if there is something
+	 * wrong with the CSW:
+	 */
+	sc->sc_status_try = 1; 
+
+	/* Zero missing parts of the CSW: */
+
 	if (xfer->actlen < sizeof(sc->csw)) {
 	    bzero(&(sc->csw), sizeof(sc->csw));
 	}
@@ -2651,16 +2623,12 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 			cam_sim_path(sc->sc_sim), ccb->ccb_h.target_id,
 			ccb->ccb_h.target_lun);
 
-#if (__FreeBSD_version >= 700025)
 		cts->protocol = PROTO_SCSI;
 		cts->protocol_version = SCSI_REV_2;
 		cts->transport = XPORT_USB;
 		cts->transport_version = XPORT_VERSION_UNSPECIFIED;
 		cts->xport_specific.valid = 0;
-#else
-		cts->valid = 0;
-		cts->flags = 0;		/* no disconnection, tagging */
-#endif
+
 		ccb->ccb_h.status = CAM_REQ_CMP;
 		xpt_done(ccb);
 		break;
@@ -3168,11 +3136,11 @@ static void
 umass_bbb_dump_csw(struct umass_softc *sc, umass_bbb_csw_t *csw)
 {
 	u_int32_t sig = UGETDW(csw->dCSWSignature);
-	u_int16_t tag = UGETW(csw->dCSWTag);
+	u_int32_t tag = UGETDW(csw->dCSWTag);
 	u_int32_t res = UGETDW(csw->dCSWDataResidue);
 	u_int8_t status = csw->bCSWStatus;
 
-	DPRINTF(sc, UDMASS_BBB, "CSW %d: sig = 0x%08x (%s), tag = %d, "
+	DPRINTF(sc, UDMASS_BBB, "CSW %d: sig = 0x%08x (%s), tag = 0x%08x, "
 		"res = %d, status = 0x%02x (%s)\n", 
 		tag, sig, (sig == CSWSIGNATURE?  "valid":"invalid"),
 		tag, res,

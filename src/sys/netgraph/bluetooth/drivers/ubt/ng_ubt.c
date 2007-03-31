@@ -179,44 +179,27 @@ static struct ng_type	typestruct = {
 
 /* USB methods */
 
+static usbd_callback_t ubt_ctrl_write_callback;
+static usbd_callback_t ubt_intr_read_callback;
+static usbd_callback_t ubt_intr_read_clear_stall_callback;
+static usbd_callback_t ubt_bulk_read_callback;
+static usbd_callback_t ubt_bulk_read_clear_stall_callback;
+static usbd_callback_t ubt_bulk_write_callback;
+static usbd_callback_t ubt_bulk_write_clear_stall_callback;
+static usbd_callback_t ubt_isoc_read_callback;
+static usbd_callback_t ubt_isoc_write_callback;
+
 static int
 ubt_modevent(module_t mod, int event, void *data);
-
-static void
-ubt_ctrl_write_callback(struct usbd_xfer *xfer);
-
-static void
-ubt_intr_read_callback(struct usbd_xfer *xfer);
-
-static void
-ubt_intr_read_clear_stall_callback(struct usbd_xfer *xfer);
 
 static void
 ubt_intr_read_complete(node_p node, hook_p hook, void *arg1, int arg2);
 
 static void
-ubt_bulk_read_callback(struct usbd_xfer *xfer);
-
-static void
-ubt_bulk_read_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
 ubt_bulk_read_complete(node_p node, hook_p hook, void *arg1, int arg2);
 
 static void
-ubt_bulk_write_callback(struct usbd_xfer *xfer);
-
-static void
-ubt_bulk_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-ubt_isoc_read_callback(struct usbd_xfer *xfer);
-
-static void
 ubt_isoc_read_complete(node_p node, hook_p hook, void *arg1, int arg2);
-
-static void
-ubt_isoc_write_callback(struct usbd_xfer *xfer);
 
 /* USB config */
 static const struct usbd_config ubt_config_if_0[UBT_IF_0_N_TRANSFER] = {

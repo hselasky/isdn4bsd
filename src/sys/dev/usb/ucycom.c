@@ -39,7 +39,6 @@
 #include <sys/kernel.h>
 #include <sys/termios.h>
 #include <sys/serial.h>
-#include <sys/taskqueue.h>
 #include <sys/malloc.h>
 
 #include <dev/usb/usb_port.h>
@@ -55,23 +54,21 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ucycom.c,v 1.4 2005/10/16 20:22:56 phk Exp $
 
 #define UCYCOM_MAX_IOLEN	(256 + 2) /* bytes */
 
-#define UCYCOM_ENDPT_MAX	4 /* units */
+#define UCYCOM_ENDPT_MAX	3 /* units */
 #define UCYCOM_IFACE_INDEX	0
 
-#define DPRINTF(...)
+#define DPRINTF(...) { }
 
 struct ucycom_softc {
+	struct ucom_super_softc	sc_super_ucom;
 	struct ucom_softc	sc_ucom;
 
 	struct usbd_device *	sc_udev;
 	struct usbd_xfer *	sc_xfer[UCYCOM_ENDPT_MAX];
-	device_t		sc_dev;
 
 	u_int32_t		sc_model;
 #define	MODEL_CY7C63743		0x63743
 #define	MODEL_CY7C64013		0x64013
-	u_int32_t		sc_baud;
-	u_int32_t		sc_unit;
 
 	u_int16_t		sc_flen; /* feature report length */
 	u_int16_t		sc_ilen; /* input report length */
@@ -88,10 +85,10 @@ struct ucycom_softc {
 #define UCYCOM_CFG_DATAB	0x03
 	u_int8_t		sc_ist; /* status flags from last input */
 	u_int8_t		sc_flags;
-#define UCYCOM_FLAG_RELOAD_CONFIG  0x01
-#define UCYCOM_FLAG_INTR_STALL     0x02
+#define UCYCOM_FLAG_INTR_STALL     0x01
 	u_int8_t		sc_name[16];
 	u_int8_t		sc_iface_no;
+	u_int8_t		sc_temp_cfg[32];
 };
 
 /* prototypes */
@@ -100,38 +97,18 @@ static device_probe_t ucycom_probe;
 static device_attach_t ucycom_attach;
 static device_detach_t ucycom_detach;
 
-static int
-ucycom_open(struct ucom_softc *ucom);
+static usbd_callback_t ucycom_ctrl_write_callback;
+static usbd_callback_t ucycom_intr_read_clear_stall_callback;
+static usbd_callback_t ucycom_intr_read_callback;
 
-static void
-ucycom_start_read(struct ucom_softc *ucom);
-
-static void
-ucycom_stop_read(struct ucom_softc *ucom);
-
-static void
-ucycom_start_write(struct ucom_softc *ucom);
-
-static void
-ucycom_stop_write(struct ucom_softc *ucom);
-
-static void
-ucycom_ctrl_write_callback(struct usbd_xfer *xfer);
-
-static void
-ucycom_config_callback(struct usbd_xfer *xfer);
-
-static int
-ucycom_param(struct ucom_softc *ucom, struct termios *t);
-
-static int
-ucycom_configure(struct ucycom_softc *sc, u_int32_t baud, u_int8_t cfg);
-
-static void
-ucycom_intr_read_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-ucycom_intr_read_callback(struct usbd_xfer *xfer);
+static void	ucycom_cfg_open(struct ucom_softc *ucom);
+static void	ucycom_start_read(struct ucom_softc *ucom);
+static void	ucycom_stop_read(struct ucom_softc *ucom);
+static void	ucycom_start_write(struct ucom_softc *ucom);
+static void	ucycom_stop_write(struct ucom_softc *ucom);
+static void	ucycom_cfg_write(struct ucycom_softc *sc, uint32_t baud, uint8_t cfg);
+static int	ucycom_pre_param(struct ucom_softc *ucom, struct termios *t);
+static void	ucycom_cfg_param(struct ucom_softc *ucom, struct termios *t);
 
 static const struct usbd_config ucycom_config[UCYCOM_ENDPT_MAX] = {
 
@@ -158,16 +135,6 @@ static const struct usbd_config ucycom_config[UCYCOM_ENDPT_MAX] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
       .direction = -1,
-      .bufsize   = (sizeof(usb_device_request_t) + UCYCOM_MAX_IOLEN),
-      .flags     = 0,
-      .callback  = &ucycom_config_callback,
-      .timeout   = 1000, /* 1 second */
-    },
-
-    [3] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &ucycom_intr_read_clear_stall_callback,
@@ -176,12 +143,13 @@ static const struct usbd_config ucycom_config[UCYCOM_ENDPT_MAX] = {
 };
 
 static const struct ucom_callback ucycom_callback = {
-    .ucom_param       = &ucycom_param,
-    .ucom_open        = &ucycom_open,
-    .ucom_start_read  = &ucycom_start_read,
-    .ucom_stop_read   = &ucycom_stop_read,
-    .ucom_start_write = &ucycom_start_write,
-    .ucom_stop_write  = &ucycom_stop_write,
+    .ucom_cfg_param       = &ucycom_cfg_param,
+    .ucom_cfg_open        = &ucycom_cfg_open,
+    .ucom_pre_param       = &ucycom_pre_param,
+    .ucom_start_read      = &ucycom_start_read,
+    .ucom_stop_read       = &ucycom_stop_read,
+    .ucom_start_write     = &ucycom_start_write,
+    .ucom_stop_write      = &ucycom_stop_write,
 };
 
 static device_method_t ucycom_methods[] = {
@@ -255,8 +223,6 @@ ucycom_attach(device_t dev)
 	}
 
 	sc->sc_udev = uaa->device;
-	sc->sc_dev = dev;
-	sc->sc_unit = device_get_unit(dev);
 
 	usbd_set_desc(dev, uaa->device);
 
@@ -341,7 +307,7 @@ ucycom_attach(device_t dev)
 	    goto detach;
 	}
 
-	error = ucom_attach(&(sc->sc_ucom), 1, sc,
+	error = ucom_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
 			    &ucycom_callback, &Giant);
 
 	if (error) {
@@ -367,24 +333,21 @@ ucycom_detach(device_t dev)
 {
 	struct ucycom_softc *sc = device_get_softc(dev);
 
-	ucom_detach(&(sc->sc_ucom), 1);
+	ucom_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UCYCOM_ENDPT_MAX);
 
 	return 0;
 }
 
-static int
-ucycom_open(struct ucom_softc *ucom)
+static void
+ucycom_cfg_open(struct ucom_softc *ucom)
 {
 	struct ucycom_softc *sc = ucom->sc_parent;
 
 	/* set default configuration */
-	ucycom_configure(sc, UCYCOM_DEFAULT_RATE, UCYCOM_DEFAULT_CFG);
-
-	sc->sc_flags |= UCYCOM_FLAG_INTR_STALL;
-
-	return 0;
+	ucycom_cfg_write(sc, UCYCOM_DEFAULT_RATE, UCYCOM_DEFAULT_CFG);
+	return;
 }
 
 static void
@@ -399,7 +362,7 @@ static void
 ucycom_stop_read(struct ucom_softc *ucom)
 {
 	struct ucycom_softc *sc = ucom->sc_parent;
-	usbd_transfer_stop(sc->sc_xfer[3]);
+	usbd_transfer_stop(sc->sc_xfer[2]);
 	usbd_transfer_stop(sc->sc_xfer[1]);
 	return;
 }
@@ -457,7 +420,8 @@ ucycom_ctrl_write_callback(struct usbd_xfer *xfer)
 	    req->bmRequestType = UT_WRITE_CLASS_INTERFACE;
 	    req->bRequest = UR_SET_REPORT;
 	    USETW2(req->wValue, UHID_OUTPUT_REPORT, sc->sc_oid);
-	    USETW(req->wIndex, sc->sc_iface_no);
+	    req->wIndex[0] = sc->sc_iface_no;
+	    req->wIndex[1] = 0;
 	    USETW(req->wLength, sc->sc_olen);
 
 	    switch (sc->sc_model) {
@@ -469,7 +433,6 @@ ucycom_ctrl_write_callback(struct usbd_xfer *xfer)
 		req->bData[1] = actlen;
 		break;
 	    default:
-	        panic("invalid model number!\n");
 		break;
 	    }
 
@@ -481,91 +444,49 @@ ucycom_ctrl_write_callback(struct usbd_xfer *xfer)
 }
 
 static void
-ucycom_config_callback(struct usbd_xfer *xfer)
+ucycom_cfg_write(struct ucycom_softc *sc, uint32_t baud, uint8_t cfg)
 {
-	struct ucycom_softc *sc = xfer->priv_sc;
-	usb_device_request_t *req = xfer->buffer;
+	usb_device_request_t req;
+	uint16_t len;
+	usbd_status err;
 
-	USBD_CHECK_STATUS(xfer);
+	len = sc->sc_flen;
+	if (len > sizeof(sc->sc_temp_cfg)) {
+	    len = sizeof(sc->sc_temp_cfg);
+	}
 
- tr_error:
-	if (xfer->error == USBD_CANCELLED) {
+	sc->sc_cfg = cfg;
+
+	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
+	req.bRequest = UR_SET_REPORT;
+	USETW2(req.wValue, UHID_FEATURE_REPORT, sc->sc_fid);
+	req.wIndex[0] = sc->sc_iface_no;
+	req.wIndex[1] = 0;
+	USETW(req.wLength, len);
+
+	sc->sc_temp_cfg[0] = (baud & 0xff);
+	sc->sc_temp_cfg[1] = (baud >> 8) & 0xff;
+	sc->sc_temp_cfg[2] = (baud >> 16) & 0xff;
+	sc->sc_temp_cfg[3] = (baud >> 24) & 0xff;
+	sc->sc_temp_cfg[4] = cfg;
+
+	if (ucom_cfg_is_gone(&(sc->sc_ucom))) {
 	    return;
 	}
-	DPRINTF(sc, 0, "error=%s\n", 
-		usbd_errstr(xfer->error));
- tr_transferred:
- tr_setup:
-	if (sc->sc_flags &   UCYCOM_FLAG_RELOAD_CONFIG) {
-	    sc->sc_flags &= ~UCYCOM_FLAG_RELOAD_CONFIG;
 
-	    req->bmRequestType = UT_WRITE_CLASS_INTERFACE;
-	    req->bRequest = UR_SET_REPORT;
-	    USETW2(req->wValue, UHID_FEATURE_REPORT, sc->sc_fid);
-	    USETW(req->wIndex, sc->sc_iface_no);
-	    USETW(req->wLength, sc->sc_flen);
-
-	    req->bData[0] = (sc->sc_baud & 0xff);
-	    req->bData[1] = (sc->sc_baud >> 8) & 0xff;
-	    req->bData[2] = (sc->sc_baud >> 16) & 0xff;
-	    req->bData[3] = (sc->sc_baud >> 24) & 0xff;
-	    req->bData[4] = sc->sc_cfg;
-
-	    xfer->length = (sc->sc_flen + sizeof(*req));
-
-	    usbd_start_hardware(xfer);
+	err = usbd_do_request_flags_mtx(sc->sc_udev, &Giant, &req, 
+					sc->sc_temp_cfg, 0, NULL, 1000);
+	if (err) {
+	    DPRINTF(-1, "device request failed, err=%s "
+		    "(ignored)\n", usbd_errstr(err));
 	}
 	return;
 }
 
 static int
-ucycom_param(struct ucom_softc *ucom, struct termios *t)
+ucycom_pre_param(struct ucom_softc *ucom, struct termios *t)
 {
-	struct ucycom_softc *sc = ucom->sc_parent;
-	u_int32_t baud;
-	u_int8_t cfg;
-	int error;
-
-	DPRINTF(sc, 0, "\n");
-
-	if (t->c_ispeed != t->c_ospeed) {
-	    return (EINVAL);
-	}
-
-	baud = t->c_ispeed;
-
-	if (t->c_cflag & CIGNORE) {
-		cfg = sc->sc_cfg;
-	} else {
-		cfg = 0;
-		switch (t->c_cflag & CSIZE) {
-		case CS8:
-			++cfg;
-		case CS7:
-			++cfg;
-		case CS6:
-			++cfg;
-		case CS5:
-			break;
-		default:
-			return (EINVAL);
-		}
-		if (t->c_cflag & CSTOPB)
-			cfg |= UCYCOM_CFG_STOPB;
-		if (t->c_cflag & PARENB)
-			cfg |= UCYCOM_CFG_PAREN;
-		if (t->c_cflag & PARODD)
-			cfg |= UCYCOM_CFG_PARODD;
-	}
-
-	error = ucycom_configure(sc, baud, cfg);
-	return error;
-}
-
-static int
-ucycom_configure(struct ucycom_softc *sc, u_int32_t baud, u_int8_t cfg)
-{
-	switch (baud) {
+	switch (t->c_ospeed) {
 	case 600:
 	case 1200:
 	case 2400:
@@ -587,14 +508,43 @@ ucycom_configure(struct ucycom_softc *sc, u_int32_t baud, u_int8_t cfg)
 	default:
 		return EINVAL;
 	}
-
-	sc->sc_flags |= UCYCOM_FLAG_RELOAD_CONFIG;
-	sc->sc_baud = baud;
-	sc->sc_cfg = cfg;
-
-	usbd_transfer_start(sc->sc_xfer[2]);
-
 	return 0;
+}
+
+static void
+ucycom_cfg_param(struct ucom_softc *ucom, struct termios *t)
+{
+	struct ucycom_softc *sc = ucom->sc_parent;
+	u_int8_t cfg;
+
+	DPRINTF(sc, 0, "\n");
+
+	if (t->c_cflag & CIGNORE) {
+		cfg = sc->sc_cfg;
+	} else {
+		cfg = 0;
+		switch (t->c_cflag & CSIZE) {
+		default:
+		case CS8:
+			++cfg;
+		case CS7:
+			++cfg;
+		case CS6:
+			++cfg;
+		case CS5:
+			break;
+		}
+
+		if (t->c_cflag & CSTOPB)
+			cfg |= UCYCOM_CFG_STOPB;
+		if (t->c_cflag & PARENB)
+			cfg |= UCYCOM_CFG_PAREN;
+		if (t->c_cflag & PARODD)
+			cfg |= UCYCOM_CFG_PARODD;
+	}
+
+	ucycom_cfg_write(sc, t->c_ospeed, cfg);
+	return;
 }
 
 static void
@@ -635,7 +585,7 @@ ucycom_intr_read_callback(struct usbd_xfer *xfer)
  tr_error:
 	if (xfer->error != USBD_CANCELLED) {
 	    sc->sc_flags |= UCYCOM_FLAG_INTR_STALL;
-	    usbd_transfer_start(sc->sc_xfer[3]);
+	    usbd_transfer_start(sc->sc_xfer[2]);
 	}
 	return;
 
@@ -668,8 +618,8 @@ ucycom_intr_read_callback(struct usbd_xfer *xfer)
 	    break;
 
 	default:
-	    panic("unsupported model number!");
-	    break;
+	    DPRINTF(-1, "unsupported model number!\n");
+	    goto tr_setup;
 	}
 
 	if (xfer->actlen) {
@@ -678,7 +628,7 @@ ucycom_intr_read_callback(struct usbd_xfer *xfer)
 
  tr_setup:
 	if (sc->sc_flags & UCYCOM_FLAG_INTR_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[3]);
+	    usbd_transfer_start(sc->sc_xfer[2]);
 	} else {
 	    xfer->length = sc->sc_ilen;
 	    usbd_start_hardware(xfer);

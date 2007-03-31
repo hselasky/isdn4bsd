@@ -190,10 +190,19 @@ static const struct aue_type aue_devs[] = {
 };
 #define aue_lookup(v, p) ((const struct aue_type *)usb_lookup(aue_devs, v, p))
 
+/* prototypes */
+
 static device_probe_t aue_probe;
 static device_attach_t aue_attach;
 static device_detach_t aue_detach;
 static device_shutdown_t aue_shutdown;
+
+static usbd_callback_t aue_intr_clear_stall_callback;
+static usbd_callback_t aue_intr_callback;
+static usbd_callback_t aue_bulk_read_clear_stall_callback;
+static usbd_callback_t aue_bulk_read_callback;
+static usbd_callback_t aue_bulk_write_clear_stall_callback;
+static usbd_callback_t aue_bulk_write_callback;
 
 static void
 aue_cfg_do_request(struct aue_softc *sc, usb_device_request_t *req, 
@@ -221,42 +230,23 @@ static miibus_readreg_t aue_cfg_miibus_readreg;
 static miibus_writereg_t aue_cfg_miibus_writereg;
 static miibus_statchg_t aue_cfg_miibus_statchg;
 
-static void
-aue_cfg_setmulti(struct aue_softc *sc,
-		 struct aue_config_copy *cc, u_int16_t refcount);
+static usbd_config_td_command_t aue_cfg_setmulti;
+static usbd_config_td_command_t aue_cfg_first_time_setup;
+static usbd_config_td_command_t aue_config_copy;
+static usbd_config_td_command_t aue_cfg_tick;
+static usbd_config_td_command_t aue_cfg_pre_init;
+static usbd_config_td_command_t aue_cfg_init;
+static usbd_config_td_command_t aue_cfg_promisc_upd;
+static usbd_config_td_command_t aue_cfg_ifmedia_upd;
+static usbd_config_td_command_t aue_cfg_pre_stop;
+static usbd_config_td_command_t aue_cfg_stop;
+
 static void
 aue_cfg_reset_pegasus_II(struct aue_softc *sc);
 
 static void
 aue_cfg_reset(struct aue_softc *sc);
 
-static void
-aue_cfg_first_time_setup(struct aue_softc *sc,
-			 struct aue_config_copy *cc, u_int16_t refcount);
-static void
-aue_intr_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-aue_intr_callback(struct usbd_xfer *xfer);
-
-static void
-aue_bulk_read_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-aue_bulk_read_callback(struct usbd_xfer *xfer);
-
-static void
-aue_bulk_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-aue_bulk_write_callback(struct usbd_xfer *xfer);
-
-static void
-aue_config_copy(struct aue_softc *sc, 
-		struct aue_config_copy *cc, u_int16_t refcount);
-static void
-aue_cfg_tick(struct aue_softc *sc,
-	     struct aue_config_copy *cc, u_int16_t refcount);
 static void
 aue_start_cb(struct ifnet *ifp);
 
@@ -266,18 +256,9 @@ aue_init_cb(void *arg);
 static void
 aue_start_transfers(struct aue_softc *sc);
 
-static void
-aue_cfg_init(struct aue_softc *sc,
-	     struct aue_config_copy *cc, u_int16_t refcount);
-static void
-aue_cfg_promisc_upd(struct aue_softc *sc,
-		    struct aue_config_copy *cc, u_int16_t refcount);
 static int
 aue_ifmedia_upd_cb(struct ifnet *ifp);
 
-static void
-aue_cfg_ifmedia_upd(struct aue_softc *sc,
-		    struct aue_config_copy *cc, u_int16_t refcount);
 static void
 aue_ifmedia_sts_cb(struct ifnet *ifp, struct ifmediareq *ifmr);
 
@@ -286,10 +267,6 @@ aue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
 
 static void
 aue_watchdog(void *arg);
-
-static void
-aue_cfg_stop(struct aue_softc *sc,
-	     struct aue_config_copy *cc, u_int16_t refcount);
 
 static const struct usbd_config aue_config[AUE_ENDPT_MAX] = {
 
@@ -680,11 +657,6 @@ aue_cfg_setmulti(struct aue_softc *sc,
 {
 	u_int16_t i;
 
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
 	if ((cc->if_flags & IFF_ALLMULTI) || 
 	    (cc->if_flags & IFF_PROMISC)) {
 	    AUE_CFG_SETBIT(sc, AUE_CTL0, AUE_CTL0_ALLMULTI);
@@ -849,8 +821,7 @@ aue_attach(device_t dev)
 	}
 
 	error = usbd_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
-				     &aue_config_copy, NULL,
-				     sizeof(struct aue_config_copy), 16);
+				     NULL, sizeof(struct aue_config_copy), 16);
 	if (error) {
 		device_printf(dev, "could not setup config "
 			      "thread!\n");
@@ -864,7 +835,7 @@ aue_attach(device_t dev)
 	/* start setup */
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &aue_cfg_first_time_setup, 0);
+	  (&(sc->sc_config_td), NULL, &aue_cfg_first_time_setup, 0, 0);
 
 	/* start watchdog (will exit mutex) */
 
@@ -884,10 +855,6 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 	struct ifnet * ifp;
 	int error;
 	u_int8_t eaddr[min(ETHER_ADDR_LEN,6)];
-
-	if (cc == NULL) {
-	    return;
-	}
 
 	/* reset the adapter */
 	aue_cfg_reset(sc);
@@ -985,7 +952,7 @@ aue_detach(device_t dev)
 
 	__callout_stop(&(sc->sc_watchdog));
 
-	aue_cfg_stop(sc, NULL, 0);
+	aue_cfg_pre_stop(sc, NULL, 0);
 
 	ifp = sc->sc_ifp;
 
@@ -1355,8 +1322,7 @@ aue_cfg_tick(struct aue_softc *sc,
 	struct ifnet * ifp = sc->sc_ifp;
 	struct mii_data * mii = GET_MII(sc);
 
-	if ((cc == NULL) ||
-	    (ifp == NULL) || 
+	if ((ifp == NULL) || 
 	    (mii == NULL)) {
 	    /* not ready */
 	    return;
@@ -1403,7 +1369,7 @@ aue_init_cb(void *arg)
 
 	mtx_lock(&(sc->sc_mtx));
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &aue_cfg_init, 0);
+	  (&(sc->sc_config_td), &aue_cfg_pre_init, &aue_cfg_init, 0, 0);
 	mtx_unlock(&(sc->sc_mtx));
 
 	return;
@@ -1426,27 +1392,28 @@ aue_start_transfers(struct aue_softc *sc)
 }
 
 static void
+aue_cfg_pre_init(struct aue_softc *sc,
+		 struct aue_config_copy *cc, u_int16_t refcount)
+{
+	struct ifnet *ifp = sc->sc_ifp;
+
+	/* immediate configuration */
+
+	aue_cfg_pre_stop(sc, cc, 0);
+
+	ifp->if_drv_flags |= IFF_DRV_RUNNING;
+	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
+
+	sc->sc_flags |= AUE_FLAG_HL_READY;
+	return;
+}
+
+static void
 aue_cfg_init(struct aue_softc *sc,
 	     struct aue_config_copy *cc, u_int16_t refcount)
 {
 	struct mii_data *mii = GET_MII(sc);
 	u_int8_t i;
-
-	if (cc == NULL) {
-
-	    /* immediate configuration */
-
-	    struct ifnet *ifp = sc->sc_ifp;
-
-	    aue_cfg_stop(sc, NULL, 0);
-
-	    ifp->if_drv_flags |= IFF_DRV_RUNNING;
-	    ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
-
-	    sc->sc_flags |= AUE_FLAG_HL_READY;
-
-	    return;
-	}
 
 	/*
 	 * Cancel pending I/O
@@ -1486,11 +1453,6 @@ static void
 aue_cfg_promisc_upd(struct aue_softc *sc,
 		    struct aue_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
 	/* if we want promiscuous mode, set the allframes bit: */
 	if (cc->if_flags & IFF_PROMISC) {
 	    AUE_CFG_SETBIT(sc, AUE_CTL2, AUE_CTL2_RX_PROMISC);
@@ -1510,7 +1472,7 @@ aue_ifmedia_upd_cb(struct ifnet *ifp)
 
 	mtx_lock(&(sc->sc_mtx));
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &aue_cfg_ifmedia_upd, 0);
+	  (&(sc->sc_config_td), NULL, &aue_cfg_ifmedia_upd, 0, 0);
 	mtx_unlock(&(sc->sc_mtx));
 
 	return 0;
@@ -1523,8 +1485,7 @@ aue_cfg_ifmedia_upd(struct aue_softc *sc,
 	struct ifnet * ifp = sc->sc_ifp;
 	struct mii_data * mii = GET_MII(sc);
 
-	if ((cc == NULL) ||
-	    (ifp == NULL) || 
+	if ((ifp == NULL) || 
 	    (mii == NULL)) {
 	    /* not ready */
 	    return;
@@ -1576,15 +1537,18 @@ aue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 	    if (ifp->if_flags & IFF_UP) {
 	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &aue_cfg_promisc_upd, 0);
+		      (&(sc->sc_config_td), &aue_config_copy, 
+		       &aue_cfg_promisc_upd, 0, 0);
 		} else {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &aue_cfg_init, 0); 
+		      (&(sc->sc_config_td), &aue_cfg_pre_init,
+		       &aue_cfg_init, 0, 0); 
 		}
 	    } else {
 	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &aue_cfg_stop, 0);
+		      (&(sc->sc_config_td), &aue_cfg_pre_stop,
+		       &aue_cfg_stop, 0, 0);
 		}
 	    }
 	    break;
@@ -1592,7 +1556,8 @@ aue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 	case SIOCADDMULTI:
 	case SIOCDELMULTI:
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &aue_cfg_setmulti, 0);
+	      (&(sc->sc_config_td), &aue_config_copy,
+	       &aue_cfg_setmulti, 0, 0);
 	    break;
 
 	case SIOCGIFMEDIA:
@@ -1624,7 +1589,7 @@ aue_watchdog(void *arg)
 	mtx_assert(&(sc->sc_mtx), MA_OWNED);
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &aue_cfg_tick, 0);
+	  (&(sc->sc_config_td), NULL, &aue_cfg_tick, 0, 0);
 
 	__callout_reset(&(sc->sc_watchdog), 
 			hz, &aue_watchdog, sc);
@@ -1640,50 +1605,57 @@ aue_watchdog(void *arg)
  * NOTE: can be called when "ifp" is NULL
  */
 static void
+aue_cfg_pre_stop(struct aue_softc *sc,
+		 struct aue_config_copy *cc, uint16_t refcount)
+{
+	struct ifnet *ifp = sc->sc_ifp;
+
+	if (cc) {
+	    /* copy the needed configuration */
+	    aue_config_copy(sc, cc, refcount);
+	}
+
+	/* immediate configuration */
+
+	if (ifp) {
+	    /* clear flags */
+	    ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
+				   IFF_DRV_OACTIVE);
+	}
+
+	sc->sc_flags &= ~(AUE_FLAG_HL_READY|
+			  AUE_FLAG_LL_READY);
+
+	sc->sc_flags |= AUE_FLAG_WAIT_LINK;
+
+	/* stop all the transfers, 
+	 * if not already stopped:
+	 */
+	if (sc->sc_xfer[0]) {
+	    usbd_transfer_stop(sc->sc_xfer[0]);
+	}
+	if (sc->sc_xfer[1]) {
+	    usbd_transfer_stop(sc->sc_xfer[1]);
+	}
+	if (sc->sc_xfer[2]) {
+	    usbd_transfer_stop(sc->sc_xfer[2]);
+	}
+	if (sc->sc_xfer[3]) {
+	    usbd_transfer_stop(sc->sc_xfer[3]);
+	}
+	if (sc->sc_xfer[4]) {
+	    usbd_transfer_stop(sc->sc_xfer[4]);
+	}
+	if (sc->sc_xfer[5]) {
+	    usbd_transfer_stop(sc->sc_xfer[5]);
+	}
+	return;
+}
+
+static void
 aue_cfg_stop(struct aue_softc *sc,
 	     struct aue_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-
-	    /* immediate configuration */
-
-	    struct ifnet *ifp = sc->sc_ifp;
-
-	    if (ifp) {
-	        /* clear flags */
-		ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
-				       IFF_DRV_OACTIVE);
-	    }
-
-	    sc->sc_flags &= ~(AUE_FLAG_HL_READY|
-			      AUE_FLAG_LL_READY);
-
-	    sc->sc_flags |= AUE_FLAG_WAIT_LINK;
-
-	    /* stop all the transfers, 
-	     * if not already stopped:
-	     */
-	    if (sc->sc_xfer[0]) {
-	        usbd_transfer_stop(sc->sc_xfer[0]);
-	    }
-	    if (sc->sc_xfer[1]) {
-	        usbd_transfer_stop(sc->sc_xfer[1]);
-	    }
-	    if (sc->sc_xfer[2]) {
-	        usbd_transfer_stop(sc->sc_xfer[2]);
-	    }
-	    if (sc->sc_xfer[3]) {
-	        usbd_transfer_stop(sc->sc_xfer[3]);
-	    }
-	    if (sc->sc_xfer[4]) {
-	        usbd_transfer_stop(sc->sc_xfer[4]);
-	    }
-	    if (sc->sc_xfer[5]) {
-	        usbd_transfer_stop(sc->sc_xfer[5]);
-	    }
-	    return;
-	}
-
 	aue_cfg_csr_write_1(sc, AUE_CTL0, 0);
 	aue_cfg_csr_write_1(sc, AUE_CTL1, 0);
 	aue_cfg_reset(sc);
@@ -1702,7 +1674,8 @@ aue_shutdown(device_t dev)
 	mtx_lock(&(sc->sc_mtx));
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &aue_cfg_stop, 0);
+	  (&(sc->sc_config_td), &aue_cfg_pre_stop, 
+	   &aue_cfg_stop, 0, 0);
 
 	mtx_unlock(&(sc->sc_mtx));
 

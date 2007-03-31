@@ -130,20 +130,21 @@ struct ugen_softc {
 
 extern cdevsw_t ugen_cdevsw;
 
+/* prototypes */
+
+static device_probe_t ugen_probe;
+static device_attach_t ugen_attach;
+static device_detach_t ugen_detach;
+
+static usbd_callback_t ugen_interrupt_callback;
+static usbd_callback_t ugenisoc_read_callback;
+static usbd_callback_t ugenisoc_write_callback;
+
 static void
 ugen_make_devnodes(struct ugen_softc *sc);
 
 static void
 ugen_destroy_devnodes(struct ugen_softc *sc, int skip_first);
-
-static void
-ugen_interrupt_callback(struct usbd_xfer *xfer);
-
-static void
-ugenisoc_read_callback(struct usbd_xfer *xfer);
-
-static void
-ugenisoc_write_callback(struct usbd_xfer *xfer);
 
 static int
 ugen_set_config(struct ugen_softc *sc, int configno);
@@ -1631,6 +1632,9 @@ ugenioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *p
 	}
 
 	switch (cmd) {
+	case FIOASYNC:
+		if (*(int *)addr)
+			error = EINVAL;
 	case FIONBIO:
 		/* all handled in the upper FS layer */
 		goto done;

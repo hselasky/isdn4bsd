@@ -47,10 +47,6 @@
 #include <sys/kernel.h>
 #include <sys/termios.h>
 #include <sys/serial.h>
-#include <sys/taskqueue.h>
-
-#define usbd_config_td_cc umct_config_copy
-#define usbd_config_td_softc umct_softc
 
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
@@ -82,22 +78,15 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/umct.c,v 1.12 2006/09/07 00:06:42 imp Exp $"
 #define DPRINTF(...) 
 
 struct umct_softc {
+	struct ucom_super_softc	sc_super_ucom;
 	struct ucom_softc	sc_ucom;
-	struct usbd_config_td	sc_config_td;
 
 	struct usbd_device *	sc_udev;
 	struct usbd_xfer *	sc_xfer[UMCT_ENDPT_MAX];
-	device_t		sc_dev;
 
 	u_int32_t		sc_unit;
-	u_int32_t		sc_baud;
-	u_int32_t		sc_cflag;
 
 	u_int16_t		sc_obufsize;
-
-	u_int8_t		sc_break_onoff;
-	u_int8_t		sc_dtr_onoff;
-	u_int8_t		sc_rts_onoff;
 
 	u_int8_t		sc_lsr;
 	u_int8_t		sc_msr;
@@ -112,90 +101,31 @@ struct umct_softc {
 	u_int8_t		sc_iface_no;
 };
 
-struct umct_config_copy {
-	u_int32_t		baud;
-	u_int32_t		cflag;
-
-	u_int8_t		dtr_onoff;
-	u_int8_t		rts_onoff;
-	u_int8_t		break_onoff;
-};
+/* prototypes */
 
 static device_probe_t umct_probe;
 static device_attach_t umct_attach;
 static device_detach_t umct_detach;
 
-static void
-umct_config_copy(struct umct_softc *sc,
-		 struct umct_config_copy *cc, u_int16_t refcount);
-static void
-umct_cfg_do_request(struct umct_softc *sc, u_int8_t request, 
-		    u_int16_t len, u_int32_t value);
-static void
-umct_intr_clear_stall_callback(struct usbd_xfer *xfer);
+static usbd_callback_t umct_intr_clear_stall_callback;
+static usbd_callback_t umct_intr_callback;
+static usbd_callback_t umct_write_callback;
+static usbd_callback_t umct_write_clear_stall_callback;
+static usbd_callback_t umct_read_callback;
+static usbd_callback_t umct_read_clear_stall_callback;
 
-static void
-umct_intr_callback(struct usbd_xfer *xfer);
-
-static void
-umct_get_status(struct ucom_softc *ucom, 
-		u_int8_t *lsr, u_int8_t *msr);
-static void
-umct_set_break(struct ucom_softc *ucom, u_int8_t onoff);
-
-static void
-umct_cfg_set_break(struct umct_softc *sc,
-		   struct umct_config_copy *cc, u_int16_t refcount);
-static void
-umct_set_dtr(struct ucom_softc *ucom, u_int8_t onoff);
-
-static void
-umct_cfg_set_dtr(struct umct_softc *sc,
-		 struct umct_config_copy *cc, u_int16_t refcount);
-static void
-umct_set_rts(struct ucom_softc *ucom, u_int8_t onoff);
-
-static void
-umct_cfg_set_rts(struct umct_softc *sc,
-		 struct umct_config_copy *cc, u_int16_t refcount);
-static u_int8_t
-umct_calc_baud(u_int32_t baud);
-
-static int
-umct_param(struct ucom_softc *ucom, struct termios *ti);
-
-static void
-umct_cfg_param(struct umct_softc *sc,
-	       struct umct_config_copy *cc, u_int16_t refcount);
-static int
-umct_open(struct ucom_softc *ucom);
-
-static void
-umct_close(struct ucom_softc *ucom);
-
-static void
-umct_start_read(struct ucom_softc *ucom);
-
-static void
-umct_stop_read(struct ucom_softc *ucom);
-
-static void
-umct_start_write(struct ucom_softc *ucom);
-
-static void
-umct_stop_write(struct ucom_softc *ucom);
-
-static void
-umct_write_callback(struct usbd_xfer *xfer);
-
-static void
-umct_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-umct_read_callback(struct usbd_xfer *xfer);
-
-static void
-umct_read_clear_stall_callback(struct usbd_xfer *xfer);
+static void	umct_cfg_do_request(struct umct_softc *sc, u_int8_t request, u_int16_t len, u_int32_t value);
+static void	umct_cfg_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr);
+static void	umct_cfg_set_break(struct ucom_softc *ucom, u_int8_t onoff);
+static void	umct_cfg_set_dtr(struct ucom_softc *ucom, u_int8_t onoff);
+static void	umct_cfg_set_rts(struct ucom_softc *ucom, u_int8_t onoff);
+static u_int8_t	umct_calc_baud(u_int32_t baud);
+static int	umct_pre_param(struct ucom_softc *ucom, struct termios *ti);
+static void	umct_cfg_param(struct ucom_softc *ucom, struct termios *ti);
+static void	umct_start_read(struct ucom_softc *ucom);
+static void	umct_stop_read(struct ucom_softc *ucom);
+static void	umct_start_write(struct ucom_softc *ucom);
+static void	umct_stop_write(struct ucom_softc *ucom);
 
 static const struct usbd_config umct_config[UMCT_ENDPT_MAX] = {
 
@@ -260,17 +190,16 @@ static const struct usbd_config umct_config[UMCT_ENDPT_MAX] = {
 };
 
 static const struct ucom_callback umct_callback = {
-    .ucom_get_status  = &umct_get_status,
-    .ucom_set_dtr     = &umct_set_dtr,
-    .ucom_set_rts     = &umct_set_rts,
-    .ucom_set_break   = &umct_set_break,
-    .ucom_param       = &umct_param,
-    .ucom_open        = &umct_open,
-    .ucom_close	      = &umct_close,
-    .ucom_start_read  = &umct_start_read,
-    .ucom_stop_read   = &umct_stop_read,
-    .ucom_start_write = &umct_start_write,
-    .ucom_stop_write  = &umct_stop_write,
+    .ucom_cfg_get_status  = &umct_cfg_get_status,
+    .ucom_cfg_set_dtr     = &umct_cfg_set_dtr,
+    .ucom_cfg_set_rts     = &umct_cfg_set_rts,
+    .ucom_cfg_set_break   = &umct_cfg_set_break,
+    .ucom_cfg_param       = &umct_cfg_param,
+    .ucom_pre_param       = &umct_pre_param,
+    .ucom_start_read      = &umct_start_read,
+    .ucom_stop_read       = &umct_stop_read,
+    .ucom_start_write     = &umct_start_write,
+    .ucom_stop_write      = &umct_stop_write,
 };
 
 static const struct umct_product {
@@ -303,7 +232,6 @@ static driver_t umct_driver = {
 DRIVER_MODULE(umct, uhub, umct_driver, umct_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(umct, usb, 1, 1, 1);
 MODULE_DEPEND(umct, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
-MODULE_VERSION(umct, 1);
 
 static int
 umct_probe(device_t dev)
@@ -338,7 +266,6 @@ umct_attach(device_t dev)
 	}
 
 	sc->sc_udev = uaa->device;
-	sc->sc_dev = dev;
 	sc->sc_unit = device_get_unit(dev);
 
 	usbd_set_desc(dev, uaa->device);
@@ -401,16 +328,7 @@ umct_attach(device_t dev)
 	    }
 	}
 
-	error = usbd_config_td_setup(&(sc->sc_config_td), sc, &Giant,
-				     &umct_config_copy, NULL,
-				     sizeof(struct umct_config_copy), 16);
-	if (error) {
-	    device_printf(dev, "could not setup config "
-			  "thread!\n");
-	    goto detach;
-	}
-
-	error = ucom_attach(&(sc->sc_ucom), 1, sc,
+	error = ucom_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
 			    &umct_callback, &Giant);
 	if (error) {
 	    goto detach;
@@ -428,31 +346,11 @@ umct_detach(device_t dev)
 {
 	struct umct_softc *sc = device_get_softc(dev);
 
-	mtx_lock(&Giant);
-
-	usbd_config_td_stop(&(sc->sc_config_td));
-
-	mtx_unlock(&Giant);
-
-	ucom_detach(&(sc->sc_ucom), 1);
+	ucom_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
 
 	usbd_transfer_unsetup(sc->sc_xfer, UMCT_ENDPT_MAX);
 
-	usbd_config_td_unsetup(&(sc->sc_config_td));
-
 	return 0;
-}
-
-static void
-umct_config_copy(struct umct_softc *sc,
-		 struct umct_config_copy *cc, u_int16_t refcount)
-{
-	cc->baud = sc->sc_baud;
-	cc->cflag = sc->sc_cflag;
-	cc->dtr_onoff = sc->sc_dtr_onoff;
-	cc->rts_onoff = sc->sc_rts_onoff;
-	cc->break_onoff = sc->sc_break_onoff;
-	return;
 }
 
 static void
@@ -463,14 +361,19 @@ umct_cfg_do_request(struct umct_softc *sc, u_int8_t request,
 	usbd_status err;
 	u_int8_t temp[4];
 
-	if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
+	if (ucom_cfg_is_gone(&(sc->sc_ucom))) {
 	    goto done;
+	}
+
+	if (len > 4) {
+	    len = 4;
 	}
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = request;
 	USETW(req.wValue, 0);
-	USETW(req.wIndex, sc->sc_iface_no);
+	req.wIndex[0] = sc->sc_iface_no;
+	req.wIndex[1] = 0;
 	USETW(req.wLength, len);
 	USETDW(temp, value);
 
@@ -478,7 +381,7 @@ umct_cfg_do_request(struct umct_softc *sc, u_int8_t request,
 					temp, 0, NULL, 1000);
 
 	if (err) {
-	    DPRINTF(sc, 0, "device request failed, err=%s "
+	    DPRINTF(sc, -1, "device request failed, err=%s "
 		    "(ignored)\n", usbd_errstr(err));
 	}
  done:
@@ -549,97 +452,53 @@ umct_intr_callback(struct usbd_xfer *xfer)
 }
 
 static void
-umct_get_status(struct ucom_softc *ucom, 
-		u_int8_t *lsr, u_int8_t *msr)
+umct_cfg_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr)
 {
 	struct umct_softc *sc = ucom->sc_parent;
 
-	if (lsr != NULL) {
-	    *lsr = sc->sc_lsr;
-	}
-	if (msr != NULL) {
-	    *msr = sc->sc_msr;
-	}
+	*lsr = sc->sc_lsr;
+	*msr = sc->sc_msr;
 	return;
 }
 
 static void
-umct_set_break(struct ucom_softc *ucom, u_int8_t onoff)
+umct_cfg_set_break(struct ucom_softc *ucom, u_int8_t onoff)
 {
 	struct umct_softc *sc = ucom->sc_parent;
 
-	sc->sc_break_onoff = onoff;
+	if (onoff)
+	  sc->sc_lcr |= 0x40;
+	else
+	  sc->sc_lcr &= ~0x40;
 
-	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &umct_cfg_set_break, 0);
-	return;
-}
-
-static void
-umct_cfg_set_break(struct umct_softc *sc,
-		   struct umct_config_copy *cc, u_int16_t refcount)
-{
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
-	sc->sc_lcr &= ~0x40;
-	sc->sc_lcr |= (cc->break_onoff) ? 0x40 : 0;
 	umct_cfg_do_request(sc, UMCT_SET_LCR, UMCT_SET_LCR_SIZE, sc->sc_lcr);
 	return;
 }
 
 static void
-umct_set_dtr(struct ucom_softc *ucom, u_int8_t onoff)
+umct_cfg_set_dtr(struct ucom_softc *ucom, u_int8_t onoff)
 {
 	struct umct_softc *sc = ucom->sc_parent;
 
-	sc->sc_dtr_onoff = onoff;
+	if (onoff)
+	  sc->sc_mcr |= 0x01;
+	else
+	  sc->sc_mcr &= ~0x01;
 
-	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &umct_cfg_set_dtr, 0);
-	return;
-}
-
-static void
-umct_cfg_set_dtr(struct umct_softc *sc,
-		 struct umct_config_copy *cc, u_int16_t refcount)
-{
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
-	sc->sc_mcr &= ~0x01;
-	sc->sc_mcr |= (cc->dtr_onoff) ? 0x01 : 0;
 	umct_cfg_do_request(sc, UMCT_SET_MCR, UMCT_SET_MCR_SIZE, sc->sc_mcr);
 	return;
 }
 
 static void
-umct_set_rts(struct ucom_softc *ucom, u_int8_t onoff)
+umct_cfg_set_rts(struct ucom_softc *ucom, u_int8_t onoff)
 {
 	struct umct_softc *sc = ucom->sc_parent;
 
-	sc->sc_rts_onoff = onoff;
+	if (onoff)
+	  sc->sc_mcr |= 0x02;
+	else
+	  sc->sc_mcr &= ~0x02;
 
-	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &umct_cfg_set_rts, 0);
-	return;
-}
-
-static void
-umct_cfg_set_rts(struct umct_softc *sc,
-		 struct umct_config_copy *cc, u_int16_t refcount)
-{
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
-	sc->sc_mcr &= ~0x2;
-	sc->sc_mcr |= (cc->rts_onoff) ? 0x02 : 0;
 	umct_cfg_do_request(sc, UMCT_SET_MCR, UMCT_SET_MCR_SIZE, sc->sc_mcr);
 	return;
 }
@@ -666,47 +525,34 @@ umct_calc_baud(u_int32_t baud)
 }
 
 static int
-umct_param(struct ucom_softc *ucom, struct termios *ti)
+umct_pre_param(struct ucom_softc *ucom, struct termios *t)
 {
-	struct umct_softc *sc = ucom->sc_parent;
-
-	sc->sc_baud = ti->c_ospeed;
-	sc->sc_cflag = ti->c_cflag;
-
-	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &umct_cfg_param, 0);
-
-	return 0;
+	return 0; /* we accept anything */
 }
 
 static void
-umct_cfg_param(struct umct_softc *sc,
-	       struct umct_config_copy *cc, u_int16_t refcount)
+umct_cfg_param(struct ucom_softc *ucom, struct termios *t)
 {
+	struct umct_softc *sc = ucom->sc_parent;
 	u_int32_t value;
 
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
-	value = umct_calc_baud(cc->baud);
+	value = umct_calc_baud(t->c_ospeed);
 	umct_cfg_do_request(sc, UMCT_SET_BAUD, UMCT_SET_BAUD_SIZE, value);
 
 	value = (sc->sc_lcr & 0x40);
 
-	switch (cc->cflag & CSIZE) {
+	switch (t->c_cflag & CSIZE) {
 	case CS5: value |= 0x0; break;
 	case CS6: value |= 0x1; break;
 	case CS7: value |= 0x2; break;
+	default:
 	case CS8: value |= 0x3; break;
-	default: value |= 0x0; break;
 	}
 
-	value |= (cc->cflag & CSTOPB) ? 0x4 : 0;
-	if (cc->cflag & PARENB) {
+	value |= (t->c_cflag & CSTOPB) ? 0x4 : 0;
+	if (t->c_cflag & PARENB) {
 	    value |= 0x8;
-	    value |= (cc->cflag & PARODD) ? 0x0 : 0x10;
+	    value |= (t->c_cflag & PARODD) ? 0x0 : 0x10;
 	}
 
 	/*
@@ -716,31 +562,17 @@ umct_cfg_param(struct umct_softc *sc,
 
 	sc->sc_lcr = value;
 	umct_cfg_do_request(sc, UMCT_SET_LCR, UMCT_SET_LCR_SIZE, value);
-
-	return;
-}
-
-static int
-umct_open(struct ucom_softc *ucom)
-{
-	struct umct_softc *sc = ucom->sc_parent;
-	usbd_transfer_start(sc->sc_xfer[4]);
-	return 0;
-}
-
-static void
-umct_close(struct ucom_softc *ucom)
-{
-        struct umct_softc *sc = ucom->sc_parent;
-	usbd_transfer_stop(sc->sc_xfer[5]);
-	usbd_transfer_stop(sc->sc_xfer[4]);
-	return;
+ 	return;
 }
 
 static void
 umct_start_read(struct ucom_softc *ucom)
 {
         struct umct_softc *sc = ucom->sc_parent;
+	/* start interrupt endpoint */
+	usbd_transfer_start(sc->sc_xfer[4]);
+
+	/* start read endpoint */
 	usbd_transfer_start(sc->sc_xfer[1]);
         return;
 }
@@ -749,6 +581,12 @@ static void
 umct_stop_read(struct ucom_softc *ucom)
 {
         struct umct_softc *sc = ucom->sc_parent;
+
+	/* stop interrupt endpoint */
+	usbd_transfer_stop(sc->sc_xfer[5]);
+	usbd_transfer_stop(sc->sc_xfer[4]);
+
+	/* stop read endpoint */
 	usbd_transfer_stop(sc->sc_xfer[3]);
 	usbd_transfer_stop(sc->sc_xfer[1]);
         return;

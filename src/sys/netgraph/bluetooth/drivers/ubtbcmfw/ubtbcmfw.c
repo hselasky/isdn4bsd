@@ -74,17 +74,10 @@ static device_probe_t ubtbcmfw_probe;
 static device_attach_t ubtbcmfw_attach;
 static device_detach_t ubtbcmfw_detach;
 
-static void
-ubtbcmfw_write_callback(struct usbd_xfer *xfer);
-
-static void
-ubtbcmfw_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-ubtbcmfw_read_callback(struct usbd_xfer *xfer);
-
-static void
-ubtbcmfw_read_clear_stall_callback(struct usbd_xfer *xfer);
+static usbd_callback_t ubtbcmfw_write_callback;
+static usbd_callback_t ubtbcmfw_write_clear_stall_callback;
+static usbd_callback_t ubtbcmfw_read_callback;
+static usbd_callback_t ubtbcmfw_read_clear_stall_callback;
 
 static void
 ubtbcmfw_start_read(struct usb_cdev *cdev);

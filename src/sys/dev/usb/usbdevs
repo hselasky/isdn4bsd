@@ -443,6 +443,7 @@ vendor ALTIUS		0x09b3	Altius Solutions
 vendor ARRIS		0x09c1	Arris Interactive
 vendor ACTIVCARD	0x09c3	ACTIVCARD
 vendor ACTISYS		0x09c4	ACTiSYS
+vendor NOVATEL		0x09d7	NovAtel
 vendor AFOURTECH	0x09da	A-FOUR TECH
 vendor AIMEX		0x09dc	AIMEX
 vendor ADDONICS		0x09df	Addonics
@@ -481,6 +482,7 @@ vendor DMI		0x0c0b	DMI
 vendor CHICONY2		0x0c45	Chicony
 vendor SEALEVEL		0x0c52	Sealevel
 vendor LUWEN		0x0c76	Luwen
+vendor QUALCOMM_K	0x0c88	Qualcomm Kyocera
 vendor ZCOM		0x0cde	Z-Com
 vendor ATHEROS2		0x0cf3	Atheros Communications
 vendor TANGTOP		0x0d3d	Tangtop
@@ -497,6 +499,7 @@ vendor OTI		0x0ea0	Ours
 vendor PILOTECH		0x0eaf	Pilotech
 vendor NOVATECH		0x0eb0	NovaTech
 vendor EGALAX		0x0eef	eGalax
+vendor AIRPRIME		0x0f3d	AirPrime, Incorporated
 vendor MICROTUNE	0x0f4d	Microtune
 vendor VTECH		0x0f88	VTech
 vendor QUALCOMM2	0x1004	Qualcomm
@@ -524,6 +527,7 @@ vendor MOBILITY		0x1342	Mobility
 vendor RADIOSHACK	0x1453	Radio Shack
 vendor LINKSYS4		0x13b1	Linksys
 vendor SHARK		0x13d2	Shark
+vendor NOVATEL2		0x1410	Novatel
 vendor SILICOM		0x1485	Silicom
 vendor RALINK		0x148f	Ralink Technology
 vendor IMAGINATION	0x149a	Imagination Technologies
@@ -568,6 +572,7 @@ vendor SITECOM		0x6189	Sitecom
 vendor ARKMICRO		0x6547	Arkmicro Technologies
 vendor 3COM2		0x6891	3Com
 vendor INTEL		0x8086	Intel
+vendor MOSCHIP		0x9710	MosChip
 vendor HP2		0xf003	Hewlett Packard
 
 /*
@@ -661,6 +666,9 @@ product AGFA SNAPSCANE52	0x20fd	SnapScan e52
 
 /* Ain Communication Technology products */
 product AINCOMM AWU2000B	0x1001	AWU2000B Wireless adapter
+
+/* AirPrime products */
+product AIRPRIME PC5220		0x0112	CDMA Wireless PC Card
 
 /* AKS products */
 product AKS USBHASP		0x0001	USB-HASP 0.06
@@ -805,7 +813,8 @@ product CHIC CYPRESS		0x0003	Cypress USB Mouse
 product CHICONY KB8933		0x0001	KB-8933 keyboard
 
 /* CMOTECH products */
-product CMOTECH CDMAMODEM	0x5141	CMOTECH CDMA Technologies USB modem
+product CMOTECH CDMA_MODEM0	0x5141	CMOTECH CDMA Technologies USB modem
+product CMOTECH CDMA_MODEM1	0x6280	CMOTECH CDMA Technologies USB modem
 
 /* Compaq products */
 product COMPAQ IPAQPOCKETPC	0x0003	iPAQ PocketPC
@@ -1366,6 +1375,10 @@ product MINOLTA 5400		0x400e	Dimage 5400
 product MITSUMI CDRRW		0x0000	CD-R/RW Drive
 product MITSUMI BT_DONGLE	0x641f	Bluetooth USB dongle
 
+/* MosChip products */
+product MOSCHIP MCS7703		0x7703	MCS7703 Serial Port Adapter
+product MOSCHIP MCS7830		0x7830	MCS7830 Ethernet
+
 /* Motorola products */
 product MOTOROLA MC141555	0x1555	MC141555 hub controller
 product MOTOROLA SB4100		0x4100	SB4100 USB Cable Modem
@@ -1424,6 +1437,10 @@ product NIKON LS40		0x4000	CoolScan LS40 ED
 
 /* NovaTech Products */
 product NOVATECH NV902		0x9020  NovaTech NV-902W
+
+/* NovAtel products */
+product NOVATEL FLEXPACKGPS	0x0100	NovAtel FlexPack GPS receiver
+product NOVATEL2 CDMA_MODEM	0x1110	Novatel Wireless Merlin CDMA
 
 /* Olympus products */
 product OLYMPUS C1		0x0102	C-1 Digital Camera
@@ -1527,6 +1544,7 @@ product PUTERCOM UPA100		0x047e	USB-1284 BRIDGE
 /* Qualcomm products */
 product QUALCOMM CDMA_MSM	0x3196	CDMA Technologies MSM modem
 product QUALCOMM2 CDMA_MSM	0x6000	CDMA Technologies MSM phone
+product QUALCOMM_K CDMA_MSM_K	0x17da	Qualcomm Kyocera CDMA Technologies MSM
 
 /* Qtronix products */
 product QTRONIX 980N		0x2011	Scorpion-980N keyboard
@@ -1607,6 +1625,7 @@ product SHUTTLE EUSBORCA	0x0325	eUSB ORCA Quad Reader
 product SIEMENS SPEEDSTREAM	0x1001	SpeedStream USB
 
 /* Sierra Wireless products */
+product SIERRA AIRCARD580	0x0112	Sierra Wireless AirCard 580
 product SIERRA MC5720		0x0218	MC5720 Wireless Modem
 
 /* Sigmatel products */

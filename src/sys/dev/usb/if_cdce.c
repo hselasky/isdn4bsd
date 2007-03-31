@@ -74,17 +74,16 @@ static device_attach_t cdce_attach;
 static device_detach_t cdce_detach;
 static device_shutdown_t cdce_shutdown;
 
+static usbd_callback_t cdce_bulk_write_clear_stall_callback;
+static usbd_callback_t cdce_bulk_write_callback;
+static usbd_callback_t cdce_bulk_read_clear_stall_callback;
+static usbd_callback_t cdce_bulk_read_callback;
+
 static void
 cdce_start_cb(struct ifnet *ifp);
 
 static void
 cdce_start_transfers(struct cdce_softc *sc);
-
-static void
-cdce_bulk_write_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-cdce_bulk_write_callback(struct usbd_xfer *xfer);
 
 static u_int32_t
 cdce_m_crc32(struct mbuf *m, u_int32_t src_offset, u_int32_t src_len);
@@ -97,12 +96,6 @@ cdce_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
 
 static void
 cdce_init_cb(void *arg);
-
-static void
-cdce_bulk_read_clear_stall_callback(struct usbd_xfer *xfer);
-
-static void
-cdce_bulk_read_callback(struct usbd_xfer *xfer);
 
 static int
 cdce_ifmedia_upd_cb(struct ifnet *ifp);

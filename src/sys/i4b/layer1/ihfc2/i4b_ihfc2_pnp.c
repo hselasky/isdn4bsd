@@ -649,7 +649,7 @@ const   struct resource_tab *ptr;
 
 		err = usbd_config_td_setup
 		  (&(sc->sc_config_td), sc, sc->sc_mtx_p,
-		   NULL, NULL, sizeof(struct ihfc_config_copy), 32);
+		   NULL, sizeof(struct ihfc_config_copy), 32);
 
 		if (err) {
 			IHFC_ADD_ERR(error, "could not setup config "

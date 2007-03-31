@@ -88,9 +88,33 @@ SYSCTL_INT(_hw_usb_ural, OID_AUTO, debug, CTLFLAG_RW, &ural_debug, 0,
 #endif
 
 /* prototypes */
+
 static device_probe_t ural_probe;
 static device_attach_t ural_attach;
 static device_detach_t ural_detach;
+
+static usbd_callback_t ural_bulk_read_callback;
+static usbd_callback_t ural_bulk_read_clear_stall_callback;
+static usbd_callback_t ural_bulk_write_callback;
+static usbd_callback_t ural_bulk_write_clear_stall_callback;
+
+static usbd_config_td_command_t ural_cfg_first_time_setup;
+static usbd_config_td_command_t ural_config_copy;
+static usbd_config_td_command_t ural_cfg_set_chan;
+static usbd_config_td_command_t ural_cfg_pre_set_run;
+static usbd_config_td_command_t ural_cfg_set_run;
+static usbd_config_td_command_t ural_cfg_enable_tsf_sync;
+static usbd_config_td_command_t ural_cfg_disable_tsf_sync;
+static usbd_config_td_command_t ural_cfg_update_slot;
+static usbd_config_td_command_t ural_cfg_set_txpreamble;
+static usbd_config_td_command_t ural_cfg_set_basicrates;
+static usbd_config_td_command_t ural_cfg_update_promisc;
+static usbd_config_td_command_t ural_cfg_pre_init;
+static usbd_config_td_command_t ural_cfg_init;
+static usbd_config_td_command_t ural_cfg_pre_stop;
+static usbd_config_td_command_t ural_cfg_stop;
+static usbd_config_td_command_t ural_cfg_pre_amrr_timeout;
+static usbd_config_td_command_t ural_cfg_amrr_timeout;
 
 static void
 ural_cfg_do_request(struct ural_softc *sc, usb_device_request_t *req, 
@@ -123,25 +147,13 @@ static void
 ural_cfg_rf_write(struct ural_softc *sc, u_int8_t reg, u_int32_t val);
 
 static void
-ural_cfg_first_time_setup(struct ural_softc *sc,
-			  struct ural_config_copy *cc, u_int16_t refcount);
-static void
 ural_end_of_commands(struct ural_softc *sc);
 
-static void
-ural_config_copy(struct ural_softc *sc, 
-		 struct ural_config_copy *cc, u_int16_t refcount);
 static const char *
 ural_get_rf(int rev);
 
 static int
 ural_rxrate(struct ural_rx_desc *desc);
-
-static void
-ural_bulk_read_callback(struct usbd_xfer *xfer);
-
-static void
-ural_bulk_read_clear_stall_callback(struct usbd_xfer *xfer);
 
 static u_int16_t
 ural_ack_rate(struct ieee80211com *ic, u_int16_t rate);
@@ -156,12 +168,6 @@ ural_plcp_signal(u_int16_t rate);
 static void
 ural_setup_tx_desc(struct ural_softc *sc, u_int32_t flags, u_int16_t len, 
 		   u_int16_t rate);
-static void
-ural_bulk_write_callback(struct usbd_xfer *xfer);
-
-static void
-ural_bulk_write_clear_stall_callback(struct usbd_xfer *xfer);
-
 static void
 ural_watchdog(void *arg);
 
@@ -190,38 +196,14 @@ static void
 ural_cfg_tx_bcn(struct ural_softc *sc);
 
 static void
-ural_cfg_set_chan(struct ural_softc *sc,
-		  struct ural_config_copy *cc, u_int16_t refcount);
-static void
-ural_cfg_set_run(struct ural_softc *sc, 
-		 struct ural_config_copy *cc, u_int16_t refcount);
-static void
 ural_cfg_disable_rf_tune(struct ural_softc *sc);
 
-static void
-ural_cfg_enable_tsf_sync(struct ural_softc *sc,
-			 struct ural_config_copy *cc, u_int16_t refcount);
-static void
-ural_cfg_disable_tsf_sync(struct ural_softc *sc,
-			  struct ural_config_copy *cc, u_int16_t refcount);
-static void
-ural_cfg_update_slot(struct ural_softc *sc,
-		     struct ural_config_copy *cc, u_int16_t refcount);
-static void
-ural_cfg_set_txpreamble(struct ural_softc *sc,
-			struct ural_config_copy *cc, u_int16_t refcount);
-static void
-ural_cfg_set_basicrates(struct ural_softc *sc,
-			struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_set_bssid(struct ural_softc *sc, const u_int8_t *bssid);
 
 static void
 ural_cfg_set_macaddr(struct ural_softc *sc, const u_int8_t *addr);
 
-static void
-ural_cfg_update_promisc(struct ural_softc *sc,
-			struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_cfg_set_txantenna(struct ural_softc *sc, u_int8_t antenna);
 
@@ -235,17 +217,8 @@ static u_int8_t
 ural_cfg_bbp_init(struct ural_softc *sc);
 
 static void
-ural_cfg_init(struct ural_softc *sc,
-	      struct ural_config_copy *cc, u_int16_t refcount);
-static void
-ural_cfg_stop(struct ural_softc *sc,
-	      struct ural_config_copy *cc, u_int16_t refcount);
-static void
 ural_cfg_amrr_start(struct ural_softc *sc);
 
-static void
-ural_cfg_amrr_timeout(struct ural_softc *sc,
-		      struct ural_config_copy *cc, u_int16_t refcount);
 static void
 ural_ratectl(struct ural_amrr *amrr, struct ieee80211_node *ni);
 
@@ -563,7 +536,7 @@ ural_attach(device_t dev)
 	}
 
 	error = usbd_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
-				     &ural_config_copy, &ural_end_of_commands,
+				     &ural_end_of_commands,
 				     sizeof(struct ural_config_copy), 16);
 	if (error) {
 	    device_printf(dev, "could not setup config "
@@ -576,7 +549,7 @@ ural_attach(device_t dev)
 	/* start setup */
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &ural_cfg_first_time_setup, 0);
+	  (&(sc->sc_config_td), NULL, &ural_cfg_first_time_setup, 0, 0);
 
 	/* start watchdog (will exit mutex) */
 
@@ -602,7 +575,7 @@ ural_detach(device_t dev)
 
 	__callout_stop(&sc->sc_watchdog);
 
-	ural_cfg_stop(sc, NULL, 0);
+	ural_cfg_pre_stop(sc, NULL, 0);
 
 	ic = &(sc->sc_ic);
 	ifp = ic->ic_ifp;
@@ -847,10 +820,6 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	struct ieee80211com *ic = &(sc->sc_ic);
 	struct ifnet *ifp;
 	register u_int16_t i;
-
-	if (cc == NULL) {
-	    return;
-	}
 
 	/* retrieve RT2570 rev. no */
 	sc->sc_asic_rev = ural_cfg_read(sc, RAL_MAC_CSR0);
@@ -1705,7 +1674,8 @@ ural_watchdog(void *arg)
 	    (--sc->sc_amrr_timer == 0)) {
 
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_cfg_amrr_timeout, 0);
+	      (&(sc->sc_config_td), &ural_cfg_pre_amrr_timeout,
+	       &ural_cfg_amrr_timeout, 0, 0);
 	}
 
 	if ((sc->sc_tx_timer) &&
@@ -1713,7 +1683,8 @@ ural_watchdog(void *arg)
 
 	    printf("%s: device timeout\n", sc->sc_name);
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_cfg_init, 0);
+	      (&(sc->sc_config_td), &ural_cfg_pre_init,
+	       &ural_cfg_init, 0, 0);
 	}
 
 	if ((sc->sc_if_timer) &&
@@ -1751,7 +1722,8 @@ ural_init_cb(void *arg)
 
 	mtx_lock(&(sc->sc_mtx));
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &ural_cfg_init, 0);
+	  (&(sc->sc_config_td), &ural_cfg_pre_init,
+	   &ural_cfg_init, 0, 0);
 	mtx_unlock(&(sc->sc_mtx));
 
 	return;
@@ -1772,15 +1744,18 @@ ural_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 	    if (ifp->if_flags & IFF_UP) {
 	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &ural_cfg_update_promisc, 0);
+		      (&(sc->sc_config_td), &ural_config_copy,
+		       &ural_cfg_update_promisc, 0, 0);
 		} else {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &ural_cfg_init, 0); 
+		      (&(sc->sc_config_td), &ural_cfg_pre_init,
+		       &ural_cfg_init, 0, 0); 
 		}
 	    } else {
 	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &ural_cfg_stop, 0);
+		      (&(sc->sc_config_td), &ural_cfg_pre_stop,
+		       &ural_cfg_stop, 0, 0);
 		}
 	    }
 	    break;
@@ -1794,7 +1769,8 @@ ural_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 		(ifp->if_drv_flags & IFF_DRV_RUNNING) &&
 		(ic->ic_roaming != IEEE80211_ROAMING_MANUAL)) {
 	        usbd_config_td_queue_command
-		  (&(sc->sc_config_td), &ural_cfg_init, 0);
+		  (&(sc->sc_config_td), &ural_cfg_pre_init,
+		   &ural_cfg_init, 0, 0);
 	    }
 	    error = 0;
 	}
@@ -1840,7 +1816,8 @@ ural_media_change_cb(struct ifnet *ifp)
 	if ((ifp->if_flags & IFF_UP) &&
 	    (ifp->if_drv_flags & IFF_DRV_RUNNING)) {
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_cfg_init, 0);
+	      (&(sc->sc_config_td), &ural_cfg_pre_init, 
+	       &ural_cfg_init, 0, 0);
 	}
 
  done:
@@ -1869,7 +1846,8 @@ ural_reset_cb(struct ifnet *ifp)
 	}
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &ural_cfg_set_chan, 0);
+	  (&(sc->sc_config_td), &ural_config_copy, 
+	   &ural_cfg_set_chan, 0, 0);
 
  done:
 	mtx_unlock(&(sc->sc_mtx));
@@ -1898,30 +1876,35 @@ ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 	case IEEE80211_S_INIT:
 	    if (sc->sc_ic.ic_state == IEEE80211_S_RUN) {
 	      usbd_config_td_queue_command
-		(&(sc->sc_config_td), &ural_cfg_disable_tsf_sync, 0);
+		(&(sc->sc_config_td), &ural_config_copy,
+		 &ural_cfg_disable_tsf_sync, 0, 0);
 	    }
 	    sc->sc_if_timer = 0;
 	    break;
 
 	case IEEE80211_S_SCAN:
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_cfg_set_chan, 0);
+	      (&(sc->sc_config_td), &ural_config_copy, 
+	       &ural_cfg_set_chan, 0, 0);
 	    sc->sc_scan_timer = 3;
 	    break;
 
 	case IEEE80211_S_AUTH:
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_cfg_set_chan, 0);
+	      (&(sc->sc_config_td), &ural_config_copy, 
+	       &ural_cfg_set_chan, 0, 0);
 	    break;
 
 	case IEEE80211_S_ASSOC:
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_cfg_set_chan, 0);
+	      (&(sc->sc_config_td), &ural_config_copy, 
+	       &ural_cfg_set_chan, 0, 0);
 	    break;
 
 	case IEEE80211_S_RUN:
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_cfg_set_run, 0);
+	      (&(sc->sc_config_td), &ural_cfg_pre_set_run,
+	       &ural_cfg_set_run, 0, 0);
 	    break;
 	}
 
@@ -1994,11 +1977,6 @@ ural_cfg_set_chan(struct ural_softc *sc,
 	u_int32_t chan;
 	u_int8_t power;
 	u_int8_t tmp;
-
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
 
 	chan = cc->ic_curchan.chan_to_ieee;
 
@@ -2110,25 +2088,27 @@ ural_cfg_set_chan(struct ural_softc *sc,
 }
 
 static void
+ural_cfg_pre_set_run(struct ural_softc *sc, 
+		     struct ural_config_copy *cc, u_int16_t refcount)
+{
+	struct ieee80211com *ic = &(sc->sc_ic);
+
+	/* immediate configuration */
+
+	ural_config_copy(sc, cc, 0);
+
+	/* enable automatic rate adaptation in STA mode */
+	if ((ic->ic_opmode == IEEE80211_M_STA) &&
+	    (ic->ic_fixed_rate == IEEE80211_FIXED_RATE_NONE)) {
+		ural_cfg_amrr_start(sc);
+	}
+	return;
+}
+
+static void
 ural_cfg_set_run(struct ural_softc *sc, 
 		 struct ural_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-
-	    /* immediate configuration */
-
-	    struct ieee80211com *ic = &(sc->sc_ic);
-
-	    /* enable automatic rate adaptation in STA mode */
-	    if ((ic->ic_opmode == IEEE80211_M_STA) &&
-		(ic->ic_fixed_rate == IEEE80211_FIXED_RATE_NONE)) {
-	        ural_cfg_amrr_start(sc);
-	    }
-	    return;
-	}
-
-	/* delayed configuration */
-
 	ural_cfg_set_chan(sc, cc, 0);
 
 	if (cc->ic_opmode != IEEE80211_M_MONITOR) {
@@ -2189,11 +2169,6 @@ ural_cfg_enable_tsf_sync(struct ural_softc *sc,
 	u_int16_t preload;
 	u_int16_t tmp;
 
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
 	/* first, disable TSF synchronization */
 	ural_cfg_write(sc, RAL_TXRX_CSR19, 0);
 
@@ -2223,11 +2198,6 @@ static void
 ural_cfg_disable_tsf_sync(struct ural_softc *sc,
 			  struct ural_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
 	/* abort TSF synchronization */
 	ural_cfg_write(sc, RAL_TXRX_CSR19, 0);
 
@@ -2244,11 +2214,6 @@ ural_cfg_update_slot(struct ural_softc *sc,
 	u_int16_t slottime;
 	u_int16_t sifs;
 	u_int16_t eifs;
-
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
 
 	slottime = (cc->ic_flags & IEEE80211_F_SHSLOT) ? 9 : 20;
 
@@ -2276,11 +2241,6 @@ ural_cfg_set_txpreamble(struct ural_softc *sc,
 {
 	u_int16_t tmp;
 
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
 	tmp = ural_cfg_read(sc, RAL_TXRX_CSR10);
 
 	if (cc->ic_flags & IEEE80211_F_SHPREAMBLE) {
@@ -2297,11 +2257,6 @@ static void
 ural_cfg_set_basicrates(struct ural_softc *sc,
 			struct ural_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
-
 	/* update basic rate set */
 
 	if (cc->ic_curmode == IEEE80211_MODE_11B) {
@@ -2362,11 +2317,6 @@ ural_cfg_update_promisc(struct ural_softc *sc,
 			struct ural_config_copy *cc, u_int16_t refcount)
 {
 	u_int16_t tmp;
-
-	if (cc == NULL) {
-	    /* nothing to do */
-	    return;
-	}
 
 	tmp = ural_cfg_read(sc, RAL_TXRX_CSR2);
 
@@ -2516,39 +2466,40 @@ ural_cfg_bbp_init(struct ural_softc *sc)
 }
 
 static void
+ural_cfg_pre_init(struct ural_softc *sc,
+		  struct ural_config_copy *cc, u_int16_t refcount)
+{
+	struct ieee80211com *ic = &(sc->sc_ic);
+	struct ifnet *ifp = sc->sc_ic.ic_ifp;
+
+	/* immediate configuration */
+
+	ural_cfg_pre_stop(sc, cc, 0);
+
+	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
+	ifp->if_drv_flags |= IFF_DRV_RUNNING;
+
+	sc->sc_flags |= URAL_FLAG_HL_READY;
+
+	IEEE80211_ADDR_COPY(ic->ic_myaddr, IF_LLADDR(ifp));
+
+	if (ic->ic_opmode != IEEE80211_M_MONITOR) {
+	    if (ic->ic_roaming != IEEE80211_ROAMING_MANUAL) {
+	        ieee80211_new_state(ic, IEEE80211_S_SCAN, -1);
+	    }
+	} else {
+	    ieee80211_new_state(ic, IEEE80211_S_RUN, -1);
+	}
+	return;
+}
+
+static void
 ural_cfg_init(struct ural_softc *sc,
 	      struct ural_config_copy *cc, u_int16_t refcount)
 {
 	u_int16_t tmp;
 	u_int16_t i;
 	u_int8_t to;
-
-	if (cc == NULL) {
-
-	    /* immediate configuration */
-
-	    struct ieee80211com *ic = &(sc->sc_ic);
-	    struct ifnet *ifp = sc->sc_ic.ic_ifp;
-
-	    ural_cfg_stop(sc, NULL, 0);
-
-	    ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
-	    ifp->if_drv_flags |= IFF_DRV_RUNNING;
-
-	    sc->sc_flags |= URAL_FLAG_HL_READY;
-
-	    IEEE80211_ADDR_COPY(ic->ic_myaddr, IF_LLADDR(ifp));
-
-	    if (ic->ic_opmode != IEEE80211_M_MONITOR) {
-	        if (ic->ic_roaming != IEEE80211_ROAMING_MANUAL) {
-		    ieee80211_new_state(ic, IEEE80211_S_SCAN, -1);
-		}
-	    } else {
-	        ieee80211_new_state(ic, IEEE80211_S_RUN, -1);
-	    }
-
-	    return;
-	}
 
 	/* delayed configuration */
 
@@ -2656,7 +2607,7 @@ ural_cfg_init(struct ural_softc *sc,
 	return;
 
  fail:
-	ural_cfg_stop(sc, NULL, 0);
+	ural_cfg_pre_stop(sc, NULL, 0);
 
 	if (cc) {
 	    ural_cfg_stop(sc, cc, 0);
@@ -2665,58 +2616,63 @@ ural_cfg_init(struct ural_softc *sc,
 }
 
 static void
+ural_cfg_pre_stop(struct ural_softc *sc,
+		  struct ural_config_copy *cc, u_int16_t refcount)
+{
+	struct ieee80211com *ic = &(sc->sc_ic);
+	struct ifnet *ifp = ic->ic_ifp;
+
+	if (cc) {
+	    /* copy the needed configuration */
+	    ural_config_copy(sc, cc, refcount);
+	}
+
+	/* immediate configuration */
+
+	if (ifp) {
+
+	    ieee80211_new_state(ic, IEEE80211_S_INIT, -1);
+
+	    /* clear flags */
+	    ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
+				   IFF_DRV_OACTIVE);
+	}
+
+	/* stop timers */
+	sc->sc_tx_timer = 0;
+	sc->sc_if_timer = 0;
+
+	sc->sc_flags &= ~(URAL_FLAG_HL_READY|
+			  URAL_FLAG_LL_READY);
+
+	/* stop all the transfers, 
+	 * if not already stopped:
+	 */
+	if (sc->sc_xfer[0]) {
+	    usbd_transfer_stop(sc->sc_xfer[0]);
+	}
+	if (sc->sc_xfer[1]) {
+	    usbd_transfer_stop(sc->sc_xfer[1]);
+	}
+	if (sc->sc_xfer[2]) {
+	    usbd_transfer_stop(sc->sc_xfer[2]);
+	}
+	if (sc->sc_xfer[3]) {
+	    usbd_transfer_stop(sc->sc_xfer[3]);
+	}
+
+	/* stop transmission of
+	 * beacon frame, if any:
+	 */
+	ural_tx_bcn_complete(sc);
+
+	return;
+}
+
+static void
 ural_cfg_stop(struct ural_softc *sc,
 	      struct ural_config_copy *cc, u_int16_t refcount)
 {
-	if (cc == NULL) {
-
-	    /* immediate configuration */
-
-	    struct ieee80211com *ic = &(sc->sc_ic);
-	    struct ifnet *ifp = ic->ic_ifp;
-
-	    if (ifp) {
-
-	        ieee80211_new_state(ic, IEEE80211_S_INIT, -1);
-
-		/* clear flags */
-		ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
-				       IFF_DRV_OACTIVE);
-	    }
-
-	    /* stop timers */
-	    sc->sc_tx_timer = 0;
-	    sc->sc_if_timer = 0;
-
-	    sc->sc_flags &= ~(URAL_FLAG_HL_READY|
-			      URAL_FLAG_LL_READY);
-
-	    /* stop all the transfers, 
-	     * if not already stopped:
-	     */
-	    if (sc->sc_xfer[0]) {
-	        usbd_transfer_stop(sc->sc_xfer[0]);
-	    }
-	    if (sc->sc_xfer[1]) {
-	        usbd_transfer_stop(sc->sc_xfer[1]);
-	    }
-	    if (sc->sc_xfer[2]) {
-	        usbd_transfer_stop(sc->sc_xfer[2]);
-	    }
-	    if (sc->sc_xfer[3]) {
-	        usbd_transfer_stop(sc->sc_xfer[3]);
-	    }
-
-	    /* stop transmission of
-	     * beacon frame, if any:
-	     */
-	    ural_tx_bcn_complete(sc);
-
-	    return;
-	}
-
-	/* delayed configuration */
-
 	/* disable Rx */
 	ural_cfg_write(sc, RAL_TXRX_CSR2, RAL_DISABLE_RX);
 
@@ -2756,19 +2712,20 @@ ural_cfg_amrr_start(struct ural_softc *sc)
 }
 
 static void
+ural_cfg_pre_amrr_timeout(struct ural_softc *sc,
+			  struct ural_config_copy *cc, u_int16_t refcount)
+{
+	/* restart timeout */
+	sc->sc_amrr_timer = (1*8);
+	return;
+}
+
+static void
 ural_cfg_amrr_timeout(struct ural_softc *sc,
 		      struct ural_config_copy *cc, u_int16_t refcount)
 {
 	struct ural_amrr *amrr = &sc->sc_amrr;
 	struct ifnet *ifp = sc->sc_ic.ic_ifp;
-
-	if (cc == NULL) {
-
-	    /* restart timeout */
-	    sc->sc_amrr_timer = (1*8);
-
-	    return;
-	}
 
 	/* read and clear statistic registers (STA_CSR0 to STA_CSR10) */
 	ural_cfg_read_multi(sc, RAL_STA_CSR0, sc->sc_sta, sizeof(sc->sc_sta));
