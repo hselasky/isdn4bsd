@@ -2623,12 +2623,16 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 			cam_sim_path(sc->sc_sim), ccb->ccb_h.target_id,
 			ccb->ccb_h.target_lun);
 
+#if (__FreeBSD_version >= 700025)
 		cts->protocol = PROTO_SCSI;
 		cts->protocol_version = SCSI_REV_2;
 		cts->transport = XPORT_USB;
 		cts->transport_version = XPORT_VERSION_UNSPECIFIED;
 		cts->xport_specific.valid = 0;
-
+#else
+		cts->valid = 0;
+		cts->flags = 0;         /* no disconnection, tagging */
+#endif
 		ccb->ccb_h.status = CAM_REQ_CMP;
 		xpt_done(ccb);
 		break;
