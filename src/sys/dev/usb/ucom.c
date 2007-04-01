@@ -961,11 +961,13 @@ ucom_param(struct tty *tp, struct termios *t)
 	tp->t_ospeed = t->c_ospeed;
 	tp->t_cflag = t->c_cflag;
 
-	/* Let the lower layer verify the parameters */
-	error = (sc->sc_callback->ucom_pre_param)(sc, t);
-	if (error) {
-	    DPRINTF(0, "callback error = %d\n", error);
-	    goto done;
+	if (sc->sc_callback->ucom_pre_param) {
+	    /* Let the lower layer verify the parameters */
+	    error = (sc->sc_callback->ucom_pre_param)(sc, t);
+	    if (error) {
+		DPRINTF(0, "callback error = %d\n", error);
+		goto done;
+	    }
 	}
 
 	/* Make a copy of the termios parameters */
