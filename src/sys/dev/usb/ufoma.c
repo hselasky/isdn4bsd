@@ -136,8 +136,7 @@ typedef struct ufoma_mobile_acm_descriptor{
 #define UFOMA_MAX_TIMEOUT 15 /* standard says 10 seconds */
 #define UFOMA_CMD_BUF_SIZE 64 /* bytes */
 
-#define UFOMA_BULK_IBUFSIZE 64 /* bytes */
-#define UFOMA_BULK_OBUFSIZE 256 /* bytes */
+#define	UFOMA_BULK_BUF_SIZE 1024 /* bytes */
 
 #define UFOMA_CTRL_ENDPT_MAX 4 /* units */
 #define UFOMA_BULK_ENDPT_MAX 4 /* units */
@@ -261,7 +260,7 @@ ufoma_bulk_config[UFOMA_BULK_ENDPT_MAX] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
       .direction = UE_DIR_OUT,
-      .bufsize   = UFOMA_BULK_OBUFSIZE,
+      .bufsize   = UFOMA_BULK_BUF_SIZE,
       .flags     = 0,
       .callback  = &ufoma_bulk_write_callback,
     },
@@ -270,7 +269,7 @@ ufoma_bulk_config[UFOMA_BULK_ENDPT_MAX] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
       .direction = UE_DIR_IN,
-      .bufsize   = UFOMA_BULK_IBUFSIZE,
+      .bufsize   = UFOMA_BULK_BUF_SIZE,
       .flags     = USBD_SHORT_XFER_OK,
       .callback  = &ufoma_bulk_read_callback,
     },
@@ -812,7 +811,7 @@ tr_transferred:
 	}
 
 	if (ucom_get_data(&(sc->sc_ucom), xfer->buffer, 
-			  UFOMA_BULK_OBUFSIZE, &actlen)) {
+			  UFOMA_BULK_BUF_SIZE, &actlen)) {
 	    xfer->length = actlen;
 	    usbd_start_hardware(xfer);
 	}

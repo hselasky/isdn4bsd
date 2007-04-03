@@ -120,13 +120,7 @@ static const struct umodem_product {
 	{ 0, 0, 0 },
 };
 
-/*
- * These are the maximum number of bytes transferred per frame.
- * If some really high speed devices should use this driver they
- * may need to be increased, but this is good enough for normal modems.
- */
-#define UMODEM_IBUFSIZE 64
-#define UMODEM_OBUFSIZE 256
+#define	UMODEM_BUF_SIZE 1024
 #define UMODEM_N_DATA_TRANSFER 4
 #define UMODEM_N_INTR_TRANSFER 2
 
@@ -190,7 +184,7 @@ static const struct usbd_config umodem_config_data[UMODEM_N_DATA_TRANSFER] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
       .direction = UE_DIR_OUT,
-      .bufsize   = UMODEM_OBUFSIZE,
+      .bufsize   = UMODEM_BUF_SIZE,
       .flags     = 0,
       .callback  = &umodem_write_callback,
     },
@@ -199,7 +193,7 @@ static const struct usbd_config umodem_config_data[UMODEM_N_DATA_TRANSFER] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
       .direction = UE_DIR_IN,
-      .bufsize   = UMODEM_IBUFSIZE,
+      .bufsize   = UMODEM_BUF_SIZE,
       .flags     = USBD_SHORT_XFER_OK,
       .callback  = &umodem_read_callback,
     },
@@ -820,7 +814,8 @@ tr_transferred:
 	    return;
 	}
 
-	if(ucom_get_data(&(sc->sc_ucom), xfer->buffer, UMODEM_OBUFSIZE, &actlen)) {
+	if(ucom_get_data(&(sc->sc_ucom), xfer->buffer,
+			 UMODEM_BUF_SIZE, &actlen)) {
 
 	    xfer->length = actlen;
 

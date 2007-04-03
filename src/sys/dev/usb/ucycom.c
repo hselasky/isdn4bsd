@@ -52,7 +52,7 @@
 
 __FBSDID("$FreeBSD: src/sys/dev/usb/ucycom.c,v 1.4 2005/10/16 20:22:56 phk Exp $");
 
-#define UCYCOM_MAX_IOLEN	(256 + 2) /* bytes */
+#define	UCYCOM_MAX_IOLEN	(1024 + 2) /* bytes */
 
 #define UCYCOM_ENDPT_MAX	3 /* units */
 #define UCYCOM_IFACE_INDEX	0

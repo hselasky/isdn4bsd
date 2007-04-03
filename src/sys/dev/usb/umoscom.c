@@ -42,7 +42,7 @@ SYSCTL_INT(_hw_usb_umoscom, OID_AUTO, debug, CTLFLAG_RW,
 #define DPRINTF(...) { }
 #endif
 
-#define UMOSCOM_BUFSIZE		256 /* bytes */
+#define	UMOSCOM_BUFSIZE	       1024 /* bytes */
 #define UMOSCOM_N_DATA_TRANSFER   6 /* units */
 
 #define UMOSCOM_CONFIG_NO	0

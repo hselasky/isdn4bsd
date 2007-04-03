@@ -40,7 +40,7 @@
 
 #define DPRINTF(...) { }
 
-#define UARK_BUF_SIZE		512
+#define	UARK_BUF_SIZE		1024 /* bytes */
 
 #define UARK_N_TRANSFER	4 /* units */
 

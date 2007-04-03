@@ -125,8 +125,7 @@ SYSCTL_INT(_hw_usb_uvscom, OID_AUTO, debug, CTLFLAG_RW,
 #define UVSCOM_CTS		0x01
 #define UVSCOM_USTAT_MASK	(UVSCOM_NOCARD | UVSCOM_DSR | UVSCOM_CTS)
 
-#define UVSCOM_IBUFSIZE		512 /* bytes */
-#define UVSCOM_OBUFSIZE		512 /* bytes */
+#define	UVSCOM_BULK_BUF_SIZE	1024 /* bytes */
 
 #define UVSCOM_N_TRANSFER	6 /* units */
 
@@ -186,7 +185,7 @@ static const struct usbd_config uvscom_config[UVSCOM_N_TRANSFER] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
       .direction = UE_DIR_OUT,
-      .bufsize   = UVSCOM_OBUFSIZE,
+      .bufsize   = UVSCOM_BULK_BUF_SIZE,
       .flags     = 0,
       .callback  = &uvscom_write_callback,
     },
@@ -195,7 +194,7 @@ static const struct usbd_config uvscom_config[UVSCOM_N_TRANSFER] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
       .direction = UE_DIR_IN,
-      .bufsize   = UVSCOM_IBUFSIZE,
+      .bufsize   = UVSCOM_BULK_BUF_SIZE,
       .flags     = USBD_SHORT_XFER_OK,
       .callback  = &uvscom_read_callback,
     },
@@ -419,7 +418,8 @@ tr_transferred:
 	    return;
 	}
 
-	if(ucom_get_data(&(sc->sc_ucom), xfer->buffer, UVSCOM_OBUFSIZE, &actlen)) {
+	if(ucom_get_data(&(sc->sc_ucom), xfer->buffer,
+			 UVSCOM_BULK_BUF_SIZE, &actlen)) {
 
 	    xfer->length = actlen;
 

@@ -93,7 +93,7 @@ SYSCTL_INT(_hw_usb_ubsa, OID_AUTO, debug, CTLFLAG_RW,
 #endif
 
 #define UBSA_N_TRANSFER           6 /* units */
-#define UBSA_BSIZE              256 /* bytes */
+#define	UBSA_BSIZE             1024 /* bytes */
 
 #define UBSA_CONFIG_INDEX	1
 #define UBSA_IFACE_INDEX	0
@@ -632,7 +632,8 @@ tr_transferred:
 	    return;
 	}
 
-	if(ucom_get_data(&(sc->sc_ucom), xfer->buffer, UBSA_BSIZE, &actlen)) {
+	if(ucom_get_data(&(sc->sc_ucom), xfer->buffer, 
+			 UBSA_BSIZE, &actlen)) {
 
 	    xfer->length = actlen;
 

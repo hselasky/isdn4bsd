@@ -83,12 +83,8 @@ SYSCTL_INT(_hw_usb_uftdi, OID_AUTO, debug, CTLFLAG_RW,
 #define UFTDI_IFACE_INDEX	0
 #define UFTDI_ENDPT_MAX		4
 
-/*
- * These are the maximum number of bytes transferred per frame.
- * The output buffer size cannot be increased due to the size encoding.
- */
-#define UFTDI_IBUFSIZE 64
-#define UFTDI_OBUFSIZE 64
+#define UFTDI_IBUFSIZE 64 /* bytes, maximum number of bytes per frame */
+#define UFTDI_OBUFSIZE 64 /* bytes, cannot be increased due to do size encoding */
 
 struct uftdi_softc {
 	struct ucom_super_softc sc_super_ucom;

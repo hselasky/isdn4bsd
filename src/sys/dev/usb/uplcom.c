@@ -125,8 +125,7 @@ SYSCTL_INT(_hw_usb_uplcom, OID_AUTO, debug, CTLFLAG_RW,
 #define UPLCOM_INTR_INTERVAL		0 /* default */
 #endif
 
-#define UPLCOM_IBUFSIZE 256
-#define UPLCOM_OBUFSIZE 256
+#define	UPLCOM_BULK_BUF_SIZE 1024 /* bytes */
 #define UPLCOM_N_DATA_TRANSFER 4
 #define UPLCOM_N_INTR_TRANSFER 2
 
@@ -200,7 +199,7 @@ static const struct usbd_config uplcom_config_data[UPLCOM_N_DATA_TRANSFER] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
       .direction = UE_DIR_OUT,
-      .bufsize   = UPLCOM_OBUFSIZE,
+      .bufsize   = UPLCOM_BULK_BUF_SIZE,
       .flags     = 0,
       .callback  = &uplcom_write_callback,
     },
@@ -209,7 +208,7 @@ static const struct usbd_config uplcom_config_data[UPLCOM_N_DATA_TRANSFER] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
       .direction = UE_DIR_IN,
-      .bufsize   = UPLCOM_IBUFSIZE,
+      .bufsize   = UPLCOM_BULK_BUF_SIZE,
       .flags     = USBD_SHORT_XFER_OK,
       .callback  = &uplcom_read_callback,
     },
@@ -907,7 +906,8 @@ tr_transferred:
 	    return;
 	}
 
-	if(ucom_get_data(&(sc->sc_ucom), xfer->buffer, UPLCOM_OBUFSIZE, &actlen)) {
+	if(ucom_get_data(&(sc->sc_ucom), xfer->buffer, 
+			 UPLCOM_BULK_BUF_SIZE, &actlen)) {
 
 	    xfer->length = actlen;
 

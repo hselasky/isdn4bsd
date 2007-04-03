@@ -62,16 +62,23 @@
 #define UGENSA_N_TRANSFER	4 /* units */
 #define UGENSA_CONFIG_INDEX	0
 #define UGENSA_IFACE_INDEX	0
+#define UGENSA_IFACE_MAX	8 /* exclusivly */
 
-struct ugensa_softc {
-	struct ucom_super_softc	sc_super_ucom;
-	struct ucom_softc	sc_ucom;
-
-	struct usbd_xfer 	*sc_xfer[UGENSA_N_TRANSFER];
+struct ugensa_sub_softc {
+ 	struct ucom_softc	*sc_ucom_ptr;
+ 	struct usbd_xfer	*sc_xfer[UGENSA_N_TRANSFER];
 
 	uint8_t			sc_flags;
 #define UGENSA_FLAG_BULK_READ_STALL	0x01
 #define UGENSA_FLAG_BULK_WRITE_STALL	0x02
+};
+
+struct ugensa_softc {
+	struct ucom_super_softc	sc_super_ucom;
+	struct ucom_softc	sc_ucom[UGENSA_IFACE_MAX];
+	struct ugensa_sub_softc	sc_sub[UGENSA_IFACE_MAX];
+
+ 	uint8_t			sc_ifaces;
 };
 
 /* prototypes */
@@ -161,11 +168,11 @@ MODULE_DEPEND(ugensa, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 
 static const struct usb_devno ugensa_devs[] = {
 	{ USB_VENDOR_AIRPRIME, USB_PRODUCT_AIRPRIME_PC5220 },
+	{ USB_VENDOR_CMOTECH, USB_PRODUCT_CMOTECH_CDMA_MODEM1 },
 	{ USB_VENDOR_NOVATEL, USB_PRODUCT_NOVATEL_FLEXPACKGPS },
+	{ USB_VENDOR_NOVATEL2, USB_PRODUCT_NOVATEL2_CDMA_MODEM },
 	{ USB_VENDOR_QUALCOMM_K, USB_PRODUCT_QUALCOMM_K_CDMA_MSM_K },
 	{ USB_VENDOR_SIERRA, USB_PRODUCT_SIERRA_AIRCARD580 },
-	{ USB_VENDOR_NOVATEL2, USB_PRODUCT_NOVATEL2_CDMA_MODEM },
-	{ USB_VENDOR_CMOTECH, USB_PRODUCT_CMOTECH_CDMA_MODEM1 },
 };
 
 #define ugensa_lookup(v, p) usb_lookup(ugensa_devs, v, p)
@@ -179,7 +186,8 @@ ugensa_probe(device_t dev)
 	    return UMATCH_NONE;
 	}
 
-	return (ugensa_lookup(uaa->vendor, uaa->product) ? UMATCH_VENDOR_PRODUCT : UMATCH_NONE);
+	return (ugensa_lookup(uaa->vendor, uaa->product) ?
+		UMATCH_VENDOR_PRODUCT : UMATCH_NONE);
 }
 
 static int
@@ -187,7 +195,9 @@ ugensa_attach(device_t dev)
 {
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	struct ugensa_softc *sc = device_get_softc(dev);
+	struct ugensa_sub_softc *ssc;
 	int32_t error;
+	uint8_t x;
 
 	if (sc == NULL) {
 	    return ENOMEM;
@@ -203,22 +213,49 @@ ugensa_attach(device_t dev)
 	    goto detach;
 	}
 
-	error = usbd_transfer_setup
-	  (uaa->device, UGENSA_IFACE_INDEX,
-	   sc->sc_xfer, ugensa_xfer_config, UGENSA_N_TRANSFER,
-	   sc, &Giant);
-
-	if (error) {
-	    device_printf(dev, "allocating control USB "
-			  "transfers failed!\n");
-	    goto detach;
+	/* Figure out how many interfaces this device has got */
+	for (x = 0; x < UGENSA_IFACE_MAX; x++) {
+	    if ((usbd_get_pipe(uaa->device, x, ugensa_xfer_config+0) == NULL) ||
+		(usbd_get_pipe(uaa->device, x, ugensa_xfer_config+1) == NULL)) {
+	        /* we have reached the end */
+	        break;
+	    }
 	}
 
-	/* clear stall at first run */
-	sc->sc_flags |= (UGENSA_FLAG_BULK_WRITE_STALL|
-			 UGENSA_FLAG_BULK_READ_STALL);
+	if (x == 0) {
+	    device_printf(dev, "No interfaces!\n");
+	    goto detach;
+	} else {
+	    device_printf(dev, "Found %d interfaces.\n", x);
+	    sc->sc_ifaces = x;
+	}
 
-        error = ucom_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	for (x = 0; x < sc->sc_ifaces; x++) {
+
+	    ssc = sc->sc_sub + x;
+
+	    ssc->sc_ucom_ptr = sc->sc_ucom + x;
+
+	    error = usbd_transfer_setup
+	      (uaa->device, UGENSA_IFACE_INDEX + x,
+	       ssc->sc_xfer, ugensa_xfer_config, UGENSA_N_TRANSFER,
+	       ssc, &Giant);
+
+	    if (error) {
+	        device_printf(dev, "allocating USB "
+			      "transfers failed!\n");
+		goto detach;
+	    }
+
+	    /* clear stall at first run */
+	    ssc->sc_flags |= (UGENSA_FLAG_BULK_WRITE_STALL|
+			      UGENSA_FLAG_BULK_READ_STALL);
+
+	    /* initialize port number */
+	    ssc->sc_ucom_ptr->sc_portno = x;
+	}
+
+        error = ucom_attach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_ifaces, sc,
 			    &ugensa_callback, &Giant);
         if (error) {
             DPRINTF(0, "ucom_attach failed\n");
@@ -236,10 +273,13 @@ static int
 ugensa_detach(device_t dev)
 {
 	struct ugensa_softc *sc = device_get_softc(dev);
+	uint8_t x;
 
-        ucom_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+        ucom_detach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_ifaces);
 
-        usbd_transfer_unsetup(sc->sc_xfer, UGENSA_N_TRANSFER);
+	for (x = 0; x < sc->sc_ifaces; x++) {
+	    usbd_transfer_unsetup(sc->sc_sub[x].sc_xfer, UGENSA_N_TRANSFER);
+	}
 
 	return 0;
 }
@@ -247,26 +287,26 @@ ugensa_detach(device_t dev)
 static void
 ugensa_bulk_write_callback(struct usbd_xfer *xfer)
 {
-	struct ugensa_softc *sc = xfer->priv_sc;
+	struct ugensa_sub_softc *ssc = xfer->priv_sc;
 	u_int32_t actlen;
 
 	USBD_CHECK_STATUS(xfer);
 
 tr_error:
 	if (xfer->error != USBD_CANCELLED) {
-	    sc->sc_flags |= UGENSA_FLAG_BULK_WRITE_STALL;
-	    usbd_transfer_start(sc->sc_xfer[2]);
+	    ssc->sc_flags |= UGENSA_FLAG_BULK_WRITE_STALL;
+	    usbd_transfer_start(ssc->sc_xfer[2]);
 	}
 	return;
 
 tr_setup:
 tr_transferred:
-	if (sc->sc_flags & UGENSA_FLAG_BULK_WRITE_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[2]);
+	if (ssc->sc_flags & UGENSA_FLAG_BULK_WRITE_STALL) {
+	    usbd_transfer_start(ssc->sc_xfer[2]);
 	    return;
 	}
 
-	if (ucom_get_data(&(sc->sc_ucom), xfer->buffer, 
+	if (ucom_get_data(ssc->sc_ucom_ptr, xfer->buffer, 
 			  UGENSA_BUF_SIZE, &actlen)) {
 	    xfer->length = actlen;
 	    usbd_start_hardware(xfer);
@@ -277,8 +317,8 @@ tr_transferred:
 static void
 ugensa_bulk_write_clear_stall_callback(struct usbd_xfer *xfer)
 {
-	struct ugensa_softc *sc = xfer->priv_sc;
-	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
+	struct ugensa_sub_softc *ssc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = ssc->sc_xfer[0];
 
 	USBD_CHECK_STATUS(xfer);
 
@@ -289,12 +329,12 @@ ugensa_bulk_write_clear_stall_callback(struct usbd_xfer *xfer)
 
  tr_transferred:
 	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-	sc->sc_flags &= ~UGENSA_FLAG_BULK_WRITE_STALL;
+	ssc->sc_flags &= ~UGENSA_FLAG_BULK_WRITE_STALL;
 	usbd_transfer_start(xfer_other);
 	return;
 
  tr_error:
-	sc->sc_flags &= ~UGENSA_FLAG_BULK_WRITE_STALL;
+	ssc->sc_flags &= ~UGENSA_FLAG_BULK_WRITE_STALL;
 	DPRINTF(sc, 0, "clear stall failed, error=%s\n",
 		usbd_errstr(xfer->error));
 	return;
@@ -303,24 +343,24 @@ ugensa_bulk_write_clear_stall_callback(struct usbd_xfer *xfer)
 static void
 ugensa_bulk_read_callback(struct usbd_xfer *xfer)
 {
-	struct ugensa_softc *sc = xfer->priv_sc;
+	struct ugensa_sub_softc *ssc = xfer->priv_sc;
 
 	USBD_CHECK_STATUS(xfer);
 
  tr_error:
 	if (xfer->error != USBD_CANCELLED) {
-	    sc->sc_flags |= UGENSA_FLAG_BULK_READ_STALL;
-	    usbd_transfer_start(sc->sc_xfer[3]);
+	    ssc->sc_flags |= UGENSA_FLAG_BULK_READ_STALL;
+	    usbd_transfer_start(ssc->sc_xfer[3]);
 	}
 	return;
 
  tr_transferred:
-	ucom_put_data(&(sc->sc_ucom), xfer->buffer, 
+	ucom_put_data(ssc->sc_ucom_ptr, xfer->buffer, 
 		      xfer->actlen);
 
  tr_setup:
-	if (sc->sc_flags & UGENSA_FLAG_BULK_READ_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[3]);
+	if (ssc->sc_flags & UGENSA_FLAG_BULK_READ_STALL) {
+	    usbd_transfer_start(ssc->sc_xfer[3]);
 	} else {
 	    usbd_start_hardware(xfer);
 	}
@@ -330,8 +370,8 @@ ugensa_bulk_read_callback(struct usbd_xfer *xfer)
 static void
 ugensa_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 {
-	struct ugensa_softc *sc = xfer->priv_sc;
-	struct usbd_xfer *xfer_other = sc->sc_xfer[1];
+	struct ugensa_sub_softc *ssc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = ssc->sc_xfer[1];
 
 	USBD_CHECK_STATUS(xfer);
 
@@ -342,12 +382,12 @@ ugensa_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 
  tr_transferred:
 	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-	sc->sc_flags &= ~UGENSA_FLAG_BULK_READ_STALL;
+	ssc->sc_flags &= ~UGENSA_FLAG_BULK_READ_STALL;
 	usbd_transfer_start(xfer_other);
 	return;
 
  tr_error:
-	sc->sc_flags &= ~UGENSA_FLAG_BULK_READ_STALL;
+	ssc->sc_flags &= ~UGENSA_FLAG_BULK_READ_STALL;
 	DPRINTF(sc, 0, "clear stall failed, error=%s\n",
 		usbd_errstr(xfer->error));
 	return;
@@ -357,7 +397,8 @@ static void
 ugensa_start_read(struct ucom_softc *ucom)
 {
         struct ugensa_softc *sc = ucom->sc_parent;
-	usbd_transfer_start(sc->sc_xfer[1]);
+	struct ugensa_sub_softc *ssc = sc->sc_sub + ucom->sc_portno;
+	usbd_transfer_start(ssc->sc_xfer[1]);
         return;
 }
 
@@ -365,8 +406,9 @@ static void
 ugensa_stop_read(struct ucom_softc *ucom)
 {
         struct ugensa_softc *sc = ucom->sc_parent;
-	usbd_transfer_stop(sc->sc_xfer[3]);
-	usbd_transfer_stop(sc->sc_xfer[1]);
+	struct ugensa_sub_softc *ssc = sc->sc_sub + ucom->sc_portno;
+	usbd_transfer_stop(ssc->sc_xfer[3]);
+	usbd_transfer_stop(ssc->sc_xfer[1]);
         return;
 }
 
@@ -374,7 +416,8 @@ static void
 ugensa_start_write(struct ucom_softc *ucom)
 {
         struct ugensa_softc *sc = ucom->sc_parent;
-	usbd_transfer_start(sc->sc_xfer[0]);
+	struct ugensa_sub_softc *ssc = sc->sc_sub + ucom->sc_portno;
+	usbd_transfer_start(ssc->sc_xfer[0]);
         return;
 }
 
@@ -382,7 +425,8 @@ static void
 ugensa_stop_write(struct ucom_softc *ucom)
 {
         struct ugensa_softc *sc = ucom->sc_parent;
-	usbd_transfer_stop(sc->sc_xfer[2]);
-	usbd_transfer_stop(sc->sc_xfer[0]);
+	struct ugensa_sub_softc *ssc = sc->sc_sub + ucom->sc_portno;
+	usbd_transfer_stop(ssc->sc_xfer[2]);
+	usbd_transfer_stop(ssc->sc_xfer[0]);
         return;
 }
