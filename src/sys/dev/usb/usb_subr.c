@@ -352,7 +352,7 @@ usbd_find_edesc(usb_config_descriptor_t *cd, u_int16_t iface_index,
 
 	        if (curidx == endptidx) {
 		    return ((desc->bLength >= USB_ENDPOINT_DESCRIPTOR_SIZE) ? 
-			    ((void *)d) : NULL);
+			    ((void *)desc) : NULL);
 		}
 		curidx++;
 	    }
