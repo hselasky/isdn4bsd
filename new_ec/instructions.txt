@@ -1,0 +1,10 @@
+Hi,
+
+I have a new EC in the works. Copy the attached files 
+to /usr/src/sys/i4b/layer1 and /usr/src/sys/i4b/include so that they override 
+the existing files with the same name. Then compile a new kernel.
+
+You maybe want to do some benchmarks before an after, measure CPU usage etc.
+
+--HPS
+
