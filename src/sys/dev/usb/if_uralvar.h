@@ -119,10 +119,10 @@ struct ural_softc {
 	struct mtx			sc_mtx;
 	struct __callout		sc_watchdog;
 	struct ural_bbp_prom 		sc_bbp_prom[16];
-	struct usbd_xfer 		*sc_xfer[URAL_N_TRANSFER];
 	union ural_rxtap		sc_rxtap;
 	union ural_txtap		sc_txtap;
 
+	struct usbd_xfer 		*sc_xfer[URAL_N_TRANSFER];
 	struct mbuf 			*sc_bcn_mbuf;
 	struct ifnet 			*sc_ifp;
 	struct bpf_if 			*sc_drvbpf;
@@ -130,8 +130,6 @@ struct ural_softc {
 
 	int (*sc_newstate)
 	    (struct ieee80211com *, enum ieee80211_state, int);
-
-	enum ieee80211_state		sc_state;
 
 	uint32_t			sc_bcn_flags;
 	uint32_t			sc_unit;
@@ -159,7 +157,6 @@ struct ural_softc {
 	uint8_t				sc_tx_ant;
 	uint8_t				sc_nb_ant;
 	uint8_t				sc_if_timer;
-	uint8_t				sc_tx_timer;
 	uint8_t				sc_scan_timer;
 	uint8_t				sc_amrr_timer;
 	uint8_t				sc_name[32];

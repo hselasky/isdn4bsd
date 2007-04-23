@@ -275,7 +275,7 @@ ugensa_detach(device_t dev)
 	struct ugensa_softc *sc = device_get_softc(dev);
 	uint8_t x;
 
-        ucom_detach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_ifaces);
+	ucom_detach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_ifaces);
 
 	for (x = 0; x < sc->sc_ifaces; x++) {
 	    usbd_transfer_unsetup(sc->sc_sub[x].sc_xfer, UGENSA_N_TRANSFER);
@@ -396,37 +396,37 @@ ugensa_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 static void
 ugensa_start_read(struct ucom_softc *ucom)
 {
-        struct ugensa_softc *sc = ucom->sc_parent;
+	struct ugensa_softc *sc = ucom->sc_parent;
 	struct ugensa_sub_softc *ssc = sc->sc_sub + ucom->sc_portno;
 	usbd_transfer_start(ssc->sc_xfer[1]);
-        return;
+	return;
 }
 
 static void
 ugensa_stop_read(struct ucom_softc *ucom)
 {
-        struct ugensa_softc *sc = ucom->sc_parent;
+	struct ugensa_softc *sc = ucom->sc_parent;
 	struct ugensa_sub_softc *ssc = sc->sc_sub + ucom->sc_portno;
 	usbd_transfer_stop(ssc->sc_xfer[3]);
 	usbd_transfer_stop(ssc->sc_xfer[1]);
-        return;
+	return;
 }
 
 static void
 ugensa_start_write(struct ucom_softc *ucom)
 {
-        struct ugensa_softc *sc = ucom->sc_parent;
+	struct ugensa_softc *sc = ucom->sc_parent;
 	struct ugensa_sub_softc *ssc = sc->sc_sub + ucom->sc_portno;
 	usbd_transfer_start(ssc->sc_xfer[0]);
-        return;
+	return;
 }
 
 static void
 ugensa_stop_write(struct ucom_softc *ucom)
 {
-        struct ugensa_softc *sc = ucom->sc_parent;
+	struct ugensa_softc *sc = ucom->sc_parent;
 	struct ugensa_sub_softc *ssc = sc->sc_sub + ucom->sc_portno;
 	usbd_transfer_stop(ssc->sc_xfer[2]);
 	usbd_transfer_stop(ssc->sc_xfer[0]);
-        return;
+	return;
 }

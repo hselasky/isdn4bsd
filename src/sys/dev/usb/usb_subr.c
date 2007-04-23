@@ -2678,6 +2678,20 @@ usbd_config_td_queue_command(struct usbd_config_td *ctd,
 
 	item = (void *)(m->cur_data_ptr);
 
+	/* The job of the post-command
+	 * function is to finish the command
+	 * in a separate context to allow calls
+	 * to sleeping functions basically.
+	 * Queue the post command before calling
+	 * the pre command. That way commands 
+	 * queued by the pre command will be
+	 * queued after the current command.
+	 */
+	item->command_func = command_post_func;
+	item->command_ref = command_ref;
+
+	USBD_IF_ENQUEUE(&(ctd->cmd_used), m);
+
 	/* The job of the pre-command
 	 * function is to copy the needed 
 	 * configuration to the provided
@@ -2689,16 +2703,11 @@ usbd_config_td_queue_command(struct usbd_config_td *ctd,
 	    (command_pre_func)(ctd->p_softc, (void *)(item+1), command_ref);
 	}
 
-	/* The job of the post-command
-	 * function is to finish the command
-	 * in a separate context to allow calls
-	 * to sleeping functions basically
+	/* Currently we use a separate thread
+	 * to execute the command, but it is not
+	 * impossible that we might use
+	 * a so called taskqueue in the future:
 	 */
-	item->command_func = command_post_func;
-	item->command_ref = command_ref;
-
-	USBD_IF_ENQUEUE(&(ctd->cmd_used), m);
-
 	if (ctd->flag_config_td_sleep) {
 	    ctd->flag_config_td_sleep = 0;
 	    wakeup(&(ctd->wakeup_config_td));

@@ -319,6 +319,8 @@ typedef struct ehci_qtd {
 	struct usbd_page 	*page;
 	uint32_t		qtd_self;
 	uint16_t		len;
+	uint8_t			toggle_curr;
+	uint8_t			unused;
 } __aligned(EHCI_QTD_ALIGN) ehci_qtd_t;
 
 /* Queue Head */

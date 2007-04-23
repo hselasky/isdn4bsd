@@ -1047,6 +1047,8 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 	u_int32_t status = 0;
 	u_int32_t actlen = 0;
 	u_int16_t len = 0;
+	u_int16_t last_len = 0;
+	u_int8_t last_toggle = 0;
 	ehci_qtd_t *td = xfer->td_transfer_first;
 
 	DPRINTFN(12, ("xfer=%p pipe=%p transfer done\n",
@@ -1069,12 +1071,6 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 		usbd_page_dma_enter(td->page);
 
 		if (temp & EHCI_QTD_ACTIVE) {
-
-			/* if there are left over TDs 
-			 * the toggle needs to be updated
-			 */
-			xfer->pipe->toggle_next =
-			  (temp & EHCI_QTD_SET_TOGGLE(1)) ? 1 : 0;
 			break;
 		}
 
@@ -1082,10 +1078,24 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 
 		len = EHCI_QTD_GET_BYTES(status);
 
+		/* The status length should always be
+		 * less than or equal to the setup 
+		 * length!
+		 */
 		if (len <= td->len) {
-			actlen += td->len - len;
+			last_len = td->len - len;
+			actlen += last_len;
+		} else {
+			/* should not happen */
+			DPRINTFN(0, ("Invalid status length, "
+				     "0x%04x/0x%04x bytes\n", len, td->len));
+			last_len = 0;
 		}
 
+		/* Make a copy of the data toggle */
+		last_toggle = td->toggle_curr;
+
+		/* Check if this is the last transfer */
 		if (((void *)td) == xfer->td_transfer_last) {
 			if (len == 0) {
 			    /* halt is ok if descriptor is last,
@@ -1098,12 +1108,15 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 		}
 	}
 
-	if (len) {
-	    /* update toggle in case of
-	     * a short transfer
-	     */
-	    xfer->pipe->toggle_next ^= (len / xfer->max_packet_size) & 1;
+	/* update data toggle */
+
+	if ((last_len == 0) ||
+	    (((last_len + xfer->max_packet_size - 1) /
+	      xfer->max_packet_size) & 1)) {
+	    last_toggle = !last_toggle;
 	}
+
+	xfer->pipe->toggle_next = last_toggle;
 
 	DPRINTFN(10, ("actlen=%d\n", actlen));
 
@@ -1570,6 +1583,7 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 		td->qtd_buffer[1] = 
 		  htole32(buf_res.physaddr & (~0xFFF));
 		td->qtd_buffer_hi[1] = 0;
+		td->toggle_curr = 0;
 
 		td->len = sizeof(usb_device_request_t);
 		len -= sizeof(usb_device_request_t);
@@ -1664,14 +1678,15 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 		  htole32(buf_res.physaddr & (~0xFFF));
 		td->qtd_buffer_hi[1] = 0;
 
+		td->toggle_curr = xfer->pipe->toggle_next;
 		td->len = average;
 
 		/* adjust the toggle based on the 
 		 * number of packets in this qtd
 		 */
-		if((((average + xfer->max_packet_size - 1) / 
-		     xfer->max_packet_size) & 1) ||
-		   (!average))
+		if ((average == 0) ||
+		    (((average + xfer->max_packet_size - 1) / 
+		      xfer->max_packet_size) & 1))
 		{
 		    xfer->pipe->toggle_next =
 		      xfer->pipe->toggle_next ? 0 : 1;

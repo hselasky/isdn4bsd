@@ -151,6 +151,7 @@
 
 struct ural_tx_desc {
 	uint32_t		flags;
+#define	RAL_TX_PACKET_ID(x)     ((x) & 0xf)
 #define	RAL_TX_RETRY(x)		((x) << 4)
 #define	RAL_TX_MORE_FRAG	(1 << 8)
 #define	RAL_TX_ACK		(1 << 9)

@@ -383,13 +383,33 @@ usbd_transfer_unsetup(struct usbd_xfer **pxfer, u_int16_t n_setup)
 	while(n_setup--)
 	{
 	    xfer = pxfer[n_setup];
-	    pxfer[n_setup] = NULL;
 
 	    if(xfer)
 	    {
 		if(xfer->pipe)
 		{
 		    mtx_lock(xfer->priv_mtx);
+
+		    /* HINT: when you start/stop a transfer,
+		     * it might be a good idea to directly
+		     * use the "pxfer[]" structure:
+		     *
+		     * usbd_transfer_start(sc->pxfer[0]);
+		     * usbd_transfer_stop(sc->pxfer[0]);
+		     *
+		     * That way, if your code has many parts
+		     * that will not stop running under the
+		     * same lock, in other words "priv_mtx",
+		     * the usbd_transfer_start and
+		     * usbd_transfer_stop functions will
+		     * simply return when they detect a NULL
+		     * pointer argument.
+		     *
+		     * To avoid any races we clear the "pxfer[]"
+		     * pointer while holding the private mutex
+		     * of the driver:
+		     */
+		    pxfer[n_setup] = NULL;
 
 		    usbd_transfer_stop(xfer);
 
@@ -400,6 +420,9 @@ usbd_transfer_unsetup(struct usbd_xfer **pxfer, u_int16_t n_setup)
 		    xfer->pipe->refcount--;
 
 		    mtx_unlock(xfer->priv_mtx);
+		} else {
+		    /* clear the transfer pointer */
+		    pxfer[n_setup] = NULL;
 		}
 
 		__callout_drain(&(xfer->timeout_handle));
@@ -422,6 +445,8 @@ usbd_transfer_unsetup(struct usbd_xfer **pxfer, u_int16_t n_setup)
 		    info->setup_refcount--;
 
 		    if (info->setup_refcount == 0) {
+
+		        /* wait for any USB callbacks to return */
 
 		        while (info->memory_refcount > 0) {
 			    error = msleep(info, info->usb_mtx, 0, 
@@ -708,9 +733,11 @@ usbd_transfer_start_safe(struct usbd_xfer *xfer)
 }
 
 /*---------------------------------------------------------------------------*
- *	usbd_transfer_start - start a USB transfer
+ *	usbd_transfer_start - start an USB transfer
  *
- * NOTE: this function can be called any number of times
+ * NOTE: Calling this function more than one time will only
+ *       result in a single transfer start, until the USB transfer
+ *       completes.
  * NOTE: if USBD_SYNCHRONOUS is set in "xfer->flags", then this
  *       function will sleep for transfer completion
  * NOTE: if USBD_USE_POLLING is set in "xfer->flags", then this
@@ -719,6 +746,11 @@ usbd_transfer_start_safe(struct usbd_xfer *xfer)
 void
 usbd_transfer_start(struct usbd_xfer *xfer)
 {
+	if (xfer == NULL) {
+	    /* transfer is gone */
+	    return;
+	}
+
 	mtx_assert(xfer->priv_mtx, MA_OWNED);
 
 	if(!(xfer->flags & USBD_DEV_OPEN))
@@ -793,13 +825,19 @@ usbd_transfer_start(struct usbd_xfer *xfer)
 }
 
 /*---------------------------------------------------------------------------*
- *	usbd_transfer_stop - stop a USB transfer
+ *	usbd_transfer_stop - stop an USB transfer
  *
- * NOTE: this function can be called any number of times
+ * NOTE: Calling this function more than one time will only
+ *       result in a single transfer stop.
  *---------------------------------------------------------------------------*/
 void
 usbd_transfer_stop(struct usbd_xfer *xfer)
 {
+	if (xfer == NULL) {
+	    /* transfer is gone */
+	    return;
+	}
+
 	mtx_assert(xfer->priv_mtx, MA_OWNED);
 
 	if(xfer->flags & USBD_DEV_OPEN)

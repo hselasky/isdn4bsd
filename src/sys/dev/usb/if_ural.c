@@ -124,19 +124,19 @@ ural_cfg_set_testmode(struct ural_softc *sc);
 
 static void
 ural_cfg_eeprom_read(struct ural_softc *sc, u_int16_t addr, 
-		     void *buf, int len);
+		     void *buf, uint16_t len);
 static u_int16_t
 ural_cfg_read(struct ural_softc *sc, u_int16_t reg);
 
 static void
 ural_cfg_read_multi(struct ural_softc *sc, u_int16_t reg, 
-		    void *buf, int len);
+		    void *buf, uint16_t len);
 static void
 ural_cfg_write(struct ural_softc *sc, u_int16_t reg, u_int16_t val);
 
 static void
 ural_cfg_write_multi(struct ural_softc *sc, u_int16_t reg, 
-		     void *buf, int len);
+		     void *buf, uint16_t len);
 static void
 ural_cfg_bbp_write(struct ural_softc *sc, u_int8_t reg, u_int8_t val);
 
@@ -199,10 +199,10 @@ static void
 ural_cfg_disable_rf_tune(struct ural_softc *sc);
 
 static void
-ural_cfg_set_bssid(struct ural_softc *sc, const u_int8_t *bssid);
+ural_cfg_set_bssid(struct ural_softc *sc, uint8_t *bssid);
 
 static void
-ural_cfg_set_macaddr(struct ural_softc *sc, const u_int8_t *addr);
+ural_cfg_set_macaddr(struct ural_softc *sc, uint8_t *addr);
 
 static void
 ural_cfg_set_txantenna(struct ural_softc *sc, u_int8_t antenna);
@@ -227,10 +227,14 @@ static const struct usb_devno ural_devs[] = {
 	{ USB_VENDOR_ASUS,		USB_PRODUCT_ASUS_WL167G },
 	{ USB_VENDOR_ASUS,		USB_PRODUCT_RALINK_RT2570 },
 	{ USB_VENDOR_BELKIN,		USB_PRODUCT_BELKIN_F5D7050 },
+	{ USB_VENDOR_BELKIN,		USB_PRODUCT_BELKIN_F5D7051 },
+	{ USB_VENDOR_BELKIN,		USB_PRODUCT_BELKIN_F5D705A },
 	{ USB_VENDOR_CONCEPTRONIC2,	USB_PRODUCT_CONCEPTRONIC2_C54RU },
 	{ USB_VENDOR_DLINK,		USB_PRODUCT_DLINK_DWLG122 },
 	{ USB_VENDOR_GIGABYTE,		USB_PRODUCT_GIGABYTE_GNWBKG },
+	{ USB_VENDOR_GIGABYTE,		USB_PRODUCT_GIGABYTE_GN54G },
 	{ USB_VENDOR_GUILLEMOT,		USB_PRODUCT_GUILLEMOT_HWGUSB254 },
+	{ USB_VENDOR_GUILLEMOT,		USB_PRODUCT_GUILLEMOT_HW54G },
 	{ USB_VENDOR_CISCOLINKSYS,	USB_PRODUCT_CISCOLINKSYS_WUSB54G },
 	{ USB_VENDOR_CISCOLINKSYS,	USB_PRODUCT_CISCOLINKSYS_WUSB54GP },
 	{ USB_VENDOR_CISCOLINKSYS,	USB_PRODUCT_CISCOLINKSYS_HU200TS },
@@ -244,6 +248,11 @@ static const struct usb_devno ural_devs[] = {
 	{ USB_VENDOR_NOVATECH,		USB_PRODUCT_NOVATECH_NV902 },
 	{ USB_VENDOR_RALINK,		USB_PRODUCT_RALINK_RT2570 },
 	{ USB_VENDOR_RALINK,		USB_PRODUCT_RALINK_RT2570_2 },
+	{ USB_VENDOR_RALINK,		USB_PRODUCT_RALINK_RT2573 },
+	{ USB_VENDOR_RALINK,		USB_PRODUCT_RALINK_RT2570_3 },
+	{ USB_VENDOR_SIEMENS3,		USB_PRODUCT_SIEMENS3_WL54G },
+	{ USB_VENDOR_SMC,		USB_PRODUCT_SMC_2862WG },
+	{ USB_VENDOR_SPAIRON,		USB_PRODUCT_SPAIRON_WL54G },
 	{ USB_VENDOR_VTECH,		USB_PRODUCT_VTECH_RT2570 },
 	{ USB_VENDOR_ZINWELL,		USB_PRODUCT_ZINWELL_RT2570 }
 };
@@ -431,6 +440,7 @@ static const struct usbd_config ural_config[URAL_N_TRANSFER] = {
       .bufsize   = (MCLBYTES + RAL_TX_DESC_SIZE + 4),
       .flags     = (USBD_USE_DMA|USBD_FORCE_SHORT_XFER),
       .callback  = &ural_bulk_write_callback,
+      .timeout   = 5000, /* ms */
     },
 
     [1] = {
@@ -512,7 +522,7 @@ ural_attach(device_t dev)
 	snprintf(sc->sc_name, sizeof(sc->sc_name), "%s", 
 		 device_get_nameunit(dev));
 
-	sc->sc_udev = uaa->device; /* XXX */
+	sc->sc_udev = uaa->device;
 	sc->sc_unit = device_get_unit(dev);
 
 	__callout_init_mtx(&(sc->sc_watchdog),
@@ -537,7 +547,7 @@ ural_attach(device_t dev)
 
 	error = usbd_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
 				     &ural_end_of_commands,
-				     sizeof(struct ural_config_copy), 16);
+				     sizeof(struct ural_config_copy), 24);
 	if (error) {
 	    device_printf(dev, "could not setup config "
 			  "thread!\n");
@@ -582,6 +592,11 @@ ural_detach(device_t dev)
 
 	mtx_unlock(&(sc->sc_mtx));
 
+	/* XXX make sure that all USB callbacks have exited
+	 * before tearing down the network stack:
+	 */
+	usbd_transfer_unsetup(sc->sc_xfer, URAL_N_TRANSFER);
+
 	/* get rid of any late children */
 	bus_generic_detach(dev);
 
@@ -590,8 +605,6 @@ ural_detach(device_t dev)
 	    ieee80211_ifdetach(ic);
 	    if_free(ifp);
 	}
-
-	usbd_transfer_unsetup(sc->sc_xfer, URAL_N_TRANSFER);
 
 	usbd_config_td_unsetup(&(sc->sc_config_td));
 
@@ -613,6 +626,8 @@ ural_cfg_do_request(struct ural_softc *sc, usb_device_request_t *req,
 	u_int16_t length;
 	usbd_status err;
 
+ repeat:
+
 	if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
 	    goto error;
 	}
@@ -622,10 +637,19 @@ ural_cfg_do_request(struct ural_softc *sc, usb_device_request_t *req,
 
 	if (err) {
 
-	    printf("%s: device request failed, err=%s "
-		   "(ignored)\n", sc->sc_name, usbd_errstr(err));
+	    DPRINTF(sc, 0, "device request failed, err=%s "
+		   "(ignored)\n", usbd_errstr(err));
+
+	    /* wait a little before next try */
+	    if (usbd_config_td_sleep(&(sc->sc_config_td), hz/4)) {
+		goto error;
+	    }
+
+	    /* try until we are detached */
+	    goto repeat;
 
 	error:
+	    /* the device has been detached */
 	    length = UGETW(req->wLength);
 
 	    if ((req->bmRequestType & UT_READ) && length) {
@@ -652,7 +676,7 @@ ural_cfg_set_testmode(struct ural_softc *sc)
 
 static void
 ural_cfg_eeprom_read(struct ural_softc *sc, u_int16_t addr, 
-		     void *buf, int len)
+		     void *buf, uint16_t len)
 {
 	usb_device_request_t req;
 
@@ -685,7 +709,7 @@ ural_cfg_read(struct ural_softc *sc, u_int16_t reg)
 
 static void
 ural_cfg_read_multi(struct ural_softc *sc, u_int16_t reg, 
-		    void *buf, int len)
+		    void *buf, uint16_t len)
 {
 	usb_device_request_t req;
 
@@ -716,7 +740,7 @@ ural_cfg_write(struct ural_softc *sc, u_int16_t reg, u_int16_t val)
 
 static void
 ural_cfg_write_multi(struct ural_softc *sc, u_int16_t reg, 
-		     void *buf, int len)
+		     void *buf, uint16_t len)
 {
 	usb_device_request_t req;
 
@@ -730,24 +754,39 @@ ural_cfg_write_multi(struct ural_softc *sc, u_int16_t reg,
 	return;
 }
 
+static uint8_t
+ural_cfg_bbp_disbusy(struct ural_softc *sc)
+{
+	uint16_t tmp;
+	uint8_t to;
+
+	for (to = 0; ; to++) {
+	    if (to < 100) {
+	        tmp = ural_cfg_read(sc, RAL_PHY_CSR8);
+		tmp &= RAL_BBP_BUSY;
+
+		if (tmp == 0) {
+		    return 0;
+		}
+
+		if (usbd_config_td_sleep(&(sc->sc_config_td), hz/100)) {
+		    break;
+		}
+	    } else {
+		break;
+	    }
+	}
+	DPRINTF(sc, 0, "could not disbusy BBP\n");
+	return 1; /* failure */
+}
+
 static void
 ural_cfg_bbp_write(struct ural_softc *sc, u_int8_t reg, u_int8_t val)
 {
 	u_int16_t tmp;
-	u_int8_t to;
 
-	for (to = 0; ; to++) {
-	    if (to < 5) {
-	        tmp = ural_cfg_read(sc, RAL_PHY_CSR8);
-
-		if (!(tmp & RAL_BBP_BUSY)) {
-		    break;
-		}
-	    } else {
-		printf("%s: could not write to BBP\n", 
-		       sc->sc_name);
-		return;
-	    }
+	if (ural_cfg_bbp_disbusy(sc)) {
+	    return;
 	}
 
 	tmp = (reg << 8) | val;
@@ -759,24 +798,18 @@ static u_int8_t
 ural_cfg_bbp_read(struct ural_softc *sc, u_int8_t reg)
 {
 	u_int16_t val;
-	u_int8_t to;
+
+	if (ural_cfg_bbp_disbusy(sc)) {
+	    return 0;
+	}
 
 	val = RAL_BBP_WRITE | (reg << 8);
 	ural_cfg_write(sc, RAL_PHY_CSR7, val);
 
-	for (to = 0; ; to++) {
-	    if (to < 5) {
-	        val = ural_cfg_read(sc, RAL_PHY_CSR8);
-
-		if (!(val & RAL_BBP_BUSY)) {
-		    break;
-		}
-	    } else {
-		printf("%s: could not read BBP\n", 
-		       sc->sc_name);
-		return 0;
-	    }
+	if (ural_cfg_bbp_disbusy(sc)) {
+	    return 0;
 	}
+
 	return (ural_cfg_read(sc, RAL_PHY_CSR7) & 0xff);
 }
 
@@ -788,16 +821,23 @@ ural_cfg_rf_write(struct ural_softc *sc, u_int8_t reg, u_int32_t val)
 
 	reg &= 3;
 
+	/* remember last written value */
+	sc->sc_rf_regs[reg] = val;
+
 	for (to = 0; ; to++) {
-	    if (to < 5) {
+	    if (to < 100) {
 	        tmp = ural_cfg_read(sc, RAL_PHY_CSR10);
 
 		if (!(tmp & RAL_RF_LOBUSY)) {
 		    break;
 		}
+
+		if (usbd_config_td_sleep(&(sc->sc_config_td), hz/100)) {
+		    return;
+		}
+
 	    } else {
-		printf("%s: could not write to RF\n", 
-		       sc->sc_name);
+	        DPRINTF(sc, 0, "could not write to RF\n");
 		return;
 	    }
 	}
@@ -805,9 +845,6 @@ ural_cfg_rf_write(struct ural_softc *sc, u_int8_t reg, u_int32_t val)
 	tmp = RAL_RF_BUSY | RAL_RF_20BIT | ((val & 0xfffff) << 2) | reg;
 	ural_cfg_write(sc, RAL_PHY_CSR9,  tmp & 0xffff);
 	ural_cfg_write(sc, RAL_PHY_CSR10, tmp >> 16);
-
-	/* remember last written value in sc */
-	sc->sc_rf_regs[reg] = val;
 
 	DPRINTF(sc, 15, "RF R[%u] <- 0x%05x\n", reg, val & 0xfffff);
 	return;
@@ -820,6 +857,16 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	struct ieee80211com *ic = &(sc->sc_ic);
 	struct ifnet *ifp;
 	register u_int16_t i;
+
+	/* setup RX tap header */
+	sc->sc_rxtap_len = sizeof(sc->sc_rxtap.h);
+	sc->sc_rxtap.h.wr_ihdr.it_len = htole16(sc->sc_rxtap_len);
+	sc->sc_rxtap.h.wr_ihdr.it_present = htole32(RAL_RX_RADIOTAP_PRESENT);
+
+	/* setup TX tap header */
+	sc->sc_txtap_len = sizeof(sc->sc_txtap.h);
+	sc->sc_txtap.h.wt_ihdr.it_len = htole16(sc->sc_txtap_len);
+	sc->sc_txtap.h.wt_ihdr.it_present = htole32(RAL_TX_RADIOTAP_PRESENT);
 
 	/* retrieve RT2570 rev. no */
 	sc->sc_asic_rev = ural_cfg_read(sc, RAL_MAC_CSR0);
@@ -837,8 +884,7 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	mtx_lock(&(sc->sc_mtx));
 
 	if (ifp == NULL) {
-	    printf("%s: could not if_alloc()!\n", 
-		   sc->sc_name);
+	    DPRINTF(sc, -1, "could not if_alloc()!\n");
 	    goto done;
 	}
 
@@ -860,6 +906,7 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	ic->ic_phytype = IEEE80211_T_OFDM; /* not only, but not used */
 	ic->ic_opmode = IEEE80211_M_STA; /* default to BSS mode */
 	ic->ic_state = IEEE80211_S_INIT;
+	ic->ic_reset = &ural_reset_cb;
 
 	/* set device capabilities */
 	ic->ic_caps =
@@ -913,8 +960,6 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 
 	mtx_lock(&(sc->sc_mtx));
 
-	ic->ic_reset = &ural_reset_cb;
-
 	/* enable SW bmiss handling in sta mode */
 #if (defined(IEEE80211_FEXT_SWBMISS) || (__FreeBSD_version >= 700022))
 	ic->ic_flags_ext |= IEEE80211_FEXT_SWBMISS;
@@ -931,19 +976,11 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	bpfattach2(ifp, DLT_IEEE802_11_RADIO,
 		   sizeof(struct ieee80211_frame) + 64, &sc->sc_drvbpf);
 
-	mtx_lock(&(sc->sc_mtx));
-
-	sc->sc_rxtap_len = sizeof(sc->sc_rxtap.h);
-	sc->sc_rxtap.h.wr_ihdr.it_len = htole16(sc->sc_rxtap_len);
-	sc->sc_rxtap.h.wr_ihdr.it_present = htole32(RAL_RX_RADIOTAP_PRESENT);
-
-	sc->sc_txtap_len = sizeof(sc->sc_txtap.h);
-	sc->sc_txtap.h.wt_ihdr.it_len = htole16(sc->sc_txtap_len);
-	sc->sc_txtap.h.wt_ihdr.it_present = htole32(RAL_TX_RADIOTAP_PRESENT);
-
 	if (bootverbose) {
 	    ieee80211_announce(ic);
 	}
+
+	mtx_lock(&(sc->sc_mtx));
  done:
 	return;
 }
@@ -1087,6 +1124,7 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 	struct mbuf *m = NULL;
 	u_int32_t flags;
 	u_int32_t max_len;
+	uint8_t rssi;
 
 	USBD_CHECK_STATUS(xfer);
 
@@ -1099,6 +1137,9 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 	return;
 
  tr_transferred:
+
+	DPRINTF(sc, 14, "rx done, actlen=%d\n", xfer->actlen);
+
 	if (xfer->actlen < (RAL_RX_DESC_SIZE + IEEE80211_MIN_LEN)) {
 	    DPRINTF(sc, 0, "too short transfer, "
 		    "%d bytes\n", xfer->actlen);
@@ -1123,8 +1164,7 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 
 	flags = le32toh(sc->sc_rx_desc.flags);
 
-	if ((flags & RAL_RX_PHY_ERROR) ||
-	    (flags & RAL_RX_CRC_ERROR)) {
+	if (flags & (RAL_RX_PHY_ERROR|RAL_RX_CRC_ERROR)) {
 	    /*
 	     * This should not happen since we did not 
 	     * request to receive those frames when we 
@@ -1161,16 +1201,25 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 	    bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_rxtap_len, m);
 	}
 
+	rssi = sc->sc_rx_desc.rssi;
+
 	ni = ieee80211_find_rxnode(ic, (struct ieee80211_frame_min *)
 				   (m->m_data));
 
+	mtx_unlock(&(sc->sc_mtx));
+
+	/* XXX it is possibly not safe 
+	 * to do the following unlocked:
+	 * --hps
+	 */
+
 	/* send the frame to the 802.11 layer */
-	ieee80211_input(ic, m, ni, sc->sc_rx_desc.rssi, 0);
+	ieee80211_input(ic, m, ni, rssi, 0);
+
+	mtx_lock(&(sc->sc_mtx));
 
 	/* node is no longer needed */
 	ieee80211_free_node(ni);
-
-	DPRINTF(sc, 14, "rx done\n");
 
 	m = NULL;
 
@@ -1211,8 +1260,7 @@ ural_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
  tr_error:
 	/* bomb out */
 	sc->sc_flags &= ~URAL_FLAG_READ_STALL;
-	printf("%s: bulk read pipe stopped\n",
-	       sc->sc_name);
+	DPRINTF(sc, -1, "bulk read pipe stopped\n");
 	return;
 }
 
@@ -1331,10 +1379,8 @@ ural_setup_tx_desc(struct ural_softc *sc, u_int32_t flags, u_int16_t len,
 
 	sc->sc_tx_desc.wme = htole16(RAL_AIFSN(2) | 
 				     RAL_LOGCWMIN(3) | 
-				     RAL_LOGCWMAX(5));
-	sc->sc_tx_desc.wme |= htole16(RAL_IVOFFSET
-				      (sizeof(struct ieee80211_frame)));
-
+				     RAL_LOGCWMAX(5) |
+				     RAL_IVOFFSET(sizeof(struct ieee80211_frame)));
 	/* setup PLCP fields */
 	sc->sc_tx_desc.plcp_signal = ural_plcp_signal(rate);
 	sc->sc_tx_desc.plcp_service = 4;
@@ -1371,11 +1417,73 @@ ural_setup_tx_desc(struct ural_softc *sc, u_int32_t flags, u_int16_t len,
 	return;
 }
 
-#define RAL_TX_TIMEOUT	5000 /* ms */
-
 /*------------------------------------------------------------------------*
  * ural_bulk_write_callback - data write "thread"
  *------------------------------------------------------------------------*/
+static void
+ural_bulk_write_callback_sub(struct usbd_xfer *xfer, struct mbuf *m0,
+			     struct ieee80211_node *ni, uint32_t flags,
+			     uint16_t rate)
+{
+	struct ural_softc *sc = xfer->priv_sc;
+	struct ieee80211com *ic = &(sc->sc_ic);
+
+	if (m0->m_pkthdr.len > MCLBYTES) {
+	    DPRINTF(sc, 0, "data overflow, %u bytes\n",
+		    m0->m_pkthdr.len);
+	    m0->m_pkthdr.len = MCLBYTES;
+	}
+
+	if (sc->sc_drvbpf != NULL) {
+	    struct ural_tx_radiotap_header *tap = &(sc->sc_txtap.h);
+
+	    tap->wt_flags = 0;
+	    tap->wt_rate = rate;
+	    tap->wt_chan_freq = htole16(ic->ic_curchan->ic_freq);
+	    tap->wt_chan_flags = htole16(ic->ic_curchan->ic_flags);
+	    tap->wt_antenna = sc->sc_tx_ant;
+
+	    bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_txtap_len, m0);
+	}
+
+	ural_setup_tx_desc(sc, flags, m0->m_pkthdr.len, rate);
+
+	usbd_copy_in(&(xfer->buf_data), 0, &(sc->sc_tx_desc), 
+		     RAL_TX_DESC_SIZE);
+
+	usbd_m_copy_in(&(xfer->buf_data), RAL_TX_DESC_SIZE, 
+		       m0, 0, m0->m_pkthdr.len);
+
+	/* compute transfer length */
+	xfer->length = (RAL_TX_DESC_SIZE + m0->m_pkthdr.len + 2);
+
+	/* make transfer length 16-bit aligned */
+	if (xfer->length & 1) {
+	    /* zero the extra byte */
+	    usbd_bzero(&(xfer->buf_data), xfer->length, 1);
+	    xfer->length ++;
+	}
+
+	/* check if we need to add two extra bytes */
+	if ((xfer->length % 64) == 0) {
+	    /* zero the extra bytes */
+	    usbd_bzero(&(xfer->buf_data), xfer->length, 2);
+	    xfer->length += 2;
+	}
+
+	DPRINTF(sc, 10, "sending frame len=%u rate=%u xfer len=%u\n",
+		m0->m_pkthdr.len, rate, xfer->length);
+
+	m_freem(m0);
+
+	if (ni) {
+	    ieee80211_free_node(ni);
+	}
+
+	usbd_start_hardware(xfer);
+	return;
+}
+
 static void
 ural_bulk_write_callback(struct usbd_xfer *xfer)
 {
@@ -1404,7 +1512,6 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 	}
 
 	ifp->if_oerrors++;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	return;
 
 
@@ -1412,14 +1519,11 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 	DPRINTF(sc, 10, "transfer complete\n");
 
 	ifp->if_opackets++;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
-	sc->sc_tx_timer = 0;
-
 
  tr_setup:
 	if (sc->sc_flags & URAL_FLAG_WRITE_STALL) {
 	    usbd_transfer_start(sc->sc_xfer[2]);
-	    goto out_active;
+	    goto done;
 	}
 
 	if (sc->sc_flags & URAL_FLAG_WAIT_COMMAND) {
@@ -1435,23 +1539,23 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 	    usbd_bzero(&(xfer->buf_data), 0, 1);
 
 	    xfer->length = 1; /* bytes */
-	    xfer->timeout = 1000; /* ms */
 
 	    usbd_start_hardware(xfer);
-	    goto out_active;
+	    goto done;
 	}
 
 	if (sc->sc_flags &   URAL_FLAG_SEND_BCN_FRAME) {
 	    sc->sc_flags &= ~URAL_FLAG_SEND_BCN_FRAME;
 
-	    flags = sc->sc_bcn_flags;
-	    rate = sc->sc_bcn_rate;
 	    m0 = sc->sc_bcn_mbuf;
+	    sc->sc_bcn_mbuf = NULL;
 
-	    ural_tx_bcn_complete(sc);
-
-	    goto transmit_frame;
+	    ural_bulk_write_callback_sub
+	      (xfer, m0, NULL, sc->sc_bcn_flags, sc->sc_bcn_rate);
+	    goto done;
 	}
+
+	flags = 0;
 
 	IF_DEQUEUE(&(ic->ic_mgtq), m0);
 
@@ -1464,7 +1568,6 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 	        bpf_mtap(ic->ic_rawbpf, m0);
 	    }
 
-	    flags = 0;
 	    rate = (IEEE80211_IS_CHAN_5GHZ(ic->ic_curchan) ? 12 : 2);
 
 	    wh = mtod(m0, struct ieee80211_frame *);
@@ -1485,63 +1588,8 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 		}
 	    }
 
-	transmit_frame:
-
-	    if (m0->m_pkthdr.len > MCLBYTES) {
-	        DPRINTF(sc, 0, "data overflow, %u bytes\n",
-			m0->m_pkthdr.len);
-		m0->m_pkthdr.len = MCLBYTES;
-	    }
-
-	    if (sc->sc_drvbpf != NULL) {
-	        struct ural_tx_radiotap_header *tap = &(sc->sc_txtap.h);
-
-		tap->wt_flags = 0;
-		tap->wt_rate = rate;
-		tap->wt_chan_freq = htole16(ic->ic_curchan->ic_freq);
-		tap->wt_chan_flags = htole16(ic->ic_curchan->ic_flags);
-		tap->wt_antenna = sc->sc_tx_ant;
-
-		bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_txtap_len, m0);
-	    }
-
-	    ural_setup_tx_desc(sc, flags, m0->m_pkthdr.len, rate);
-
-	    usbd_copy_in(&(xfer->buf_data), 0, &(sc->sc_tx_desc), 
-			 RAL_TX_DESC_SIZE);
-
-	    usbd_m_copy_in(&(xfer->buf_data), RAL_TX_DESC_SIZE, 
-			   m0, 0, m0->m_pkthdr.len);
-
-	    /* align end on a 2-bytes boundary */
-	    xfer->length = (RAL_TX_DESC_SIZE + m0->m_pkthdr.len + 1) & ~1;
-
-	    /*
-	     * No space left in the last URB to store the 
-	     * extra 2 bytes, force sending of another URB:
-	     */
-	    if ((xfer->length % 64) == 0) {
-	         xfer->length += 2;
-	    }
-
-	    /* zero the extra bytes */
-
-	    usbd_bzero(&(xfer->buf_data), RAL_TX_DESC_SIZE + m0->m_pkthdr.len,
-		       xfer->length - (RAL_TX_DESC_SIZE + m0->m_pkthdr.len));
-	
-	    xfer->timeout = RAL_TX_TIMEOUT;
-
-	    DPRINTF(sc, 10, "sending frame len=%u rate=%u xfer len=%u\n",
-		     m0->m_pkthdr.len, rate, xfer->length);
-
-	    m_freem(m0);
-
-	    if (ni) {
-	        ieee80211_free_node(ni);
-	    }
-
-	    usbd_start_hardware(xfer);
-	    goto out_active;
+	    ural_bulk_write_callback_sub(xfer, m0, ni, flags, rate);
+	    goto done;
 	}
 
 	if (ic->ic_state != IEEE80211_S_RUN) {
@@ -1580,7 +1628,6 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 
 	    wh = mtod(m0, struct ieee80211_frame *);
 
-	    flags = 0;
 	    rate = ((ic->ic_fixed_rate != IEEE80211_FIXED_RATE_NONE) ?
 		    ic->ic_bss->ni_rates.rs_rates[ic->ic_fixed_rate] :
 		    ni->ni_rates.rs_rates[ni->ni_txrate]);
@@ -1606,15 +1653,9 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 		*(u_int16_t *)(wh->i_dur) = htole16(dur);
 	    }
 
-	    goto transmit_frame;
+	    ural_bulk_write_callback_sub(xfer, m0, ni, flags, rate);
+	    goto done;
 	}
-
-	goto done;
-
- out_active:
-	ifp->if_drv_flags |= IFF_DRV_OACTIVE;
-	sc->sc_tx_timer = (5*8);
-
  done:
 	return;
 
@@ -1657,8 +1698,7 @@ ural_bulk_write_clear_stall_callback(struct usbd_xfer *xfer)
  tr_error:
 	/* bomb out */
 	sc->sc_flags &= ~URAL_FLAG_WRITE_STALL;
-	printf("%s: bulk write pipe stopped\n",
-	       sc->sc_name);
+	DPRINTF(sc, -1, "bulk write pipe stopped\n");
 	return;
 }
 
@@ -1676,15 +1716,6 @@ ural_watchdog(void *arg)
 	    usbd_config_td_queue_command
 	      (&(sc->sc_config_td), &ural_cfg_pre_amrr_timeout,
 	       &ural_cfg_amrr_timeout, 0, 0);
-	}
-
-	if ((sc->sc_tx_timer) &&
-	    (--sc->sc_tx_timer == 0)) {
-
-	    printf("%s: device timeout\n", sc->sc_name);
-	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_cfg_pre_init,
-	       &ural_cfg_init, 0, 0);
 	}
 
 	if ((sc->sc_if_timer) &&
@@ -1761,7 +1792,13 @@ ural_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 	    break;
 
 	default:
+		/* XXX it is possibly not safe 
+		 * to do the following unlocked:
+		 * --hps
+		 */
+		mtx_unlock(&(sc->sc_mtx));
 		error = ieee80211_ioctl(ic, cmd, data);
+		mtx_lock(&(sc->sc_mtx));
 	}
 
 	if (error == ENETRESET) {
@@ -1859,10 +1896,17 @@ static int
 ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 {
 	struct ural_softc *sc = ic->ic_ifp->if_softc;
+	enum ieee80211_state ostate = sc->sc_ic.ic_state;
 
 	mtx_lock(&(sc->sc_mtx));
 
 	DPRINTF(sc, 0, "setting new state: %d\n", nstate);
+
+	/* force data to wait */
+	sc->sc_flags |= URAL_FLAG_WAIT_COMMAND;
+
+	/* set new state first! */
+	(sc->sc_newstate)(ic, nstate, arg);
 
 	/* stop timers */
 
@@ -1874,7 +1918,7 @@ ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 
 	switch (nstate) {
 	case IEEE80211_S_INIT:
-	    if (sc->sc_ic.ic_state == IEEE80211_S_RUN) {
+	    if (ostate == IEEE80211_S_RUN) {
 	      usbd_config_td_queue_command
 		(&(sc->sc_config_td), &ural_config_copy,
 		 &ural_cfg_disable_tsf_sync, 0, 0);
@@ -1907,8 +1951,6 @@ ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 	       &ural_cfg_set_run, 0, 0);
 	    break;
 	}
-
-	(sc->sc_newstate)(ic, nstate, arg);
 
 	mtx_unlock(&(sc->sc_mtx));
 
@@ -1950,8 +1992,8 @@ ural_cfg_tx_bcn(struct ural_softc *sc)
 	    m = ieee80211_beacon_alloc(ic, ni, &sc->sc_bo);
 
 	    if (m == NULL) {
-	        printf("%s: could not allocate "
-		       "beacon frame\n", sc->sc_name);
+	        DPRINTF(sc, -1, "could not allocate "
+			"beacon frame\n");
 		return;
 	    }
 
@@ -2079,11 +2121,12 @@ ural_cfg_set_chan(struct ural_softc *sc,
 		/* clear CRC errors */
 		ural_cfg_read(sc, RAL_STA_CSR0);
 
-		/* wait a little */
-		usbd_config_td_sleep(&(sc->sc_config_td), hz/100);
-
 		ural_cfg_disable_rf_tune(sc);
 	}
+
+	/* wait a little */
+	usbd_config_td_sleep(&(sc->sc_config_td), hz/100);
+
 	return;
 }
 
@@ -2273,18 +2316,9 @@ ural_cfg_set_basicrates(struct ural_softc *sc,
 }
 
 static void
-ural_cfg_set_bssid(struct ural_softc *sc, const u_int8_t *bssid)
+ural_cfg_set_bssid(struct ural_softc *sc, uint8_t *bssid)
 {
-	u_int16_t tmp;
-
-	tmp = bssid[0] | (bssid[1] << 8);
-	ural_cfg_write(sc, RAL_MAC_CSR5, tmp);
-
-	tmp = bssid[2] | (bssid[3] << 8);
-	ural_cfg_write(sc, RAL_MAC_CSR6, tmp);
-
-	tmp = bssid[4] | (bssid[5] << 8);
-	ural_cfg_write(sc, RAL_MAC_CSR7, tmp);
+	ural_cfg_write_multi(sc, RAL_MAC_CSR5, bssid, IEEE80211_ADDR_LEN);
 
 	DPRINTF(sc, 0, "setting BSSID to 0x%02x%02x%02x%02x%02x%02x\n", 
 		bssid[5], bssid[4], bssid[3], 
@@ -2293,18 +2327,9 @@ ural_cfg_set_bssid(struct ural_softc *sc, const u_int8_t *bssid)
 }
 
 static void
-ural_cfg_set_macaddr(struct ural_softc *sc, const u_int8_t *addr)
+ural_cfg_set_macaddr(struct ural_softc *sc, uint8_t *addr)
 {
-	u_int16_t tmp;
-
-	tmp = addr[0] | (addr[1] << 8);
-	ural_cfg_write(sc, RAL_MAC_CSR2, tmp);
-
-	tmp = addr[2] | (addr[3] << 8);
- 	ural_cfg_write(sc, RAL_MAC_CSR3, tmp);
-
-	tmp = addr[4] | (addr[5] << 8);
-	ural_cfg_write(sc, RAL_MAC_CSR4, tmp);
+	ural_cfg_write_multi(sc, RAL_MAC_CSR2, addr, IEEE80211_ADDR_LEN);
 
 	DPRINTF(sc, 0, "setting MAC to 0x%02x%02x%02x%02x%02x%02x\n", 
 		addr[5], addr[4], addr[3], 
@@ -2432,7 +2457,7 @@ ural_cfg_bbp_init(struct ural_softc *sc)
 
 	/* wait for BBP to become ready */
 	for (to = 0; ; to++) {
-	    if (to < 10) {
+	    if (to < 100) {
 	        if (ural_cfg_bbp_read(sc, RAL_BBP_VERSION) != 0) {
 		    break;
 		}
@@ -2440,8 +2465,7 @@ ural_cfg_bbp_init(struct ural_softc *sc)
 		    break;
 		}
 	    } else {
-	        printf("%s: timeout waiting for BBP\n",
-		       sc->sc_name);
+	        DPRINTF(sc, 0, "timeout waiting for BBP\n");
 		return 1; /* failure */
 	    }
 	}
@@ -2476,7 +2500,6 @@ ural_cfg_pre_init(struct ural_softc *sc,
 
 	ural_cfg_pre_stop(sc, cc, 0);
 
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
 
 	sc->sc_flags |= URAL_FLAG_HL_READY;
@@ -2518,7 +2541,7 @@ ural_cfg_init(struct ural_softc *sc,
 
 	/* wait for BBP and RF to wake up (this can take a long time!) */
 	for (to = 0; ; to++) {
-	    if (to < 10) {
+	    if (to < 100) {
 	        tmp = ural_cfg_read(sc, RAL_MAC_CSR17);
 		  if ((tmp & (RAL_BBP_AWAKE | RAL_RF_AWAKE)) ==
 		      (RAL_BBP_AWAKE | RAL_RF_AWAKE)) {
@@ -2528,8 +2551,8 @@ ural_cfg_init(struct ural_softc *sc,
 		      break;
 		  }
 	    } else {
-	        printf("%s: timeout waiting for "
-		       "BBP/RF to wakeup\n", sc->sc_name);
+	        DPRINTF(sc, 0, "timeout waiting for "
+			"BBP/RF to wakeup\n");
 		goto fail;
 	    }
 	}
@@ -2564,8 +2587,7 @@ ural_cfg_init(struct ural_softc *sc,
 	 */
 	for (i = 0; i < IEEE80211_WEP_NKID; i++) {
 	    ural_cfg_write_multi
-	      (sc, ((cc->ic_crypto.cs_nw_keys[i].wk_keyix * 
-		     IEEE80211_KEYBUF_SIZE) + RAL_SEC_CSR0),
+	      (sc, ((i * IEEE80211_KEYBUF_SIZE) + RAL_SEC_CSR0),
 	       cc->ic_crypto.cs_nw_keys[i].wk_key, IEEE80211_KEYBUF_SIZE);
 	}
 
@@ -2634,12 +2656,10 @@ ural_cfg_pre_stop(struct ural_softc *sc,
 	    ieee80211_new_state(ic, IEEE80211_S_INIT, -1);
 
 	    /* clear flags */
-	    ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
-				   IFF_DRV_OACTIVE);
+	    ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 	}
 
 	/* stop timers */
-	sc->sc_tx_timer = 0;
 	sc->sc_if_timer = 0;
 
 	sc->sc_flags &= ~(URAL_FLAG_HL_READY|
@@ -2648,18 +2668,10 @@ ural_cfg_pre_stop(struct ural_softc *sc,
 	/* stop all the transfers, 
 	 * if not already stopped:
 	 */
-	if (sc->sc_xfer[0]) {
-	    usbd_transfer_stop(sc->sc_xfer[0]);
-	}
-	if (sc->sc_xfer[1]) {
-	    usbd_transfer_stop(sc->sc_xfer[1]);
-	}
-	if (sc->sc_xfer[2]) {
-	    usbd_transfer_stop(sc->sc_xfer[2]);
-	}
-	if (sc->sc_xfer[3]) {
-	    usbd_transfer_stop(sc->sc_xfer[3]);
-	}
+	usbd_transfer_stop(sc->sc_xfer[0]);
+	usbd_transfer_stop(sc->sc_xfer[1]);
+	usbd_transfer_stop(sc->sc_xfer[2]);
+	usbd_transfer_stop(sc->sc_xfer[3]);
 
 	/* stop transmission of
 	 * beacon frame, if any:
@@ -2678,7 +2690,15 @@ ural_cfg_stop(struct ural_softc *sc,
 
 	/* reset ASIC and BBP (but won't reset MAC registers!) */
 	ural_cfg_write(sc, RAL_MAC_CSR1, RAL_RESET_ASIC | RAL_RESET_BBP);
+
+	/* wait a little */
+	usbd_config_td_sleep(&(sc->sc_config_td), hz/10);
+
+	/* clear reset */
 	ural_cfg_write(sc, RAL_MAC_CSR1, 0);
+
+	/* wait a little */
+	usbd_config_td_sleep(&(sc->sc_config_td), hz/10);
 
 	return;
 }
@@ -2703,7 +2723,7 @@ ural_cfg_amrr_start(struct ural_softc *sc)
 	i = ni->ni_rates.rs_nrates;
 	while(i) {
 	    i--;
-	    if ((ni->ni_rates.rs_rates[i] & IEEE80211_RATE_VAL) > 72) break;
+	    if ((ni->ni_rates.rs_rates[i] & IEEE80211_RATE_VAL) <= 72) break;
 	}
 	ni->ni_txrate = i;
 
