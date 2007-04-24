@@ -900,7 +900,7 @@ umodem_read_clear_stall_callback(struct usbd_xfer *xfer)
 }
 
 static void *
-umodem_get_desc(struct usbd_device *udev, u_int8_t type, u_int8_t subtype)
+umodem_get_desc(struct usb_attach_arg *uaa, u_int8_t type, u_int8_t subtype)
 {
 	return
 	  usbd_find_descriptor(uaa->device, uaa->iface_index, type, subtype);
