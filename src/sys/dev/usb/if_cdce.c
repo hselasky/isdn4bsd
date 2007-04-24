@@ -252,9 +252,9 @@ cdce_attach(device_t dev)
 	    goto alloc_transfers;
 	}
 
-	ud = ((const void *)usbd_find_descriptor
-	      (usbd_get_config_descriptor(uaa->device),
-	       UDESC_CS_INTERFACE, UDESCSUB_CDC_UNION));
+	ud = usbd_find_descriptor
+	  (uaa->device, uaa->iface_index,
+	   UDESC_CS_INTERFACE, UDESCSUB_CDC_UNION);
 
 	if ((ud == NULL) || (ud->bLength < sizeof(*ud))) {
 	    device_printf(dev, "no union descriptor!\n");
@@ -327,9 +327,9 @@ cdce_attach(device_t dev)
 		     &cdce_ifmedia_upd_cb, 
 		     &cdce_ifmedia_sts_cb);
 
-	ue = ((const void *)usbd_find_descriptor
-	      (usbd_get_config_descriptor(uaa->device), 
-	       UDESC_INTERFACE, UDESCSUB_CDC_ENF));
+	ue = usbd_find_descriptor
+	  (uaa->device, uaa->iface_index,
+	   UDESC_CS_INTERFACE, UDESCSUB_CDC_ENF);
 
 	if ((ue == NULL) || (ue->bLength < sizeof(*ue)) || 
 	    usbreq_get_string_any(uaa->device, ue->iMacAddress, 
@@ -391,11 +391,7 @@ cdce_attach(device_t dev)
 
 	sc->sc_ifp = ifp;
 
-	mtx_unlock(&(sc->sc_mtx));
-
 	ether_ifattach(ifp, eaddr);
-
-	mtx_lock(&(sc->sc_mtx));
 
 	return 0; /* success */
 

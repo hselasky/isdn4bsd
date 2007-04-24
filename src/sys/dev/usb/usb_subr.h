@@ -552,7 +552,7 @@ usb_descriptor_t *usbd_desc_foreach(usb_config_descriptor_t *cd, usb_descriptor_
 struct usb_hid_descriptor *usbd_get_hdesc(usb_config_descriptor_t *cd, usb_interface_descriptor_t *id);
 usb_interface_descriptor_t *usbd_find_idesc(usb_config_descriptor_t *cd, uint16_t iface_index, uint16_t alt_index);
 usb_endpoint_descriptor_t *usbd_find_edesc(usb_config_descriptor_t *cd, uint16_t iface_index, uint16_t alt_index, uint16_t endptidx);
-usb_descriptor_t *usbd_find_descriptor(usb_config_descriptor_t *cd, int32_t type, int32_t subtype);
+void *		usbd_find_descriptor(struct usbd_device *udev, uint16_t iface_index, int16_t type, int16_t subtype);
 int		usbd_get_no_alts(usb_config_descriptor_t *cd, uint8_t ifaceno);
 usbd_status	usbd_search_and_set_config(struct usbd_device *udev, int32_t no, int32_t msg);
 usbd_status	usbd_set_config_index(struct usbd_device *udev, int32_t index, int32_t msg);

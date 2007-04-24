@@ -360,21 +360,46 @@ usbd_find_edesc(usb_config_descriptor_t *cd, u_int16_t iface_index,
 	return (NULL);
 }
 
-usb_descriptor_t *
-usbd_find_descriptor(usb_config_descriptor_t *cd, int type, int subtype)
+void *
+usbd_find_descriptor(struct usbd_device *udev, uint16_t iface_index,
+		     int16_t type, int16_t subtype)
 {
-	usb_descriptor_t *desc = NULL;
+	usb_descriptor_t *desc;
+	usb_config_descriptor_t *cd;
+	usb_interface_descriptor_t *id;
+	struct usbd_interface *iface;
+
+	cd = usbd_get_config_descriptor(udev);
+	if (cd == NULL) {
+		return NULL;
+	}
+
+	iface = usbd_get_iface(udev, iface_index);
+	if (iface == NULL) {
+		return NULL;
+	}
+
+	id = usbd_get_interface_descriptor(iface);
+	if (id == NULL) {
+		return NULL;
+	}
+
+	desc = (void *)id;
 
 	while ((desc = usbd_desc_foreach(cd, desc))) {
 
-		if((desc->bDescriptorType == type) &&
-		   ((subtype == USBD_SUBTYPE_ANY) ||
-		    (subtype == desc->bDescriptorSubtype)))
+		if (desc->bDescriptorType == UDESC_INTERFACE) {
+			break;
+		}
+
+		if ((desc->bDescriptorType == type) &&
+		    ((subtype == USBD_SUBTYPE_ANY) ||
+		     (subtype == desc->bDescriptorSubtype)))
 		{
 			return desc;
 		}
 	}
-	return (NULL);
+	return NULL;
 }
 
 int
