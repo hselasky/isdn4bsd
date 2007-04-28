@@ -50,7 +50,7 @@
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_subr.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/uhub.c,v 1.72 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uhub.c,v 1.74 2007/02/03 21:11:11 flz Exp $");
 
 #define UHUB_INTR_INTERVAL 250	/* ms */
 

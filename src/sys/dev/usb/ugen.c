@@ -559,7 +559,7 @@ ugenclose(struct cdev *dev, int flag, int mode, struct thread *p)
 			}
 
 			/* wait for routine(s) to exit */
-			msleep(sce, &sc->sc_mtx, PRIBIO, "ugensync", 0);
+			mtx_sleep(sce, &sc->sc_mtx, PRIBIO, "ugensync", 0);
 		}
 
 		/* free all memory after that one has
@@ -1033,7 +1033,7 @@ ugenread(struct cdev *dev, struct uio *uio, int flag)
 
 			    sce->state |= (UGEN_RD_SLP|UGEN_RD_WUP);
 
-			    error = msleep(sce, &sc->sc_mtx, (PZERO|PCATCH),
+			    error = mtx_sleep(sce, &sc->sc_mtx, (PZERO|PCATCH),
 					   "ugen wait callback", 0);
 
 			    sce->state &= ~(UGEN_RD_SLP|UGEN_RD_WUP);
@@ -1257,7 +1257,7 @@ ugenwrite(struct cdev *dev, struct uio *uio, int flag)
 
 				sce->state |= (UGEN_WR_SLP|UGEN_WR_WUP);
 
-				error = msleep(sce, &sc->sc_mtx, (PZERO|PCATCH),
+				error = mtx_sleep(sce, &sc->sc_mtx, (PZERO|PCATCH),
 					       "ugen wait callback", 0);
 
 				sce->state &= ~(UGEN_WR_SLP|UGEN_WR_WUP);

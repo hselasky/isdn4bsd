@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2006 Søren Schmidt <sos@FreeBSD.org>
+ * Copyright (c) 2006 - 2007 Søren Schmidt <sos@FreeBSD.org>
  * All rights reserved.
  *
  * Copyright (c) 2006 Hans Petter Selasky
@@ -28,7 +28,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/ata/ata-usb.c,v 1.5 2006/09/11 19:47:53 sos Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/ata/ata-usb.c,v 1.6 2007/02/21 19:07:18 sos Exp $");
 
 #include "opt_ata.h"
 #include <sys/param.h>

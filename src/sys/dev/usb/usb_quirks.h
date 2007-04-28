@@ -57,7 +57,7 @@ struct usbd_quirks {
 #define UQ_OPEN_CLEARSTALL	0x4000	/* device needs clear endpoint stall */
 #define UQ_HID_IGNORE	0x8000	/* device should be ignored by hid class */
 #define UQ_KBD_IGNORE  0x18000	/* device should be ignored by both kbd and hid class */
-					
+#define UQ_AUDIO_SWAP_LR 0x20000 /* left and right sound channels are swapped */					
 };
 
 extern const struct usbd_quirks usbd_no_quirk;

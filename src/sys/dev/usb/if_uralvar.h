@@ -34,13 +34,6 @@ struct ural_config_copy {
 		uint8_t		ni_bssid[IEEE80211_ADDR_LEN];
 	} ic_bss;
 
-	struct {
-		struct {
-			ieee80211_keyix	wk_keyix;
-			uint8_t		wk_key[IEEE80211_KEYBUF_SIZE];
-		} cs_nw_keys[IEEE80211_WEP_NKID];
-	} ic_crypto;
-
 	enum ieee80211_opmode	ic_opmode;
 	enum ieee80211_state	ic_state;
 	uint32_t		ic_flags;

@@ -449,7 +449,7 @@ usbd_transfer_unsetup(struct usbd_xfer **pxfer, u_int16_t n_setup)
 		        /* wait for any USB callbacks to return */
 
 		        while (info->memory_refcount > 0) {
-			    error = msleep(info, info->usb_mtx, 0, 
+			    error = mtx_sleep(info, info->usb_mtx, 0, 
 					   "usb_mem_wait", 0);
 			}
 
@@ -808,7 +808,7 @@ usbd_transfer_start(struct usbd_xfer *xfer)
 
 					level = mtx_drop_recurse(xfer->priv_mtx);
 
-					if(msleep(xfer, xfer->priv_mtx,
+					if(mtx_sleep(xfer, xfer->priv_mtx,
 						  (PRIBIO|PCATCH), "usbsync", 0))
 					{
 						/* stop the transfer */

@@ -25,7 +25,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.20 2006/10/31 02:27:24 kevlo Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.22 2007/02/09 15:59:28 le Exp $");
 
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
@@ -270,12 +270,16 @@ static const struct ubsa_product {
 	{ USB_VENDOR_GOHUBS, USB_PRODUCT_GOHUBS_GOCOM232 },
 	/* Peracom */
 	{ USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_SERIAL1 },
+	/* Novatel Wireless Merlin cards */
+	{ USB_VENDOR_NOVATEL2, USB_PRODUCT_NOVATEL2_U740 },
 	/* Option Vodafone MC3G */
 	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_VODAFONEMC3G },
 	/* Option GlobeTrotter 3G */
 	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3G },
 	/* Option GlobeTrotter 3G QUAD */
 	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GQUAD },
+	/* Huawei Mobile */
+	{ USB_VENDOR_HUAWEI, USB_PRODUCT_HUAWEI_MOBILE },
 	{ 0, 0 }
 };
 

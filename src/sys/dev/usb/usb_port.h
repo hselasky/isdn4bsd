@@ -290,6 +290,13 @@ enum { macro(_MAKE_ENUM) end }			\
 /* preliminary fix for a bug in msleep on FreeBSD, 
  * which cannot sleep with Giant:
  */
-#define msleep(i,m,p,w,t) msleep(i,(((m) == &Giant) ? NULL : (m)),p,w,t)
+#ifdef mtx_sleep
+#undef mtx_sleep
+#define mtx_sleep(i,m,p,w,t) \
+  _sleep(i,(((m) == &Giant) ? NULL : &(m)->lock_object),p,w,t)
+#else
+#define mtx_sleep(i,m,p,w,t) \
+  msleep(i,(((m) == &Giant) ? NULL : (m)),p,w,t)
+#endif
 
 #endif /* _USB_PORT_H */

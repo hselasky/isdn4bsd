@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uhci_pci.c,v 1.59 2007/01/21 19:32:50 marius Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uhci_pci.c,v 1.60 2007/02/23 12:18:58 piso Exp $");
 
 /* Universal Host Controller Interface
  *
@@ -285,8 +285,13 @@ uhci_pci_attach(device_t self)
 		break;
 	}
 
+#if (__FreeBSD_version >= 700031)
+	err = bus_setup_intr(self, sc->sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
+	    NULL, (void *)(void *)uhci_interrupt, sc, &(sc->sc_intr_hdl));
+#else
 	err = bus_setup_intr(self, sc->sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
 			     (void *)(void *)uhci_interrupt, sc, &(sc->sc_intr_hdl));
+#endif
 
 	if(err)
 	{

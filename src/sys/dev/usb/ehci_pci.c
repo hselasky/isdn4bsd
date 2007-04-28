@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ehci_pci.c,v 1.24 2007/01/21 19:32:50 marius Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ehci_pci.c,v 1.25 2007/02/23 12:18:58 piso Exp $");
 
 /*
  * USB Enhanced Host Controller Driver, a.k.a. USB 2.0 controller.
@@ -337,8 +337,13 @@ ehci_pci_attach(device_t self)
 		sprintf(sc->sc_vendor, "(0x%04x)", pci_get_vendor(self));
 	}
 
+#if (__FreeBSD_version >= 700031)
+	err = bus_setup_intr(self, sc->sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
+	    NULL, (void *)(void *)ehci_interrupt, sc, &sc->sc_intr_hdl);
+#else
 	err = bus_setup_intr(self, sc->sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
 			     (void *)(void *)ehci_interrupt, sc, &sc->sc_intr_hdl);
+#endif
 	if(err)
 	{
 		device_printf(self, "Could not setup irq, %d\n", err);

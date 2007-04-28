@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_axe.c,v 1.41 2006/10/19 01:15:58 iedowse Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_axe.c,v 1.42 2007/03/31 23:23:41 jhb Exp $");
 
 /*
  * ASIX Electronics AX88172 USB 2.0 ethernet driver. Used in the
@@ -86,6 +86,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/if_axe.c,v 1.41 2006/10/19 01:15:58 iedowse 
 #include <sys/sockio.h>
 #include <sys/mbuf.h>
 #include <sys/malloc.h>
+#include <sys/lock.h>
 #include <sys/kernel.h>
 #include <sys/socket.h>
 #include <sys/endian.h>

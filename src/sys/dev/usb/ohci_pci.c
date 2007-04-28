@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ohci_pci.c,v 1.48 2006/09/03 00:27:42 jmg Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ohci_pci.c,v 1.49 2007/02/23 12:18:58 piso Exp $");
 
 /*
  * USB Open Host Controller driver.
@@ -299,8 +299,13 @@ ohci_pci_attach(device_t self)
 
 	/* sc->sc_bus.usbrev; set by ohci_init() */
 
+#if (__FreeBSD_version >= 700031)
+	err = bus_setup_intr(self, sc->sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
+	    NULL, (void *)(void *)ohci_interrupt, sc, &(sc->sc_intr_hdl));
+#else
 	err = bus_setup_intr(self, sc->sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
 			     (void *)(void *)ohci_interrupt, sc, &(sc->sc_intr_hdl));
+#endif
 	if(err)
 	{
 		device_printf(self, "Could not setup irq, %d\n", err);

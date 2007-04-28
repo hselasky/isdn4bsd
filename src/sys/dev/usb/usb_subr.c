@@ -11,7 +11,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.87 2006/10/03 01:13:26 iedowse Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.89 2007/02/27 17:23:28 jhb Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -229,7 +229,11 @@ usb_delay_ms(struct usbd_bus *bus, u_int ms)
 	if (bus->use_polling || cold)
 		DELAY((ms+1) * 1000);
 	else
+#if (__FreeBSD_version >= 700031)
+		pause("usbdly", (((ms*hz)+999)/1000) + 1);
+#else
 		tsleep(&ms, PRIBIO, "usbdly", (((ms*hz)+999)/1000) + 1);
+#endif
 }
 
 /* Delay given a device handle. */
@@ -1502,7 +1506,7 @@ usb_detach_wait(device_t dev)
 {
 	PRINTF(("waiting for %s\n", device_get_nameunit(dev)));
 
-	/* XXX should use msleep */
+	/* XXX should use "mtx_sleep()" */
 
 	if(tsleep(dev, PZERO, "usbdet", hz * 60))
 	{
@@ -2503,7 +2507,7 @@ usbd_config_td_thread(void *arg)
 
 	    ctd->flag_config_td_sleep = 1;
 
-	    error = msleep(&(ctd->wakeup_config_td), ctd->p_mtx,
+	    error = mtx_sleep(&(ctd->wakeup_config_td), ctd->p_mtx,
 			   0, "cfg td sleep", 0);
 
 	    ctd->flag_config_td_sleep = 0;
@@ -2614,7 +2618,7 @@ usbd_config_td_stop(struct usbd_config_td *ctd)
 
 	    level = mtx_drop_recurse(ctd->p_mtx);
 
-	    error = msleep(&(ctd->wakeup_config_td_gone), 
+	    error = mtx_sleep(&(ctd->wakeup_config_td_gone), 
 			   ctd->p_mtx, 0, "wait config TD", 0);
 
 	    mtx_pickup_recurse(ctd->p_mtx, level);
@@ -2785,7 +2789,7 @@ usbd_config_td_sleep(struct usbd_config_td *ctd, u_int32_t timeout)
 
 	level = mtx_drop_recurse(ctd->p_mtx);
 
-	error = msleep(ctd, ctd->p_mtx, 0, 
+	error = mtx_sleep(ctd, ctd->p_mtx, 0, 
 		       "config td sleep", timeout);
 
 	mtx_pickup_recurse(ctd->p_mtx, level);

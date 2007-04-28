@@ -1,5 +1,5 @@
 /*	$NetBSD: uvisor.c,v 1.9 2001/01/23 14:04:14 augustss Exp $	*/
-/*      $FreeBSD: src/sys/dev/usb/uvisor.c,v 1.28 2006/09/07 00:06:42 imp Exp $	*/
+/*      $FreeBSD: src/sys/dev/usb/uvisor.c,v 1.29 2007/02/03 16:41:55 imp Exp $	*/
 
 /* Also already merged from NetBSD:
  *	$NetBSD: uvisor.c,v 1.12 2001/11/13 06:24:57 lukem Exp $
@@ -60,6 +60,7 @@
 #include <sys/kernel.h>
 #include <sys/termios.h>
 #include <sys/serial.h>
+#include <sys/malloc.h>
 
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
@@ -323,10 +324,8 @@ uvisor_attach(device_t dev)
 	int error;
 
 	DPRINTF(0, "sc=%p\n", sc);
-
 	bcopy(uvisor_config, uvisor_config_copy, 
 	      sizeof(uvisor_config_copy));
-
 	if (sc == NULL) {
 	    return ENOMEM;
 	}

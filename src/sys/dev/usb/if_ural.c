@@ -1,5 +1,3 @@
-/*	$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.48 2006/11/23 00:50:48 sam Exp $	*/
-
 /*-
  * Copyright (c) 2005, 2006
  *	Damien Bergamini <damien.bergamini@free.fr>
@@ -28,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.48 2006/11/23 00:50:48 sam Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.52 2007/04/24 11:18:55 sephe Exp $");
 
 /*-
  * Ralink Technology RT2500USB chipset driver
@@ -256,18 +254,6 @@ static const struct usb_devno ural_devs[] = {
 	{ USB_VENDOR_VTECH,		USB_PRODUCT_VTECH_RT2570 },
 	{ USB_VENDOR_ZINWELL,		USB_PRODUCT_ZINWELL_RT2570 }
 };
-
-/*
- * Supported rates for 802.11a/b/g modes (in 500Kbps unit).
- */
-static const struct ieee80211_rateset ural_rateset_11a =
-	{ 8, { 12, 18, 24, 36, 48, 72, 96, 108 } };
-
-static const struct ieee80211_rateset ural_rateset_11b =
-	{ 4, { 2, 4, 11, 22 } };
-
-static const struct ieee80211_rateset ural_rateset_11g =
-	{ 12, { 2, 4, 11, 22, 12, 18, 24, 36, 48, 72, 96, 108 } };
 
 /*
  * Default values for MAC registers; values taken from
@@ -920,9 +906,6 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 
 	if (sc->sc_rf_rev == RAL_RF_5222) {
 
-		/* set supported .11a rates */
-		ic->ic_sup_rates[IEEE80211_MODE_11A] = ural_rateset_11a;
-
 		/* set supported .11a channels */
 		for (i = 36; i <= 64; i += 4) {
 			ic->ic_channels[i].ic_freq =
@@ -940,10 +923,6 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 			ic->ic_channels[i].ic_flags = IEEE80211_CHAN_A;
 		}
 	}
-
-	/* set supported .11b and .11g rates */
-	ic->ic_sup_rates[IEEE80211_MODE_11B] = ural_rateset_11b;
-	ic->ic_sup_rates[IEEE80211_MODE_11G] = ural_rateset_11g;
 
 	/* set supported .11b and .11g channels (1 through 14) */
 	for (i = 1; i <= 14; i++) {
@@ -1005,7 +984,6 @@ ural_config_copy(struct ural_softc *sc,
 	struct ieee80211com *ic = &(sc->sc_ic);
 	struct ieee80211_channel *c = ic->ic_curchan;
 	struct ifnet *ifp = ic->ic_ifp;
-	u_int8_t n;
 
 	bzero(cc, sizeof(*cc));
 
@@ -1026,15 +1004,6 @@ ural_config_copy(struct ural_softc *sc,
 	    cc->ic_bss.ni_intval = ic->ic_bss->ni_intval;
 	    bcopy(ic->ic_bss->ni_bssid, cc->ic_bss.ni_bssid, 
 	          sizeof(cc->ic_bss.ni_bssid));
-	}
-
-	for (n = 0; n < IEEE80211_WEP_NKID; n++) {
-	    cc->ic_crypto.cs_nw_keys[n].wk_keyix =
-	      ic->ic_crypto.cs_nw_keys[n].wk_keyix;
-
-	    bcopy(ic->ic_crypto.cs_nw_keys[n].wk_key,
-		  cc->ic_crypto.cs_nw_keys[n].wk_key, 
-		  IEEE80211_KEYBUF_SIZE);
 	}
 
 	cc->ic_opmode = ic->ic_opmode;
@@ -2581,15 +2550,6 @@ ural_cfg_init(struct ural_softc *sc,
 	ural_cfg_set_rxantenna(sc, sc->sc_rx_ant);
 
 	ural_cfg_set_macaddr(sc, cc->ic_myaddr);
-
-	/*
-	 * Copy WEP keys into adapter's memory (SEC_CSR0 to SEC_CSR31).
-	 */
-	for (i = 0; i < IEEE80211_WEP_NKID; i++) {
-	    ural_cfg_write_multi
-	      (sc, ((i * IEEE80211_KEYBUF_SIZE) + RAL_SEC_CSR0),
-	       cc->ic_crypto.cs_nw_keys[i].wk_key, IEEE80211_KEYBUF_SIZE);
-	}
 
 	/*
 	 * make sure that the first transaction

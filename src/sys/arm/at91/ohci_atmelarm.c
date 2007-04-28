@@ -23,7 +23,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/arm/at91/ohci_atmelarm.c,v 1.1 2006/03/18 01:45:29 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/arm/at91/ohci_atmelarm.c,v 1.2 2007/03/01 09:10:55 piso Exp $");
 
 #include "opt_bus.h"
 
@@ -125,8 +125,13 @@ ohci_atmelarm_attach(device_t dev)
 
 	strlcpy(sc->sc_ohci.sc_vendor, "Atmel", sizeof(sc->sc_ohci.sc_vendor));
 
+#if (__FreeBSD_version >= 700031)
+	err = bus_setup_intr(dev, sc->sc_ohci.sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
+	    NULL, (void *)(void *)ohci_interrupt, sc, &(sc->sc_ohci.sc_intr_hdl));
+#else
 	err = bus_setup_intr(dev, sc->sc_ohci.sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
 	    (void *)(void *)ohci_interrupt, sc, &(sc->sc_ohci.sc_intr_hdl));
+#endif
 	if (err) {
 		sc->sc_ohci.sc_intr_hdl = NULL;
 		goto error;

@@ -38,7 +38,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb_quirks.c,v 1.57 2006/11/28 21:13:07 flz Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_quirks.c,v 1.58 2007/03/24 09:25:56 maxim Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -76,7 +76,18 @@ static const struct usbd_quirk_entry {
  { USB_VENDOR_SILICONPORTALS, USB_PRODUCT_SILICONPORTALS_YAPPHONE,
    						    0x100, { UQ_AU_INP_ASYNC }},
  { USB_VENDOR_LOGITECH, USB_PRODUCT_LOGITECH_UN53B, ANY, { UQ_NO_STRINGS }},
- { USB_VENDOR_CMOTECH, USB_PRODUCT_CMOTECH_CDMA_MODEM0, ANY, { UQ_ASSUME_CM_OVER_DATA }},
+ { USB_VENDOR_CMOTECH, USB_PRODUCT_CMOTECH_CNU510,
+	ANY, { UQ_ASSUME_CM_OVER_DATA }},
+ { USB_VENDOR_CMOTECH, USB_PRODUCT_CMOTECH_CNU550,
+	ANY, { UQ_ASSUME_CM_OVER_DATA }},
+ { USB_VENDOR_CURITEL, USB_PRODUCT_CURITEL_HX550C,
+	ANY, { UQ_ASSUME_CM_OVER_DATA }},
+ { USB_VENDOR_CURITEL, USB_PRODUCT_CURITEL_HX57XB,
+	ANY, { UQ_ASSUME_CM_OVER_DATA }},
+ { USB_VENDOR_UBIQUAM, USB_PRODUCT_UBIQUAM_UALL,
+	ANY, { UQ_ASSUME_CM_OVER_DATA }},
+ { USB_VENDOR_QUALCOMM, USB_PRODUCT_QUALCOMM_RWT_FCT,
+	ANY, { UQ_ASSUME_CM_OVER_DATA }},
  /* XXX These should have a revision number, but I don't know what they are. */
  { USB_VENDOR_HP, USB_PRODUCT_HP_895C,		    ANY,   { UQ_BROKEN_BIDIR }},
  { USB_VENDOR_HP, USB_PRODUCT_HP_880C,		    ANY,   { UQ_BROKEN_BIDIR }},
@@ -118,6 +129,8 @@ static const struct usbd_quirk_entry {
  /* Devices which should be ignored by both ukbd and uhid */
  { USB_VENDOR_CYPRESS, USB_PRODUCT_CYPRESS_WISPY,
 	ANY, { UQ_KBD_IGNORE }},
+ { USB_VENDOR_UNKNOWN0, USB_PRODUCT_UNKNOWN0_UAUDIO0,
+	0x0101, { UQ_AUDIO_SWAP_LR }},
  { 0, 0, 0, { 0 } }
 };
 

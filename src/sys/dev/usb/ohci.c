@@ -1265,6 +1265,7 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 	u_int32_t len = xfer->length;
 	u_int8_t isread;
 	u_int8_t shortpkt = 0;
+	u_int8_t force_short;
 	ohci_td_t *td;
 	ohci_td_t *td_last = NULL;
 	ohci_ed_t *ed;
@@ -1277,6 +1278,8 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 
 	buf_offset = 0;
 	usbd_get_page(&(xfer->buf_data), buf_offset, &buf_res);
+
+	force_short = (xfer->flags & USBD_FORCE_SHORT_XFER) ? 1 : 0;
 
 	if(xfer->pipe->methods == &ohci_device_ctrl_methods)
 	{
@@ -1323,14 +1326,14 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 	{
 		isread = (UE_GET_DIR(xfer->endpoint) == UE_DIR_IN);
 
-		if(xfer->length == 0)
-		{
-			/* must allow access to "td_last",
-			 * so xfer->length cannot be zero!
+		if (xfer->length == 0) {
+			/* When the length is zero we
+			 * queue a short packet!
+			 * This also makes "td_last"
+			 * non-zero.
 			 */
-			printf("%s: setting USBD_FORCE_SHORT_XFER!\n",
-			       __FUNCTION__);
-			xfer->flags |= USBD_FORCE_SHORT_XFER;
+			DPRINTFN(0, ("short transfer!\n"));
+			force_short = 1;
 		}
 	}
 
@@ -1361,7 +1364,7 @@ ohci_setup_standard_chain(struct usbd_xfer *xfer, ohci_ed_t **ed_last)
 	{
 		if(len == 0)
 		{
-			if(xfer->flags & USBD_FORCE_SHORT_XFER)
+			if (force_short)
 			{
 				if(shortpkt)
 				{

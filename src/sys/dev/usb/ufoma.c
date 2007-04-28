@@ -541,7 +541,7 @@ ufoma_cfg_link_state(struct ufoma_softc *sc)
 
 	ufoma_cfg_do_request(sc, &req, sc->sc_modetable);
 
-	error = msleep(&(sc->sc_currentmode), &Giant, PZERO, "ufoma_link", hz);
+	error = mtx_sleep(&(sc->sc_currentmode), &Giant, PZERO, "ufoma_link", hz);
 
 	if(error){
 		DPRINTF(sc, 0, "NO response\n");
@@ -563,7 +563,7 @@ ufoma_cfg_activate_state(struct ufoma_softc *sc, u_int16_t state)
 
 	ufoma_cfg_do_request(sc, &req, NULL);
 	
-	error = msleep(&(sc->sc_currentmode), &Giant, PZERO, "fmaact", (UFOMA_MAX_TIMEOUT*hz));
+	error = mtx_sleep(&(sc->sc_currentmode), &Giant, PZERO, "fmaact", (UFOMA_MAX_TIMEOUT*hz));
 	if(error){
 		DPRINTF(sc, 0, "No response\n");
 	}

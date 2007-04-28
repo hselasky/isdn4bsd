@@ -144,7 +144,7 @@ usb_discover(struct usbd_bus *bus)
 	{
 		bus->wait_explore = 1;
 
-		msleep(&bus->wait_explore, &usb_global_lock, PWAIT,
+		mtx_sleep(&bus->wait_explore, &usb_global_lock, PWAIT,
 		       "usb wait explore", 0);
 	}
 
@@ -196,10 +196,10 @@ usb_event_thread(struct usbd_bus *bus)
 		}
 
 #ifdef USB_DEBUG
-		msleep(&bus->needs_explore, &usb_global_lock, PWAIT,
+		mtx_sleep(&bus->needs_explore, &usb_global_lock, PWAIT,
 		       "usbevt", usb_noexplore ? 0 : hz * 60);
 #else
-		msleep(&bus->needs_explore, &usb_global_lock, PWAIT,
+		mtx_sleep(&bus->needs_explore, &usb_global_lock, PWAIT,
 		       "usbevt", hz * 60);
 #endif
 		PRINTFN(2,("woke up\n"));
@@ -583,7 +583,7 @@ usb_detach(device_t dev)
 	{
 		bus->wait_explore = 1;
 
-		msleep(&bus->wait_explore, &usb_global_lock, PWAIT,
+		mtx_sleep(&bus->wait_explore, &usb_global_lock, PWAIT,
 		       "usb wait explore", 0);
 	}
 
@@ -604,7 +604,7 @@ usb_detach(device_t dev)
 	{
 		wakeup(&bus->needs_explore);
 
-		if(msleep(bus, &usb_global_lock, PWAIT, "usbdet", hz * 60))
+		if(mtx_sleep(bus, &usb_global_lock, PWAIT, "usbdet", hz * 60))
 		{
 			device_printf(bus->bdev,
 				      "event thread didn't die\n");
@@ -698,7 +698,7 @@ usbread(struct cdev *dev, struct uio *uio, int flag)
 			error = EWOULDBLOCK;
 			break;
 		}
-		error = msleep(&usb_events, &usb_global_lock,
+		error = mtx_sleep(&usb_events, &usb_global_lock,
 			       (PZERO|PCATCH), "usbrea", 0);
 		if(error)
 		{

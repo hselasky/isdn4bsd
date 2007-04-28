@@ -538,7 +538,7 @@ zyd_cfg_usb_intr_read(struct zyd_softc *sc, void *data, uint32_t size)
 	usbd_transfer_start(sc->sc_xfer[ZYD_TR_INTR_DT_RD]);
 
 	if (sc->sc_intr_iwakeup) {
-	    error = msleep(&(sc->sc_intr_iwakeup), &(sc->sc_mtx), 0,
+	    error = mtx_sleep(&(sc->sc_intr_iwakeup), &(sc->sc_mtx), 0,
 			   "zyd isleep", 0);
 	}
 
@@ -645,7 +645,7 @@ zyd_cfg_usb_intr_write(struct zyd_softc *sc, void *data, uint32_t size)
 	usbd_transfer_start(sc->sc_xfer[ZYD_TR_INTR_DT_WR]);
 
 	if (sc->sc_intr_owakeup) {
-	    error = msleep(&(sc->sc_intr_owakeup), &(sc->sc_mtx), 0,
+	    error = mtx_sleep(&(sc->sc_intr_owakeup), &(sc->sc_mtx), 0,
 			   "zyd osleep", 0);
 	}
 

@@ -1,7 +1,7 @@
 /*	$NetBSD: uplcom.c,v 1.21 2001/11/13 06:24:56 lukem Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uplcom.c,v 1.40 2006/12/26 17:43:46 jkim Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uplcom.c,v 1.41 2007/03/24 09:27:58 maxim Exp $");
 
 /*-
  * Copyright (c) 2001-2003, 2005 Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.
@@ -294,6 +294,8 @@ static const struct uplcom_product {
     /* ELECOM UC-SGT */
     { USB_VENDOR_ELECOM, USB_PRODUCT_ELECOM_UCSGT, 0xFFFF, TYPE_PL2303 },
     { USB_VENDOR_ELECOM, USB_PRODUCT_ELECOM_UCSGT0, 0xFFFF, TYPE_PL2303 },
+    /* Sagem USB-Serial Controller */
+    { USB_VENDOR_SAGEM, USB_PRODUCT_SAGEM_USBSERIAL, 0xFFFF, TYPE_PL2303X },
     /* Sony Ericsson USB Cable */
     { USB_VENDOR_SONYERICSSON, USB_PRODUCT_SONYERICSSON_DCU10, 0xFFFF,TYPE_PL2303 },
     /* SOURCENEXT KeikaiDenwa 8 */

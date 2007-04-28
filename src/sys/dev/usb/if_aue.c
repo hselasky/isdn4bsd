@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_aue.c,v 1.99 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_aue.c,v 1.107 2007/03/31 23:23:41 jhb Exp $");
 
 /*
  * ADMtek AN986 Pegasus and AN8511 Pegasus II USB to ethernet driver.
@@ -887,7 +887,9 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 	ifp->if_start = aue_start_cb;
 	ifp->if_watchdog = NULL;
 	ifp->if_init = aue_init_cb;
-	ifp->if_snd.ifq_maxlen = IFQ_MAXLEN;
+	IFQ_SET_MAXLEN(&ifp->if_snd, IFQ_MAXLEN);
+	ifp->if_snd.ifq_drv_maxlen = IFQ_MAXLEN;
+	IFQ_SET_READY(&ifp->if_snd);
 
 	/* XXX need Giant when accessing
 	 * the device structures !
@@ -1223,7 +1225,7 @@ aue_bulk_write_callback(struct usbd_xfer *xfer)
 	    goto done;
 	}
 
-	IF_DEQUEUE(&(ifp->if_snd), m);
+	IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
 
 	if (m == NULL) {
 	    goto done;

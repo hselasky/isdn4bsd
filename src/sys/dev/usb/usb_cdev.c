@@ -190,7 +190,7 @@ usb_cdev_msleep(struct usb_cdev *sc, void *ident, u_int32_t context_bit,
 
 	sc->sc_flags |= context_bit;
 
-	error = msleep(ident, sc->sc_mtx_ptr, PRIBIO|PCATCH, 
+	error = mtx_sleep(ident, sc->sc_mtx_ptr, PRIBIO|PCATCH, 
 		       "usb_cdev_msleep", 0);
 
 	return usb_cdev_exit_context(sc, context_bit, error);
@@ -492,7 +492,7 @@ usb_cdev_close(struct cdev *dev, int32_t fflags,
 		    wakeup(&(sc->sc_wakeup_ioctl));
 		}
 
-		error = msleep(&(sc->sc_wakeup_close_read), sc->sc_mtx_ptr, 
+		error = mtx_sleep(&(sc->sc_wakeup_close_read), sc->sc_mtx_ptr, 
 			       PRIBIO, "usb_cdev_sync_read", 0);
 	    }
 
@@ -536,7 +536,7 @@ usb_cdev_close(struct cdev *dev, int32_t fflags,
 
 		while (sc->sc_flags & USB_CDEV_FLAG_FLUSHING_WRITE) {
 
-		    error = msleep(&(sc->sc_wakeup_flush), sc->sc_mtx_ptr, 
+		    error = mtx_sleep(&(sc->sc_wakeup_flush), sc->sc_mtx_ptr, 
 				   PRIBIO|PCATCH, "usb_cdev_flush", 0);
 
 		    if (error || (sc->sc_flags & context_bit &
@@ -577,7 +577,7 @@ usb_cdev_close(struct cdev *dev, int32_t fflags,
 		    wakeup(&(sc->sc_wakeup_flush));
 		}
 
-		error = msleep(&(sc->sc_wakeup_close_write), sc->sc_mtx_ptr, 
+		error = mtx_sleep(&(sc->sc_wakeup_close_write), sc->sc_mtx_ptr, 
 			       PRIBIO, "usb_cdev_sync_write", 0);
 	    }
 
@@ -1160,7 +1160,7 @@ usb_cdev_detach(struct usb_cdev *sc)
 	while (sc->sc_flags & (USB_CDEV_FLAG_OPEN_READ|
 			       USB_CDEV_FLAG_OPEN_WRITE)) {
 
-	    error = msleep(&(sc->sc_wakeup_detach), sc->sc_mtx_ptr, 
+	    error = mtx_sleep(&(sc->sc_wakeup_detach), sc->sc_mtx_ptr, 
 			   PRIBIO, "usb_cdev_sync_detach", 0);
 	}
 	mtx_unlock(sc->sc_mtx_ptr);

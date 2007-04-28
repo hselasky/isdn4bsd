@@ -24,7 +24,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$FreeBSD: src/sys/dev/usb/umass.c,v 1.140 2006/11/02 00:54:38 mjacob Exp $
+ *	$FreeBSD: src/sys/dev/usb/umass.c,v 1.143 2007/04/15 08:49:19 scottl Exp $
  *	$NetBSD: umass.c,v 1.28 2000/04/02 23:46:53 augustss Exp $
  */
 
@@ -335,6 +335,10 @@ struct umass_devdescr {
 #	define NO_INQUIRY_EVPD		0x0800
 	/* Pad all RBC requests to 12 bytes. */
 #	define RBC_PAD_TO_12		0x1000
+	/* Device reports number of sectors from READ_CAPACITY, not max
+	 * sector number.
+	 */
+#	define READ_CAPACITY_OFFBY1	0x2000
 };
 
 static const struct umass_devdescr umass_devdescr[] = {
@@ -475,6 +479,10 @@ static const struct umass_devdescr umass_devdescr[] = {
 	{ USB_VENDOR_SANDISK, USB_PRODUCT_SANDISK_SDCZ4_256, RID_WILDCARD,
 	  UMASS_PROTO_SCSI | UMASS_PROTO_BBB,
 	  IGNORE_RESIDUE
+	},
+	{ USB_VENDOR_SANDISK, USB_PRODUCT_SANDISK_SDDR31, RID_WILDCARD,
+	  UMASS_PROTO_SCSI | UMASS_PROTO_BBB,
+	  READ_CAPACITY_OFFBY1
 	},
 	{ USB_VENDOR_SCANLOGIC, USB_PRODUCT_SCANLOGIC_SL11R, RID_WILDCARD,
 	  UMASS_PROTO_ATAPI | UMASS_PROTO_BBB,
@@ -2266,6 +2274,9 @@ umass_cam_attach_sim(struct umass_softc *sc)
 	   DEVNAME_SIM,
 	   sc /*priv*/,
 	   sc->sc_unit /*unit number*/,
+#if (__FreeBSD_version >= 700037)
+	   &(sc->sc_mtx) /*mutex*/,
+#endif
 	   1 /*maximum device openings*/,
 	   0 /*maximum tagged device openings*/,
 	   devq);
@@ -2580,7 +2591,12 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 		strlcpy(cpi->dev_name, cam_sim_name(sim), DEV_IDLEN);
 		cpi->unit_number = cam_sim_unit(sim);
 		cpi->bus_id = sc->sc_unit;
-
+#if (__FreeBSD_version >= 700025)
+		cpi->protocol = PROTO_SCSI;
+		cpi->protocol_version = SCSI_REV_2;
+		cpi->transport = XPORT_USB;
+		cpi->transport_version = 0;
+#endif
 		if (sc == NULL) {
 			cpi->base_transfer_speed = 0;
 			cpi->max_lun = 0;
@@ -2627,11 +2643,11 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 		cts->protocol = PROTO_SCSI;
 		cts->protocol_version = SCSI_REV_2;
 		cts->transport = XPORT_USB;
-		cts->transport_version = XPORT_VERSION_UNSPECIFIED;
+		cts->transport_version = 0;
 		cts->xport_specific.valid = 0;
 #else
 		cts->valid = 0;
-		cts->flags = 0;         /* no disconnection, tagging */
+		cts->flags = 0; /* no disconnection, tagging */
 #endif
 		ccb->ccb_h.status = CAM_REQ_CMP;
 		xpt_done(ccb);
@@ -2706,6 +2722,16 @@ umass_cam_cb(struct umass_softc *sc, union ccb *ccb, u_int32_t residue,
 	switch (status) {
 	case STATUS_CMD_OK:
 		ccb->ccb_h.status = CAM_REQ_CMP;
+		if ((sc->sc_quirks & READ_CAPACITY_OFFBY1) &&
+		    (ccb->ccb_h.func_code == XPT_SCSI_IO) &&
+		    (ccb->csio.cdb_io.cdb_bytes[0] == READ_CAPACITY)) {
+			struct scsi_read_capacity_data *rcap;
+			uint32_t maxsector;
+
+			rcap = (void *)(ccb->csio.data_ptr);
+			maxsector = scsi_4btoul(rcap->addr) - 1;
+			scsi_ulto4b(maxsector, rcap->addr);
+		}
 		xpt_done(ccb);
 		break;
 
