@@ -530,23 +530,11 @@ ugenclose(struct cdev *dev, int flag, int mode, struct thread *p)
 
 		sce->state |= UGEN_CLOSING;
 
-		if(sce->xfer_in[0])
-		{
-			usbd_transfer_stop(sce->xfer_in[0]);
-		}
-		if(sce->xfer_in[1])
-		{
-			usbd_transfer_stop(sce->xfer_in[1]);
-		}
-		if(sce->xfer_out[0])
-		{
-			usbd_transfer_stop(sce->xfer_out[0]);
-		}
-		if(sce->xfer_out[1])
-		{
-			usbd_transfer_stop(sce->xfer_out[1]);
-		}
-
+		usbd_transfer_stop(sce->xfer_in[0]);
+		usbd_transfer_stop(sce->xfer_in[1]);
+		usbd_transfer_stop(sce->xfer_out[0]);
+		usbd_transfer_stop(sce->xfer_out[1]);
+	
 		while(sce->state & 
 		      (UGEN_RD_CFG|UGEN_RD_SLP|UGEN_RD_WUP|UGEN_RD_UIO|
 		       UGEN_WR_CFG|UGEN_WR_SLP|UGEN_WR_WUP|UGEN_WR_UIO|

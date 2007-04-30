@@ -2143,9 +2143,9 @@ zyd_detach(device_t dev)
 	struct ieee80211com *ic;
 	struct ifnet *ifp;
 
-	mtx_lock(&(sc->sc_mtx));
-
 	usbd_config_td_stop(&(sc->sc_config_td));
+
+	mtx_lock(&(sc->sc_mtx));
 
 	__callout_stop(&(sc->sc_watchdog));
 	__callout_stop(&(sc->sc_scan_callout));
@@ -2826,19 +2826,10 @@ zyd_cfg_pre_stop(struct zyd_softc *sc,
 	/* stop all the transfers, 
 	 * if not already stopped:
 	 */
-	if (sc->sc_xfer[ZYD_TR_BULK_DT_WR]) {
-	    usbd_transfer_stop(sc->sc_xfer[ZYD_TR_BULK_DT_WR]);
-	}
-	if (sc->sc_xfer[ZYD_TR_BULK_DT_RD]) {
-	    usbd_transfer_stop(sc->sc_xfer[ZYD_TR_BULK_DT_RD]);
-	}
-	if (sc->sc_xfer[ZYD_TR_BULK_CS_WR]) {
-	    usbd_transfer_stop(sc->sc_xfer[ZYD_TR_BULK_CS_WR]);
-	}
-	if (sc->sc_xfer[ZYD_TR_BULK_CS_RD]) {
-	    usbd_transfer_stop(sc->sc_xfer[ZYD_TR_BULK_CS_RD]);
-	}
-
+	usbd_transfer_stop(sc->sc_xfer[ZYD_TR_BULK_DT_WR]);
+	usbd_transfer_stop(sc->sc_xfer[ZYD_TR_BULK_DT_RD]);
+	usbd_transfer_stop(sc->sc_xfer[ZYD_TR_BULK_CS_WR]);
+	usbd_transfer_stop(sc->sc_xfer[ZYD_TR_BULK_CS_RD]);
 	return;
 }
 

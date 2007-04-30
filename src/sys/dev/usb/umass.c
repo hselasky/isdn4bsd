@@ -1274,14 +1274,12 @@ umass_detach(device_t dev)
 	sc->sc_last_xfer_index = UMASS_T_MAX;
 
 	for (i = 0; i < UMASS_T_MAX; i++) {
-	    if (sc->sc_xfer[i]) {
-	        usbd_transfer_stop(sc->sc_xfer[i]);
-	    }
+		usbd_transfer_stop(sc->sc_xfer[i]);
 	}
 
-	mtx_unlock(&(sc->sc_mtx));
-
 	umass_cam_detach_sim(sc);
+
+	mtx_unlock(&(sc->sc_mtx));
 
 	usbd_transfer_unsetup(sc->sc_xfer, UMASS_T_MAX);
 
@@ -2286,9 +2284,14 @@ umass_cam_attach_sim(struct umass_softc *sc)
 	    return ENOMEM;
 	}
 
+	mtx_lock(&(sc->sc_mtx));
+
 	if(xpt_bus_register(sc->sc_sim, sc->sc_unit) != CAM_SUCCESS) {
+	    mtx_unlock(&(sc->sc_mtx));
 	    return ENOMEM;
 	}
+
+	mtx_unlock(&(sc->sc_mtx));
 
 	return(0);
 }
@@ -2331,9 +2334,12 @@ umass_cam_rescan(struct umass_softc *sc)
 	   return;
 	}
 
+	mtx_lock(&(sc->sc_mtx));
+
 	if (xpt_create_path(&path, xpt_periph, cam_sim_path(sc->sc_sim),
 			    CAM_TARGET_WILDCARD, CAM_LUN_WILDCARD) 
 	    != CAM_REQ_CMP) {
+	    mtx_unlock(&(sc->sc_mtx));
 	    free(ccb, M_USBDEV);
 	    return;
 	}
@@ -2343,6 +2349,8 @@ umass_cam_rescan(struct umass_softc *sc)
 	ccb->ccb_h.cbfcnp = &umass_cam_rescan_callback;
 	ccb->crcn.flags = CAM_FLAG_NONE;
 	xpt_action(ccb);
+
+	mtx_unlock(&(sc->sc_mtx));
 
 	/* The scan is in progress now. */
 

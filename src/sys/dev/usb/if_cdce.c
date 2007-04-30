@@ -605,19 +605,10 @@ cdce_stop(struct cdce_softc *sc)
 	/* stop all the transfers, 
 	 * if not already stopped:
 	 */
-	if (sc->sc_xfer[0]) {
-	    usbd_transfer_stop(sc->sc_xfer[0]);
-	}
-	if (sc->sc_xfer[1]) {
-	    usbd_transfer_stop(sc->sc_xfer[1]);
-	}
-	if (sc->sc_xfer[2]) {
-	    usbd_transfer_stop(sc->sc_xfer[2]);
-	}
-	if (sc->sc_xfer[3]) {
-	    usbd_transfer_stop(sc->sc_xfer[3]);
-	}
-
+	usbd_transfer_stop(sc->sc_xfer[0]);
+	usbd_transfer_stop(sc->sc_xfer[1]);
+	usbd_transfer_stop(sc->sc_xfer[2]);
+	usbd_transfer_stop(sc->sc_xfer[3]);
 	return;
 }
 

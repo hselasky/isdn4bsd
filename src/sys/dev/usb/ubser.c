@@ -365,9 +365,7 @@ ubser_detach(device_t dev)
 	 */
 	mtx_lock(&Giant);
 	for (n = 0; n < UBSER_TR_MAX; n++) {
-	    if (sc->sc_xfer[n]) {
-	        usbd_transfer_stop(sc->sc_xfer[n]);
-	    }
+		usbd_transfer_stop(sc->sc_xfer[n]);
 	}
 	mtx_unlock(&Giant);
 

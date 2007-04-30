@@ -560,9 +560,9 @@ ural_detach(device_t dev)
 	struct ieee80211com *ic;
 	struct ifnet *ifp;
 
-	mtx_lock(&(sc->sc_mtx));
-
 	usbd_config_td_stop(&(sc->sc_config_td));
+
+	mtx_lock(&(sc->sc_mtx));
 
 	__callout_stop(&sc->sc_watchdog);
 
