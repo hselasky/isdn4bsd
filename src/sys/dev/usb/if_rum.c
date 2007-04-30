@@ -1952,9 +1952,9 @@ rum_cfg_set_chan(struct rum_softc *sc,
 
 	if ((sc->sc_rf_rev == RT2573_RF_5225) ||
 	    (sc->sc_rf_rev == RT2573_RF_2527))
-		bbp3 |= RT2573_SMART_MODE;
-	else
 	  	bbp3 &= ~RT2573_SMART_MODE;
+	else
+		bbp3 |= RT2573_SMART_MODE;
 
 	rum_cfg_bbp_write(sc, 3, bbp3);
 
