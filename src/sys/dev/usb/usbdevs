@@ -63,6 +63,7 @@ $FreeBSD: src/sys/dev/usb/usbdevs,v 1.291 2007/04/13 18:15:07 maxim Exp $
  */
 
 vendor EGALAX2		0x0123	eGalax
+vendor DICKSMITH	0x1371	Dick Smith Electronics
 vendor NETGEAR3		0x1385	Netgear
 vendor WISTRONNEWEB	0x1435	Wistron NeWeb
 vendor OQO		0x1557	OQO
@@ -358,6 +359,7 @@ vendor EICON		0x0734	Eicon Networks
 vendor DIGITALSTREAM	0x074e	Digital Stream
 vendor AUREAL		0x0755	Aureal
 vendor MIDIMAN		0x0763	Midiman
+vendor SURECOM		0x0769	Surecom Technology
 vendor LINKSYS2		0x077b	Linksys
 vendor GRIFFIN		0x077d	Griffin
 vendor SANDISK		0x0781	SanDisk
@@ -387,6 +389,7 @@ vendor ALLIEDTELESYN	0x07c9	Allied Telesyn
 vendor AVERMEDIA	0x07ca	AVerMedia
 vendor SIIG		0x07cc	SIIG
 vendor CASIO		0x07cf	CASIO
+vendor DLINK2		0x07d1	D-Link
 vendor APTIO		0x07d2	Aptio
 vendor ARASAN		0x07da	Arasan
 vendor ALLIEDCABLE	0x07e6	Allied Cable
@@ -534,6 +537,7 @@ vendor SHARK		0x13d2	Shark
 vendor NOVATEL2		0x1410	Novatel
 vendor WISTRONNEWEB	0x1435	Wistron NeWeb
 vendor RADIOSHACK	0x1453	Radio Shack
+vendor HUAWEI3COM	0x1472	Huawei 3Com
 vendor SILICOM		0x1485	Silicom
 vendor RALINK		0x148f	Ralink Technology
 vendor IMAGINATION	0x149a	Imagination Technologies
@@ -554,6 +558,8 @@ vendor GIGASET		0x1690	Gigaset
 vendor GLOBALSUN	0x16ab	Global Sun Technology
 vendor CMOTECH		0x16d8	CMOTECH CO., LTD.
 vendor LINKSYS4		0x1737	Linksys
+vendor AMIT		0x18c5	AMIT
+vendor QCOM		0x18e8	Qcom
 vendor LINKSYS3		0x1915	Linksys
 vendor DLINK		0x2001	D-Link
 vendor PLANEX2		0x2019	Planex Communications
@@ -619,6 +625,11 @@ product ABOCOM XX9		0x4104	XX9
 product ABOCOM UF200		0x420a	UF200 Ethernet
 product ABOCOM WL54		0x6001	WL54
 product ABOCOM XX10		0xabc1	XX10
+product ABOCOM HWU54DM		0xb21b	HWU54DM
+product ABOCOM RT2573_2		0xb21c	RT2573
+product ABOCOM RT2573_3		0xb21d	RT2573
+product ABOCOM RT2573_4		0xb21e	RT2573
+product ABOCOM WUG2700		0xb21f	WUG2700
 
 /* Accton products */
 product ACCTON USB320_EC	0x1046	USB320-EC Ethernet
@@ -636,6 +647,9 @@ product ACERP ACERSCAN_640BT	0x20be	Acerscan 640BT
 product ACERP ACERSCAN_1240U	0x20c0	Acerscan 1240U
 product ACERP AWL300		0x9000	AWL300 Wireless adapter
 product ACERP AWL400		0x9001	AWL400 Wireless adapter
+
+/* Acer Communications & Multimedia */
+product ACERCM EP1427X2		0x0893	EP-1427X-2 Ethernet
 
 /* ActiveWire, Inc. products */
 product ACTIVEWIRE IOBOARD	0x0100	I/O Board
@@ -698,6 +712,9 @@ product ALTEC ASC495		0xff05	ASC495 Speakers
 /* American Power Conversion products */
 product APC UPS			0x0002	Uninterruptible Power Supply
 
+/* AMIT products */
+product AMIT CGWLUSB2GO		0x0002	CG-WLUSB2GO
+
 /* Anchor products */
 product ANCHOR EZUSB		0x2131	EZUSB
 product ANCHOR EZLINK		0x2720	EZLINK
@@ -734,6 +751,8 @@ product ASIX AX88772		0x7720	10/100 ethernet
 /* ASUS products */
 product ASUS WL167G		0x1707	WL-167g wireless adapter
 product ASUS WL159G		0x170c	WL-159g
+product ASUS RT2573_1		0x1723	RT2573
+product ASUS RT2573_2		0x1724	RT2573
 
 /* ATen products */
 product ATEN UC1284		0x2001	Parallel printer
@@ -779,6 +798,8 @@ product BELKIN F5D7050		0x7050	F5D7050 wireless adapter
 product BELKIN F5D7050C		0x705c	F5D705C 54g USB Network Adapter
 product BELKIN F5D7051		0x7051	F5D7051 54g USB Network Adapter
 product BELKIN F5D705A		0x705a	F5D705A 54g USB Network Adapter
+product BELKIN F5D7050A		0x705a	F5D705A wireless adapter
+product BELKIN F5D9050V3	0x905b	F5D9050 ver 3 wireless adapter
 
 /* Billionton products */
 product BILLIONTON USB100	0x0986	USB100N 10/100 FastEthernet
@@ -834,6 +855,9 @@ product CISCOLINKSYS WUSB54G	0x000d	WUSB54G wireless adapter
 product CISCOLINKSYS WUSB54GP	0x0011	WUSB54GP wireless adapter
 product CISCOLINKSYS USB200MV2	0x0018	USB 2.0 10/100 ethernet v2.0
 product CISCOLINKSYS HU200TS	0x001a	HU200TS wireless adapter
+product CISCOLINKSYS WUSB54GC	0x0020	WUSB54GC
+product CISCOLINKSYS WUSB54GR	0x0023	WUSB54GR
+
 
 /* CMOTECH products */
 product CMOTECH CNU510		0x5141	CMOTECH CDMA Technologies USB modem
@@ -914,6 +938,10 @@ product DELORME EARTHMATE	0x0100	Earthmate GPS
 /* Diamond products */
 product DIAMOND RIO500USB	0x0001	Rio 500 USB
 
+/* Dick Smith Electronics (really C-Net) products */
+product DICKSMITH RT2573	0x9022	RT2573
+product DICKSMITH CWD854F	0x9032	C-Net CWD-854 rev F
+
 /* Digi International products */
 product DIGI ACCELEPORT2	0x0002	AccelePort USB 2
 product DIGI ACCELEPORT4	0x0004	AccelePort USB 4
@@ -940,6 +968,8 @@ product DLINK DSB650TX_PNA	0x4003	1/10/100 ethernet
 product DLINK DSB650TX3		0x400b	10/100 ethernet
 product DLINK DSB650TX2		0x4102	10/100 ethernet
 product DLINK DSB650		0xabc1	10/100 ethernet
+product DLINK2 DWLG122C1	0x3c03	DWL-G122 c1
+product DLINK2 WUA1340		0x3c04	WUA-1340
 
 /* DrayTek products */
 product DRAYTEK VIGOR550	0x0550	Vigor550
@@ -1053,6 +1083,8 @@ product GIGABYTE GN54G		0x8001	54g USB Network Adapter
 product GIGABYTE GNBR402W	0x8002	GN-BR402W
 product GIGABYTE GNWLBM101	0x8003	GN-WLBM101
 product GIGABYTE GNWBKG		0x8007	GN-WBKG
+product GIGABYTE GNWB01GS	0x8008	GN-WB01GS
+product GIGABYTE GNWI05GS	0x800a	GN-WI05GS
 
 /* Gigaset products */
 product GIGASET WLAN		0x0701	WLAN
@@ -1073,11 +1105,14 @@ product GMATE YP3X00		0x1001	YP3X00 PDA
 
 /* Good Way Technology products */
 product GOODWAY GWUSB2E		0x6200	GWUSB2E
+product GOODWAY RT2573		0xc019	RT2573
 
 /* Guillemot Corporation */
 product GUILLEMOT HW54G		0xe000	54g USB Network Adapter
 product GUILLEMOT DALEADER	0xa300	DA Leader
 product GUILLEMOT HWGUSB254	0xe000	HWGUSB2-54 WLAN
+product GUILLEMOT HWGUSB254LB	0xe010	HWGUSB2-54-LB
+product GUILLEMOT HWGUSB254V2AP	0xe020	HWGUSB2-54V2-AP
 
 /* HAL Corporation products */
 product HAL IMR001		0x0011	Crossam2+USB IR commander
@@ -1149,6 +1184,7 @@ product HP2 C500		0x6002	PhotoSmart C500
 
 /* HUAWEI products */
 product HUAWEI MOBILE		0x1001	Huawei Mobile
+product HUAWEI3COM WUB320G	0x0009	Aolynk WUB320g
 
 /* IBM Corporation */
 product IBM USBCDROMDRIVE	0x4427	USB CD-ROM Drive
@@ -1354,6 +1390,8 @@ product MELCO KG54YB		0x005e	WLI-U2-KG54-YB WLAN
 product MELCO KG54		0x0066	WLI-U2-KG54 WLAN
 product MELCO KG54AI		0x0067	WLI-U2-KG54-AI WLAN
 product MELCO NINWIFI		0x008b	Nintendo Wi-Fi
+product MELCO SG54HP		0x00d8	WLI-U2-SG54HP
+product MELCO G54HP		0x00d9	WLI-U2-G54HP
 
 /* Metricom products */
 product METRICOM RICOCHET_GS	0x0001	Ricochet GS
@@ -1364,9 +1402,14 @@ product MGE UPS2		0xffff	MGE UPS SYSTEMS PROTECTIONCENTER 2
 
 /* Micro Star International products */
 product MSI BT_DONGLE		0x1967	Bluetooth USB dongle
+product MSI UB11B		0x6823	UB11B
 product MSI RT2570		0x6861	RT2570
 product MSI RT2570_2		0x6865	RT2570
 product MSI RT2570_3		0x6869	RT2570
+product MSI RT2573_1		0x6874	RT2573
+product MSI RT2573_2		0x6877	RT2573
+product MSI RT2573_3		0xa861	RT2573
+product MSI RT2573_4		0xa874	RT2573
 
 /* Microsoft products */
 product MICROSOFT SIDEPREC	0x0008	SideWinder Precision Pro
@@ -1472,6 +1515,7 @@ product NIKON LS40		0x4000	CoolScan LS40 ED
 
 /* NovaTech Products */
 product NOVATECH NV902		0x9020  NovaTech NV-902W
+product NOVATECH RT2573		0x9021	RT2573
 
 /* NovAtel products */
 product NOVATEL FLEXPACKGPS	0x0100	NovAtel FlexPack GPS receiver
@@ -1538,6 +1582,9 @@ product PIENGINEERING PS2USB	0x020b	PS2 to Mac USB Adapter
 product PLANEX3 GU1000T		0xab11	GU-1000T
 product PLANEX3 GWUS54MINI	0xab13	GW-US54Mini
 product PLANEX2 GWUS54GZL	0xc007	GW-US54GZL
+product PLANEX2 GWUS54HP	0xab01	GW-US54HP
+product PLANEX2 GWUS54MINI2	0xab50	GW-US54Mini2
+product PLANEX2 GWUSMM		0xed02	GW-USMM
 
 /* Plextor Corp. */
 product PLEXTOR 40_12_40U	0x0011	PlexWriter 40/12/40U
@@ -1581,6 +1628,10 @@ product PROLIFIC2 WSIM		0x2001  Willcom WSIM
 /* Putercom products */
 product PUTERCOM UPA100		0x047e	USB-1284 BRIDGE
 
+/* Qcom products */
+product QCOM RT2573		0x6196	RT2573
+product QCOM RT2573_2		0x6229	RT2573
+
 /* Qualcomm products */
 product QUALCOMM RWT_FCT	0x3100	RWT FCT-CDMA 2000 1xRTT modem
 product QUALCOMM CDMA_MSM	0x3196	CDMA Technologies MSM modem
@@ -1604,6 +1655,9 @@ product RALINK RT2570		0x1706	RT2500USB wireless adapter
 product RALINK RT2570_2		0x2570	RT2500USB wireless adapter
 product RALINK RT2573		0x2573	RT2573USB wireless adapter
 product RALINK RT2570_3		0x9020	RT2500USB wireless adapter
+product RALINK RT2573		0x2573	RT2501USB wireless adapter
+product RALINK RT2671		0x2671	RT2601USB wireless adapter
+product RALINK RT2573_2		0x9021	RT2501USB wireless adapter
 
 /* ReakTek products */
 product REALTEK USBKR100	0x8150	USBKR100 USB Ethernet (GREEN HOUSE)
@@ -1699,6 +1753,8 @@ product SITECOM SERIAL		0x2068	USB to serial cable (v2)
 /* Sitecom Europe products */
 product SITECOMEU LN028		0x061c	LN-028
 product SITECOMEU WL113		0x9071	WL-113
+product SITECOMEU WL172		0x90ac	WL-172
+product SITECOMEU WL113R2	0x9712	WL-113 rev 2
 
 /* SmartBridges products */
 product SMARTBRIDGES SMARTLINK	0x0001	SmartLink USB ethernet
@@ -1772,7 +1828,7 @@ product DIAMOND2 RIO800USB	0x5002	Rio 800 USB
 product SWEEX ZD1211		0x1809	ZD1211
 
 /* Surecom products */
-product ACERCM EP1427X2		0x0893	EP-1427X-2 Ethernet
+product SURECOM RT2573		0x31f3	RT2573
 
 /* System TALKS, Inc. */
 product SYSTEMTALKS SGCX2UL	0x1920	SGC-X2UL

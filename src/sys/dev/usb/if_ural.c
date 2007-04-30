@@ -52,6 +52,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.52 2007/04/24 11:18:55 sephe E
 
 #include <net80211/ieee80211_var.h>
 #include <net80211/ieee80211_radiotap.h>
+#include <net80211/ieee80211_amrr.h>
 
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
@@ -111,7 +112,6 @@ static usbd_config_td_command_t ural_cfg_pre_init;
 static usbd_config_td_command_t ural_cfg_init;
 static usbd_config_td_command_t ural_cfg_pre_stop;
 static usbd_config_td_command_t ural_cfg_stop;
-static usbd_config_td_command_t ural_cfg_pre_amrr_timeout;
 static usbd_config_td_command_t ural_cfg_amrr_timeout;
 
 static void
@@ -188,9 +188,6 @@ static int
 ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg);
 
 static void
-ural_tx_bcn_complete(struct ural_softc *sc);
-
-static void
 ural_cfg_tx_bcn(struct ural_softc *sc);
 
 static void
@@ -216,9 +213,6 @@ ural_cfg_bbp_init(struct ural_softc *sc);
 
 static void
 ural_cfg_amrr_start(struct ural_softc *sc);
-
-static void
-ural_ratectl(struct ural_amrr *amrr, struct ieee80211_node *ni);
 
 /* various supported device vendors/products */
 static const struct usb_devno ural_devs[] = {
@@ -475,6 +469,7 @@ static driver_t ural_driver = {
 DRIVER_MODULE(ural, uhub, ural_driver, ural_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(ural, usb, 1, 1, 1);
 MODULE_DEPEND(ural, wlan, 1, 1, 1);
+MODULE_DEPEND(ural, wlan_amrr, 1, 1, 1);
 
 static int
 ural_probe(device_t dev)
@@ -854,6 +849,9 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	sc->sc_txtap.h.wt_ihdr.it_len = htole16(sc->sc_txtap_len);
 	sc->sc_txtap.h.wt_ihdr.it_present = htole32(RAL_TX_RADIOTAP_PRESENT);
 
+	/* setup AMRR */
+	ieee80211_amrr_init(&(sc->sc_amrr), ic, 1, 10);
+
 	/* retrieve RT2570 rev. no */
 	sc->sc_asic_rev = ural_cfg_read(sc, RAL_MAC_CSR0);
 
@@ -892,7 +890,6 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	ic->ic_phytype = IEEE80211_T_OFDM; /* not only, but not used */
 	ic->ic_opmode = IEEE80211_M_STA; /* default to BSS mode */
 	ic->ic_state = IEEE80211_S_INIT;
-	ic->ic_reset = &ural_reset_cb;
 
 	/* set device capabilities */
 	ic->ic_caps =
@@ -946,7 +943,11 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 
 	/* override state transition machine */
 	sc->sc_newstate = ic->ic_newstate;
-	ic->ic_newstate = ural_newstate_cb;
+	ic->ic_newstate = &ural_newstate_cb;
+#if 0
+	ic->ic_raw_xmit = &ural_raw_xmit_cb;
+#endif
+	ic->ic_reset = &ural_reset_cb;
 
 	mtx_unlock(&(sc->sc_mtx));
 
@@ -1157,7 +1158,9 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 	    goto tr_setup;
 	}
 
-	if (sc->sc_drvbpf != NULL) {
+	DPRINTF(sc, 0, "real length=%d bytes\n", m->m_len);
+
+	if (bpf_peers_present(sc->sc_drvbpf)) {
 	    struct ural_rx_radiotap_header *tap = &(sc->sc_rxtap.h);
 
 	    tap->wr_flags = IEEE80211_RADIOTAP_F_FCS;   
@@ -1390,20 +1393,20 @@ ural_setup_tx_desc(struct ural_softc *sc, u_int32_t flags, u_int16_t len,
  * ural_bulk_write_callback - data write "thread"
  *------------------------------------------------------------------------*/
 static void
-ural_bulk_write_callback_sub(struct usbd_xfer *xfer, struct mbuf *m0,
+ural_bulk_write_callback_sub(struct usbd_xfer *xfer, struct mbuf *m,
 			     struct ieee80211_node *ni, uint32_t flags,
 			     uint16_t rate)
 {
 	struct ural_softc *sc = xfer->priv_sc;
 	struct ieee80211com *ic = &(sc->sc_ic);
 
-	if (m0->m_pkthdr.len > MCLBYTES) {
+	if (m->m_pkthdr.len > MCLBYTES) {
 	    DPRINTF(sc, 0, "data overflow, %u bytes\n",
-		    m0->m_pkthdr.len);
-	    m0->m_pkthdr.len = MCLBYTES;
+		    m->m_pkthdr.len);
+	    m->m_pkthdr.len = MCLBYTES;
 	}
 
-	if (sc->sc_drvbpf != NULL) {
+	if (bpf_peers_present(sc->sc_drvbpf)) {
 	    struct ural_tx_radiotap_header *tap = &(sc->sc_txtap.h);
 
 	    tap->wt_flags = 0;
@@ -1412,19 +1415,19 @@ ural_bulk_write_callback_sub(struct usbd_xfer *xfer, struct mbuf *m0,
 	    tap->wt_chan_flags = htole16(ic->ic_curchan->ic_flags);
 	    tap->wt_antenna = sc->sc_tx_ant;
 
-	    bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_txtap_len, m0);
+	    bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_txtap_len, m);
 	}
 
-	ural_setup_tx_desc(sc, flags, m0->m_pkthdr.len, rate);
+	ural_setup_tx_desc(sc, flags, m->m_pkthdr.len, rate);
 
 	usbd_copy_in(&(xfer->buf_data), 0, &(sc->sc_tx_desc), 
 		     RAL_TX_DESC_SIZE);
 
 	usbd_m_copy_in(&(xfer->buf_data), RAL_TX_DESC_SIZE, 
-		       m0, 0, m0->m_pkthdr.len);
+		       m, 0, m->m_pkthdr.len);
 
 	/* compute transfer length */
-	xfer->length = (RAL_TX_DESC_SIZE + m0->m_pkthdr.len + 2);
+	xfer->length = (RAL_TX_DESC_SIZE + m->m_pkthdr.len);
 
 	/* make transfer length 16-bit aligned */
 	if (xfer->length & 1) {
@@ -1440,10 +1443,10 @@ ural_bulk_write_callback_sub(struct usbd_xfer *xfer, struct mbuf *m0,
 	    xfer->length += 2;
 	}
 
-	DPRINTF(sc, 10, "sending frame len=%u rate=%u xfer len=%u\n",
-		m0->m_pkthdr.len, rate, xfer->length);
+	DPRINTF(sc, 10, "sending frame len=%u rate=%u xferlen=%u\n",
+		m->m_pkthdr.len, rate, xfer->length);
 
-	m_freem(m0);
+	m_freem(m);
 
 	if (ni) {
 	    ieee80211_free_node(ni);
@@ -1463,7 +1466,7 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 	struct ieee80211_node *ni = NULL;
 	struct ieee80211_key *k;
 	struct ether_header *eh;
-	struct mbuf *m0 = NULL;
+	struct mbuf *m = NULL;
 	u_int32_t flags;
 	u_int16_t dur;
 	u_int16_t rate;
@@ -1516,30 +1519,30 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 	if (sc->sc_flags &   URAL_FLAG_SEND_BCN_FRAME) {
 	    sc->sc_flags &= ~URAL_FLAG_SEND_BCN_FRAME;
 
-	    m0 = sc->sc_bcn_mbuf;
+	    m = sc->sc_bcn_mbuf;
 	    sc->sc_bcn_mbuf = NULL;
 
 	    ural_bulk_write_callback_sub
-	      (xfer, m0, NULL, sc->sc_bcn_flags, sc->sc_bcn_rate);
+	      (xfer, m, NULL, sc->sc_bcn_flags, sc->sc_bcn_rate);
 	    goto done;
 	}
 
 	flags = 0;
 
-	IF_DEQUEUE(&(ic->ic_mgtq), m0);
+	IF_DEQUEUE(&(ic->ic_mgtq), m);
 
-	if (m0) {
+	if (m) {
 
-	    ni = (struct ieee80211_node *)(m0->m_pkthdr.rcvif);
-	    m0->m_pkthdr.rcvif = NULL;
+	    ni = (struct ieee80211_node *)(m->m_pkthdr.rcvif);
+	    m->m_pkthdr.rcvif = NULL;
 
-	    if (ic->ic_rawbpf != NULL) {
-	        bpf_mtap(ic->ic_rawbpf, m0);
+	    if (bpf_peers_present(ic->ic_rawbpf)) {
+	        bpf_mtap(ic->ic_rawbpf, m);
 	    }
 
 	    rate = (IEEE80211_IS_CHAN_5GHZ(ic->ic_curchan) ? 12 : 2);
 
-	    wh = mtod(m0, struct ieee80211_frame *);
+	    wh = mtod(m, struct ieee80211_frame *);
 
 	    if (!IEEE80211_IS_MULTICAST(wh->i_addr1)) {
 
@@ -1549,15 +1552,16 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 		*(u_int16_t *)(wh->i_dur) = htole16(dur);
 
 		/* tell hardware to add timestamp for probe responses */
-		if (((wh->i_fc[0] & IEEE80211_FC0_TYPE_MASK) == 
-		     IEEE80211_FC0_TYPE_MGT) &&
-		    ((wh->i_fc[0] & IEEE80211_FC0_SUBTYPE_MASK) ==
+		if ((wh->i_fc[0] &
+		     (IEEE80211_FC0_TYPE_MASK|
+		      IEEE80211_FC0_SUBTYPE_MASK)) == 
+		    (IEEE80211_FC0_TYPE_MGT|
 		     IEEE80211_FC0_SUBTYPE_PROBE_RESP)) {
 			flags |= RAL_TX_TIMESTAMP;
 		}
 	    }
 
-	    ural_bulk_write_callback_sub(xfer, m0, ni, flags, rate);
+	    ural_bulk_write_callback_sub(xfer, m, ni, flags, rate);
 	    goto done;
 	}
 
@@ -1565,52 +1569,53 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 	    goto done;
 	}
 
-	IFQ_DRV_DEQUEUE(&ifp->if_snd, m0);
+	IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 
-	if (m0) {
+	if (m) {
 
-	    if (m0->m_len < sizeof(struct ether_header)) {
-	        m0 = m_pullup(m0, sizeof(struct ether_header));
+	    if (m->m_len < sizeof(struct ether_header)) {
+	        m = m_pullup(m, sizeof(struct ether_header));
 
-		if (m0 == NULL) {
+		if (m == NULL) {
 		    goto error;
 		}
 	    }
 
-	    eh = mtod(m0, struct ether_header *);
+	    eh = mtod(m, struct ether_header *);
 	    ni = ieee80211_find_txnode(ic, eh->ether_dhost);
 	    if (ni == NULL) {
 	        goto error;
 	    }
 
-	    BPF_MTAP(ifp, m0);
+	    BPF_MTAP(ifp, m);
 
-	    m0 = ieee80211_encap(ic, m0, ni);
+	    m = ieee80211_encap(ic, m, ni);
 
-	    if (m0 == NULL) {
+	    if (m == NULL) {
 	        goto error;
 	    }
 
-	    if (ic->ic_rawbpf != NULL) {
-	        bpf_mtap(ic->ic_rawbpf, m0);
+	    if (bpf_peers_present(ic->ic_rawbpf)) {
+	        bpf_mtap(ic->ic_rawbpf, m);
 	    }
 
-	    wh = mtod(m0, struct ieee80211_frame *);
+	    wh = mtod(m, struct ieee80211_frame *);
 
-	    rate = ((ic->ic_fixed_rate != IEEE80211_FIXED_RATE_NONE) ?
-		    ic->ic_bss->ni_rates.rs_rates[ic->ic_fixed_rate] :
-		    ni->ni_rates.rs_rates[ni->ni_txrate]);
+	    if (ic->ic_fixed_rate != IEEE80211_FIXED_RATE_NONE)
+	        rate = ic->ic_bss->ni_rates.rs_rates[ic->ic_fixed_rate];
+	    else
+	        rate = ni->ni_rates.rs_rates[ni->ni_txrate];
 
 	    rate &= IEEE80211_RATE_VAL;
 
 	    if (wh->i_fc[1] & IEEE80211_FC1_WEP) {
-		k = ieee80211_crypto_encap(ic, ni, m0);
+		k = ieee80211_crypto_encap(ic, ni, m);
 		if (k == NULL) {
 		    goto error;
 		}
 
 		/* packet header may have moved, reset our local pointer */
-		wh = mtod(m0, struct ieee80211_frame *);
+		wh = mtod(m, struct ieee80211_frame *);
 	    }
 
 	    if (!IEEE80211_IS_MULTICAST(wh->i_addr1)) {
@@ -1622,16 +1627,16 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 		*(u_int16_t *)(wh->i_dur) = htole16(dur);
 	    }
 
-	    ural_bulk_write_callback_sub(xfer, m0, ni, flags, rate);
+	    ural_bulk_write_callback_sub(xfer, m, ni, flags, rate);
 	    goto done;
 	}
  done:
 	return;
 
  error:
-	if (m0) {
-	    m_freem(m0);
-	    m0 = NULL;
+	if (m) {
+	    m_freem(m);
+	    m = NULL;
 	}
 
 	if (ni) {
@@ -1680,15 +1685,18 @@ ural_watchdog(void *arg)
 	mtx_assert(&(sc->sc_mtx), MA_OWNED);
 
 	if ((sc->sc_amrr_timer) &&
-	    (--sc->sc_amrr_timer == 0)) {
+	    (--(sc->sc_amrr_timer) == 0)) {
+
+	    /* restart timeout */
+	    sc->sc_amrr_timer = (1*8);
 
 	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_cfg_pre_amrr_timeout,
+	      (&(sc->sc_config_td), NULL,
 	       &ural_cfg_amrr_timeout, 0, 0);
 	}
 
 	if ((sc->sc_if_timer) &&
-	    (--sc->sc_if_timer == 0)) {
+	    (--(sc->sc_if_timer) == 0)) {
 
 	    DPRINTF(sc, 0, "watchdog timeout\n");
 
@@ -1699,7 +1707,7 @@ ural_watchdog(void *arg)
 	}
 
 	if ((sc->sc_scan_timer) &&
-	    (--sc->sc_scan_timer == 0)) {
+	    (--(sc->sc_scan_timer) == 0)) {
 	    ieee80211_next_scan(ic);
 	}
 
@@ -1931,19 +1939,6 @@ ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
  *========================================================================*/
 
 static void
-ural_tx_bcn_complete(struct ural_softc *sc)
-{
-	if (sc->sc_bcn_mbuf) {
-	    m_freem(sc->sc_bcn_mbuf);
-	    sc->sc_bcn_mbuf = NULL;
-
-	    sc->sc_flags &= ~(URAL_FLAG_SEND_BYTE_FRAME|
-			      URAL_FLAG_SEND_BCN_FRAME);
-	}
-	return;
-}
-
-static void
 ural_cfg_tx_bcn(struct ural_softc *sc)
 {
 	if ((sc->sc_flags & URAL_FLAG_LL_READY) &&
@@ -1984,6 +1979,7 @@ static void
 ural_cfg_set_chan(struct ural_softc *sc,
 		  struct ural_config_copy *cc, u_int16_t refcount)
 {
+	enum { N_RF5222 = (sizeof(ural_rf5222)/sizeof(ural_rf5222[0])) };
 	u_int32_t i;
 	u_int32_t chan;
 	u_int8_t power;
@@ -2060,8 +2056,7 @@ ural_cfg_set_chan(struct ural_softc *sc,
 
 	/* dual-band RF */
 	case RAL_RF_5222:
-		for (i = 0; i < (sizeof(ural_rf5222)/
-				 sizeof(ural_rf5222[0])); i++) {
+		for (i = 0; i < N_RF5222; i++) {
 		  if (ural_rf5222[i].chan == chan) {
 		      ural_cfg_rf_write(sc, RAL_RF1, ural_rf5222[i].r1);
 		      ural_cfg_rf_write(sc, RAL_RF2, ural_rf5222[i].r2);
@@ -2421,6 +2416,7 @@ ural_cfg_read_eeprom(struct ural_softc *sc)
 static u_int8_t
 ural_cfg_bbp_init(struct ural_softc *sc)
 {
+	enum { N_DEF_BBP = (sizeof(ural_def_bbp)/sizeof(ural_def_bbp[0])) };
 	u_int16_t i;
 	u_int8_t to;
 
@@ -2431,7 +2427,7 @@ ural_cfg_bbp_init(struct ural_softc *sc)
 		    break;
 		}
 		if (usbd_config_td_sleep(&(sc->sc_config_td), hz/100)) {
-		    break;
+		    return 1; /* failure */
 		}
 	    } else {
 	        DPRINTF(sc, 0, "timeout waiting for BBP\n");
@@ -2440,7 +2436,7 @@ ural_cfg_bbp_init(struct ural_softc *sc)
 	}
 
 	/* initialize BBP registers to default values */
-	for (i = 0; i < (sizeof(ural_def_bbp)/sizeof(ural_def_bbp[0])); i++) {
+	for (i = 0; i < N_DEF_BBP; i++) {
 		ural_cfg_bbp_write(sc, ural_def_bbp[i].reg, 
 			           ural_def_bbp[i].val);
 	}
@@ -2489,6 +2485,7 @@ static void
 ural_cfg_init(struct ural_softc *sc,
 	      struct ural_config_copy *cc, u_int16_t refcount)
 {
+	enum { N_DEF_MAC = (sizeof(ural_def_mac)/sizeof(ural_def_mac[0])) };
 	u_int16_t tmp;
 	u_int16_t i;
 	u_int8_t to;
@@ -2502,8 +2499,7 @@ ural_cfg_init(struct ural_softc *sc,
 	ural_cfg_stop(sc, cc, 0);
 
 	/* initialize MAC registers to default values */
-	for (i = 0; i < (sizeof(ural_def_mac)/
-			 sizeof(ural_def_mac[0])); i++) {
+	for (i = 0; i < N_DEF_MAC; i++) {
 	    ural_cfg_write(sc, ural_def_mac[i].reg, 
 			   ural_def_mac[i].val);
 	}
@@ -2511,13 +2507,13 @@ ural_cfg_init(struct ural_softc *sc,
 	/* wait for BBP and RF to wake up (this can take a long time!) */
 	for (to = 0; ; to++) {
 	    if (to < 100) {
-	        tmp = ural_cfg_read(sc, RAL_MAC_CSR17);
+	          tmp = ural_cfg_read(sc, RAL_MAC_CSR17);
 		  if ((tmp & (RAL_BBP_AWAKE | RAL_RF_AWAKE)) ==
 		      (RAL_BBP_AWAKE | RAL_RF_AWAKE)) {
 		      break;
 		  }
 		  if (usbd_config_td_sleep(&(sc->sc_config_td), hz/100)) {
-		      break;
+		      goto fail;
 		  }
 	    } else {
 	        DPRINTF(sc, 0, "timeout waiting for "
@@ -2633,11 +2629,14 @@ ural_cfg_pre_stop(struct ural_softc *sc,
 	usbd_transfer_stop(sc->sc_xfer[2]);
 	usbd_transfer_stop(sc->sc_xfer[3]);
 
-	/* stop transmission of
-	 * beacon frame, if any:
-	 */
-	ural_tx_bcn_complete(sc);
+	/* clean up beacon transmission */
+	if (sc->sc_bcn_mbuf) {
+	    m_freem(sc->sc_bcn_mbuf);
+	    sc->sc_bcn_mbuf = NULL;
 
+	    sc->sc_flags &= ~(URAL_FLAG_SEND_BYTE_FRAME|
+			      URAL_FLAG_SEND_BCN_FRAME);
+	}
 	return;
 }
 
@@ -2663,20 +2662,15 @@ ural_cfg_stop(struct ural_softc *sc,
 	return;
 }
 
-#define URAL_AMRR_MIN_SUCCESS_THRESHOLD	 1
-#define URAL_AMRR_MAX_SUCCESS_THRESHOLD	10
-
 static void
 ural_cfg_amrr_start(struct ural_softc *sc)
 {
 	struct ieee80211_node *ni = sc->sc_ic.ic_bss;
-	struct ural_amrr *amrr = &sc->sc_amrr;
 	u_int16_t i;
 
-	amrr->success = 0;
-	amrr->recovery = 0;
-	amrr->txcnt = amrr->retrycnt = 0;
-	amrr->success_threshold = URAL_AMRR_MIN_SUCCESS_THRESHOLD;
+	/* init AMRR */
+
+	ieee80211_amrr_node_init(&(sc->sc_amrr), &(sc->sc_amn));
 
 	/* set rate to some reasonable initial value */
 
@@ -2692,19 +2686,9 @@ ural_cfg_amrr_start(struct ural_softc *sc)
 }
 
 static void
-ural_cfg_pre_amrr_timeout(struct ural_softc *sc,
-			  struct ural_config_copy *cc, u_int16_t refcount)
-{
-	/* restart timeout */
-	sc->sc_amrr_timer = (1*8);
-	return;
-}
-
-static void
 ural_cfg_amrr_timeout(struct ural_softc *sc,
 		      struct ural_config_copy *cc, u_int16_t refcount)
 {
-	struct ural_amrr *amrr = &sc->sc_amrr;
 	struct ifnet *ifp = sc->sc_ic.ic_ifp;
 
 	/* read and clear statistic registers (STA_CSR0 to STA_CSR10) */
@@ -2716,88 +2700,16 @@ ural_cfg_amrr_timeout(struct ural_softc *sc,
 	    /* count TX retry-fail as Tx errors */
 	    ifp->if_oerrors += sc->sc_sta[9];
 
-	    amrr->retrycnt =
+	    sc->sc_amn.amn_retrycnt = 
 	      sc->sc_sta[7] +	/* TX one-retry ok count */
 	      sc->sc_sta[8] +	/* TX more-retry ok count */
 	      sc->sc_sta[9];	/* TX retry-fail count */
 
-	    amrr->txcnt =
-	      amrr->retrycnt +
+	    sc->sc_amn.amn_txcnt = 
+	      sc->sc_amn.amn_retrycnt +
 	      sc->sc_sta[6];	/* TX no-retry ok count */
-	    
-	    ural_ratectl(amrr, sc->sc_ic.ic_bss);
-	}
-	return;
-}
 
-/*-
- * Naive implementation of the Adaptive Multi Rate Retry algorithm:
- *     "IEEE 802.11 Rate Adaptation: A Practical Approach"
- *     Mathieu Lacage, Hossein Manshaei, Thierry Turletti
- *     INRIA Sophia - Projet Planete
- *     http://www-sop.inria.fr/rapports/sophia/RR-5208.html
- *
- * This algorithm is particularly well suited for ural since it does not
- * require per-frame retry statistics.  Note however that since h/w does
- * not provide per-frame stats, we can't do per-node rate adaptation and
- * thus automatic rate adaptation is only enabled in STA operating mode.
- */
-#define is_success(amrr)	\
-	((amrr)->retrycnt < ((amrr)->txcnt / 10))
-#define is_failure(amrr)	\
-	((amrr)->retrycnt > ((amrr)->txcnt / 3))
-#define is_enough(amrr)		\
-	((amrr)->txcnt > 10)
-#define is_min_rate(ni)		\
-	((ni)->ni_txrate == 0)
-#define is_max_rate(ni)		\
-	((ni)->ni_rates.rs_nrates <= 0) || \
-	((ni)->ni_txrate == ((ni)->ni_rates.rs_nrates - 1))
-#define increase_rate(ni)	\
-	((ni)->ni_txrate++)
-#define decrease_rate(ni)	\
-	((ni)->ni_txrate--)
-#define reset_cnt(amrr)		\
-	do { (amrr)->txcnt = (amrr)->retrycnt = 0; } while (0)
-
-static void
-ural_ratectl(struct ural_amrr *amrr, struct ieee80211_node *ni)
-{
-	u_int8_t need_change = 0;
-
-	if (is_success(amrr) && is_enough(amrr)) {
-		amrr->success++;
-		if ((amrr->success >= amrr->success_threshold) &&
-		    (!is_max_rate(ni))) {
-			amrr->recovery = 1;
-			amrr->success = 0;
-			increase_rate(ni);
-			need_change = 1;
-		} else {
-			amrr->recovery = 0;
-		}
-	} else if (is_failure(amrr)) {
-		amrr->success = 0;
-		if (!is_min_rate(ni)) {
-			if (amrr->recovery) {
-				amrr->success_threshold *= 2;
-				if (amrr->success_threshold >
-				    URAL_AMRR_MAX_SUCCESS_THRESHOLD) {
-					amrr->success_threshold =
-					    URAL_AMRR_MAX_SUCCESS_THRESHOLD;
-				}
-			} else {
-				amrr->success_threshold =
-				    URAL_AMRR_MIN_SUCCESS_THRESHOLD;
-			}
-			decrease_rate(ni);
-			need_change = 1;
-		}
-		amrr->recovery = 0;	/* original paper was incorrect */
-	}
-
-	if (is_enough(amrr) || need_change) {
-		reset_cnt(amrr);
+	    ieee80211_amrr_choose(&(sc->sc_amrr), sc->sc_ic.ic_bss, &(sc->sc_amn));
 	}
 	return;
 }
