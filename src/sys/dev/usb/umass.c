@@ -1277,9 +1277,14 @@ umass_detach(device_t dev)
 		usbd_transfer_stop(sc->sc_xfer[i]);
 	}
 
+#if (__FreeBSD_version < 700037)
+	mtx_unlock(&(sc->sc_mtx));
+#endif
 	umass_cam_detach_sim(sc);
 
+#if (__FreeBSD_version >= 700037)
 	mtx_unlock(&(sc->sc_mtx));
+#endif
 
 	usbd_transfer_unsetup(sc->sc_xfer, UMASS_T_MAX);
 
@@ -2284,15 +2289,20 @@ umass_cam_attach_sim(struct umass_softc *sc)
 	    return ENOMEM;
 	}
 
+#if (__FreeBSD_version >= 700037)
 	mtx_lock(&(sc->sc_mtx));
+#endif
 
 	if(xpt_bus_register(sc->sc_sim, sc->sc_unit) != CAM_SUCCESS) {
+#if (__FreeBSD_version >= 700037)
 	    mtx_unlock(&(sc->sc_mtx));
+#endif
 	    return ENOMEM;
 	}
 
+#if (__FreeBSD_version >= 700037)
 	mtx_unlock(&(sc->sc_mtx));
-
+#endif
 	return(0);
 }
 
@@ -2334,12 +2344,16 @@ umass_cam_rescan(struct umass_softc *sc)
 	   return;
 	}
 
+#if (__FreeBSD_version >= 700037)
 	mtx_lock(&(sc->sc_mtx));
+#endif
 
 	if (xpt_create_path(&path, xpt_periph, cam_sim_path(sc->sc_sim),
 			    CAM_TARGET_WILDCARD, CAM_LUN_WILDCARD) 
 	    != CAM_REQ_CMP) {
+#if (__FreeBSD_version >= 700037)
 	    mtx_unlock(&(sc->sc_mtx));
+#endif
 	    free(ccb, M_USBDEV);
 	    return;
 	}
@@ -2350,7 +2364,9 @@ umass_cam_rescan(struct umass_softc *sc)
 	ccb->crcn.flags = CAM_FLAG_NONE;
 	xpt_action(ccb);
 
+#if (__FreeBSD_version >= 700037)
 	mtx_unlock(&(sc->sc_mtx));
+#endif
 
 	/* The scan is in progress now. */
 
@@ -2411,7 +2427,9 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 	struct umass_softc *sc = (struct umass_softc *)sim->softc;
 
 	if (sc) {
+#if (__FreeBSD_version < 700037)
 	    mtx_lock(&(sc->sc_mtx));
+#endif
 
 	    /* The softc is still there, but marked as going away. umass_cam_detach
 	     * has not yet notified CAM of the lost device however.
@@ -2699,9 +2717,11 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 	}
 
  done:
+#if (__FreeBSD_version < 700037)
 	if (sc) {
 	    mtx_unlock(&(sc->sc_mtx));
 	}
+#endif
 	return;
 }
 
