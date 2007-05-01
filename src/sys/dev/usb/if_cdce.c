@@ -507,14 +507,12 @@ cdce_bulk_write_callback(struct usbd_xfer *xfer)
 	}
 
 	ifp->if_oerrors++;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	return;
 
  tr_transferred:
 	DPRINTF(sc, 10, "transfer complete\n");
 
 	ifp->if_opackets++;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
  tr_setup:
 
@@ -559,8 +557,6 @@ cdce_bulk_write_callback(struct usbd_xfer *xfer)
 
 	usbd_start_hardware(xfer);
 
-	ifp->if_drv_flags |= IFF_DRV_OACTIVE;
-
  done:
 	return;
 }
@@ -595,8 +591,7 @@ cdce_stop(struct cdce_softc *sc)
 
 	if (ifp) {
 	    /* clear flags */
-	    ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
-				   IFF_DRV_OACTIVE);
+	    ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 	}
 
 	sc->sc_flags &= ~(CDCE_FLAG_HL_READY|
@@ -677,7 +672,6 @@ cdce_init_cb(void *arg)
 	cdce_stop(sc);
 
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
 	sc->sc_flags |= (CDCE_FLAG_READ_STALL|
 			 CDCE_FLAG_WRITE_STALL|

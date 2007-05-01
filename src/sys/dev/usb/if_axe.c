@@ -1215,14 +1215,12 @@ axe_bulk_write_callback(struct usbd_xfer *xfer)
 	}
 
 	ifp->if_oerrors++;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	return;
 
  tr_transferred:
 	DPRINTF(sc, 10, "transfer complete\n");
 
 	ifp->if_opackets++;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
  tr_setup:
 
@@ -1300,7 +1298,6 @@ axe_bulk_write_callback(struct usbd_xfer *xfer)
 
 	usbd_start_hardware(xfer);
 
-	ifp->if_drv_flags |= IFF_DRV_OACTIVE;
  done:
 	return;
 }
@@ -1392,7 +1389,6 @@ axe_cfg_pre_init(struct axe_softc *sc,
 	axe_cfg_pre_stop(sc, cc, 0);
 
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
 	sc->sc_flags |= AXE_FLAG_HL_READY;
 	return;
@@ -1576,8 +1572,7 @@ axe_cfg_pre_stop(struct axe_softc *sc,
 
 	if (ifp) {
 	    /* clear flags */
-	    ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
-				   IFF_DRV_OACTIVE);
+	    ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 	}
 
 	sc->sc_flags &= ~(AXE_FLAG_HL_READY|

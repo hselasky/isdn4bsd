@@ -2733,7 +2733,6 @@ zyd_cfg_pre_init(struct zyd_softc *sc,
 
 	zyd_cfg_pre_stop(sc, cc, 0);
 
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
 
 	sc->sc_flags |= ZYD_FLAG_HL_READY;
@@ -2815,8 +2814,7 @@ zyd_cfg_pre_stop(struct zyd_softc *sc,
 	    ieee80211_new_state(ic, IEEE80211_S_INIT, -1);
 
 	    /* clear flags */
-	    ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
-				   IFF_DRV_OACTIVE);
+	    ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 	}
 
 	sc->sc_flags &= ~(ZYD_FLAG_HL_READY|

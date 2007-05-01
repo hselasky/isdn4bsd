@@ -655,7 +655,6 @@ udav_cfg_pre_init(struct udav_softc *sc,
 	udav_cfg_pre_stop(sc, cc, 0);
 
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
 	sc->sc_flags |= UDAV_FLAG_HL_READY;
 
@@ -904,14 +903,12 @@ udav_bulk_write_callback(struct usbd_xfer *xfer)
 	}
 
 	ifp->if_oerrors++;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	return;
 
  tr_transferred:
 	DPRINTF(sc, 10, "transfer complete\n");
 
 	ifp->if_opackets++;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
  tr_setup:
 
@@ -973,8 +970,6 @@ udav_bulk_write_callback(struct usbd_xfer *xfer)
 	m_freem(m);
 
 	usbd_start_hardware(xfer);
-
-	ifp->if_drv_flags |= IFF_DRV_OACTIVE;
 
  done:
 	return;
@@ -1237,8 +1232,7 @@ udav_cfg_pre_stop(struct udav_softc *sc,
 
 	if (ifp) {
 	    /* clear flags */
-	    ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
-				   IFF_DRV_OACTIVE);
+	    ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 	}
 
 	sc->sc_flags &= ~(UDAV_FLAG_HL_READY|

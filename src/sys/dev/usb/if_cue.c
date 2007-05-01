@@ -810,14 +810,12 @@ cue_bulk_write_callback(struct usbd_xfer *xfer)
 	}
 
 	ifp->if_oerrors++;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	return;
 
  tr_transferred:
 	DPRINTF(sc, 10, "transfer complete\n");
 
 	ifp->if_opackets++;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
  tr_setup:
 
@@ -858,7 +856,6 @@ cue_bulk_write_callback(struct usbd_xfer *xfer)
 
 	usbd_start_hardware(xfer);
 
-	ifp->if_drv_flags |= IFF_DRV_OACTIVE;
  done:
 	return;
 }
@@ -888,7 +885,6 @@ cue_cfg_pre_init(struct cue_softc *sc,
 	cue_cfg_pre_stop(sc, cc, 0);
 
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
 	sc->sc_flags |= CUE_FLAG_HL_READY;
 
@@ -1024,8 +1020,7 @@ cue_cfg_pre_stop(struct cue_softc *sc,
 
 	if (ifp) {
 	    /* clear flags */
-	    ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | 
-				   IFF_DRV_OACTIVE);
+	    ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 	}
 
 	sc->sc_flags &= ~(CUE_FLAG_HL_READY|
