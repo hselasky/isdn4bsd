@@ -1,5 +1,5 @@
-VERSION=1_6_2
-DATE=November 2006
+VERSION=1_6_3
+DATE=May 2007
 
 FILTER= grep -v "temp"   |\
 	grep -v "~"      |\
@@ -43,6 +43,11 @@ ${S}/sys/dev/sound/usb/uaudioreg.h \
 #${S}/sys/dev/sound/pcm/mixer.c \
 #${S}/sys/dev/sound/pcm/mixer.h \
 #
+
+URAL_FILES=\
+${S}/sys/dev/usb/if_ural.c \
+${S}/sys/dev/usb/if_uralreg.h \
+${S}/sys/dev/usb/if_uralvar.h \
 
 USB_FILES=\
 ${S}/sys/arm/at91/ohci_atmelarm.c \
@@ -106,6 +111,7 @@ ${S}/sys/conf/files.i386 \
 
 DIFF_FILES=\
 ${UAUDIO_FILES} \
+${URAL_FILES} \
 ${S}/sys/conf/kmod.mk \
 
 BACKUP_FILES=\
@@ -351,6 +357,10 @@ install: ${DIFF} ${PACKAGE} help backup update_config
 # patch 11
 	rm -f ${UAUDIO_FILES} || echo -n
 	touch ${UAUDIO_FILES} || echo -n
+
+# patch 12
+	rm -f ${URAL_FILES} || echo -n
+	touch ${URAL_FILES} || echo -n
 
 # done
 

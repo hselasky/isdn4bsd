@@ -1,5 +1,5 @@
-VERSION=1_6_2
-DATE=November 2006
+VERSION=1_6_3
+DATE=May 2007
 
 FILTER= grep -v "temp"   | \
 	grep -v "~"      | \
@@ -65,6 +65,11 @@ ${S}/sys/dev/sound/usb/uaudioreg.h \
 #${S}/sys/dev/sound/pcm/mixer.c \
 #${S}/sys/dev/sound/pcm/mixer.h \
 #
+
+URAL_FILES=\
+${S}/sys/dev/usb/if_ural.c \
+${S}/sys/dev/usb/if_uralreg.h \
+${S}/sys/dev/usb/if_uralvar.h \
 
 USB_FILES=\
 ${S}/sys/arm/at91/ohci_atmelarm.c \
@@ -140,6 +145,7 @@ ${S}/share/examples/isdn/i4brunppp/i4brunppp.c \
 DIFF_FILES=\
 ${HEADER_FIX_FILES} \
 ${UAUDIO_FILES} \
+${URAL_FILES} \
 ${S}/sys/conf/kmod.mk \
 ${S}/sys/dev/sound/pcm/sound.c \
 ${S}/sys/dev/sound/pcm/vchan.c \
@@ -589,6 +595,10 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_pcm
 #
 	rm -f ${UAUDIO_FILES} || echo -n
 	touch ${UAUDIO_FILES} || echo -n
+
+# patch 12
+	rm -f ${URAL_FILES} || echo -n
+	touch ${URAL_FILES} || echo -n
 
 #
 # final install
