@@ -1193,7 +1193,7 @@ umass_attach(device_t dev)
 
 	    err = usbd_transfer_setup
 	      (uaa->device, uaa->iface_index, sc->sc_xfer, 
-	       umass_bbb_config, 
+	       umass_cbi_config, 
 	       (sc->sc_proto & UMASS_PROTO_CBI_I) ?
 	       UMASS_T_CBI_MAX : (UMASS_T_CBI_MAX-2), sc,
 	       &(sc->sc_mtx));
