@@ -395,21 +395,41 @@ struct ehci_hw_softc {
 	ehci_sitd_t		isoc_fs_start[EHCI_VIRTUAL_FRAMELIST_COUNT];
 };
 
+struct ehci_config_desc {
+	usb_config_descriptor_t confd;
+	usb_interface_descriptor_t ifcd;
+	usb_endpoint_descriptor_t endpd;
+} __packed;
+
+union ehci_hub_desc {
+	usb_status_t stat;
+	usb_port_status_t ps;
+	usb_device_descriptor_t devd;
+	usb_device_qualifier_t odevd;
+	usb_hub_descriptor_t hubd;
+	struct ehci_config_desc confd;
+	uint8_t temp[128];
+};
+
 typedef struct ehci_softc {
 	struct usbd_page 	sc_hw_page;
 	struct usbd_bus		sc_bus; /* base device */
+	struct usbd_config_td	sc_config_td;
 	struct __callout	sc_tmo_pcd;	
 	LIST_HEAD(, usbd_xfer)	sc_interrupt_list_head;
+	union ehci_hub_desc	sc_hub_desc;
 
 	struct ehci_hw_softc	*sc_hw_ptr;
 	struct resource		*sc_io_res;
 	struct resource		*sc_irq_res;
 	struct usbd_xfer 	*sc_intrxfer;
+	struct usbd_xfer	*sc_hub_xfer;
 	struct ehci_qh		*sc_async_p_last;
 	struct ehci_qh		*sc_intr_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
 	struct ehci_sitd	*sc_isoc_fs_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
 	struct ehci_itd		*sc_isoc_hs_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT];
 	void			*sc_intr_hdl;
+	uint8_t			*sc_hub_ptr;
 	device_t		sc_dev;
 	bus_size_t		sc_io_size;
 	bus_space_tag_t		sc_io_tag;
@@ -427,6 +447,7 @@ typedef struct ehci_softc {
 	uint8_t			sc_addr; /* device address */
 	uint8_t			sc_conf; /* device configuration */
 	uint8_t			sc_isreset;
+	uint8_t			sc_hub_len;
 
 	char			sc_vendor[16]; /* vendor string for root hub */
 

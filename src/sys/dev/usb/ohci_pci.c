@@ -297,6 +297,13 @@ ohci_pci_attach(device_t self)
 		sprintf(sc->sc_vendor, "(0x%04x)", pci_get_vendor(self));
 	}
 
+        err = usbd_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_bus.mtx),
+				   NULL, 0, 4);
+        if (err) {
+                device_printf(self, "could not setup config thread!\n");
+                goto error;
+        }
+
 	/* sc->sc_bus.usbrev; set by ohci_init() */
 
 #if (__FreeBSD_version >= 700031)
@@ -335,6 +342,8 @@ static int
 ohci_pci_detach(device_t self)
 {
 	ohci_softc_t *sc = device_get_softc(self);
+
+	usbd_config_td_stop(&(sc->sc_config_td));
 
 	if(sc->sc_bus.bdev)
 	{
@@ -380,6 +389,8 @@ ohci_pci_detach(device_t self)
 	{
 		usbd_dma_tag_free(sc->sc_bus.dma_tag);
 	}
+
+	usbd_config_td_unsetup(&(sc->sc_config_td));
 
 	mtx_destroy(&sc->sc_bus.mtx);
 

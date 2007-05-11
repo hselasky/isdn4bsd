@@ -553,12 +553,20 @@ void
 usbd_std_ctrl_copy_in(struct usbd_xfer *xfer)
 {
     u_int32_t len = xfer->length;
-    usb_device_request_t *req = xfer->buffer;
+    usb_device_request_t *req;
 
-    if ((len >= sizeof(*req)) &&
-	(req->bmRequestType & UT_READ)) {
-        len = sizeof(*req);
+    if (xfer->control_remainder == 0) {
+        req = xfer->buffer;
+	if ((len >= sizeof(*req)) &&
+	    (req->bmRequestType & UT_READ)) {
+	    len = sizeof(*req);
+	}
+    } else {
+        if (xfer->control_isread) {
+	    return;
+	}
     }
+
     usbd_copy_in(&(xfer->buf_data), 0, 
 		 xfer->buffer, len);
     return;
@@ -568,15 +576,82 @@ void
 usbd_std_ctrl_copy_out(struct usbd_xfer *xfer)
 {
     u_int32_t len = xfer->actlen;
-    usb_device_request_t *req = xfer->buffer;
+    usb_device_request_t *req;
 
-    if ((len >= sizeof(*req)) &&
-	(req->bmRequestType & UT_READ)) {
-
-        usbd_copy_out(&(xfer->buf_data), sizeof(*req), 
-		      (req+1), len - sizeof(*req));
+    if (xfer->flags & USBD_DEV_CONTROL_HEADER) {
+        req = xfer->buffer;
+        if ((len >= sizeof(*req)) &&
+	    (req->bmRequestType & UT_READ)) {
+	    /* copy out everything, but the header */
+	    usbd_copy_out(&(xfer->buf_data), sizeof(*req), 
+			  (req+1), len - sizeof(*req));
+	}
+    } else {
+        if (xfer->control_isread) {
+	    /* copy out everything */
+	    usbd_copy_out(&(xfer->buf_data), 0,
+			  xfer->buffer, len);
+	}
     }
     return;
+}
+
+uint8_t
+usbd_std_ctrl_enter(struct usbd_xfer *xfer)
+{
+    usb_device_request_t req;
+    uint32_t len;
+
+    /* check lengths and stuff */
+
+    if (xfer->control_remainder > 0) {
+
+        xfer->flags &= ~USBD_DEV_CONTROL_HEADER;
+
+	if (xfer->length > xfer->control_remainder) {
+	    PRINTFN(-1, ("transfer length overflow, %d bytes\n",
+			 xfer->length));
+	    goto error;
+	}
+
+	xfer->control_remainder -= xfer->length;
+
+    } else {
+
+        xfer->flags |= USBD_DEV_CONTROL_HEADER;
+
+	if (xfer->length < sizeof(req)) {
+	    PRINTFN(-1, ("transfer length underflow, %d bytes\n",
+			 xfer->length));
+	    goto error;
+	}
+
+	/* Copy out the header from the USB request */
+
+	usbd_copy_out(&(xfer->buf_data), 0, &req, sizeof(req));
+
+	xfer->control_remainder = UGETW(req.wLength);
+	xfer->control_isread = (req.bmRequestType & UT_READ) ? 1 : 0;
+
+	len = (xfer->length - sizeof(req));
+
+	if (len > xfer->control_remainder) {
+	    PRINTFN(-1, ("transfer length invalid, %d bytes\n",
+			 xfer->length));
+	    goto error;
+	}
+
+	xfer->control_remainder -= len;
+    }
+    return 0;
+
+ error:
+    /* set error */
+    usbd_transfer_done(xfer, USBD_STALLED);
+    /* call callback */
+    __usbd_callback(xfer);
+    /* return error */
+    return 1;
 }
 
 /* CALLBACK EXAMPLES:
@@ -863,11 +938,14 @@ usbd_transfer_stop(struct usbd_xfer *xfer)
 
 		if(xfer->flags & USBD_DEV_TRANSFERRING)
 		{
-		    /* increment refcount so that scheduled
-		     * callbacks, if any, are not called by 
-		     * the interrupt or timeout routines:
+		    /* By clearing the "usb_thread" variable
+		     * we are signalling that a different
+		     * thread has handled the callback.
+		     * This prevents other threads that are
+		     * about to call the callback, to actually
+		     * call the callback.
 		     */
-		    xfer->usb_refcount++;
+		    xfer->usb_thread = NULL;
 
 		    /* call callback, which 
 		     * will clear USBD_DEV_TRANSFERRING
@@ -929,33 +1007,29 @@ __usbd_callback(struct usbd_xfer *xfer)
  * This function is used to call back a list of USB callbacks. 
  *---------------------------------------------------------------------------*/
 void
-usbd_do_callback(struct usbd_callback_info *ptr, 
-		 struct usbd_callback_info *limit)
+usbd_do_callback(struct usbd_xfer **pp_xfer, struct thread *td)
 {
     struct usbd_xfer *xfer;
+    uint8_t tmp;
 
-    if(limit < ptr)
+    while (1)
     {
-        /* parameter order switched */
-        register void *temp = ptr;
-	ptr = limit;
-	limit = temp;
-    }
-
-    while(ptr < limit)
-    {
-        xfer = ptr->xfer;
+	xfer = *(pp_xfer++);
+	if (xfer == NULL) {
+	    break;
+	}
 
 	/*
-	 * During the unlocked period, the
-	 * transfer can be restarted by 
-	 * another thread, which must be
-	 * checked here:
+	 * During the unlocked period, the transfer can be restarted
+	 * by another thread. Check that it is this thread that is
+	 * calling back the callback:
 	 */
 	mtx_lock(xfer->priv_mtx);
+	mtx_lock(xfer->usb_mtx);
+	tmp = (xfer->usb_thread == td);
+	mtx_unlock(xfer->usb_mtx);
 
-	if(xfer->usb_refcount == ptr->refcount)
-	{
+	if (tmp) {
 	    /* call callback */
 	    __usbd_callback(xfer);
 	}
@@ -965,8 +1039,6 @@ usbd_do_callback(struct usbd_callback_info *ptr,
 	mtx_unlock(xfer->priv_mtx);
 
 	usbd_drop_refcount(xfer->usb_root);
-
-	ptr++;
     }
     return;
 }
@@ -984,33 +1056,32 @@ usbd_transfer_done(struct usbd_xfer *xfer, usbd_status error)
 	PRINTFN(5,("xfer=%p pipe=%p status=%d "
 		    "actlen=%d\n", xfer, xfer->pipe, error, xfer->actlen));
 
-#if defined(DIAGNOSTIC) || defined(USB_DEBUG)
-	if(xfer->pipe == NULL)
-	{
-		printf("xfer=%p, pipe=NULL\n", xfer);
-		return;
-	}
-#endif
        	/* count completed transfers */
 	++(xfer->udev->bus->stats.uds_requests
 		[xfer->pipe->edesc->bmAttributes & UE_XFERTYPE]);
 
 	/* check for short transfers */
-	if(!error)
-	{
-		if(xfer->actlen > xfer->length)
-		{
-			printf("%s: overrun actlen(%d) > len(%d)\n",
-			       __FUNCTION__, xfer->actlen, xfer->length);
-			xfer->actlen = xfer->length;
+	if (error) {
+		/* end of control transfer, if any */
+		xfer->control_remainder = 0;
+	} else {
+		if (xfer->actlen > xfer->length) {
+
+		    PRINTFN(-1,("overrun actlen(%d) > len(%d)\n",
+				xfer->actlen, xfer->length));
+		    xfer->actlen = xfer->length;
 		}
 
-		if((xfer->actlen < xfer->length) &&
-		   !(xfer->flags & USBD_SHORT_XFER_OK))
-		{
-			printf("%s: short transfer actlen(%d) < len(%d)\n",
-			       __FUNCTION__, xfer->actlen, xfer->length);
+		if (xfer->actlen < xfer->length) {
+
+		    /* end of control transfer, if any */
+		    xfer->control_remainder = 0;
+
+		    if (!(xfer->flags & USBD_SHORT_XFER_OK)) {
+			PRINTFN(-1,("short transfer actlen(%d) < len(%d)\n",
+				    xfer->actlen, xfer->length));
 			error = USBD_SHORT_XFER;
+		    }
 		}
 	}
 	xfer->error = error;
@@ -1020,29 +1091,35 @@ usbd_transfer_done(struct usbd_xfer *xfer, usbd_status error)
 /*---------------------------------------------------------------------------*
  *	usbd_transfer_enqueue
  *
- * This function is used to put a USB transfer on
- * the pipe list. If there was no previous 
- * USB transfer on the list, the start method of
- * the transfer will be called.
+ * This function is used to add an USB transfer to the pipe transfer list.
  *---------------------------------------------------------------------------*/
 void
 usbd_transfer_enqueue(struct usbd_xfer *xfer)
 {
 	mtx_assert(xfer->usb_mtx, MA_OWNED);
 
-	/* if xfer is not inserted, 
-	 * insert xfer in xfer queue
+	/* if the transfer is not inserted, 
+	 * insert the transfer into the transfer queue
 	 */
 	if(xfer->pipe_list.le_prev == NULL)
 	{
 		LIST_INSERT_HEAD(&xfer->pipe->list_head, xfer, pipe_list);
+	}
 
-		/* start first transfer enqueued */
-
-		if(xfer->pipe_list.le_next == NULL)
-		{
-			(xfer->pipe->methods->start)(xfer);
-		}
+	/* Handled cases:
+	 *
+	 * 1) Start the first transfer queued.
+	 *    This transfer is always last on the pipe transfer list!
+	 *    "le_next" is NULL. "le_prev" is also NULL.
+	 *
+	 * 2) Start the last transfer if it is
+	 *    already queued. We are most likely
+	 *    resuming a control transfer.
+	 *    "le_next" is NULL. "le_prev" is not NULL.
+	 */
+	if (xfer->pipe_list.le_next == NULL)
+	{
+		(xfer->pipe->methods->start)(xfer);
 	}
 	return;
 }
@@ -1050,40 +1127,53 @@ usbd_transfer_enqueue(struct usbd_xfer *xfer)
 /*---------------------------------------------------------------------------*
  *	usbd_transfer_dequeue
  *
- * This function is used to remove a USB transfer from
- * the pipe list. If the first USB transfer on the pipe
- * list is removed, the start method of the next USB
- * transfer will be called, if any.
+ * This function is used to remove an USB transfer from the pipe transfer list.
+ * This function is also used to start the next USB transfer on the pipe 
+ * transfer list, if any.
+ *
+ * IMPLEMENTATION NOTE:
+ *       The transfer will not be removed from the pipe transfer list
+ *       when "xfer->control_remainder" is non-zero. To ensure that a
+ *       transfer is always removed from the pipe transfer list, call
+ *       the "usbd_transfer_done()" function one extra time passing an
+ *       error code from the pipe close method. Then call
+ *       "usbd_transfer_dequeue()".
  *---------------------------------------------------------------------------*/
+#undef LIST_PREV
+#define LIST_PREV(head,elm,field) \
+  (((elm) == LIST_FIRST(head)) ? ((__typeof(elm))0) : \
+   ((__typeof(elm))(((uint8_t *)((elm)->field.le_prev)) - \
+		    ((uint8_t *)&LIST_NEXT((__typeof(elm))0,field)))))
+
 void
 usbd_transfer_dequeue(struct usbd_xfer *xfer)
 {
+	struct usbd_xfer *xfer_prev;
+
 	mtx_assert(xfer->usb_mtx, MA_OWNED);
 
-	/* if two transfers are queued, the
-	 * second transfer must be started
-	 * before the first is called back
-	 */
+	/* check if we are in the middle of a transfer first */
 
-	/* if xfer is not removed,
-	 * remove xfer from xfer queue
-	 */
-	if(xfer->pipe_list.le_prev)
+	if (xfer->control_remainder == 0)
 	{
+	    /* check if we are queued on any pipe transfer list */
+
+	    if (xfer->pipe_list.le_prev)
+	    {
+		/* get the previous transfer, if any */
+		xfer_prev = LIST_PREV(&(xfer->pipe->list_head), xfer, pipe_list);
+
+		/* remove the transfer from pipe transfer list */
 		LIST_REMOVE(xfer,pipe_list);
 
-		/* if started transfer is dequeued,
-		 * start next transfer
-		 */
-		if((xfer->pipe_list.le_next == 0) && /* last xfer */
-		   (!LIST_EMPTY(&xfer->pipe->list_head)))
+		/* start "next" transfer, if any */
+		if (xfer_prev &&
+		    (xfer_prev->pipe_list.le_next == NULL))
 		{
-		  (xfer->pipe->methods->start)
-		    ((void *)
-		     (((u_int8_t *)(xfer->pipe_list.le_prev)) - 
-		      POINTER_TO_UNSIGNED(&LIST_NEXT((struct usbd_xfer *)0,pipe_list))));
+			(xfer_prev->pipe->methods->start)(xfer_prev);
 		}
 		xfer->pipe_list.le_prev = 0;
+	    }
 	}
 	return;
 }
@@ -1244,7 +1334,8 @@ usbd_fill_set_report(usb_device_request_t *req, u_int8_t iface_no,
         req->bmRequestType = UT_WRITE_CLASS_INTERFACE;
         req->bRequest = UR_SET_REPORT;
         USETW2(req->wValue, type, id);
-        USETW(req->wIndex, iface_no);
+	req->wIndex[0] = iface_no;
+	req->wIndex[1] = 0;
         USETW(req->wLength, size);
 	return;
 }

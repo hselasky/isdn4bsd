@@ -968,7 +968,7 @@ rue_bulk_read_callback(struct usbd_xfer *xfer)
 	struct rue_softc *sc = xfer->priv_sc;
 	struct ifnet *ifp = sc->sc_ifp;
 	u_int16_t status;
-	struct mbuf *m;
+	struct mbuf *m = NULL;
 
 	USBD_CHECK_STATUS(xfer);
 
@@ -1023,14 +1023,23 @@ rue_bulk_read_callback(struct usbd_xfer *xfer)
 	m->m_pkthdr.rcvif = ifp;
 	m->m_pkthdr.len = m->m_len = xfer->actlen;
 
-	(ifp->if_input)(ifp, m);
-
  tr_setup:
 
 	if (sc->sc_flags & RUE_FLAG_READ_STALL) {
 	    usbd_transfer_start(sc->sc_xfer[3]);
 	} else {
 	    usbd_start_hardware(xfer);
+	}
+
+	/* At the end of a USB callback it is always safe
+	 * to unlock the private mutex of a device! That
+	 * is why we do the "if_input" here, and not
+	 * some lines up!
+	 */
+	if (m) {
+	    mtx_unlock(&(sc->sc_mtx));
+	    (ifp->if_input)(ifp, m);
+	    mtx_lock(&(sc->sc_mtx));
 	}
 	return;
 }

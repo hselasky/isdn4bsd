@@ -274,14 +274,32 @@ struct ohci_hw_softc {
 	ohci_ed_t		intr_start[OHCI_NO_EDS];
 };
 
+struct ohci_config_desc {
+	usb_config_descriptor_t confd;
+	usb_interface_descriptor_t ifcd;
+	usb_endpoint_descriptor_t endpd;
+} __packed;
+
+union ohci_hub_desc {
+	usb_status_t stat;
+	usb_port_status_t ps;
+	usb_device_descriptor_t devd;
+	usb_hub_descriptor_t hubd;
+	struct ohci_config_desc confd;
+	uint8_t temp[128];
+};
+
 typedef struct ohci_softc {
 	struct usbd_page 	sc_hw_page;
 	struct usbd_bus		sc_bus; /* base device */
+	struct usbd_config_td	sc_config_td;
 	struct __callout	sc_tmo_rhsc;
 	LIST_HEAD(, usbd_xfer)	sc_interrupt_list_head;
+	union ohci_hub_desc	sc_hub_desc;
 
 	struct ohci_hw_softc	*sc_hw_ptr;
 	struct usbd_xfer	*sc_intrxfer;
+	struct usbd_xfer	*sc_hub_xfer;
 	struct resource		*sc_io_res;
 	struct resource		*sc_irq_res;
 	struct ohci_ed		*sc_ctrl_p_last;
@@ -289,6 +307,7 @@ typedef struct ohci_softc {
 	struct ohci_ed		*sc_isoc_p_last;
 	struct ohci_ed		*sc_intr_p_last[OHCI_NO_EDS];
 	void			*sc_intr_hdl;
+	uint8_t			*sc_hub_ptr;
 	device_t		sc_dev;
 	bus_size_t		sc_io_size;
 	bus_space_tag_t		sc_io_tag;
@@ -304,6 +323,7 @@ typedef struct ohci_softc {
 	uint8_t			sc_noport;
 	uint8_t			sc_addr;	/* device address */
 	uint8_t			sc_conf;	/* device configuration */
+	uint8_t			sc_hub_len;
 
 	char			sc_vendor[16];
 

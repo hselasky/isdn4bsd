@@ -222,6 +222,21 @@ typedef struct uhci_qh {
 #error	"or UHCI_VFRAMELIST_COUNT > UHCI_FRAMELIST_COUNT"
 #endif
 
+struct uhci_config_desc {
+	usb_config_descriptor_t confd;
+	usb_interface_descriptor_t ifcd;
+	usb_endpoint_descriptor_t endpd;
+} __packed;
+
+union uhci_hub_desc {
+	usb_status_t stat;
+	usb_port_status_t ps;
+	usb_device_descriptor_t devd;
+	usb_hub_descriptor_t hubd;
+	struct uhci_config_desc confd;
+	uint8_t temp[128];
+};
+
 struct uhci_hw_softc {
 	uint32_t	pframes[UHCI_FRAMELIST_COUNT];	/* start TD pointer */
 	struct uhci_td	isoc_start[UHCI_VFRAMELIST_COUNT];	/* start TD for isochronous */
@@ -237,7 +252,9 @@ struct uhci_hw_softc {
 typedef struct uhci_softc {
 	struct usbd_page 	sc_hw_page;
 	struct usbd_bus		sc_bus;		/* base device */
+	struct usbd_config_td	sc_config_td;
 	LIST_HEAD(, usbd_xfer)	sc_interrupt_list_head;
+	union uhci_hub_desc	sc_hub_desc;
 
 	struct uhci_hw_softc 	*sc_hw_ptr;
 	struct uhci_td		*sc_isoc_p_last[UHCI_VFRAMELIST_COUNT];	/* pointer to last TD for isochronous */
@@ -247,7 +264,9 @@ typedef struct uhci_softc {
 	struct uhci_qh		*sc_bulk_p_last;	/* pointer to last QH for bulk */
 	struct resource		*sc_io_res;
 	struct resource		*sc_irq_res;
+	struct usbd_xfer	*sc_hub_xfer;
 	void			*sc_intr_hdl;
+	uint8_t			*sc_hub_ptr;
 	device_t		sc_dev;
 	bus_size_t		sc_io_size;
 	bus_space_tag_t		sc_io_tag;
@@ -262,6 +281,7 @@ typedef struct uhci_softc {
 	uint8_t			sc_conf;	/* device configuration */
 	uint8_t			sc_isreset;
 	uint8_t			sc_saved_sof;
+	uint8_t			sc_hub_len;
 
 	char			sc_vendor[16];	/* vendor string for root hub */
 } uhci_softc_t;

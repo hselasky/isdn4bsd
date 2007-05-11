@@ -1090,11 +1090,11 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 	struct ural_softc *sc = xfer->priv_sc;
 	struct ieee80211com *ic = &(sc->sc_ic);
 	struct ifnet *ifp = ic->ic_ifp;
-	struct ieee80211_node *ni;
+	struct ieee80211_node *ni = NULL;
 	struct mbuf *m = NULL;
 	u_int32_t flags;
 	u_int32_t max_len;
-	uint8_t rssi;
+	uint8_t rssi = 0;
 
 	USBD_CHECK_STATUS(xfer);
 
@@ -1142,6 +1142,8 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 	     */
 	    DPRINTF(sc, 5, "PHY or CRC error\n");
 	    ifp->if_ierrors++;
+	    m_freem(m);
+	    m = NULL;
 	    goto tr_setup;
 	}
 
@@ -1155,6 +1157,8 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 		    "descriptor, %u bytes, received %u bytes\n",
 		    m->m_len, max_len);
 	    ifp->if_ierrors++;
+	    m_freem(m);
+	    m = NULL;
 	    goto tr_setup;
 	}
 
@@ -1177,35 +1181,30 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 
 	ni = ieee80211_find_rxnode(ic, (struct ieee80211_frame_min *)
 				   (m->m_data));
-
-	mtx_unlock(&(sc->sc_mtx));
-
-	/* XXX it is possibly not safe 
-	 * to do the following unlocked:
-	 * --hps
-	 */
-
-	/* send the frame to the 802.11 layer */
-	ieee80211_input(ic, m, ni, rssi, 0);
-
-	mtx_lock(&(sc->sc_mtx));
-
-	/* node is no longer needed */
-	ieee80211_free_node(ni);
-
-	m = NULL;
-
  tr_setup:
-	if (m) {
-	    m_freem(m);
-	}
 
 	if (sc->sc_flags & URAL_FLAG_READ_STALL) {
 	    usbd_transfer_start(sc->sc_xfer[3]);
-	    return;
+	} else {
+	    usbd_start_hardware(xfer);
 	}
 
-	usbd_start_hardware(xfer);
+	/* At the end of a USB callback it is always safe
+	 * to unlock the private mutex of a device! That
+	 * is why we do the "ieee80211_input" here, and not
+	 * some lines up!
+	 */
+	if (m) {
+	    mtx_unlock(&(sc->sc_mtx));
+
+	    /* send the frame to the 802.11 layer */
+	    ieee80211_input(ic, m, ni, rssi, 0);
+
+	    mtx_lock(&(sc->sc_mtx));
+
+	    /* node is no longer needed */
+	    ieee80211_free_node(ni);
+	}
 	return;
 }
 

@@ -1059,6 +1059,11 @@ axe_bulk_read_callback(struct usbd_xfer *xfer)
 	struct axe_sframe_hdr hdr;
 	struct ifnet *ifp = sc->sc_ifp;
 	struct mbuf *m;
+	struct { /* mini-queue */
+	  struct mbuf *ifq_head;
+	  struct mbuf *ifq_tail;
+	  uint16_t ifq_len;
+	} mq = { NULL, NULL, 0 };
 	uint16_t pos;
 	uint16_t len;
 	uint16_t adjust;
@@ -1117,7 +1122,6 @@ axe_bulk_read_callback(struct usbd_xfer *xfer)
 	    }
 
 	    m = usbd_ether_get_mbuf();
-
 	    if (m == NULL) {
 	        /* we are out of memory */
 	        break;
@@ -1133,7 +1137,8 @@ axe_bulk_read_callback(struct usbd_xfer *xfer)
 	    m->m_pkthdr.rcvif = ifp;
 	    m->m_pkthdr.len = m->m_len;
 
-	    (ifp->if_input)(ifp, m);
+	    /* enqueue */
+	    _IF_ENQUEUE(&(mq), m);
 
 	skip:
 
@@ -1158,6 +1163,27 @@ axe_bulk_read_callback(struct usbd_xfer *xfer)
 	    usbd_transfer_start(sc->sc_xfer[3]);
 	} else {
 	    usbd_start_hardware(xfer);
+	}
+
+	/* At the end of a USB callback it is always safe
+	 * to unlock the private mutex of a device! That
+	 * is why we do the "if_input" here, and not
+	 * some lines up!
+	 */
+	if (mq.ifq_head) {
+
+	    mtx_unlock(&(sc->sc_mtx));
+
+	    while (1) {
+
+	      _IF_DEQUEUE(&(mq), m);
+
+	      if (m == NULL) break;
+
+	      (ifp->if_input)(ifp, m);
+	    }
+
+	    mtx_lock(&(sc->sc_mtx));
 	}
 	return;
 }

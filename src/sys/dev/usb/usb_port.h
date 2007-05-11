@@ -111,7 +111,6 @@ typedef int usb_malloc_type;
 #endif
 
 #define Ether_ifattach ether_ifattach
-#define IF_INPUT(ifp, m) (*(ifp)->if_input)((ifp), (m))
 
 #elif defined(__OpenBSD__)
 /*
@@ -167,13 +166,6 @@ typedef int usb_malloc_type;
 
 #define Ether_ifattach(ifp, eaddr) ether_ifattach(ifp)
 #define if_deactivate(x)
-#define IF_INPUT(ifp, m) do {						\
-	struct ether_header *eh;					\
-									\
-	eh = mtod(m, struct ether_header *);				\
-	m_adj(m, sizeof(struct ether_header));				\
-	ether_input((ifp), (eh), (m));					\
-} while (0)
 
 #define powerhook_establish(fn, sc) (fn)
 #define powerhook_disestablish(hdl)

@@ -209,9 +209,9 @@ struct usbd_pipe {
 	struct usbd_pipe_methods  *methods; /* set by HC driver */
 
 	uint16_t		isoc_next;
+	uint16_t		refcount;
 
 	uint8_t			toggle_next;
-	uint8_t			refcount;
 	uint8_t			clearstall;
 	uint8_t			iface_index; /* not used by "default pipe" */ 
 };
@@ -291,7 +291,7 @@ struct usbd_config {
 #define	USBD_USE_POLLING         0x0200 /* used to make synchronous transfers
 					 * use polling instead of sleep/wakeup
 					 */
-#define	USBD_UNUSED_3            0x0400
+#define	USBD_DEV_CONTROL_HEADER  0x0400
 #define	USBD_USE_DMA             0x0800
 #define	USBD_UNUSED_4            0x1000
 #define	USBD_UNUSED_5            0x2000
@@ -359,17 +359,18 @@ struct usbd_xfer {
 #define	USBD_DEFAULT_TIMEOUT 5000 /* 5000 ms = 5 seconds */
 
 	uint32_t		nframes; /* for isochronous transfers */
-	uint32_t		usb_refcount; /* used by HC driver */
 
 	uint16_t		max_packet_size;
 	uint16_t		max_frame_size;
 	uint16_t		qh_pos;
 	uint16_t		isoc_time_complete; /* in ms */
+	uint16_t		control_remainder;
 
 	uint8_t			address;
 	uint8_t			endpoint;
 	uint8_t			interval; /* milliseconds */
 	uint8_t			max_packet_count;
+	uint8_t			control_isread;
 
 	usbd_status		error;
 };
@@ -384,11 +385,6 @@ struct usbd_memory_info {
 	uint32_t		memory_refcount;
 	uint32_t		setup_refcount;
 	uint32_t		page_size;
-};
-
-struct usbd_callback_info {
-	struct usbd_xfer	*xfer;
-	uint32_t		refcount;
 };
 
 struct usbd_mbuf {
@@ -640,12 +636,13 @@ void		usbd_std_bulk_intr_copy_in(struct usbd_xfer *xfer);
 void		usbd_std_bulk_intr_copy_out(struct usbd_xfer *xfer);
 void		usbd_std_ctrl_copy_in(struct usbd_xfer *xfer);
 void		usbd_std_ctrl_copy_out(struct usbd_xfer *xfer);
+uint8_t		usbd_std_ctrl_enter(struct usbd_xfer *xfer);
 void		usbd_start_hardware(struct usbd_xfer *xfer);
 void		usbd_transfer_start_safe(struct usbd_xfer *xfer);
 void		usbd_transfer_start(struct usbd_xfer *xfer);
 void		usbd_transfer_stop(struct usbd_xfer *xfer);
 void		__usbd_callback(struct usbd_xfer *xfer);
-void		usbd_do_callback(struct usbd_callback_info *ptr, struct usbd_callback_info *limit);
+void		usbd_do_callback(struct usbd_xfer **pp_xfer, struct thread *td);
 void		usbd_transfer_done(struct usbd_xfer *xfer, usbd_status error);
 void		usbd_transfer_enqueue(struct usbd_xfer *xfer);
 void		usbd_transfer_dequeue(struct usbd_xfer *xfer);
