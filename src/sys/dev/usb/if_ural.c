@@ -573,9 +573,7 @@ ural_detach(device_t dev)
 
 	mtx_unlock(&(sc->sc_mtx));
 
-	/* XXX make sure that all USB callbacks have exited
-	 * before tearing down the network stack:
-	 */
+	/* stop all USB transfers first */
 	usbd_transfer_unsetup(sc->sc_xfer, URAL_N_TRANSFER);
 
 	/* get rid of any late children */

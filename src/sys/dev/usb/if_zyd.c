@@ -78,6 +78,12 @@ SYSCTL_INT(_hw_usb_zyd, OID_AUTO, debug, CTLFLAG_RW, &zyd_debug, 0,
 #define DPRINTF(...)
 #endif
 
+struct mq { /* mini-queue */
+  struct mbuf *ifq_head;
+  struct mbuf *ifq_tail;
+  uint16_t ifq_len;
+};
+
 static device_probe_t zyd_probe;
 static device_attach_t zyd_attach;
 static device_detach_t zyd_detach;
@@ -120,7 +126,7 @@ static void	zyd_cfg_write16_batch(struct zyd_softc *sc, const struct zyd_adpairs
 static void	zyd_cfg_write32_batch(struct zyd_softc *sc, const struct zyd_adpairs32 *data, uint32_t count);
 static void	zyd_cfg_rfwrite(struct zyd_softc *sc, uint32_t value, uint8_t bits);
 static void	zyd_cfg_stateoutput(struct zyd_softc *sc) __used;
-static void	zyd_rxframeproc(struct usbd_xfer *xfer, uint16_t offset, uint16_t len);
+static void	zyd_rxframeproc(struct usbd_xfer *xfer, struct mq *mq, uint16_t offset, uint16_t len);
 static uint8_t	zyd_cfg_uploadfirmware(struct zyd_softc *sc);
 static void	zyd_cfg_lock_phy(struct zyd_softc *sc);
 static void	zyd_cfg_unlock_phy(struct zyd_softc *sc);
@@ -954,7 +960,8 @@ zyd_cfg_stateoutput(struct zyd_softc *sc)
  * inside a single USB transfer.
  */
 static void
-zyd_rxframeproc(struct usbd_xfer *xfer, uint16_t offset, uint16_t len)
+zyd_rxframeproc(struct usbd_xfer *xfer, struct mq *mq, 
+		uint16_t offset, uint16_t len)
 {
 	struct zyd_softc *sc = xfer->priv_sc;
 	struct ieee80211com *ic = &(sc->sc_ic);
@@ -1029,11 +1036,11 @@ zyd_rxframeproc(struct usbd_xfer *xfer, uint16_t offset, uint16_t len)
 
 	ni = ieee80211_find_rxnode(ic, (void *)(m->m_data));
 
-	/* send the frame to the 802.11 layer */
-	ieee80211_input(ic, m, ni, desc.signalstrength, 0);
+	/* XXX our small hacks XXX */
+	ni->ni_rssi = desc.signalstrength;
+	m->m_pkthdr.rcvif = (void *)ni;
 
-	/* node is no longer needed */
-	ieee80211_free_node(ni);
+	_IF_ENQUEUE(mq, m);
 
 	DPRINTF(sc, 14, "rx done\n");
 
@@ -1078,7 +1085,10 @@ zyd_bulk_read_callback(struct usbd_xfer *xfer)
 	struct zyd_softc *sc = xfer->priv_sc;
 	struct ieee80211com *ic = &(sc->sc_ic);
 	struct ifnet *ifp = ic->ic_ifp;
+	struct ieee80211_node *ni;
 	struct zyd_rxleninfoapp info;
+	struct mq mq = { NULL, NULL, 0 };
+	struct mbuf *m;
 
 	USBD_CHECK_STATUS(xfer);
 
@@ -1133,17 +1143,45 @@ zyd_bulk_read_callback(struct usbd_xfer *xfer)
 		    goto tr_setup;
 		}
 
-		zyd_rxframeproc(xfer, ZYD_PLCP_HDR_SIZE, 
+		zyd_rxframeproc(xfer, &mq, ZYD_PLCP_HDR_SIZE, 
 				xfer->actlen - ZYD_PLCP_HDR_SIZE);
 	}
 
  tr_setup:
 	if (sc->sc_flags & ZYD_FLAG_BULK_READ_STALL) {
 	    usbd_transfer_start(sc->sc_xfer[ZYD_TR_BULK_CS_RD]);
-	    return;
+	} else {
+	    usbd_start_hardware(xfer);
 	}
 
-	usbd_start_hardware(xfer);
+	/* At the end of a USB callback it is always safe
+	 * to unlock the private mutex of a device! That
+	 * is why we do the "ieee80211_input" here, and not
+	 * some lines up!
+	 */
+	if (mq.ifq_head) {
+
+	    mtx_unlock(&(sc->sc_mtx));
+
+	    while (1) {
+
+	      _IF_DEQUEUE(&(mq), m);
+
+	      if (m == NULL) break;
+
+	      /* XXX undo our small hacks XXX */
+	      ni = (void *)(m->m_pkthdr.rcvif);
+	      m->m_pkthdr.rcvif = ifp;
+
+	      /* send the frame to the 802.11 layer */
+	      ieee80211_input(ic, m, ni, ni->ni_rssi, 0);
+
+	      /* node is no longer needed */
+	      ieee80211_free_node(ni);
+	    }
+
+	    mtx_lock(&(sc->sc_mtx));
+	}
 	return;
 }
 
@@ -2157,6 +2195,9 @@ zyd_detach(device_t dev)
 
 	mtx_unlock(&(sc->sc_mtx));
 
+	/* stop all USB transfers first */
+	usbd_transfer_unsetup(sc->sc_xfer, ZYD_TR_MAX);
+
 	/* get rid of any late children */
 	bus_generic_detach(dev);
 
@@ -2165,8 +2206,6 @@ zyd_detach(device_t dev)
 	    ieee80211_ifdetach(ic);
 	    if_free(ifp);
 	}
-
-	usbd_transfer_unsetup(sc->sc_xfer, ZYD_TR_MAX);
 
 	usbd_config_td_unsetup(&(sc->sc_config_td));
 

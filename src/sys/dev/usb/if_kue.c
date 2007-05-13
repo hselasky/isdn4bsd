@@ -635,6 +635,9 @@ kue_detach(device_t dev)
 
 	mtx_unlock(&(sc->sc_mtx));
 
+	/* stop all USB transfers first */
+	usbd_transfer_unsetup(sc->sc_xfer, KUE_ENDPT_MAX);
+
 	/* get rid of any late children */
 	bus_generic_detach(dev);
 
@@ -642,8 +645,6 @@ kue_detach(device_t dev)
 	    ether_ifdetach(ifp);
 	    if_free(ifp);
 	}
-
-	usbd_transfer_unsetup(sc->sc_xfer, KUE_ENDPT_MAX);
 
 	usbd_config_td_unsetup(&(sc->sc_config_td));
 

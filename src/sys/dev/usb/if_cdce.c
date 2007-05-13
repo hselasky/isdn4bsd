@@ -414,6 +414,9 @@ cdce_detach(device_t dev)
 
 	mtx_unlock(&(sc->sc_mtx));
 
+	/* stop all USB transfers first */
+	usbd_transfer_unsetup(sc->sc_xfer, CDCE_ENDPT_MAX);
+
 	/* get rid of any late children */
 	bus_generic_detach(dev);
 
@@ -422,8 +425,6 @@ cdce_detach(device_t dev)
 	    if_free(ifp);
 	    ifmedia_removeall(&(sc->sc_ifmedia));
 	}
-
-	usbd_transfer_unsetup(sc->sc_xfer, CDCE_ENDPT_MAX);
 
 	mtx_destroy(&(sc->sc_mtx));
 
