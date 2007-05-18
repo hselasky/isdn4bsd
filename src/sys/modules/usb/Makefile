@@ -16,6 +16,7 @@ SRCS=	bus_if.h device_if.h usb_if.h usb_if.c vnode_if.h \
 	usb_requests.c \
 	usb_subr.c usb_subr.h \
 	usb_transfer.c \
+	usb_compat_linux.c \
 
 SRCS+=	uhci_pci.c uhci.c uhci.h 
 SRCS+=	ohci_pci.c ohci.c ohci.h 

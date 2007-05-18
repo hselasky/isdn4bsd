@@ -83,6 +83,7 @@ struct module;
 struct malloc_type;
 struct proc;
 struct usb_hid_descriptor;
+struct usb_device; /* Linux compat */
 
 typedef uint8_t usbd_status;
 
@@ -232,6 +233,7 @@ struct usbd_device {
 	struct usbd_hub		*hub; /* only if this is a hub */
 	device_t                subdevs[USB_MAX_ENDPOINTS]; /* array of all sub-devices */
 	device_t                subdevs_end[0];
+	struct usb_device 	*linux_dev;
 
 	usb_event_cookie_t	cookie;	       /* unique connection id */
 
@@ -279,10 +281,7 @@ struct usbd_config {
 					 * flag is also exported by usb.h
 					 */
 #endif
-#define	USBD_CUSTOM_CLEARSTALL   0x0008 /* used to disable automatic clear-stall
-					 * when a device reset request is needed
-					 * in addition to the clear stall request
-					 */
+#define	USBD_UNUSED_3            0x0008
 #define	USBD_DEV_OPEN            0x0010
 #define	USBD_DEV_RECURSED_1      0x0020
 #define	USBD_DEV_RECURSED_2      0x0040
@@ -333,7 +332,7 @@ struct usbd_xfer {
 
 	struct usbd_pipe 	*pipe;
 	struct usbd_device 	*udev;
-	struct usbd_xfer 	*clearstall_xfer;
+	struct usbd_xfer	*clearstall_xfer;
 	struct mtx 		*priv_mtx;
 	struct mtx 		*usb_mtx; /* used by HC driver */
 	struct usbd_memory_info	*usb_root; /* used by HC driver */
@@ -805,5 +804,8 @@ struct usb_cdev {
 	uint8_t			sc_wakeup_ioctl_rdwr; /* dummy */
 	uint8_t			sc_first_open; /* set when first device is being opened */
 };
+
+/* prototypes from "usb_compat_linux.c" */
+void	usb_linux_free_usb_device(struct usb_device *dev);
 
 #endif /* _USB_SUBR_H_ */

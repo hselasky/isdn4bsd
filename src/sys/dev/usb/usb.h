@@ -72,7 +72,7 @@ MALLOC_DECLARE(M_USBHC);
 #define USB_START_ADDR 0
 
 #define USB_CONTROL_ENDPOINT 0
-#define USB_MAX_ENDPOINTS 16
+#define USB_MAX_ENDPOINTS (2*16)
 
 #define USB_FRAMES_PER_SECOND 1000
 
@@ -662,6 +662,7 @@ struct usb_device_info {
 #define USB_SPEED_LOW  1
 #define USB_SPEED_FULL 2
 #define USB_SPEED_HIGH 3
+#define USB_SPEED_VARIABLE 4
 	int		udi_power;	/* power consumption in mA, 0 if selfpowered */
 	int		udi_nports;
 	char		udi_devnames[USB_MAX_DEVNAMES][USB_MAX_DEVNAMELEN];

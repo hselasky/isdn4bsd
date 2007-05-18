@@ -1495,6 +1495,12 @@ usbd_free_device(struct usbd_port *up, u_int8_t free_subdev)
 			__FUNCTION__);
 	}
 
+	/* free Linux compat device if any */
+	if (udev->linux_dev) {
+	    usb_linux_free_usb_device(udev->linux_dev);
+	    udev->linux_dev = NULL;
+	}
+
 	/* free device */
 	free(udev, M_USB);
 	up->device = 0;

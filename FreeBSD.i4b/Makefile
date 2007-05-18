@@ -208,6 +208,7 @@ ${N}dev/usb/usb.c             optional usb \
 ${N}dev/usb/usb_requests.c    optional usb \
 ${N}dev/usb/usb_subr.c        optional usb \
 ${N}dev/usb/usb_transfer.c    optional usb \
+${N}dev/usb/usb_compat_linux.c optional usb \
 ${N}dev/usb/usb_cdev.c        optional usb \
 ${N}dev/usb/usb_hid.c         optional usb \
 ${N}usbdevs.h                 optional usb dependency \"$$S/tools/usbdevs2h.awk $$S/dev/usb/usbdevs\" compile-with \"$${AWK} -f $$S/tools/usbdevs2h.awk $$S/dev/usb/usbdevs\" no-obj no-implicit-rule before-depend clean \"usbdevs.h\" \
@@ -462,6 +463,7 @@ update_config:
 	| grep -v "dev/usb/usb_mem.c" \
 	| grep -v "dev/usb/usb_requests.c" \
 	| grep -v "dev/usb/usb_subr.c" \
+	| grep -v "dev/usb/usb_compat_linux.c" \
 	| grep -v "dev/usb/usb_transfer.c" \
 	| grep -v "dev/usb/usb_cdev.c" \
 	| grep -v "dev/usb/usb_hid.c" \

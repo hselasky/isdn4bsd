@@ -223,8 +223,6 @@ NOTE: if the transfer was in progress, the callback will called with
 	This flag allows the transfer length, "xfer->actlen" to be
 	less than "xfer->length", upon completion of a transfer.
 
-  USBD_CUSTOM_CLEARSTALL
-
   USBD_USE_POLLING
 	This flag can be used with any callback and will cause the
 	"usbd_transfer_start()" function to wait, using "DELAY()",

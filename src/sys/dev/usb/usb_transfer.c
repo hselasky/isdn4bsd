@@ -165,7 +165,7 @@ usbd_get_pipe(struct usbd_device *udev, u_int8_t iface_index,
 		    udev, iface_index, setup->endpoint,
 		    setup->type, setup->direction, setup->index));
 
-	/* NOTE: pipes should be searched from the beginning */
+	/* NOTE: pipes are searched from the beginning */
 
 	for (pipe = udev->pipes;
 	     ((pipe >= udev->pipes) && 
@@ -284,7 +284,6 @@ usbd_transfer_setup(struct usbd_device *udev,
 		   (~(USBD_SYNCHRONOUS|
 		      USBD_FORCE_SHORT_XFER|
 		      USBD_SHORT_XFER_OK|
-		      USBD_CUSTOM_CLEARSTALL|
 		      USBD_USE_POLLING|
 		      USBD_USE_DMA)))
 		{
