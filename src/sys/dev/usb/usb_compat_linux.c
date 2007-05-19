@@ -679,6 +679,7 @@ usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32
 	    cfg[0].callback = &usb_linux_isoc_callback;
 	    cfg[0].bufsize = 0; /* use wMaxPacketSize */
 	    cfg[0].frames = usb_max_isoc_frames(dev);
+	    cfg[0].flags = (USBD_USE_DMA|USBD_SHORT_XFER_OK);
 
 	    bcopy(cfg + 0, cfg + 1, sizeof(*cfg));
 
@@ -709,6 +710,7 @@ usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32
 	    cfg[0].direction = addr & (UE_DIR_OUT|UE_DIR_IN);
 	    cfg[0].callback = &usb_linux_non_isoc_callback;
 	    cfg[0].bufsize = bufsize;
+	    cfg[0].flags = (USBD_USE_DMA|USBD_SHORT_XFER_OK);
 
 	    if (usbd_transfer_setup(dev->bsd_udev, uhe->bsd_iface_index,
 				    uhe->bsd_xfer, cfg, 1, uhe, 
