@@ -1046,6 +1046,7 @@ uaudio_chan_fill_info_sub(struct uaudio_softc *sc, struct usbd_device *udev,
 		    ep_sync = 1;
 		}
 
+#if 0		/* just ignore sync information until further */
 		if (ep_sync && (!ed2)) {
 		    continue;
 		}
@@ -1057,6 +1058,7 @@ uaudio_chan_fill_info_sub(struct uaudio_softc *sc, struct usbd_device *udev,
 		    audio_if = 0;
 		    continue;
 		}
+#endif
 
 		wFormat = UGETW(asid->wFormatTag);
 		bChannels = asf1d->bNrChannels;
@@ -1425,7 +1427,7 @@ uaudio_chan_init(struct uaudio_softc *sc, struct snd_dbuf *b,
 	if (ch->p_asf1d->bSamFreqType != 1) {
 	    if (uaudio_set_speed(sc->sc_udev, endpoint, ch->sample_rate)) {
 	        DPRINTF(0, "setting of sample rate failed!\n");
-		goto error;
+		/* goto error; ignore this error: maybe the endpoint is adaptive */
 	    }
 	}
 
