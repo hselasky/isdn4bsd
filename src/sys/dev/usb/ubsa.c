@@ -25,7 +25,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.22 2007/02/09 15:59:28 le Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.23 2007/05/08 18:51:39 maxim Exp $");
 
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
@@ -260,6 +260,8 @@ static const struct ubsa_product {
 	u_int16_t	vendor;
 	u_int16_t	product;
 } ubsa_products [] = {
+	/* AnyData ADU-E100A/H */
+	{ USB_VENDOR_ANYDATA, USB_PRODUCT_ANYDATA_ADU_E100X },
 	/* BELKIN F5U103 */
 	{ USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5U103 },
 	/* BELKIN F5U120 */

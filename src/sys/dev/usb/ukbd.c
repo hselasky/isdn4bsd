@@ -1,3 +1,6 @@
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.60 2007/05/12 05:53:53 brueffer Exp $");
+
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -46,7 +49,6 @@
 #include "opt_kbd.h"
 #include "opt_ukbd.h"
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -57,7 +59,6 @@
 #include <sys/kbio.h>
 
 #include <dev/kbd/kbdreg.h>
-#include <dev/kbd/kbdtables.h>
 
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
@@ -71,7 +72,8 @@
 #include "ukbdmap.h"
 #endif
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.59 2006/11/28 21:13:07 flz Exp $");
+/* the following file must be included after "ukbdmap.h" */
+#include <dev/kbd/kbdtables.h>
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\

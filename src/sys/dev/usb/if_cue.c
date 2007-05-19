@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_cue.c,v 1.63 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_cue.c,v 1.64 2007/05/12 05:53:52 brueffer Exp $");
 
 /*
  * CATC USB-EL1210A USB to ethernet driver. Used in the CATC Netmate
@@ -567,7 +567,9 @@ cue_cfg_first_time_setup(struct cue_softc *sc,
 	ifp->if_watchdog = NULL;
 	ifp->if_init = cue_init_cb;
 	ifp->if_baudrate = 10000000;
-	ifp->if_snd.ifq_maxlen = IFQ_MAXLEN;
+	IFQ_SET_MAXLEN(&ifp->if_snd, IFQ_MAXLEN);
+	ifp->if_snd.ifq_drv_maxlen = IFQ_MAXLEN;
+	IFQ_SET_READY(&ifp->if_snd);
 
 	sc->sc_ifp = ifp;
 
@@ -834,7 +836,7 @@ cue_bulk_write_callback(struct usbd_xfer *xfer)
 	    goto done;
 	}
 
-	IF_DEQUEUE(&(ifp->if_snd), m);
+	IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
 
 	if (m == NULL) {
 	    goto done;

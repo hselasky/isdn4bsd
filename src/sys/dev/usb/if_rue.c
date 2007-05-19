@@ -57,7 +57,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_rue.c,v 1.30 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_rue.c,v 1.31 2007/05/12 05:53:53 brueffer Exp $");
 
 /*
  * RealTek RTL8150 USB to fast ethernet controller driver.
@@ -794,7 +794,9 @@ rue_cfg_first_time_setup(struct rue_softc *sc,
 	ifp->if_start = rue_start_cb;
 	ifp->if_watchdog = NULL;
 	ifp->if_init = rue_init_cb;
-	ifp->if_snd.ifq_maxlen = IFQ_MAXLEN;
+	IFQ_SET_MAXLEN(&ifp->if_snd, IFQ_MAXLEN);
+	ifp->if_snd.ifq_drv_maxlen = IFQ_MAXLEN;
+	IFQ_SET_READY(&ifp->if_snd);
 
 	/* XXX need Giant when accessing
 	 * the device structures !
@@ -1113,7 +1115,7 @@ rue_bulk_write_callback(struct usbd_xfer *xfer)
 	    goto done;
 	}
 
-	IF_DEQUEUE(&(ifp->if_snd), m);
+	IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
 
 	if (m == NULL) {
 	    goto done;

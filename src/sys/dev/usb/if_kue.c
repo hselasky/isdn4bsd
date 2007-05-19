@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_kue.c,v 1.71 2006/10/07 18:03:39 flz Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_kue.c,v 1.73 2007/05/12 05:56:58 brueffer Exp $");
 
 /*
  * Kawasaki LSI KL5KUSB101B USB to ethernet adapter driver.
@@ -604,7 +604,9 @@ kue_cfg_first_time_setup(struct kue_softc *sc,
 	ifp->if_watchdog = NULL;
 	ifp->if_init = kue_init_cb;
 	ifp->if_baudrate = 10000000;
-	ifp->if_snd.ifq_maxlen = IFQ_MAXLEN;
+	IFQ_SET_MAXLEN(&ifp->if_snd, IFQ_MAXLEN);
+	ifp->if_snd.ifq_drv_maxlen = IFQ_MAXLEN;
+	IFQ_SET_READY(&ifp->if_snd);
 
 	sc->sc_ifp = ifp;
 
@@ -820,7 +822,7 @@ kue_bulk_write_callback(struct usbd_xfer *xfer)
 	    goto done;
 	}
 
-	IF_DEQUEUE(&(ifp->if_snd), m);
+	IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
 
 	if (m == NULL) {
 	    goto done;

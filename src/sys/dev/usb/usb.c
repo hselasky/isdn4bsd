@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb.c,v 1.111 2006/10/19 01:15:58 iedowse Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb.c,v 1.112 2007/05/12 05:53:53 brueffer Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -747,11 +747,7 @@ usbioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *p)
 
 		case FIOASYNC:
 			if(*(int *)data)
-#if __FreeBSD_version >= 500000
 				usb_async_proc = p->td_proc;
-#else
-				usb_async_proc = p;
-#endif
 			else
 				usb_async_proc = 0;
 
@@ -775,11 +771,9 @@ usbioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *p)
 
 		switch (cmd)
 		{
-#if defined(__FreeBSD__)
 		/* this part should be deleted */
 		case USB_DISCOVER:
 			break;
-#endif
 		case USB_REQUEST:
 		{
 			struct usb_ctl_request *ur = (void *)data;

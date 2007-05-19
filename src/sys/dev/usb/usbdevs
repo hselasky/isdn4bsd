@@ -556,6 +556,7 @@ vendor ACTIONTEC	0x1668	Actiontec
 vendor ATHEROS		0x168c	Atheros Communications
 vendor GIGASET		0x1690	Gigaset
 vendor GLOBALSUN	0x16ab	Global Sun Technology
+vendor ANYDATA		0x16d5	AnyData Corporation
 vendor CMOTECH		0x16d8	CMOTECH CO., LTD.
 vendor LINKSYS4		0x1737	Linksys
 vendor AMIT		0x18c5	AMIT
@@ -719,6 +720,9 @@ product AMIT CGWLUSB2GO		0x0002	CG-WLUSB2GO
 product ANCHOR EZUSB		0x2131	EZUSB
 product ANCHOR EZLINK		0x2720	EZLINK
 
+/* AnyData products */
+product ANYDATA ADU_E100X	0x6501	CDMA 2000 1xRTT/EV-DO USB Modem
+
 /* AOX, Inc. products */
 product AOX USB101		0x0008	Ethernet
 
@@ -797,8 +801,7 @@ product BELKIN F5D5055		0x5055	F5D5055 ethernet
 product BELKIN F5D7050		0x7050	F5D7050 wireless adapter
 product BELKIN F5D7050C		0x705c	F5D705C 54g USB Network Adapter
 product BELKIN F5D7051		0x7051	F5D7051 54g USB Network Adapter
-product BELKIN F5D705A		0x705a	F5D705A 54g USB Network Adapter
-product BELKIN F5D7050A		0x705a	F5D705A wireless adapter
+product BELKIN F5D705A 		0x705a	F5D705A 54g USB Network Adapter
 product BELKIN F5D9050V3	0x905b	F5D9050 ver 3 wireless adapter
 
 /* Billionton products */
@@ -1390,6 +1393,7 @@ product MELCO KG54YB		0x005e	WLI-U2-KG54-YB WLAN
 product MELCO KG54		0x0066	WLI-U2-KG54 WLAN
 product MELCO KG54AI		0x0067	WLI-U2-KG54-AI WLAN
 product MELCO NINWIFI		0x008b	Nintendo Wi-Fi
+product MELCO PCOPRS1		0x00b3	PC-OP-RS1 RemoteStation
 product MELCO SG54HP		0x00d8	WLI-U2-SG54HP
 product MELCO G54HP		0x00d9	WLI-U2-G54HP
 

@@ -563,6 +563,7 @@
 #define	USB_VENDOR_ATHEROS	0x168c		/* Atheros Communications */
 #define	USB_VENDOR_GIGASET	0x1690		/* Gigaset */
 #define	USB_VENDOR_GLOBALSUN	0x16ab		/* Global Sun Technology */
+#define	USB_VENDOR_ANYDATA	0x16d5		/* AnyData Corporation */
 #define	USB_VENDOR_CMOTECH	0x16d8		/* CMOTECH CO., LTD. */
 #define	USB_VENDOR_LINKSYS4	0x1737		/* Linksys */
 #define	USB_VENDOR_AMIT	0x18c5		/* AMIT */
@@ -726,6 +727,9 @@
 #define	USB_PRODUCT_ANCHOR_EZUSB	0x2131		/* EZUSB */
 #define	USB_PRODUCT_ANCHOR_EZLINK	0x2720		/* EZLINK */
 
+/* AnyData products */
+#define	USB_PRODUCT_ANYDATA_ADU_E100X	0x6501		/* CDMA 2000 1xRTT/EV-DO USB Modem */
+
 /* AOX, Inc. products */
 #define	USB_PRODUCT_AOX_USB101	0x0008		/* Ethernet */
 
@@ -805,7 +809,6 @@
 #define	USB_PRODUCT_BELKIN_F5D7050C	0x705c		/* F5D705C 54g USB Network Adapter */
 #define	USB_PRODUCT_BELKIN_F5D7051	0x7051		/* F5D7051 54g USB Network Adapter */
 #define	USB_PRODUCT_BELKIN_F5D705A	0x705a		/* F5D705A 54g USB Network Adapter */
-#define	USB_PRODUCT_BELKIN_F5D7050A	0x705a		/* F5D705A wireless adapter */
 #define	USB_PRODUCT_BELKIN_F5D9050V3	0x905b		/* F5D9050 ver 3 wireless adapter */
 
 /* Billionton products */
@@ -1397,6 +1400,7 @@
 #define	USB_PRODUCT_MELCO_KG54	0x0066		/* WLI-U2-KG54 WLAN */
 #define	USB_PRODUCT_MELCO_KG54AI	0x0067		/* WLI-U2-KG54-AI WLAN */
 #define	USB_PRODUCT_MELCO_NINWIFI	0x008b		/* Nintendo Wi-Fi */
+#define	USB_PRODUCT_MELCO_PCOPRS1	0x00b3		/* PC-OP-RS1 RemoteStation */
 #define	USB_PRODUCT_MELCO_SG54HP	0x00d8		/* WLI-U2-SG54HP */
 #define	USB_PRODUCT_MELCO_G54HP	0x00d9		/* WLI-U2-G54HP */
 

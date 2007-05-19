@@ -1,6 +1,5 @@
 /*	$NetBSD: if_udav.c,v 1.2 2003/09/04 15:17:38 tsutsui Exp $	*/
 /*	$nabe: if_udav.c,v 1.3 2003/08/21 16:57:19 nabe Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.24 2006/10/19 01:15:58 iedowse Exp $	*/
 /*-
  * Copyright (c) 2003
  *     Shingo WATANABE <nabe@nabechan.org>.  All rights reserved.
@@ -50,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.24 2006/10/19 01:15:58 iedowse Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.25 2007/05/12 05:53:53 brueffer Exp $");
 
 #include "opt_inet.h"
 
@@ -407,7 +406,9 @@ udav_cfg_first_time_setup(struct udav_softc *sc,
 	ifp->if_ioctl = udav_ioctl_cb;
 	ifp->if_watchdog = NULL;
 	ifp->if_init = udav_init_cb;
-	ifp->if_snd.ifq_maxlen = IFQ_MAXLEN;
+	IFQ_SET_MAXLEN(&ifp->if_snd, IFQ_MAXLEN);
+	ifp->if_snd.ifq_drv_maxlen = IFQ_MAXLEN;
+	IFQ_SET_READY(&ifp->if_snd);
 
 	/* XXX need Giant when accessing
 	 * the device structures !
@@ -925,7 +926,7 @@ udav_bulk_write_callback(struct usbd_xfer *xfer)
 	    goto done;
 	}
 
-	IF_DEQUEUE(&(ifp->if_snd), m);
+	IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
 
 	if (m == NULL) {
 	    goto done;

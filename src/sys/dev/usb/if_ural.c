@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.52 2007/04/24 11:18:55 sephe Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.53 2007/05/09 09:32:41 kevlo Exp $");
 
 /*-
  * Ralink Technology RT2500USB chipset driver
@@ -220,7 +220,6 @@ static const struct usb_devno ural_devs[] = {
 	{ USB_VENDOR_ASUS,		USB_PRODUCT_RALINK_RT2570 },
 	{ USB_VENDOR_BELKIN,		USB_PRODUCT_BELKIN_F5D7050 },
 	{ USB_VENDOR_BELKIN,		USB_PRODUCT_BELKIN_F5D7051 },
-	{ USB_VENDOR_BELKIN,		USB_PRODUCT_BELKIN_F5D705A },
 	{ USB_VENDOR_CONCEPTRONIC2,	USB_PRODUCT_CONCEPTRONIC2_C54RU },
 	{ USB_VENDOR_DLINK,		USB_PRODUCT_DLINK_DWLG122 },
 	{ USB_VENDOR_GIGABYTE,		USB_PRODUCT_GIGABYTE_GNWBKG },

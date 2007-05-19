@@ -37,7 +37,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uftdi.c,v 1.24 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uftdi.c,v 1.25 2007/04/30 16:15:19 takawata Exp $");
 /*
  * NOTE: all function names beginning like "uftdi_cfg_" can only
  * be called from within the config thread function !
@@ -265,6 +265,9 @@ uftdi_probe(device_t dev)
 	    (uaa->product == USB_PRODUCT_BBELECTRONICS_USOTL4)) {
 	    return UMATCH_VENDOR_PRODUCT;
 	}
+	if (uaa->vendor == USB_VENDOR_MELCO &&
+	    (uaa->product == USB_PRODUCT_MELCO_PCOPRS1))
+		return (UMATCH_VENDOR_PRODUCT);
 
 	return (UMATCH_NONE);
 }
@@ -372,6 +375,18 @@ uftdi_attach(device_t dev)
 	        goto detach;
 	    }
 	    break;
+
+	case USB_VENDOR_MELCO:
+		switch( uaa->product ){
+		case USB_PRODUCT_MELCO_PCOPRS1:
+			sc->sc_type = UFTDI_TYPE_8U232AM;
+			sc->sc_hdrlen = 0;
+			break;
+
+		default:		/* Can't happen */
+			goto detach;
+		}
+		break;
 
 	default:		/* Can't happen */
 	    goto detach;

@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_axe.c,v 1.42 2007/03/31 23:23:41 jhb Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_axe.c,v 1.44 2007/05/12 05:56:10 brueffer Exp $");
 
 /*
  * ASIX Electronics AX88172 USB 2.0 ethernet driver. Used in the
@@ -889,7 +889,9 @@ axe_cfg_first_time_setup(struct axe_softc *sc,
 	ifp->if_start = axe_start_cb;
 	ifp->if_watchdog = NULL;
 	ifp->if_init = axe_init_cb;
-	ifp->if_snd.ifq_maxlen = IFQ_MAXLEN;
+	IFQ_SET_MAXLEN(&ifp->if_snd, IFQ_MAXLEN);
+	ifp->if_snd.ifq_drv_maxlen = IFQ_MAXLEN;
+	IFQ_SET_READY(&ifp->if_snd);
 
 	/* XXX need Giant when accessing
 	 * the device structures !
@@ -1267,7 +1269,7 @@ axe_bulk_write_callback(struct usbd_xfer *xfer)
 
 	while (1) {
 
-	    IF_DEQUEUE(&(ifp->if_snd), m);
+	    IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
 
 	    if (m == NULL) {
 	        if (pos > 0)

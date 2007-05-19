@@ -11,7 +11,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.89 2007/02/27 17:23:28 jhb Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.90 2007/05/08 03:25:05 kevlo Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -698,8 +698,16 @@ usbd_set_config_index(struct usbd_device *udev, int index, int msg)
 
 	cdp = udev->cdesc;
 
-	/* get the full descriptor */
-	err = usbreq_get_desc(udev, UDESC_CONFIG, index, len, cdp, 3);
+	/* Get the full descriptor. Try a few times for slow devices. */
+	for (nifc = 0; nifc < 3; nifc++) {
+
+	    err = usbreq_get_desc(udev, UDESC_CONFIG, index, len, cdp, 3);
+
+	    if (!err) break;
+
+	    usbd_delay_ms(udev, 200);
+	}
+
 	if (err)
 		goto error;
 	if(cdp->bDescriptorType != UDESC_CONFIG)
@@ -1163,7 +1171,6 @@ usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 	struct usbd_device *adev;
 	struct usbd_device *udev;
 	struct usbd_device *hub;
-	usb_port_status_t ps;
 	usbd_status err = 0;
 	int addr;
 	int i;
@@ -1269,24 +1276,7 @@ usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 			    &udev->default_ep_desc,
 			    &udev->default_pipe);
 
-	/* Set the address.  Do this early; some devices need that.
-	 * Try a few times in case the device is slow (i.e. outside specs.)
-	 */
-	for (i = 0; i < 15; i++)
-	{
-		err = usbreq_set_address(udev, addr);
-		if(!err)
-		{
-			break;
-		}
-		usbd_delay_ms(udev, 200);
-		if(((i & 3) == 3) && (up->parent))
-		{
-			PRINTF(("set address %d "
-				 "failed - trying a port reset\n", addr));
-			usbreq_reset_port(up->parent, port, &ps);
-		}
-	}
+	err = usbreq_set_address(udev, addr);
 	if(err)
 	{
 		PRINTF(("set address %d failed\n", addr));

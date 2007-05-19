@@ -521,6 +521,12 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    "EZLINK",
 	},
 	{
+	    USB_VENDOR_ANYDATA, USB_PRODUCT_ANYDATA_ADU_E100X,
+	    0,
+	    "AnyData Corporation",
+	    "CDMA 2000 1xRTT/EV-DO USB Modem",
+	},
+	{
 	    USB_VENDOR_AOX, USB_PRODUCT_AOX_USB101,
 	    0,
 	    "AOX",
@@ -849,12 +855,6 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    0,
 	    "Belkin",
 	    "F5D705A 54g USB Network Adapter",
-	},
-	{
-	    USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5D7050A,
-	    0,
-	    "Belkin",
-	    "F5D705A wireless adapter",
 	},
 	{
 	    USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5D9050V3,
@@ -3177,6 +3177,12 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    0,
 	    "Melco",
 	    "Nintendo Wi-Fi",
+	},
+	{
+	    USB_VENDOR_MELCO, USB_PRODUCT_MELCO_PCOPRS1,
+	    0,
+	    "Melco",
+	    "PC-OP-RS1 RemoteStation",
 	},
 	{
 	    USB_VENDOR_MELCO, USB_PRODUCT_MELCO_SG54HP,
@@ -8312,6 +8318,12 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    USB_VENDOR_GLOBALSUN, 0,
 	    USB_KNOWNDEV_NOPROD,
 	    "Global Sun Technology",
+	    NULL,
+	},
+	{
+	    USB_VENDOR_ANYDATA, 0,
+	    USB_KNOWNDEV_NOPROD,
+	    "AnyData Corporation",
 	    NULL,
 	},
 	{
