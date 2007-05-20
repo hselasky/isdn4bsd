@@ -82,7 +82,11 @@ typedef struct cdevsw cdevsw_t;
 #  include <sys/mbuf.h>
 #  include <net/if.h>
 #  include <net/if_spppvar.h>
-#  include <net80211/ieee80211_compat.h>
+#  if (__NetBSD_Version__ >= 400000000)
+#   include <net80211/ieee80211_freebsd.h>
+#  else
+#   include <net80211/ieee80211_compat.h>
+#  endif
 #  include <sys/callout.h>
 # else
 #  include <sys/queue.h>
