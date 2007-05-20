@@ -31,6 +31,7 @@
 
 #include <sys/freebsd_compat.h>
 
+#if (__NetBSD_Version__ < 400000000)
 struct mbuf *
 m_getcl(int how, short type, int flags)
 {
@@ -54,3 +55,5 @@ m_getcl(int how, short type, int flags)
     }
     return m;
 }
+#endif
+

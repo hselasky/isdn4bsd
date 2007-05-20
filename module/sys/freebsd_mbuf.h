@@ -30,6 +30,8 @@
 
 struct mbuf;
 
+#if (__NetBSD_Version__ < 400000000)
 extern struct mbuf * m_getcl(int how, short type, int flags);
+#endif
 
 #endif

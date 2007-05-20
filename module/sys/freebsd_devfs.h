@@ -232,8 +232,10 @@ extern const char *
 #define M_DEVFS M_TEMP
 #define S_IFCHR  0020000                /* character special */
 
+#if (__NetBSD_Version__ < 400000000)
 #define O_DIRECT 0
 #define IO_DIRECT 0
+#endif
 
 #define VI_LOCK(vp) simple_lock(&(vp)->v_interlock)
 #define VI_UNLOCK(vp) simple_unlock(&(vp)->v_interlock)

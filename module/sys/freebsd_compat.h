@@ -84,6 +84,7 @@ typedef struct cdevsw cdevsw_t;
 #  include <net/if_spppvar.h>
 #  if (__NetBSD_Version__ >= 400000000)
 #   include <net80211/ieee80211_netbsd.h>
+#   include <sys/kauth.h>
 #  else
 #   include <net80211/ieee80211_compat.h>
 #  endif
@@ -248,10 +249,12 @@ suser_cred(struct ucred *cred, int flag)
 #  define suser(td) suser((td)->p_ucred, NULL)
 # endif
 
+#if (__NetBSD_Version__ < 400000000)
 # ifndef time_second
 static __inline time_t time_second() { return time.tv_sec; }
 #  define time_second time_second()
 # endif
+#endif
 
 # ifndef M_CACHE
 #  define M_CACHE M_TEMP
