@@ -257,7 +257,7 @@ dump_ec_fir_filter(struct options *opt)
 		goto repeat;
 	}
 
-        if (ec_dbg.npoints == 0)
+	if (ec_dbg.npoints == 0)
 	{
 	    printf("X=[0,0];\n"
 		   "Y=[0,0];\n"
