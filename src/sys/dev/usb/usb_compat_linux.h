@@ -1,8 +1,6 @@
 /*
- * Copyright (c) 2007 Luigi Rizzo - Universita` di Pisa
+ * Copyright (c) 2007 Luigi Rizzo - Universita` di Pisa. All rights reserved.
  * Copyright (c) 2007 Hans Petter Selasky. All rights reserved.
- *
- * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,7 +45,6 @@ struct pt_regs;
 
 typedef void * pm_message_t;
 typedef void (usb_complete_t)(struct urb *, struct pt_regs *);
-typedef uint32_t gfp_t;
 
 #define	USB_MAX_FULL_SPEED_ISOC_FRAMES (60 * 1)
 #define	USB_MAX_HIGH_SPEED_ISOC_FRAMES (60 * 8)
@@ -99,6 +96,12 @@ struct usb_device_id {
 	.match_flags = USB_DEVICE_ID_MATCH_DEVICE, .idVendor = (vend), \
 	.idProduct = (prod)
 
+/* The "usb_driver" structure holds the Linux USB device driver
+ * callbacks, and a pointer to device ID's which this entry should
+ * match against. Usually this entry is exposed to the USB emulation
+ * layer using the "USB_DRIVER_EXPORT()" macro, which is defined
+ * below.
+ */
 struct usb_driver {
 	const char *name;
 
@@ -125,8 +128,9 @@ struct usb_driver {
   SYSUNINIT(id,SI_SUB_KLD,SI_ORDER_ANY,usb_linux_deregister,p_usb_drv)
 
 /*
- * This is the same as:
- *	usb_device_descriptor_t
+ * The following structure is the same as "usb_device_descriptor_t" 
+ * except that 16-bit values are "uint16_t" and not an array of "uint8_t".
+ * It is used by Linux USB device drivers.
  */
 struct usb_device_descriptor {
 	uint8_t	 bLength;
@@ -147,8 +151,9 @@ struct usb_device_descriptor {
 } __packed;
 
 /*
- * This is the same as:
- *	usb_interface_descriptor_t
+ * The following structure is the same as
+ * "usb_interface_descriptor_t". It is used by
+ * Linux USB device drivers.
  */
 struct usb_interface_descriptor {
 	uint8_t	 bLength;
@@ -164,8 +169,9 @@ struct usb_interface_descriptor {
 } __packed;
 
 /*
- * This is the same as:
- *	usb_endpoint_descriptor_t
+ * The following structure is the same as "usb_endpoint_descriptor_t"
+ * except that 16-bit values are "uint16_t" and not an array of "uint8_t".
+ * It is used by Linux USB device drivers.
  */
 struct usb_endpoint_descriptor {
 	uint8_t	 bLength;
@@ -277,6 +283,14 @@ struct usb_endpoint_descriptor {
 #define	PIPE_CONTROL			UE_CONTROL
 #define	PIPE_BULK			UE_BULK
 
+/* Whenever Linux references an USB endpoint:
+ * a) to initialize "urb->pipe"
+ * b) second argument passed to "usb_control_msg()"
+ *
+ * Then it uses one of the following macros. The "endpoint" argument
+ * is the physical endpoint value masked by 0xF. The "dev" argument
+ * is a pointer to "struct usb_device".
+ */
 #define	usb_sndctrlpipe(dev,endpoint) \
   usb_find_host_endpoint(dev, PIPE_CONTROL, (endpoint) | USB_DIR_OUT)
 
@@ -301,6 +315,13 @@ struct usb_endpoint_descriptor {
 #define	usb_rcvintpipe(dev,endpoint) \
   usb_find_host_endpoint(dev, PIPE_INTERRUPT, (endpoint) | USB_DIR_IN)
 
+/* The following four structures makes up a tree, where we have the
+ * leaf structure, "usb_host_endpoint", first, and the root structure,
+ * "usb_device", last. The four structures below mirror the structure
+ * of the USB descriptors belonging to an USB configuration. Please
+ * refer to the USB specification for a definition of "endpoints" and
+ * "interfaces".
+ */
 struct usb_host_endpoint {
 	struct usb_endpoint_descriptor desc;
 
@@ -361,15 +382,27 @@ struct usb_device {
 } __aligned(USB_HOST_ALIGN);
 
 /*
- * URB support, for asynchronous request completions
+ * The following structure is used to extend "struct urb" when we are
+ * dealing with an isochronous endpoint. It contains information about
+ * the data offset and data length of an isochronous packet.
+ * The "actual_length" field is updated before the "complete" 
+ * callback in the "urb" structure is called.
  */
 struct usb_iso_packet_descriptor {
-	uint32_t offset;
-	uint16_t length;		/* expected length */
+	uint32_t offset;	/* depreciated buffer offset
+				 * (the packets are usually back to back)
+				 */
+	uint16_t length;	/* expected length */
 	uint16_t actual_length;
 	uint16_t status;
 };
 
+/*
+ * The following structure holds various information about an USB
+ * transfer. This structure is used for all kinds of USB transfers.
+ *
+ * URB is short for USB Request Block.
+ */
 struct urb {
 	TAILQ_ENTRY(urb) bsd_urb_list;
 
@@ -407,9 +440,9 @@ struct urb {
 	struct usb_iso_packet_descriptor iso_frame_desc[0]; /* (in) ISO ONLY */
 };
 
-extern LIST_HEAD(usb_linux_driver_list,usb_driver) usb_linux_driver_list;
+/* various prototypes */
 
-int32_t usb_submit_urb(struct urb *urb, gfp_t mem_flags);
+int32_t usb_submit_urb(struct urb *urb, uint16_t mem_flags);
 int32_t usb_unlink_urb(struct urb *urb);
 int32_t usb_clear_halt(struct usb_device *dev, struct usb_host_endpoint *uhe);
 int32_t usb_control_msg(struct usb_device *dev, struct usb_host_endpoint *pipe, uint8_t request, uint8_t requesttype, uint16_t value, uint16_t index, void *data, uint16_t size, uint32_t timeout);
@@ -417,11 +450,11 @@ int32_t usb_set_interface(struct usb_device *dev, uint8_t ifnum, uint8_t alterna
 int32_t usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32_t bufsize);
 
 struct usb_host_endpoint *usb_find_host_endpoint(struct usb_device *dev, uint8_t type, uint8_t ep);
-struct urb *usb_alloc_urb(uint16_t iso_packets, gfp_t mem_flags);
+struct urb *usb_alloc_urb(uint16_t iso_packets, uint16_t mem_flags);
 struct usb_host_interface *usb_altnum_to_altsetting(const struct usb_interface *intf, uint8_t alt_index);
 struct usb_interface *usb_ifnum_to_if(struct usb_device *dev, uint8_t iface_no);
 
-void *usb_buffer_alloc(struct usb_device *dev, uint32_t size, gfp_t mem_flags, uint8_t *dma_addr);
+void *usb_buffer_alloc(struct usb_device *dev, uint32_t size, uint16_t mem_flags, uint8_t *dma_addr);
 void *usb_get_intfdata(struct usb_interface *intf);
 
 void usb_buffer_free(struct usb_device *dev, uint32_t size, void *addr, uint8_t dma_addr);

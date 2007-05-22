@@ -1,8 +1,6 @@
 /*
- * Copyright (c) 2007 Luigi Rizzo - Universita` di Pisa
+ * Copyright (c) 2007 Luigi Rizzo - Universita` di Pisa. All rights reserved.
  * Copyright (c) 2007 Hans Petter Selasky. All rights reserved.
- *
- * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,8 +38,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/usb_compat_linux.c $");
 
 #include <dev/usb/usb_compat_linux.h>
 
-struct usb_linux_driver_list usb_linux_driver_list;
-
 struct usb_linux_softc {
     LIST_ENTRY(usb_linux_softc) sc_attached_list;
 
@@ -66,7 +62,7 @@ static usb_complete_t usb_linux_wait_complete;
 
 static uint16_t usb_max_isoc_frames(struct usb_device *dev);
 static int32_t usb_start_wait_urb(struct urb *urb, uint32_t timeout, uint32_t *p_actlen);
-static const struct usb_device_id * usb_linux_lookup_id(struct usb_driver *udrv, struct usb_attach_arg *uaa);
+static const struct usb_device_id * usb_linux_lookup_id(const struct usb_device_id *id, struct usb_attach_arg *uaa);
 static struct usb_driver * usb_linux_get_usb_driver(struct usb_linux_softc *sc);
 static struct usb_device * usb_linux_create_usb_device(struct usbd_device *udev, device_t dev);
 static void usb_linux_cleanup_interface(struct usb_device *dev, struct usb_interface *iface);
@@ -77,6 +73,7 @@ static void usb_linux_complete(struct usbd_xfer *xfer);
  *------------------------------------------------------------------------*/
 
 static LIST_HEAD(,usb_linux_softc) usb_linux_attached_list;
+static LIST_HEAD(,usb_driver) usb_linux_driver_list;
 
 static device_method_t usb_linux_methods[] = {
 	/* Device interface */
@@ -101,14 +98,20 @@ static devclass_t usb_linux_devclass;
 DRIVER_MODULE(usb_linux, uhub, usb_linux_driver, usb_linux_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(usb_linux, usb, 1, 1, 1);
 
+/*------------------------------------------------------------------------*
+ *	usb_linux_lookup_id
+ *
+ * This functions takes an array of "struct usb_device_id" and tries
+ * to match the entries with the information in "struct usb_attach_arg".
+ * If it finds a match the matching entry will be returned.
+ * Else "NULL" will be returned.
+ *------------------------------------------------------------------------*/
 static const struct usb_device_id *
-usb_linux_lookup_id(struct usb_driver *udrv, struct usb_attach_arg *uaa)
+usb_linux_lookup_id(const struct usb_device_id *id, struct usb_attach_arg *uaa)
 {
-	const struct usb_device_id *id;
 	usb_interface_descriptor_t *idesc;
 	usb_device_descriptor_t *dd;
 
-	id = udrv->id_table;
 	if (id == NULL) {
 		goto done;
 	}
@@ -120,6 +123,11 @@ usb_linux_lookup_id(struct usb_driver *udrv, struct usb_attach_arg *uaa)
 
 	dd = &(uaa->device->ddesc);
 
+	/* Keep on matching array entries until
+	 * we find one with "match_flags"
+	 * equal to zero, which indicates the
+	 * end of the array:
+	 */
 	for ( ; id->match_flags; id++) {
 
 	  if ((id->match_flags & USB_DEVICE_ID_MATCH_VENDOR) &&
@@ -188,6 +196,12 @@ usb_linux_lookup_id(struct usb_driver *udrv, struct usb_attach_arg *uaa)
 	return NULL;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_linux_probe
+ *
+ * This function is the FreeBSD probe callback. It is called from the
+ * FreeBSD USB stack through the "device_probe_and_attach()" function.
+ *------------------------------------------------------------------------*/
 static int
 usb_linux_probe(device_t dev)
 {
@@ -202,7 +216,7 @@ usb_linux_probe(device_t dev)
 	mtx_lock(&usb_global_lock);
 	LIST_FOREACH(udrv, &usb_linux_driver_list, linux_driver_list)
 	{
-		if (usb_linux_lookup_id(udrv, uaa))
+		if (usb_linux_lookup_id(udrv->id_table, uaa))
 		{
 			err = 0;
 			break;
@@ -213,6 +227,13 @@ usb_linux_probe(device_t dev)
 	return err;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_linux_get_usb_driver
+ *
+ * This function returns the pointer to the "struct usb_driver" where
+ * the Linux USB device driver "struct usb_device_id" match was found.
+ * We apply a lock before reading out the pointer to avoid races.
+ *------------------------------------------------------------------------*/
 static struct usb_driver *
 usb_linux_get_usb_driver(struct usb_linux_softc *sc)
 {
@@ -223,6 +244,13 @@ usb_linux_get_usb_driver(struct usb_linux_softc *sc)
 	return udrv;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_linux_attach
+ *
+ * This function is the FreeBSD attach callback. It is called from the
+ * FreeBSD USB stack through the "device_probe_and_attach()" function.
+ * This function is called when "usb_linux_probe()" returns zero.
+ *------------------------------------------------------------------------*/
 static int
 usb_linux_attach(device_t dev)
 {
@@ -239,7 +267,7 @@ usb_linux_attach(device_t dev)
 	mtx_lock(&usb_global_lock);
 	LIST_FOREACH(udrv, &usb_linux_driver_list, linux_driver_list)
 	{
-		id = usb_linux_lookup_id(udrv, uaa);
+		id = usb_linux_lookup_id(udrv->id_table, uaa);
 		if (id) break;
 	}
 	mtx_unlock(&usb_global_lock);
@@ -284,6 +312,12 @@ usb_linux_attach(device_t dev)
 	return 0;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_linux_detach
+ *
+ * This function is the FreeBSD detach callback. It is called from the
+ * FreeBSD USB stack through the "device_detach()" function.
+ *------------------------------------------------------------------------*/
 static int 
 usb_linux_detach(device_t dev)
 {
@@ -303,10 +337,19 @@ usb_linux_detach(device_t dev)
 	    (udrv->disconnect)(sc->sc_ui);
 	}
 
+	/* Make sure that we free all FreeBSD USB transfers
+	 * belonging to this Linux "usb_interface", hence
+	 * they will most likely not be needed any more.
+	 */
 	usb_linux_cleanup_interface(sc->sc_fbsd_udev->linux_dev, sc->sc_ui);
 	return 0;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_linux_suspend
+ *
+ * This function is the FreeBSD suspend callback. Usually it does nothing.
+ *------------------------------------------------------------------------*/
 static int
 usb_linux_suspend(device_t dev)
 {
@@ -320,6 +363,11 @@ usb_linux_suspend(device_t dev)
 	return 0;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_linux_resume
+ *
+ * This function is the FreeBSD resume callback. Usually it does nothing.
+ *------------------------------------------------------------------------*/
 static int
 usb_linux_resume(device_t dev)
 {
@@ -333,6 +381,11 @@ usb_linux_resume(device_t dev)
 	return 0;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_linux_shutdown
+ *
+ * This function is the FreeBSD shutdown callback. Usually it does nothing.
+ *------------------------------------------------------------------------*/
 static int
 usb_linux_shutdown(device_t dev)
 {
@@ -349,6 +402,9 @@ usb_linux_shutdown(device_t dev)
  * Linux emulation layer
  *------------------------------------------------------------------------*/
 
+/* The following function returns the maximum number of isochronous
+ * frames that we support per URB. It is not part of the Linux USB API.
+ */
 static uint16_t
 usb_max_isoc_frames(struct usb_device *dev)
 {
@@ -356,8 +412,12 @@ usb_max_isoc_frames(struct usb_device *dev)
 		USB_MAX_HIGH_SPEED_ISOC_FRAMES : USB_MAX_FULL_SPEED_ISOC_FRAMES);
 }
 
+/* This function is used to queue an URB after that it has been
+ * initialized. If it returns non-zero, it means that the URB was not
+ * queued.
+ */
 int32_t
-usb_submit_urb(struct urb *urb, gfp_t mem_flags)
+usb_submit_urb(struct urb *urb, uint16_t mem_flags)
 {
 	struct usb_host_endpoint *uhe;
 
@@ -373,6 +433,10 @@ usb_submit_urb(struct urb *urb, gfp_t mem_flags)
 
 	uhe = urb->pipe;
 
+	/* Check that we have got a FreeBSD USB transfer that will
+	 * dequeue the URB structure and do the real transfer. If
+	 * there are no USB transfers, then we return an error.
+	 */
 	if (uhe->bsd_xfer[0] ||
 	    uhe->bsd_xfer[1])
 	{
@@ -392,6 +456,12 @@ usb_submit_urb(struct urb *urb, gfp_t mem_flags)
 	return 0;
 }
 
+/*
+ * This function is used to stop an URB after that it is been
+ * submitted, but before the "complete" callback has been called. On
+ * FreeBSD this function is always non-blocking, and will always call
+ * the "complete" callback with an error before it returns.
+ */
 int32_t
 usb_unlink_urb(struct urb *urb)
 {
@@ -428,6 +498,12 @@ usb_unlink_urb(struct urb *urb)
 
 	} else {
 
+	    /* If the URB is not on the URB list, then check if one of
+	     * the FreeBSD USB transfer are processing the current
+	     * URB. If so, re-start that transfer, which will lead to
+	     * the termination of that URB:
+	     */
+
 	    if (uhe->bsd_xfer[0] &&
 		(uhe->bsd_xfer[0]->priv_fifo == (void *)urb))
 	    {
@@ -445,6 +521,10 @@ usb_unlink_urb(struct urb *urb)
 	return 0;
 }
 
+/* This function must always be used to clear the stall. Stall is when
+ * an USB endpoint returns a stall message to the USB host controller.
+ * Until the stall is cleared, no data can be transferred.
+ */
 int32_t
 usb_clear_halt(struct usb_device *dev, struct usb_host_endpoint *uhe)
 {
@@ -477,6 +557,9 @@ usb_clear_halt(struct usb_device *dev, struct usb_host_endpoint *uhe)
 			       UF_ENDPOINT_HALT, addr, NULL, 0, 1000);
 }
 
+/* This is an internal function that is used to perform synchronous
+ * Linux USB transfers.
+ */
 static int32_t
 usb_start_wait_urb(struct urb *urb, uint32_t timeout, uint32_t *p_actlen)
 {
@@ -516,6 +599,12 @@ usb_start_wait_urb(struct urb *urb, uint32_t timeout, uint32_t *p_actlen)
 	return err;
 }
 
+/* The following function performs a control transfer sequence one any
+ * control, bulk or interrupt endpoint, specified by "uhe". A control
+ * transfer means that you transfer an 8-byte header first followed by
+ * a data-phase as indicated by the 8-byte header. The "timeout" is
+ * given in milliseconds.
+ */
 int32_t
 usb_control_msg(struct usb_device *dev, struct usb_host_endpoint *uhe, 
 		uint8_t request, uint8_t requesttype,
@@ -537,6 +626,10 @@ usb_control_msg(struct usb_device *dev, struct usb_host_endpoint *uhe,
 	type = (uhe->desc.bmAttributes & UE_XFERTYPE);
 	addr = (uhe->desc.bEndpointAddress & UE_ADDR);
 
+	/* The FreeBSD USB stack supports standard control transfers
+	 * on control endpoints only. For the other two endpoint types
+	 * we need special handling. Check the endpoint type:
+	 */
 	if (type == UE_CONTROL) {
 	    uhe_write = NULL;
 	    uhe_read = NULL;
@@ -562,7 +655,7 @@ usb_control_msg(struct usb_device *dev, struct usb_host_endpoint *uhe,
 	 * here so that we don't transfer data
 	 * to/from the stack!
 	 *
-	 * 0xFFFF is a magic value.
+	 * 0xFFFF is a FreeBSD specific magic value.
 	 */
 	urb = usb_alloc_urb(0xFFFF, size);
 	if (urb == NULL) return -ENOMEM;
@@ -631,6 +724,11 @@ usb_control_msg(struct usb_device *dev, struct usb_host_endpoint *uhe,
 	return err;
 }
 
+/* The following function will select which alternate setting of an
+ * USB interface you plan to use. By default alternate setting with
+ * index zero is selected. Note that "iface_no" is not the interface
+ * index, but rather the value of "bInterfaceNumber".
+ */
 int32_t
 usb_set_interface(struct usb_device *dev, uint8_t iface_no, uint8_t alt_index)
 {
@@ -646,6 +744,14 @@ usb_set_interface(struct usb_device *dev, uint8_t iface_no, uint8_t alt_index)
 	return err;
 }
 
+/* The following function is an extension to the Linux USB API that
+ * allows you to set a maximum buffer size for a given USB endpoint.
+ * The maximum buffer size is per URB. If you don't call this function
+ * to set a maximum buffer size, the endpoint will not be functional.
+ * Note that for isochronous endpoints the maximum buffer size must be
+ * a non-zero dummy, hence this function will base the maximum buffer
+ * size on "wMaxPacketSize".
+ */
 int32_t
 usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32_t bufsize)
 {
@@ -671,7 +777,9 @@ usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32
 
 	if (type == UE_ISOCHRONOUS) {
 
-	    /* Isochronous is special */
+	    /* Isochronous transfers are special in that they don't
+	     * fit into the BULK/INTR/CONTROL transfer model.
+	     */
 
 	    cfg[0].type = type;
 	    cfg[0].endpoint = addr & UE_ADDR;
@@ -682,6 +790,8 @@ usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32
 	    cfg[0].flags = (USBD_USE_DMA|USBD_SHORT_XFER_OK);
 
 	    bcopy(cfg + 0, cfg + 1, sizeof(*cfg));
+
+	    /* Allocate and setup two generic FreeBSD USB transfers */
 
 	    if (usbd_transfer_setup(dev->bsd_udev, uhe->bsd_iface_index,
 				    uhe->bsd_xfer, cfg, 2, uhe, 
@@ -705,6 +815,8 @@ usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32
 		bufsize = mfs;
 	    }
 
+	    /* Allocate and setup one generic FreeBSD USB transfer */
+
 	    cfg[0].type = type;
 	    cfg[0].endpoint = addr & UE_ADDR;
 	    cfg[0].direction = addr & (UE_DIR_OUT|UE_DIR_IN);
@@ -722,6 +834,10 @@ usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32
 	return 0;
 }
 
+/* The following function is used to build up a per USB device
+ * structure tree, that mimics the Linux one. The root structure
+ * is returned by this function.
+ */
 static struct usb_device *
 usb_linux_create_usb_device(struct usbd_device *udev, device_t dev)
 {
@@ -742,6 +858,10 @@ usb_linux_create_usb_device(struct usbd_device *udev, device_t dev)
 	uint8_t pass;
 	uint8_t iface_no;
 
+	/* We do two passes. One pass for computing necessary memory
+	 * size and one pass to initialize all the allocated
+	 * memory structures.
+	 */
 	for (pass = 0; pass < 2; pass++) {
 
 	    iface_no_curr = 0-1;
@@ -750,8 +870,15 @@ usb_linux_create_usb_device(struct usbd_device *udev, device_t dev)
 	    nedesc = 0;
 	    desc = NULL;
 
+	    /* Iterate over all the USB descriptors. Use the USB
+	     * config descriptor pointer provided by the FreeBSD
+	     * USB stack.
+	     */
 	    while ((desc = usbd_desc_foreach(cd, desc))) {
 
+	        /* Build up a tree according to 
+		 * the descriptors we find:
+		 */
 		switch (desc->bDescriptorType) {
 		case UDESC_DEVICE:
 		    dd = (void *)desc;
@@ -851,13 +978,22 @@ usb_linux_create_usb_device(struct usbd_device *udev, device_t dev)
 	return p_ud;
 }
 
+/* This function should always be used when you allocate an URB for
+ * use with the USB Linux stack. In case of an isochronous transfer
+ * you must specifiy the maximum number of "iso_packets" which you
+ * plan to transfer per URB. This function is always blocking, and
+ * "mem_flags" are not regarded like on Linux.
+ */
 struct urb *
-usb_alloc_urb(uint16_t iso_packets, gfp_t mem_flags)
+usb_alloc_urb(uint16_t iso_packets, uint16_t mem_flags)
 {
 	struct urb *urb;
 	uint32_t size;
 
 	if (iso_packets == 0xFFFF) {
+	    /* FreeBSD specific magic value to ask for 
+	     * control transfer memory allocation:
+	     */
 	    size = sizeof(*urb) + sizeof(usb_device_request_t) + mem_flags;
 	} else {
 	    size = sizeof(*urb) + (iso_packets * sizeof(urb->iso_frame_desc[0]));
@@ -877,6 +1013,11 @@ usb_alloc_urb(uint16_t iso_packets, gfp_t mem_flags)
 	return urb;
 }
 
+/* The following function will return the Linux USB host endpoint
+ * structure that matches the given endpoint type and endpoint
+ * value. If no match is found, NULL is returned. This function is not
+ * part of the Linux USB API and is only used internally.
+ */
 struct usb_host_endpoint *
 usb_find_host_endpoint(struct usb_device *dev, uint8_t type, uint8_t ep)
 {
@@ -900,6 +1041,9 @@ usb_find_host_endpoint(struct usb_device *dev, uint8_t type, uint8_t ep)
 
 	ep &= mask;
 
+	/* Iterate over all the interfaces searching the selected
+	 * alternate setting only, and all belonging endpoints.
+	 */
 	for (ui = dev->bsd_iface_start;
 	     ui != dev->bsd_iface_end;
 	     ui++) {
@@ -927,6 +1071,12 @@ usb_find_host_endpoint(struct usb_device *dev, uint8_t type, uint8_t ep)
 	return NULL;
 }
 
+/* The following function returns a pointer to an alternate setting by
+ * index given a "usb_interface" pointer. If the alternate setting by
+ * index does not exist, NULL is returned. And alternate setting is a
+ * variant of an interface, but usually with slightly different
+ * characteristics.
+ */
 struct usb_host_interface *
 usb_altnum_to_altsetting(const struct usb_interface *intf, uint8_t alt_index)
 {
@@ -936,6 +1086,9 @@ usb_altnum_to_altsetting(const struct usb_interface *intf, uint8_t alt_index)
 	return (intf->altsetting + alt_index);
 }
 
+/* The following function searches up an USB interface by
+ * "bInterfaceNumber". If no match is found, NULL is returned.
+ */
 struct usb_interface *
 usb_ifnum_to_if(struct usb_device *dev, uint8_t iface_no)
 {
@@ -953,7 +1106,7 @@ usb_ifnum_to_if(struct usb_device *dev, uint8_t iface_no)
 }
 
 void *
-usb_buffer_alloc(struct usb_device *dev, uint32_t size, gfp_t mem_flags, uint8_t *dma_addr)
+usb_buffer_alloc(struct usb_device *dev, uint32_t size, uint16_t mem_flags, uint8_t *dma_addr)
 {
 	return malloc(size, M_USBDEV, M_WAITOK | M_ZERO);
 }
@@ -964,6 +1117,12 @@ usb_get_intfdata(struct usb_interface *intf)
 	return intf->bsd_priv_sc;
 }
 
+/* The following function is used by the "USB_DRIVER_EXPORT()" macro,
+ * and is used to register a Linux USB driver, so that its
+ * "usb_device_id" structures gets searched a probe time. This
+ * function is not part of the Linux USB API, and is for internal use
+ * only.
+ */
 void
 usb_linux_register(void *arg)
 {
@@ -976,6 +1135,13 @@ usb_linux_register(void *arg)
 	return;
 }
 
+/* The following function is used by the "USB_DRIVER_EXPORT()" macro,
+ * and is used to deregister a Linux USB driver. This function will
+ * ensure that all driver instances belonging to the Linux USB device
+ * driver in question, gets detached before the driver is
+ * unloaded. This function is not part of the Linux USB API, and is
+ * for internal use only.
+ */
 void
 usb_linux_deregister(void *arg)
 {
@@ -998,6 +1164,9 @@ usb_linux_deregister(void *arg)
 	return;
 }
 
+/* The following function is only used by the FreeBSD USB stack, to
+ * cleanup and free memory after that a Linux USB device was attached.
+ */
 void
 usb_linux_free_usb_device(struct usb_device *dev)
 {
@@ -1039,6 +1208,10 @@ usb_free_urb(struct urb *urb)
 	return;
 }
 
+/* The following function can be used to initialize a custom URB. It
+ * is not recommended to use this function. Use "usb_alloc_urb()"
+ * instead.
+ */
 void
 usb_init_urb(struct urb *urb)
 {
@@ -1057,6 +1230,9 @@ usb_kill_urb(struct urb *urb)
 	return;
 }
 
+/* The following function sets the per Linux USB interface private
+ * data pointer. It is used by most Linux USB device drivers.
+ */
 void
 usb_set_intfdata(struct usb_interface *intf, void *data)
 {
@@ -1064,6 +1240,9 @@ usb_set_intfdata(struct usb_interface *intf, void *data)
 	return;
 }
 
+/* The following function will release all FreeBSD USB transfers
+ * associated with a Linux USB interface. It is for internal use only.
+ */
 static void
 usb_linux_cleanup_interface(struct usb_device *dev, struct usb_interface *iface)
 {
@@ -1087,6 +1266,9 @@ usb_linux_cleanup_interface(struct usb_device *dev, struct usb_interface *iface)
 	return;
 }
 
+/* The following function is used by "usb_start_wait_urb()" to wake it
+ * up, when an USB transfer has finished.
+ */
 static void
 usb_linux_wait_complete(struct urb *urb, struct pt_regs *pt_regs)
 {
@@ -1110,6 +1292,11 @@ usb_linux_complete(struct usbd_xfer *xfer)
 	return;
 }
 
+/* The following is the FreeBSD isochronous USB callback. Isochronous
+ * frames are USB packets transferred 1000 or 8000 times per second,
+ * depending on whether a full- or high- speed USB transfer is
+ * used.
+ */
 static void
 usb_linux_isoc_callback(struct usbd_xfer *xfer)
 {
@@ -1129,9 +1316,10 @@ usb_linux_isoc_callback(struct usbd_xfer *xfer)
 	    urb->status = -EPIPE; /* stalled */
 	}
 
-	/* just in case: */
+	/* Set zero for "actual_length" */
 	urb->actual_length = 0;
 
+	/* Set zero for "actual_length" */
 	for (x = 0; x < urb->number_of_packets; x++) {
 	    urb->iso_frame_desc[x].actual_length = 0;
 	}
@@ -1149,6 +1337,8 @@ usb_linux_isoc_callback(struct usbd_xfer *xfer)
  tr_transferred:
 
 	if (urb->bsd_isread) {
+
+	    /* copy in data with regard to the URB */
 
 	    offset = 0;
 
@@ -1217,6 +1407,8 @@ usb_linux_isoc_callback(struct usbd_xfer *xfer)
 
 	if (!(urb->bsd_isread)) {
 
+	    /* copy out data with regard to the URB */
+
 	    offset = 0;
 
 	    for (x = 0; x < urb->number_of_packets; x++) {
@@ -1229,7 +1421,11 @@ usb_linux_isoc_callback(struct usbd_xfer *xfer)
 	    }
 	} else {
 
+	    /* compute the transfer length into the "offset" variable */
+
 	    offset = urb->number_of_packets * max_frame;
+
+	    /* setup "frlengths" array */
 
 	    for (x = 0; x < urb->number_of_packets; x++) {
 		uipd = urb->iso_frame_desc + x;
@@ -1246,6 +1442,12 @@ usb_linux_isoc_callback(struct usbd_xfer *xfer)
 	return;
 }
 
+/* The following is the FreeBSD BULK/INTERRUPT and CONTROL USB
+ * callback. It dequeues Linux USB stack compatible URB's, transforms
+ * the URB fields into a FreeBSD USB transfer, and defragments the USB
+ * transfer as required. When the transfer is complete the "complete"
+ * callback is called.
+ */
 static void
 usb_linux_non_isoc_callback(struct usbd_xfer *xfer)
 {
@@ -1263,7 +1465,7 @@ usb_linux_non_isoc_callback(struct usbd_xfer *xfer)
 	    urb->status = -EPIPE;
 	}
 
-	/* just in case: */
+	/* Set zero for "actual_length" */
 	urb->actual_length = 0;
 
 	/* call callback */
@@ -1278,6 +1480,7 @@ usb_linux_non_isoc_callback(struct usbd_xfer *xfer)
  tr_transferred:
 
 	if (urb->bsd_isread) {
+	    /* copy in data with regard to the URB */
 	    usbd_copy_out(&(xfer->buf_data), 0,
 			  urb->bsd_data_ptr, xfer->actlen);
 	}
@@ -1333,7 +1536,9 @@ usb_linux_non_isoc_callback(struct usbd_xfer *xfer)
 	xfer->timeout = urb->timeout;
 
 	if ((uhe->desc.bmAttributes & UE_XFERTYPE) == UE_CONTROL) {
-	    /* we transfer the header first, then the data */
+	    /* transfer the control header first and then the data,
+	     * if any, to a control endpoint:
+	     */
 	    usbd_copy_in(&(xfer->buf_data), 0, 
 			 urb->setup_packet, sizeof(usb_device_request_t));
 	    xfer->length = sizeof(usb_device_request_t);
@@ -1364,6 +1569,7 @@ usb_linux_non_isoc_callback(struct usbd_xfer *xfer)
 	}
 
 	if (!(urb->bsd_isread)) {
+	    /* copy out data with regard to the URB */
 	    usbd_copy_in(&(xfer->buf_data), 0,
 			 urb->bsd_data_ptr, max_bulk);
 	}
