@@ -55,6 +55,7 @@ static int isdnfd;
 
 struct options {
     u_int16_t unit;
+    u_int16_t channel;
     u_int32_t serial;
     u_int32_t driver_type;
     u_int16_t pcm_slots;
@@ -62,6 +63,8 @@ struct options {
     u_int8_t  pcm_cable_map[I4B_PCM_CABLE_MAX];
 
     u_int8_t  got_any : 1;
+    u_int8_t  got_dump_ec : 1;
+    u_int8_t  got_c : 1;
     u_int8_t  got_u : 1;
     u_int8_t  got_i : 1;
     u_int8_t  got_p : 1;
@@ -165,6 +168,7 @@ usage(void)
        """isdnconfig - configure ISDN4BSD, version %d.%d.%d, compiled %s %s"
        "\nusage:  isdnconfig -u <unit> -i <number> -p <protocol> [parameters]" 
        "\n	-u unit         set controller unit (default is zero)"
+       "\n	-c channel      set channel number (default is zero)"
        "\n	-p enum         set D-channel protocol"
        "\n	-i value        set D-channel serial number"
        "\n	-a              activate PH-line"
@@ -200,12 +204,89 @@ reset_options(struct options *opt)
  *	i4b_ioctl - do a debug command
  *---------------------------------------------------------------------------*/
 static void
-i4b_ioctl(int cmdr, const char *msg, void *arg)
+i4b_ioctl(unsigned long cmdr, const char *msg, void *arg)
 {
     if(ioctl(isdnfd, cmdr, arg) < 0)
     {
         warn("parameter '%s' failed! "
 	     "(ignored)", msg);
+    }
+    return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	dump_ec_fir_filter - dump echo cancel FIR filter
+ *---------------------------------------------------------------------------*/
+static void
+dump_ec_fir_filter(struct options *opt)
+{
+    static i4b_ec_debug_t ec_dbg;
+    enum { DBG_POINTS = sizeof(ec_dbg.ydata) / sizeof(ec_dbg.ydata[0]),
+	   EC_POINTS = 2048 };
+    static int32_t ydata[(EC_POINTS > DBG_POINTS) ? EC_POINTS : DBG_POINTS];
+    uint32_t offset = 0;
+    uint32_t x;
+
+  repeat:
+    ec_dbg.unit = opt->unit;
+    ec_dbg.chan = opt->channel;
+    ec_dbg.what = 0; /* default */
+    ec_dbg.offset = offset;
+    ec_dbg.npoints = 0; /* default */
+
+    if (ioctl(isdnfd, I4B_CTL_GET_EC_FIR_FILTER, &ec_dbg) < 0)
+    {
+        printf("printf(\"Invalid unit, %u, "
+	       "or channel, %u\\n\");\n",
+	       opt->unit, opt->channel);
+    }
+    else
+    {
+	if (ec_dbg.npoints > EC_POINTS) {
+	    ec_dbg.npoints = EC_POINTS;
+	}
+
+	for (x = 0; x < DBG_POINTS; x++) {
+		if (offset < EC_POINTS) {
+			ydata[offset] = ec_dbg.ydata[x];
+			offset ++;
+		}
+	}
+
+	if (offset < ec_dbg.npoints) {
+		goto repeat;
+	}
+
+        if (ec_dbg.npoints == 0)
+	{
+	    printf("X=[0,0];\n"
+		   "Y=[0,0];\n"
+		   "title(\"Unit %u and channel %u is not connected!\");\n"
+		   "plot(X,Y,\"x-;ydata;\");\n", 
+		   opt->unit, opt->channel);
+	}
+	else
+	{
+	    printf("X=[");
+	    for (x = 0; x < ec_dbg.npoints; x++)
+	    {
+	        printf("%u%c", x, 
+		       (x == (ec_dbg.npoints-1)) ? ' ' : ',');
+	    }
+	    printf("];\n"
+		   "Y=[");
+
+	    for (x = 0; x < ec_dbg.npoints; x++)
+	    {
+	        printf("%d%c", ydata[x], 
+		       (x == (ec_dbg.npoints-1)) ? ' ' : ',');
+	    }
+
+	    printf("];\n"
+		   "title(\"%u TAP FFT FIR filter on unit %u and channel %u\");\n"
+		   "plot(X,Y,\"x-;ydata;\");\n", 
+		   ec_dbg.npoints, opt->unit, opt->channel);
+	}
     }
     return;
 }
@@ -419,6 +500,19 @@ flush_command(struct options *opt)
 	}
     }
 
+    if (opt->got_dump_ec)
+    {
+        if ((opt->got_u == 0) ||
+	    (opt->got_c == 0))
+	{
+	    err(1, "'dump_ec' option requires '-u' and '-c' option!");
+	}
+	else
+	{
+	    dump_ec_fir_filter(opt);
+	}
+    }
+
     reset_options(opt);
     return;
 }
@@ -507,9 +601,13 @@ main(int argc, char **argv)
 
     for(optind = 1; optind < argc; )
     {
-        c = getopt(argc, argv, "hu:E:p:m:ntraD");
+        c = getopt(argc, argv, "c:hu:E:p:m:ntraD");
 
         switch(c) {
+	case 'c':
+	    opt->channel = atoi(optarg);
+	    opt->got_c = 1;
+	    break;
 	case 'u':
 	    flush_command(opt);
 	    opt->unit = atoi(optarg);
@@ -570,7 +668,10 @@ main(int argc, char **argv)
 
 	  const char *ptr = argv[optind];
 
-	  if(strcmp(ptr, "nt_mode") == 0) {
+	  if(strcmp(ptr, "dump_ec") == 0) {
+	    opt->got_dump_ec = 1;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "nt_mode") == 0) {
 	    opt->got_nt_mode = 1;
 	    opt->got_any = 1;
 	  } else if(strcmp(ptr, "te_mode") == 0) {

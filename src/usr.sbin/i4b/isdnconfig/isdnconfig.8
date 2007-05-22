@@ -24,7 +24,7 @@
 .\"
 .\" $FreeBSD: $
 .\"
-.Dd March 26, 2006
+.Dd May 22, 2007
 .Dt ISDNCONFIG 8
 .Os
 .Sh NAME
@@ -33,6 +33,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl u Ar unit
+.Op Fl c Ar channel
 .Op Fl i Ar value
 .Op Fl p Ar protocol
 .Op Fl r
@@ -56,6 +57,9 @@ around.
 .Bl -tag -width Ds
 .It Fl u
 Set unit number. Default is zero.
+.It Fl c
+Set channel number. Zero is D-channel, one is B1-channel, two is
+B2-channel and so on. Default is zero.
 .It Fl i
 Set D-channel serial number. The serial number should be a uniqe
 16-bit number on a per S0-bus basis, greater than 0x7F. If not
@@ -109,6 +113,9 @@ Set PCM cable mapping.
 Select T1 cable mode, if supported by hardware.
 .It e1_mode
 Select E1 cable mode, if supported by hardware (default).
+.It dump_ec
+Dump echo cancel state information in matlab compatible format to standard
+out. This command requires a valid -u and -c option.
 .El
 .Ed
 .Sh EXAMPLES
@@ -118,14 +125,20 @@ isdnconfig -u 0 -p DRVR_DSS1_NT
 .Ed
 .Pp
 selects NT mode and the DSS1 multipoint to point driver, for passive
-ISDN controller 0. The command:
+ISDN controller 0.
+.
+.Pp
+The command:
 .
 .Bd -literal -offset indent
 isdnconfig -u 0 -p DRVR_DSS1_NT pwr_on -u 1 -p DRVR_DSS1_NT pwr_on
 .Ed
 .Pp
 selects NT mode and the DSS1 multipoint to point driver, for passive
-ISDN controller 0 and 1, and disables power saving. The command:
+ISDN controller 0 and 1, and disables power saving.
+.
+.Pp
+The command:
 .
 .Bd -literal -offset indent
 isdnconfig -m 0 pcm_32 \\
@@ -138,7 +151,10 @@ sets PCM cable 1 to a size of 64 PCM slots,
 sets PCM map to use PCM cable 0 for the first bi-directional pin,
 sets PCM map to use no PCM cable for the second bi-directional pin,
 sets PCM map to use PCM cable 1 for the third bi-directional pin and
-selects PCM slave mode for controller 0. The command:
+selects PCM slave mode for controller 0.
+.
+.Pp
+The command:
 .
 .Bd -literal -offset indent
 isdnconfig -m 0 pcm_64 \\
@@ -155,6 +171,14 @@ of 64 PCM slots, sets PCM speed for controller 8 and 9 to 64 PCM
 slots, sets PCM first and second bi-directional pin to be used, sets
 TE-mode for controller 8 and sets NT-mode for contoller 9. This
 command was used to initialize the first two ports of a HFC-4S.
+.
+.Pp
+The command:
+.Bd -literal -offset indent
+isdnconfig -u 0 -c 1 dump_ec | octave
+.Ed
+.Pp
+dumps echo cancel information for unit zero and channel B1 to octave.
 .
 .Sh AUTHORS
 The

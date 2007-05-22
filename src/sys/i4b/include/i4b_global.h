@@ -796,6 +796,7 @@ enum
   /* echo cancelling */
   CMR_ENABLE_ECHO_CANCEL,
   CMR_DISABLE_ECHO_CANCEL,
+  CMR_GET_EC_FIR_FILTER,
 
   /* DTMF detection */
   CMR_ENABLE_DTMF_DETECT,

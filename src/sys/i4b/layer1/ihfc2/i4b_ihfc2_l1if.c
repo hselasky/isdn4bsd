@@ -333,6 +333,46 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	    break;
 	}
 
+	case CMR_GET_EC_FIR_FILTER:
+	{
+	    i4b_ec_debug_t *ec_dbg = parm;
+	    struct i4b_echo_cancel *ec_p;
+	    uint32_t points;
+	    uint32_t x;
+	    enum { EC_POINTS = (sizeof(ec_p->buf_HR[0])/sizeof(ec_p->buf_HR[0][0])),
+		   DBG_POINTS = (sizeof(ec_dbg->ydata)/sizeof(ec_dbg->ydata[0])) };
+
+	    if ((ec_dbg->chan >= cntl->L1_channel_end) ||
+		(ec_dbg->offset > EC_POINTS))
+	    {
+		return EINVAL;
+	    }
+
+	    points = (EC_POINTS - ec_dbg->offset);
+	    if (points > DBG_POINTS) {
+		points = DBG_POINTS;
+	    }
+
+	    f += (2 * ec_dbg->chan);
+
+	    if (PROT_IS_TRANSPARENT(&((f + receive)->prot_curr)) &&
+		PROT_IS_TRANSPARENT(&((f + transmit)->prot_curr)) &&
+		(f + receive)->prot_curr.u.transp.echo_cancel_enable &&
+		(f + transmit)->prot_curr.u.transp.echo_cancel_enable)
+	    {
+	        ec_p = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
+		ec_dbg->npoints = EC_POINTS;
+		for (x = 0; x < points; x++) {
+			ec_dbg->ydata[x] = ec_p->buf_HR[0][x+ec_dbg->offset];
+		}
+	    }
+	    else
+	    {
+	        return EINVAL;
+	    }
+	    break;
+	}
+
 	case CMR_ENABLE_DTMF_DETECT:
 	{
 	    struct fifo_translator *ft = parm;

@@ -310,4 +310,19 @@ typedef struct {
 #define  I4B_OPTION_LOCAL_LOOP        0x0100 /* If set, else disabled */
 #define  I4B_OPTION_REMOTE_LOOP       0x0200 /* If set, else disabled */
 
+/*---------------------------------------------------------------------------*
+ *	I4B echo cancel debug IOCTL structure
+ *---------------------------------------------------------------------------*/
+
+typedef struct {
+	uint32_t unit;
+	uint32_t chan;
+	uint32_t npoints;
+	uint32_t what;
+	uint32_t offset;
+	 int32_t ydata[128];
+} i4b_ec_debug_t;
+
+#define I4B_CTL_GET_EC_FIR_FILTER   _IOWR('C',26, i4b_ec_debug_t)
+
 #endif /* _I4B_DEBUG_H_ */

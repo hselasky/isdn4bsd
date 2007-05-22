@@ -3611,6 +3611,10 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		cmd = CMR_SET_PCM_MAPPING;
 		goto L1_command;
 
+	case I4B_CTL_GET_EC_FIR_FILTER:
+		cmd = CMR_GET_EC_FIR_FILTER;
+		goto L1_command;
+
 	L1_command:
 	{
 		i4b_debug_t *dbg = (void *)data;

@@ -105,7 +105,8 @@ static int
 i4bctlioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *td)
 {
 #if DO_I4B_DEBUG
-	i4b_debug_t *dbg = (i4b_debug_t *)data;
+	i4b_debug_t *dbg = (void *)data;
+	i4b_ec_debug_t *ec_dbg = (void *)data;
 	i4b_controller_t *cntl = 0;
 	int error = 0;
 
@@ -115,11 +116,12 @@ i4bctlioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 	}
 
 	/* lookup cntl in general */
-	if(IOCPARM_LEN(cmd) == sizeof(*dbg))
+	if ((IOCPARM_LEN(cmd) == sizeof(*dbg)) ||
+	    (IOCPARM_LEN(cmd) == sizeof(*ec_dbg)))
 	{
 		cntl = CNTL_FIND(dbg->unit);
 
-		if(cntl == NULL)
+		if (cntl == NULL)
 		{
 		  return EINVAL;
 		}
@@ -214,6 +216,11 @@ i4bctlioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 
 	case I4B_CTL_RESET:
 	    cmd = CMR_RESET;
+	    goto L1_command;
+
+	case I4B_CTL_GET_EC_FIR_FILTER:
+	    cmd = CMR_GET_EC_FIR_FILTER;
+	    ec_dbg->npoints = 0;
 	    goto L1_command;
 
 	L1_command:
