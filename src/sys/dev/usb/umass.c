@@ -780,7 +780,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
       .endpoint  = -1, /* any */
       .direction = UE_DIR_OUT,
       .bufsize   = UMASS_BULK_SIZE,
-      .flags     = USBD_USE_DMA,
+      .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
       .callback  = &umass_t_bbb_data_write_callback,
       .timeout   = 0, /* overwritten later */
     },
@@ -875,7 +875,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
       .endpoint  = -1, /* any */
       .direction = UE_DIR_OUT,
       .bufsize   = UMASS_BULK_SIZE,
-      .flags     = USBD_USE_DMA,
+      .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
       .callback  = &umass_t_cbi_data_write_callback,
       .timeout   = 0, /* overwritten later */
     },
@@ -1635,6 +1635,11 @@ umass_t_bbb_data_write_callback(struct usbd_xfer *xfer)
 	sc->sc_transfer.data_ptr += xfer->actlen;
 	sc->sc_transfer.actlen += xfer->actlen;
 
+	if (xfer->actlen < xfer->length) {
+	    /* short transfer */
+	    sc->sc_transfer.data_rem = 0;
+	}
+
  tr_setup:
 	DPRINTF(sc, UDMASS_BBB, "max_bulk=%d, data_rem=%d\n",
 		max_bulk, sc->sc_transfer.data_rem);
@@ -2133,6 +2138,11 @@ umass_t_cbi_data_write_callback(struct usbd_xfer *xfer)
 	sc->sc_transfer.data_rem -= xfer->actlen;
 	sc->sc_transfer.data_ptr += xfer->actlen;
 	sc->sc_transfer.actlen += xfer->actlen;
+
+	if (xfer->actlen < xfer->length) {
+	    /* short transfer */
+	    sc->sc_transfer.data_rem = 0;
+	}
 
  tr_setup:
 	DPRINTF(sc, UDMASS_CBI, "max_bulk=%d, data_rem=%d\n",
