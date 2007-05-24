@@ -1946,16 +1946,15 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 	nframes = le32toh(hw_ptr->hcca.hcca_frame_number);
 	usbd_page_dma_enter(&(sc->sc_hw_page));
 
-	/* check if the frame index is within
-	 * the window where the frames will be
-	 * inserted and if the delay until start
-	 * is too long
-	 */
-	if ((((nframes - xfer->pipe->isoc_next) & 0xFFFF) < xfer->nframes) ||
+	if ((LIST_FIRST(&(xfer->pipe->list_head)) == NULL) ||
+	    (((nframes - xfer->pipe->isoc_next) & 0xFFFF) < xfer->nframes) ||
 	    (((xfer->pipe->isoc_next - nframes) & 0xFFFF) >= 128))
 	{
-		/* not in use yet, schedule it a few frames ahead */
-		/* data underflow */
+		/* If there is data underflow or the pipe queue is
+		 * empty we schedule the transfer a few frames ahead
+		 * of the current frame position. Else two
+		 * isochronous transfers might overlap.
+		 */
 		xfer->pipe->isoc_next = (nframes + 3) & 0xFFFF;
 		DPRINTFN(2,("start next=%d\n", xfer->pipe->isoc_next));
 	}

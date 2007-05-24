@@ -2534,9 +2534,14 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 	buf_offset = (nframes - xfer->pipe->isoc_next) & 
 	  (EHCI_VIRTUAL_FRAMELIST_COUNT-1);
 
-	if (buf_offset < xfer->nframes) {
-		/* not in use yet, schedule it a few frames ahead */
-		/* data underflow */
+	if ((LIST_FIRST(&(xfer->pipe->list_head)) == NULL) ||
+	    (buf_offset < xfer->nframes))
+	{
+		/* If there is data underflow or the pipe queue is
+		 * empty we schedule the transfer a few frames ahead
+		 * of the current frame position. Else two
+		 * isochronous transfers might overlap.
+		 */
 		xfer->pipe->isoc_next = (nframes + 3) & 
 		  (EHCI_VIRTUAL_FRAMELIST_COUNT-1);
 		DPRINTFN(2,("start next=%d\n", xfer->pipe->isoc_next));
@@ -2790,9 +2795,14 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 	buf_offset = (nframes - xfer->pipe->isoc_next) & 
 	  (EHCI_VIRTUAL_FRAMELIST_COUNT-1);
 
-	if (buf_offset < xfer->nframes) {
-		/* not in use yet, schedule it a few frames ahead */
-		/* data underflow */
+	if ((LIST_FIRST(&(xfer->pipe->list_head)) == NULL) ||
+	    (buf_offset < xfer->nframes))
+	{
+		/* If there is data underflow or the pipe queue is
+		 * empty we schedule the transfer a few frames ahead
+		 * of the current frame position. Else two
+		 * isochronous transfers might overlap.
+		 */
 		xfer->pipe->isoc_next = (nframes + 3) & 
 		  (EHCI_VIRTUAL_FRAMELIST_COUNT-1);
 		DPRINTFN(2,("start next=%d\n", xfer->pipe->isoc_next));
