@@ -243,7 +243,10 @@ static const struct usbd_config axe_config[AXE_ENDPT_MAX] = {
       .type      = UE_BULK,
       .endpoint  = -1, /* any */
       .direction = UE_DIR_IN,
-      .bufsize   = AXE_BULK_BUF_SIZE,
+#if (MCLBYTES < 2048)
+#error "(MCLBYTES < 2048)"
+#endif
+      .bufsize   = MCLBYTES,
       .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
       .callback  = &axe_bulk_read_callback,
       .timeout   = 0, /* no timeout */
@@ -697,12 +700,6 @@ axe_attach(device_t dev)
 	mtx_lock(&(sc->sc_mtx));
 
 	sc->sc_flags |= AXE_FLAG_WAIT_LINK;
-
-	/* correct maximum bulk-receive length */
-
-	sc->sc_xfer[1]->length = 
-	  (sc->sc_flags & (AXE_FLAG_772|AXE_FLAG_178)) ?
-	  AXE_BULK_BUF_SIZE : MIN(MCLBYTES, AXE_BULK_BUF_SIZE);
 
 	/* start setup */
 
@@ -1454,7 +1451,7 @@ axe_cfg_init(struct axe_softc *sc,
 	/* Enable receiver, set RX mode */
 	rxmode = (AXE_RXCMD_MULTICAST|AXE_RXCMD_ENABLE);
 	if (sc->sc_flags & (AXE_FLAG_178|AXE_FLAG_772)) {
-	    rxmode |= AXE_178_RXCMD_MFB_16384; /* default */
+	    rxmode |= AXE_178_RXCMD_MFB_2048; /* chip default */
 	} else {
 	    rxmode |= AXE_172_RXCMD_UNICAST;
 	}
