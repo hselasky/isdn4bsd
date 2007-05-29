@@ -3452,8 +3452,8 @@ ehci_root_ctrl_task_td(struct ehci_softc *sc, struct thread *ctd)
 			/* Enable RHSC interrupt if condition is cleared. */
 			if((OREAD4(sc, port) >> 16) == 0)
 			{
-				mtx_lock(&sc->sc_bus.mtx);
 				ehci_pcd_enable(sc);
+				mtx_lock(&sc->sc_bus.mtx);
 			}
 			break;
 		default:

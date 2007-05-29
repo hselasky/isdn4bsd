@@ -379,14 +379,15 @@ static int
 ehci_pci_detach(device_t self)
 {
 	ehci_softc_t *sc = device_get_softc(self);
+	device_t bdev;
 
 	usbd_config_td_stop(&(sc->sc_config_td));
 
 	if(sc->sc_bus.bdev)
 	{
-		device_detach(sc->sc_bus.bdev);
-		device_delete_child(self, sc->sc_bus.bdev);
-		sc->sc_bus.bdev = NULL;
+		bdev = sc->sc_bus.bdev;
+		device_detach(bdev);
+		device_delete_child(self, bdev);
 	}
 
 	/* during module unload there are lots of children leftover */

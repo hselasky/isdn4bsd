@@ -739,6 +739,7 @@ struct usb_cdev {
 	void 			*sc_wrq_pointer;
 	struct mtx 		*sc_mtx_ptr;
 	void 			*sc_priv_ptr;
+	void			*sc_fifo_ptr;
 #define	USB_CDEV_COUNT 4
 	struct cdev 		*sc_cdev[USB_CDEV_COUNT];
 	struct cdev 		*sc_last_cdev;

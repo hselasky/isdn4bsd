@@ -23,7 +23,7 @@
  * SUCH DAMAGE.
  *
  *
- * usb_cdev.c - An abstraction layer for creation of devices under /dev/...
+ * usb_cdev.c - An abstraction layer for creating devices under /dev/...
  *
  */
 
