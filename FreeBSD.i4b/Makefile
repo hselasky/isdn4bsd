@@ -328,14 +328,14 @@ backup:
 # make directory tree
 #
 	mkdir ${S}                     || echo -n
-	mkdir ${S}/arm                 || echo -n
-	mkdir ${S}/arm/at91            || echo -n
 	mkdir ${S}/lib                 || echo -n
 	mkdir ${S}/lib/libcapi20       || echo -n
 	mkdir ${S}/usr.sbin            || echo -n
 	mkdir ${S}/usr.sbin/i4b        || echo -n
 	mkdir ${S}/usr.sbin/ppp        || echo -n
 	mkdir ${S}/sys                 || echo -n
+	mkdir ${S}/sys/arm             || echo -n
+	mkdir ${S}/sys/arm/at91        || echo -n
 	mkdir ${S}/sys/i4b             || echo -n
 	mkdir ${S}/sys/dev             || echo -n
 	mkdir ${S}/sys/dev/if_ndis     || echo -n
