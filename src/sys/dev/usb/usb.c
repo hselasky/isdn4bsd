@@ -747,7 +747,11 @@ usbioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *p)
 
 		case FIOASYNC:
 			if(*(int *)data)
+#if defined(__NetBSD__)
+				usb_async_proc = p;
+#else
 				usb_async_proc = p->td_proc;
+#endif
 			else
 				usb_async_proc = 0;
 
