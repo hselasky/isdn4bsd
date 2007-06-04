@@ -2353,7 +2353,7 @@ static const struct uhci_config_desc uhci_confd = {
 	UDESC_ENDPOINT,
 	UE_DIR_IN | UHCI_INTR_ENDPT,
 	UE_INTERRUPT,
-	{8},
+	{8, 0}, /* max packet (63 ports) */
 	255
   },
 };

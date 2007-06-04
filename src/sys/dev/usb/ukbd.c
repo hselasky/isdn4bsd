@@ -461,7 +461,7 @@ ukbd_clear_stall_callback(struct usbd_xfer *xfer)
  tr_error:
 	/* bomb out */
 	sc->sc_flags &= ~UKBD_FLAG_INTR_STALL;
-	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
+	DPRINTF(-1, "error=%s\n", usbd_errstr(xfer->error));
 	return;
 }
 
@@ -546,7 +546,7 @@ ukbd_set_leds_callback(struct usbd_xfer *xfer)
 	return;
 
  tr_error:
-	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
+	DPRINTF(-1, "error=%s\n", usbd_errstr(xfer->error));
 	return;
 }
 

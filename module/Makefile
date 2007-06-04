@@ -58,7 +58,7 @@ freebsd_kern_timeout.c freebsd_kern_mbuf.c
 SRCS+= \
 ehci.c ehci_pci.c ohci.c ohci_pci.c uhci.c uhci_pci.c \
 ugen.c uhub.c usb.c usb_requests.c usb_subr.c usb_transfer.c \
-usb_quirks.c usb_compat_linux.c
+usb_quirks.c usb_compat_linux.c usb_cdev.c
 
 CFLAGS+= -DIHFC_USB_ENABLED
 .endif

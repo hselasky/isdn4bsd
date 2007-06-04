@@ -130,8 +130,8 @@ struct umodem_softc {
 	struct ucom_super_softc	sc_super_ucom;
 	struct ucom_softc	sc_ucom;
 
-	struct usbd_xfer *	sc_xfer_data[UMODEM_N_DATA_TRANSFER];
-	struct usbd_xfer *	sc_xfer_intr[UMODEM_N_INTR_TRANSFER];
+	struct usbd_xfer	*sc_xfer_data[UMODEM_N_DATA_TRANSFER];
+	struct usbd_xfer	*sc_xfer_intr[UMODEM_N_INTR_TRANSFER];
 	struct usbd_device	*sc_udev;
 
 	u_int16_t		sc_line;

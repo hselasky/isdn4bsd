@@ -514,6 +514,7 @@ ugenclose(struct cdev *dev, int flag, int mode, struct thread *p)
 	struct ugen_softc *sc = DEV2SC(dev);
 	struct ugen_endpoint *sce = DEV2SCE(dev);
 	struct usbd_xfer *temp_xfer[4];
+	int32_t error;
 
 	PRINTFN(5, ("flag=%d, mode=%d\n", flag, mode));
 
@@ -547,7 +548,7 @@ ugenclose(struct cdev *dev, int flag, int mode, struct thread *p)
 			}
 
 			/* wait for routine(s) to exit */
-			mtx_sleep(sce, &sc->sc_mtx, PRIBIO, "ugensync", 0);
+			error = mtx_sleep(sce, &sc->sc_mtx, 0, "ugensync", 0);
 		}
 
 		/* free all memory after that one has
@@ -1021,8 +1022,8 @@ ugenread(struct cdev *dev, struct uio *uio, int flag)
 
 			    sce->state |= (UGEN_RD_SLP|UGEN_RD_WUP);
 
-			    error = mtx_sleep(sce, &sc->sc_mtx, (PZERO|PCATCH),
-					   "ugen wait callback", 0);
+			    error = mtx_sleep(sce, &sc->sc_mtx, PCATCH,
+					      "ugen wait callback", 0);
 
 			    sce->state &= ~(UGEN_RD_SLP|UGEN_RD_WUP);
 
@@ -1245,8 +1246,8 @@ ugenwrite(struct cdev *dev, struct uio *uio, int flag)
 
 				sce->state |= (UGEN_WR_SLP|UGEN_WR_WUP);
 
-				error = mtx_sleep(sce, &sc->sc_mtx, (PZERO|PCATCH),
-					       "ugen wait callback", 0);
+				error = mtx_sleep(sce, &sc->sc_mtx, PCATCH,
+						  "ugen wait callback", 0);
 
 				sce->state &= ~(UGEN_WR_SLP|UGEN_WR_WUP);
 
@@ -1875,7 +1876,7 @@ ugenioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *p
 #define si ((struct usb_string_desc *)addr)
 		if(usbreq_get_string_desc
 		   (sc->sc_udev, si->usd_string_index,
-		    si->usd_language_id, &si->usd_desc, &len))
+		    si->usd_language_id, &si->usd_desc, NULL))
 		{
 			error = EINVAL;
 			break;

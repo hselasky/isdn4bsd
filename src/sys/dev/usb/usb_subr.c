@@ -690,7 +690,7 @@ usbd_set_config_index(struct usbd_device *udev, int index, int msg)
 
 	/* get full descriptor */
 	len = UGETW(cd.wTotalLength);
-	udev->cdesc = malloc(len, M_USB, M_NOWAIT|M_ZERO);
+	udev->cdesc = malloc(len, M_USB, M_WAITOK|M_ZERO);
 	if(udev->cdesc == NULL)
 	{
 		return (USBD_NOMEM);
@@ -820,7 +820,9 @@ usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di,
 		     int usedev)
 {
 	struct usbd_port *p;
-	int i, err, s;
+	uint16_t s;
+	uint8_t i;
+	uint8_t err;
 
 	if((udev == NULL) || (di == NULL))
 	{
@@ -831,7 +833,6 @@ usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di,
 
 	di->udi_bus = device_get_unit(udev->bus->bdev);
 	di->udi_addr = udev->address;
-	di->udi_cookie = udev->cookie;
 	usbd_devinfo_vp(udev, di->udi_vendor, di->udi_product, usedev);
 	usbd_printBCD(di->udi_release, UGETW(udev->ddesc.bcdDevice));
 	di->udi_vendorNo = UGETW(udev->ddesc.idVendor);
@@ -852,12 +853,10 @@ usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di,
 		if(udev->subdevs[i] &&
 		   device_is_attached(udev->subdevs[i]))
 		{
-			strncpy(di->udi_devnames[i],
+			strlcpy(di->udi_devnames[i],
 				device_get_nameunit(udev->subdevs[i]),
 				USB_MAX_DEVNAMELEN);
-			di->udi_devnames[i][USB_MAX_DEVNAMELEN-1] = 0;
 		}
-		/* else { di->udi_devnames[i][0] = 0; } */
 	}
 
 	if(udev->hub)
@@ -1199,7 +1198,7 @@ usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 		}
 	}
 
-	udev = malloc(sizeof(udev[0]), M_USB, M_NOWAIT|M_ZERO);
+	udev = malloc(sizeof(udev[0]), M_USB, M_WAITOK|M_ZERO);
 	if(udev == NULL)
 	{
 		return (USBD_NOMEM);
@@ -1265,12 +1264,6 @@ usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 	udev->speed = speed;
 	udev->langid = USBD_NOLANG;
 
-	/* usb_cookie_no is used by "usb.c" */
-
-	static u_int32_t usb_cookie_no = 0;
-
-	udev->cookie.cookie = ++usb_cookie_no;
-
 	/* init the default pipe */
 	usbd_fill_pipe_data(udev, 0,
 			    &udev->default_ep_desc,
@@ -1287,7 +1280,10 @@ usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 	/* allow device time to set new address */
 	usbd_delay_ms(udev, USB_SET_ADDRESS_SETTLE);
 	udev->address = addr;	/* new device address now */
+
+	mtx_lock(&(bus->mtx));
 	bus->devices[addr] = udev;
+	mtx_unlock(&(bus->mtx));
 
 	/* get the first 8 bytes of the device descriptor */
 	err = usbreq_get_desc(udev, UDESC_DEVICE, 0, USB_MAX_IPACKET, &udev->ddesc, 0);
@@ -1383,10 +1379,6 @@ usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 		/* remove device and sub-devices */
 		usbd_free_device(up, 1);
 	}
-	else
-	{
-		usbd_add_dev_event(USB_EVENT_DEVICE_ATTACH, udev);
-	}
 	return(err);
 }
 
@@ -1471,10 +1463,22 @@ usbd_free_device(struct usbd_port *up, u_int8_t free_subdev)
 	/* issue detach event and free address */
 	if(udev->bus != NULL)
 	{
-		usbd_add_dev_event(USB_EVENT_DEVICE_DETACH, udev);
+		struct usbd_bus *bus = udev->bus;
 
 		/* NOTE: address 0 is always unused */
-		udev->bus->devices[udev->address] = 0;
+
+		/* Wait until all references to our
+		 * device is gone:
+		 */
+		mtx_lock(&(bus->mtx));
+		udev->detaching = 1;
+		while (udev->refcount > 0) {
+		    int dummy;
+		    dummy = mtx_sleep(&(udev->detaching), &(bus->mtx), 0, 
+				      "USB detach wait", 0);
+		}
+		bus->devices[udev->address] = 0;
+		mtx_unlock(&(bus->mtx));
 	}
 
 	usbd_free_iface_data(udev);
@@ -1497,26 +1501,60 @@ usbd_free_device(struct usbd_port *up, u_int8_t free_subdev)
 	return;
 }
 
-void
-usb_detach_wait(device_t dev)
+struct usbd_device *
+usbd_ref_device(struct usbd_bus *bus, uint8_t addr)
 {
-	PRINTF(("waiting for %s\n", device_get_nameunit(dev)));
+	struct usbd_device *udev;
 
-	/* XXX should use "mtx_sleep()" */
-
-	if(tsleep(dev, PZERO, "usbdet", hz * 60))
-	{
-		device_printf(dev, "didn't detach\n");
+	if ((addr < 1) ||
+	    (addr >= USB_MAX_DEVICES)) {
+	    /* invalid address */
+	    return NULL;
 	}
-	PRINTF(("%s done\n", device_get_nameunit(dev)));
-	return;
+
+	mtx_lock(&(bus->mtx));
+	udev = bus->devices[addr];
+	if (udev == NULL) {
+	    /* do nothing */
+	} else if (udev->detaching) {
+	    udev = NULL;
+	} else if (udev->refcount == USB_DEV_REFCOUNT_MAX) {
+	    udev = NULL;
+	} else {
+	    udev->refcount ++;
+	}
+	mtx_unlock(&(bus->mtx));
+	return udev;
 }
 
 void
-usb_detach_wakeup(device_t dev)
+usbd_unref_device(struct usbd_device *udev)
 {
-	PRINTF(("for %s\n", device_get_nameunit(dev)));
-	wakeup(dev);
+	struct usbd_bus *bus;
+
+	if (udev == NULL) {
+	    /* should not happen */
+	    return;
+	}
+
+	bus = udev->bus;
+
+	if (bus == NULL) {
+	    /* should not happen */
+	    return;
+	}
+
+	mtx_lock(&(bus->mtx));
+	if (udev->refcount == 0) {
+	    panic("Invalid USB device refcount!\n");
+	} else {
+	  if (--(udev->refcount) == 0) {
+	      if (udev->detaching) {
+	          wakeup(&(udev->detaching));
+	      }
+	  }
+	}
+	mtx_unlock(&(bus->mtx));
 	return;
 }
 
@@ -2504,7 +2542,7 @@ usbd_config_td_thread(void *arg)
 	    ctd->flag_config_td_sleep = 1;
 
 	    error = mtx_sleep(&(ctd->wakeup_config_td), ctd->p_mtx,
-			   0, "cfg td sleep", 0);
+			      0, "cfg td sleep", 0);
 
 	    ctd->flag_config_td_sleep = 0;
 	}
@@ -2615,7 +2653,7 @@ usbd_config_td_stop(struct usbd_config_td *ctd)
 	    level = mtx_drop_recurse(ctd->p_mtx);
 
 	    error = mtx_sleep(&(ctd->wakeup_config_td_gone), 
-			   ctd->p_mtx, 0, "wait config TD", 0);
+			      ctd->p_mtx, 0, "wait config TD", 0);
 
 	    mtx_pickup_recurse(ctd->p_mtx, level);
 	  }
@@ -2786,7 +2824,7 @@ usbd_config_td_sleep(struct usbd_config_td *ctd, u_int32_t timeout)
 	level = mtx_drop_recurse(ctd->p_mtx);
 
 	error = mtx_sleep(ctd, ctd->p_mtx, 0, 
-		       "config td sleep", timeout);
+			  "config td sleep", timeout);
 
 	mtx_pickup_recurse(ctd->p_mtx, level);
 

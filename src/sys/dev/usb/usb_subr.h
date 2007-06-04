@@ -73,6 +73,7 @@ MAKE_ENUM(USBD_STATUS,
 struct usbd_xfer;
 struct usbd_pipe;
 struct usbd_bus;
+struct usbd_clone;
 struct usbd_config;
 struct usbd_device;
 struct usbd_interface;
@@ -84,6 +85,7 @@ struct malloc_type;
 struct proc;
 struct usb_hid_descriptor;
 struct usb_device; /* Linux compat */
+struct cdev;
 
 typedef uint8_t usbd_status;
 
@@ -173,9 +175,12 @@ struct usbd_bus {
 
 	device_t		bdev; /* filled by HC driver */
 	bus_dma_tag_t		dma_tag; /* filled by HC driver */
+	eventhandler_tag	usb_clone_tag;
 	struct usbd_bus_methods	*methods; /* filled by HC driver */
 	struct usbd_device	*devices[USB_MAX_DEVICES];
  	struct proc		*event_thread;
+	struct cdev		*usb_cdev;
+	struct usbd_clone	*usb_clone_root;
 
  	uint32_t		no_intrs;
 
@@ -190,12 +195,17 @@ struct usbd_bus {
 					       */
 	uint8_t			use_polling;
 	uint8_t			usbrev;	/* USB revision */
+	uint8_t			usb_clone_count;
+#define	USB_BUS_MAX_CLONES 128
+
 #define	USBREV_UNKNOWN	0
 #define	USBREV_PRE_1_0	1
 #define	USBREV_1_0	2
 #define	USBREV_1_1	3
 #define	USBREV_2_0	4
-#define	USBREV_STR { "unknown", "pre 1.0", "1.0", "1.1", "2.0" }
+#define	USBREV_2_5	5
+#define	USBREV_STR { "unknown", "pre 1.0", "1.0", "1.1", "2.0", "2.5" }
+	uint8_t			usb_name[32];
 };
 
 struct usbd_interface {
@@ -235,7 +245,8 @@ struct usbd_device {
 	device_t                subdevs_end[0];
 	struct usb_device 	*linux_dev;
 
-	usb_event_cookie_t	cookie;	       /* unique connection id */
+	uint16_t		refcount;
+#define USB_DEV_REFCOUNT_MAX 0xffff
 
 	uint16_t 		power;         /* mA the device uses */
 	int16_t			langid;	       /* language for strings */
@@ -265,6 +276,7 @@ struct usbd_device {
 #define	USBD_PROBED_GENERIC_AND_FOUND    3
 
 	uint8_t			serial[32]; /* serial number */
+	uint8_t			detaching;
 };
 
 struct usbd_config {
@@ -556,8 +568,8 @@ usbd_status	usbd_fill_iface_data(struct usbd_device *udev, int32_t iface_index, 
 usbd_status	usbd_probe_and_attach(device_t parent, int32_t port, struct usbd_port *up);
 usbd_status	usbd_new_device(device_t parent, struct usbd_bus *bus, int32_t depth, int32_t speed, int32_t port, struct usbd_port *up);
 void		usbd_free_device(struct usbd_port *up, uint8_t free_subdev);
-void		usb_detach_wait(device_t dv);
-void		usb_detach_wakeup(device_t dv);
+struct usbd_device *usbd_ref_device(struct usbd_bus *bus, uint8_t addr);
+void		usbd_unref_device(struct usbd_device *udev);
 struct usbd_interface *usbd_get_iface(struct usbd_device *udev, uint8_t iface_index);
 void		usbd_set_desc(device_t dev, struct usbd_device *udev);
 void *		usbd_alloc_mbufs(struct malloc_type *type, struct usbd_ifqueue *ifq, uint32_t block_size, uint16_t block_number);
@@ -609,8 +621,6 @@ extern struct mtx usb_global_lock;
 
 extern uint8_t usb_driver_added_refcount;
 
-void		usbd_add_dev_event(int32_t type, struct usbd_device *udev);
-void		usbd_add_drv_event(int32_t type, struct usbd_device *udev, device_t dev);
 void		usb_needs_explore(struct usbd_device *udev);
 void		usb_needs_probe_and_attach(void);
 
@@ -657,18 +667,17 @@ void		usbd_clear_stall_tr_transferred(struct usbd_xfer *xfer1, struct usbd_xfer 
 void		usbd_clearstall_callback(struct usbd_xfer *xfer);
 void		usbd_do_poll(struct usbd_device *udev);
 void		usbd_set_polling(struct usbd_device *udev, int32_t on);
-int32_t		usbd_ratecheck(struct timeval *last);
 const struct usb_devno * usb_match_device(const struct usb_devno *tbl, uint32_t nentries, uint32_t size, uint16_t vendor, uint16_t product);
 int32_t		usbd_driver_load(struct module *mod, int32_t what, void *arg);
 
 /* prototypes from usb_requests.c */
 
 usbd_status	usbreq_reset_port(struct usbd_device *udev, int32_t port, usb_port_status_t *ps);
-usbd_status	usbreq_get_desc(struct usbd_device *udev, int32_t type, int32_t index, int32_t len, void *desc, int32_t timeout);
-usbd_status	usbreq_get_string_any(struct usbd_device *udev, int32_t si, char *buf, int32_t len);
-usbd_status	usbreq_get_string_desc(struct usbd_device *udev, int32_t sindex, int32_t langid, usb_string_descriptor_t *sdesc, int32_t *plen);
-usbd_status	usbreq_get_config_desc(struct usbd_device *udev, int32_t confidx, usb_config_descriptor_t *d);
-usbd_status	usbreq_get_config_desc_full(struct usbd_device *udev, int32_t conf, void *d, int32_t size);
+usbd_status	usbreq_get_desc(struct usbd_device *udev, uint8_t type, uint8_t index, uint16_t len, void *desc, uint32_t timeout);
+usbd_status	usbreq_get_string_any(struct usbd_device *udev, uint8_t si, char *buf, uint16_t len);
+usbd_status	usbreq_get_string_desc(struct usbd_device *udev, uint8_t sindex, uint16_t langid, usb_string_descriptor_t *sdesc, uint8_t *plen);
+usbd_status	usbreq_get_config_desc(struct usbd_device *udev, uint8_t confidx, usb_config_descriptor_t *d);
+usbd_status	usbreq_get_config_desc_full(struct usbd_device *udev, uint8_t conf, void *d, uint16_t size);
 usbd_status	usbreq_get_device_desc(struct usbd_device *udev, usb_device_descriptor_t *d);
 usbd_status	usbreq_get_interface(struct usbd_device *udev, uint8_t iface_index, uint8_t *aiface);
 usbd_status	usbreq_set_interface(struct usbd_device *udev, uint8_t iface_index, uint8_t altno);
@@ -720,6 +729,7 @@ void		usb_cdev_put_data(struct usb_cdev *sc, uint8_t *buf, uint32_t len, uint8_t
 void		usb_cdev_put_data_error(struct usb_cdev *sc);
 uint8_t		usb_cdev_get_data(struct usb_cdev *sc, uint8_t *buf, uint32_t len, uint32_t *actlen, uint8_t what);
 void		usb_cdev_get_data_error(struct usb_cdev *sc);
+uint8_t		usb_cdev_opened(struct usb_cdev *sc);
 
 typedef int32_t (usb_cdev_open_t)(struct usb_cdev *sc, int32_t fflags, int32_t mode, struct thread *td);
 typedef int32_t (usb_cdev_ioctl_t)(struct usb_cdev *sc, u_long cmd, caddr_t addr, int32_t fflags, struct thread *td);
@@ -808,5 +818,16 @@ struct usb_cdev {
 
 /* prototypes from "usb_compat_linux.c" */
 void	usb_linux_free_usb_device(struct usb_device *dev);
+
+/* USB clone support */
+struct usbd_clone {
+    struct mtx mtx;
+    struct usb_cdev cdev;
+
+    struct usbd_bus *bus;
+    struct usbd_clone *next;
+
+    uint8_t unit;
+};
 
 #endif /* _USB_SUBR_H_ */

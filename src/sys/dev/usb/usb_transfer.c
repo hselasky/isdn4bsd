@@ -1,3 +1,6 @@
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_transfer.c $");
+
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -35,7 +38,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -46,8 +48,6 @@
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_subr.h>
 #include <dev/usb/usb_hid.h>
-
-__FBSDID("$FreeBSD: src/sys/dev/usb2/usb_transfer.c $");
 
 #ifdef USB_DEBUG
 void
@@ -1284,7 +1284,11 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 	    usbd_copy_in(&(xfer->buf_data), sizeof(*req), data, length);
 	}
 
-	usbd_transfer_start_safe(xfer);
+	if (mtx) {
+	    usbd_transfer_start(xfer);
+	} else {
+	    usbd_transfer_start_safe(xfer);
+	}
 
 	if(req->bmRequestType & UT_READ)
 	{
@@ -1318,11 +1322,12 @@ void
 usbd_fill_get_report(usb_device_request_t *req, u_int8_t iface_no, 
 		     u_int8_t type, u_int8_t id, u_int16_t size)
 {
-        req->bmRequestType = UT_READ_CLASS_INTERFACE;
-        req->bRequest = UR_GET_REPORT;
-        USETW2(req->wValue, type, id);
-        USETW(req->wIndex, iface_no);
-        USETW(req->wLength, size);
+	req->bmRequestType = UT_READ_CLASS_INTERFACE;
+	req->bRequest = UR_GET_REPORT;
+	USETW2(req->wValue, type, id);
+	req->wIndex[0] = iface_no;
+	req->wIndex[1] = 0;
+	USETW(req->wLength, size);
 	return;
 }
 
@@ -1330,12 +1335,12 @@ void
 usbd_fill_set_report(usb_device_request_t *req, u_int8_t iface_no,
 		     u_int8_t type, u_int8_t id, u_int16_t size)
 {
-        req->bmRequestType = UT_WRITE_CLASS_INTERFACE;
-        req->bRequest = UR_SET_REPORT;
-        USETW2(req->wValue, type, id);
+	req->bmRequestType = UT_WRITE_CLASS_INTERFACE;
+	req->bRequest = UR_SET_REPORT;
+	USETW2(req->wValue, type, id);
 	req->wIndex[0] = iface_no;
 	req->wIndex[1] = 0;
-        USETW(req->wLength, size);
+	USETW(req->wLength, size);
 	return;
 }
 
@@ -1461,23 +1466,6 @@ usbd_set_polling(struct usbd_device *udev, int on)
 		(udev->bus->methods->do_poll)(udev->bus);
 	}
 	return;
-}
-
-/*
- * usbd_ratecheck() can limit the number of error messages that occurs.
- * When a device is unplugged it may take up to 0.25s for the hub driver
- * to notice it.  If the driver continuosly tries to do I/O operations
- * this can generate a large number of messages.
- */
-int
-usbd_ratecheck(struct timeval *last)
-{
-	if(last->tv_sec == time_second)
-	{
-		return (0);
-	}
-	last->tv_sec = time_second;
-	return (1);
 }
 
 /*

@@ -3116,7 +3116,7 @@ static const struct ehci_config_desc ehci_confd = {
 	UDESC_ENDPOINT,
 	UE_DIR_IN | EHCI_INTR_ENDPT,
 	UE_INTERRUPT,
-	{8, 0},			/* max packet */
+	{8, 0}, /* max packet (63 ports) */
 	255
   },
 };

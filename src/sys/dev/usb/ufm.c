@@ -207,7 +207,7 @@ ufm_attach(device_t dev)
         sc->sc_cdev.sc_ioctl = &ufm_ioctl;
 
         error = usb_cdev_attach(&(sc->sc_cdev), sc, &(sc->sc_mtx), p_buf,
-                                UID_ROOT, GID_OPERATOR, 0644, 1, 1, 1, 1);
+                                UID_ROOT, GID_OPERATOR, 0644, 0, 0, 0, 0);
         if (error) {
             goto detach;
         }

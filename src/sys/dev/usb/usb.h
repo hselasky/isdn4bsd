@@ -43,22 +43,8 @@
 
 #include <sys/types.h>
 #include <sys/time.h>
-
-#if defined(__NetBSD__) || defined(__OpenBSD__)
-#include <sys/ioctl.h>
-#endif
-
-#if defined(_KERNEL)
-#if 1
-#include <dev/usb/usb_port.h>
-#else
-#include <sys/malloc.h>
-
-MALLOC_DECLARE(M_USB);
-MALLOC_DECLARE(M_USBDEV);
-MALLOC_DECLARE(M_USBHC);
-#endif
-#endif /* _KERNEL */
+#include <sys/ioccom.h>
+#include <sys/filio.h>
 
 /* These two defines are used by usbd to autoload the usb kld */
 #define USB_KLD		"usb"		/* name of usb module */
@@ -74,7 +60,8 @@ MALLOC_DECLARE(M_USBHC);
 #define USB_CONTROL_ENDPOINT 0
 #define USB_MAX_ENDPOINTS (2*16)
 
-#define USB_FRAMES_PER_SECOND 1000
+#define USB_FRAMES_PER_SECOND_FS 1000 /* full speed */
+#define USB_FRAMES_PER_SECOND_HS 8000 /* high speed */
 
 #ifndef __UA_TYPES_H__
 #define __UA_TYPES_H__
@@ -640,14 +627,12 @@ struct usb_ctl_report_desc {
 	u_char	ucrd_data[1024];	/* filled data size will vary */
 };
 
-typedef struct { u_int32_t cookie; } usb_event_cookie_t;
-
 #define USB_MAX_DEVNAMES 4
 #define USB_MAX_DEVNAMELEN 16
 struct usb_device_info {
 	u_int8_t	udi_bus;
 	u_int8_t	udi_addr;	/* device address */
-	usb_event_cookie_t udi_cookie;
+	u_int32_t	udi_unused;	/* XXX remove */
 	char		udi_product[USB_MAX_STRING_LEN];
 	char		udi_vendor[USB_MAX_STRING_LEN];
 	char		udi_release[8];
@@ -682,28 +667,8 @@ struct usb_device_stats {
 	u_long	uds_requests[4];	/* indexed by transfer type UE_* */
 };
 
-/* Events that can be read from /dev/usb */
-struct usb_event {
-	int			ue_type;
-#define USB_EVENT_CTRLR_ATTACH 1
-#define USB_EVENT_CTRLR_DETACH 2
-#define USB_EVENT_DEVICE_ATTACH 3
-#define USB_EVENT_DEVICE_DETACH 4
-#define USB_EVENT_DRIVER_ATTACH 5
-#define USB_EVENT_DRIVER_DETACH 6
-#define USB_EVENT_IS_ATTACH(n) ((n) == USB_EVENT_CTRLR_ATTACH || (n) == USB_EVENT_DEVICE_ATTACH || (n) == USB_EVENT_DRIVER_ATTACH)
-#define USB_EVENT_IS_DETACH(n) ((n) == USB_EVENT_CTRLR_DETACH || (n) == USB_EVENT_DEVICE_DETACH || (n) == USB_EVENT_DRIVER_DETACH)
-	struct timespec		ue_time;
-	union {
-		struct {
-			int			ue_bus;
-		} ue_ctrlr;
-		struct usb_device_info		ue_device;
-		struct {
-			usb_event_cookie_t	ue_cookie;
-			char			ue_devname[16];
-		} ue_driver;
-	} u;
+struct usb_device_enumerate {
+	int	ude_addr;
 };
 
 /* USB controller */
@@ -712,6 +677,7 @@ struct usb_event {
 #define USB_DISCOVER		_IO  ('U', 3)
 #define USB_DEVICEINFO		_IOWR('U', 4, struct usb_device_info)
 #define USB_DEVICESTATS		_IOR ('U', 5, struct usb_device_stats)
+#define USB_DEVICEENUMERATE	_IOW ('U', 6, struct usb_device_enumerate)
 
 /* Generic HID device */
 #define USB_GET_REPORT_DESC	_IOR ('U', 21, struct usb_ctl_report_desc)

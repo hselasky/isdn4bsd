@@ -175,7 +175,7 @@ ums_clear_stall_callback(struct usbd_xfer *xfer)
  tr_error:
 	/* bomb out */
 	sc->sc_flags &= ~UMS_FLAG_INTR_STALL;
-	DPRINTF(0, "clear stall failed, error=%s!\n",
+	DPRINTF(-1, "clear stall failed, error=%s!\n",
 		usbd_errstr(xfer->error));
 	return;
 }
@@ -537,7 +537,7 @@ ums_attach(device_t dev)
 	err = usb_cdev_attach(&(sc->sc_cdev), sc, &(sc->sc_mtx), p_buf,
 			      UID_ROOT, GID_OPERATOR, 0644, 
 			      UMS_BUF_SIZE, UMS_IFQ_MAXLEN,
-			      1, 1 /* dummy write buffer */);
+			      0, 0);
 	if (err) {
 	    goto detach;
 	}

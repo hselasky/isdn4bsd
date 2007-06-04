@@ -55,7 +55,7 @@ usbreq_reset_port(struct usbd_device *udev, int port, usb_port_status_t *ps)
 {
 	usb_device_request_t req;
 	usbd_status err;
-	int n;
+	uint8_t n;
 
 	req.bmRequestType = UT_WRITE_CLASS_OTHER;
 	req.bRequest = UR_SET_FEATURE;
@@ -72,7 +72,7 @@ usbreq_reset_port(struct usbd_device *udev, int port, usb_port_status_t *ps)
 		goto done;
 	}
 
-	n = 10;
+	n = 12;
 	do {
 		/* wait for device to recover from reset */
 		usbd_delay_ms(udev, USB_PORT_RESET_DELAY);
@@ -91,13 +91,14 @@ usbreq_reset_port(struct usbd_device *udev, int port, usb_port_status_t *ps)
 			err = USBD_NORMAL_COMPLETION;
 			goto done;
 		}
-	} while (((UGETW(ps->wPortChange) & UPS_C_PORT_RESET) == 0) && (--n > 0));
 
-	if(n == 0)
-	{
-		err = USBD_TIMEOUT;
-		goto done;
-	}
+		if (n == 0) {
+			err = USBD_TIMEOUT;
+			goto done;
+		} else {
+			n--;
+		}
+	} while ((UGETW(ps->wPortChange) & UPS_C_PORT_RESET) == 0);
 
 	err = usbreq_clear_port_feature(udev, port, UHF_C_PORT_RESET);
 #ifdef USB_DEBUG
@@ -115,8 +116,8 @@ usbreq_reset_port(struct usbd_device *udev, int port, usb_port_status_t *ps)
 }
 
 usbd_status
-usbreq_get_desc(struct usbd_device *udev, int type, int index,
-		int len, void *desc, int timeout)
+usbreq_get_desc(struct usbd_device *udev, uint8_t type, uint8_t index,
+		uint16_t len, void *desc, uint32_t timeout)
 {
 	usb_device_request_t req;
 	usbd_status err;
@@ -148,7 +149,7 @@ usbreq_get_desc(struct usbd_device *udev, int type, int index,
  * also on error.
  */
 usbd_status
-usbreq_get_string_any(struct usbd_device *udev, int si, char *buf, int len)
+usbreq_get_string_any(struct usbd_device *udev, uint8_t si, char *buf, uint16_t len)
 {
 	int swap = udev->quirks->uq_flags & UQ_SWAP_UNICODE;
 	usb_string_descriptor_t us;
@@ -219,8 +220,8 @@ usbreq_get_string_any(struct usbd_device *udev, int si, char *buf, int len)
 }
 
 usbd_status
-usbreq_get_string_desc(struct usbd_device *udev, int sindex, int langid,
-		       usb_string_descriptor_t *sdesc, int *plen)
+usbreq_get_string_desc(struct usbd_device *udev, uint8_t sindex, uint16_t langid,
+		       usb_string_descriptor_t *sdesc, uint8_t *plen)
 {
 	usb_device_request_t req;
 	usbd_status err;
@@ -249,11 +250,11 @@ usbreq_get_string_desc(struct usbd_device *udev, int sindex, int langid,
 	}
 
 	USETW(req.wLength, sdesc->bLength);	/* the whole string */
-	return (usbd_do_request(udev, &req, sdesc));
+	return usbd_do_request(udev, &req, sdesc);
 }
 
 usbd_status
-usbreq_get_config_desc(struct usbd_device *udev, int confidx,
+usbreq_get_config_desc(struct usbd_device *udev, uint8_t confidx,
 		       usb_config_descriptor_t *d)
 {
 	usbd_status err;
@@ -275,10 +276,10 @@ usbreq_get_config_desc(struct usbd_device *udev, int confidx,
 }
 
 usbd_status
-usbreq_get_config_desc_full(struct usbd_device *udev, int conf, void *d, int size)
+usbreq_get_config_desc_full(struct usbd_device *udev, uint8_t conf, void *d, uint16_t size)
 {
 	PRINTFN(3,("conf=%d\n", conf));
-	return (usbreq_get_desc(udev, UDESC_CONFIG, conf, size, d, 0));
+	return usbreq_get_desc(udev, UDESC_CONFIG, conf, size, d, 0);
 }
 
 usbd_status
@@ -572,7 +573,7 @@ usbreq_read_report_desc(struct usbd_device *udev, u_int8_t iface_index,
 		return (USBD_IOERROR);
 	}
 	*sizep = UGETW(hid->descrs[0].wDescriptorLength);
-	*descp = malloc(*sizep, mem, M_NOWAIT);
+	*descp = malloc(*sizep, mem, M_ZERO|M_WAITOK);
 	if(*descp == NULL)
 	{
 		return (USBD_NOMEM);

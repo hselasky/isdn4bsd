@@ -1,3 +1,6 @@
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_cdev.c $");
+
 /*-
  * Copyright (c) 2006 Hans Petter Selasky. All rights reserved.
  * 
@@ -27,13 +30,10 @@
  *
  */
 
-#include <sys/cdefs.h>
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/malloc.h>
-#include <sys/ioccom.h>
-#include <sys/filio.h>
 #include <sys/tty.h>
 #include <sys/file.h>
 #include <sys/vnode.h>
@@ -45,11 +45,9 @@
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_subr.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb_cdev.c $");
-
 #ifdef USB_DEBUG
-#define DPRINTF(n,fmt,...)						\
-  do { if (usb_cdev_debug > (n)) {						\
+#define DPRINTF(n,fmt,...)	\
+  do { if (usb_cdev_debug > (n)) {	\
       printf("%s: " fmt, __FUNCTION__,## __VA_ARGS__); } } while (0)
 
 static int usb_cdev_debug = 0;
@@ -190,8 +188,8 @@ usb_cdev_msleep(struct usb_cdev *sc, void *ident, u_int32_t context_bit,
 
 	sc->sc_flags |= context_bit;
 
-	error = mtx_sleep(ident, sc->sc_mtx_ptr, PRIBIO|PCATCH, 
-		       "usb_cdev_msleep", 0);
+	error = mtx_sleep(ident, sc->sc_mtx_ptr, PCATCH, 
+			  "usb_cdev_msleep", 0);
 
 	return usb_cdev_exit_context(sc, context_bit, error);
 }
@@ -205,8 +203,8 @@ usb_cdev_sleep(struct usb_cdev *sc, int32_t fflags, u_int32_t timeout)
 			USB_CDEV_FLAG_SLEEP_IOCTL_WR|
 			USB_CDEV_FLAG_WAKEUP_IOCTL_RD|
 			USB_CDEV_FLAG_WAKEUP_IOCTL_WR);
-	return usb_cdev_msleep(sc, &(sc->sc_wakeup_ioctl), context_bit, 
-			       timeout);
+	return usb_cdev_msleep(sc, &(sc->sc_wakeup_ioctl),
+			       context_bit, timeout);
 }
 
 void
@@ -251,13 +249,13 @@ usb_cdev_lock(struct usb_cdev *sc, int32_t fflags,
 }
 
 /*
- * the synchronization part is a little more
+ * The synchronization part is a little more
  * complicated, hence there are two modes:
  *
  * 1) read only and write only, two threads
  * 2) read and write, one thread
  *
- * the job of the following function is to ensure
+ * The job of the following function is to ensure
  * that only one thread enters a piece of code at
  * a time:
  */
@@ -324,6 +322,20 @@ usb_cdev_unwait_context(struct usb_cdev *sc, u_int32_t context_bit)
 	    wakeup(&(sc->sc_wakeup_ioctl_rdwr));
 	}
 	return;
+}
+
+uint8_t
+usb_cdev_opened(struct usb_cdev *sc)
+{
+	uint8_t temp;
+	mtx_lock(sc->sc_mtx_ptr);
+	temp = 
+	  (sc->sc_flags &
+	   (USB_CDEV_FLAG_OPEN_READ|
+	    USB_CDEV_FLAG_OPEN_WRITE|
+	    USB_CDEV_FLAG_GONE)) ? 1 : 0;
+	mtx_unlock(sc->sc_mtx_ptr);
+	return temp;
 }
 
 static int32_t
@@ -492,8 +504,8 @@ usb_cdev_close(struct cdev *dev, int32_t fflags,
 		    wakeup(&(sc->sc_wakeup_ioctl));
 		}
 
-		error = mtx_sleep(&(sc->sc_wakeup_close_read), sc->sc_mtx_ptr, 
-			       PRIBIO, "usb_cdev_sync_read", 0);
+		error = mtx_sleep(&(sc->sc_wakeup_close_read), sc->sc_mtx_ptr,
+				  0, "usb_cdev_sync_read", 0);
 	    }
 
 	    if (sc->sc_flags & USB_CDEV_FLAG_SELECT_READ) {
@@ -537,7 +549,7 @@ usb_cdev_close(struct cdev *dev, int32_t fflags,
 		while (sc->sc_flags & USB_CDEV_FLAG_FLUSHING_WRITE) {
 
 		    error = mtx_sleep(&(sc->sc_wakeup_flush), sc->sc_mtx_ptr, 
-				   PRIBIO|PCATCH, "usb_cdev_flush", 0);
+				      PCATCH, "usb_cdev_flush", 0);
 
 		    if (error || (sc->sc_flags & context_bit &
 				  (USB_CDEV_FLAG_GONE|
@@ -578,7 +590,7 @@ usb_cdev_close(struct cdev *dev, int32_t fflags,
 		}
 
 		error = mtx_sleep(&(sc->sc_wakeup_close_write), sc->sc_mtx_ptr, 
-			       PRIBIO, "usb_cdev_sync_write", 0);
+				  0, "usb_cdev_sync_write", 0);
 	    }
 
 	    if (sc->sc_flags & USB_CDEV_FLAG_SELECT_WRITE) {
@@ -821,7 +833,11 @@ usb_cdev_ioctl(struct cdev *dev, u_long cmd, caddr_t addr,
 		        error = EBUSY;
 			break;
 		    }
+#if defined(__NetBSD__)
+		    sc->sc_async_rd = td;
+#else
 		    sc->sc_async_rd = td->td_proc;
+#endif
 		} else {
 		    sc->sc_async_rd = NULL;
 		}
@@ -832,7 +848,11 @@ usb_cdev_ioctl(struct cdev *dev, u_long cmd, caddr_t addr,
 		        error = EBUSY;
 			break;
 		    }
+#if defined(__NetBSD__)
+		    sc->sc_async_wr = td;
+#else
 		    sc->sc_async_wr = td->td_proc;
+#endif
 		} else {
 		    sc->sc_async_wr = NULL;
 		}
@@ -1014,7 +1034,7 @@ usb_cdev_attach(struct usb_cdev *sc,
 		const char **pp_dev,
 		uid_t _uid,
 		gid_t _gid,
-		int _perms,
+		int32_t _perms,
 		u_int32_t rd_size, 
 		u_int16_t rd_packets,
 		u_int32_t wr_size,
@@ -1068,7 +1088,9 @@ usb_cdev_attach(struct usb_cdev *sc,
 			   rd_size, rd_packets);
 
 	if (sc->sc_rdq_pointer == NULL) {
-	    goto detach;
+	    if (rd_size || rd_packets) {
+	        goto detach;
+	    }
 	}
 
  	sc->sc_wrq_pointer = 
@@ -1076,7 +1098,9 @@ usb_cdev_attach(struct usb_cdev *sc,
 			   wr_size, wr_packets);
 
 	if (sc->sc_wrq_pointer == NULL) {
-	    goto detach;
+	    if (wr_size || wr_packets) {
+	        goto detach;
+	    }
 	}
 
 	for (n = 0; n < USB_CDEV_COUNT; n++) {
@@ -1161,7 +1185,7 @@ usb_cdev_detach(struct usb_cdev *sc)
 			       USB_CDEV_FLAG_OPEN_WRITE)) {
 
 	    error = mtx_sleep(&(sc->sc_wakeup_detach), sc->sc_mtx_ptr, 
-			   PRIBIO, "usb_cdev_sync_detach", 0);
+			      0, "usb_cdev_sync_detach", 0);
 	}
 	mtx_unlock(sc->sc_mtx_ptr);
 
