@@ -2225,7 +2225,7 @@ static const struct ohci_config_desc ohci_confd =
 	UDESC_ENDPOINT,
 	UE_DIR_IN | OHCI_INTR_ENDPT,
 	UE_INTERRUPT,
-	{64, 0}, /* max packet (511 ports) */
+	{32, 0}, /* max packet (255 ports) */
 	255
   },
 };
