@@ -2418,7 +2418,7 @@ struct fsm_state {
   u_int8_t can_up   : 1; /* can activate   */
   u_int8_t can_down : 1; /* can deactivate */
   u_int8_t command  : 1;
-  u_int8_t index    : 3;
+  u_int8_t index    : 4;
   const char * description;
 } __packed;
 

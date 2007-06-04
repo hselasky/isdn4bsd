@@ -694,6 +694,7 @@ static int
 ihfc_post_setup(ihfc_sc_t *sc, device_t dev, u_int8_t *error)
 {
 	struct resource_id *rid = &sc->sc_resources.rid[IHFC_RES_IRQ_0_OFFSET];
+	int err;
 
 	/*
 	 * setup interrupt handler last so
@@ -704,11 +705,15 @@ ihfc_post_setup(ihfc_sc_t *sc, device_t dev, u_int8_t *error)
 	{
 	    IHFC_MSG("Setting up IRQ\n");
 
-	    if(bus_setup_intr(dev, rid->res, INTR_TYPE_NET
-			      I4B_DROP_GIANT(|INTR_MPSAFE), 
-			      &ihfc_chip_interrupt, sc, 
-			      &sc->sc_resources.irq_tmp[0]))
-	    {
+	    err = bus_setup_intr(dev, rid->res, INTR_TYPE_NET
+			I4B_DROP_GIANT(|INTR_MPSAFE), 
+#if (__FreeBSD_version >= 700031)
+			NULL,
+#endif
+			&ihfc_chip_interrupt, sc, 
+			&sc->sc_resources.irq_tmp[0]);
+
+	    if (err) {
 	      IHFC_ADD_ERR(error,
 			   "Error setting up interrupt "
 			   "handler #0!");
