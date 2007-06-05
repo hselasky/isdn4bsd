@@ -698,8 +698,8 @@ static void
 ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
 	const struct filter_info *filt;
-	__typeof(filt->rxtx_interrupt) *rxtx_interrupt;
-	__typeof(filt->buffersize) buffersize = 0;
+	__typeof(((struct filter_info *)0)->rxtx_interrupt) *rxtx_interrupt;
+	__typeof(((struct filter_info *)0)->buffersize) buffersize = 0;
 	u_int16_t protocol;
 	u_int8_t direction;
 
