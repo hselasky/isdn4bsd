@@ -1138,6 +1138,10 @@ I4B_PCI_DRIVER(/* HFC-4S */
 	       .vid = 0x903010b5,
 	       .sub = 0x31361397);
 
+I4B_PCI_DRIVER(/* HFC-4S B410P */
+	       .vid = 0xb410d161,
+	       .sub = 0xb410d161);
+
 #include <i4b/layer1/ihfc2/i4b_count.h>
 
 I4B_DBASE(COUNT())
