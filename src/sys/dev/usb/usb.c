@@ -340,12 +340,6 @@ __usb_attach(device_t dev, struct usbd_bus *bus)
 		return;
 	}
 
-	/* make sure not to use tsleep() if we are cold booting */
-	if(cold)
-	{
-		bus->use_polling++;
-	}
-
 	err = usbd_new_device(bus->bdev, bus, 0, speed, 0,
 			      &bus->root_port);
 	if(!err)
@@ -371,11 +365,6 @@ __usb_attach(device_t dev, struct usbd_bus *bus)
 	{
 		device_printf(bus->bdev, "root hub problem, error=%s\n",
 			      usbd_errstr(err));
-	}
-
-	if(cold)
-	{
-		bus->use_polling--;
 	}
 
 	usb_create_event_thread(bus);

@@ -141,7 +141,7 @@ typedef struct ufoma_mobile_acm_descriptor{
 #define UFOMA_CTRL_ENDPT_MAX 4 /* units */
 #define UFOMA_BULK_ENDPT_MAX 4 /* units */
 
-#define DPRINTF(...)
+#define DPRINTF(...) do { } while (0)
 
 struct ufoma_softc {
 	struct ucom_super_softc	sc_super_ucom;
@@ -215,9 +215,9 @@ ufoma_ctrl_config[UFOMA_CTRL_ENDPT_MAX] = {
 
    [0] = {
       .type      = UE_INTERRUPT,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .bufsize   = sizeof(usb_cdc_notification_t),
       .callback  = &ufoma_intr_callback,
     },
@@ -225,17 +225,18 @@ ufoma_ctrl_config[UFOMA_CTRL_ENDPT_MAX] = {
     [1] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &ufoma_intr_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = (sizeof(usb_device_request_t) + UFOMA_CMD_BUF_SIZE),
       .flags     = USBD_SHORT_XFER_OK,
       .callback  = &ufoma_ctrl_read_callback,
@@ -245,7 +246,7 @@ ufoma_ctrl_config[UFOMA_CTRL_ENDPT_MAX] = {
     [3] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = (sizeof(usb_device_request_t) + 1),
       .flags     = 0,
       .callback  = &ufoma_ctrl_write_callback,
@@ -258,40 +259,42 @@ ufoma_bulk_config[UFOMA_BULK_ENDPT_MAX] = {
 
     [0] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = UFOMA_BULK_BUF_SIZE,
-      .flags     = 0,
+      .flags     = (USBD_PIPE_BOF),
       .callback  = &ufoma_bulk_write_callback,
     },
 
     [1] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = UFOMA_BULK_BUF_SIZE,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .callback  = &ufoma_bulk_read_callback,
     },
 
     [2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = (USBD_USE_DMA),
       .callback  = &ufoma_bulk_write_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [3] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = (USBD_USE_DMA),
       .callback  = &ufoma_bulk_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 };
 
@@ -450,7 +453,7 @@ ufoma_attach(device_t dev)
         error = ucom_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
 			    &ufoma_callback, &Giant);
         if (error) {
-            DPRINTF(0, "ucom_attach failed\n");
+	    DPRINTF(sc, 0, "ucom_attach failed\n");
             goto detach;
         }
 
@@ -657,24 +660,11 @@ ufoma_intr_clear_stall_callback(struct usbd_xfer *xfer)
 	struct ufoma_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_ctrl_xfer[0];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-
-	sc->sc_flags &= ~UFOMA_FLAG_INTR_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~UFOMA_FLAG_INTR_STALL;
-	DPRINTF(sc, 0, "interrupt read pipe stopped\n");
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UFOMA_FLAG_INTR_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -825,23 +815,11 @@ ufoma_bulk_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct ufoma_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_bulk_xfer[0];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-	sc->sc_flags &= ~UFOMA_FLAG_BULK_WRITE_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	sc->sc_flags &= ~UFOMA_FLAG_BULK_WRITE_STALL;
-	DPRINTF(sc, 0, "clear stall failed, error=%s\n",
-		usbd_errstr(xfer->error));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UFOMA_FLAG_BULK_WRITE_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -878,23 +856,11 @@ ufoma_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct ufoma_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_bulk_xfer[1];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-	sc->sc_flags &= ~UFOMA_FLAG_BULK_READ_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	sc->sc_flags &= ~UFOMA_FLAG_BULK_READ_STALL;
-	DPRINTF(sc, 0, "clear stall failed, error=%s\n",
-		usbd_errstr(xfer->error));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UFOMA_FLAG_BULK_READ_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 

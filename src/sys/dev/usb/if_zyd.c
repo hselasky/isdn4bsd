@@ -230,7 +230,7 @@ static const struct usbd_config zyd_config[ZYD_TR_MAX] = {
       .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = (MCLBYTES + sizeof(struct zyd_controlsetformat) + 1),
-      .flags     = (USBD_USE_DMA|USBD_FORCE_SHORT_XFER),
+      .flags     = (USBD_PIPE_BOF|USBD_USE_DMA|USBD_FORCE_SHORT_XFER),
       .callback  = &zyd_bulk_write_callback,
       .index     = 0,
       .timeout   = 10000, /* 10 seconds */
@@ -241,7 +241,7 @@ static const struct usbd_config zyd_config[ZYD_TR_MAX] = {
       .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = (MAX(MCLBYTES,2312) + sizeof(struct zyd_rxleninfoapp)),
-      .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
+      .flags     = (USBD_PIPE_BOF|USBD_USE_DMA|USBD_SHORT_XFER_OK),
       .callback  = &zyd_bulk_read_callback,
       .index     = 0,
     },
@@ -254,6 +254,7 @@ static const struct usbd_config zyd_config[ZYD_TR_MAX] = {
       .flags     = USBD_USE_DMA,
       .callback  = &zyd_bulk_write_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [ZYD_TR_BULK_CS_RD] = {
@@ -264,6 +265,7 @@ static const struct usbd_config zyd_config[ZYD_TR_MAX] = {
       .flags     = USBD_USE_DMA,
       .callback  = &zyd_bulk_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [ZYD_TR_INTR_DT_WR] = {
@@ -271,7 +273,7 @@ static const struct usbd_config zyd_config[ZYD_TR_MAX] = {
       .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = ZYD_INTR_BUF_SIZE,
-      .flags     = (USBD_USE_DMA|USBD_FORCE_SHORT_XFER),
+      .flags     = (USBD_PIPE_BOF|USBD_USE_DMA|USBD_FORCE_SHORT_XFER),
       .callback  = &zyd_intr_write_callback,
       .timeout   = 1000, /* 1 second */
       .index     = 1,
@@ -282,7 +284,7 @@ static const struct usbd_config zyd_config[ZYD_TR_MAX] = {
       .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = ZYD_INTR_BUF_SIZE,
-      .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
+      .flags     = (USBD_PIPE_BOF|USBD_USE_DMA|USBD_SHORT_XFER_OK),
       .callback  = &zyd_intr_read_callback,
       .timeout   = 1000, /* 1 second */
       .index     = 1,
@@ -296,6 +298,7 @@ static const struct usbd_config zyd_config[ZYD_TR_MAX] = {
       .flags     = USBD_USE_DMA,
       .callback  = &zyd_intr_write_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [ZYD_TR_INTR_CS_RD] = {
@@ -306,6 +309,7 @@ static const struct usbd_config zyd_config[ZYD_TR_MAX] = {
       .flags     = USBD_USE_DMA,
       .callback  = &zyd_intr_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 };
 
@@ -448,24 +452,11 @@ zyd_intr_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct zyd_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[ZYD_TR_INTR_DT_RD];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-
-	sc->sc_flags &= ~ZYD_FLAG_INTR_READ_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~ZYD_FLAG_INTR_READ_STALL;
-	DPRINTF(sc, -1, "clear stall failed\n");
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~ZYD_FLAG_INTR_READ_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -560,23 +551,11 @@ zyd_intr_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct zyd_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[ZYD_TR_INTR_DT_WR];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-
-	sc->sc_flags &= ~ZYD_FLAG_INTR_WRITE_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~ZYD_FLAG_INTR_WRITE_STALL;
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~ZYD_FLAG_INTR_WRITE_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -1059,23 +1038,11 @@ zyd_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct zyd_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[ZYD_TR_BULK_DT_RD];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-
-	sc->sc_flags &= ~ZYD_FLAG_BULK_READ_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~ZYD_FLAG_BULK_READ_STALL;
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~ZYD_FLAG_BULK_READ_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -2915,23 +2882,11 @@ zyd_bulk_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct zyd_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[ZYD_TR_BULK_DT_WR];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-
-	sc->sc_flags &= ~ZYD_FLAG_BULK_WRITE_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~ZYD_FLAG_BULK_WRITE_STALL;
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~ZYD_FLAG_BULK_WRITE_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 

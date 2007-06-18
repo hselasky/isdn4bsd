@@ -149,40 +149,42 @@ static const struct usbd_config uftdi_config[UFTDI_ENDPT_MAX] = {
 
     [0] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = UFTDI_OBUFSIZE,
-      .flags     = 0,
+      .flags     = (USBD_PIPE_BOF),
       .callback  = &uftdi_write_callback,
     },
 
     [1] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = UFTDI_IBUFSIZE,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .callback  = &uftdi_read_callback,
     },
 
     [2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = (USBD_USE_DMA),
       .callback  = &uftdi_write_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [3] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = (USBD_USE_DMA),
       .callback  = &uftdi_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 };
 
@@ -556,24 +558,13 @@ static void
 uftdi_write_clear_stall_callback(struct usbd_xfer *xfer)
 {
 	struct uftdi_softc *sc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, sc->sc_xfer[0]);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, sc->sc_xfer[0]);
-	sc->sc_flag &= ~UFTDI_FLAG_WRITE_STALL;
-	usbd_transfer_start(sc->sc_xfer[0]);
-	return;
-
- tr_error:
-	sc->sc_flag &= ~UFTDI_FLAG_WRITE_STALL;
-	DPRINTF(sc, 0, "clear stall failed, error=%s\n",
-		usbd_errstr(xfer->error));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flag &= ~UFTDI_FLAG_WRITE_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -635,24 +626,13 @@ static void
 uftdi_read_clear_stall_callback(struct usbd_xfer *xfer)
 {
 	struct uftdi_softc *sc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_xfer[1];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, sc->sc_xfer[1]);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, sc->sc_xfer[1]);
-	sc->sc_flag &= ~UFTDI_FLAG_READ_STALL;
-	usbd_transfer_start(sc->sc_xfer[1]);
-	return;
-
- tr_error:
-	sc->sc_flag &= ~UFTDI_FLAG_READ_STALL;
-	DPRINTF(sc, 0, "clear stall failed, error=%s\n",
-		usbd_errstr(xfer->error));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flag &= ~UFTDI_FLAG_READ_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 

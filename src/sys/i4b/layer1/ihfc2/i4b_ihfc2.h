@@ -867,6 +867,9 @@ struct sc_default {
 						*/
   u_int32_t o_ECHO_CANCEL_ENABLED : 1; /* set if echo canceller is supported */
   u_int32_t o_T125_WAIT          : 1; /* set if waiting for 125us timeout */
+  u_int32_t o_BULK_READ_STALL    : 1; /* used by USB */
+  u_int32_t o_BULK_WRITE_STALL   : 1; /* used by USB */
+  u_int32_t o_INTR_READ_STALL    : 1; /* used by USB */
 
 #define IS_NT_MODE(sc,su) \
   ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_NT_MODE)

@@ -153,6 +153,20 @@ wibusb_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
 #endif
 
 static void
+wibusb_clear_stall_callback_chip_write USBD_CALLBACK_T(xfer)
+{
+	ihfc_sc_t *sc  = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE];
+
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    IHFC_MSG("stall cleared\n");
+	    sc->sc_default.o_BULK_WRITE_STALL = 0;
+	    usbd_transfer_start(xfer_other);
+	}
+	return;
+}
+
+static void
 wibusb_callback_chip_write USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t	*sc  = xfer->priv_sc;
@@ -160,8 +174,10 @@ wibusb_callback_chip_write USBD_CALLBACK_T(xfer)
 
 	USBD_CHECK_STATUS(xfer);
 
- tr_transferred:
  tr_error:
+	sc->sc_default.o_BULK_WRITE_STALL = 1;
+
+ tr_transferred:
 	wakeup(&(sc->sc_reg_temp));
 	return;
 
@@ -177,7 +193,25 @@ wibusb_callback_chip_write USBD_CALLBACK_T(xfer)
 
 	xfer->length = 2; /* bytes */
 
-	usbd_start_hardware(xfer);
+	if (sc->sc_default.o_BULK_WRITE_STALL) {
+	    usbd_transfer_start(sc->sc_resources.usb_xfer[7]);
+	} else {
+	    usbd_start_hardware(xfer);
+	}
+	return;
+}
+
+static void
+wibusb_clear_stall_callback_chip_read USBD_CALLBACK_T(xfer)
+{
+	ihfc_sc_t *sc  = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_READ];
+
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    IHFC_MSG("stall cleared\n");
+	    sc->sc_default.o_BULK_READ_STALL = 0;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -189,6 +223,10 @@ wibusb_callback_chip_read USBD_CALLBACK_T(xfer)
 
 	USBD_CHECK_STATUS(xfer);
 
+ tr_error:
+	sc->sc_default.o_BULK_READ_STALL = 1;
+	buf[1] = 0xFF;
+
  tr_transferred:
 
 	IHFC_MSG("ReadReg:0x%02x, Val:0x%02x\n",
@@ -196,7 +234,6 @@ wibusb_callback_chip_read USBD_CALLBACK_T(xfer)
 
 	sc->sc_reg_temp.data = buf[1];
 
- tr_error:
 	wakeup(&(sc->sc_reg_temp));
 	return;
 
@@ -204,8 +241,11 @@ wibusb_callback_chip_read USBD_CALLBACK_T(xfer)
 	/* setup data length */
 	xfer->length = 2; /* bytes */
 
-	usbd_start_hardware(xfer);
-
+	if (sc->sc_default.o_BULK_READ_STALL) {
+	    usbd_transfer_start(sc->sc_resources.usb_xfer[8]);
+	} else {
+	    usbd_start_hardware(xfer);
+	}
 	return;
 }
 
@@ -801,6 +841,20 @@ typedef struct {
 } __packed wibusb_status_t;
 
 static void
+wibusb_clear_stall_callback_interrupt USBD_CALLBACK_T(xfer)
+{
+	ihfc_sc_t *sc  = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_resources.usb_xfer[2];
+
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    IHFC_MSG("stall cleared\n");
+	    sc->sc_default.o_INTR_READ_STALL = 0;
+	    usbd_transfer_start(xfer_other);
+	}
+	return;
+}
+
+static void
 wibusb_callback_interrupt USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t *sc = xfer->priv_sc;
@@ -812,9 +866,15 @@ wibusb_callback_interrupt USBD_CALLBACK_T(xfer)
 	if (xfer->error == USBD_CANCELLED) {
 	    return;
 	}
+	sc->sc_default.o_INTR_READ_STALL = 1;
 	goto tr_setup;
 
  tr_transferred:
+	IHFC_MSG("actlen=%d\n", xfer->actlen);
+
+	if (xfer->actlen < 5) {
+	    goto tr_setup;
+	}
 
 	/* if(stat->w_ista & 0x80)
 	 * check for statemachine change
@@ -833,7 +893,11 @@ wibusb_callback_interrupt USBD_CALLBACK_T(xfer)
 	/* setup data length */
 	xfer->length = sizeof(wibusb_status_t); /* == 5 */
 
-	usbd_start_hardware(xfer);
+	if (sc->sc_default.o_INTR_READ_STALL) {
+	    usbd_transfer_start(sc->sc_resources.usb_xfer[9]);
+	} else {
+	    usbd_start_hardware(xfer);
+	}
 	return;
 }
 
@@ -879,14 +943,6 @@ wibusb_cfg_reset(struct ihfc_sc *sc,
 static void
 wibusb_chip_reset CHIP_RESET_T(sc,error)
 {
-	/* setup clear stall */
-	sc->sc_resources.usb_xfer[0]->clearstall_xfer =
-	  sc->sc_resources.usb_xfer[7];
-	sc->sc_resources.usb_xfer[1]->clearstall_xfer =
-	  sc->sc_resources.usb_xfer[8];
-	sc->sc_resources.usb_xfer[2]->clearstall_xfer =
-	  sc->sc_resources.usb_xfer[9];
-
 	/*
 	 * Start interrupt-pipe before
 	 * reset, hence interrupts will
@@ -1109,6 +1165,7 @@ wibusb_usb[] =
     .bufsize   = (4*2), /* bytes */
     .callback  = &wibusb_callback_chip_write,
     .flags     = 0,
+    .timeout   = 1000, /* 1 second */
   },
 
   [WIBUSB_CONF_XFER_READ] = {
@@ -1118,6 +1175,7 @@ wibusb_usb[] =
     .bufsize   = (4*2), /* bytes */
     .callback  = &wibusb_callback_chip_read,
     .flags     = 0,
+    .timeout   = 1000, /* 1 second */
   },
 
   [2] = {
@@ -1172,31 +1230,34 @@ wibusb_usb[] =
   [7] = {
     .type      = UE_CONTROL,
     .endpoint  = 0,
-    .direction = -1,
-    .timeout   = USBD_DEFAULT_TIMEOUT,
+    .direction = UE_DIR_ANY,
+    .timeout   = 1000, /* 1 second */
+    .interval  = 50, /* 50 milliseconds */
     .flags     = 0,
     .bufsize   = sizeof(usb_device_request_t),
-    .callback  = &usbd_clearstall_callback,
+    .callback  = &wibusb_clear_stall_callback_chip_write,
   },
 
   [8] = {
     .type      = UE_CONTROL,
     .endpoint  = 0,
-    .direction = -1,
-    .timeout   = USBD_DEFAULT_TIMEOUT,
+    .direction = UE_DIR_ANY,
+    .timeout   = 1000, /* 1 second */
+    .interval  = 50, /* 50 milliseconds */
     .flags     = 0,
     .bufsize   = sizeof(usb_device_request_t),
-    .callback  = &usbd_clearstall_callback,
+    .callback  = &wibusb_clear_stall_callback_chip_read,
   },
 
   [9] = {
     .type      = UE_CONTROL,
     .endpoint  = 0,
-    .direction = -1,
-    .timeout   = USBD_DEFAULT_TIMEOUT,
+    .direction = UE_DIR_ANY,
+    .timeout   = 1000, /* 1 second */
+    .interval  = 50, /* 50 milliseconds */
     .flags     = 0,
     .bufsize   = sizeof(usb_device_request_t),
-    .callback  = &usbd_clearstall_callback,
+    .callback  = &wibusb_clear_stall_callback_interrupt,
   },
 };
 

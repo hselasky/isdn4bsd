@@ -271,21 +271,15 @@ usbd_transfer_setup(struct usbd_device *udev,
 		    error = USBD_BAD_BUFSIZE;
 		    PRINTF(("invalid bufsize\n"));
 		}
-		if(setup->flags & USBD_SYNCHRONOUS)
-		{
-		    if(setup->callback != &usbd_default_callback)
-		    {
-		        error = USBD_SYNC_TRANSFER_MUST_USE_DEFAULT_CALLBACK;
-			PRINTF(("synchronous transfers "
-				"must use default callback\n"));
-		    }
-		}
+
 		if(setup->flags & 
-		   (~(USBD_SYNCHRONOUS|
+		   (~(0|
 		      USBD_FORCE_SHORT_XFER|
 		      USBD_SHORT_XFER_OK|
 		      USBD_USE_POLLING|
-		      USBD_USE_DMA)))
+		      USBD_PIPE_BOF|
+		      USBD_USE_DMA|
+		      0)))
 		{
 		    error = USBD_BAD_FLAG;
 		    PRINTF(("invalid flag(s) specified: "
@@ -653,79 +647,6 @@ usbd_std_ctrl_enter(struct usbd_xfer *xfer)
     return 1;
 }
 
-/* CALLBACK EXAMPLES:
- * ==================
- *
- * USBD_CHECK_STATUS() overview of possible program paths:
- * =======================================================
- *
- *       +->-----------------------+
- *       |                         |    
- *   +-<-+-------[tr_setup]--------+-<-+-<-[start/restart]
- *   |                                 |
- *   |                                 |
- *   |                                 |
- *   +------>-[tr_transferred]---------+
- *   |                                 |
- *   +--------->-[tr_error]------------+
- *
- * NOTE: the USB-driver automatically
- * recovers from errors if 
- * "xfer->clearstall_xfer" is set
- *
- * Host-transmit callback example (bulk/interrupt/isochronous):
- * ============================================================
- * static void
- * usb_callback_tx(struct usbd_xfer *xfer)
- * {
- *   USBD_CHECK_STATUS(xfer);
- *
- * tr_transferred:
- * tr_setup:
- *
- *   ... setup "xfer->length" ...
- *
- *   ... write data to buffer ...
- *
- * tr_error:
- *
- *   ... [re-]transfer "xfer->buffer" ...
- *
- *   usbd_start_hardware(xfer);
- *   return;
- * }
- *
- * Host-receive callback example (bulk/interrupt/isochronous):
- * ===========================================================
- * static void
- * usb_callback_rx(struct usbd_xfer *xfer)
- * {
- *   USBD_CHECK_STATUS(xfer);
- *
- * tr_transferred:
- *
- *   ... process data in buffer ...
- *
- * tr_setup:
- *
- *   ... setup "xfer->length" ...
- *
- * tr_error:
- *
- *   ... [re-]transfer "xfer->buffer" ...
- *
- *   usbd_start_hardware(xfer);
- *   return;
- * }
- *
- *
- * "usbd_start_hardware()" is called when 
- * "xfer->buffer" is ready for transfer
- *
- * "usbd_start_hardware()" should only be called
- *  from callback
- */
-
 /*---------------------------------------------------------------------------*
  *	usbd_start_hardware - start USB hardware for the given transfer
  *---------------------------------------------------------------------------*/
@@ -755,44 +676,23 @@ usbd_start_hardware(struct usbd_xfer *xfer)
 		/* set USBD_DEV_TRANSFERRING and USBD_DEV_RECURSED_2 */
 		xfer->flags |= (USBD_DEV_TRANSFERRING|USBD_DEV_RECURSED_2);
 
-		if(xfer->pipe->clearstall &&
-		   xfer->clearstall_xfer)
-		{
-#ifdef USB_DEBUG
-			if(xfer->clearstall_xfer->flags & USBD_DEV_TRANSFERRING)
-			{
-				PRINTF(("clearstall_xfer is transferrring!\n"));
-			}
-#endif
-			/* the polling flag is inherited */
-
-			if(xfer->flags & USBD_USE_POLLING)
-			  xfer->clearstall_xfer->flags |= USBD_USE_POLLING;
-			else
-			  xfer->clearstall_xfer->flags &= ~USBD_USE_POLLING;
-
-			/* store pointer to transfer */
-			xfer->clearstall_xfer->priv_sc = xfer;
-
-			usbd_transfer_start(xfer->clearstall_xfer);
+		if(!(xfer->flags & USBD_USE_DMA)) {
+		    /* copy in data */
+		    (xfer->pipe->methods->copy_in)(xfer);
 		}
-		else
-		{
-		    if(!(xfer->flags & USBD_USE_DMA)) {
-		        /* copy in data */
-		        (xfer->pipe->methods->copy_in)(xfer);
-		    }
 
-		    mtx_lock(xfer->usb_mtx);
+		mtx_lock(xfer->usb_mtx);
 
-		    /* enter the transfer */
-		    (xfer->pipe->methods->enter)(xfer);
+		/*
+		 * Setup "usb_thread"
+		 */
+		xfer->usb_thread = (xfer->flags & USBD_USE_POLLING) ?
+		  curthread : NULL;
 
-		    xfer->usb_thread = (xfer->flags & USBD_USE_POLLING) ? 
-		      curthread : NULL;
+		/* enter the transfer */
+		(xfer->pipe->methods->enter)(xfer);
 
-		    mtx_unlock(xfer->usb_mtx);
- 		}
+		mtx_unlock(xfer->usb_mtx);
 	}
 	return;
 }
@@ -812,14 +712,15 @@ usbd_transfer_start_safe(struct usbd_xfer *xfer)
  * NOTE: Calling this function more than one time will only
  *       result in a single transfer start, until the USB transfer
  *       completes.
- * NOTE: if USBD_SYNCHRONOUS is set in "xfer->flags", then this
- *       function will sleep for transfer completion
  * NOTE: if USBD_USE_POLLING is set in "xfer->flags", then this
  *       function will spin until transfer is completed
  *---------------------------------------------------------------------------*/
 void
 usbd_transfer_start(struct usbd_xfer *xfer)
 {
+	struct usbd_bus *bus;
+	uint32_t timeout;
+
 	if (xfer == NULL) {
 	    /* transfer is gone */
 	    return;
@@ -841,7 +742,7 @@ usbd_transfer_start(struct usbd_xfer *xfer)
 
 	/* "USBD_DEV_TRANSFERRING" is only changed
 	 * when "priv_mtx" is locked;
-	 * check first recurse flag
+	 * Also see first USB transfer recurse flag.
 	 */
 	if(!(xfer->flags & (USBD_DEV_TRANSFERRING)))
 	{
@@ -849,49 +750,28 @@ usbd_transfer_start(struct usbd_xfer *xfer)
 		__usbd_callback(xfer);
 
 		/* wait for completion
-		 * if the transfer is synchronous
+		 * if polling is selected
 		 */
-		if(xfer->flags & (USBD_SYNCHRONOUS|USBD_USE_POLLING))
+		if (xfer->flags & USBD_USE_POLLING)
 		{
-			u_int timeout = xfer->timeout +1;
-			struct usbd_bus *bus = xfer->udev->bus;
+			timeout = xfer->timeout +1;
+			bus = xfer->udev->bus;
 
-			while(xfer->flags & USBD_DEV_TRANSFERRING)
+			while (xfer->flags & USBD_DEV_TRANSFERRING)
 			{
-				if(bus->use_polling ||
-				   (xfer->flags & USBD_USE_POLLING))
-				{
-					if(!timeout--)
-					{
-						/* stop the transfer */
-						usbd_transfer_stop(xfer);
-						break;
-					}
-
-					/* delay one millisecond */
-					DELAY(1000);
-
-					/* call the interrupt handler,
-					 * which will call __usbd_callback():
-					 */
-					(bus->methods->do_poll)(bus);
-				}
-				else
-				{
-					u_int32_t level;
-
-					level = mtx_drop_recurse(xfer->priv_mtx);
-
-					if(mtx_sleep(xfer, xfer->priv_mtx,
-						  (PRIBIO|PCATCH), "usbsync", 0))
-					{
-						/* stop the transfer */
-						usbd_transfer_stop(xfer);
-					}
-
-					mtx_pickup_recurse(xfer->priv_mtx, level);
+				if (!timeout--) {
+					/* stop the transfer */
+					usbd_transfer_stop(xfer);
 					break;
 				}
+
+				/* delay one millisecond */
+				DELAY(1000);
+
+				/* call the interrupt handler,
+				 * which will call __usbd_callback():
+				 */
+				(bus->methods->do_poll)(bus);
 			}
 		}
 	}
@@ -917,14 +797,6 @@ usbd_transfer_stop(struct usbd_xfer *xfer)
 	if(xfer->flags & USBD_DEV_OPEN)
 	{
 		xfer->flags &= ~USBD_DEV_OPEN;
-
-		/*
-		 * stop clearstall first
-		 */
-		if(xfer->clearstall_xfer)
-		{
-			usbd_transfer_stop(xfer->clearstall_xfer);
-		}
 
 		/*
 		 * close transfer (should not call callback)
@@ -1087,6 +959,21 @@ usbd_transfer_done(struct usbd_xfer *xfer, usbd_status error)
 	return;
 }
 
+static void
+usbd_delayed_transfer_start(void *arg)
+{
+	struct usbd_xfer *xfer = arg;
+
+	mtx_assert(xfer->usb_mtx, MA_OWNED);
+
+	/* start the transfer */
+	(xfer->pipe->methods->start)(xfer);
+
+	mtx_unlock(xfer->usb_mtx);
+
+	return;
+}
+
 /*---------------------------------------------------------------------------*
  *	usbd_transfer_enqueue
  *
@@ -1095,6 +982,8 @@ usbd_transfer_done(struct usbd_xfer *xfer, usbd_status error)
 void
 usbd_transfer_enqueue(struct usbd_xfer *xfer)
 {
+	uint8_t type;
+
 	mtx_assert(xfer->usb_mtx, MA_OWNED);
 
 	/* if the transfer is not inserted, 
@@ -1118,25 +1007,49 @@ usbd_transfer_enqueue(struct usbd_xfer *xfer)
 	 */
 	if (xfer->pipe_list.le_next == NULL)
 	{
+		/*
+		 * Check if there should be any
+		 * pre transfer start delay:
+		 */
+		if (xfer->interval > 0) {
+		    type = (xfer->pipe->edesc->bmAttributes & UE_XFERTYPE);
+		    if ((type == UE_BULK) || 
+			(type == UE_CONTROL)) {
+		        if (xfer->flags & USBD_USE_POLLING) {
+			    DELAY(((uint32_t)(xfer->interval)) * 1000);
+			} else {
+			    __callout_reset(&(xfer->timeout_handle),
+					    (((uint32_t)(xfer->interval)) * hz) / 1000,
+					    &usbd_delayed_transfer_start,
+					    xfer);
+			    goto done;
+			}
+		    }
+		}
+
+		/* start USB transfer */
 		(xfer->pipe->methods->start)(xfer);
 	}
+ done:
 	return;
 }
 
 /*---------------------------------------------------------------------------*
  *	usbd_transfer_dequeue
  *
- * This function is used to remove an USB transfer from the pipe transfer list.
- * This function is also used to start the next USB transfer on the pipe 
- * transfer list, if any.
+ * This function:
+ *  - is used to remove an USB transfer from the pipe transfer list.
+ *  - is also used to start the next USB transfer on the pipe 
+ *    transfer list, if any.
+ *  - can be called multiple times in a row.
  *
  * IMPLEMENTATION NOTE:
  *       The transfer will not be removed from the pipe transfer list
  *       when "xfer->control_remainder" is non-zero. To ensure that a
  *       transfer is always removed from the pipe transfer list, call
- *       the "usbd_transfer_done()" function one extra time passing an
- *       error code from the pipe close method. Then call
- *       "usbd_transfer_dequeue()".
+ *       the "usbd_transfer_done()" function one extra time passing
+ *       the error code "USBD_CANCELLED" from the pipe close method.
+ *       Then call "usbd_transfer_dequeue()".
  *---------------------------------------------------------------------------*/
 #undef LIST_PREV
 #define LIST_PREV(head,elm,field) \
@@ -1151,14 +1064,33 @@ usbd_transfer_dequeue(struct usbd_xfer *xfer)
 
 	mtx_assert(xfer->usb_mtx, MA_OWNED);
 
-	/* check if we are in the middle of a transfer first */
+	/*
+	 * Check if we are in the middle of a
+	 * control transfer:
+	 */
+	if (xfer->control_remainder > 0) {
+		PRINTFN(4,("xfer=%p: Control transfer "
+			   "remainder > 0, pipe=%p\n",
+			   xfer, xfer->pipe));
+		goto done;
+	}
 
-	if (xfer->control_remainder == 0)
-	{
-	    /* check if we are queued on any pipe transfer list */
+	/*
+	 * Check if we should block the
+	 * execution queue:
+	 */
+	if ((xfer->error) &&
+	    (xfer->error != USBD_CANCELLED) &&
+	    (xfer->flags & USBD_PIPE_BOF)) {
+		PRINTFN(4,("xfer=%p: BOF, pipe=%p\n", 
+			   xfer, xfer->pipe));
+		goto done;
+	}
 
-	    if (xfer->pipe_list.le_prev)
-	    {
+	/* check if we are queued on any pipe transfer list */
+
+	if (xfer->pipe_list.le_prev) {
+
 		/* get the previous transfer, if any */
 		xfer_prev = LIST_PREV(&(xfer->pipe->list_head), xfer, pipe_list);
 
@@ -1172,13 +1104,13 @@ usbd_transfer_dequeue(struct usbd_xfer *xfer)
 			(xfer_prev->pipe->methods->start)(xfer_prev);
 		}
 		xfer->pipe_list.le_prev = 0;
-	    }
 	}
+ done:
 	return;
 }
 
-void
-usbd_default_callback(struct usbd_xfer *xfer)
+static void
+usbd_do_request_callback(struct usbd_xfer *xfer)
 {
 	USBD_CHECK_STATUS(xfer);
 
@@ -1189,8 +1121,7 @@ usbd_default_callback(struct usbd_xfer *xfer)
 
  tr_transferred:
  tr_error:
-	if((xfer->flags & USBD_SYNCHRONOUS) && 
-	   (!(xfer->udev->bus->use_polling || (xfer->flags & USBD_USE_POLLING))))
+	if (!(xfer->flags & USBD_USE_POLLING))
 	{
 		wakeup(xfer);
 	}
@@ -1237,7 +1168,7 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 			  u_int32_t flags, int *actlen,
 			  u_int32_t timeout)
 {
-	struct usbd_config usbd_config[1] = { /* zero */ };
+	struct usbd_config usbd_config[1];
 	struct usbd_xfer *xfer = NULL;
 	u_int16_t length = UGETW(req->wLength);
 	u_int32_t level = 0;
@@ -1250,13 +1181,19 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 		   req->wIndex[1], req->wIndex[0],
 		   req->wLength[1], req->wLength[0]));
 
+	if (cold) {
+	    flags |= USBD_USE_POLLING;
+	}
+
+	bzero(usbd_config, sizeof(usbd_config));
+
 	usbd_config[0].type = UE_CONTROL;
 	usbd_config[0].endpoint = 0; /* control pipe */
-	usbd_config[0].direction = -1;
+	usbd_config[0].direction = UE_DIR_ANY;
 	usbd_config[0].timeout = timeout;
-	usbd_config[0].flags = (flags|USBD_SYNCHRONOUS|USBD_USE_DMA);
+	usbd_config[0].flags = (flags|USBD_USE_DMA);
 	usbd_config[0].bufsize = sizeof(*req) + length;
-	usbd_config[0].callback = &usbd_default_callback;
+	usbd_config[0].callback = &usbd_do_request_callback;
 
 	if (mtx) {
 	    level = mtx_drop_recurse(mtx);
@@ -1288,6 +1225,17 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 	    usbd_transfer_start(xfer);
 	} else {
 	    usbd_transfer_start_safe(xfer);
+	}
+
+	while (xfer->flags & USBD_DEV_TRANSFERRING) {
+
+	    level = mtx_drop_recurse(xfer->priv_mtx);
+
+	    if (mtx_sleep(xfer, xfer->priv_mtx, 0, "usbctrl", 0)) {
+	        /* should not happen */
+	    }
+
+	    mtx_pickup_recurse(xfer->priv_mtx, level);
 	}
 
 	if(req->bmRequestType & UT_READ)
@@ -1345,13 +1293,41 @@ usbd_fill_set_report(usb_device_request_t *req, u_int8_t iface_no,
 }
 
 void
-usbd_clear_stall_tr_setup(struct usbd_xfer *xfer1, 
+usbd_clear_data_toggle(struct usbd_device *udev, struct usbd_pipe *pipe)
+{
+	PRINTFN(4,("udev=%p pipe=%p\n", udev, pipe));
+
+	mtx_lock(&(udev->bus->mtx));
+	pipe->toggle_next = 0;
+	mtx_unlock(&(udev->bus->mtx));
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_clear_stall_callback - factored out clear stall callback
+ *
+ * Return values:
+ *   0: In progress
+ *   Else: Finished
+ *------------------------------------------------------------------------*/
+uint8_t
+usbd_clear_stall_callback(struct usbd_xfer *xfer1, 
 			  struct usbd_xfer *xfer2)
 {
 	usb_device_request_t req;
 
 	mtx_assert(xfer1->priv_mtx, MA_OWNED);
 	mtx_assert(xfer2->priv_mtx, MA_OWNED);
+
+	USBD_CHECK_STATUS(xfer1);
+
+ tr_setup:
+
+	/* pre-clear the data toggle to DATA0 
+	 * ("umass.c" and "ata-usb.c" depends on this)
+	 */
+
+	usbd_clear_data_toggle(xfer2->udev, xfer2->pipe);
 
 	/* setup a clear-stall packet */
 
@@ -1364,10 +1340,13 @@ usbd_clear_stall_tr_setup(struct usbd_xfer *xfer1,
 
 	/* double check the length */
 
-	if (xfer1->length != sizeof(req)) {
-	    printf("%s:%d: invalid transfer length, %d bytes!\n",
-		   __FUNCTION__, __LINE__, xfer1->length);
-	    return;
+	if (xfer1->length < sizeof(req)) {
+	    if (xfer1->length) {
+	        printf("%s:%d: invalid transfer length, %d bytes!\n",
+		       __FUNCTION__, __LINE__, xfer1->length);
+		xfer1->length = 0;
+	    }
+	    return 1;
 	}
 
 	/* copy in the transfer */
@@ -1378,64 +1357,34 @@ usbd_clear_stall_tr_setup(struct usbd_xfer *xfer1,
 	    bcopy(&req, xfer1->buffer, sizeof(req));
 	}
 
+	/* set length just in case */
+	xfer1->length = sizeof(req);
+
 	usbd_start_hardware(xfer1);
-	return;
-}
 
-void
-usbd_clear_stall_tr_transferred(struct usbd_xfer *xfer1, 
-				struct usbd_xfer *xfer2)
-{
-	mtx_assert(xfer1->priv_mtx, MA_OWNED);
-	mtx_assert(xfer2->priv_mtx, MA_OWNED);
+	return 0;
 
-	mtx_lock(xfer2->usb_mtx);
-
-	/* 
-	 * clear any stall and make sure 
-	 * that DATA0 toggle will be 
-	 * used next:
-	 */
-
-	xfer2->pipe->clearstall = 0;
-	xfer2->pipe->toggle_next = 0;
-
-	mtx_unlock(xfer2->usb_mtx);
-
-	return;
-}
-
-void
-usbd_clearstall_callback(struct usbd_xfer *xfer)
-{
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	usbd_clear_stall_tr_setup(xfer, xfer->priv_sc);
-	return;
+ tr_error:
+	if (xfer1->error == USBD_CANCELLED) {
+	    return 0;
+	}
 
  tr_transferred:
- tr_error:
-	PRINTFN(3,("xfer=%p\n", xfer));
-
-	/* NOTE: some devices reject this command,
-	 * so ignore a STALL
-	 */
-	usbd_clear_stall_tr_transferred(xfer, xfer->priv_sc);
-
-	usbd_start_hardware(xfer->priv_sc);
-	return;
+	return 1;
 }
 
-/* clearstall config:
+/* Clear stall config (example):
  *
+ * static const struct usbd_config my_clearstall =  {
  *	.type = UE_CONTROL,
  *	.endpoint = 0,
- *	.direction = -1,
- *	.timeout = USBD_DEFAULT_TIMEOUT,
+ *	.direction = UE_DIR_ANY,
+ *	.timeout = 1000, //1.000 seconds
+ *	.interval = 50, //50 milliseconds
  *	.flags = 0,
  *	.bufsize = sizeof(usb_device_request_t),
- *	.callback = &usbd_clearstall_callback,
+ *	.callback = &my_clear_stall_callback,
+ * };
  */
 
 /*
@@ -1445,26 +1394,6 @@ void
 usbd_do_poll(struct usbd_device *udev)
 {
 	(udev->bus->methods->do_poll)(udev->bus);
-	return;
-}
-
-void
-usbd_set_polling(struct usbd_device *udev, int on)
-{
-	if(on)
-	{
-		udev->bus->use_polling++;
-	}
-	else
-	{
-		udev->bus->use_polling--;
-	}
-
-	/* make sure there is nothing pending to do */
-	if(udev->bus->use_polling)
-	{
-		(udev->bus->methods->do_poll)(udev->bus);
-	}
 	return;
 }
 

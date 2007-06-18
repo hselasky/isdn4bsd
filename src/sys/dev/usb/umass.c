@@ -718,7 +718,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
     [UMASS_T_BBB_RESET1] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &umass_t_bbb_reset1_callback,
@@ -728,7 +728,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
     [UMASS_T_BBB_RESET2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &umass_t_bbb_reset2_callback,
@@ -738,7 +738,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
     [UMASS_T_BBB_RESET3] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &umass_t_bbb_reset3_callback,
@@ -747,7 +747,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
 
     [UMASS_T_BBB_COMMAND] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = sizeof(umass_bbb_cbw_t),
       .flags     = USBD_USE_DMA,
@@ -757,7 +757,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
 
     [UMASS_T_BBB_DATA_READ] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = UMASS_BULK_SIZE,
       .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
@@ -768,7 +768,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
     [UMASS_T_BBB_DATA_RD_CS] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &umass_t_bbb_data_rd_cs_callback,
@@ -777,7 +777,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
 
     [UMASS_T_BBB_DATA_WRITE] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = UMASS_BULK_SIZE,
       .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
@@ -788,7 +788,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
     [UMASS_T_BBB_DATA_WR_CS] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &umass_t_bbb_data_wr_cs_callback,
@@ -797,7 +797,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
 
     [UMASS_T_BBB_STATUS] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = sizeof(umass_bbb_csw_t),
       .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
@@ -811,7 +811,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
     [UMASS_T_CBI_RESET1] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = (sizeof(usb_device_request_t) + 
 		    UMASS_CBI_DIAGNOSTIC_CMDLEN),
       .flags     = USBD_USE_DMA,
@@ -822,7 +822,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
     [UMASS_T_CBI_RESET2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &umass_t_cbi_reset2_callback,
@@ -832,7 +832,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
     [UMASS_T_CBI_RESET3] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &umass_t_cbi_reset3_callback,
@@ -842,7 +842,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
     [UMASS_T_CBI_COMMAND] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = (sizeof(usb_device_request_t) + 
 		    UMASS_MAX_CMDLEN),
       .flags     = USBD_USE_DMA,
@@ -852,7 +852,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
 
     [UMASS_T_CBI_DATA_READ] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = UMASS_BULK_SIZE,
       .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
@@ -863,7 +863,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
     [UMASS_T_CBI_DATA_RD_CS] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &umass_t_cbi_data_rd_cs_callback,
@@ -872,7 +872,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
 
     [UMASS_T_CBI_DATA_WRITE] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = UMASS_BULK_SIZE,
       .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
@@ -883,7 +883,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
     [UMASS_T_CBI_DATA_WR_CS] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &umass_t_cbi_data_wr_cs_callback,
@@ -892,7 +892,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
 
     [UMASS_T_CBI_STATUS] = {
       .type      = UE_INTERRUPT,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
       .bufsize   = sizeof(umass_cbi_sbl_t),
@@ -903,7 +903,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
     [UMASS_T_CBI_RESET4] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &umass_t_cbi_reset4_callback,
@@ -1470,8 +1470,9 @@ umass_t_bbb_data_clear_stall_callback(struct usbd_xfer *xfer,
 	return;
 
  tr_setup:
-	usbd_clear_stall_tr_setup(xfer, sc->sc_xfer[stall_xfer]);
-	usbd_clear_stall_tr_transferred(xfer, sc->sc_xfer[stall_xfer]);
+	if (usbd_clear_stall_callback(xfer, sc->sc_xfer[stall_xfer])) {
+	    goto tr_transferred;
+	}
 	return;
 }
 
@@ -1988,8 +1989,9 @@ umass_t_cbi_data_clear_stall_callback(struct usbd_xfer *xfer,
 	return;
 
  tr_setup:
-	usbd_clear_stall_tr_setup(xfer, sc->sc_xfer[stall_xfer]);
-	usbd_clear_stall_tr_transferred(xfer, sc->sc_xfer[stall_xfer]);
+	if (usbd_clear_stall_callback(xfer, sc->sc_xfer[stall_xfer])) {
+	    goto tr_transferred; /* should not happen */
+	}
 	return;
 }
 

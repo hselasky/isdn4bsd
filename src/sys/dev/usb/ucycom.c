@@ -57,7 +57,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ucycom.c,v 1.4 2005/10/16 20:22:56 phk Exp $
 #define UCYCOM_ENDPT_MAX	3 /* units */
 #define UCYCOM_IFACE_INDEX	0
 
-#define DPRINTF(...) { }
+#define DPRINTF(...) do { } while (0)
 
 struct ucycom_softc {
 	struct ucom_super_softc	sc_super_ucom;
@@ -115,7 +115,7 @@ static const struct usbd_config ucycom_config[UCYCOM_ENDPT_MAX] = {
     [0] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = (sizeof(usb_device_request_t) + UCYCOM_MAX_IOLEN),
       .flags     = 0,
       .callback  = &ucycom_ctrl_write_callback,
@@ -124,9 +124,9 @@ static const struct usbd_config ucycom_config[UCYCOM_ENDPT_MAX] = {
 
     [1] = {
       .type      = UE_INTERRUPT,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .bufsize   = UCYCOM_MAX_IOLEN,
       .callback  = &ucycom_intr_read_callback,
     },
@@ -134,11 +134,12 @@ static const struct usbd_config ucycom_config[UCYCOM_ENDPT_MAX] = {
     [2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &ucycom_intr_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 };
 
@@ -553,23 +554,11 @@ ucycom_intr_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct ucycom_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[1];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-	sc->sc_flags &= ~UCYCOM_FLAG_INTR_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	sc->sc_flags &= ~UCYCOM_FLAG_INTR_STALL;
-	DPRINTF(sc, 0, "clear stall failed, error=%s\n",
-		usbd_errstr(xfer->error));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UCYCOM_FLAG_INTR_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 

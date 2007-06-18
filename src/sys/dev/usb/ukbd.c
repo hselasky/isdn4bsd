@@ -444,24 +444,11 @@ ukbd_clear_stall_callback(struct usbd_xfer *xfer)
 	struct ukbd_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-
-	sc->sc_flags &= ~UKBD_FLAG_INTR_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~UKBD_FLAG_INTR_STALL;
-	DPRINTF(-1, "error=%s\n", usbd_errstr(xfer->error));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(0, "stall cleared\n");
+	    sc->sc_flags &= ~UKBD_FLAG_INTR_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -554,9 +541,9 @@ static const struct usbd_config ukbd_config[UKBD_N_TRANSFER] = {
 
     [0] = {
       .type      = UE_INTERRUPT,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .bufsize   = 0, /* use wMaxPacketSize */
       .callback  = &ukbd_intr_callback,
     },
@@ -564,16 +551,17 @@ static const struct usbd_config ukbd_config[UKBD_N_TRANSFER] = {
     [1] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .callback  = &ukbd_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t) + 1,
       .callback  = &ukbd_set_leds_callback,
       .timeout   = 1000, /* 1 second */

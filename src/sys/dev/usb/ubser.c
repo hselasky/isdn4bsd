@@ -159,40 +159,42 @@ static const struct usbd_config ubser_config[UBSER_TR_MAX] = {
 
     [UBSER_TR_DT_WRITE] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = 0, /* use wMaxPacketSize */
-      .flags     = USBD_FORCE_SHORT_XFER,
+      .flags     = (USBD_PIPE_BOF|USBD_FORCE_SHORT_XFER),
       .callback  = &ubser_write_callback,
     },
 
     [UBSER_TR_DT_READ] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = 0, /* use wMaxPacketSize */
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .callback  = &ubser_read_callback,
     },
 
     [UBSER_TR_CS_WRITE] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &ubser_write_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [UBSER_TR_CS_READ] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &ubser_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 };
 
@@ -441,23 +443,11 @@ ubser_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct ubser_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[UBSER_TR_DT_WRITE];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-	sc->sc_flags &= ~UBSER_FLAG_WRITE_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	sc->sc_flags &= ~UBSER_FLAG_WRITE_STALL;
-	DPRINTF(sc, -1, "clear stall failed, error=%s\n",
-		usbd_errstr(xfer->error));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UBSER_FLAG_WRITE_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -513,23 +503,11 @@ ubser_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct ubser_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[UBSER_TR_DT_READ];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-	sc->sc_flags &= ~UBSER_FLAG_READ_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	sc->sc_flags &= ~UBSER_FLAG_READ_STALL;
-	DPRINTF(sc, -1, "clear stall failed, error=%s\n",
-		usbd_errstr(xfer->error));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UBSER_FLAG_READ_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 

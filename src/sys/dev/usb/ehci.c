@@ -105,6 +105,7 @@ extern struct usbd_pipe_methods ehci_root_intr_methods;
 
 static usbd_config_td_command_t ehci_root_ctrl_task;
 static void ehci_root_ctrl_task_td(struct ehci_softc *sc, struct thread *ctd);
+static void ehci_do_poll(struct usbd_bus *bus);
 
 #define SC_HW_PHYSADDR(sc,what) \
   ((sc)->sc_hw_page.physaddr +	\
@@ -373,6 +374,11 @@ ehci_init(ehci_softc_t *sc)
 
  done:
 	mtx_unlock(&sc->sc_bus.mtx);
+
+	if (!err) {
+	    /* catch any lost interrupts */
+	    ehci_do_poll(&(sc->sc_bus));
+	}
 	return (err);
 }
 
@@ -531,6 +537,10 @@ ehci_resume(struct ehci_softc *sc)
 	mtx_unlock(&sc->sc_bus.mtx);
 
 	DELAY(1000*USB_RESUME_WAIT);
+
+	/* catch any lost interrupts */
+	ehci_do_poll(&(sc->sc_bus));
+
 	return;
 }
 
@@ -2207,12 +2217,6 @@ ehci_device_done(struct usbd_xfer *xfer, usbd_status error)
 	  }
 	}
 
-	if(error)
-	{
-		/* next transfer needs to clear stall */
-		xfer->pipe->clearstall = 1;
-	}
-
 	/* transfer transferred (no callback!) */
 	usbd_transfer_done(xfer,error);
 
@@ -2676,12 +2680,6 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 	/**/
 	ehci_add_interrupt_info(sc, xfer);
 
-	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
-	{
-		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-				(void *)(void *)ehci_timeout, xfer);
-	}
-
 	/* enqueue transfer 
 	 * (so that it can be aborted through pipe abort)
 	 */
@@ -2692,7 +2690,12 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 static void
 ehci_device_isoc_fs_start(struct usbd_xfer *xfer)
 {
-	/* already started, nothing to do */
+	/* start timeout, if any (should not be done by the enter routine) */
+	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
+	{
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ehci_timeout, xfer);
+	}
 	return;
 }
 
@@ -2996,12 +2999,6 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 	/**/
 	ehci_add_interrupt_info(sc, xfer);
 
-	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
-	{
-		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-				(void *)(void *)ehci_timeout, xfer);
-	}
-
 	/* enqueue transfer 
 	 * (so that it can be aborted through pipe abort)
 	 */
@@ -3012,7 +3009,12 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 static void
 ehci_device_isoc_hs_start(struct usbd_xfer *xfer)
 {
-	/* already started, nothing to do */
+	/* start timeout, if any (should not be done by the enter routine) */
+	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
+	{
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ehci_timeout, xfer);
+	}
 	return;
 }
 
@@ -3838,9 +3840,9 @@ ehci_xfer_setup(struct usbd_device *udev,
 		{
 			if ((xfer->pipe->methods == &ehci_device_intr_methods) &&
 			    (udev->speed == USB_SPEED_HIGH))
-			    usbd_std_transfer_setup(xfer, setup, 0x400, 0xC00, 3);
+			    usbd_std_transfer_setup(udev, xfer, setup, 0x400, 0xC00, 3);
 			else
-			    usbd_std_transfer_setup(xfer, setup, 0x400, 0x400, 1);
+			    usbd_std_transfer_setup(udev, xfer, setup, 0x400, 0x400, 1);
 			nqh = 1;
 			nqtd = (1+ /* SETUP */ 1+ /* STATUS */
 			       1  /* SHORTPKT */) +
@@ -3848,7 +3850,7 @@ ehci_xfer_setup(struct usbd_device *udev,
 		}
 		else if(xfer->pipe->methods == &ehci_device_isoc_fs_methods)
 		{
-			usbd_std_transfer_setup(xfer, setup, 188, 188, 1);
+			usbd_std_transfer_setup(udev, xfer, setup, 188, 188, 1);
 
 			if(xfer->nframes == 0)
 			{
@@ -3872,7 +3874,7 @@ ehci_xfer_setup(struct usbd_device *udev,
 		}
 		else if(xfer->pipe->methods == &ehci_device_isoc_hs_methods)
 		{
-			usbd_std_transfer_setup(xfer, setup, 0x400, 0xC00, 3);
+			usbd_std_transfer_setup(udev, xfer, setup, 0x400, 0xC00, 3);
 
 			if(xfer->nframes == 0)
 			{
@@ -3896,7 +3898,7 @@ ehci_xfer_setup(struct usbd_device *udev,
 		}
 		else
 		{
-			usbd_std_transfer_setup(xfer, setup, 0x400, 0x400, 1);
+			usbd_std_transfer_setup(udev, xfer, setup, 0x400, 0x400, 1);
 		}
 	  }
 

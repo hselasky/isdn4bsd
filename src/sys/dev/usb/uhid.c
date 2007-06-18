@@ -181,24 +181,13 @@ static void
 uhid_intr_clear_stall_callback(struct usbd_xfer *xfer)
 {
 	struct uhid_softc *sc = xfer->priv_sc;
-	USBD_CHECK_STATUS(xfer);
+	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, sc->sc_xfer[0]);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, sc->sc_xfer[0]);
-
-	sc->sc_flags &= ~UHID_FLAG_INTR_STALL;
-	usbd_transfer_start(sc->sc_xfer[0]);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~UHID_FLAG_INTR_STALL;
-	usb_cdev_put_data_error(&(sc->sc_cdev));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(0, "stall cleared\n");
+	    sc->sc_flags &= ~UHID_FLAG_INTR_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -316,9 +305,9 @@ static const struct usbd_config uhid_config[UHID_N_TRANSFER] = {
 
     [0] = {
       .type      = UE_INTERRUPT,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .bufsize   = 0, /* use wMaxPacketSize */
       .callback  = &uhid_intr_callback,
     },
@@ -326,16 +315,17 @@ static const struct usbd_config uhid_config[UHID_N_TRANSFER] = {
     [1] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .callback  = &uhid_intr_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t) + UHID_BSIZE,
       .callback  = &uhid_write_callback,
       .timeout   = 1000, /* 1 second */
@@ -344,7 +334,7 @@ static const struct usbd_config uhid_config[UHID_N_TRANSFER] = {
     [3] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t) + UHID_BSIZE,
       .callback  = &uhid_read_callback,
       .timeout   = 1000, /* 1 second */
@@ -353,7 +343,7 @@ static const struct usbd_config uhid_config[UHID_N_TRANSFER] = {
     [4] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t) + UHID_BSIZE,
       .callback  = &uhid_ioctl_callback,
       .timeout   = 1000, /* 1 second */

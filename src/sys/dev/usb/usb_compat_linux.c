@@ -547,10 +547,7 @@ usb_clear_halt(struct usb_device *dev, struct usb_host_endpoint *uhe)
 	pipe = usbd_get_pipe(dev->bsd_udev, uhe->bsd_iface_index, cfg);
 	if (pipe == NULL) return -EINVAL;
 
-	mtx_lock(&(dev->bsd_udev->bus->mtx));
-	pipe->clearstall = 0;
-	pipe->toggle_next = 0;
-	mtx_unlock(&(dev->bsd_udev->bus->mtx));
+	usbd_clear_data_toggle(dev->bsd_udev, pipe);
 
 	return usb_control_msg(dev, &(dev->ep0), 
 			       UR_CLEAR_FEATURE, UT_WRITE_ENDPOINT,

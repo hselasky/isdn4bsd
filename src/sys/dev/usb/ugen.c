@@ -118,6 +118,10 @@ struct ugen_endpoint {
 
   /* context bit */
 #define UGEN_IOCTL	  0x4000
+ 
+  uint8_t		read_stall : 1;
+  uint8_t		write_stall : 1;
+  uint8_t		unused : 6;
 };
 
 struct ugen_softc {
@@ -137,6 +141,10 @@ static device_attach_t ugen_attach;
 static device_detach_t ugen_detach;
 
 static usbd_callback_t ugen_interrupt_callback;
+static usbd_callback_t ugen_read_clear_stall_callback;
+static usbd_callback_t ugen_write_clear_stall_callback;
+static usbd_callback_t ugen_default_read_callback;
+static usbd_callback_t ugen_default_write_callback;
 static usbd_callback_t ugenisoc_read_callback;
 static usbd_callback_t ugenisoc_write_callback;
 
@@ -595,20 +603,23 @@ ugen_open_pipe_write(struct ugen_softc *sc, struct ugen_endpoint *sce)
 	  {
 		usb_endpoint_descriptor_t *ed = sce->pipe_out->edesc;
 
-		struct usbd_config usbd_config[2] = { /* zero */ };
+		struct usbd_config usbd_config[2];
+
+		bzero(usbd_config, sizeof(usbd_config));
 
 		usbd_config[1].type = UE_CONTROL;
 		usbd_config[1].endpoint = 0;
-		usbd_config[1].direction = -1;
-		usbd_config[1].timeout = USBD_DEFAULT_TIMEOUT;
+		usbd_config[1].direction = UE_DIR_ANY;
+		usbd_config[1].timeout = 1000; /* 1 second */
+		usbd_config[1].interval = 50; /* 50 milliseconds */
 		usbd_config[1].flags = 0;
 		usbd_config[1].bufsize = sizeof(usb_device_request_t);
-		usbd_config[1].callback = &usbd_clearstall_callback;
+		usbd_config[1].callback = &ugen_write_clear_stall_callback;
 
 		usbd_config[0].type = ed->bmAttributes & UE_XFERTYPE;
 		usbd_config[0].endpoint = ed->bEndpointAddress & UE_ADDR;
 		usbd_config[0].direction = UE_DIR_OUT;
-		usbd_config[0].callback = usbd_default_callback;
+		usbd_config[0].callback = &ugen_default_write_callback;
 		usbd_config[0].interval = USBD_DEFAULT_INTERVAL;
 		usbd_config[0].timeout = sce->in_timeout;
 
@@ -616,7 +627,7 @@ ugen_open_pipe_write(struct ugen_softc *sc, struct ugen_endpoint *sce)
 		{
 		case UE_INTERRUPT:
 		case UE_BULK:
-			usbd_config[0].flags = USBD_SYNCHRONOUS;
+			usbd_config[0].flags = 0;
 			usbd_config[0].bufsize = UGEN_BULK_BUFFER_SIZE;
 			
 			if(__usbd_transfer_setup
@@ -626,9 +637,9 @@ ugen_open_pipe_write(struct ugen_softc *sc, struct ugen_endpoint *sce)
 			{
 				return (EIO);
 			}
-			/* setup clear stall */
-			sce->xfer_out[0]->clearstall_xfer =
-			  sce->xfer_out[1];
+
+			/* first transfer clears stall */
+			sce->write_stall = 1;
 			break;
 
 		case UE_ISOCHRONOUS:
@@ -657,25 +668,19 @@ ugen_open_pipe_write(struct ugen_softc *sc, struct ugen_endpoint *sce)
 			usbd_config[0].flags = USBD_SHORT_XFER_OK;
 			usbd_config[0].bufsize = isize * sce->out_frames;
 			usbd_config[0].frames = sce->out_frames;
-			usbd_config[0].callback = ugenisoc_write_callback;
+			usbd_config[0].callback = &ugenisoc_write_callback;
 			usbd_config[0].timeout = 0;
+
+			/* clone configuration */
+			usbd_config[1] = usbd_config[0];
 
 			err = __usbd_transfer_setup
 			  (sc, sce, UGEN_WR_CFG,
 			   sc->sc_udev, sce->pipe_out->iface_index,
-			   &sce->xfer_out[0], &usbd_config[0], 1);
+			   sce->xfer_out, usbd_config, 2);
 
-			if(!err)
-			{
-				err = __usbd_transfer_setup
-				  (sc, sce, UGEN_WR_CFG,
-				   sc->sc_udev, sce->pipe_out->iface_index,
-				   &sce->xfer_out[1], &usbd_config[0], 1);
-			}
 			if(err)
 			{
-				usbd_transfer_unsetup(&sce->xfer_out[0], 1);
-				usbd_transfer_unsetup(&sce->xfer_out[1], 1);
 				ugen_free_blocks(&sce->out_queue);
 				return (EIO);
 			}
@@ -708,15 +713,18 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 	  {
 		usb_endpoint_descriptor_t *ed = sce->pipe_in->edesc;
 
-		struct usbd_config usbd_config[2] = { /* zero */ };
+		struct usbd_config usbd_config[2];
+
+		bzero(usbd_config, sizeof(usbd_config));
 
 		usbd_config[1].type = UE_CONTROL;
 		usbd_config[1].endpoint = 0;
-		usbd_config[1].direction = -1;
-		usbd_config[1].timeout = USBD_DEFAULT_TIMEOUT;
+		usbd_config[1].direction = UE_DIR_ANY;
+		usbd_config[1].timeout = 1000; /* 1 second */
+		usbd_config[1].interval = 50; /* 50 milliseconds */
 		usbd_config[1].flags = 0;
 		usbd_config[1].bufsize = sizeof(usb_device_request_t);
-		usbd_config[1].callback = &usbd_clearstall_callback;
+		usbd_config[1].callback = &ugen_read_clear_stall_callback;
 
 		usbd_config[0].type = ed->bmAttributes & UE_XFERTYPE;
 		usbd_config[0].endpoint = ed->bEndpointAddress & UE_ADDR;
@@ -728,7 +736,7 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 		case UE_INTERRUPT:
 		  isize = usbd_get_max_frame_size(ed);
 		  usbd_config[0].flags = USBD_SHORT_XFER_OK;
-		  usbd_config[0].callback = ugen_interrupt_callback;
+		  usbd_config[0].callback = &ugen_interrupt_callback;
 		  usbd_config[0].bufsize = isize;
 		  usbd_config[0].interval = USBD_DEFAULT_INTERVAL;
 
@@ -748,9 +756,8 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 			return (EIO);
 		  }
 
-		  /* setup clear stall */
-		  sce->xfer_in[0]->clearstall_xfer =
-		    sce->xfer_in[1];
+		  /* first transfer clears stall */
+		  sce->read_stall = 1;
 
 		  usbd_transfer_start(sce->xfer_in[0]);
 		  PRINTFN(5, ("interrupt open done\n"));
@@ -758,8 +765,8 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 
 		case UE_BULK:
 		  usbd_config[0].flags = ((sce->state & UGEN_SHORT_OK) ? 
-					  USBD_SHORT_XFER_OK : 0) | USBD_SYNCHRONOUS;
-		  usbd_config[0].callback = usbd_default_callback;
+					  USBD_SHORT_XFER_OK : 0);
+		  usbd_config[0].callback = &ugen_default_read_callback;
 		  usbd_config[0].bufsize = UGEN_BULK_BUFFER_SIZE;
 
 		  if(__usbd_transfer_setup
@@ -770,9 +777,8 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 			return (EIO);
 		  }
 
-		  /* setup clear stall */
-		  sce->xfer_in[0]->clearstall_xfer =
-		    sce->xfer_in[1];
+		  /* first transfer clears stall */
+		  sce->read_stall = 1;
 		  break;
 
 		case UE_ISOCHRONOUS:
@@ -802,26 +808,20 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 		  usbd_config[0].flags = USBD_SHORT_XFER_OK;
 		  usbd_config[0].bufsize = isize * sce->in_frames;
 		  usbd_config[0].frames = sce->in_frames;
-		  usbd_config[0].callback = ugenisoc_read_callback;
+		  usbd_config[0].callback = &ugenisoc_read_callback;
 		  usbd_config[0].timeout = 0;
+		  usbd_config[0].interval = USBD_DEFAULT_INTERVAL;
+
+		  /* clone configuration */
+		  usbd_config[1] = usbd_config[0];
 
 		  err = __usbd_transfer_setup
 		    (sc, sce, UGEN_RD_CFG,
 		     sc->sc_udev, sce->pipe_in->iface_index,
-		     &sce->xfer_in[0], &usbd_config[0], 1);
-
-		  if(!err)
-		  {
-			err = __usbd_transfer_setup
-			  (sc, sce, UGEN_RD_CFG,
-			   sc->sc_udev, sce->pipe_in->iface_index,
-			   &sce->xfer_in[1], &usbd_config[0], 1);
-		  }
+		     sce->xfer_in, usbd_config, 2);
 
 		  if(err)
 		  {
-			usbd_transfer_unsetup(&sce->xfer_in[0], 1);
-			usbd_transfer_unsetup(&sce->xfer_in[1], 1);
 			ugen_free_blocks(&sce->in_queue);
 			return (EIO);
 		  }
@@ -1033,6 +1033,7 @@ ugenread(struct cdev *dev, struct uio *uio, int flag)
                                 error = EIO;
 				break;
 			    }
+
 			    if(error)
 			    {
 			        break;
@@ -1088,17 +1089,34 @@ ugenread(struct cdev *dev, struct uio *uio, int flag)
 			/* update length */
 			xfer->length = n;
 
-			sce->state |= UGEN_RD_UIO;
-
 			/* start transfer */
 			usbd_transfer_start(xfer);
 
-			sce->state &= ~UGEN_RD_UIO;
+			while (xfer->flags & USBD_DEV_TRANSFERRING) {
+
+			    /* wait for data */
+
+			    sce->state |= (UGEN_RD_SLP|UGEN_RD_WUP);
+
+			    error = mtx_sleep(sce, &sc->sc_mtx, PCATCH,
+					      "ugen wait callback", 0);
+
+			    sce->state &= ~(UGEN_RD_SLP|UGEN_RD_WUP);
+
+			    if (error) {
+			        usbd_transfer_stop(xfer);
+				break;
+			    }
+			}
 
 			if(sce->state & UGEN_CLOSING)
 			{
 				error = EIO;
 				wakeup(sce);
+				break;
+			}
+
+			if (error) {
 				break;
 			}
 
@@ -1196,17 +1214,34 @@ ugenwrite(struct cdev *dev, struct uio *uio, int flag)
 			/* update length */
 			xfer->length = n;
 
-			sce->state |= UGEN_WR_UIO;
-
 			/* start transfer */
 			usbd_transfer_start(xfer);
 
-			sce->state &= ~UGEN_WR_UIO;
+			while (xfer->flags & USBD_DEV_TRANSFERRING) {
+
+			    /* wait for data */
+
+			    sce->state |= (UGEN_WR_SLP|UGEN_WR_WUP);
+
+			    error = mtx_sleep(sce, &sc->sc_mtx, PCATCH,
+					      "ugen wait callback", 0);
+
+			    sce->state &= ~(UGEN_WR_SLP|UGEN_WR_WUP);
+
+			    if (error) {
+			        usbd_transfer_stop(xfer);
+				break;
+			    }
+			}
 
 			if(sce->state & UGEN_CLOSING)
 			{
 				error = EIO;
 				wakeup(sce);
+				break;
+			}
+
+			if (error) {
 				break;
 			}
 
@@ -1303,6 +1338,72 @@ ugenwrite(struct cdev *dev, struct uio *uio, int flag)
 }
 
 static void
+ugen_default_read_callback(struct usbd_xfer *xfer)
+{
+	struct ugen_endpoint *sce = xfer->priv_sc;
+
+	USBD_CHECK_STATUS(xfer);
+
+ tr_setup:
+	if (sce->read_stall) {
+	    usbd_transfer_start(sce->xfer_in[1]);
+	} else {
+	    usbd_start_hardware(xfer);
+	}
+	return;
+
+ tr_error:
+	if (xfer->error != USBD_CANCELLED) {
+	    sce->read_stall = 1;
+	} else {
+	    return;
+	}
+
+ tr_transferred:
+	if(sce->state & UGEN_RD_WUP)
+	{
+		sce->state &= ~UGEN_RD_WUP;
+
+		PRINTFN(5, ("waking %p\n", sce));
+		wakeup(sce);
+	}
+	return;
+}
+
+static void
+ugen_default_write_callback(struct usbd_xfer *xfer)
+{
+	struct ugen_endpoint *sce = xfer->priv_sc;
+
+	USBD_CHECK_STATUS(xfer);
+
+ tr_setup:
+	if (sce->write_stall) {
+	    usbd_transfer_start(sce->xfer_out[1]);
+	} else {
+	    usbd_start_hardware(xfer);
+	}
+	return;
+
+ tr_error:
+	if (xfer->error != USBD_CANCELLED) {
+	    sce->write_stall = 1;
+	} else {
+	    return;
+	}
+
+ tr_transferred:
+	if(sce->state & UGEN_WR_WUP)
+	{
+		sce->state &= ~UGEN_WR_WUP;
+
+		PRINTFN(5, ("waking %p\n", sce));
+		wakeup(sce);
+	}
+	return;
+}
+
+static void
 ugen_interrupt_callback(struct usbd_xfer *xfer)
 {
 	struct ugen_endpoint *sce = xfer->priv_sc;
@@ -1350,9 +1451,47 @@ ugen_interrupt_callback(struct usbd_xfer *xfer)
 	 */
 	return; 
 
- tr_setup:
  tr_error:
-	usbd_start_hardware(xfer);
+	if (xfer->error != USBD_CANCELLED) {
+	    sce->read_stall = 1;
+	} else {
+	    return;
+	}
+
+ tr_setup:
+	if (sce->read_stall) {
+	    usbd_transfer_start(sce->xfer_in[1]);
+	} else {
+	    usbd_start_hardware(xfer);
+	}
+	return;
+}
+
+static void
+ugen_read_clear_stall_callback(struct usbd_xfer *xfer)
+{
+	struct ugen_endpoint *sce = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sce->xfer_in[0];
+
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    PRINTFN(4, ("sce=%p: stall cleared\n", sce));
+	    sce->read_stall = 0;
+	    usbd_transfer_start(xfer_other);
+	}
+	return;
+}
+
+static void
+ugen_write_clear_stall_callback(struct usbd_xfer *xfer)
+{
+	struct ugen_endpoint *sce = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sce->xfer_out[0];
+
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    PRINTFN(4, ("sce=%p: stall cleared\n", sce));
+	    sce->write_stall = 1;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 

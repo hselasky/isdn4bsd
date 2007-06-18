@@ -69,7 +69,6 @@ SYSCTL_INT(_hw_usb_uhub, OID_AUTO, debug, CTLFLAG_RW, &uhub_debug, 0,
 #endif
 
 struct uhub_softc {
-	struct __callout	sc_watchdog;
 	device_t		sc_dev;		/* base device */
 	struct usbd_device	*sc_hub;	/* USB device */
 	struct usbd_xfer	*sc_xfer[2];	/* interrupt xfer */
@@ -95,8 +94,6 @@ static bus_child_pnpinfo_str_t uhub_child_pnpinfo_string;
 static usbd_callback_t uhub_intr_callback;
 static usbd_callback_t uhub_intr_clear_stall_callback;
 
-static void uhub_watchdog(void *arg);
-
 static const struct usbd_config uhub_config[2] = {
 
     [0] = {
@@ -104,7 +101,7 @@ static const struct usbd_config uhub_config[2] = {
       .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_ANY,
       .timeout   = 0,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .bufsize   = 0, /* use wMaxPacketSize */
       .callback  = &uhub_intr_callback,
       .interval  = UHUB_INTR_INTERVAL,
@@ -114,7 +111,8 @@ static const struct usbd_config uhub_config[2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0,
       .direction = UE_DIR_ANY,
-      .timeout   = USBD_DEFAULT_TIMEOUT,
+      .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
       .flags     = 0,
       .bufsize   = sizeof(usb_device_request_t),
       .callback  = &uhub_intr_clear_stall_callback,
@@ -153,40 +151,15 @@ DRIVER_MODULE(uhub, uhub, uhub_driver, uhub_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(uhub, usb, 1, 1, 1);
 
 static void
-uhub_watchdog(void *arg)
-{
-	struct uhub_softc *sc = arg;
-	mtx_assert(&usb_global_lock, MA_OWNED);
-	usbd_transfer_start(sc->sc_xfer[0]);	
-	mtx_unlock(&usb_global_lock);
-	return;
-}
-
-static void
 uhub_intr_clear_stall_callback(struct usbd_xfer *xfer)
 {
 	struct uhub_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-        return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-
-	sc->sc_flags &= ~UHUB_FLAG_INTR_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	sc->sc_flags &= ~UHUB_FLAG_INTR_STALL;
-	if (xfer->error != USBD_CANCELLED) {
-	    __callout_reset(&(sc->sc_watchdog), hz, &uhub_watchdog, sc);
-	    DPRINTF(sc, -1, "Interrupt pipe stopped! Watchdog started!\n");
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UHUB_FLAG_INTR_STALL;
+	    usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -472,9 +445,6 @@ uhub_attach(device_t dev)
 
 	usbd_set_desc(dev, udev);
 
-        __callout_init_mtx(&(sc->sc_watchdog),
-                           &usb_global_lock, CALLOUT_RETURNUNLOCKED);
-
 	err = usbd_set_config_index(udev, 0, 1);
 	if(err)
 	{
@@ -708,12 +678,6 @@ uhub_detach(device_t dev)
 	}
 
 	usbd_transfer_unsetup(sc->sc_xfer, 2);
-
-	mtx_lock(&usb_global_lock);
-	__callout_stop(&(sc->sc_watchdog));
-	mtx_unlock(&usb_global_lock);
-
-	__callout_drain(&(sc->sc_watchdog));
 
 	free(hub, M_USBDEV);
 	sc->sc_hub->hub = NULL;

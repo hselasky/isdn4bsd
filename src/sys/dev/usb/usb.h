@@ -668,7 +668,143 @@ struct usb_device_stats {
 };
 
 struct usb_device_enumerate {
-	int	ude_addr;
+	uint8_t	ude_addr;
+};
+
+/* "vep" is short for "virtual endpoint" */
+
+struct usb_device_vep_setup {
+       uint32_t max_bufsize; /* 0 means use wMaxPacketSize */
+       uint16_t max_frames;
+       uint8_t dev_addr;
+       uint8_t iface_index;
+       uint8_t ep_type;
+#define	USB_DEVICE_VEP_TYPE_CONTROL UE_CONTROL
+#define	USB_DEVICE_VEP_TYPE_ISOCHRONOUS UE_ISOCHRONOUS
+#define	USB_DEVICE_VEP_TYPE_BULK UE_BULK
+#define	USB_DEVICE_VEP_TYPE_INTERRUPT UE_INTERRUPT
+#define	USB_DEVICE_VEP_TYPE_BULK_INTR UE_BULK_INTR
+#define	USB_DEVICE_VEP_TYPE_ANY UE_TYPE_ANY
+       uint8_t ep_hard_index; /* [0, 15] */
+#define	USB_DEVICE_VEP_HINDEX_ANY UE_ADDR_ANY
+       uint8_t ep_direction;
+#define	USB_DEVICE_VEP_DIR_OUT UE_DIR_OUT
+#define	USB_DEVICE_VEP_DIR_IN UE_DIR_IN
+#define	USB_DEVICE_VEP_DIR_ANY UE_DIR_ANY
+       uint8_t ep_interval; /* in milliseconds */
+#define	USB_DEVICE_VEP_DEFAULT_INTERVAL 0
+       uint8_t ep_match_index; /* 0, 1, 2, 3 ... */
+       uint8_t vep_index;
+};
+
+struct usb_device_vep_unsetup {
+       uint8_t vep_index;
+};
+
+struct usb_device_put_urb {
+       void *buffer; /* pointer to data buffer */
+       void *private0;
+       void *private1;
+       void (*callback)(struct usb_device_put_urb *urb);
+       uint16_t *frlengths; /* for isochronous transfers */
+       uint32_t offset; /* for kernel use only */
+       uint32_t length; /* transfer length */
+       uint32_t actlen; /* actual transfer length */
+       uint16_t timeout; /* in milliseconds, if set */
+       uint16_t nframes; /* for isochronous transfers */
+#define	USB_DEVICE_URB_FRAMES_MAX 60 /* inclusive */
+       uint8_t vep_index;
+#define	USB_DEVICE_VEP_MAX 63 /* exclusive */
+       uint8_t error;
+#define	USB_DEVICE_URB_ERROR_NONE 0
+#define	USB_DEVICE_URB_ERROR_CANCELLED 1
+#define	USB_DEVICE_URB_ERROR_STALLED 2
+#define	USB_DEVICE_URB_ERROR_SHORT_XFER 3
+#define	USB_DEVICE_URB_ERROR_TIMEOUT 4
+       uint8_t flags;
+#define	USB_DEVICE_URB_FLAG_SHORT_OK 0x01
+#define	USB_DEVICE_URB_FLAG_FORCE_SHORT 0x02
+#define	USB_DEVICE_URB_FLAG_CUSTOM 0x04
+       uint8_t reserved1;
+};
+
+struct usb_device_get_urb {
+       struct usb_device_put_urb *p_urb;
+       uint8_t vep_index;
+};
+
+struct usb_device_cancel_urb {
+       struct usb_device_put_urb *p_urb;
+       uint8_t vep_index;
+};
+
+struct usb_device_poll_urb {
+       uint8_t vep_first_set_index; /* inclusive */
+       uint8_t vep_last_set_index; /* inclusive */
+       uint8_t vep_00_complete : 1;
+       uint8_t vep_01_complete : 1;
+       uint8_t vep_02_complete : 1;
+       uint8_t vep_03_complete : 1;
+       uint8_t vep_04_complete : 1;
+       uint8_t vep_05_complete : 1;
+       uint8_t vep_06_complete : 1;
+       uint8_t vep_07_complete : 1;
+       uint8_t vep_08_complete : 1;
+       uint8_t vep_09_complete : 1;
+       uint8_t vep_0A_complete : 1;
+       uint8_t vep_0B_complete : 1;
+       uint8_t vep_0C_complete : 1;
+       uint8_t vep_0D_complete : 1;
+       uint8_t vep_0E_complete : 1;
+       uint8_t vep_0F_complete : 1;
+       uint8_t vep_10_complete : 1;
+       uint8_t vep_11_complete : 1;
+       uint8_t vep_12_complete : 1;
+       uint8_t vep_13_complete : 1;
+       uint8_t vep_14_complete : 1;
+       uint8_t vep_15_complete : 1;
+       uint8_t vep_16_complete : 1;
+       uint8_t vep_17_complete : 1;
+       uint8_t vep_18_complete : 1;
+       uint8_t vep_19_complete : 1;
+       uint8_t vep_1A_complete : 1;
+       uint8_t vep_1B_complete : 1;
+       uint8_t vep_1C_complete : 1;
+       uint8_t vep_1D_complete : 1;
+       uint8_t vep_1E_complete : 1;
+       uint8_t vep_1F_complete : 1;
+       uint8_t vep_20_complete : 1;
+       uint8_t vep_21_complete : 1;
+       uint8_t vep_22_complete : 1;
+       uint8_t vep_23_complete : 1;
+       uint8_t vep_24_complete : 1;
+       uint8_t vep_25_complete : 1;
+       uint8_t vep_26_complete : 1;
+       uint8_t vep_27_complete : 1;
+       uint8_t vep_28_complete : 1;
+       uint8_t vep_29_complete : 1;
+       uint8_t vep_2A_complete : 1;
+       uint8_t vep_2B_complete : 1;
+       uint8_t vep_2C_complete : 1;
+       uint8_t vep_2D_complete : 1;
+       uint8_t vep_2E_complete : 1;
+       uint8_t vep_2F_complete : 1;
+       uint8_t vep_30_complete : 1;
+       uint8_t vep_31_complete : 1;
+       uint8_t vep_32_complete : 1;
+       uint8_t vep_33_complete : 1;
+       uint8_t vep_34_complete : 1;
+       uint8_t vep_35_complete : 1;
+       uint8_t vep_36_complete : 1;
+       uint8_t vep_37_complete : 1;
+       uint8_t vep_38_complete : 1;
+       uint8_t vep_39_complete : 1;
+       uint8_t vep_3A_complete : 1;
+       uint8_t vep_3B_complete : 1;
+       uint8_t vep_3C_complete : 1;
+       uint8_t vep_3D_complete : 1;
+       uint8_t vep_3E_complete : 1;
+       uint8_t vep_any_complete : 1;
 };
 
 /* USB controller */
@@ -678,6 +814,13 @@ struct usb_device_enumerate {
 #define USB_DEVICEINFO		_IOWR('U', 4, struct usb_device_info)
 #define USB_DEVICESTATS		_IOR ('U', 5, struct usb_device_stats)
 #define USB_DEVICEENUMERATE	_IOW ('U', 6, struct usb_device_enumerate)
+
+#define	USB_DEVICE_VEP_SETUP	_IOW ('U',10, struct usb_device_vep_setup);
+#define	USB_DEVICE_VEP_UNSETUP	_IOW ('U',11, struct usb_device_vep_unsetup);
+#define	USB_DEVICE_PUT_URB	_IOW ('U',12, struct usb_device_put_urb);
+#define	USB_DEVICE_GET_URB	_IOW ('U',13, struct usb_device_get_urb);
+#define	USB_DEVICE_CANCEL_URB	_IOW ('U',14, struct usb_device_cancel_urb);
+#define	USB_DEVICE_POLL_URB	_IOR ('U',15, struct usb_device_poll_urb);
 
 /* Generic HID device */
 #define USB_GET_REPORT_DESC	_IOR ('U', 21, struct usb_ctl_report_desc)

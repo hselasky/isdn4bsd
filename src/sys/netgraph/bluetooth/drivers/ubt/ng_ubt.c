@@ -53,6 +53,8 @@
 
 #include "usbdevs.h"
 
+#define DPRINTF(...) do { } while (0)
+
 /*
  * USB methods
  */
@@ -206,27 +208,27 @@ static const struct usbd_config ubt_config_if_0[UBT_IF_0_N_TRANSFER] = {
 
     [0] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = UBT_BULK_WRITE_BUFFER_SIZE,
-      .flags     = 0,
+      .flags     = (USBD_PIPE_BOF),
       .callback  = &ubt_bulk_write_callback,
     },
 
     [1] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = UBT_BULK_READ_BUFFER_SIZE,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .callback  = &ubt_bulk_read_callback,
     },
 
     [2] = {
       .type      = UE_INTERRUPT,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .bufsize   = 0x110, /* bytes */
       .callback  = &ubt_intr_read_callback,
     },
@@ -234,7 +236,7 @@ static const struct usbd_config ubt_config_if_0[UBT_IF_0_N_TRANSFER] = {
     [3] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = (sizeof(usb_device_request_t) + UBT_CTRL_BUFFER_SIZE),
       .callback  = &ubt_ctrl_write_callback,
       .timeout   = 5000, /* 5 seconds */
@@ -243,28 +245,31 @@ static const struct usbd_config ubt_config_if_0[UBT_IF_0_N_TRANSFER] = {
     [4] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .callback  = &ubt_bulk_write_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [5] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .callback  = &ubt_bulk_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [6] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .callback  = &ubt_intr_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 };
 
@@ -274,7 +279,7 @@ ubt_config_if_1_full_speed[UBT_IF_1_N_TRANSFER] = {
 
     [0] = {
       .type      = UE_ISOCHRONOUS,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = 0, /* use "wMaxPacketSize * frames" */
       .frames    = UBT_ISOC_NFRAMES,
@@ -284,7 +289,7 @@ ubt_config_if_1_full_speed[UBT_IF_1_N_TRANSFER] = {
 
     [1] = {
       .type      = UE_ISOCHRONOUS,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = 0, /* use "wMaxPacketSize * frames" */
       .frames    = UBT_ISOC_NFRAMES,
@@ -294,7 +299,7 @@ ubt_config_if_1_full_speed[UBT_IF_1_N_TRANSFER] = {
 
     [2] = {
       .type      = UE_ISOCHRONOUS,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = 0, /* use "wMaxPacketSize * frames" */
       .frames    = UBT_ISOC_NFRAMES,
@@ -304,7 +309,7 @@ ubt_config_if_1_full_speed[UBT_IF_1_N_TRANSFER] = {
 
     [3] = {
       .type      = UE_ISOCHRONOUS,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = 0, /* use "wMaxPacketSize * frames" */
       .frames    = UBT_ISOC_NFRAMES,
@@ -319,7 +324,7 @@ ubt_config_if_1_high_speed[UBT_IF_1_N_TRANSFER] = {
 
     [0] = {
       .type      = UE_ISOCHRONOUS,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = 0, /* use "wMaxPacketSize * frames" */
       .frames    = UBT_ISOC_NFRAMES * 8,
@@ -329,7 +334,7 @@ ubt_config_if_1_high_speed[UBT_IF_1_N_TRANSFER] = {
 
     [1] = {
       .type      = UE_ISOCHRONOUS,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = 0, /* use "wMaxPacketSize * frames" */
       .frames    = UBT_ISOC_NFRAMES * 8,
@@ -339,7 +344,7 @@ ubt_config_if_1_high_speed[UBT_IF_1_N_TRANSFER] = {
 
     [2] = {
       .type      = UE_ISOCHRONOUS,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = 0, /* use "wMaxPacketSize * frames" */
       .frames    = UBT_ISOC_NFRAMES * 8,
@@ -349,7 +354,7 @@ ubt_config_if_1_high_speed[UBT_IF_1_N_TRANSFER] = {
 
     [3] = {
       .type      = UE_ISOCHRONOUS,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = 0, /* use "wMaxPacketSize * frames" */
       .frames    = UBT_ISOC_NFRAMES * 8,
@@ -819,26 +824,13 @@ static void
 ubt_intr_read_clear_stall_callback(struct usbd_xfer *xfer)
 {
 	struct ubt_softc *sc = xfer->priv_sc;
-	struct usbd_xfer *other_xfer = sc->sc_xfer_if_0[2];
+	struct usbd_xfer *xfer_other = sc->sc_xfer_if_0[2];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, other_xfer);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, other_xfer);
-
-	sc->sc_flags &= ~UBT_FLAG_INTR_STALL;
-	usbd_transfer_start(other_xfer);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~UBT_FLAG_INTR_STALL;
-	NG_UBT_ERR(sc, "clear stall failed!\n");
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UBT_FLAG_INTR_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -989,26 +981,13 @@ static void
 ubt_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 {
 	struct ubt_softc *sc = xfer->priv_sc;
-	struct usbd_xfer *other_xfer = sc->sc_xfer_if_0[1];
+	struct usbd_xfer *xfer_other = sc->sc_xfer_if_0[1];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, other_xfer);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, other_xfer);
-
-	sc->sc_flags &= ~UBT_FLAG_READ_STALL;
-	usbd_transfer_start(other_xfer);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~UBT_FLAG_READ_STALL;
-	NG_UBT_ERR(sc, "clear stall failed!\n");
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UBT_FLAG_READ_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -1158,26 +1137,13 @@ static void
 ubt_bulk_write_clear_stall_callback(struct usbd_xfer *xfer)
 {
 	struct ubt_softc *sc = xfer->priv_sc;
-	struct usbd_xfer *other_xfer = sc->sc_xfer_if_0[0];
+	struct usbd_xfer *xfer_other = sc->sc_xfer_if_0[0];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, other_xfer);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, other_xfer);
-
-	sc->sc_flags &= ~UBT_FLAG_WRITE_STALL;
-	usbd_transfer_start(other_xfer);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~UBT_FLAG_WRITE_STALL;
-	NG_UBT_ERR(sc, "clear stall failed\n");
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UBT_FLAG_WRITE_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 

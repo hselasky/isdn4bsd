@@ -223,10 +223,10 @@ usbd_errstr(usbd_status err)
 
 /* Delay for a certain number of ms */
 void
-usb_delay_ms(struct usbd_bus *bus, u_int ms)
+usb_delay_ms(struct usbd_bus *bus, uint32_t ms)
 {
 	/* Wait at least two clock ticks so we know the time has passed. */
-	if (bus->use_polling || cold)
+	if (cold)
 		DELAY((ms+1) * 1000);
 	else
 #if (__FreeBSD_version >= 700031)
@@ -238,7 +238,7 @@ usb_delay_ms(struct usbd_bus *bus, u_int ms)
 
 /* Delay given a device handle. */
 void
-usbd_delay_ms(struct usbd_device *udev, u_int ms)
+usbd_delay_ms(struct usbd_device *udev, uint32_t ms)
 {
 	usb_delay_ms(udev->bus, ms);
 }
@@ -364,13 +364,22 @@ usbd_find_edesc(usb_config_descriptor_t *cd, u_int16_t iface_index,
 	return (NULL);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_find_descriptor
+ *
+ * This function will lookup the first descriptor that matches
+ * the criteria given by the arguments "type" and "subtype". Descriptors
+ * will only be searched within the interface having the index "iface_index".
+ * It is possible to specify the last descriptor returned by this function
+ * as the "id" argument. That way one can search for multiple descriptors
+ * matching the same criteria.
+ *------------------------------------------------------------------------*/
 void *
-usbd_find_descriptor(struct usbd_device *udev, uint16_t iface_index,
+usbd_find_descriptor(struct usbd_device *udev, void *id, uint16_t iface_index,
 		     int16_t type, int16_t subtype)
 {
 	usb_descriptor_t *desc;
 	usb_config_descriptor_t *cd;
-	usb_interface_descriptor_t *id;
 	struct usbd_interface *iface;
 
 	cd = usbd_get_config_descriptor(udev);
@@ -378,14 +387,16 @@ usbd_find_descriptor(struct usbd_device *udev, uint16_t iface_index,
 		return NULL;
 	}
 
-	iface = usbd_get_iface(udev, iface_index);
-	if (iface == NULL) {
-		return NULL;
-	}
-
-	id = usbd_get_interface_descriptor(iface);
 	if (id == NULL) {
+	    iface = usbd_get_iface(udev, iface_index);
+	    if (iface == NULL) {
 		return NULL;
+	    }
+
+	    id = usbd_get_interface_descriptor(iface);
+	    if (id == NULL) {
+		return NULL;
+	    }
 	}
 
 	desc = (void *)id;
@@ -396,7 +407,8 @@ usbd_find_descriptor(struct usbd_device *udev, uint16_t iface_index,
 			break;
 		}
 
-		if ((desc->bDescriptorType == type) &&
+		if (((type == USBD_TYPE_ANY) ||
+		     (type == desc->bDescriptorType)) &&
 		    ((subtype == USBD_SUBTYPE_ANY) ||
 		     (subtype == desc->bDescriptorSubtype)))
 		{
@@ -435,9 +447,6 @@ usbd_fill_pipe_data(struct usbd_device *udev, u_int8_t iface_index,
 	pipe->edesc = edesc;
 	pipe->iface_index = iface_index;
 	LIST_INIT(&pipe->list_head);
-
-	/* first transfer needs to clear stall! */
-	pipe->clearstall = 1;
 
 	(udev->bus->methods->pipe_init)(udev,edesc,pipe);
 	return;
@@ -2316,11 +2325,15 @@ usbd_page_dma_enter(struct usbd_page *page)
  *  usbd_std_transfer_setup - standard transfer setup
  *------------------------------------------------------------------------------*/
 void
-usbd_std_transfer_setup(struct usbd_xfer *xfer, 
+usbd_std_transfer_setup(struct usbd_device *udev,
+			struct usbd_xfer *xfer, 
 			const struct usbd_config *setup, 
 			u_int16_t max_packet_size, u_int16_t max_frame_size,
 			uint8_t max_packet_count)
 {
+	usb_endpoint_descriptor_t *edesc = xfer->pipe->edesc;
+	uint8_t type;
+
 	__callout_init_mtx(&xfer->timeout_handle, xfer->usb_mtx,
 			   CALLOUT_RETURNUNLOCKED);
 
@@ -2329,21 +2342,38 @@ usbd_std_transfer_setup(struct usbd_xfer *xfer,
 	xfer->timeout = setup->timeout;
 	xfer->callback = setup->callback;
 	xfer->interval = setup->interval;
-	xfer->endpoint = xfer->pipe->edesc->bEndpointAddress;
-	xfer->max_packet_size = usbd_get_max_packet_size(xfer->pipe->edesc);
-	xfer->max_packet_count = usbd_get_max_packet_count(xfer->pipe->edesc);
-	xfer->max_frame_size = usbd_get_max_frame_size(xfer->pipe->edesc);
+	xfer->endpoint = edesc->bEndpointAddress;
+	xfer->max_packet_size = usbd_get_max_packet_size(edesc);
+	xfer->max_packet_count = usbd_get_max_packet_count(edesc);
+	xfer->max_frame_size = usbd_get_max_frame_size(edesc);
 	xfer->length = setup->bufsize;
 
-	/* check interrupt interval */
+	/* check interrupt interval or transfer pre-delay */
 
-	if (xfer->interval == 0) {
-	    xfer->interval = xfer->pipe->edesc->bInterval;
-	}
+	type = (edesc->bmAttributes & UE_XFERTYPE);
 
-	if (xfer->interval == 0) {
-	    /* one is the smallest interval */
-	    xfer->interval = 1;
+	if (type == UE_ISOCHRONOUS) {
+	    xfer->interval = 0; /* not used, must be zero */
+	} else {
+	    /* if a value is specified use that
+	     * else check the endpoint descriptor
+	     */
+	    if (xfer->interval == 0) {
+
+	        if (type == UE_INTERRUPT) {
+
+		    xfer->interval = edesc->bInterval;
+
+		    if (usbd_get_speed(udev) == USB_SPEED_HIGH) {
+		        xfer->interval /= 8; /* 125us -> 1ms */
+		    }
+
+		    if (xfer->interval == 0) {
+		        /* one millisecond is the smallest interval */
+		        xfer->interval = 1;
+		    }
+		}
+	    }
 	}
 
 	/* wMaxPacketSize is also checked by "usbd_fill_iface_data()" */

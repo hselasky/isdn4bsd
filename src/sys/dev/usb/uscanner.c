@@ -142,40 +142,42 @@ static void	uscanner_stop_write(struct usb_cdev *cdev);
 static const struct usbd_config uscanner_config [USCANNER_N_TRANSFER] = {
     [0] = { 
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = USCANNER_BSIZE,
-      .flags     = 0,
+      .flags     = (USBD_PIPE_BOF),
       .callback  = &uscanner_write_callback,
     },
 
     [1] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = USCANNER_BSIZE,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .callback  = &uscanner_read_callback,
     },
 
     [2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &uscanner_write_clear_stall_callback,
       .timeout   = 1000,
+      .interval  = 50, /* 50ms */
     },
 
     [3] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00,
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &uscanner_read_clear_stall_callback,
       .timeout   = 1000,
+      .interval  = 50, /* 50ms */
     },
 };
 
@@ -499,27 +501,14 @@ tr_error:
 static void
 uscanner_read_clear_stall_callback(struct usbd_xfer *xfer)
 {
-	struct uscanner_softc *sc;
-	struct usbd_xfer *xfer_other;
+	struct uscanner_softc *sc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_xfer[1];
 
-	sc = xfer->priv_sc;
-	xfer_other = sc->sc_xfer[1];
-
-	USBD_CHECK_STATUS(xfer);
-
-tr_setup:
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
-tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-	sc->sc_flags &= ~USCANNER_FLAG_READ_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
-tr_error:
-	sc->sc_flags &= ~USCANNER_FLAG_READ_STALL;
-	usb_cdev_put_data_error(&(sc->sc_cdev));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(0, "stall cleared\n");
+	    sc->sc_flags &= ~USCANNER_FLAG_READ_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -571,27 +560,14 @@ tr_error:
 static void
 uscanner_write_clear_stall_callback(struct usbd_xfer *xfer)
 {
-	struct uscanner_softc *sc;
-	struct usbd_xfer *xfer_other;
+	struct uscanner_softc *sc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
-	sc = xfer->priv_sc;
-	xfer_other = sc->sc_xfer[0];
-
-	USBD_CHECK_STATUS(xfer);
-
-tr_setup:
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
-tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-	sc->sc_flags &= ~USCANNER_FLAG_WRITE_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
-tr_error:
-	sc->sc_flags &= ~USCANNER_FLAG_WRITE_STALL;
-	usb_cdev_get_data_error(&(sc->sc_cdev));
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(0, "stall cleared\n");
+	    sc->sc_flags &= ~USCANNER_FLAG_WRITE_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 

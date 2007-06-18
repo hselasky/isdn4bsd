@@ -76,8 +76,10 @@ usbd_default_callback(struct usbd_xfer *xfer)
 
  tr_transferred:
         /* read data from xfer->buffer if any */
+        return;
+
  tr_error:
-        /* print error message */
+        /* print error message and clear stall for example */
         return;
 }
 
@@ -192,9 +194,26 @@ NOTE: if the transfer was in progress, the callback will called with
   "-1" or "UE_DIR_ANY" will select the first matching endpoint. Else valid
   values are: "UE_DIR_IN" and "UE_DIR_OUT". This field is mandatory.
 
-- The "interval" field selects the interrupt interval, for "type" = UE_INTERRUPT.
-  The "interval" is given in milliseconds. "0" selects the default
-  interrupt interval.
+- The "interval" field selects the interrupt interval. The value of this 
+  field is given in milliseconds and is independent of device speed. Depending
+  on the endpoint type, this field has different meaning:
+
+    UE_INTERRUPT)
+	"0" use the default interrupt interval based on endpoint descriptor.
+	"Else" use the given value for polling rate.
+
+    UE_ISOCHRONOUS)
+	"0" use default.
+	"Else" the value is ignored.
+
+    UE_BULK)
+    UE_CONTROL)
+	"0" no transfer pre-delay.
+	"Else" a delay as given by this field in milliseconds is
+	inserted before the hardware is started when
+	"usbd_start_hardware()" is called.
+	NOTE: The transfer timeout, if any, is started after that
+	the pre-delay has elapsed! 
 
 - The "timeout" field, if non-zero, will set the transfer timeout, in
   milliseconds.
@@ -207,13 +226,6 @@ NOTE: if the transfer was in progress, the callback will called with
   "index" should be used.
 
 - The "flags" field allows one to set flags for the transfer. Valid flags are:
-  USBD_SYNCHRONOUS
-	This flag can only be used with the default callback,
-	"usbd_default_callback()", and will cause the
-	"usbd_transfer_start()" function to sleep, exiting all
-	mutexes, until the transfer is finished. This flag is
-	depreciated.
-
   USBD_FORCE_SHORT_XFER
 	This flag forces the last USB packet sent to be short. A short
 	packet has a length of less than "xfer->max_packet_size", which
@@ -229,6 +241,10 @@ NOTE: if the transfer was in progress, the callback will called with
 	without exiting any mutexes, until the transfer is finished or
 	has timed out.
 
+	NOTE: If polling is used the "timeout" field should be non-zero!
+	NOTE: USBD_CANCELLED is returned in case of timeout
+	      instead of USBD_TIMEOUT!
+
   USBD_USE_DMA
 	This flag will cause the USB host controller driver to not
 	allocate a second data buffer, "xfer->buffer". Instead of
@@ -236,6 +252,29 @@ NOTE: if the transfer was in progress, the callback will called with
 	transferred by a call to "usbd_copy_in(&(xfer->buf_data),
 	offset, src, len)" or "usbd_copy_out(&(xfer->buf_data),
 	offset, dst, len)". This saves an extra data copy.
+
+  USBD_PIPE_BOF
+	This flag causes a failing USB transfer to remain first
+	in the PIPE queue except in the case of "xfer->error" equal
+	to "USBD_CANCELLED". No other USB transfers in the affected
+	PIPE queue will be started until either:
+
+	1) The failing USB transfer is stopped using "usbd_transfer_stop()".
+	2) The failing USB transfer performs a successful transfer.
+
+	The purpose of this flag is to avoid races when multiple
+	transfers are queued for execution on an USB endpoint, and
+	the first executing transfer fails leading to the need
+	for clearing of stall for example. In this case this flag
+	is used to prevent the following USB transfers from being
+	executed at the same time the clear-stall command is
+	executed on the USB control endpoint.
+
+	"BOF" is short for "Block On Failure"
+
+	NOTE: This flag should be set on all BULK and INTERRUPT
+	USB transfers which use an endpoint that can be shared
+	between userland and kernel.
 
 - The "bufsize" field sets the total buffer size in bytes. If
   this field is zero, "wMaxPacketSize" will be used, multiplied by the

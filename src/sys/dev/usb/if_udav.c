@@ -159,20 +159,20 @@ static const struct usbd_config udav_config[UDAV_ENDPT_MAX] = {
 
     [0] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_OUT,
       .bufsize   = (MCLBYTES + 2),
-      .flags     = (USBD_USE_DMA|USBD_FORCE_SHORT_XFER),
+      .flags     = (USBD_PIPE_BOF|USBD_USE_DMA|USBD_FORCE_SHORT_XFER),
       .callback  = &udav_bulk_write_callback,
       .timeout   = 10000, /* 10 seconds */
     },
 
     [1] = {
       .type      = UE_BULK,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
       .bufsize   = (MCLBYTES + 3),
-      .flags     = (USBD_USE_DMA|USBD_SHORT_XFER_OK),
+      .flags     = (USBD_PIPE_BOF|USBD_USE_DMA|USBD_SHORT_XFER_OK),
       .callback  = &udav_bulk_read_callback,
       .timeout   = 0, /* no timeout */
     },
@@ -180,28 +180,30 @@ static const struct usbd_config udav_config[UDAV_ENDPT_MAX] = {
     [2] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &udav_bulk_write_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [3] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &udav_bulk_read_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 
     [4] = {
       .type      = UE_INTERRUPT,
-      .endpoint  = -1, /* any */
+      .endpoint  = UE_ADDR_ANY,
       .direction = UE_DIR_IN,
-      .flags     = USBD_SHORT_XFER_OK,
+      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
       .bufsize   = 0, /* use wMaxPacketSize */
       .callback  = &udav_intr_callback,
     },
@@ -209,11 +211,12 @@ static const struct usbd_config udav_config[UDAV_ENDPT_MAX] = {
     [5] = {
       .type      = UE_CONTROL,
       .endpoint  = 0x00, /* Control pipe */
-      .direction = -1,
+      .direction = UE_DIR_ANY,
       .bufsize   = sizeof(usb_device_request_t),
       .flags     = USBD_USE_DMA,
       .callback  = &udav_intr_clear_stall_callback,
       .timeout   = 1000, /* 1 second */
+      .interval  = 50, /* 50ms */
     },
 };
 
@@ -862,24 +865,11 @@ udav_bulk_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct udav_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-
-	sc->sc_flags &= ~UDAV_FLAG_WRITE_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~UDAV_FLAG_WRITE_STALL;
-	DPRINTF(sc, 0, "bulk write pipe stopped\n");
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UDAV_FLAG_WRITE_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -983,24 +973,11 @@ udav_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct udav_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[1];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-	return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-
-	sc->sc_flags &= ~UDAV_FLAG_READ_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~UDAV_FLAG_READ_STALL;
-	DPRINTF(sc, 0, "bulk read pipe stopped\n");
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UDAV_FLAG_READ_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 
@@ -1103,24 +1080,11 @@ udav_intr_clear_stall_callback(struct usbd_xfer *xfer)
 	struct udav_softc *sc = xfer->priv_sc;
 	struct usbd_xfer *xfer_other = sc->sc_xfer[4];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_setup:
-	/* start clear stall */
-	usbd_clear_stall_tr_setup(xfer, xfer_other);
-        return;
-
- tr_transferred:
-	usbd_clear_stall_tr_transferred(xfer, xfer_other);
-
-	sc->sc_flags &= ~UDAV_FLAG_INTR_STALL;
-	usbd_transfer_start(xfer_other);
-	return;
-
- tr_error:
-	/* bomb out */
-	sc->sc_flags &= ~UDAV_FLAG_INTR_STALL;
-	DPRINTF(sc, 0, "interrupt read pipe stopped\n");
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+	    DPRINTF(sc, 0, "stall cleared\n");
+	    sc->sc_flags &= ~UDAV_FLAG_INTR_STALL;
+	    usbd_transfer_start(xfer_other);
+	}
 	return;
 }
 

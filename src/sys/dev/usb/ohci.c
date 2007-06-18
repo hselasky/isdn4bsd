@@ -121,6 +121,7 @@ extern struct usbd_pipe_methods ohci_root_intr_methods;
 
 static usbd_config_td_command_t ohci_root_ctrl_task;
 static void ohci_root_ctrl_task_td(struct ohci_softc *sc, struct thread *ctd);
+static void ohci_do_poll(struct usbd_bus *bus);
 
 #define SC_HW_PHYSADDR(sc,what) \
   ((sc)->sc_hw_page.physaddr + \
@@ -379,6 +380,8 @@ ohci_init(ohci_softc_t *sc)
 	else
 	{
 		mtx_unlock(&sc->sc_bus.mtx);
+		/* catch any lost interrupts */
+		ohci_do_poll(&(sc->sc_bus));
 		return (USBD_NORMAL_COMPLETION);
 	}
 }
@@ -475,6 +478,10 @@ ohci_resume(ohci_softc_t *sc)
 	sc->sc_control = sc->sc_intre = 0;
 
 	mtx_unlock(&sc->sc_bus.mtx);
+
+	/* catch any lost interrupts */
+	ohci_do_poll(&(sc->sc_bus));
+
 	return;
 }
 
@@ -1677,12 +1684,6 @@ ohci_device_done(struct usbd_xfer *xfer, usbd_status error)
 	    DELAY(need_delay ? (2*1000) : (5));
 	}
 
-	if(error)
-	{
-		/* next transfer needs to clear stall */
-		xfer->pipe->clearstall = 1;
-	}
-
 	/* transfer is transferred ! */
 	usbd_transfer_done(xfer,error);
 
@@ -2119,12 +2120,6 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 		xfer->timeout = 1000/4;
 	}
 
-	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
-	{
-		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-				(void *)(void *)ohci_timeout, xfer);
-	}
-
 	/* enqueue transfer 
 	 * (so that it can be aborted through pipe abort)
 	 */
@@ -2135,7 +2130,12 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 static void
 ohci_device_isoc_start(struct usbd_xfer *xfer)
 {
-	/* already started, nothing to do */
+	/* start timeout, if any (should not be done by the enter routine) */
+	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
+	{
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)ohci_timeout, xfer);
+	}
 	return;
 }
 
@@ -2844,7 +2844,7 @@ ohci_xfer_setup(struct usbd_device *udev,
 	  }
 	  else
 	  {
-		usbd_std_transfer_setup(xfer, setup, 0x500, 0x500, 1);
+		usbd_std_transfer_setup(udev, xfer, setup, 0x500, 0x500, 1);
 
 		/*
 		 * calculate ntd and nqh

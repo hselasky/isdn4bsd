@@ -138,6 +138,7 @@ extern struct usbd_pipe_methods uhci_root_intr_methods;
 
 static usbd_config_td_command_t uhci_root_ctrl_task;
 static void uhci_root_ctrl_task_td(struct uhci_softc *sc, struct thread *ctd);
+static void uhci_do_poll(struct usbd_bus *bus);
 
 void
 uhci_reset(uhci_softc_t *sc)
@@ -439,6 +440,9 @@ uhci_init(uhci_softc_t *sc)
 
 	mtx_unlock(&sc->sc_bus.mtx);
 
+	/* catch lost interrupts */
+	uhci_do_poll(&(sc->sc_bus));
+
 	return 0;
 }
 
@@ -503,6 +507,10 @@ uhci_resume(uhci_softc_t *sc)
 #endif
 
 	mtx_unlock(&sc->sc_bus.mtx);
+
+	/* catch lost interrupts */
+	uhci_do_poll(&(sc->sc_bus));
+
 	return;
 }
 
@@ -1723,12 +1731,6 @@ uhci_device_done(struct usbd_xfer *xfer, usbd_status error)
 	    DELAY(need_delay ? ((3*1000)/2) : UHCI_QH_REMOVE_DELAY);
 	}
 
-	if(error)
-	{
-		/* next transfer needs to clear stall */
-		xfer->pipe->clearstall = 1;
-	}
-
 	/* transfer is transferred ! */
 	usbd_transfer_done(xfer,error);
 
@@ -2247,12 +2249,6 @@ uhci_device_isoc_enter(struct usbd_xfer *xfer)
 	/**/
 	uhci_add_interrupt_info(sc, xfer);
 
-	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
-	{
-		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
-				(void *)(void *)uhci_timeout, xfer);
-	}
-
 	/* enqueue transfer 
 	 * (so that it can be aborted through pipe abort)
 	 */
@@ -2263,7 +2259,12 @@ uhci_device_isoc_enter(struct usbd_xfer *xfer)
 static void
 uhci_device_isoc_start(struct usbd_xfer *xfer)
 {
-	/* already started, nothing to do */
+	/* start timeout, if any (should not be done by the enter routine) */
+	if(xfer->timeout && (!(xfer->flags & USBD_USE_POLLING)))
+	{
+		__callout_reset(&xfer->timeout_handle, MS_TO_TICKS(xfer->timeout),
+				(void *)(void *)uhci_timeout, xfer);
+	}
 	return;
 }
 
@@ -3147,7 +3148,7 @@ uhci_xfer_setup(struct usbd_device *udev,
 	  }
 	  else
 	  {
-		usbd_std_transfer_setup(xfer, setup, 0x500, 0x500, 1);
+		usbd_std_transfer_setup(udev, xfer, setup, 0x500, 0x500, 1);
 
 		/*
 		 * compute ntd and nqh
