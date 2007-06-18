@@ -625,7 +625,9 @@ uhub_attach(device_t dev)
 
 	/* start the interrupt endpoint */
 
-	usbd_transfer_start_safe(sc->sc_xfer[0]);
+	mtx_lock(sc->sc_xfer[0]->priv_mtx);
+	usbd_transfer_start(sc->sc_xfer[0]);
+	mtx_unlock(sc->sc_xfer[0]->priv_mtx);
 
 	return 0;
 

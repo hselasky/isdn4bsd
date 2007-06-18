@@ -644,7 +644,6 @@ void		usbd_std_ctrl_copy_in(struct usbd_xfer *xfer);
 void		usbd_std_ctrl_copy_out(struct usbd_xfer *xfer);
 uint8_t		usbd_std_ctrl_enter(struct usbd_xfer *xfer);
 void		usbd_start_hardware(struct usbd_xfer *xfer);
-void		usbd_transfer_start_safe(struct usbd_xfer *xfer);
 void		usbd_transfer_start(struct usbd_xfer *xfer);
 void		usbd_transfer_stop(struct usbd_xfer *xfer);
 void		__usbd_callback(struct usbd_xfer *xfer);

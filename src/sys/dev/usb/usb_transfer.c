@@ -697,15 +697,6 @@ usbd_start_hardware(struct usbd_xfer *xfer)
 	return;
 }
 
-void
-usbd_transfer_start_safe(struct usbd_xfer *xfer)
-{
-	mtx_lock(xfer->priv_mtx);
-	usbd_transfer_start(xfer);
-	mtx_unlock(xfer->priv_mtx);
-	return;
-}
-
 /*---------------------------------------------------------------------------*
  *	usbd_transfer_start - start an USB transfer
  *
@@ -1221,11 +1212,15 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 	    usbd_copy_in(&(xfer->buf_data), sizeof(*req), data, length);
 	}
 
-	if (mtx) {
-	    usbd_transfer_start(xfer);
-	} else {
-	    usbd_transfer_start_safe(xfer);
+	if (mtx == NULL) {
+	    /* XXX This code will go away
+	     * when we have fixed all the
+	     * callers
+	     */
+	    mtx_lock(xfer->priv_mtx);
 	}
+
+	usbd_transfer_start(xfer);
 
 	while (xfer->flags & USBD_DEV_TRANSFERRING) {
 
@@ -1236,6 +1231,11 @@ usbd_do_request_flags_mtx(struct usbd_device *udev, struct mtx *mtx,
 	    }
 
 	    mtx_pickup_recurse(xfer->priv_mtx, level);
+	}
+
+	if (mtx == NULL) {
+	    /* XXX */
+	    mtx_unlock(xfer->priv_mtx);
 	}
 
 	if(req->bmRequestType & UT_READ)
