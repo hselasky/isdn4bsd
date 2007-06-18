@@ -1,5 +1,5 @@
 VERSION=1_6_3
-DATE=May 2007
+DATE=June 2007
 
 FILTER= grep -v "temp"   |\
 	grep -v "~"      |\
@@ -113,6 +113,7 @@ DIFF_FILES=\
 ${UAUDIO_FILES} \
 ${URAL_FILES} \
 ${S}/sys/conf/kmod.mk \
+${S}/usr.sbin/usbd/usbd.c \
 
 BACKUP_FILES=\
 ${REMOVE_FILES} \
@@ -207,6 +208,8 @@ backup:
 # make directory tree
 #
 	mkdir ${S}                     || echo -n
+	mkdir ${S}/usr.sbin            || echo -n
+	mkdir ${S}/usr.sbin/usbd       || echo -n
 	mkdir ${S}/sys                 || echo -n
 	mkdir ${S}/sys/arm             || echo -n
 	mkdir ${S}/sys/arm/at91        || echo -n
@@ -363,6 +366,10 @@ install: ${DIFF} ${PACKAGE} help backup update_config
 # patch 12
 	rm -f ${URAL_FILES} || echo -n
 	touch ${URAL_FILES} || echo -n
+
+# patch 13
+	rm -f ${S}/usr.sbin/usbd/usbd.c || echo -n
+	(echo "int main() {  return 0; }" > ${S}/usr.sbin/usbd/usbd.c) || echo -n
 
 # done
 

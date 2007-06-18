@@ -1,5 +1,5 @@
 VERSION=1_6_3
-DATE=May 2007
+DATE=June 2007
 
 FILTER= grep -v "temp"   | \
 	grep -v "~"      | \
@@ -157,6 +157,7 @@ ${S}/sys/dev/sound/isa/sb8.c \
 ${S}/etc/mtree/BSD.include.dist \
 ${S}/include/Makefile \
 ${S}/usr.sbin/Makefile.inc \
+${S}/usr.sbin/usbd/usbd.c \
 ${S}/lib/Makefile \
 
 BACKUP_FILES=\
@@ -333,6 +334,7 @@ backup:
 	mkdir ${S}/usr.sbin            || echo -n
 	mkdir ${S}/usr.sbin/i4b        || echo -n
 	mkdir ${S}/usr.sbin/ppp        || echo -n
+	mkdir ${S}/usr.sbin/usbd       || echo -n
 	mkdir ${S}/sys                 || echo -n
 	mkdir ${S}/sys/arm             || echo -n
 	mkdir ${S}/sys/arm/at91        || echo -n
@@ -601,6 +603,10 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_pcm
 # patch 12
 	rm -f ${URAL_FILES} || echo -n
 	touch ${URAL_FILES} || echo -n
+
+# patch 13
+	rm -f ${S}/usr.sbin/usbd/usbd.c || echo -n
+	(echo "int main() {  return 0; }" > ${S}/usr.sbin/usbd/usbd.c) || echo -n
 
 #
 # final install
