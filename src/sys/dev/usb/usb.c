@@ -207,6 +207,14 @@ usb_event_thread(struct usbd_bus *bus)
 
 		usb_discover(bus);
 
+		/* Check if a detach happened
+		 * during discover:
+		 */
+		if(bus->root_port.device == 0)
+		{
+			break;
+		}
+
 		error = mtx_sleep(&bus->needs_explore, &usb_global_lock,
 				  0, "usbevt", hz * 60);
 
@@ -461,8 +469,8 @@ usb_detach(device_t dev)
 	{
 		bus->wait_explore = 1;
 
-		mtx_sleep(&bus->wait_explore, &usb_global_lock, 0,
-			  "usb wait explore", 0);
+		error = mtx_sleep(&bus->wait_explore, &usb_global_lock, 0,
+				  "usb wait explore", 0);
 	}
 
 	/* detach children first */
