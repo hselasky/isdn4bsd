@@ -1092,7 +1092,8 @@ ugenread(struct cdev *dev, struct uio *uio, int flag)
 			/* start transfer */
 			usbd_transfer_start(xfer);
 
-			while (xfer->flags & USBD_DEV_TRANSFERRING) {
+			while ((xfer->flags & USBD_DEV_TRANSFERRING) ||
+				(sce->xfer_in[1]->flags & USBD_DEV_TRANSFERRING)) {
 
 			    /* wait for data */
 
@@ -1217,7 +1218,8 @@ ugenwrite(struct cdev *dev, struct uio *uio, int flag)
 			/* start transfer */
 			usbd_transfer_start(xfer);
 
-			while (xfer->flags & USBD_DEV_TRANSFERRING) {
+			while ((xfer->flags & USBD_DEV_TRANSFERRING) ||
+				(sce->xfer_out[1]->flags & USBD_DEV_TRANSFERRING)) {
 
 			    /* wait for data */
 
@@ -1489,7 +1491,7 @@ ugen_write_clear_stall_callback(struct usbd_xfer *xfer)
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
 	    PRINTFN(4, ("sce=%p: stall cleared\n", sce));
-	    sce->write_stall = 1;
+	    sce->write_stall = 0;
 	    usbd_transfer_start(xfer_other);
 	}
 	return;
