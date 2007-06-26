@@ -282,6 +282,15 @@ typedef struct {
 	chanstat_t chanstat;
 } i4b_debug_t;
 
+typedef struct {
+	u_int32_t uid;
+	u_int32_t gid;
+	u_int16_t mode;
+	u_int16_t max_units;
+	u_int16_t unused0;
+	u_int16_t unused1;
+} i4b_capi_delegate_t;
+
 #define I4B_CTL_GET_DEBUG           _IOR ('C', 0, i4b_debug_t)
 #define I4B_CTL_SET_DEBUG           _IOW ('C', 1, i4b_debug_t)
 #define I4B_CTL_GET_CHIPSTAT        _IOWR('C', 2, i4b_debug_t) /* get chipset statistics               */
@@ -309,6 +318,7 @@ typedef struct {
 #define  I4B_OPTION_POLLED_MODE       0x0080 /* If set, else standard mode */
 #define  I4B_OPTION_LOCAL_LOOP        0x0100 /* If set, else disabled */
 #define  I4B_OPTION_REMOTE_LOOP       0x0200 /* If set, else disabled */
+#define I4B_CTL_CAPI_DELEGATE       _IOW('C',26, i4b_capi_delegate_t) /* delegate CAPI access */
 
 /*---------------------------------------------------------------------------*
  *	I4B echo cancel debug IOCTL structure
@@ -320,6 +330,7 @@ typedef struct {
 	uint32_t npoints;
 	uint32_t what;
 	uint32_t offset;
+	 int32_t decimal_point;
 	 int32_t ydata[128];
 } i4b_ec_debug_t;
 

@@ -24,7 +24,7 @@
 .\"
 .\" $FreeBSD: $
 .\"
-.Dd May 22, 2007
+.Dd June 25, 2007
 .Dt ISDNCONFIG 8
 .Os
 .Sh NAME
@@ -116,6 +116,8 @@ Select E1 cable mode, if supported by hardware (default).
 .It dump_ec
 Dump echo cancel state information in matlab compatible format to standard
 out. This command requires a valid -u and -c option.
+.It capi_delegate
+Delegate one or more CAPI applications to a user. See examples below for syntax.
 .El
 .Ed
 .Sh EXAMPLES
@@ -179,6 +181,19 @@ isdnconfig -u 0 -c 1 dump_ec | octave
 .Ed
 .Pp
 dumps echo cancel information for unit zero and channel B1 to octave.
+.
+.Pp
+The command:
+.Bd -literal -offset indent
+isdnconfig capi_delegate root:wheel 0600 2 end
+.Ed
+.Pp
+delegates a maximum of 2 CAPI applications to the "root" user and the
+"wheel" group with rights 0600 which is given in octal. You should
+always delegate one more CAPI application than the user will actually
+use, due to the way
+.Xr libcapi20
+is implemented!
 .
 .Sh AUTHORS
 The

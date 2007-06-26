@@ -62,6 +62,14 @@
 
 __FBSDID("$FreeBSD: $");
 
+struct capi_delegate {
+	uint32_t uid;
+	uint32_t gid;
+	uint16_t mode;
+	uint16_t use_count;
+	uint16_t max_count;
+};
+
 /* the following structure describes one CAPI application */
 
 struct capi_ai_softc {
@@ -76,6 +84,8 @@ struct capi_ai_softc {
 	u_int16_t sc_max_b_data_blocks;
 
 	struct cdev *sc_dev;
+
+	struct capi_delegate *sc_delegate;
 
 	struct mtx sc_mtx; /* lock that protects this structure */
 
@@ -121,7 +131,15 @@ static cdevsw_t capi_cdevsw = {
 
 #define DEV2SC(dev) (*((struct capi_ai_softc **)&((dev)->si_drv1)))
 
+#define CAPI_DELEGATES_MAX 16
+
 static struct capi_ai_softc *capi_ai_sc_root = NULL;
+
+/* the following structure is protected by "capi_ai_global_lock" */
+
+static struct capi_delegate capi_delegate[CAPI_DELEGATES_MAX];
+
+static uint16_t capi_delegate_count = 0;
 
 static struct cdev *capi_dev = NULL;
 
@@ -131,26 +149,135 @@ static u_int32_t capi_units = 0;
 
 #define CAPINAME "capi20"
 
+static struct capi_delegate *
+capi_ai_find_delegate_by_uid(uint32_t uid)
+{
+	struct capi_delegate *dg = capi_delegate + 1;
+	struct capi_delegate *dg_end = capi_delegate + capi_delegate_count;
+
+	if (uid >= 0xffffffff) return NULL;
+
+	while (dg != dg_end) {
+	    if (dg->uid == uid) {
+	        return dg;
+	    }
+	    dg++;
+	}
+	return NULL;
+}
+
+static struct capi_delegate *
+capi_ai_find_delegate_by_gid(uint32_t gid)
+{
+	struct capi_delegate *dg = capi_delegate + 1;
+	struct capi_delegate *dg_end = capi_delegate + capi_delegate_count;
+
+	if (gid >= 0xffffffff) return NULL;
+
+	while (dg != dg_end) {
+	    if (dg->gid == gid) {
+	        return dg;
+	    }
+	    dg++;
+	}
+	return NULL;
+}
+
+static uint8_t
+capi_ai_update_delegate(i4b_capi_delegate_t *capi_dg)
+{
+	struct capi_delegate *dg;
+	uint16_t mode;
+	uint8_t error = 0;
+
+	dg = capi_ai_find_delegate_by_uid(capi_dg->uid);
+	mode = (capi_dg->mode & 0600) ? 0600 : 0000;
+
+	if (dg == NULL) {
+	    /* create a new delegate */
+	    if (capi_delegate_count >= CAPI_DELEGATES_MAX) {
+	        error = 1;
+		goto try_gid;
+	    }
+
+	    dg = capi_delegate + capi_delegate_count;
+	    capi_delegate_count ++;
+	    dg->uid = capi_dg->uid;
+	    dg->gid = 0xffffffff;
+	    dg->use_count = 0;
+	}
+
+	/* simply update */
+	dg->mode = mode;
+	dg->max_count = capi_dg->max_units;
+
+ try_gid:
+	dg = capi_ai_find_delegate_by_gid(capi_dg->gid);
+	mode = (capi_dg->mode & 0060) ? 0060 : 0000;
+
+	if (dg == NULL) {
+	    /* create a new delegate */
+	    if (capi_delegate_count >= CAPI_DELEGATES_MAX) {
+	        error = 1;
+		goto done;
+	    }
+	    dg = capi_delegate + capi_delegate_count;
+	    capi_delegate_count ++;
+	    dg->uid = 0xffffffff;
+	    dg->gid = capi_dg->gid;
+	    dg->use_count = 0;
+	}
+
+	/* simply update */
+	dg->mode = mode;
+	dg->max_count = capi_dg->max_units;
+
+ done:
+	return error;
+}
+
+static void
+capi_ai_global_lock(uint8_t do_lock)
+{
+	static uint8_t flag = 0;
+	int error;
+
+	mtx_assert(&i4b_global_lock, MA_OWNED);
+
+	/* XXX we should replace this by a SX lock one day! */
+
+	if (do_lock)
+	{
+	    while (flag)
+	    {
+		flag |= 2;
+		error = msleep(&flag, &i4b_global_lock, 
+			       0, "CAPI AI create unit", 0);
+	    }
+	    flag = 1;
+	}
+	else
+	{
+	    if (flag & 2)
+	    {
+		wakeup(&flag);
+	    }
+	    flag = 0;
+	}
+	return;
+}
+
 static struct capi_ai_softc *
-capi_ai_get_closed_sc(void)
+capi_ai_get_closed_sc(struct capi_delegate *dg, struct ucred *ucred)
 {
 	struct capi_ai_softc *sc;
 	u_int8_t free_sc = 0;
 	u_int8_t link_sc = 0;
 	u_int32_t unit;
 
-	static u_int8_t flag = 0;
-
 	mtx_lock(&i4b_global_lock);
 
-	while(flag)
-	{
-		flag |= 2;
-		(void) msleep(&flag, &i4b_global_lock, 
-		       PZERO, "CAPI AI create unit", 0);
-	}
-
-	flag = 1;
+	capi_ai_global_lock(1);
 
 	sc = capi_ai_sc_root;
 
@@ -158,6 +285,24 @@ capi_ai_get_closed_sc(void)
 
 	mtx_unlock(&i4b_global_lock);
 
+	if (dg == NULL) {
+
+	    /* try by user first */
+
+	    dg = capi_ai_find_delegate_by_uid(ucred->cr_ruid);
+	    if ((dg == NULL) || 
+		((dg->mode & 0600) == 0)) {
+
+	        /* try by group second */
+
+	        dg = capi_ai_find_delegate_by_gid(ucred->cr_rgid);
+		if ((dg == NULL) || 
+		    ((dg->mode & 0060) == 0)) {
+			sc = NULL;
+			goto done;
+		}
+	    }
+	}
 
 	/* first search for an existing closed device */
 
@@ -167,7 +312,11 @@ capi_ai_get_closed_sc(void)
 
 	    mtx_lock(&sc->sc_mtx);
 
-	    closed = !(sc->sc_flags & (ST_OPEN|ST_CLOSING|ST_OPENING));
+	    if (sc->sc_delegate != dg) {
+	        closed = 0;
+	    } else {
+	        closed = !(sc->sc_flags & (ST_OPEN|ST_CLOSING|ST_OPENING));
+	    }
 
 	    mtx_unlock(&sc->sc_mtx);
 
@@ -188,6 +337,10 @@ capi_ai_get_closed_sc(void)
 		goto done;
 	}
 
+	if (dg->use_count >= dg->max_count)
+	{
+		goto done;
+	}
 
 	/* try to create another unit */
 
@@ -208,8 +361,9 @@ capi_ai_get_closed_sc(void)
 	mtx_init(&sc->sc_mtx, "CAPI AI", NULL, MTX_DEF | MTX_RECURSE);
 
 	sc->sc_dev = 
-	  make_dev(&capi_cdevsw, unit+1, UID_ROOT, GID_WHEEL, 0600, 
-		   CAPINAME ".%03x", unit);
+	  make_dev(&capi_cdevsw, unit+1, (dg->uid < 0xffffffff) ? dg->uid : UID_ROOT,
+					 (dg->gid < 0xffffffff) ? dg->gid : GID_WHEEL,
+					  dg->mode, CAPINAME ".%03x", unit);
 
 	if(sc->sc_dev == NULL)
 	{
@@ -218,6 +372,7 @@ capi_ai_get_closed_sc(void)
 	}
 
 	DEV2SC(sc->sc_dev) = sc;
+	sc->sc_delegate = dg;
 
 	link_sc = 1;
 
@@ -242,13 +397,13 @@ capi_ai_get_closed_sc(void)
 	    sc->sc_next = capi_ai_sc_root;
 	    capi_ai_sc_root = sc;
 	    capi_units ++;
+
+	    /* update delegate count */
+
+	    dg->use_count ++;
 	}
 
-	if(flag & 2)
-	{
-		wakeup(&flag);
-	}
-	flag = 0;
+	capi_ai_global_lock(0);
 
 	if(sc)
 	{
@@ -276,6 +431,8 @@ static void
 capi_clone(void *arg, I4B_UCRED char *name, int namelen, struct cdev **dev)
 {
 	struct capi_ai_softc *sc;
+	struct thread *td;
+	struct ucred *uc;
 
         if(dev[0] != NULL)
 	{
@@ -287,13 +444,20 @@ capi_clone(void *arg, I4B_UCRED char *name, int namelen, struct cdev **dev)
 		return;
         }
 
-#if ((__FreeBSD_version >= 700001) || (__FreeBSD_version == 0))
-	if(suser_cred(ucred,0))
+	td = curthread;
+	uc = td->td_ucred;
+
+	if (uc == NULL)
 	{
+		/* sanity */
 		return;
 	}
-#endif
-  	sc = capi_ai_get_closed_sc();
+
+	if (suser(td)) {
+	    sc = capi_ai_get_closed_sc(NULL, uc);
+	} else {
+	    sc = capi_ai_get_closed_sc(capi_delegate, uc);
+	}
 
 	if(sc == NULL)
 	{
@@ -326,6 +490,14 @@ capi_ai_attach(void *dummy)
 {
 	/* check type of "capi_clone()": */
 	dev_clone_fn capi_clone_ptr = &capi_clone;
+
+	/* init root delegate */
+
+	capi_delegate[0].uid = UID_ROOT;
+	capi_delegate[0].gid = GID_WHEEL;
+	capi_delegate[0].mode = 0600;
+	capi_delegate[0].max_count = CAPI_APPLICATION_MAX;
+	capi_delegate_count ++;
 
 	capi_clone_tag = EVENTHANDLER_REGISTER(dev_clone, capi_clone_ptr, 0, 1000);
 
@@ -3470,6 +3642,40 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		/* forward ioctl to layer 1 (ignore any errors) */
 
 		(void) L1_COMMAND_REQ(cntl, CMR_CAPI_GET_PROFILE, data);
+
+		break;
+	}
+
+	case I4B_CTL_CAPI_DELEGATE:
+	{
+		i4b_capi_delegate_t *capi_dg = (void *)data;
+
+		/* check credentials */
+
+		if(suser(curthread))
+		{
+		    error = EPERM;
+		    break;
+		}
+
+		if ((capi_dg->uid >= 0xffffffff) ||
+		    (capi_dg->gid >= 0xffffffff))
+		{
+		    error = EINVAL;
+		    break;
+		}
+
+		mtx_lock(&i4b_global_lock);
+
+		capi_ai_global_lock(1);
+
+		if (capi_ai_update_delegate(capi_dg)) {
+		    error = ENOMEM;
+		}
+
+		capi_ai_global_lock(0);
+
+		mtx_unlock(&i4b_global_lock);
 
 		break;
 	}
