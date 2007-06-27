@@ -815,12 +815,12 @@ struct usb_device_poll_urb {
 #define USB_DEVICESTATS		_IOR ('U', 5, struct usb_device_stats)
 #define USB_DEVICEENUMERATE	_IOW ('U', 6, struct usb_device_enumerate)
 
-#define	USB_DEVICE_VEP_SETUP	_IOW ('U',10, struct usb_device_vep_setup);
-#define	USB_DEVICE_VEP_UNSETUP	_IOW ('U',11, struct usb_device_vep_unsetup);
-#define	USB_DEVICE_PUT_URB	_IOW ('U',12, struct usb_device_put_urb);
-#define	USB_DEVICE_GET_URB	_IOW ('U',13, struct usb_device_get_urb);
-#define	USB_DEVICE_CANCEL_URB	_IOW ('U',14, struct usb_device_cancel_urb);
-#define	USB_DEVICE_POLL_URB	_IOR ('U',15, struct usb_device_poll_urb);
+#define	USB_DEVICE_VEP_SETUP	_IOW ('U',10, struct usb_device_vep_setup)
+#define	USB_DEVICE_VEP_UNSETUP	_IOW ('U',11, struct usb_device_vep_unsetup)
+#define	USB_DEVICE_PUT_URB	_IOW ('U',12, struct usb_device_put_urb)
+#define	USB_DEVICE_GET_URB	_IOW ('U',13, struct usb_device_get_urb)
+#define	USB_DEVICE_CANCEL_URB	_IOW ('U',14, struct usb_device_cancel_urb)
+#define	USB_DEVICE_POLL_URB	_IOR ('U',15, struct usb_device_poll_urb)
 
 /* Generic HID device */
 #define USB_GET_REPORT_DESC	_IOR ('U', 21, struct usb_ctl_report_desc)
