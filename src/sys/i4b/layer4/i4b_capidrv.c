@@ -268,7 +268,7 @@ capi_ai_global_lock(uint8_t do_lock)
 }
 
 static struct capi_ai_softc *
-capi_ai_get_closed_sc(struct capi_delegate *dg, struct ucred *ucred)
+capi_ai_get_closed_sc(struct capi_delegate *dg, struct thread *td)
 {
 	struct capi_ai_softc *sc;
 	u_int8_t free_sc = 0;
@@ -288,14 +288,20 @@ capi_ai_get_closed_sc(struct capi_delegate *dg, struct ucred *ucred)
 	if (dg == NULL) {
 
 	    /* try by user first */
-
-	    dg = capi_ai_find_delegate_by_uid(ucred->cr_ruid);
+#ifdef __FreeBSD__
+	    dg = capi_ai_find_delegate_by_uid(td->td_ucred->cr_ruid);
+#else
+	    dg = capi_ai_find_delegate_by_uid(td->p_cred->p_ruid);
+#endif
 	    if ((dg == NULL) || 
 		((dg->mode & 0600) == 0)) {
 
 	        /* try by group second */
-
-	        dg = capi_ai_find_delegate_by_gid(ucred->cr_rgid);
+#ifdef __FreeBSD__
+	        dg = capi_ai_find_delegate_by_gid(td->td_ucred->cr_rgid);
+#else
+		dg = capi_ai_find_delegate_by_gid(td->p_cred->p_rgid);
+#endif
 		if ((dg == NULL) || 
 		    ((dg->mode & 0060) == 0)) {
 			sc = NULL;
@@ -432,7 +438,6 @@ capi_clone(void *arg, I4B_UCRED char *name, int namelen, struct cdev **dev)
 {
 	struct capi_ai_softc *sc;
 	struct thread *td;
-	struct ucred *uc;
 
         if(dev[0] != NULL)
 	{
@@ -445,18 +450,21 @@ capi_clone(void *arg, I4B_UCRED char *name, int namelen, struct cdev **dev)
         }
 
 	td = curthread;
-	uc = td->td_ucred;
 
-	if (uc == NULL)
+#ifdef __FreeBSD__
+	if (td->td_ucred == NULL)
+#else
+	if (td->p_cred == NULL)
+#endif
 	{
 		/* sanity */
 		return;
 	}
 
 	if (suser(td)) {
-	    sc = capi_ai_get_closed_sc(NULL, uc);
+	    sc = capi_ai_get_closed_sc(NULL, td);
 	} else {
-	    sc = capi_ai_get_closed_sc(capi_delegate, uc);
+	    sc = capi_ai_get_closed_sc(capi_delegate, td);
 	}
 
 	if(sc == NULL)
