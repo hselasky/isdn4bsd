@@ -2305,7 +2305,12 @@ umass_cam_attach_sim(struct umass_softc *sc)
 	mtx_lock(&(sc->sc_mtx));
 #endif
 
+#if (__FreeBSD_version >= 700048)
+	if(xpt_bus_register(sc->sc_sim, sc->sc_dev, sc->sc_unit) != CAM_SUCCESS) {
+#else
 	if(xpt_bus_register(sc->sc_sim, sc->sc_unit) != CAM_SUCCESS) {
+#endif
+
 #if (__FreeBSD_version >= 700037)
 	    mtx_unlock(&(sc->sc_mtx));
 #endif
