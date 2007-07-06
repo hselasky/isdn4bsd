@@ -15,9 +15,7 @@ This file should give you some help on how to install this driver.
 SUPPORTED OPERATING SYSTEMS
 ===========================
 
- - FreeBSD-5.3
- - FreeBSD-5.4
- - FreeBSD-5-current
+ - FreeBSD-6.2-release
  - FreeBSD-6-current
  - FreeBSD-7-current
 

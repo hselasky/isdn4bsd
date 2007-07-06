@@ -57,11 +57,23 @@
 #define USB_MAX_DEVICES 128
 #define USB_START_ADDR 0
 
+#define	USB_ISOC_TIME_MAX 128 /* ms */
+#define	USB_FS_ISOC_UFRAME_MAX 4 /* exclusive unit */
+
+#if (USB_FS_ISOC_UFRAME_MAX > 6)
+#error "(USB_FS_ISOC_UFRAME_MAX > 6)"
+#endif
+
+#define	USB_PAGE_SIZE PAGE_SIZE
+
 #define USB_CONTROL_ENDPOINT 0
 #define USB_MAX_ENDPOINTS (2*16)
 
-#define USB_FRAMES_PER_SECOND_FS 1000 /* full speed */
-#define USB_FRAMES_PER_SECOND_HS 8000 /* high speed */
+#define	USB_FRAMES_PER_SECOND_FS 1000 /* full speed */
+#define	USB_FRAMES_PER_SECOND_HS 8000 /* high speed */
+
+#define	USB_FS_BYTES_PER_HS_UFRAME 188 /* bytes */
+#define	USB_HS_MICRO_FRAMES_MAX 8 /* units */
 
 #ifndef __UA_TYPES_H__
 #define __UA_TYPES_H__

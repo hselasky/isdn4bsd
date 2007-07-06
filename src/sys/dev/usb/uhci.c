@@ -128,6 +128,19 @@ uhci_dump_tds(uhci_td_t *td);
   ((sc)->sc_hw_page.physaddr + \
    POINTER_TO_UNSIGNED(&(((struct uhci_hw_softc *)0)->what)))
 
+struct uhci_mem_layout {
+
+	struct usbd_page_search buf_res;
+	struct usbd_page_search fix_res;
+
+	struct usbd_xfer *xfer;
+
+	uint32_t buf_offset;
+	uint32_t fix_offset;
+
+	uint8_t isread;
+};
+
 extern struct usbd_bus_methods uhci_bus_methods;
 extern struct usbd_pipe_methods uhci_device_bulk_methods;
 extern struct usbd_pipe_methods uhci_device_ctrl_methods;
@@ -139,6 +152,146 @@ extern struct usbd_pipe_methods uhci_root_intr_methods;
 static usbd_config_td_command_t uhci_root_ctrl_task;
 static void uhci_root_ctrl_task_td(struct uhci_softc *sc, struct thread *ctd);
 static void uhci_do_poll(struct usbd_bus *bus);
+
+static void
+uhci_mem_layout_init(struct uhci_mem_layout *ml, struct usbd_xfer *xfer)
+{
+	ml->buf_offset = 0;
+	usbd_get_page(&(xfer->buf_data), ml->buf_offset, &(ml->buf_res));
+
+	ml->fix_offset = 0;
+	usbd_get_page(&(xfer->buf_fixup), ml->fix_offset, &(ml->fix_res));
+
+	ml->isread = 0; /* write */
+
+	ml->xfer = xfer; /* save a push */
+	return;
+}
+
+static void
+uhci_mem_layout_fit(struct uhci_mem_layout *ml, struct uhci_td *td, uint16_t len)
+{
+	struct usbd_page_search tmp_res;
+	struct usbd_xfer *xfer = ml->xfer;
+
+	if (ml->buf_res.length < len) {
+
+	    /* need to do a fixup */
+
+	    if (ml->fix_res.length < len) {
+
+		/* need to do a sub-fixup */
+
+		ml->fix_offset += ml->fix_res.length;
+		usbd_get_page(&(xfer->buf_fixup), ml->fix_offset, &(ml->fix_res));
+	    }
+
+	    td->td_buffer = htole32(ml->fix_res.physaddr);
+
+	    if (!ml->isread) {
+
+		/*
+		 * The UHCI driver cannot handle
+		 * page crossings, so a fixup is
+		 * needed:
+		 *
+		 *  +----+----+ - - -
+		 *  | YYY|Y   |
+		 *  +----+----+ - - -
+		 *     \	     \
+		 *	\			\
+		 *	 +----+
+		 *	 |YYYY|	 (fixup)
+		 *	 +----+
+		 */
+
+		/* no copy back needed: */
+
+		td->fixup_dst_offset = 0xffffffff;
+		td->fixup_src_offset = 0xffffffff;
+
+		usbd_get_page(&(xfer->buf_data), ml->buf_offset + 
+			      ml->buf_res.length, &tmp_res);
+
+		/* copy first data part to fixup location */
+
+		usbd_page_dma_exit(ml->fix_res.page);
+
+		usbd_page_dma_exit(ml->buf_res.page);
+		bcopy(ml->buf_res.buffer, ml->fix_res.buffer, ml->buf_res.length);
+		usbd_page_dma_enter(ml->buf_res.page);
+
+		/* copy second data part to fixup location */
+
+		usbd_page_dma_exit(tmp_res.page);
+		bcopy(tmp_res.buffer, ADD_BYTES(ml->fix_res.buffer, 
+						ml->buf_res.length),
+		      len - ml->buf_res.length);
+		usbd_page_dma_enter(tmp_res.page);
+
+		usbd_page_dma_enter(ml->fix_res.page);
+
+	    } else {
+		td->fixup_dst_offset = ml->buf_offset;
+		td->fixup_src_offset = ml->fix_offset;
+	    }
+
+	    /* prepare next fixup */
+	    ml->fix_offset += xfer->max_frame_size;
+	    usbd_get_page(&(xfer->buf_fixup), ml->fix_offset, &(ml->fix_res));
+
+	} else {
+	    td->td_buffer = htole32(ml->buf_res.physaddr);
+	    td->fixup_dst_offset = 0xffffffff;
+	    td->fixup_src_offset = 0xffffffff;
+	}
+
+	/* prepare next data location */
+	ml->buf_offset += len;
+	usbd_get_page(&(xfer->buf_data), ml->buf_offset, &(ml->buf_res));
+
+	return;
+}
+
+static void
+uhci_mem_layout_do_fixup(struct usbd_xfer *xfer, struct uhci_td *td, uint16_t len)
+{
+	struct usbd_page_search buf_res;
+	struct usbd_page_search fix_res;
+	u_int16_t temp;
+
+	usbd_get_page(&(xfer->buf_data), td->fixup_dst_offset, &buf_res);
+	usbd_get_page(&(xfer->buf_fixup), td->fixup_src_offset, &fix_res);
+ 
+	temp = min(buf_res.length, len);
+
+	usbd_page_dma_exit(fix_res.page);
+
+	usbd_page_dma_exit(buf_res.page);
+	bcopy(fix_res.buffer, buf_res.buffer, temp);
+	usbd_page_dma_enter(buf_res.page);
+
+	len -= temp;
+
+	if (len) {
+		usbd_get_page(&(xfer->buf_data), 
+			      td->fixup_dst_offset + temp, &buf_res);
+
+		if (len > buf_res.length) {
+		    /* overflow protection - should not happen */
+		    len = buf_res.length;
+		}
+
+		usbd_page_dma_exit(buf_res.page);
+		bcopy(ADD_BYTES(fix_res.buffer, temp), 
+		      buf_res.buffer, len);
+		usbd_page_dma_enter(buf_res.page);
+	}
+
+	usbd_page_dma_enter(fix_res.page);
+
+	return;
+}
 
 void
 uhci_reset(uhci_softc_t *sc)
@@ -618,7 +771,6 @@ uhci_dump_all(uhci_softc_t *sc)
 	struct uhci_hw_softc *hw_ptr = sc->sc_hw_ptr;
 
 	uhci_dumpregs(sc);
-	printf("intrs=%d\n", sc->sc_bus.no_intrs);
 	uhci_dump_qh(&(hw_ptr->ls_ctl_start));
 	uhci_dump_qh(&(hw_ptr->hs_ctl_start));
 	uhci_dump_qh(&(hw_ptr->bulk_start));
@@ -886,14 +1038,11 @@ uhci_device_done(struct usbd_xfer *xfer, usbd_status error);
 static u_int8_t
 uhci_isoc_done(uhci_softc_t *sc, struct usbd_xfer *xfer)
 {
-	struct usbd_page_search buf_res;
-	struct usbd_page_search fix_res;
 	u_int32_t nframes = xfer->nframes;
 	u_int32_t actlen = 0;
 	uint32_t status;
 	u_int16_t *plen = xfer->frlengths;
 	u_int16_t len = 0;
-	u_int16_t temp;
 	u_int8_t need_delay = 0;
 	uhci_td_t *td = xfer->td_transfer_first;
 	uhci_td_t **pp_last = &sc->sc_isoc_p_last[xfer->qh_pos];
@@ -941,32 +1090,7 @@ uhci_isoc_done(uhci_softc_t *sc, struct usbd_xfer *xfer)
 	  actlen += len;
 
 	  if (td->fixup_src_offset != 0xffffffff) {
-
-	      usbd_get_page(&(xfer->buf_data), td->fixup_dst_offset, &buf_res);
-	      usbd_get_page(&(xfer->buf_fixup), td->fixup_src_offset, &fix_res);
- 
-	      temp = min(buf_res.length, len);
-
-	      usbd_page_dma_exit(fix_res.page);
-
-	      usbd_page_dma_exit(buf_res.page);
-	      bcopy(fix_res.buffer, buf_res.buffer, temp);
-	      usbd_page_dma_enter(buf_res.page);
-
-	      len -= temp;
-
-	      if (len) {
-
-		  usbd_get_page(&(xfer->buf_data), 
-				td->fixup_dst_offset + temp, &buf_res);
-
-		  usbd_page_dma_exit(buf_res.page);
-		  bcopy(ADD_BYTES(fix_res.buffer, temp), 
-			buf_res.buffer, len);
-		  usbd_page_dma_enter(buf_res.page);
-	      }
-
-	      usbd_page_dma_enter(fix_res.page);
+		uhci_mem_layout_do_fixup(xfer, td, len);
 	  }
 
 	  /* remove TD from schedule */
@@ -986,7 +1110,8 @@ uhci_non_isoc_done(struct usbd_xfer *xfer)
 {
 	uint32_t status = 0;
 	uint32_t token = 0;
-	u_int32_t actlen = 0;
+	uint32_t actlen = 0;
+	uint16_t len;
 	uhci_td_t *td = xfer->td_transfer_first;
 
 	DPRINTFN(12, ("xfer=%p pipe=%p transfer done\n",
@@ -1013,7 +1138,12 @@ uhci_non_isoc_done(struct usbd_xfer *xfer)
 			break;
 		}
 
-		actlen += UHCI_TD_GET_ACTLEN(status);
+		len = UHCI_TD_GET_ACTLEN(status);
+		actlen += len;
+
+		if (td->fixup_src_offset != 0xffffffff) {
+			uhci_mem_layout_do_fixup(xfer, td, len);
+		}
 
 		if (((void *)td) == xfer->td_transfer_last) {
 			td = NULL;
@@ -1202,8 +1332,6 @@ uhci_interrupt_td(uhci_softc_t *sc, struct thread *ctd)
 
 	td = curthread; /* NULL is not a valid thread */
 
-	sc->sc_bus.no_intrs++;
-
 	DPRINTFN(15,("%s: real interrupt\n",
 		     device_get_nameunit(sc->sc_bus.bdev)));
 
@@ -1384,11 +1512,10 @@ uhci_remove_interrupt_info(struct usbd_xfer *xfer)
 static uhci_td_t *
 uhci_setup_standard_chain(struct usbd_xfer *xfer)
 {
-	struct usbd_page_search buf_res;
+	struct uhci_mem_layout ml;
 	u_int32_t td_status;
 	u_int32_t td_token;
 	u_int32_t average = xfer->max_packet_size;
-	u_int32_t buf_offset;
 	u_int32_t len;
 	u_int8_t isread;
 	u_int8_t shortpkt = 0;
@@ -1403,8 +1530,7 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 	td = (xfer->td_transfer_first = 
 	      xfer->td_transfer_cache = xfer->td_start);
 
-	buf_offset = 0;
-	usbd_get_page(&(xfer->buf_data), buf_offset, &buf_res);
+	uhci_mem_layout_init(&ml, xfer);
 
 	td_status = htole32(UHCI_TD_ZERO_ACTLEN(UHCI_TD_SET_ERRCNT(3)|
 						UHCI_TD_ACTIVE));
@@ -1444,10 +1570,9 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 		   UHCI_TD_PID_SETUP|
 		   UHCI_TD_SET_DT(0));
 		td->td_token = htole32(td_token);
-		td->td_buffer = htole32(buf_res.physaddr);
 
-		buf_offset += sizeof(usb_device_request_t);
-		usbd_get_page(&(xfer->buf_data), buf_offset, &buf_res);
+		uhci_mem_layout_fit(&ml, td, sizeof(usb_device_request_t));
+
 		len -= sizeof(usb_device_request_t);
 		td_last = td;
 		td = td->obj_next;
@@ -1484,6 +1609,9 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 			force_short = 1;
 		}
 	}
+
+	/* override direction */
+	ml.isread = isread;
 
 	td_token =
 	  (UHCI_TD_SET_ENDPT(xfer->endpoint) |
@@ -1534,12 +1662,11 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
        
 		td->td_status = td_status;
 		td->td_token = htole32(td_token);
-		td->td_buffer = htole32(buf_res.physaddr);
+
+		uhci_mem_layout_fit(&ml, td, average);
 
 		td_token ^= UHCI_TD_SET_DT(1);
 
-		buf_offset += average;
-		usbd_get_page(&(xfer->buf_data), buf_offset, &buf_res);
 		len -= average;
 		td_last = td;
 		td = td->obj_next;
@@ -1570,6 +1697,8 @@ uhci_setup_standard_chain(struct usbd_xfer *xfer)
 
 		td->td_token = htole32(td_token);
 		td->td_buffer = htole32(0);
+		td->fixup_dst_offset = 0xffffffff;
+		td->fixup_src_offset = 0xffffffff;
 
 		td_last = td;
 
@@ -2026,13 +2155,10 @@ uhci_device_isoc_close(struct usbd_xfer *xfer)
 static void
 uhci_device_isoc_enter(struct usbd_xfer *xfer)
 {
-	struct usbd_page_search buf_res;
-	struct usbd_page_search fix_res;
-	struct usbd_page_search tmp_res;
+	struct uhci_mem_layout ml;
 	uhci_softc_t *sc = xfer->usb_sc;
-	u_int32_t buf_offset;
-	u_int32_t fix_offset;
 	u_int32_t nframes;
+	u_int32_t temp;
 	u_int16_t *plen;
 #ifdef USB_DEBUG
 	u_int8_t once = 1;
@@ -2047,11 +2173,11 @@ uhci_device_isoc_enter(struct usbd_xfer *xfer)
 
 	nframes = UREAD2(sc, UHCI_FRNUM);
 
-	buf_offset = (nframes - xfer->pipe->isoc_next) & 
+	temp = (nframes - xfer->pipe->isoc_next) & 
 	  (UHCI_VFRAMELIST_COUNT-1);
 
 	if ((LIST_FIRST(&(xfer->pipe->list_head)) == NULL) ||
-	    (buf_offset < xfer->nframes))
+	    (temp < xfer->nframes))
 	{
 		/* If there is data underflow or the pipe queue is
 		 * empty we schedule the transfer a few frames ahead
@@ -2066,14 +2192,14 @@ uhci_device_isoc_enter(struct usbd_xfer *xfer)
 	 * insertion is ahead of the current
 	 * frame position:
 	 */
-	buf_offset = (xfer->pipe->isoc_next - nframes) & 
+	temp = (xfer->pipe->isoc_next - nframes) & 
 	  (UHCI_VFRAMELIST_COUNT-1);
 
 	/* pre-compute when the isochronous transfer
 	 * will be finished:
 	 */
 	xfer->isoc_time_complete = 
-	  usbd_isoc_time_expand(&(sc->sc_bus), nframes) + buf_offset + 
+	  usbd_isoc_time_expand(&(sc->sc_bus), nframes) + temp + 
 	  xfer->nframes;
 
 	/* get the real number of frames */
@@ -2091,11 +2217,9 @@ uhci_device_isoc_enter(struct usbd_xfer *xfer)
 		return;
 	}
 
-	buf_offset = 0;
-	usbd_get_page(&(xfer->buf_data), buf_offset, &buf_res);
+	uhci_mem_layout_init(&ml, xfer);
 
-	fix_offset = 0;
-	usbd_get_page(&(xfer->buf_fixup), fix_offset, &fix_res);
+	ml.isread = isread;
 
 	plen = xfer->frlengths;
 
@@ -2142,64 +2266,7 @@ uhci_device_isoc_enter(struct usbd_xfer *xfer)
 		td->td_token &= htole32(~UHCI_TD_MAXLEN_MASK);
 		td->td_token |= htole32(UHCI_TD_SET_MAXLEN(*plen));
 
-		if (buf_res.length < *plen) {
-
-		    /* need to do a fixup */
-		    td->td_buffer = htole32(fix_res.physaddr);
-
-		    if (!isread) {
-
-			/*
-			 * The UHCI driver cannot handle
-			 * page crossings, so a fixup is
-			 * needed:
-			 *
-			 *  +----+----+ - - -
-			 *  | YYY|Y   |
-			 *  +----+----+ - - -
-			 *     \    \
-			 *      \    \
-			 *       +----+
-			 *       |YYYY|  (fixup)
-			 *       +----+
-			 */
-
-			td->fixup_dst_offset = 0xffffffff;
-			td->fixup_src_offset = 0xffffffff;
-
-			usbd_get_page(&(xfer->buf_data), buf_offset + 
-				      buf_res.length, &tmp_res);
-
-			/* copy data to fixup location */
-
-			usbd_page_dma_exit(fix_res.page);
-
-			usbd_page_dma_exit(buf_res.page);
-			bcopy(buf_res.buffer, fix_res.buffer, buf_res.length);
-			usbd_page_dma_enter(buf_res.page);
-
-			usbd_page_dma_exit(buf_res.page);
-			bcopy(tmp_res.buffer, ADD_BYTES(fix_res.buffer, 
-							buf_res.length),
-			      *plen - buf_res.length);
-			usbd_page_dma_enter(buf_res.page);
-
-			usbd_page_dma_enter(fix_res.page);
-
-		    } else {
-			td->fixup_dst_offset = buf_offset;
-			td->fixup_src_offset = fix_offset;
-		    }
-
-		    /* prepare next fixup */
-		    fix_offset += xfer->max_packet_size;
-		    usbd_get_page(&(xfer->buf_fixup), fix_offset, &fix_res);
-
-		} else {
-		    td->td_buffer = htole32(buf_res.physaddr);
-		    td->fixup_dst_offset = 0xffffffff;
-		    td->fixup_src_offset = 0xffffffff;
-		}
+		uhci_mem_layout_fit(&ml, td, *plen);
 
 		/* update status */
 		if(nframes == 0)
@@ -2233,8 +2300,6 @@ uhci_device_isoc_enter(struct usbd_xfer *xfer)
 		UHCI_APPEND_TD(td, *pp_last);
 		pp_last++;
 
-		buf_offset += *plen;
-		usbd_get_page(&(xfer->buf_data), buf_offset, &buf_res);
 		plen++;
 		td_last = td;
 		td = td->obj_next;
@@ -3224,40 +3289,8 @@ uhci_xfer_setup(struct usbd_device *udev,
 	   * every packet must be continuous on
 	   * the same USB memory page !
 	   */
-
-	  if (xfer->pipe->methods == &uhci_device_isoc_methods) {
-
-	      size[1] += xfer->length;
-	      nfixup = (xfer->length / USB_PAGE_SIZE) + 1;
-
-	  } else {
-
-	      n = xfer->length;
-	      nfixup = 0;
-
-	      if (xfer->pipe->methods == &uhci_device_ctrl_methods) {
-		  if (n >= sizeof(usb_device_request_t)) {
-
-		      size[1] += usbd_page_fit_obj(page_ptr, size[1], 
-						   sizeof(usb_device_request_t));
-		      size[1] += sizeof(usb_device_request_t);
-
-		      n -= sizeof(usb_device_request_t);
-		  }
-	      }
-
-	      while (n >= xfer->max_packet_size) {
-
-		  size[1] += usbd_page_fit_obj(page_ptr, size[1], 
-					       xfer->max_packet_size);
-		  size[1] += xfer->max_packet_size;
-
-		  n -= xfer->max_packet_size;
-	      }
-
-	      size[1] += usbd_page_fit_obj(page_ptr, size[1], n);
-	      size[1] += n;
-	  }
+	  size[1] += xfer->length;
+	  nfixup = (xfer->length / USB_PAGE_SIZE) + 1;
 
 	  usbd_page_set_end(&(xfer->buf_data), page_ptr, size[1]);
 
@@ -3268,8 +3301,7 @@ uhci_xfer_setup(struct usbd_device *udev,
 
 	  for (n = 0; n < nfixup; n++) {
 
-	      size[1] += usbd_page_fit_obj(page_ptr, size[1], 
-					   xfer->max_frame_size);
+	      size[1] += usbd_page_fit_obj(size[1], xfer->max_frame_size);
 
 	      size[1] += xfer->max_frame_size;
 	  }
@@ -3284,8 +3316,7 @@ uhci_xfer_setup(struct usbd_device *udev,
 	      n < ntd;
 	      n++)
 	  {
-	    size[1] += usbd_page_fit_obj(page_ptr, size[1], 
-					 sizeof(uhci_td_t));
+	    size[1] += usbd_page_fit_obj(size[1], sizeof(uhci_td_t));
 	    if(buf)
 	    {
 		register uhci_td_t *td;
@@ -3327,8 +3358,8 @@ uhci_xfer_setup(struct usbd_device *udev,
 	      n < nqh;
 	      n++)
 	  {
-	    size[1] += usbd_page_fit_obj(page_ptr, size[1],
-					 sizeof(uhci_qh_t));
+	    size[1] += usbd_page_fit_obj(size[1], sizeof(uhci_qh_t));
+
 	    if(buf)
 	    {
 		register uhci_qh_t *qh;
@@ -3420,8 +3451,7 @@ uhci_pipe_init(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc,
 			pipe->methods = &uhci_root_intr_methods;
 			break;
 		default:
-			panic("invalid endpoint address: 0x%02x",
-			      edesc->bEndpointAddress);
+			/* do nothing */
 			break;
 		}
 	}
@@ -3436,10 +3466,15 @@ uhci_pipe_init(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc,
 			pipe->methods = &uhci_device_intr_methods;
 			break;
 		case UE_ISOCHRONOUS:
-			pipe->methods = &uhci_device_isoc_methods;
+			if (udev->speed == USB_SPEED_FULL) {
+			    pipe->methods = &uhci_device_isoc_methods;
+			}
 			break;
 		case UE_BULK:
 			pipe->methods = &uhci_device_bulk_methods;
+			break;
+		default:
+			/* do nothing */
 			break;
 		}
 	}

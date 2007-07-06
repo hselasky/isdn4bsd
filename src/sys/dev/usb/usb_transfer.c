@@ -155,7 +155,8 @@ struct usbd_pipe *
 usbd_get_pipe(struct usbd_device *udev, u_int8_t iface_index,
 	      const struct usbd_config *setup)
 {
-	struct usbd_pipe *pipe;
+	struct usbd_pipe *pipe = udev->pipes;
+	struct usbd_pipe *pipe_end = udev->pipes_end;
 	uint8_t index = setup->index;
 	uint8_t ea;
 	uint8_t at;
@@ -167,10 +168,7 @@ usbd_get_pipe(struct usbd_device *udev, u_int8_t iface_index,
 
 	/* NOTE: pipes are searched from the beginning */
 
-	for (pipe = udev->pipes;
-	     ((pipe >= udev->pipes) && 
-	      (pipe < udev->pipes_end));
-	     pipe++) {
+	for ( ; pipe != pipe_end; pipe++) {
 
 	    if ((pipe->edesc == NULL) ||
 		(pipe->iface_index != iface_index)) {
@@ -200,7 +198,8 @@ usbd_get_pipe(struct usbd_device *udev, u_int8_t iface_index,
 	 * is ignored:
 	 */
 	if((setup->endpoint == 0) &&
-	   (setup->type == 0)) {
+	   (setup->type == 0) &&
+	   (udev->default_pipe.edesc)) {
 		pipe = &udev->default_pipe;
 		goto found;
 	}

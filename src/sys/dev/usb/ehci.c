@@ -1108,7 +1108,7 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 		}
 
 		/* Make a copy of the data toggle */
-		last_toggle = td->toggle_curr;
+		last_toggle = (status & EHCI_QTD_TOGGLE_MASK) ? 1 : 0;
 
 		/* Check if this is the last transfer */
 		if (((void *)td) == xfer->td_transfer_last) {
@@ -1124,12 +1124,6 @@ ehci_non_isoc_done(struct usbd_xfer *xfer)
 	}
 
 	/* update data toggle */
-
-	if ((last_len == 0) ||
-	    (((last_len + xfer->max_packet_size - 1) /
-	      xfer->max_packet_size) & 1)) {
-	    last_toggle = !last_toggle;
-	}
 
 	xfer->pipe->toggle_next = last_toggle;
 
@@ -1362,8 +1356,6 @@ ehci_interrupt_td(ehci_softc_t *sc, struct thread *ctd)
 
 	td = curthread; /* NULL is not a valid thread */
 
-	sc->sc_bus.no_intrs++;
-
 	DPRINTFN(15,("%s: real interrupt\n",
 		     device_get_nameunit(sc->sc_bus.bdev)));
 
@@ -1570,18 +1562,19 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 	u_int32_t buf_offset;
 	u_int32_t len;
 	u_int32_t c_error = 
-	  (xfer->udev->speed == USB_SPEED_HIGH) ? 0 : 
+	  (usbd_get_speed(xfer->udev) == USB_SPEED_HIGH) ? 0 : 
 	  htole32(EHCI_QTD_SET_CERR(3));
 	u_int8_t isread;
 	u_int8_t shortpkt = 0;
 	u_int8_t force_short;
+	struct usbd_pipe_methods *methods = xfer->pipe->methods;
 	ehci_qtd_t *td;
 	ehci_qtd_t *td_last = NULL;
 	ehci_qh_t *qh;
 
 	DPRINTFN(8, ("addr=%d endpt=%d len=%d speed=%d\n", 
 		     xfer->address, UE_GET_ADDR(xfer->endpoint),
-		     xfer->length, xfer->udev->speed));
+		     xfer->length, usbd_get_speed(xfer->udev)));
 
 	td = (xfer->td_transfer_first = 
 	      xfer->td_transfer_cache = xfer->td_start);
@@ -1593,7 +1586,7 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 
 	len = xfer->length;
 
-	if(xfer->pipe->methods == &ehci_device_ctrl_methods)
+	if(methods == &ehci_device_ctrl_methods)
 	{
 	    isread = xfer->control_isread;
 
@@ -1620,7 +1613,6 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 		td->qtd_buffer[1] = 
 		  htole32(buf_res.physaddr & (~0xFFF));
 		td->qtd_buffer_hi[1] = 0;
-		td->toggle_curr = 0;
 
 		td->len = sizeof(usb_device_request_t);
 		len -= sizeof(usb_device_request_t);
@@ -1726,7 +1718,6 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 		  htole32(buf_res.physaddr & (~0xFFF));
 		td->qtd_buffer_hi[1] = 0;
 
-		td->toggle_curr = xfer->pipe->toggle_next;
 		td->len = average;
 
 		/* adjust the toggle based on the 
@@ -1756,7 +1747,7 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 		usbd_page_dma_enter(td_last->page);
 	}
 
-	if(xfer->pipe->methods == &ehci_device_ctrl_methods)
+	if(methods == &ehci_device_ctrl_methods)
 	{
 	    if (xfer->control_remainder == 0) {
 
@@ -1820,50 +1811,43 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 	qh_endp =
 	  (EHCI_QH_SET_ADDR(xfer->address) |
 	   EHCI_QH_SET_ENDPT(UE_GET_ADDR(xfer->endpoint)) |
-	   EHCI_QH_DTC |
-	   EHCI_QH_SET_MPL(xfer->max_packet_size) |
-	   EHCI_QH_SET_NRL(8) /* XXX */ 
-	   );
+	   EHCI_QH_SET_MPL(xfer->max_packet_size));
 
-	switch (xfer->udev->speed) {
-	case USB_SPEED_LOW:  
-	  qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_LOW)|
-		      EHCI_QH_CTL);  
-	  break;
-	case USB_SPEED_FULL: 
-	  qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_FULL)|
-		      EHCI_QH_CTL);
-	  break;
-	case USB_SPEED_HIGH: 
-	  qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH)); 
-	  break;
-	default:
-	  panic("%s: bad device speed %d!", __FUNCTION__, xfer->udev->speed);
-	  break;
-	}
+	if (usbd_get_speed(xfer->udev) == USB_SPEED_HIGH) {
+	    qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) | 
+			EHCI_QH_DTC | EHCI_QH_SET_NRL(8));
+	} else {
 
-	if(xfer->pipe->methods != &ehci_device_ctrl_methods)
-	{
-		qh_endp &= ~EHCI_QH_CTL;
+	    if (usbd_get_speed(xfer->udev) == USB_SPEED_FULL) {
+	      qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_FULL) |
+			  EHCI_QH_DTC);
+	    } else {
+	      qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_LOW) |
+			  EHCI_QH_DTC);
+	    }
+
+	    if (methods == &ehci_device_ctrl_methods) {
+	        qh_endp |= EHCI_QH_CTL;
+	    }
+
+	    if (methods != &ehci_device_intr_methods) {
+		/* Only try one time per microframe! */
+	        qh_endp |= EHCI_QH_SET_NRL(1);
+	    }
 	}
 
 	qh->qh_endp = htole32(qh_endp);
 
 	qh_endphub =
 	  (EHCI_QH_SET_MULT(xfer->max_packet_count & 3)|
-	   EHCI_QH_SET_CMASK(0xf0));
+	   EHCI_QH_SET_CMASK(xfer->usb_cmask)|
+	   EHCI_QH_SET_SMASK(xfer->usb_smask));
 
 	if(xfer->udev->myhsport)
 	{
 		qh_endphub |= 
 		  (EHCI_QH_SET_HUBA(xfer->udev->myhsport->parent->address)|
 		   EHCI_QH_SET_PORT(xfer->udev->myhsport->portno));
-	}
-
-	if(xfer->pipe->methods == &ehci_device_intr_methods)
-	{
-		/* execute the transfer one time per 1ms */
-		qh_endphub |= EHCI_QH_SET_SMASK(0x04);
 	}
 
 	qh->qh_endphub = htole32(qh_endphub);
@@ -2354,6 +2338,26 @@ ehci_device_intr_open(struct usbd_xfer *xfer)
 	u_int16_t best;
 	u_int16_t bit;
 	u_int16_t x;
+	uint8_t slot;
+
+	/* Allocate a microframe slot first: */
+
+	slot = usbd_intr_schedule_adjust
+	  (xfer->udev, xfer->max_frame_size, USB_HS_MICRO_FRAMES_MAX);
+
+	if (usbd_get_speed(xfer->udev) == USB_SPEED_HIGH) {
+	    xfer->usb_uframe = slot;
+	    xfer->usb_smask = (1 << slot) & 0xFF;
+	    xfer->usb_cmask = 0;
+	} else {
+	    xfer->usb_uframe = slot;
+	    xfer->usb_smask = (1 << slot) & 0x3F;
+	    xfer->usb_cmask = (-(4 << slot)) & 0xFE;
+	}
+
+	/* Find the best QH position corresponding 
+	 * to the given interval:
+	 */
 
 	best = 0;
 	bit = EHCI_VIRTUAL_FRAMELIST_COUNT/2;
@@ -2389,6 +2393,10 @@ static void
 ehci_device_intr_close(struct usbd_xfer *xfer)
 {
 	ehci_softc_t *sc = xfer->usb_sc;
+	uint8_t slot;
+
+	slot = usbd_intr_schedule_adjust
+	  (xfer->udev, -(xfer->max_frame_size), xfer->usb_uframe);
 
 	sc->sc_intr_stat[xfer->qh_pos]--;
 
@@ -2447,18 +2455,13 @@ ehci_device_isoc_fs_open(struct usbd_xfer *xfer)
 
 	sitd_portaddr = 
 	  EHCI_SITD_SET_ADDR(xfer->address)|
-	  EHCI_SITD_SET_ENDPT(UE_GET_ADDR(xfer->endpoint));
+	  EHCI_SITD_SET_ENDPT(UE_GET_ADDR(xfer->endpoint))|
+	  EHCI_SITD_SET_HUBA(xfer->udev->myhsport->parent->address)|
+	  EHCI_SITD_SET_PORT(xfer->udev->myhsport->portno);
 
 	if(UE_GET_DIR(xfer->endpoint) == UE_DIR_IN)
 	{
 		sitd_portaddr |= EHCI_SITD_SET_DIR_IN;
-	}
-
-	if(xfer->udev->myhsport)
-	{
-		sitd_portaddr |= 
-			EHCI_SITD_SET_HUBA(xfer->udev->myhsport->parent->address)|
-			EHCI_SITD_SET_PORT(xfer->udev->myhsport->portno);
 	}
 
 	sitd_portaddr = htole32(sitd_portaddr);
@@ -2476,24 +2479,7 @@ ehci_device_isoc_fs_open(struct usbd_xfer *xfer)
 		 *
 		 * micro-frame usage 
 		 * (8 microframes per 1ms)
-		 *
-		 * 0: isoc-IN
-		 * 1: isoc-OUT
-		 * 2: interrupt transfers
-		 * .
-		 * .
-		 * 7:
 		 */
-		if(UE_GET_DIR(xfer->endpoint) == UE_DIR_IN)
-		{
-			td->sitd_mask = htole32(EHCI_SITD_SET_SMASK(0x01)|
-						EHCI_SITD_SET_CMASK(0xFC));
-		}
-		else
-		{
-			td->sitd_mask = htole32(EHCI_SITD_SET_SMASK(0x02)|
-						EHCI_SITD_SET_CMASK(0xF8));
-		}
 		td->sitd_back = htole32(EHCI_LINK_TERMINATE);
 
 		usbd_page_dma_enter(td->page);
@@ -2513,13 +2499,20 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 {
 	struct usbd_page_search buf_res;
 	ehci_softc_t *sc = xfer->usb_sc;
+	struct usbd_fs_isoc_schedule *fss_start;
+	struct usbd_fs_isoc_schedule *fss_end;
+	struct usbd_fs_isoc_schedule *fss;
 	u_int32_t buf_offset;
 	u_int32_t nframes;
 	uint32_t temp;
+	uint32_t sitd_mask;
 	u_int16_t *plen;
+	uint16_t tlen;
 #ifdef USB_DEBUG
 	u_int8_t once = 1;
 #endif
+	uint8_t sa;
+	uint8_t sb;
 	ehci_sitd_t *td;
 	ehci_sitd_t *td_last = NULL;
 	ehci_sitd_t **pp_last;
@@ -2562,7 +2555,8 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 	 * will be finished:
 	 */
 	xfer->isoc_time_complete = 
-	  usbd_isoc_time_expand(&(sc->sc_bus), nframes) + buf_offset + 
+	  usbd_fs_isoc_schedule_isoc_time_expand
+	  (xfer->udev, &fss_start, &fss_end, nframes) + buf_offset + 
 	  xfer->nframes;
 
 	/* get the real number of frames */
@@ -2593,6 +2587,8 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 
 	xfer->qh_pos = xfer->pipe->isoc_next;
 
+	fss = fss_start + (xfer->qh_pos % USB_ISOC_TIME_MAX);
+
 	while(nframes--)
 	{
 		if(td == NULL)
@@ -2606,9 +2602,12 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 			pp_last = &sc->sc_isoc_fs_p_last[0];
 		}
 
+		if (fss >= fss_end) {
+		    fss = fss_start;
+		}
+
 		/* reuse sitd_portaddr and sitd_back from last transfer */
 
-		/* TODO: implement support for multiple transactions */
 		if(*plen > xfer->max_frame_size)
 		{
 #ifdef USB_DEBUG
@@ -2624,6 +2623,11 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 			*plen = xfer->max_frame_size;
 		}
 
+		/* We currently don't care if the
+		 * ISOCHRONOUS schedule is full!
+		 */
+		sa = usbd_fs_isoc_schedule_alloc(fss, *plen);
+
 		usbd_page_dma_exit(td->page);
 
 		td->sitd_bp[0] = htole32(buf_res.physaddr);
@@ -2633,12 +2637,40 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 
 		temp = buf_res.physaddr & (~0xFFF);
 
-		if(UE_GET_DIR(xfer->endpoint) == UE_DIR_OUT)
-		{
-			temp |= 1; /* T-count == 1*/
+		if (UE_GET_DIR(xfer->endpoint) == UE_DIR_OUT) {
+		  tlen = *plen;
+		  if (tlen <= 188) {
+		    temp |= 1; /* T-count = 1, TP = ALL*/
+		    tlen = 1;
+		  } else {
+		    tlen += 187;
+		    tlen /= 188;
+		    temp |= tlen; /* T-count = [1..6] */
+		    temp |= 8; /* TP = Begin */
+		  }
+
+		  tlen += sa;
+
+		  if (tlen >= 8) {
+		    sb = 0;
+		  } else {
+		    sb = (1 << tlen);
+		  }
+
+		  sa = (1 << sa);
+		  sa = (sb - sa) & 0x3F;
+		  sb = 0;
+		} else {
+		  sb = (-(4 << sa)) & 0xFE;
+		  sa = (1 << sa) & 0x3F;
 		}
 
+		sitd_mask = (EHCI_SITD_SET_SMASK(sa)|
+			     EHCI_SITD_SET_CMASK(sb));
+
 		td->sitd_bp[1] = htole32(temp);
+
+		td->sitd_mask = htole32(sitd_mask);
 
 		if(nframes == 0)
 		{
@@ -2667,6 +2699,7 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 		pp_last++;
 
 		plen++;
+		fss++;
 		td_last = td;
 		td = td->obj_next;
 	}
@@ -3838,11 +3871,23 @@ ehci_xfer_setup(struct usbd_device *udev,
 		   (xfer->pipe->methods == &ehci_device_bulk_methods) ||
 		   (xfer->pipe->methods == &ehci_device_intr_methods))
 		{
-			if ((xfer->pipe->methods == &ehci_device_intr_methods) &&
-			    (udev->speed == USB_SPEED_HIGH))
-			    usbd_std_transfer_setup(udev, xfer, setup, 0x400, 0xC00, 3);
-			else
-			    usbd_std_transfer_setup(udev, xfer, setup, 0x400, 0x400, 1);
+			if (xfer->pipe->methods == &ehci_device_intr_methods) {
+			    if (udev->speed == USB_SPEED_HIGH) {
+			        usbd_std_transfer_setup(udev, xfer, setup, 
+							0x400, 0xC00, 3);
+			    } else if (udev->speed == USB_SPEED_FULL) {
+			        usbd_std_transfer_setup(udev, xfer, setup, 
+							USB_FS_BYTES_PER_HS_UFRAME, 
+							USB_FS_BYTES_PER_HS_UFRAME, 1);
+			    } else {
+			        usbd_std_transfer_setup(udev, xfer, setup, 
+							USB_FS_BYTES_PER_HS_UFRAME / 8, 
+							USB_FS_BYTES_PER_HS_UFRAME / 8, 1);
+			    }
+			} else {
+			    usbd_std_transfer_setup(udev, xfer, setup, 
+						    0x400, 0x400, 1);
+			}
 			nqh = 1;
 			nqtd = (1+ /* SETUP */ 1+ /* STATUS */
 			       1  /* SHORTPKT */) +
@@ -3850,7 +3895,7 @@ ehci_xfer_setup(struct usbd_device *udev,
 		}
 		else if(xfer->pipe->methods == &ehci_device_isoc_fs_methods)
 		{
-			usbd_std_transfer_setup(udev, xfer, setup, 188, 188, 1);
+			usbd_std_transfer_setup(udev, xfer, setup, 0x3FF, 0x3FF, 1);
 
 			if(xfer->nframes == 0)
 			{
@@ -3967,8 +4012,8 @@ ehci_xfer_setup(struct usbd_device *udev,
 	      n < nitd;
 	      n++)
 	  {
-	    size[1] += usbd_page_fit_obj(page_ptr, size[1], 
-					 sizeof(ehci_itd_t));
+	    size[1] += usbd_page_fit_obj(size[1], sizeof(ehci_itd_t));
+
 	    if(buf)
 	    {
 		register ehci_itd_t *td;
@@ -3995,8 +4040,8 @@ ehci_xfer_setup(struct usbd_device *udev,
 	      n < nsitd;
 	      n++)
 	  {
-	    size[1] += usbd_page_fit_obj(page_ptr, size[1], 
-					 sizeof(ehci_sitd_t));
+	    size[1] += usbd_page_fit_obj(size[1], sizeof(ehci_sitd_t));
+
 	    if(buf)
 	    {
 	        register ehci_sitd_t *td;
@@ -4023,8 +4068,8 @@ ehci_xfer_setup(struct usbd_device *udev,
 	      n < nqtd;
 	      n++)
 	  {
-	    size[1] += usbd_page_fit_obj(page_ptr, size[1], 
-					 sizeof(ehci_qtd_t));
+	    size[1] += usbd_page_fit_obj(size[1], sizeof(ehci_qtd_t));
+
 	    if(buf)
 	    {
 		register ehci_qtd_t *qtd;
@@ -4061,8 +4106,8 @@ ehci_xfer_setup(struct usbd_device *udev,
 	      n < nqh;
 	      n++)
 	  {
-	    size[1] += usbd_page_fit_obj(page_ptr, size[1],
-					 sizeof(ehci_qh_t));
+	    size[1] += usbd_page_fit_obj(size[1], sizeof(ehci_qh_t));
+
 	    if(buf)
 	    {
 		register ehci_qh_t *qh;
@@ -4154,13 +4199,18 @@ ehci_pipe_init(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc,
 			pipe->methods = &ehci_root_intr_methods;
 			break;
 		default:
-			panic("invalid endpoint address: 0x%02x",
-			      edesc->bEndpointAddress);
+			/* do nothing */
 			break;
 		}
 	}
 	else
         {
+		if ((udev->speed != USB_SPEED_HIGH) &&
+		    (udev->myhsport == NULL)) {
+		    /* We need a transaction translator */
+		    goto done;
+		}
+
 		switch (edesc->bmAttributes & UE_XFERTYPE)
 		{
 		case UE_CONTROL:
@@ -4174,7 +4224,7 @@ ehci_pipe_init(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc,
 			{
 				pipe->methods = &ehci_device_isoc_hs_methods;
 			}
-			else
+			else if (udev->speed == USB_SPEED_FULL)
 			{
 				pipe->methods = &ehci_device_isoc_fs_methods;
 			}
@@ -4182,8 +4232,12 @@ ehci_pipe_init(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc,
 		case UE_BULK:
 			pipe->methods = &ehci_device_bulk_methods;
 			break;
+		default:
+			/* do nothing */
+			break;
 		}
 	}
+ done:
 	return;
 }
 

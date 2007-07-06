@@ -1052,7 +1052,6 @@ ohci_interrupt_td(ohci_softc_t *sc, struct thread *ctd)
 
 	td = curthread; /* NULL is not a valid thread */
 
-	sc->sc_bus.no_intrs++;
 	hw_ptr = sc->sc_hw_ptr;
 
 	DPRINTFN(15,("%s: real interrupt\n",
@@ -2114,12 +2113,6 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 	/**/
 	ohci_add_interrupt_info(sc, xfer);
 
-	if(!xfer->timeout)
-	{
-		/* in case the frame start number is wrong */
-		xfer->timeout = 1000/4;
-	}
-
 	/* enqueue transfer 
 	 * (so that it can be aborted through pipe abort)
 	 */
@@ -2948,8 +2941,8 @@ ohci_xfer_setup(struct usbd_device *udev,
 	      n < ntd;
 	      n++)
 	  {
-	    size[1] += usbd_page_fit_obj(page_ptr, size[1], 
-					 sizeof(ohci_td_t));
+	    size[1] += usbd_page_fit_obj(size[1], sizeof(ohci_td_t));
+
 	    if(buf)
 	    {
 		register ohci_td_t *td;
@@ -2976,8 +2969,8 @@ ohci_xfer_setup(struct usbd_device *udev,
 	      n < nitd;
 	      n++)
 	  {
-	    size[1] += usbd_page_fit_obj(page_ptr, size[1], 
-					 sizeof(ohci_itd_t));
+	    size[1] += usbd_page_fit_obj(size[1], sizeof(ohci_itd_t));
+
 	    if(buf)
 	    {
 		register ohci_itd_t *itd;
@@ -3011,8 +3004,8 @@ ohci_xfer_setup(struct usbd_device *udev,
 	      n < nqh;
 	      n++)
 	  {
-	    size[1] += usbd_page_fit_obj(page_ptr, size[1],
-					 sizeof(ohci_ed_t));
+	    size[1] += usbd_page_fit_obj(size[1], sizeof(ohci_ed_t));
+
 	    if(buf)
 	    {
 		register ohci_ed_t *ed;
@@ -3104,8 +3097,7 @@ ohci_pipe_init(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc,
 			pipe->methods = &ohci_root_intr_methods;
 			break;
 		default:
-			panic("invalid endpoint address: 0x%02x",
-			      edesc->bEndpointAddress);
+			/* do nothing */
 			break;
 		}
 	}
@@ -3120,10 +3112,15 @@ ohci_pipe_init(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc,
 			pipe->methods = &ohci_device_intr_methods;
 			break;
 		case UE_ISOCHRONOUS:
-			pipe->methods = &ohci_device_isoc_methods;
+			if (udev->speed == USB_SPEED_FULL) {
+			    pipe->methods = &ohci_device_isoc_methods;
+			}
 			break;
 		case UE_BULK:
 			pipe->methods = &ohci_device_bulk_methods;
+			break;
+		default:
+			/* do nothing */
 			break;
 		}
 	}

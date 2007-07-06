@@ -86,7 +86,8 @@ struct usb_knowndev {
 static void
 usbd_trim_spaces(char *p)
 {
-	char *q, *e;
+	char *q;
+	char *e;
 
 	if(p == NULL)
 		return;
@@ -101,53 +102,53 @@ usbd_trim_spaces(char *p)
 }
 
 static void
-usbd_devinfo_vp(struct usbd_device *udev, char *v, char *p, int usedev)
+usbd_devinfo_vp(struct usbd_device *udev, char *v, char *p, uint16_t v_len, 
+		uint16_t p_len, uint8_t usedev)
 {
 	usb_device_descriptor_t *udd = &udev->ddesc;
-	char *vendor, *product;
+	char *vendor;
+	char *product;
 #ifdef USBVERBOSE
 	const struct usb_knowndev *kdp;
 #endif
+	uint16_t vendor_id;
+	uint16_t product_id;
+	usbd_status err;
+
+	v[0] = 0;
+	p[0] = 0;
 
 	if(udev == NULL) {
-		v[0] = p[0] = '\0';
 		return;
 	}
 
-	vendor = NULL;
-	product = NULL;
-
 	if (usedev)
 	{
-		(void) usbreq_get_string_any
-		  (udev, udd->iManufacturer, v, USB_MAX_STRING_LEN);
+		err = usbreq_get_string_any
+		  (udev, udd->iManufacturer, v, v_len);
 
-		vendor = v;
-		usbd_trim_spaces(vendor);
+		usbd_trim_spaces(v);
 
-		if(!vendor[0])
-		{
-			vendor = NULL;
-		}
+		err = usbreq_get_string_any
+		  (udev, udd->iProduct, p, p_len);
 
-		(void) usbreq_get_string_any
-		  (udev, udd->iProduct, p, USB_MAX_STRING_LEN);
-
-		product = p;
-		usbd_trim_spaces(product);
-
-		if(!product[0])
-		{
-			product = NULL;
-		}
+		usbd_trim_spaces(p);
 	}
+
+	vendor = (*v) ? v : NULL;
+	product = (*p) ? p : NULL;
+
+	vendor_id = UGETW(udd->idVendor);
+	product_id = UGETW(udd->idProduct);
+
 #ifdef USBVERBOSE
 	if (vendor == NULL || product == NULL) {
+
 		for(kdp = usb_knowndevs;
 		    kdp->vendorname != NULL;
 		    kdp++) {
-			if (kdp->vendor == UGETW(udd->idVendor) &&
-			   (kdp->product == UGETW(udd->idProduct) ||
+			if (kdp->vendor == vendor_id &&
+			   (kdp->product == product_id ||
 			    (kdp->flags & USB_KNOWNDEV_NOPROD) != 0))
 				break;
 		}
@@ -160,21 +161,30 @@ usbd_devinfo_vp(struct usbd_device *udev, char *v, char *p, int usedev)
 		}
 	}
 #endif
-	if (vendor != NULL && *vendor)
-		strcpy(v, vendor);
-	else
-		sprintf(v, "vendor 0x%04x", UGETW(udd->idVendor));
-	if (product != NULL && *product)
-		strcpy(p, product);
-	else
-		sprintf(p, "product 0x%04x", UGETW(udd->idProduct));
+	if (vendor && *vendor) {
+	    if (v != vendor) {
+	        strlcpy(v, vendor, v_len);
+	    }
+	} else {
+	    snprintf(v, v_len, "vendor 0x%04x", vendor_id);
+	}
+
+	if (product && *product) {
+	    if (p != product) {
+	        strlcpy(p, product, p_len);
+	    }
+	} else {
+	    snprintf(p, p_len, "product 0x%04x", product_id);
+	}
 	return;
 }
 
-static int
-usbd_printBCD(char *cp, int bcd)
+static void
+usbd_printBCD(char *p, uint16_t p_len, uint16_t bcd)
 {
-	return (sprintf(cp, "%x.%02x", bcd >> 8, bcd & 0xff));
+	int len;
+	len = snprintf(p, p_len, "%x.%02x", bcd >> 8, bcd & 0xff);
+	return;
 }
 
 void
@@ -186,7 +196,8 @@ usbd_devinfo(struct usbd_device *udev, int showclass,
 	char product[USB_MAX_STRING_LEN];
 	u_int16_t bcdDevice, bcdUSB;
 
-	usbd_devinfo_vp(udev, vendor, product, 1);
+	usbd_devinfo_vp(udev, vendor, product, 
+			sizeof(vendor), sizeof(product), 1);
 
 	bcdUSB = UGETW(udd->bcdUSB);
 	bcdDevice = UGETW(udd->bcdDevice);
@@ -418,12 +429,12 @@ usbd_find_descriptor(struct usbd_device *udev, void *id, uint16_t iface_index,
 	return NULL;
 }
 
-int
+uint16_t
 usbd_get_no_alts(usb_config_descriptor_t *cd, u_int8_t ifaceno)
 {
 	usb_descriptor_t *desc = NULL;
 	usb_interface_descriptor_t *id;
-	int n = 0;
+	uint16_t n = 0;
 
 	while ((desc = usbd_desc_foreach(cd, desc))) {
 
@@ -444,12 +455,195 @@ usbd_fill_pipe_data(struct usbd_device *udev, u_int8_t iface_index,
 {
 	bzero(pipe, sizeof(*pipe));
 
+	(udev->bus->methods->pipe_init)(udev,edesc,pipe);
+
+	if (pipe->methods == NULL) {
+	    /* the pipe is invalid: just return */
+	    return;
+	}
+
 	pipe->edesc = edesc;
 	pipe->iface_index = iface_index;
 	LIST_INIT(&pipe->list_head);
-
-	(udev->bus->methods->pipe_init)(udev,edesc,pipe);
 	return;
+}
+
+/*
+ * The USB Transaction Translator:
+ * ===============================
+ *
+ * When doing LOW- and FULL-speed USB transfers accross a HIGH-speed
+ * USB HUB, bandwidth must be allocated for ISOCHRONOUS and INTERRUPT
+ * USB transfers. To utilize bandwidth dynamically the "scatter and
+ * gather" principle must be applied. This means that bandwidth must
+ * be divided into equal parts of bandwidth. With regard to USB all
+ * data is transferred in smaller packets with length
+ * "wMaxPacketSize". The problem however is that "wMaxPacketSize" is
+ * not a constant!
+ *
+ * The bandwidth scheduler which I have implemented will simply pack
+ * the USB transfers back to back until there is no more space in the
+ * schedule. Out of the 8 microframes which the USB 2.0 standard
+ * provides, only 6 are available for non-HIGH-speed devices. I have
+ * reserved the first 4 microframes for ISOCHRONOUS transfers. The
+ * last 2 microframes I have reserved for INTERRUPT transfers. Without
+ * this division, it is very difficult to allocate and free bandwidth
+ * dynamically.
+ *
+ * NOTE about the Transaction Translator in USB HUBs:
+ *
+ * USB HUBs have a very simple Transaction Translator, that will
+ * simply pipeline all the SPLIT transactions. That means that the
+ * first one queued will be executed!
+ *
+ */
+
+static uint8_t
+usbd_find_best_slot(uint32_t *ptr, uint8_t start, uint8_t end)
+{
+	uint32_t max = 0xffffffff;
+	uint8_t x;
+	uint8_t y;
+
+	y = 0;
+
+	/* find the last slot with lesser used bandwidth */
+
+	for (x = start; x < end; x++) {
+	    if (max >= ptr[x]) {
+	        max = ptr[x];
+		y = x;
+	    }
+	}
+	return y;
+}
+
+uint8_t
+usbd_intr_schedule_adjust(struct usbd_device *udev, int16_t len, uint8_t slot)
+{
+	struct usbd_bus *bus = udev->bus;
+	struct usbd_hub *hub;
+
+	if (usbd_get_speed(udev) == USB_SPEED_HIGH) {
+	    if (slot >= USB_HS_MICRO_FRAMES_MAX) {
+	        slot = usbd_find_best_slot(bus->uframe_usage, 0, 
+					   USB_HS_MICRO_FRAMES_MAX);
+	    }
+	    bus->uframe_usage[slot] += len;
+	} else {
+	    if (usbd_get_speed(udev) == USB_SPEED_LOW) {
+	        len *= 8;
+	    }
+	    hub = udev->myhsport->parent->hub;
+	    if (slot >= USB_HS_MICRO_FRAMES_MAX) {
+	        slot = usbd_find_best_slot(hub->uframe_usage, 
+					   USB_FS_ISOC_UFRAME_MAX, 6);
+	    }
+	    hub->uframe_usage[slot] += len;
+	    bus->uframe_usage[slot] += len;
+	}
+	return slot;
+}
+
+static void
+usbd_fs_isoc_schedule_init_sub(struct usbd_fs_isoc_schedule *fss)
+{
+	fss->total_bytes = (USB_FS_ISOC_UFRAME_MAX * 
+			    USB_FS_BYTES_PER_HS_UFRAME);
+	fss->frame_bytes = (USB_FS_BYTES_PER_HS_UFRAME);
+	fss->frame_slot = 0;
+	return;
+}
+
+void
+usbd_fs_isoc_schedule_init_all(struct usbd_fs_isoc_schedule *fss)
+{
+	struct usbd_fs_isoc_schedule *fss_end = fss + USB_ISOC_TIME_MAX;
+
+	while (fss != fss_end) {
+	    usbd_fs_isoc_schedule_init_sub(fss);
+	    fss ++;
+	}
+	return;
+}
+
+uint16_t
+usbd_fs_isoc_schedule_isoc_time_expand(struct usbd_device *udev,
+				       struct usbd_fs_isoc_schedule **pp_start,
+				       struct usbd_fs_isoc_schedule **pp_end,
+				       uint16_t isoc_time)
+{
+	struct usbd_fs_isoc_schedule *fss_end;
+	struct usbd_fs_isoc_schedule *fss_a;
+	struct usbd_fs_isoc_schedule *fss_b;
+	struct usbd_hub *hs_hub;
+
+	isoc_time = usbd_isoc_time_expand(udev->bus, isoc_time);
+
+	if (udev->myhsport &&
+	    udev->myhsport->parent->hub) {
+
+	    hs_hub = udev->myhsport->parent->hub;
+
+	    fss_a = hs_hub->fs_isoc_schedule + 
+	      (hs_hub->isoc_last_time % USB_ISOC_TIME_MAX);
+
+	    hs_hub->isoc_last_time = isoc_time;
+
+	    fss_b = hs_hub->fs_isoc_schedule +
+	      (isoc_time % USB_ISOC_TIME_MAX);
+
+	    fss_end = hs_hub->fs_isoc_schedule + USB_ISOC_TIME_MAX;
+
+	    *pp_start = hs_hub->fs_isoc_schedule;
+	    *pp_end = fss_end;
+
+	    while (fss_a != fss_b) {
+	        if (fss_a == fss_end) {
+		    fss_a = hs_hub->fs_isoc_schedule;
+		    continue;
+		}
+		usbd_fs_isoc_schedule_init_sub(fss_a);
+		fss_a++;
+	    }
+
+	} else {
+
+	    *pp_start = NULL;
+	    *pp_end = NULL;
+	}
+	return isoc_time;
+}
+
+uint8_t
+usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss, uint16_t len)
+{
+	uint8_t slot = fss->frame_slot;
+
+	/* Compute overhead and bit-stuffing */
+
+	len += 8;
+
+	len *= 7;
+	len /= 6;
+
+	if (len > fss->total_bytes) {
+	    len = fss->total_bytes;
+	}
+
+	if (len > 0) {
+
+	    fss->total_bytes -= len;
+
+	    while (len >= fss->frame_bytes) {
+	        len -= fss->frame_bytes;
+		fss->frame_bytes = USB_FS_BYTES_PER_HS_UFRAME;
+		fss->frame_slot ++;
+	    }
+
+	    fss->frame_bytes -= len;
+	}
+	return slot;
 }
 
 /* NOTE: pipes should not be in use when
@@ -458,10 +652,10 @@ usbd_fill_pipe_data(struct usbd_device *udev, u_int8_t iface_index,
 static void
 usbd_free_pipe_data(struct usbd_device *udev, int iface_index)
 {
-	struct usbd_pipe *pipe = &udev->pipes[0];
-	struct usbd_pipe *pipe_end = &udev->pipes_end[0];
+	struct usbd_pipe *pipe = udev->pipes;
+	struct usbd_pipe *pipe_end = udev->pipes_end;
 
-	while(pipe < pipe_end)
+	while (pipe != pipe_end)
 	{
 		if((iface_index == pipe->iface_index) ||
 		   (iface_index == -1))
@@ -478,8 +672,8 @@ usbd_status
 usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 {
 	struct usbd_interface *iface = usbd_get_iface(udev,iface_index);
-	struct usbd_pipe *pipe = &udev->pipes[0];
-	struct usbd_pipe *pipe_end = &udev->pipes_end[0];
+	struct usbd_pipe *pipe = udev->pipes;
+	struct usbd_pipe *pipe_end = udev->pipes_end;
 	usb_interface_descriptor_t *id;
 	usb_endpoint_descriptor_t *ed = NULL;
 	usb_descriptor_t *desc;
@@ -495,7 +689,7 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 
 	/* mtx_assert() */
 
-	while(pipe < pipe_end)
+	while (pipe != pipe_end)
 	{
 		if(pipe->iface_index == iface_index)
 		{
@@ -574,7 +768,7 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 		}
 
 		/* find a free pipe */
-		while(pipe < pipe_end)
+		while (pipe != pipe_end)
 		{
 			if(pipe->edesc == NULL)
 			{
@@ -600,8 +794,8 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 static void
 usbd_free_iface_data(struct usbd_device *udev)
 {
-	struct usbd_interface *iface = &udev->ifaces[0];
-	struct usbd_interface *iface_end = &udev->ifaces_end[0];
+	struct usbd_interface *iface = udev->ifaces;
+	struct usbd_interface *iface_end = udev->ifaces_end;
 
 	/* mtx_assert() */
 
@@ -609,7 +803,7 @@ usbd_free_iface_data(struct usbd_device *udev)
 	usbd_free_pipe_data(udev, -1);
 
 	/* free all interfaces, if any */
-	while(iface < iface_end)
+	while (iface != iface_end)
 	{
 		iface->idesc = NULL;
 		iface++;
@@ -842,8 +1036,9 @@ usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di,
 
 	di->udi_bus = device_get_unit(udev->bus->bdev);
 	di->udi_addr = udev->address;
-	usbd_devinfo_vp(udev, di->udi_vendor, di->udi_product, usedev);
-	usbd_printBCD(di->udi_release, UGETW(udev->ddesc.bcdDevice));
+	usbd_devinfo_vp(udev, di->udi_vendor, di->udi_product, 
+			sizeof(di->udi_vendor), sizeof(di->udi_product), usedev);
+	usbd_printBCD(di->udi_release, sizeof(di->udi_release), UGETW(udev->ddesc.bcdDevice));
 	di->udi_vendorNo = UGETW(udev->ddesc.idVendor);
 	di->udi_productNo = UGETW(udev->ddesc.idProduct);
 	di->udi_releaseNo = UGETW(udev->ddesc.bcdDevice);
@@ -920,7 +1115,7 @@ usbd_remove_detached_devices(struct usbd_device *udev)
 
 	PRINTFN(3,("udev=%p\n", udev));
 
-	while (subdev < subdev_end) {
+	while (subdev != subdev_end) {
 	    if (subdev[0]) {
 	        if (device_is_attached(subdev[0]) == 0) {
 		    if (device_delete_child(device_get_parent(subdev[0]), 
@@ -1066,15 +1261,15 @@ usbd_probe_and_attach(device_t parent, int port, struct usbd_port *up)
 		 */
 
 		uaa.configno = udev->cdesc->bConfigurationValue;
-		uaa.ifaces_start = &udev->ifaces[0];
-		uaa.ifaces_end = &udev->ifaces[udev->cdesc->bNumInterface];
+		uaa.ifaces_start = udev->ifaces;
+		uaa.ifaces_end = udev->ifaces + udev->cdesc->bNumInterface;
 
 		for(iface = uaa.ifaces_start;
-		    iface < uaa.ifaces_end;
+		    iface != uaa.ifaces_end;
 		    iface++)
 		{
 			uaa.iface = iface;
-			uaa.iface_index = (i = (iface - &udev->ifaces[0]));
+			uaa.iface_index = (i = (iface - udev->ifaces));
 
 			if(uaa.iface_index >= (sizeof(udev->subdevs)/
 					       sizeof(udev->subdevs[0])))
@@ -1411,8 +1606,8 @@ void
 usbd_free_device(struct usbd_port *up, u_int8_t free_subdev)
 {
 	struct usbd_device *udev = up->device;
-	device_t *subdev = &udev->subdevs[0];
-	device_t *subdev_end = &udev->subdevs_end[0];
+	device_t *subdev = udev->subdevs;
+	device_t *subdev_end = udev->subdevs_end;
 	int error = 0;
 
 	/* mtx_assert() */
@@ -1427,7 +1622,7 @@ usbd_free_device(struct usbd_port *up, u_int8_t free_subdev)
 		    "disconnect subdevs\n",
 		    up, udev, up->portno));
 
-	while(subdev < subdev_end)
+	while (subdev != subdev_end)
 	{
 		if(subdev[0] && free_subdev)
 		{
@@ -1487,6 +1682,7 @@ usbd_free_device(struct usbd_port *up, u_int8_t free_subdev)
 				      "USB detach wait", 0);
 		}
 		bus->devices[udev->address] = 0;
+
 		mtx_unlock(&(bus->mtx));
 	}
 
@@ -1570,12 +1766,12 @@ usbd_unref_device(struct usbd_device *udev)
 struct usbd_interface *
 usbd_get_iface(struct usbd_device *udev, u_int8_t iface_index)
 {
-	struct usbd_interface *iface = &udev->ifaces[iface_index];
+	struct usbd_interface *iface = udev->ifaces + iface_index;
 
-	if((iface < &udev->ifaces[0]) ||
-	   (iface >= &udev->ifaces_end[0]) ||
-	   (udev->cdesc == NULL) ||
-	   (iface_index >= udev->cdesc->bNumInterface))
+	if ((iface < udev->ifaces) ||
+	    (iface >= udev->ifaces_end) ||
+	    (udev->cdesc == NULL) ||
+	    (iface_index >= udev->cdesc->bNumInterface))
 	{
 		return NULL;
 	}
@@ -1929,31 +2125,23 @@ usbd_page_set_end(struct usbd_page_cache *pc, struct usbd_page *page_ptr,
  *  usbd_page_fit_obj - fit object function
  *------------------------------------------------------------------------------*/
 u_int32_t
-usbd_page_fit_obj(struct usbd_page *page, u_int32_t size, u_int32_t obj_len)
+usbd_page_fit_obj(u_int32_t size, u_int32_t obj_len)
 {
 	u_int32_t adj;
 
-	if (obj_len > USB_PAGE_SIZE) {
-	    panic("%s:%d Too large object, %d bytes, will "
-		  "not fit on a USB page, %d bytes!\n", 
-		  __FUNCTION__, __LINE__, obj_len, 
-		  (int32_t)USB_PAGE_SIZE);
-	}
-
 	if (obj_len > (USB_PAGE_SIZE - (size & (USB_PAGE_SIZE-1)))) {
+
+	  if (obj_len > USB_PAGE_SIZE) {
+	      panic("%s:%d Too large object, %d bytes, will "
+		    "not fit on a USB page, %d bytes!\n", 
+		    __FUNCTION__, __LINE__, obj_len, 
+		    (int32_t)USB_PAGE_SIZE);
+	  }
 
 	  /* adjust offset to the beginning 
 	   * of the next page:
 	   */
 	  adj = ((-size) & (USB_PAGE_SIZE-1));
-
-	  if (page) {
-	      /* adjust the size of the 
-	       * current page, so that the
-	       * objects follow back to back!
-	       */
-	      (page + (size/USB_PAGE_SIZE))->length -= adj;
-	  }
 	} else {
 	  adj = 0;
 	}
@@ -2348,12 +2536,20 @@ usbd_std_transfer_setup(struct usbd_device *udev,
 	xfer->max_frame_size = usbd_get_max_frame_size(edesc);
 	xfer->length = setup->bufsize;
 
-	/* check interrupt interval or transfer pre-delay */
+	/* check interrupt interval and transfer pre-delay */
 
 	type = (edesc->bmAttributes & UE_XFERTYPE);
 
 	if (type == UE_ISOCHRONOUS) {
 	    xfer->interval = 0; /* not used, must be zero */
+
+	    if (xfer->timeout == 0) {
+	        /* set a default timeout in 
+		 * case something goes wrong!
+		 */
+	        xfer->timeout = 1000 / 4;
+	    }
+
 	} else {
 	    /* if a value is specified use that
 	     * else check the endpoint descriptor
@@ -2953,18 +3149,18 @@ usbd_isoc_time_expand(struct usbd_bus *bus, uint16_t isoc_time_curr)
 
 	mtx_assert(&(bus->mtx), MA_OWNED);
 
-	rem = bus->isoc_time_last & (USBD_ISOC_TIME_MAX-1);
+	rem = bus->isoc_time_last & (USB_ISOC_TIME_MAX-1);
 
-	isoc_time_curr &= (USBD_ISOC_TIME_MAX-1);
+	isoc_time_curr &= (USB_ISOC_TIME_MAX-1);
 
 	if (isoc_time_curr < rem) {
 	    /* the time counter wrapped around */
-	    bus->isoc_time_last += USBD_ISOC_TIME_MAX;
+	    bus->isoc_time_last += USB_ISOC_TIME_MAX;
 	}
 
 	/* update the remainder */
 
-	bus->isoc_time_last &= ~(USBD_ISOC_TIME_MAX-1);
+	bus->isoc_time_last &= ~(USB_ISOC_TIME_MAX-1);
 	bus->isoc_time_last |= isoc_time_curr;
 
 	return bus->isoc_time_last;

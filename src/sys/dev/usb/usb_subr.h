@@ -116,14 +116,21 @@ struct usbd_port {
 	uint8_t			last_refcount;
 };
 
-struct usbd_hub {
-	usbd_status	      (*explore)(struct usbd_device *hub);
-	void		       *hubsoftc;
-	usb_hub_descriptor_t	hubdesc;
-	struct usbd_port        ports[0];
+struct usbd_fs_isoc_schedule {
+	uint16_t total_bytes;
+	uint8_t frame_bytes;
+	uint8_t frame_slot;
 };
 
-#define	USB_PAGE_SIZE PAGE_SIZE
+struct usbd_hub {
+	struct usbd_fs_isoc_schedule fs_isoc_schedule[USB_ISOC_TIME_MAX];
+	usb_hub_descriptor_t	hubdesc;
+	usbd_status	      (*explore)(struct usbd_device *hub);
+	void		       *hubsoftc;
+	uint32_t		uframe_usage[USB_HS_MICRO_FRAMES_MAX];
+	uint8_t			isoc_last_time;
+	struct usbd_port        ports[0];
+};
 
 struct usbd_page {
 	void			*buffer;
@@ -181,10 +188,9 @@ struct usbd_bus {
 	struct cdev		*usb_cdev;
 	struct usbd_clone	*usb_clone_root;
 
- 	uint32_t		no_intrs;
+	uint32_t		uframe_usage[USB_HS_MICRO_FRAMES_MAX];
 
 	uint16_t		isoc_time_last; /* ms */
-#define USBD_ISOC_TIME_MAX 128 /* ms */
 
 	uint8_t			is_exploring;
 	uint8_t			wait_explore;
@@ -225,11 +231,16 @@ struct usbd_pipe {
 };
 
 struct usbd_device {
-	struct usbd_pipe        default_pipe;  /* pipe 0 */
-	struct usbd_interface   ifaces[USB_MAX_ENDPOINTS]; /* array of all interfaces */
+	struct usbd_interface   ifaces[USB_MAX_ENDPOINTS];
 	struct usbd_interface   ifaces_end[0];
-	struct usbd_pipe        pipes[USB_MAX_ENDPOINTS]; /* array of all pipes */
+
+  	struct usbd_pipe        default_pipe;  /* pipe 0 */
+ 	struct usbd_pipe        pipes[USB_MAX_ENDPOINTS];
 	struct usbd_pipe        pipes_end[0];
+
+#if (USB_MAX_ENDPOINTS < ((2*UE_ADDR) + 2))
+#error "USB_MAX_ENDPOINTS must be increased!"
+#endif
 
 	struct usbd_bus		*bus; /* our controller */
 	struct usbd_port	*powersrc; /* upstream hub port, or 0 */
@@ -238,7 +249,7 @@ struct usbd_device {
 	const struct usbd_quirks *quirks; /* device quirks, always set */
 	usb_config_descriptor_t *cdesc; /* full config descr */
 	struct usbd_hub		*hub; /* only if this is a hub */
-	device_t                subdevs[USB_MAX_ENDPOINTS]; /* array of all sub-devices */
+	device_t                subdevs[USB_MAX_ENDPOINTS];
 	device_t                subdevs_end[0];
 	struct usb_device 	*linux_dev;
 
@@ -378,6 +389,9 @@ struct usbd_xfer {
 	uint8_t			interval; /* milliseconds */
 	uint8_t			max_packet_count;
 	uint8_t			control_isread;
+	uint8_t			usb_smask;
+	uint8_t			usb_cmask;
+	uint8_t			usb_uframe;
 
 	usbd_status		error;
 };
@@ -557,7 +571,11 @@ struct usb_hid_descriptor *usbd_get_hdesc(usb_config_descriptor_t *cd, usb_inter
 usb_interface_descriptor_t *usbd_find_idesc(usb_config_descriptor_t *cd, uint16_t iface_index, uint16_t alt_index);
 usb_endpoint_descriptor_t *usbd_find_edesc(usb_config_descriptor_t *cd, uint16_t iface_index, uint16_t alt_index, uint16_t endptidx);
 void *		usbd_find_descriptor(struct usbd_device *udev, void *id, uint16_t iface_index, int16_t type, int16_t subtype);
-int		usbd_get_no_alts(usb_config_descriptor_t *cd, uint8_t ifaceno);
+uint16_t	usbd_get_no_alts(usb_config_descriptor_t *cd, uint8_t ifaceno);
+uint8_t		usbd_intr_schedule_adjust(struct usbd_device *udev, int16_t len, uint8_t slot);
+void		usbd_fs_isoc_schedule_init_all(struct usbd_fs_isoc_schedule *fss);
+uint16_t	usbd_fs_isoc_schedule_isoc_time_expand(struct usbd_device *udev, struct usbd_fs_isoc_schedule **pp_start, struct usbd_fs_isoc_schedule **pp_end, uint16_t isoc_time);
+uint8_t		usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss, uint16_t len);
 usbd_status	usbd_search_and_set_config(struct usbd_device *udev, int32_t no, int32_t msg);
 usbd_status	usbd_set_config_index(struct usbd_device *udev, int32_t index, int32_t msg);
 int		usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di, int32_t usedev);
@@ -580,7 +598,7 @@ void		usbd_page_free(struct usbd_page *page, uint32_t npages);
 void		usbd_page_get_info(struct usbd_page *page, uint32_t size, struct usbd_page_info *info);
 void		usbd_page_set_start(struct usbd_page_cache *pc, struct usbd_page *page_ptr, uint32_t size);
 void		usbd_page_set_end(struct usbd_page_cache *pc, struct usbd_page *page_ptr,uint32_t size);
-uint32_t	usbd_page_fit_obj(struct usbd_page *page, uint32_t size, uint32_t obj_len);
+uint32_t	usbd_page_fit_obj(uint32_t size, uint32_t obj_len);
 void *		usbd_mem_alloc(bus_dma_tag_t parent, struct usbd_page *page, uint32_t size, uint8_t align_power);
 void		usbd_mem_free(struct usbd_page *page);
 bus_dma_tag_t	usbd_dma_tag_alloc(bus_dma_tag_t parent, uint32_t size, uint32_t alignment);

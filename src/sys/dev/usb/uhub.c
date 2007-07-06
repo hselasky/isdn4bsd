@@ -528,6 +528,9 @@ uhub_attach(device_t dev)
 		goto error;
 	}
 
+	/* init FULL-speed ISOCHRONOUS schedule */
+	usbd_fs_isoc_schedule_init_all(udev->hub->fs_isoc_schedule);
+
 	/* set up interrupt pipe */
 	err = usbd_transfer_setup(udev, 0, sc->sc_xfer, 
 				  uhub_config, 2, sc, &usb_global_lock);

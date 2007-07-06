@@ -215,8 +215,9 @@ NOTE: if the transfer was in progress, the callback will called with
 	NOTE: The transfer timeout, if any, is started after that
 	the pre-delay has elapsed! 
 
-- The "timeout" field, if non-zero, will set the transfer timeout, in
-  milliseconds.
+- The "timeout" field, if non-zero, will set the transfer timeout in
+  milliseconds. If the "timeout" field is zero and the transfer type
+  is ISOCHRONOUS a timeout of 250ms will be used.
 
 - The "frames" field sets the number of isochronous frames, for 
   "type" = UE_ISOCHRONOUS.
