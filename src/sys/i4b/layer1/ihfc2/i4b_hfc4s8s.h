@@ -1113,6 +1113,18 @@ I4B_PCI_DRIVER(/* HFC-2S */
 
 #include <i4b/layer1/ihfc2/i4b_count.h>
 
+I4B_DBASE(COUNT())
+{
+  I4B_DBASE_IMPORT(hfc2s_dbase_root);
+  I4B_DBASE_ADD(double_clock, 0);
+}
+
+I4B_PCI_DRIVER(/* HFC-2S Junghanns duoBRI miniPCI */
+	       .vid = 0x08b41397,
+	       .sub = 0xb5591397);
+
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
 I4B_DBASE(hfc4s_dbase_root)
 {
   I4B_DBASE_IMPORT(hfc4s8s_dbase_root);
