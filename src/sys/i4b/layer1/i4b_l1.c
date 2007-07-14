@@ -404,7 +404,8 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
     {
         msg_prot_ind_t *mpi = (void *)data;
 
-	if(cntl->N_driver_type != mpi->driver_type)
+	if ((cntl->N_driver_type != mpi->driver_type) ||
+	    (cntl->N_serial_number != mpi->serial_number))
 	{
 	    /* disconnect current driver */
 
@@ -412,7 +413,7 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
 	    i4b_update_d_channel(cntl);
 
 	    cntl->N_driver_type = mpi->driver_type;
-	    /* cntl->N_serial_number = mpi->serial_number; */
+	    cntl->N_serial_number = mpi->serial_number;
 
 	    /* connect new driver */
 

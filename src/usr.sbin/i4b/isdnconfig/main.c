@@ -257,7 +257,7 @@ static void
 reset_options(struct options *opt)
 {
     bzero(opt, sizeof(*opt));
-    opt->serial = 0xAB01;
+    opt->serial = 0xABCD;
     return;
 }
 
@@ -547,7 +547,7 @@ flush_command(struct options *opt)
 	    msg_prot_ind_t mpi = { /* zero */ };
 
 	    mpi.serial_number = 
-	      opt->got_i ? opt->serial : (opt->unit + 0xAB01);
+	      opt->got_i ? opt->serial : (opt->unit + 0xABCD);
 
 	    mpi.driver_type = opt->driver_type;
 
@@ -666,7 +666,7 @@ main(int argc, char **argv)
 
     for(optind = 1; optind < argc; )
     {
-        c = getopt(argc, argv, "c:hu:E:p:m:ntraD");
+        c = getopt(argc, argv, "c:hi:u:E:p:m:ntraD");
 
         switch(c) {
 	case 'c':

@@ -62,8 +62,11 @@ Set channel number. Zero is D-channel, one is B1-channel, two is
 B2-channel and so on. Default is zero.
 .It Fl i
 Set D-channel serial number. The serial number should be a uniqe
-16-bit number on a per S0-bus basis, greater than 0x7F. If not
-specified, the software will select some value.
+16-bit number on a per S0-bus basis. The DSS1 D-channel driver will
+interpret the serial number like the manual TEI value to use, if it is
+less than 0x40. If not specified, the software will select some
+default value. This option should be used in combination with the "-p"
+option.
 .It Fl m
 Set PCM cable unit number. Default is zero.
 .It Fl p
