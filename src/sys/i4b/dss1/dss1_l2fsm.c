@@ -451,9 +451,23 @@ dss1_tei_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe,
           ptr[OFF_TEI]  = TEI_BROADCAST;	/* TEI = 127, EA = 1 */
           ptr[OFF_CNTL] = CNTL_UI;		/* CNTL = CNTL_UI    */
           ptr[OFF_MEI]  = MEI_TEI_MANAGEMENT;	/* MEI               */
-          ptr[OFF_RI+0] = pipe->serial_number;	/* Reference number  */
-          ptr[OFF_RI+1] = pipe->serial_number >> 8;
-          ptr[OFF_MT]   = type;			/* Message Type      */
+
+#if (TEI_BROADCAST < 0x80)
+#error "(TEI_BROADCAST < 0x80)"
+#endif
+	  /*
+	   * NOTE: some PBXs require that the Ri value
+	   * is zero for manual TEI values, when sending
+	   * MT_ID_CHECK_RESPONSE messages!
+	   */
+	  if (pipe->tei < 0x80) {
+	      ptr[OFF_RI+0] = 0;
+	      ptr[OFF_RI+1] = 0;
+	  } else {
+	      ptr[OFF_RI+0] = pipe->serial_number;	/* Reference number  */
+	      ptr[OFF_RI+1] = pipe->serial_number >> 8;
+	  }
+	  ptr[OFF_MT]   = type;			/* Message Type      */
 	  ptr[OFF_AI]   = pipe->tei;		/* Action indicator  */
 
 	  dss1_l2_data_req(sc,m);

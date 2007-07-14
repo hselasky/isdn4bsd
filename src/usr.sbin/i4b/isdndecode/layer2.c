@@ -75,7 +75,7 @@ final_bit(struct buffer *dst, struct buffer *src,
 void
 layer2(struct buffer *dst, struct buffer *src, u_int8_t dir)
 {
-	u_int8_t j, sap, tei, cmd, offset = 0;
+	u_int8_t j, sap, tei, cmd, tmp, offset = 0;
 
 	/* address high */
 
@@ -189,19 +189,19 @@ layer2(struct buffer *dst, struct buffer *src, u_int8_t dir)
 				j);
 		    offset++;
 
-		    j = (get_1(src,7) >> 1) & 0x7F;
+		    tmp = (get_1(src,7) >> 1) & 0x7F;
 	
-		    if(j == 127) {
+		    if(tmp == 127) {
 		        bsprintline(dst, src, offset, 0xfe, 
-				    "Ai = %d (Action Indicator = %s)", j, 
+				    "Ai = 127 (Action Indicator = %s)", 
 				    (j == 0x01) ? "Any TEI value acceptable" :
 				    (j == 0x03) ? "No TEI Value available" :
 				    (j == 0x04) ? "Check all TEI values" :
-				    (j == 0x06) ? "Request for removal of all TEI values" :
-				    "");
+				    (j == 0x06) ? "Request for removal of "
+				    "all TEI values" : "Unknown");
 		    } else {
 		        bsprintline(dst, src, offset, 0xfe, "Ai = %d "
-				    "(Action Indicator)", j);
+				    "(Action Indicator)", tmp);
 		    }
 
 		    extension(dst, src, offset, 0x01);
