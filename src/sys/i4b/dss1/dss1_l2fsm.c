@@ -550,6 +550,15 @@ dss1_tei_rx_frame(l2softc_t *sc, struct dss1_buffer *buf)
 		  break;
 
 	case MT_ID_CHECK_REQUEST:
+		  /* If we use manual TEI assignment
+		   * then activate the pipe so that
+		   * we can tell the peer that the
+		   * TEI value is in use:
+		   */
+		  if (TE_MODE(sc) && !TEI_IS_AUTOMATIC(pipe)) {
+		      dss1_pipe_activate_req(pipe);
+		  }
+
 		  /* NOTE: there is no ID_CHECK_REQUEST_ACK */
 		  if(L2_STATE_IS_TEI_ASSIGNED(pipe->state)) /* both modes */
 		  {
