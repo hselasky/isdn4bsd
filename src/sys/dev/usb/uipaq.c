@@ -49,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.3 2007/02/03 19:11:09 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.7 2007/06/21 14:42:33 imp Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -72,7 +72,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.3 2007/02/03 19:11:09 imp Exp $"
 #define UIPAQ_BUF_SIZE		1024
 #define UIPAQ_N_DATA_TRANSFER	4
 
-#define DPRINTF(...) do { } while (0)
+#define	DPRINTF(...) do { } while (0)
 
 struct uipaq_softc {
 	struct ucom_super_softc	sc_super_ucom;

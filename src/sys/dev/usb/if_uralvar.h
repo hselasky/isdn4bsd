@@ -1,4 +1,4 @@
-/*	$FreeBSD: src/sys/dev/usb/if_uralvar.h,v 1.8 2007/05/09 09:32:41 kevlo Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb/if_uralvar.h,v 1.9 2007/06/11 03:36:52 sam Exp $	*/
 
 /*-
  * Copyright (c) 2005
@@ -23,6 +23,8 @@ struct ural_config_copy {
 	struct {
 		uint32_t	chan_to_ieee;
 		uint8_t		chan_is_2ghz;
+		uint8_t		chan_is_b;
+		uint8_t		chan_is_a;
 	} ic_curchan;
 
 	struct {
@@ -43,6 +45,7 @@ struct ural_config_copy {
 	uint16_t		ic_curmode;
 
 	uint8_t			ic_myaddr[IEEE80211_ADDR_LEN];
+	uint8_t			if_broadcastaddr[IEEE80211_ADDR_LEN];
 };
 
 struct ural_rx_radiotap_header {
@@ -142,8 +145,6 @@ struct ural_softc {
 	uint8_t				sc_rx_ant;
 	uint8_t				sc_tx_ant;
 	uint8_t				sc_nb_ant;
-	uint8_t				sc_if_timer;
-	uint8_t				sc_scan_timer;
 	uint8_t				sc_amrr_timer;
 	uint8_t				sc_name[32];
 };

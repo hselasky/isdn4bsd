@@ -1,7 +1,7 @@
 /*	$NetBSD: usb/uvscom.c,v 1.1 2002/03/19 15:08:42 augustss Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uvscom.c,v 1.30 2007/02/27 17:23:28 jhb Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uvscom.c,v 1.41 2007/07/05 06:28:46 imp Exp $");
 
 /*-
  * Copyright (c) 2001-2003, 2005 Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.
@@ -65,7 +65,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, uvscom, CTLFLAG_RW, 0, "USB uvscom");
 SYSCTL_INT(_hw_usb_uvscom, OID_AUTO, debug, CTLFLAG_RW,
 	   &uvscom_debug, 0, "uvscom debug level");
 #else
-#define DPRINTF(...) { }
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 #define UVSCOM_MODVER		1	/* module version */

@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.60 2007/05/12 05:53:53 brueffer Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.71 2007/06/23 04:20:24 imp Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -37,8 +37,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.60 2007/05/12 05:53:53 brueffer E
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * Modifications for SUN TYPE 6 USB Keyboard by
- *  Jörg Peter Schley (jps@scxnet.de)
  */
 
 /*
@@ -85,7 +83,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, ukbd, CTLFLAG_RW, 0, "USB ukbd");
 SYSCTL_INT(_hw_usb_ukbd, OID_AUTO, debug, CTLFLAG_RW,
 	   &ukbd_debug, 0, "ukbd debug level");
 #else
-#define DPRINTF(...)
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 #define UPROTO_BOOT_KEYBOARD 1
@@ -660,18 +658,6 @@ ukbd_attach(device_t dev)
 	 * according to the BIOS data?
 	 */
 	KBD_PROBE_DONE(kbd);
-
-	if ((usbd_get_quirks(uaa->device)->uq_flags & UQ_NO_SET_PROTO) == 0) {
-
-	    err = usbreq_set_protocol(sc->sc_udev, sc->sc_iface_index, 0);
-
-	    DPRINTF(5, "protocol set\n");
-
-	    if (err) {
-	        device_printf(dev, "set protocol failed\n");
-		goto detach;
-	    }
-	}
 
 	/* ignore if SETIDLE fails, hence it is not crucial */
 	err = usbreq_set_idle(sc->sc_udev, sc->sc_iface_index, 0, 0);

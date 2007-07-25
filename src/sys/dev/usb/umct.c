@@ -55,7 +55,7 @@
 
 #include "usbdevs.h"
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/umct.c,v 1.12 2006/09/07 00:06:42 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/umct.c,v 1.18 2007/06/18 22:27:57 imp Exp $");
 
 /* The UMCT advertises the standard 8250 UART registers */
 #define UMCT_GET_MSR		2	/* Get Modem Status Register */

@@ -29,7 +29,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/udbp.c,v 1.31 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/udbp.c,v 1.41 2007/07/05 15:25:32 imp Exp $");
 
 /* Driver for arbitrary double bulk pipe devices.
  * The driver assumes that there will be the same driver on the other side.
@@ -86,7 +86,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, udbp, CTLFLAG_RW, 0, "USB udbp");
 SYSCTL_INT(_hw_usb_udbp, OID_AUTO, debug, CTLFLAG_RW,
 	   &udbp_debug, 0, "udbp debug level");
 #else
-#define DPRINTF(...) /* nop */
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 #define UDBP_TIMEOUT	2000	 /* timeout on outbound transfers, in msecs */
@@ -298,16 +298,20 @@ udbp_probe(device_t dev)
 	 */
 	if (((uaa->vendor == USB_VENDOR_NETCHIP) &&
 	     (uaa->product == USB_PRODUCT_NETCHIP_TURBOCONNECT)))
-		return(UMATCH_VENDOR_PRODUCT);
+		return (UMATCH_VENDOR_PRODUCT);
 
 	if (((uaa->vendor == USB_VENDOR_PROLIFIC) &&
 	     ((uaa->product == USB_PRODUCT_PROLIFIC_PL2301) ||
 	      (uaa->product == USB_PRODUCT_PROLIFIC_PL2302))))
-		return(UMATCH_VENDOR_PRODUCT);
+		return (UMATCH_VENDOR_PRODUCT);
 
-	if (((uaa->vendor == USB_VENDOR_ANCHOR) &&
-	     (uaa->product == USB_PRODUCT_ANCHOR_EZLINK)))
-		return(UMATCH_VENDOR_PRODUCT);
+	if ((uaa->vendor == USB_VENDOR_ANCHOR) &&
+	    (uaa->product == USB_PRODUCT_ANCHOR_EZLINK))
+		return (UMATCH_VENDOR_PRODUCT);
+
+	if ((uaa->vendor == USB_VENDOR_GENESYS) &&
+	    (uaa->product == USB_PRODUCT_GENESYS_GL620USB))
+		return (UMATCH_VENDOR_PRODUCT);
 
 	return (UMATCH_NONE);
 }

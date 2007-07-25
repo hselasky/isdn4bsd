@@ -1,5 +1,5 @@
 VERSION=1_6_3
-DATE=June 2007
+DATE=July 2007
 
 FILTER= grep -v "temp"   |\
 	grep -v "~"      |\
@@ -48,6 +48,9 @@ URAL_FILES=\
 ${S}/sys/dev/usb/if_ural.c \
 ${S}/sys/dev/usb/if_uralreg.h \
 ${S}/sys/dev/usb/if_uralvar.h \
+${S}/sys/dev/usb/if_rum.c \
+${S}/sys/dev/usb/if_rumreg.h \
+${S}/sys/dev/usb/if_rumvar.h \
 
 USB_FILES=\
 ${S}/sys/arm/at91/ohci_atmelarm.c \

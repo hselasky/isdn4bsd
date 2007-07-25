@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- * $FreeBSD: src/sys/dev/usb/if_axereg.h,v 1.11 2007/05/01 11:17:29 brueffer Exp $
+ * $FreeBSD: src/sys/dev/usb/if_axereg.h,v 1.13 2007/06/30 20:08:08 imp Exp $
  */
 
 /*

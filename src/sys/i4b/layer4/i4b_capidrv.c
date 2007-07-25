@@ -48,6 +48,9 @@
 #include <sys/endian.h>
 #include <sys/filio.h>
 #include <sys/lock.h>
+#if __FreeBSD_version >= 700050
+# include <sys/priv.h>
+#endif
 #include <net/if.h>
 
 #include <i4b/include/i4b_debug.h>

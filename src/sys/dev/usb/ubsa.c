@@ -25,7 +25,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.23 2007/05/08 18:51:39 maxim Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.32 2007/06/22 05:56:05 imp Exp $");
 
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
@@ -89,7 +89,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, ubsa, CTLFLAG_RW, 0, "USB ubsa");
 SYSCTL_INT(_hw_usb_ubsa, OID_AUTO, debug, CTLFLAG_RW,
 	   &ubsa_debug, 0, "ubsa debug level");
 #else
-#define	DPRINTF(...)
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 #define UBSA_N_TRANSFER           6 /* units */
@@ -276,11 +276,13 @@ static const struct ubsa_product {
 	/* Peracom */
 	{ USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_SERIAL1 },
 	/* Novatel Wireless Merlin cards */
-	{ USB_VENDOR_NOVATEL2, USB_PRODUCT_NOVATEL2_U740 },
+	{ USB_VENDOR_NOVATEL, USB_PRODUCT_NOVATEL_U740 },
 	/* Option Vodafone MC3G */
 	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_VODAFONEMC3G },
 	/* Option GlobeTrotter 3G */
 	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3G },
+	/* Option GlobeTrotter 3G+ */
+	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GPLUS },
 	/* Option GlobeTrotter 3G QUAD */
 	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GQUAD },
 	/* Huawei Mobile */

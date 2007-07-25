@@ -13,7 +13,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ohci.c,v 1.167 2006/10/19 01:15:58 iedowse Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ohci.c,v 1.170 2007/06/20 05:10:52 imp Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -83,8 +83,8 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ohci.c,v 1.167 2006/10/19 01:15:58 iedowse E
 #ifdef USB_DEBUG
 #undef DPRINTF
 #undef DPRINTFN
-#define DPRINTF(x)	{ if (ohcidebug) { printf("%s: ", __FUNCTION__); printf x ; } }
-#define DPRINTFN(n,x)	{ if (ohcidebug > (n)) { printf("%s: ", __FUNCTION__); printf x ; } }
+#define DPRINTF(x)	do { if (ohcidebug) { printf("%s: ", __FUNCTION__); printf x ; } } while(0)
+#define DPRINTFN(n,x)	do { if (ohcidebug > (n)) { printf("%s: ", __FUNCTION__); printf x ; } } while(0)
 int ohcidebug = 0;
 SYSCTL_NODE(_hw_usb, OID_AUTO, ohci, CTLFLAG_RW, 0, "USB ohci");
 SYSCTL_INT(_hw_usb_ohci, OID_AUTO, debug, CTLFLAG_RW,
@@ -367,8 +367,6 @@ ohci_init(ohci_softc_t *sc)
 		ohci_dump_ed(&(hw_ptr->isoc_start));
 	}
 #endif
-
-	sc->sc_control = sc->sc_intre = 0;
 
 	sc->sc_bus.usbrev = USBREV_1_0;
 

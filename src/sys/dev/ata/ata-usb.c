@@ -28,7 +28,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/ata/ata-usb.c,v 1.6 2007/02/21 19:07:18 sos Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/ata/ata-usb.c,v 1.7 2007/06/23 21:52:05 imp Exp $");
 
 #include "opt_ata.h"
 #include <sys/param.h>

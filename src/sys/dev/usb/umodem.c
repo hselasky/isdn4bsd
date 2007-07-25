@@ -1,7 +1,7 @@
 /*	$NetBSD: umodem.c,v 1.45 2002/09/23 05:51:23 simonb Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/umodem.c,v 1.60 2006/09/07 00:06:42 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/umodem.c,v 1.70 2007/06/28 05:50:14 imp Exp $");
 
 /*-
  * Copyright (c) 2003, M. Warner Losh <imp@freebsd.org>.
@@ -88,7 +88,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/umodem.c,v 1.60 2006/09/07 00:06:42 imp Exp 
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_subr.h>
-#include <dev/usb/usb_quirks.h>
 #include <dev/usb/usb_cdc.h>
 
 #include <dev/usb/ucomvar.h>
@@ -120,6 +119,12 @@ static const struct umodem_product {
 	{ 0, 0, 0 },
 };
 
+/*
+ * As speeds for umodem deivces increase, these numbers will need to
+ * be increased. They should be good for G3 speeds and below.
+ *
+ * TODO: The TTY buffers should be increased!
+ */
 #define	UMODEM_BUF_SIZE 1024
 #define UMODEM_N_DATA_TRANSFER 4
 #define UMODEM_N_INTR_TRANSFER 2
@@ -391,23 +396,17 @@ umodem_attach(device_t dev)
 	    }
 	}
 
-	if (usbd_get_quirks(uaa->device)->uq_flags & UQ_ASSUME_CM_OVER_DATA) {
-	    DPRINTF(0, "Quirk says to assume CM over data\n");
-	    sc->sc_cm_over_data = 1;
-	} else {
-	    if (sc->sc_cm_cap & USB_CDC_CM_OVER_DATA) {
-	        if (sc->sc_acm_cap & USB_CDC_ACM_HAS_FEATURE) {
-		    error = umodem_set_comm_feature
-		      (uaa->device, sc->sc_ctrl_iface_no, UCDC_ABSTRACT_STATE, UCDC_DATA_MULTIPLEXED);
+	if (sc->sc_cm_cap & USB_CDC_CM_OVER_DATA) {
+	    if (sc->sc_acm_cap & USB_CDC_ACM_HAS_FEATURE) {
 
-		    if (error) {
-		        device_printf(dev, "could not set data "
-				      "multiplex mode\n");
-			goto detach;
-		    }
-		}
-		sc->sc_cm_over_data = 1;
+	        error = umodem_set_comm_feature
+		  (uaa->device, sc->sc_ctrl_iface_no, 
+		   UCDC_ABSTRACT_STATE, UCDC_DATA_MULTIPLEXED);
+
+		/* ignore any errors */
 	    }
+
+	    sc->sc_cm_over_data = 1;
 	}
 
 	error = usbd_transfer_setup(uaa->device, sc->sc_data_iface_index,
@@ -422,9 +421,9 @@ umodem_attach(device_t dev)
 				    sc->sc_xfer_intr, umodem_config_intr,
 				    UMODEM_N_INTR_TRANSFER,
 				    sc, &Giant);
-	if (error) {
-	    /* ignore */
-	    DPRINTF(0, "no interrupt pipe!\n");
+	if (error == 0) {
+		device_printf(dev, "status change "
+			      "notification available\n");
 	}
 
 	/* clear stall at first run */

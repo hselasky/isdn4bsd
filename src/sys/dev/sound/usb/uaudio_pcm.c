@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/sound/usb/uaudio_pcm.c,v 1.20 2007/01/26 19:14:41 ariff Exp $ */
+/* $FreeBSD: src/sys/dev/sound/usb/uaudio_pcm.c,v 1.24 2007/06/17 06:10:43 ariff Exp $ */
 
 /*-
  * Copyright (c) 2000-2002 Hiroyuki Aizu <aizu@navi.org>
@@ -71,10 +71,15 @@ ua_chan_setblocksize(kobj_t obj, void *data, u_int32_t blocksize)
 }
 
 static int
+ua_chan_setfragments(kobj_t obj, void *data, uint32_t blocksize, uint32_t blockcount)
+{
+	return uaudio_chan_set_param_fragments(data, blocksize, blockcount);
+}
+
+static int
 ua_chan_trigger(kobj_t obj, void *data, int go)
 {
-	if ((go == PCMTRIG_EMLDMAWR) || 
-	    (go == PCMTRIG_EMLDMARD)) {
+	if (!PCMTRIG_COMMON(go)) {
 	    return 0;
 	}
 
@@ -103,6 +108,7 @@ static kobj_method_t ua_chan_methods[] = {
 	KOBJMETHOD(channel_setformat,		ua_chan_setformat),
 	KOBJMETHOD(channel_setspeed,		ua_chan_setspeed),
 	KOBJMETHOD(channel_setblocksize,	ua_chan_setblocksize),
+	KOBJMETHOD(channel_setfragments,	ua_chan_setfragments),
 	KOBJMETHOD(channel_trigger,		ua_chan_trigger),
 	KOBJMETHOD(channel_getptr,		ua_chan_getptr),
 	KOBJMETHOD(channel_getcaps,		ua_chan_getcaps),
@@ -121,14 +127,22 @@ ua_mixer_init(struct snd_mixer *m)
 static int
 ua_mixer_set(struct snd_mixer *m, unsigned type, unsigned left, unsigned right)
 {
+	struct mtx *mtx = mixer_get_lock(m);
+	snd_mtxlock(mtx); /* XXX */
 	uaudio_mixer_set(mix_getdevinfo(m), type, left, right);
+	snd_mtxunlock(mtx); /* XXX */
 	return (left | (right << 8));
 }
 
 static int
 ua_mixer_setrecsrc(struct snd_mixer *m, u_int32_t src)
 {
-	return uaudio_mixer_setrecsrc(mix_getdevinfo(m), src);
+	struct mtx *mtx = mixer_get_lock(m);
+	int retval;
+	snd_mtxlock(mtx); /* XXX */
+	retval = uaudio_mixer_setrecsrc(mix_getdevinfo(m), src);
+	snd_mtxunlock(mtx); /* XXX */
+	return retval;
 }
 
 static int

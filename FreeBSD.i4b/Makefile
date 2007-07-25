@@ -1,5 +1,5 @@
 VERSION=1_6_3
-DATE=June 2007
+DATE=July 2007
 
 FILTER= grep -v "temp"   | \
 	grep -v "~"      | \
@@ -70,6 +70,9 @@ URAL_FILES=\
 ${S}/sys/dev/usb/if_ural.c \
 ${S}/sys/dev/usb/if_uralreg.h \
 ${S}/sys/dev/usb/if_uralvar.h \
+${S}/sys/dev/usb/if_rum.c \
+${S}/sys/dev/usb/if_rumreg.h \
+${S}/sys/dev/usb/if_rumvar.h \
 
 USB_FILES=\
 ${S}/sys/arm/at91/ohci_atmelarm.c \
@@ -426,6 +429,11 @@ update_pcm:
 	    ${S}/sys/dev/sound/pcm/dsp.c \
 	| sed -e s/"chn_get(struct cdev \*"/"chn_get(dev_t "/g \
 	      -e s/"chn_rel(struct cdev \*"/"chn_rel(dev_t "/g \
+	| tr '\n' 'å' \
+	| sed -e s/"static.int.chn_get"/"intåchn_get"/ \
+	      -e s/"static.void.chn_rel"/"voidåchn_rel"/ \
+	| tr 'å' '\n' \
+	| sed -e s/"dev_t dev"/"struct cdev \*dev"/g \
 	> ${TEMP}
 
 	cat ${TEMP} > ${S}/sys/dev/sound/pcm/dsp.c
@@ -516,12 +524,7 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_pcm
 
 	(bzcat ${DIFF} | patch -N -l -d ${S}) || echo -n
 
-# patch 2
-	sed -e s/"dev_t dev"/"struct cdev \*dev"/g \
-		${S}/sys/dev/sound/pcm/dsp.c \
-	> ${TEMP}
-
-	cat ${TEMP} > ${S}/sys/dev/sound/pcm/dsp.c
+# patch 2 (obsolete)
 
 # patch 3
 	cat ${S}/include/Makefile \

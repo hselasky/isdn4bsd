@@ -1,5 +1,5 @@
 /*	$NetBSD: usb.h,v 1.69 2002/09/22 23:20:50 augustss Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb/usb.h,v 1.41 2006/09/06 23:44:24 imp Exp $    */
+/*	$FreeBSD: src/sys/dev/usb/usb.h,v 1.47 2007/06/30 02:40:21 imp Exp $    */
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -75,39 +75,6 @@
 #define	USB_FS_BYTES_PER_HS_UFRAME 188 /* bytes */
 #define	USB_HS_MICRO_FRAMES_MAX 8 /* units */
 
-#ifndef __UA_TYPES_H__
-#define __UA_TYPES_H__
-
-/* the following structures are
- * used to force the compiler to
- * generate un-aligned memory
- * access code on processors that
- * do not support un-aligned
- * memory accesses:
- */
-
-struct void_p {
-  void *data;
-} __packed;
-
-struct u_int16_p {
-  u_int16_t data;
-} __packed;
-
-struct u_int32_p {
-  u_int32_t data;
-} __packed;
-
-struct u_int64_p {
-  u_int64_t data;
-} __packed;
-
-typedef struct void_p    void_p_t;
-typedef struct u_int16_p u_int16_p_t;
-typedef struct u_int32_p u_int32_p_t;
-typedef struct u_int64_p u_int64_p_t;
-#endif
-
 /*
  * The USB records contain some unaligned little-endian word
  * components.  The U[SG]ETW macros take care of both the alignment
@@ -139,11 +106,7 @@ typedef u_int8_t uDWord[4];
 #define USETDW(w,v) (*(u_int32_t *)(w) = (v))
 #endif
 
-#if defined(__FreeBSD__) && (__FreeBSD_version <= 500014)
-#define UPACKED __attribute__ ((packed))
-#else
 #define UPACKED __packed
-#endif
 
 typedef struct {
 	uByte		bmRequestType;
@@ -473,6 +436,7 @@ typedef struct {
 #define UICLASS_HID		0x03
 #define  UISUBCLASS_BOOT	1
 #define  UIPROTO_BOOT_KEYBOARD	1
+#define  UIPROTO_MOUSE		2
 
 #define UICLASS_PHYSICAL	0x05
 

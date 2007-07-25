@@ -24,6 +24,8 @@ struct rum_config_copy {
 		uint32_t	chan_to_ieee;
 		uint8_t		chan_is_2ghz;
 		uint8_t		chan_is_5ghz;
+		uint8_t		chan_is_b;
+		uint8_t		chan_is_a;
 	} ic_curchan;
 
 	struct {
@@ -44,6 +46,7 @@ struct rum_config_copy {
 	uint16_t		ic_curmode;
 
 	uint8_t			ic_myaddr[IEEE80211_ADDR_LEN];
+	uint8_t			if_broadcastaddr[IEEE80211_ADDR_LEN];
 };
 
 struct rum_rx_radiotap_header {
@@ -142,8 +145,6 @@ struct rum_softc {
 	uint8_t				sc_sifs;
 	uint8_t				sc_bbp17;
 	uint8_t				sc_hw_radio;
-	uint8_t				sc_if_timer;
-	uint8_t				sc_scan_timer;
 	uint8_t				sc_amrr_timer;
 	uint8_t				sc_name[32];
 

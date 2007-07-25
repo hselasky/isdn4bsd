@@ -57,7 +57,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_rue.c,v 1.31 2007/05/12 05:53:53 brueffer Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_rue.c,v 1.40 2007/07/09 16:58:07 imp Exp $");
 
 /*
  * RealTek RTL8150 USB to fast ethernet controller driver.
@@ -118,7 +118,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, rue, CTLFLAG_RW, 0, "USB rue");
 SYSCTL_INT(_hw_usb_rue, OID_AUTO, debug, CTLFLAG_RW,
 	   &rue_debug, 0, "rue debug level");
 #else
-#define DPRINTF(...)
+#define DPRINTF(...) do { } while (0)
 #endif
 
 /*

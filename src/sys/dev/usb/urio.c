@@ -29,7 +29,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/urio.c,v 1.37 2006/09/07 00:06:42 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/urio.c,v 1.48 2007/06/21 14:42:34 imp Exp $");
 
 
 /*
@@ -72,7 +72,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, urio, CTLFLAG_RW, 0, "USB urio");
 SYSCTL_INT(_hw_usb_urio, OID_AUTO, debug, CTLFLAG_RW,
 	   &urio_debug, 0, "urio debug level");
 #else
-#define DPRINTF(...) /* nop */
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 #define URIO_T_WR     0

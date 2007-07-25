@@ -27,7 +27,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ucom.c,v 1.60 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ucom.c,v 1.64 2007/06/25 06:40:20 imp Exp $");
 
 /*-
  * Copyright (c) 1998, 2000 The NetBSD Foundation, Inc.
@@ -99,7 +99,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, ucom, CTLFLAG_RW, 0, "USB ucom");
 SYSCTL_INT(_hw_usb_ucom, OID_AUTO, debug, CTLFLAG_RW,
 	   &ucom_debug, 0, "ucom debug level");
 #else
-#define DPRINTF(...)
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 struct ucom_config_copy {

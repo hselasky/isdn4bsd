@@ -1,7 +1,7 @@
 /*	$NetBSD: uplcom.c,v 1.21 2001/11/13 06:24:56 lukem Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uplcom.c,v 1.41 2007/03/24 09:27:58 maxim Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uplcom.c,v 1.50 2007/06/20 05:10:53 imp Exp $");
 
 /*-
  * Copyright (c) 2001-2003, 2005 Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.

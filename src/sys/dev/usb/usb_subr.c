@@ -11,7 +11,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.90 2007/05/08 03:25:05 kevlo Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.95 2007/06/30 20:18:44 imp Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -1438,9 +1438,9 @@ usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
 			       "of parent HUB, %d.\n",
 			       __FUNCTION__, speed, hub->speed);
 #endif
-			/* speed down 
-			 * (else there is trouble setting 
-			 *  up the right transfer methods)
+			/*
+			 * Reduce the speed, otherwise we won't setup the
+			 * proper transfer methods.
 			 */
 			speed = hub->speed;
 		}

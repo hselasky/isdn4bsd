@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uhub.c,v 1.74 2007/02/03 21:11:11 flz Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uhub.c,v 1.82 2007/06/30 20:18:44 imp Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -65,7 +65,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, uhub, CTLFLAG_RW, 0, "USB uhub");
 SYSCTL_INT(_hw_usb_uhub, OID_AUTO, debug, CTLFLAG_RW, &uhub_debug, 0,
 	   "uhub debug level");
 #else
-#define DPRINTF(...) do { } while (0)
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 struct uhub_softc {

@@ -52,7 +52,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ehci.c,v 1.52 2006/10/19 01:15:58 iedowse Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ehci.c,v 1.55 2007/06/20 05:10:52 imp Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -76,8 +76,10 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ehci.c,v 1.52 2006/10/19 01:15:58 iedowse Ex
    POINTER_TO_UNSIGNED(&(((ehci_softc_t *)0)->sc_bus))))
 
 #ifdef USB_DEBUG
-#define DPRINTF(x)	{ if (ehcidebug) { printf("%s: ", __FUNCTION__); printf x ; } }
-#define DPRINTFN(n,x)	{ if (ehcidebug > (n)) { printf("%s: ", __FUNCTION__); printf x ; } }
+#define DPRINTF(x)	do { if (ehcidebug) { printf("%s: ", __FUNCTION__); \
+			       printf x ; } } while (0)
+#define DPRINTFN(n,x)	do { if (ehcidebug > (n)) { printf("%s: ", __FUNCTION__); \
+			       printf x ; } } while (0)
 int ehcidebug = 0;
 SYSCTL_NODE(_hw_usb, OID_AUTO, ehci, CTLFLAG_RW, 0, "USB ehci");
 SYSCTL_INT(_hw_usb_ehci, OID_AUTO, debug, CTLFLAG_RW,
@@ -88,8 +90,8 @@ ehci_dump_regs(ehci_softc_t *sc);
 static void
 ehci_dump_sqh(ehci_qh_t *sqh);
 #else
-#define DPRINTF(x)
-#define DPRINTFN(n,x)
+#define DPRINTF(x) do { } while(0)
+#define DPRINTFN(n,x) do { } while(0)
 #endif
 
 #define EHCI_INTR_ENDPT 1

@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ums.c,v 1.84 2007/05/12 05:53:53 brueffer Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ums.c,v 1.95 2007/06/29 21:07:41 imp Exp $");
 
 /*
  * HID spec: http://www.usb.org/developers/devclass_docs/HID1_11.pdf
@@ -57,6 +57,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ums.c,v 1.84 2007/05/12 05:53:53 brueffer Ex
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_subr.h>
+#include <dev/usb/usb_quirks.h>
 #include <dev/usb/usb_hid.h>
 
 #ifdef USB_DEBUG
@@ -69,7 +70,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, ums, CTLFLAG_RW, 0, "USB ums");
 SYSCTL_INT(_hw_usb_ums, OID_AUTO, debug, CTLFLAG_RW,
 	   &ums_debug, 0, "ums debug level");
 #else
-#define DPRINTF(...)
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 #define DEV2SC(dev) (dev)->si_drv1
@@ -189,15 +190,27 @@ ums_intr_callback(struct usbd_xfer *xfer)
 		(len > 4) ? buf[4] : 0, (len > 5) ? buf[5] : 0, 
 		(len > 6) ? buf[6] : 0, (len > 7) ? buf[7] : 0);
 
+	if (len == 0) {
+	    goto tr_setup;
+	}
+
 	/*
-	 * The M$ Wireless Intellimouse 2.0 sends 1 extra leading byte of
-	 * data compared to most USB mice. This byte frequently switches
-	 * from 0x01 (usual state) to 0x02. I assume it is to allow
-	 * extra, non-standard, reporting (say battery-life). However
-	 * at the same time it generates a left-click message on the button
-	 * byte which causes spurious left-click's where there shouldn't be.
-	 * This should sort that.
-	 * Currently it's the only user of UMS_FLAG_T_AXIS so use it as an identifier.
+	 * The M$ Wireless Intellimouse 2.0 sends 1 extra leading byte
+	 * of data compared to most USB mice. This byte frequently
+	 * switches from 0x01 (usual state) to 0x02. I assume it is to
+	 * allow extra, non-standard, reporting (say battery-life).
+	 *
+	 * However at the same time it generates a left-click message
+	 * on the button byte which causes spurious left-click's where
+	 * there shouldn't be.  This should sort that.  Currently it's
+	 * the only user of UMS_FLAG_T_AXIS so use it as an
+	 * identifier.
+	 *
+	 *
+	 * UPDATE: This problem affects the M$ Wireless Notebook Optical Mouse,
+	 * too. However, the leading byte for this mouse is normally 0x11,
+	 * and the phantom mouse click occurs when its 0x14.
+	 *
 	 * We probably should switch to some more official quirk.
 	 */
 	if (sc->sc_iid) {
@@ -211,11 +224,14 @@ ums_intr_callback(struct usbd_xfer *xfer)
 	      }
 	    }
 
-	    if (len) {
-	      len--;
-	      buf++;
-	    } else {
-	      goto tr_setup;
+	    len--;
+	    buf++;
+
+	} else {
+	    if (sc->sc_flags & UMS_FLAG_SBU) {
+	        if ((*buf == 0x14) || (*buf == 0x15)) {
+		    goto tr_setup;
+		}
 	    }
 	}
 
@@ -331,7 +347,9 @@ ums_probe(device_t dev)
 	id = usbd_get_interface_descriptor(uaa->iface);
 
 	if ((id == NULL) || 
-	    (id->bInterfaceClass != UICLASS_HID)) {
+	    (id->bInterfaceClass != UICLASS_HID) ||
+	    (id->bInterfaceSubClass != UISUBCLASS_BOOT) || 
+	    (id->bInterfaceProtocol != UIPROTO_MOUSE)) {
 	    return UMATCH_NONE;
 	}
 
@@ -341,15 +359,9 @@ ums_probe(device_t dev)
 	    return UMATCH_NONE;
 	}
 
-	if (hid_is_collection(d_ptr, d_len, 
-			      HID_USAGE2(HUP_GENERIC_DESKTOP, HUG_MOUSE)))
-	    error = UMATCH_IFACECLASS;
-	else
-	    error = UMATCH_NONE;
-
 	free(d_ptr, M_TEMP);
 
-	return error;
+	return UMATCH_IFACECLASS;
 }
 
 static int
@@ -421,7 +433,8 @@ ums_attach(device_t dev)
 	    }
 	}
 
-	/* The Microsoft Wireless Intellimouse 2.0 reports it's wheel
+	/*
+	 * The Microsoft Wireless Intellimouse 2.0 reports it's wheel
 	 * using 0x0048, which is HUG_TWHEEL, and seems to expect you
 	 * to know that the byte after the wheel is the tilt axis.
 	 * There are no other HID axis descriptors other than X,Y and 
@@ -448,20 +461,45 @@ ums_attach(device_t dev)
 
 	sc->sc_buttons = i;
 
-	device_printf(dev, "%d buttons and [%s%s%s%s] coordinates\n",
-		      (sc->sc_buttons),
-		      (sc->sc_flags & UMS_FLAG_X_AXIS) ? "X" : "",
-		      (sc->sc_flags & UMS_FLAG_Y_AXIS) ? "Y" : "",
-		      (sc->sc_flags & UMS_FLAG_Z_AXIS) ? "Z" : "",
-		      (sc->sc_flags & UMS_FLAG_T_AXIS) ? "T" : "");
-
 	isize = hid_report_size(d_ptr, d_len, hid_input, &sc->sc_iid);
+
+	/*
+	 * The Microsoft Wireless Notebook Optical Mouse seems to be in worse
+	 * shape than the Wireless Intellimouse 2.0, as its X, Y, wheel, and
+	 * all of its other button positions are all off. It also reports that
+	 * it has two addional buttons and a tilt wheel.
+	 */
+	if (usbd_get_quirks(uaa->device)->uq_flags & UQ_MS_BAD_CLASS) {
+		sc->sc_flags = (UMS_FLAG_X_AXIS|
+				UMS_FLAG_Y_AXIS|
+				UMS_FLAG_Z_AXIS|
+				UMS_FLAG_SBU);
+		sc->sc_buttons = 3;
+		isize = 5;
+		sc->sc_iid = 0;
+		/* 1st byte of descriptor report contains garbage */
+		sc->sc_loc_x.pos = 16;
+		sc->sc_loc_y.pos = 24;
+		sc->sc_loc_z.pos = 32;
+		sc->sc_loc_btn[0].pos = 8;
+		sc->sc_loc_btn[1].pos = 9;
+		sc->sc_loc_btn[2].pos = 10;
+	}
 
 	if (isize > sc->sc_xfer[0]->length) {
 	    DPRINTF(0, "WARNING: report size, %d bytes, is larger "
 		    "than interrupt size, %d bytes!\n",
 		    isize, sc->sc_xfer[0]->length);
 	}
+
+	/* announce information about the mouse */
+
+	device_printf(dev, "%d buttons and [%s%s%s%s] coordinates\n",
+		      (sc->sc_buttons),
+		      (sc->sc_flags & UMS_FLAG_X_AXIS) ? "X" : "",
+		      (sc->sc_flags & UMS_FLAG_Y_AXIS) ? "Y" : "",
+		      (sc->sc_flags & UMS_FLAG_Z_AXIS) ? "Z" : "",
+		      (sc->sc_flags & UMS_FLAG_T_AXIS) ? "T" : "");
 
 	free(d_ptr, M_TEMP);
 	d_ptr = NULL;
@@ -604,7 +642,7 @@ ums_put_queue(struct ums_softc *sc, int32_t dx, int32_t dy,
 	    buf[4] = dy - (dy >> 1);
 
 	    if (sc->sc_mode.level == 1) {
-	        buf[5] = dz >> 1;
+		buf[5] = dz >> 1;
 		buf[6] = dz - (dz >> 1);
 		buf[7] = (((~buttons) >> 3) & MOUSE_SYS_EXTBUTTONS);
 	    }
@@ -692,18 +730,18 @@ ums_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t addr,
 
 		if (sc->sc_mode.level == 0) {
 		    if (sc->sc_buttons > MOUSE_MSC_MAXBUTTON)
-		        sc->sc_hw.buttons = MOUSE_MSC_MAXBUTTON;
+			sc->sc_hw.buttons = MOUSE_MSC_MAXBUTTON;
 		    else
-		        sc->sc_hw.buttons = sc->sc_buttons;
+			sc->sc_hw.buttons = sc->sc_buttons;
 		    sc->sc_mode.protocol = MOUSE_PROTO_MSC;
 		    sc->sc_mode.packetsize = MOUSE_MSC_PACKETSIZE;
 		    sc->sc_mode.syncmask[0] = MOUSE_MSC_SYNCMASK;
 		    sc->sc_mode.syncmask[1] = MOUSE_MSC_SYNC;
 		} else if (sc->sc_mode.level == 1) {
 		    if (sc->sc_buttons > MOUSE_SYS_MAXBUTTON)
-		        sc->sc_hw.buttons = MOUSE_SYS_MAXBUTTON;
+			sc->sc_hw.buttons = MOUSE_SYS_MAXBUTTON;
 		    else
-		        sc->sc_hw.buttons = sc->sc_buttons;
+			sc->sc_hw.buttons = sc->sc_buttons;
 		    sc->sc_mode.protocol = MOUSE_PROTO_SYSMOUSE;
 		    sc->sc_mode.packetsize = MOUSE_SYS_PACKETSIZE;
 		    sc->sc_mode.syncmask[0] = MOUSE_SYS_SYNCMASK;
@@ -726,18 +764,18 @@ ums_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t addr,
 
 		if (sc->sc_mode.level == 0) {
 		    if (sc->sc_buttons > MOUSE_MSC_MAXBUTTON)
-		        sc->sc_hw.buttons = MOUSE_MSC_MAXBUTTON;
+			sc->sc_hw.buttons = MOUSE_MSC_MAXBUTTON;
 		    else
-		        sc->sc_hw.buttons = sc->sc_buttons;
+			sc->sc_hw.buttons = sc->sc_buttons;
 		    sc->sc_mode.protocol = MOUSE_PROTO_MSC;
 		    sc->sc_mode.packetsize = MOUSE_MSC_PACKETSIZE;
 		    sc->sc_mode.syncmask[0] = MOUSE_MSC_SYNCMASK;
 		    sc->sc_mode.syncmask[1] = MOUSE_MSC_SYNC;
 		} else if (sc->sc_mode.level == 1) {
 		    if (sc->sc_buttons > MOUSE_SYS_MAXBUTTON)
-		        sc->sc_hw.buttons = MOUSE_SYS_MAXBUTTON;
+			sc->sc_hw.buttons = MOUSE_SYS_MAXBUTTON;
 		    else
-		        sc->sc_hw.buttons = sc->sc_buttons;
+			sc->sc_hw.buttons = sc->sc_buttons;
 		    sc->sc_mode.protocol = MOUSE_PROTO_SYSMOUSE;
 		    sc->sc_mode.packetsize = MOUSE_SYS_PACKETSIZE;
 		    sc->sc_mode.syncmask[0] = MOUSE_SYS_SYNCMASK;

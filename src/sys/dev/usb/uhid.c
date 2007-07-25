@@ -5,7 +5,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uhid.c,v 1.83 2006/09/07 00:06:41 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uhid.c,v 1.96 2007/06/21 14:42:33 imp Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -78,7 +78,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, uhid, CTLFLAG_RW, 0, "USB uhid");
 SYSCTL_INT(_hw_usb_uhid, OID_AUTO, debug, CTLFLAG_RW,
 	   &uhid_debug, 0, "uhid debug level");
 #else
-#define DPRINTF(...)
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 /* temporary compile hacks for old USB systems: */

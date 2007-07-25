@@ -54,7 +54,7 @@
 #include <dev/usb/usb_subr.h>
 #include <dev/usb/usb_quirks.h>
 
-__FBSDID("$FreeBSD: src/sys/dev/usb/ulpt.c,v 1.70 2006/09/07 00:06:42 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ulpt.c,v 1.80 2007/06/21 14:42:34 imp Exp $");
 
 #ifdef USB_DEBUG
 #define DPRINTF(n,fmt,...)						\
@@ -66,7 +66,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, ulpt, CTLFLAG_RW, 0, "USB ulpt");
 SYSCTL_INT(_hw_usb_ulpt, OID_AUTO, debug, CTLFLAG_RW,
 	   &ulpt_debug, 0, "ulpt debug level");
 #else
-#define DPRINTF(...)
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 #define	ULPT_BSIZE		(1<<17) /* bytes */

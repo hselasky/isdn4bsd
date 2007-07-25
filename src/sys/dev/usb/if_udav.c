@@ -45,11 +45,10 @@
  * TODO:
  *	Interrupt Endpoint support
  *	External PHYs
- *	powerhook() support?
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.25 2007/05/12 05:53:53 brueffer Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.32 2007/06/20 05:10:52 imp Exp $");
 
 #include "opt_inet.h"
 
@@ -264,7 +263,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, udav, CTLFLAG_RW, 0, "USB udav");
 SYSCTL_INT(_hw_usb_udav, OID_AUTO, debug, CTLFLAG_RW, &udav_debug, 0,
 	   "udav debug level");
 #else
-#define DPRINTF(...)
+#define DPRINTF(...) do { } while (0)
 #endif
 
 #define	UDAV_CFG_SETBIT(sc, reg, x)	\

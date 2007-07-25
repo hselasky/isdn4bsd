@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.53 2007/05/09 09:32:41 kevlo Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.66 2007/06/30 02:35:42 imp Exp $");
 
 /*-
  * Ralink Technology RT2500USB chipset driver
@@ -53,6 +53,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.53 2007/05/09 09:32:41 kevlo E
 #include <net80211/ieee80211_var.h>
 #include <net80211/ieee80211_radiotap.h>
 #include <net80211/ieee80211_amrr.h>
+#include <net80211/ieee80211_regdomain.h>
 
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
@@ -83,8 +84,12 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, ural, CTLFLAG_RW, 0, "USB ural");
 SYSCTL_INT(_hw_usb_ural, OID_AUTO, debug, CTLFLAG_RW, &ural_debug, 0,
 	   "ural debug level");
 #else
-#define DPRINTF(...)
+#define DPRINTF(...) do { } while (0)
 #endif
+
+#define	URAL_RSSI(rssi)	\
+  ((rssi) > (RAL_NOISE_FLOOR + RAL_RSSI_CORR) ? \
+   ((rssi) - (RAL_NOISE_FLOOR + RAL_RSSI_CORR)) : 0)
 
 /* prototypes */
 
@@ -99,6 +104,8 @@ static usbd_callback_t ural_bulk_write_clear_stall_callback;
 
 static usbd_config_td_command_t ural_cfg_first_time_setup;
 static usbd_config_td_command_t ural_config_copy;
+static usbd_config_td_command_t ural_cfg_scan_start;
+static usbd_config_td_command_t ural_cfg_scan_end;
 static usbd_config_td_command_t ural_cfg_set_chan;
 static usbd_config_td_command_t ural_cfg_pre_set_run;
 static usbd_config_td_command_t ural_cfg_set_run;
@@ -187,6 +194,11 @@ ural_reset_cb(struct ifnet *ifp);
 static int
 ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg);
 
+static void ural_std_command(struct ieee80211com *ic, usbd_config_td_command_t *func);
+static void ural_scan_start_cb(struct ieee80211com *);
+static void ural_scan_end_cb(struct ieee80211com *);
+static void ural_set_channel_cb(struct ieee80211com *);
+
 static void
 ural_cfg_tx_bcn(struct ural_softc *sc);
 
@@ -220,15 +232,14 @@ static const struct usb_devno ural_devs[] = {
 	{ USB_VENDOR_ASUS,		USB_PRODUCT_RALINK_RT2570 },
 	{ USB_VENDOR_BELKIN,		USB_PRODUCT_BELKIN_F5D7050 },
 	{ USB_VENDOR_BELKIN,		USB_PRODUCT_BELKIN_F5D7051 },
-	{ USB_VENDOR_CONCEPTRONIC2,	USB_PRODUCT_CONCEPTRONIC2_C54RU },
-	{ USB_VENDOR_DLINK,		USB_PRODUCT_DLINK_DWLG122 },
-	{ USB_VENDOR_GIGABYTE,		USB_PRODUCT_GIGABYTE_GNWBKG },
-	{ USB_VENDOR_GIGABYTE,		USB_PRODUCT_GIGABYTE_GN54G },
-	{ USB_VENDOR_GUILLEMOT,		USB_PRODUCT_GUILLEMOT_HWGUSB254 },
-	{ USB_VENDOR_GUILLEMOT,		USB_PRODUCT_GUILLEMOT_HW54G },
+	{ USB_VENDOR_CISCOLINKSYS,	USB_PRODUCT_CISCOLINKSYS_HU200TS },
 	{ USB_VENDOR_CISCOLINKSYS,	USB_PRODUCT_CISCOLINKSYS_WUSB54G },
 	{ USB_VENDOR_CISCOLINKSYS,	USB_PRODUCT_CISCOLINKSYS_WUSB54GP },
-	{ USB_VENDOR_CISCOLINKSYS,	USB_PRODUCT_CISCOLINKSYS_HU200TS },
+	{ USB_VENDOR_CONCEPTRONIC2,	USB_PRODUCT_CONCEPTRONIC2_C54RU },
+	{ USB_VENDOR_DLINK,		USB_PRODUCT_DLINK_DWLG122 },
+	{ USB_VENDOR_GIGABYTE,		USB_PRODUCT_GIGABYTE_GN54G },
+	{ USB_VENDOR_GIGABYTE,		USB_PRODUCT_GIGABYTE_GNWBKG },
+	{ USB_VENDOR_GUILLEMOT,		USB_PRODUCT_GUILLEMOT_HWGUSB254 },
 	{ USB_VENDOR_MELCO,		USB_PRODUCT_MELCO_KG54 },
 	{ USB_VENDOR_MELCO,		USB_PRODUCT_MELCO_KG54AI },
 	{ USB_VENDOR_MELCO,		USB_PRODUCT_MELCO_KG54YB },
@@ -239,11 +250,12 @@ static const struct usb_devno ural_devs[] = {
 	{ USB_VENDOR_NOVATECH,		USB_PRODUCT_NOVATECH_NV902 },
 	{ USB_VENDOR_RALINK,		USB_PRODUCT_RALINK_RT2570 },
 	{ USB_VENDOR_RALINK,		USB_PRODUCT_RALINK_RT2570_2 },
-	{ USB_VENDOR_RALINK,		USB_PRODUCT_RALINK_RT2573 },
 	{ USB_VENDOR_RALINK,		USB_PRODUCT_RALINK_RT2570_3 },
-	{ USB_VENDOR_SIEMENS3,		USB_PRODUCT_SIEMENS3_WL54G },
+	{ USB_VENDOR_RALINK,		USB_PRODUCT_RALINK_RT2573 },
+	{ USB_VENDOR_SIEMENS2,		USB_PRODUCT_SIEMENS2_WL54G },
 	{ USB_VENDOR_SMC,		USB_PRODUCT_SMC_2862WG },
-	{ USB_VENDOR_SPAIRON,		USB_PRODUCT_SPAIRON_WL54G },
+	{ USB_VENDOR_SPHAIRON,		USB_PRODUCT_SPHAIRON_UB801R},
+	{ USB_VENDOR_SURECOM,		USB_PRODUCT_SURECOM_RT2570 },
 	{ USB_VENDOR_VTECH,		USB_PRODUCT_VTECH_RT2570 },
 	{ USB_VENDOR_ZINWELL,		USB_PRODUCT_ZINWELL_RT2570 }
 };
@@ -836,7 +848,7 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 {
 	struct ieee80211com *ic = &(sc->sc_ic);
 	struct ifnet *ifp;
-	register u_int16_t i;
+	uint32_t bands;
 
 	/* setup RX tap header */
 	sc->sc_rxtap_len = sizeof(sc->sc_rxtap.h);
@@ -849,7 +861,9 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	sc->sc_txtap.h.wt_ihdr.it_present = htole32(RAL_TX_RADIOTAP_PRESENT);
 
 	/* setup AMRR */
-	ieee80211_amrr_init(&(sc->sc_amrr), ic, 1, 10);
+	ieee80211_amrr_init(&(sc->sc_amrr), ic,
+		IEEE80211_AMRR_MIN_SUCCESS_THRESHOLD,
+		IEEE80211_AMRR_MAX_SUCCESS_THRESHOLD);
 
 	/* retrieve RT2570 rev. no */
 	sc->sc_asic_rev = ural_cfg_read(sc, RAL_MAC_CSR0);
@@ -892,42 +906,25 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 
 	/* set device capabilities */
 	ic->ic_caps =
-	    IEEE80211_C_IBSS |		/* IBSS mode supported */
-	    IEEE80211_C_MONITOR |	/* monitor mode supported */
-	    IEEE80211_C_HOSTAP |	/* HostAp mode supported */
-	    IEEE80211_C_TXPMGT |	/* tx power management */
-	    IEEE80211_C_SHPREAMBLE |	/* short preamble supported */
-	    IEEE80211_C_SHSLOT |	/* short slot time supported */
-	    IEEE80211_C_WPA;		/* 802.11i */
+	      IEEE80211_C_IBSS		/* IBSS mode supported */
+	    | IEEE80211_C_MONITOR	/* monitor mode supported */
+	    | IEEE80211_C_HOSTAP	/* HostAp mode supported */
+	    | IEEE80211_C_TXPMGT	/* tx power management */
+	    | IEEE80211_C_SHPREAMBLE	/* short preamble supported */
+	    | IEEE80211_C_SHSLOT	/* short slot time supported */
+	    | IEEE80211_C_BGSCAN	/* bg scanning supported */
+	    | IEEE80211_C_WPA		/* 802.11i */
+	    ;
+
+	bands = 0;
+	setbit(&bands, IEEE80211_MODE_11B);
+	setbit(&bands, IEEE80211_MODE_11G);
 
 	if (sc->sc_rf_rev == RAL_RF_5222) {
-
-		/* set supported .11a channels */
-		for (i = 36; i <= 64; i += 4) {
-			ic->ic_channels[i].ic_freq =
-			    ieee80211_ieee2mhz(i, IEEE80211_CHAN_5GHZ);
-			ic->ic_channels[i].ic_flags = IEEE80211_CHAN_A;
-		}
-		for (i = 100; i <= 140; i += 4) {
-			ic->ic_channels[i].ic_freq =
-			    ieee80211_ieee2mhz(i, IEEE80211_CHAN_5GHZ);
-			ic->ic_channels[i].ic_flags = IEEE80211_CHAN_A;
-		}
-		for (i = 149; i <= 161; i += 4) {
-			ic->ic_channels[i].ic_freq =
-			    ieee80211_ieee2mhz(i, IEEE80211_CHAN_5GHZ);
-			ic->ic_channels[i].ic_flags = IEEE80211_CHAN_A;
-		}
+	    setbit(&bands, IEEE80211_MODE_11A);
 	}
 
-	/* set supported .11b and .11g channels (1 through 14) */
-	for (i = 1; i <= 14; i++) {
-		ic->ic_channels[i].ic_freq =
-		    ieee80211_ieee2mhz(i, IEEE80211_CHAN_2GHZ);
-		ic->ic_channels[i].ic_flags =
-		    IEEE80211_CHAN_CCK | IEEE80211_CHAN_OFDM |
-		    IEEE80211_CHAN_DYN | IEEE80211_CHAN_2GHZ;
-	}
+	ieee80211_init_channels(ic, 0, CTRY_DEFAULT, bands, 0, 1);
 
 	mtx_unlock(&(sc->sc_mtx));
 
@@ -947,6 +944,9 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	ic->ic_raw_xmit = &ural_raw_xmit_cb;
 #endif
 	ic->ic_reset = &ural_reset_cb;
+	ic->ic_scan_start = &ural_scan_start_cb;
+	ic->ic_scan_end = &ural_scan_end_cb;
+	ic->ic_set_channel = &ural_set_channel_cb;
 
 	mtx_unlock(&(sc->sc_mtx));
 
@@ -989,6 +989,8 @@ ural_config_copy(struct ural_softc *sc,
 
 	if (c) {
 	    cc->ic_curchan.chan_to_ieee = ieee80211_chan2ieee(ic, c);
+	    cc->ic_curchan.chan_is_b = IEEE80211_IS_CHAN_B(c) ? 1 : 0;
+	    cc->ic_curchan.chan_is_a = IEEE80211_IS_CHAN_A(c) ? 1 : 0;
 	    if (c != IEEE80211_CHAN_ANYC) {
 	        cc->ic_curchan.chan_is_2ghz = IEEE80211_IS_CHAN_2GHZ(c) ? 1 : 0;
 	    }
@@ -1012,6 +1014,8 @@ ural_config_copy(struct ural_softc *sc,
 
 	if (ifp) {
 	    cc->if_flags = ifp->if_flags;
+	    bcopy(ifp->if_broadcastaddr, cc->if_broadcastaddr,
+		  sizeof(cc->if_broadcastaddr));
 	}
 
 	cc->ic_txpowlimit = ic->ic_txpowlimit;
@@ -1149,7 +1153,6 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 	/* finalize mbuf */
 	m->m_pkthdr.rcvif = ifp;
 	m->m_pkthdr.len = m->m_len = (flags >> 16) & 0xfff;
-	m->m_flags |= M_HASFCS;	/* HW leaves FCS */
 
 	if (m->m_len > max_len) {
 	    DPRINTF(sc, 0, "invalid length in RX "
@@ -1163,6 +1166,8 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 
 	DPRINTF(sc, 0, "real length=%d bytes\n", m->m_len);
 
+	rssi = URAL_RSSI(sc->sc_rx_desc.rssi);
+
 	if (bpf_peers_present(sc->sc_drvbpf)) {
 	    struct ural_rx_radiotap_header *tap = &(sc->sc_rxtap.h);
 
@@ -1171,15 +1176,16 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 	    tap->wr_chan_freq = htole16(ic->ic_curchan->ic_freq);
 	    tap->wr_chan_flags = htole16(ic->ic_curchan->ic_flags);
 	    tap->wr_antenna = sc->sc_rx_ant;
-	    tap->wr_antsignal = sc->sc_rx_desc.rssi;
+	    tap->wr_antsignal = rssi;
 
 	    bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_rxtap_len, m);
 	}
 
-	rssi = sc->sc_rx_desc.rssi;
+	/* Strip trailing 802.11 MAC FCS. */
+	m_adj(m, -IEEE80211_CRC_LEN);
 
-	ni = ieee80211_find_rxnode(ic, (struct ieee80211_frame_min *)
-				   (m->m_data));
+	ni = ieee80211_find_rxnode(ic, (void *)(m->m_data));
+
  tr_setup:
 
 	if (sc->sc_flags & URAL_FLAG_READ_STALL) {
@@ -1197,7 +1203,7 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 	    mtx_unlock(&(sc->sc_mtx));
 
 	    /* send the frame to the 802.11 layer */
-	    ieee80211_input(ic, m, ni, rssi, 0);
+	    ieee80211_input(ic, m, ni, rssi, RAL_NOISE_FLOOR, 0);
 
 	    mtx_lock(&(sc->sc_mtx));
 
@@ -1431,6 +1437,10 @@ ural_bulk_write_callback_sub(struct usbd_xfer *xfer, struct mbuf *m,
 	DPRINTF(sc, 10, "sending frame len=%u rate=%u xferlen=%u\n",
 		m->m_pkthdr.len, rate, xfer->length);
 
+	if (m->m_flags & M_TXCB) {
+		ieee80211_process_callback(ni, m, 0);
+	}
+
 	m_freem(m);
 
 	if (ni) {
@@ -1587,7 +1597,7 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 	    wh = mtod(m, struct ieee80211_frame *);
 
 	    if (ic->ic_fixed_rate != IEEE80211_FIXED_RATE_NONE)
-	        rate = ic->ic_bss->ni_rates.rs_rates[ic->ic_fixed_rate];
+	        rate = ic->ic_fixed_rate;
 	    else
 	        rate = ni->ni_rates.rs_rates[ni->ni_txrate];
 
@@ -1620,6 +1630,11 @@ ural_bulk_write_callback(struct usbd_xfer *xfer)
 
  error:
 	if (m) {
+
+	    if (m->m_flags & M_TXCB) {
+	        ieee80211_process_callback(ni, m, EINVAL);
+	    }
+
 	    m_freem(m);
 	    m = NULL;
 	}
@@ -1652,7 +1667,6 @@ static void
 ural_watchdog(void *arg)
 {
 	struct ural_softc *sc = arg;
-	struct ieee80211com *ic = &(sc->sc_ic);
 
 	mtx_assert(&(sc->sc_mtx), MA_OWNED);
 
@@ -1660,31 +1674,15 @@ ural_watchdog(void *arg)
 	    (--(sc->sc_amrr_timer) == 0)) {
 
 	    /* restart timeout */
-	    sc->sc_amrr_timer = (1*8);
+	    sc->sc_amrr_timer = 1;
 
 	    usbd_config_td_queue_command
 	      (&(sc->sc_config_td), NULL,
 	       &ural_cfg_amrr_timeout, 0, 0);
 	}
 
-	if ((sc->sc_if_timer) &&
-	    (--(sc->sc_if_timer) == 0)) {
-
-	    DPRINTF(sc, 0, "watchdog timeout\n");
-
-	    /* restart timer */
-	    sc->sc_if_timer = (1*8);
-
-	    ieee80211_watchdog(ic);
-	}
-
-	if ((sc->sc_scan_timer) &&
-	    (--(sc->sc_scan_timer) == 0)) {
-	    ieee80211_next_scan(ic);
-	}
-
 	__callout_reset(&(sc->sc_watchdog), 
-			hz / 8, &ural_watchdog, sc);
+			hz, &ural_watchdog, sc);
 
 	mtx_unlock(&(sc->sc_mtx));
 
@@ -1860,8 +1858,6 @@ ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 	/* stop timers */
 
 	sc->sc_amrr_timer = 0;
-	sc->sc_scan_timer = 0;
-	sc->sc_if_timer = 8;
 
 	/* set new state */
 
@@ -1872,32 +1868,15 @@ ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 		(&(sc->sc_config_td), &ural_config_copy,
 		 &ural_cfg_disable_tsf_sync, 0, 0);
 	    }
-	    sc->sc_if_timer = 0;
-	    break;
-
-	case IEEE80211_S_SCAN:
-	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_config_copy, 
-	       &ural_cfg_set_chan, 0, 0);
-	    sc->sc_scan_timer = 3;
-	    break;
-
-	case IEEE80211_S_AUTH:
-	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_config_copy, 
-	       &ural_cfg_set_chan, 0, 0);
-	    break;
-
-	case IEEE80211_S_ASSOC:
-	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &ural_config_copy, 
-	       &ural_cfg_set_chan, 0, 0);
 	    break;
 
 	case IEEE80211_S_RUN:
 	    usbd_config_td_queue_command
 	      (&(sc->sc_config_td), &ural_cfg_pre_set_run,
 	       &ural_cfg_set_run, 0, 0);
+	    break;
+
+	default:
 	    break;
 	}
 
@@ -1906,9 +1885,65 @@ ural_newstate_cb(struct ieee80211com *ic, enum ieee80211_state nstate, int arg)
 	return 0;
 }
 
+static void
+ural_std_command(struct ieee80211com *ic, usbd_config_td_command_t *func)
+{
+	struct ural_softc *sc = ic->ic_ifp->if_softc;
+
+	mtx_lock(&(sc->sc_mtx));
+
+	usbd_config_td_queue_command
+	  (&(sc->sc_config_td), &ural_config_copy, func, 0, 0);
+
+	mtx_unlock(&(sc->sc_mtx));
+
+	return;
+}
+
+static void
+ural_scan_start_cb(struct ieee80211com *ic)
+{
+	ural_std_command(ic, &ural_cfg_scan_start);
+	return;
+}
+
+static void
+ural_scan_end_cb(struct ieee80211com *ic)
+{
+	ural_std_command(ic, &ural_cfg_scan_end);
+	return;
+}
+
+static void
+ural_set_channel_cb(struct ieee80211com *ic)
+{
+	ural_std_command(ic, &ural_cfg_set_chan);
+	return;
+}
+
 /*========================================================================*
  * configure sub-routines, ural_cfg_xxx
  *========================================================================*/
+
+static void
+ural_cfg_scan_start(struct ural_softc *sc,
+		    struct ural_config_copy *cc, uint16_t refcount)
+{
+	/* abort TSF synchronization */
+	ural_cfg_disable_tsf_sync(sc, cc, 0);
+	ural_cfg_set_bssid(sc, cc->if_broadcastaddr);
+	return;
+}
+
+static void
+ural_cfg_scan_end(struct ural_softc *sc,
+		  struct ural_config_copy *cc, uint16_t refcount)
+{
+	/* enable TSF synchronization */
+	ural_cfg_enable_tsf_sync(sc, cc, 0);
+	ural_cfg_set_bssid(sc, cc->ic_bss.ni_bssid);
+	return;
+}
 
 static void
 ural_cfg_tx_bcn(struct ural_softc *sc)
@@ -2041,7 +2076,7 @@ ural_cfg_set_chan(struct ural_softc *sc,
 	}
 
 	if ((cc->ic_opmode != IEEE80211_M_MONITOR) &&
-	    (cc->ic_state != IEEE80211_S_SCAN)) {
+	    (!(cc->ic_flags & IEEE80211_F_SCAN))) {
 
 		/* set Japan filter bit for channel 14 */
 		tmp = ural_cfg_bbp_read(sc, 70);
@@ -2060,8 +2095,22 @@ ural_cfg_set_chan(struct ural_softc *sc,
 		ural_cfg_disable_rf_tune(sc);
 	}
 
+	/* update basic rate set */
+	if (cc->ic_curchan.chan_is_b) {
+		/* 11b basic rates: 1, 2Mbps */
+		ural_cfg_write(sc, RAL_TXRX_CSR11, 0x3);
+	} else if (cc->ic_curchan.chan_is_a) {
+		/* 11a basic rates: 6, 12, 24Mbps */
+		ural_cfg_write(sc, RAL_TXRX_CSR11, 0x150);
+	} else {
+		/* 11g basic rates: 1, 2, 5.5, 11, 6, 12, 24Mbps */
+		ural_cfg_write(sc, RAL_TXRX_CSR11, 0x15f);
+	}
+
 	/* wait a little */
-	usbd_config_td_sleep(&(sc->sc_config_td), hz/100);
+	if (usbd_config_td_sleep(&(sc->sc_config_td), hz/100)) {
+	    return;
+	}
 
 	return;
 }
@@ -2088,8 +2137,6 @@ static void
 ural_cfg_set_run(struct ural_softc *sc, 
 		 struct ural_config_copy *cc, u_int16_t refcount)
 {
-	ural_cfg_set_chan(sc, cc, 0);
-
 	if (cc->ic_opmode != IEEE80211_M_MONITOR) {
 	    ural_cfg_update_slot(sc, cc, 0);
 	    ural_cfg_set_txpreamble(sc, cc, 0);
@@ -2587,9 +2634,6 @@ ural_cfg_pre_stop(struct ural_softc *sc,
 	    ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 	}
 
-	/* stop timers */
-	sc->sc_if_timer = 0;
-
 	sc->sc_flags &= ~(URAL_FLAG_HL_READY|
 			  URAL_FLAG_LL_READY);
 
@@ -2653,7 +2697,7 @@ ural_cfg_amrr_start(struct ural_softc *sc)
 	}
 	ni->ni_txrate = i;
 
-	sc->sc_amrr_timer = (1*8);
+	sc->sc_amrr_timer = 1;
 	return;
 }
 

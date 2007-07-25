@@ -28,7 +28,7 @@
  * SUCH DAMAGE.
  *
  * $Id: ng_ubt.c,v 1.16 2003/10/10 19:15:06 max Exp $
- * $FreeBSD: src/sys/netgraph/bluetooth/drivers/ubt/ng_ubt.c,v 1.28 2006/09/07 23:38:09 emax Exp $
+ * $FreeBSD: src/sys/netgraph/bluetooth/drivers/ubt/ng_ubt.c,v 1.33 2007/06/23 04:34:38 imp Exp $
  */
 
 #include <sys/cdefs.h>
@@ -53,7 +53,7 @@
 
 #include "usbdevs.h"
 
-#define DPRINTF(...) do { } while (0)
+#define	DPRINTF(...) do { } while (0)
 
 /*
  * USB methods

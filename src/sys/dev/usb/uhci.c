@@ -11,7 +11,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uhci.c,v 1.172 2006/10/19 01:15:58 iedowse Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uhci.c,v 1.175 2007/06/14 16:23:31 imp Exp $");
 
 
 /*-
@@ -85,8 +85,8 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/uhci.c,v 1.172 2006/10/19 01:15:58 iedowse E
 #ifdef USB_DEBUG
 #undef DPRINTF
 #undef DPRINTFN
-#define DPRINTF(x)	{ if (uhcidebug) { printf("%s: ", __FUNCTION__); printf x ; } }
-#define DPRINTFN(n,x)	{ if (uhcidebug > (n)) { printf("%s: ", __FUNCTION__); printf x ; } }
+#define	DPRINTF(x)	do { if (uhcidebug) { printf("%s: ", __FUNCTION__); printf x ; } } while (0)
+#define	DPRINTFN(n,x)	do { if (uhcidebug > (n)) { printf("%s: ", __FUNCTION__); printf x ; } } while (0)
 int uhcidebug = 0;
 int uhcinoloop = 0;
 SYSCTL_NODE(_hw_usb, OID_AUTO, uhci, CTLFLAG_RW, 0, "USB uhci");

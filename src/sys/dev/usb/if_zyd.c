@@ -1,3 +1,8 @@
+#if 0
+
+XXX this driver needs to be updated!
+XXX --hps
+
 /*	$OpenBSD: if_zyd.c,v 1.27 2006/09/23 22:28:43 mglocker Exp $	*/
 
 /*
@@ -3288,3 +3293,4 @@ zyd_end_of_commands(struct zyd_softc *sc)
 	zyd_start_transfers(sc);
 	return;
 }
+#endif

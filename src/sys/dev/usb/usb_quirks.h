@@ -1,5 +1,5 @@
 /*	$NetBSD: usb_quirks.h,v 1.20 2001/04/15 09:38:01 augustss Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb/usb_quirks.h,v 1.23 2006/11/28 21:13:07 flz Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb/usb_quirks.h,v 1.25 2007/06/29 21:07:41 imp Exp $ */
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -39,25 +39,25 @@
  */
 
 struct usbd_quirks {
-	u_int32_t uq_flags;	/* Device problems: */
-#define UQ_NO_SET_PROTO	0x0001	/* cannot handle SET PROTOCOL. */
-#define UQ_SWAP_UNICODE	0x0002	/* has some Unicode strings swapped. */
-#define UQ_MS_REVZ	0x0004	/* mouse has Z-axis reversed */
-#define UQ_NO_STRINGS	0x0008	/* string descriptors are broken. */
-#define UQ_BAD_ADC	0x0010	/* bad audio spec version number. */
-#define UQ_BUS_POWERED	0x0020	/* device is bus powered, despite claim */
-#define UQ_BAD_AUDIO	0x0040	/* device claims audio class, but isn't */
-#define UQ_SPUR_BUT_UP	0x0080	/* spurious mouse button up events */
-#define UQ_AU_NO_XU	0x0100	/* audio device has broken extension unit */
-#define UQ_POWER_CLAIM	0x0200	/* hub lies about power status */
-#define UQ_AU_NO_FRAC	0x0400	/* don't adjust for fractional samples */
-#define UQ_AU_INP_ASYNC	0x0800	/* input is async despite claim of adaptive */
-#define UQ_ASSUME_CM_OVER_DATA 0x1000 /* modem device breaks on cm over data */
-#define UQ_BROKEN_BIDIR	0x2000	/* printer has broken bidir mode */
-#define UQ_OPEN_CLEARSTALL	0x4000	/* device needs clear endpoint stall */
-#define UQ_HID_IGNORE	0x8000	/* device should be ignored by hid class */
-#define UQ_KBD_IGNORE  0x18000	/* device should be ignored by both kbd and hid class */
-#define UQ_AUDIO_SWAP_LR 0x20000 /* left and right sound channels are swapped */					
+	uint32_t uq_flags;	/* Device problems: */
+#define	UQ_AUDIO_SWAP_LR (1 <<  0) /* left and right sound channels are swapped */
+#define	UQ_AU_INP_ASYNC  (1 <<  1) /* input is async despite claim of adaptive */
+#define	UQ_AU_NO_FRAC    (1 <<  2) /* don't adjust for fractional samples */
+#define	UQ_AU_NO_XU      (1 <<  3) /* audio device has broken extension unit */
+#define	UQ_BAD_ADC       (1 <<  4) /* bad audio spec version number */
+#define	UQ_BAD_AUDIO     (1 <<  5) /* device claims audio class, but isn't */
+#define	UQ_BROKEN_BIDIR  (1 <<  6) /* printer has broken bidir mode */
+#define	UQ_BUS_POWERED   (1 <<  7) /* device is bus powered, despite claim */
+#define	UQ_HID_IGNORE    (1 <<  8) /* device should be ignored by hid class */
+#define	UQ_KBD_IGNORE   ((1 <<  9)|UQ_HID_IGNORE) /* device should be ignored by both kbd and hid class */
+#define	UQ_MS_BAD_CLASS  (1 << 10) /* doesn't identify properly */
+#define	UQ_MS_LEADING_BYTE (1 << 11) /* mouse sends an unknown leading byte */
+#define	UQ_MS_REVZ       (1 << 12) /* mouse has Z-axis reversed */
+#define	UQ_NO_STRINGS    (1 << 13) /* string descriptors are broken */
+#define	UQ_OPEN_CLEARSTALL (1 << 14) /* device needs clear endpoint stall */
+#define	UQ_POWER_CLAIM   (1 << 15) /* hub lies about power status */
+#define	UQ_SPUR_BUT_UP   (1 << 16) /* spurious mouse button up events */
+#define	UQ_SWAP_UNICODE  (1 << 17) /* has some Unicode strings swapped */
 };
 
 extern const struct usbd_quirks usbd_no_quirk;

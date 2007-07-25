@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/sound/usb/uaudio.h,v 1.7 2005/11/13 14:20:26 netchild Exp $ */
+/* $FreeBSD: src/sys/dev/sound/usb/uaudio.h,v 1.8 2007/03/16 17:19:03 ariff Exp $ */
 
 /*-
  * Copyright (c) 2000-2002 Hiroyuki Aizu <aizu@navi.org>
@@ -45,8 +45,11 @@ uaudio_chan_init(struct uaudio_softc *sc, struct snd_dbuf *b, struct pcm_channel
 extern int
 uaudio_chan_free(struct uaudio_chan *ch);
 
-extern u_int32_t
+extern int
 uaudio_chan_set_param_blocksize(struct uaudio_chan *ch, u_int32_t blocksize);
+
+extern int
+uaudio_chan_set_param_fragments(struct uaudio_chan *ch, u_int32_t blocksize, u_int32_t blockcount);
 
 extern int
 uaudio_chan_set_param_speed(struct uaudio_chan *ch, u_int32_t speed);
@@ -78,3 +81,6 @@ uaudio_mixer_set(struct uaudio_softc *sc, unsigned type, unsigned left, unsigned
 extern u_int32_t
 uaudio_mixer_setrecsrc(struct uaudio_softc *sc, u_int32_t src);
 
+int uaudio_get_vendor(device_t dev);
+int uaudio_get_product(device_t dev);
+int uaudio_get_release(device_t dev);

@@ -37,7 +37,8 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uftdi.c,v 1.25 2007/04/30 16:15:19 takawata Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uftdi.c,v 1.37 2007/06/22 05:53:05 imp Exp $");
+
 /*
  * NOTE: all function names beginning like "uftdi_cfg_" can only
  * be called from within the config thread function !
@@ -76,7 +77,7 @@ SYSCTL_NODE(_hw_usb, OID_AUTO, uftdi, CTLFLAG_RW, 0, "USB uftdi");
 SYSCTL_INT(_hw_usb_uftdi, OID_AUTO, debug, CTLFLAG_RW,
 	   &uftdi_debug, 0, "uftdi debug level");
 #else
-#define DPRINTF(...)
+#define	DPRINTF(...) do { } while (0)
 #endif
 
 #define UFTDI_CONFIG_INDEX	0
@@ -244,11 +245,20 @@ uftdi_probe(device_t dev)
 	     (uaa->product == USB_PRODUCT_FTDI_CFA_632) ||
 	     (uaa->product == USB_PRODUCT_FTDI_CFA_633) ||
 	     (uaa->product == USB_PRODUCT_FTDI_CFA_634) ||
+	     (uaa->product == USB_PRODUCT_FTDI_CFA_635) ||
 	     (uaa->product == USB_PRODUCT_FTDI_USBSERIAL) ||
 	     (uaa->product == USB_PRODUCT_FTDI_MX2_3) ||
 	     (uaa->product == USB_PRODUCT_FTDI_MX4_5) ||
 	     (uaa->product == USB_PRODUCT_FTDI_LK202) ||
-	     (uaa->product == USB_PRODUCT_FTDI_LK204))) {
+	     (uaa->product == USB_PRODUCT_FTDI_LK204) ||
+	     (uaa->product == USB_PRODUCT_FTDI_TACTRIX_OPENPORT_13M) ||
+	     (uaa->product == USB_PRODUCT_FTDI_TACTRIX_OPENPORT_13S) ||
+	     (uaa->product == USB_PRODUCT_FTDI_TACTRIX_OPENPORT_13U) ||
+	     (uaa->product == USB_PRODUCT_FTDI_EISCOU) ||
+	     (uaa->product == USB_PRODUCT_FTDI_UOPTBR) ||
+	     (uaa->product == USB_PRODUCT_FTDI_EMCU2D) ||
+	     (uaa->product == USB_PRODUCT_FTDI_PCMSFU) ||
+	     (uaa->product == USB_PRODUCT_FTDI_EMCU2H))) {
 	    return UMATCH_VENDOR_PRODUCT;
 	}
 
@@ -327,11 +337,20 @@ uftdi_attach(device_t dev)
 	    case USB_PRODUCT_FTDI_CFA_632:
 	    case USB_PRODUCT_FTDI_CFA_633:
 	    case USB_PRODUCT_FTDI_CFA_634:
+	    case USB_PRODUCT_FTDI_CFA_635:
 	    case USB_PRODUCT_FTDI_USBSERIAL:
 	    case USB_PRODUCT_FTDI_MX2_3:
 	    case USB_PRODUCT_FTDI_MX4_5:
 	    case USB_PRODUCT_FTDI_LK202:
 	    case USB_PRODUCT_FTDI_LK204:
+	    case USB_PRODUCT_FTDI_TACTRIX_OPENPORT_13M:
+	    case USB_PRODUCT_FTDI_TACTRIX_OPENPORT_13S:
+	    case USB_PRODUCT_FTDI_TACTRIX_OPENPORT_13U:
+	    case USB_PRODUCT_FTDI_EISCOU:
+	    case USB_PRODUCT_FTDI_UOPTBR:
+	    case USB_PRODUCT_FTDI_EMCU2D:
+	    case USB_PRODUCT_FTDI_PCMSFU:
+	    case USB_PRODUCT_FTDI_EMCU2H:
 	        sc->sc_type = UFTDI_TYPE_8U232AM;
 		sc->sc_hdrlen = 0;
 		break;

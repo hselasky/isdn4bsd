@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_cue.c,v 1.64 2007/05/12 05:53:52 brueffer Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_cue.c,v 1.72 2007/06/23 06:29:19 imp Exp $");
 
 /*
  * CATC USB-EL1210A USB to ethernet driver. Used in the CATC Netmate
@@ -89,6 +89,9 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/if_cue.c,v 1.64 2007/05/12 05:53:52 brueffer
 /*
  * Various supported device vendors/products.
  */
+
+/* Belkin F5U111 adapter covered by NETMATE entry */
+
 static struct cue_type cue_devs[] = {
 	{ USB_VENDOR_CATC, USB_PRODUCT_CATC_NETMATE },
 	{ USB_VENDOR_CATC, USB_PRODUCT_CATC_NETMATE2 },

@@ -8,7 +8,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ugen.c,v 1.108 2006/09/06 23:29:53 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ugen.c,v 1.111 2007/06/28 06:22:40 imp Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -739,6 +739,7 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 		  usbd_config[0].callback = &ugen_interrupt_callback;
 		  usbd_config[0].bufsize = isize;
 		  usbd_config[0].interval = USBD_DEFAULT_INTERVAL;
+		  usbd_config[0].timeout = 0;
 
 		  if(ugen_allocate_blocks
 		     (sc, sce, UGEN_RD_CFG,
@@ -1023,7 +1024,9 @@ ugenread(struct cdev *dev, struct uio *uio, int flag)
 			    sce->state |= (UGEN_RD_SLP|UGEN_RD_WUP);
 
 			    error = mtx_sleep(sce, &sc->sc_mtx, PCATCH,
-					      "ugen wait callback", 0);
+					      "ugen wait callback",
+					      sce->in_timeout ? 
+					      (((sce->in_timeout * hz) + 999) / 1000) : 0);
 
 			    sce->state &= ~(UGEN_RD_SLP|UGEN_RD_WUP);
 
