@@ -277,7 +277,17 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct dss1_buffer *buf)
 	    break;				
 	
 	case IEI_PROGRESSI:	/* progress indicator	*/
-	    break;
+
+	    temp = dss1_get_1(buf,3) & 0x7f;
+
+	    if ((temp == 1) || (temp == 2) || (temp == 3)) {
+	        cd->not_end_to_end_digital = 1;
+	    }
+
+	    if (temp == 4) {
+	        cd->not_end_to_end_digital = 0;
+ 	    }
+ 	    break;
 			
 	case IEI_NETSPCFAC:	/* network specific fac */
 	    break;

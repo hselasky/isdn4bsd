@@ -95,7 +95,7 @@ typedef struct u_int64_p u_int64_p_t;
 
 /* global defines */
 
-#define CAPI_STACK_VERSION     209
+#define CAPI_STACK_VERSION     210
 #define CAPI_APPLICATION_MAX   0x80 /* units */
 #define CAPI_DEVICE_NAME       "/dev/capi20"
 #define CAPI_SHLIB_BASENAME    "libcapi20.so"
@@ -657,6 +657,7 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
   m(n, STRUCT, add_info, ADDITIONAL_INFO)\
   m(n, STRUCT, src_telno_2,)\
   m(n, STRUCT, display,) /* BSD specific */\
+  m(n, BYTE,   bFlag_1,) /* BSD specific */\
   END
 
 #define CAPI_CONNECT_RESP(m,n) \
@@ -708,6 +709,9 @@ CAPI_MAKE_STRUCT(CAPI_HEADER);
 
 /* definition of "bFlag_0": */
 #define CAPI_FLAG0_WANT_LATE_INBAND   0x01
+
+/* definition of "bFlag_1": */
+#define CAPI_FLAG1_NOT_END_TO_END_DIGITAL 0x01
 
 /* definition of number type bits in "src_telno" */
 #define CAPI_TON_OTHER    0x00
@@ -2546,6 +2550,7 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 #define CONNECT_IND_SENDINGCOMPLETE(x) ((x)->ADDITIONAL_INFO.sending_complete.ppbyte[0])
 #define CONNECT_IND_SECONDCALLINGPARTYNUMBER(x) ((x)->data.CONNECT_IND.src_telno_2.ppbyte[0])
 #define CONNECT_IND_DISPLAY(x) ((x)->data.CONNECT_IND.display.ppbyte[0])
+#define CONNECT_IND_FLAG1(x) ((x)->data.CONNECT_IND.bFlag_1)
 #define CONNECT_RESP_REJECT(x) ((x)->data.CONNECT_RESP.wReject)
 #define CONNECT_RESP_BPROTOCOL(x) ((x)->data.CONNECT_RESP.b_protocol_STRUCT)
 #define CONNECT_RESP_B1PROTOCOL(x) ((x)->B_PROTOCOL.wB1_protocol)

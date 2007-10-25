@@ -488,6 +488,7 @@ typedef struct call_desc {
 	u_int8_t ai_type; /* application interface type */
 	void *   ai_ptr; /* application interface private pointer */
 
+	u_int8_t not_end_to_end_digital : 1; /* set if audio is transferred non digitally */
 	u_int8_t is_sms : 1;		 /* set if message is an SMS */
 	u_int8_t aocd_flag : 1;		 /* set if AOCD is used for unitlength calc. */
 	u_int8_t channel_allocated : 1;  /* set if a B-channel is allocated */

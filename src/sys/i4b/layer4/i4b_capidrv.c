@@ -1517,6 +1517,13 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 	len = capi_encode(&msg.data, sizeof(msg.data), &connect_ind);
 	len += sizeof(msg.head);
 
+	/* check if we are not end to end digital */
+
+	if (cd->not_end_to_end_digital) {
+	    connect_ind.bFlag_1 |= 
+	        CAPI_FLAG1_NOT_END_TO_END_DIGITAL;
+	}
+
 	/* fill out CAPI header */
 
 	msg.head.wLen = htole16(len);
