@@ -1538,6 +1538,10 @@ I4B_PCI_DRIVER(/* NetJet-S (320) */
 	       .vid           = 0x0001e159,
 	       .sub           = 0x00000100);
 
+I4B_PCI_DRIVER(/* NetJet-S */
+	       .vid           = 0x0001e159,
+	       .sub           = 0x000100a7);
+
 I4B_PCI_DRIVER(/* NetJet-S (300) */
 	       .vid           = 0x0001e159,
 	       .sub           = 0x00020059);
