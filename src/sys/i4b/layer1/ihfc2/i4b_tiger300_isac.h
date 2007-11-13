@@ -1546,6 +1546,10 @@ I4B_PCI_DRIVER(/* NetJet-S (300) */
 	       .vid           = 0x0001e159,
 	       .sub           = 0x00020059);
 
+I4B_PCI_DRIVER(/* Teles S0/TJ Rev 3.3 */
+	       .vid           = 0x0001e159,
+	       .sub           = 0x000100a7);
+
 /*
  * cleanup
  */
