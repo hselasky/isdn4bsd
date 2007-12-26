@@ -1146,6 +1146,14 @@ I4B_PCI_DRIVER(/* HFC-4S B410P */
 	       .vid = 0xb410d161,
 	       .sub = 0xb410d161);
 
+I4B_PCI_DRIVER(/* HFC-4S OpenVox B200P */
+	       .vid = 0x08b41397,
+	       .sub = 0xe8841397);
+
+I4B_PCI_DRIVER(/* HFC-4S OpenVox B400P */
+	       .vid = 0x08b41397,
+	       .sub = 0xe8881397);
+
 #include <i4b/layer1/ihfc2/i4b_count.h>
 
 I4B_DBASE(COUNT())
@@ -1200,6 +1208,10 @@ I4B_DBASE(COUNT())
 I4B_PCI_DRIVER(/* HFC-8S generic */
 	       .vid = 0x16b81397,
 	       .sub = 0x16b81397);
+
+I4B_PCI_DRIVER(/* HFC-8S OpenVox B800P */
+	       .vid = 0x16b81397,
+	       .sub = 0xe9981397);
 
 #include <i4b/layer1/ihfc2/i4b_count.h>
 
