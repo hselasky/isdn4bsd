@@ -237,6 +237,7 @@ ${N}\# \
 ${N}\# source directory:      ${S} \
 ${N}\# backup directory:      ${.CURDIR} \
 ${N}\# targets:               help fetch all install install_mod deinstall clean \
+${N}\#                        distclean \
 ${N}\# \
 ${N}\# \
 ${N}\# 0. If you installed an older \
@@ -642,6 +643,9 @@ deinstall: ${BACKUP}
 
 clean:
 	rm -f ${TEMP} || echo -n
+
+distclean:
+	rm -f ${TEMP} ${BACKUP}.dont.remove || echo -n
 
 diffs: clean
 	touch ${TEMP}
