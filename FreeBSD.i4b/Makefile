@@ -232,7 +232,7 @@ M=ше
 BSD_INCLUDE_DIST_APPEND_2="еi4b${M}  include${M}  ..${M}..ш.."
 
 HELP='\#\
-${N}\# ISDN4BSD v.${VERSION:C/_/./g} for FreeBSD 6/7 - ${DATE} \
+${N}\# ISDN4BSD v.${VERSION:C/_/./g} for FreeBSD 6/7/8 - ${DATE} \
 ${N}\# \
 ${N}\# source directory:      ${S} \
 ${N}\# backup directory:      ${.CURDIR} \

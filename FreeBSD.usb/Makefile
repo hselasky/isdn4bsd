@@ -140,7 +140,7 @@ ${N}usbdevs.h                 optional usb dependency \"$$S/tools/usbdevs2h.awk 
 ${N}'
 
 HELP='\#\
-${N}\# USB driver for FreeBSD 6/7 - ${DATE} \
+${N}\# USB driver for FreeBSD 6/7/8 - ${DATE} \
 ${N}\# \
 ${N}\# source directory:      ${S} \
 ${N}\# backup directory:      ${.CURDIR} \
