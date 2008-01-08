@@ -40,3 +40,19 @@ INTERFACE usb;
 METHOD int reconfigure {
 	device_t dev;
 };
+
+# The device received a control request
+#
+# Return values:
+# 0: Success
+# ENOTTY: Transaction stalled
+# Else: Use builtin request handler
+#
+METHOD int handle_request {
+	device_t dev;
+	const void *req; /* pointer to the device request */
+	void **pptr; /* data pointer */
+	uint16_t *plen; /* maximum transfer length */
+	uint16_t offset; /* data offset */
+	uint8_t is_complete; /* set if transfer is complete */
+};

@@ -65,7 +65,7 @@
  */
 
 #ifndef _UCOMVAR_H_
-#define _UCOMVAR_H_
+#define	_UCOMVAR_H_
 
 /* Module interface related macros */
 #define	UCOM_MODVER	1
@@ -86,48 +86,48 @@ struct thread;
  * while it is open!
  */
 struct ucom_callback {
-	void (*ucom_cfg_get_status)(struct ucom_softc *, uint8_t *, uint8_t *);
-	void (*ucom_cfg_set_dtr)(struct ucom_softc *, uint8_t);
-	void (*ucom_cfg_set_rts)(struct ucom_softc *, uint8_t);
-	void (*ucom_cfg_set_break)(struct ucom_softc *, uint8_t);
-	void (*ucom_cfg_param)(struct ucom_softc *, struct termios *);
-	void (*ucom_cfg_open)(struct ucom_softc *);
-	void (*ucom_cfg_close)(struct ucom_softc *);
-	int  (*ucom_pre_open)(struct ucom_softc *);
-	int  (*ucom_pre_param)(struct ucom_softc *, struct termios *);
-	int  (*ucom_ioctl)(struct ucom_softc *, uint32_t, caddr_t, int, struct thread *);
-	void (*ucom_start_read)(struct ucom_softc *);
-	void (*ucom_stop_read)(struct ucom_softc *);
-	void (*ucom_start_write)(struct ucom_softc *);
-	void (*ucom_stop_write)(struct ucom_softc *);
+	void    (*ucom_cfg_get_status) (struct ucom_softc *, uint8_t *, uint8_t *);
+	void    (*ucom_cfg_set_dtr) (struct ucom_softc *, uint8_t);
+	void    (*ucom_cfg_set_rts) (struct ucom_softc *, uint8_t);
+	void    (*ucom_cfg_set_break) (struct ucom_softc *, uint8_t);
+	void    (*ucom_cfg_param) (struct ucom_softc *, struct termios *);
+	void    (*ucom_cfg_open) (struct ucom_softc *);
+	void    (*ucom_cfg_close) (struct ucom_softc *);
+	int     (*ucom_pre_open) (struct ucom_softc *);
+	int     (*ucom_pre_param) (struct ucom_softc *, struct termios *);
+	int     (*ucom_ioctl) (struct ucom_softc *, uint32_t, caddr_t, int, struct thread *);
+	void    (*ucom_start_read) (struct ucom_softc *);
+	void    (*ucom_stop_read) (struct ucom_softc *);
+	void    (*ucom_start_write) (struct ucom_softc *);
+	void    (*ucom_stop_write) (struct ucom_softc *);
 };
 
 /* Line status register */
 #define	ULSR_RCV_FIFO	0x80
-#define	ULSR_TSRE	0x40	/* Transmitter empty: byte sent */
-#define	ULSR_TXRDY	0x20	/* Transmitter buffer empty */
-#define	ULSR_BI		0x10	/* Break detected */
-#define	ULSR_FE		0x08	/* Framing error: bad stop bit */
-#define	ULSR_PE		0x04	/* Parity error */
-#define	ULSR_OE		0x02	/* Overrun, lost incoming byte */
-#define	ULSR_RXRDY	0x01	/* Byte ready in Receive Buffer */
-#define	ULSR_RCV_MASK	0x1f	/* Mask for incoming data or error */
+#define	ULSR_TSRE	0x40		/* Transmitter empty: byte sent */
+#define	ULSR_TXRDY	0x20		/* Transmitter buffer empty */
+#define	ULSR_BI		0x10		/* Break detected */
+#define	ULSR_FE		0x08		/* Framing error: bad stop bit */
+#define	ULSR_PE		0x04		/* Parity error */
+#define	ULSR_OE		0x02		/* Overrun, lost incoming byte */
+#define	ULSR_RXRDY	0x01		/* Byte ready in Receive Buffer */
+#define	ULSR_RCV_MASK	0x1f		/* Mask for incoming data or error */
 
 struct ucom_super_softc {
 	struct usbd_config_td sc_config_td;
 };
 
 struct ucom_softc {
-	struct termios	sc_termios_copy;
-	const struct ucom_callback	*sc_callback;
+	struct termios sc_termios_copy;
+	const struct ucom_callback *sc_callback;
 	struct ucom_super_softc *sc_super;
-	struct tty	*sc_tty;
-	struct mtx	*sc_parent_mtx;
-	void		*sc_parent;
-	uint32_t	sc_unit;
-	uint32_t	sc_local_unit;
-	uint16_t	sc_portno;
-	uint8_t		sc_flag;
+	struct tty *sc_tty;
+	struct mtx *sc_parent_mtx;
+	void   *sc_parent;
+	uint32_t sc_unit;
+	uint32_t sc_local_unit;
+	uint16_t sc_portno;
+	uint8_t	sc_flag;
 #define	UCOM_FLAG_RTS_IFLOW	0x01	/* use RTS input flow control */
 #define	UCOM_FLAG_GONE		0x02	/* the device is gone */
 #define	UCOM_FLAG_ATTACHED	0x04	/* set if attached */
@@ -135,17 +135,17 @@ struct ucom_softc {
 #define	UCOM_FLAG_WR_START	0x10	/* set if write start was issued */
 #define	UCOM_FLAG_LL_READY	0x20	/* set if low layer is ready */
 #define	UCOM_FLAG_HL_READY	0x40	/* set if high layer is ready */
-	uint8_t		sc_lsr;
-	uint8_t		sc_msr;
-	uint8_t		sc_mcr;
+	uint8_t	sc_lsr;
+	uint8_t	sc_msr;
+	uint8_t	sc_mcr;
 };
 
 int	ucom_attach(struct ucom_super_softc *ssc, struct ucom_softc *sc, uint32_t sub_units, void *parent, const struct ucom_callback *callback, struct mtx *p_mtx);
 void	ucom_detach(struct ucom_super_softc *ssc, struct ucom_softc *sc, uint32_t sub_units);
 void	ucom_status_change(struct ucom_softc *);
-uint8_t	ucom_get_data(struct ucom_softc *sc, uint8_t *buf, uint32_t len, uint32_t *actlen);
-void	ucom_put_data(struct ucom_softc *sc, uint8_t *ptr, uint16_t len);
+uint8_t	ucom_get_data(struct ucom_softc *sc, struct usbd_page_cache *pc, uint32_t offset, uint32_t len, uint32_t *actlen);
+void	ucom_put_data(struct ucom_softc *sc, struct usbd_page_cache *pc, uint32_t offset, uint32_t len);
 uint8_t	ucom_cfg_sleep(struct ucom_softc *sc, uint32_t timeout);
 uint8_t	ucom_cfg_is_gone(struct ucom_softc *sc);
 
-#endif /* _UCOMVAR_H_ */
+#endif					/* _UCOMVAR_H_ */

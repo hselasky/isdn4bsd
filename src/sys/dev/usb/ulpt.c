@@ -57,50 +57,49 @@
 __FBSDID("$FreeBSD: src/sys/dev/usb/ulpt.c,v 1.80 2007/06/21 14:42:34 imp Exp $");
 
 #ifdef USB_DEBUG
-#define DPRINTF(n,fmt,...)						\
+#define	DPRINTF(n,fmt,...)						\
   do { if (ulpt_debug > (n)) {						\
       printf("%s: " fmt, __FUNCTION__,## __VA_ARGS__); } } while (0)
 
 static int ulpt_debug = 0;
+
 SYSCTL_NODE(_hw_usb, OID_AUTO, ulpt, CTLFLAG_RW, 0, "USB ulpt");
 SYSCTL_INT(_hw_usb_ulpt, OID_AUTO, debug, CTLFLAG_RW,
-	   &ulpt_debug, 0, "ulpt debug level");
+    &ulpt_debug, 0, "ulpt debug level");
 #else
 #define	DPRINTF(...) do { } while (0)
 #endif
 
-#define	ULPT_BSIZE		(1<<17) /* bytes */
-#define ULPT_IFQ_MAXLEN         2 /* units */
-#define ULPT_WATCHDOG_INTERVAL  5 /* times per second */
-#define ULPT_N_TRANSFER         6 /* units */
+#define	ULPT_BSIZE		(1<<17)	/* bytes */
+#define	ULPT_IFQ_MAXLEN         2	/* units */
+#define	ULPT_N_TRANSFER         6	/* units */
 
-#define UR_GET_DEVICE_ID        0x00
-#define UR_GET_PORT_STATUS      0x01
-#define UR_SOFT_RESET           0x02
+#define	UR_GET_DEVICE_ID        0x00
+#define	UR_GET_PORT_STATUS      0x01
+#define	UR_SOFT_RESET           0x02
 
 #define	LPS_NERR		0x08	/* printer no error */
 #define	LPS_SELECT		0x10	/* printer selected */
 #define	LPS_NOPAPER		0x20	/* printer out of paper */
-#define LPS_INVERT      (LPS_SELECT|LPS_NERR)
-#define LPS_MASK        (LPS_SELECT|LPS_NERR|LPS_NOPAPER)
+#define	LPS_INVERT      (LPS_SELECT|LPS_NERR)
+#define	LPS_MASK        (LPS_SELECT|LPS_NERR|LPS_NOPAPER)
 
 struct ulpt_softc {
-	struct usb_cdev         sc_cdev;
-	struct __callout	sc_watchdog;
-	struct mtx		sc_mtx;
+	struct usb_cdev sc_cdev;
+	struct mtx sc_mtx;
 
-	device_t		sc_dev;
-	struct usbd_xfer *	sc_xfer[ULPT_N_TRANSFER];
+	device_t sc_dev;
+	struct usbd_xfer *sc_xfer[ULPT_N_TRANSFER];
 
-	u_int8_t		sc_flags;
-#define ULPT_FLAG_NO_READ       0x01 /* device has no read endpoint */
-#define ULPT_FLAG_DUMP_READ     0x02 /* device is not opened for read */
-#define ULPT_FLAG_READ_STALL    0x04 /* read transfer stalled */
-#define ULPT_FLAG_WRITE_STALL   0x08 /* write transfer stalled */
-#define ULPT_FLAG_RESETTING     0x10 /* device is resetting */
+	uint8_t	sc_flags;
+#define	ULPT_FLAG_READ_STALL    0x04	/* read transfer stalled */
+#define	ULPT_FLAG_WRITE_STALL   0x08	/* write transfer stalled */
+#define	ULPT_FLAG_RESETTING     0x10	/* device is resetting */
 
-	u_int8_t		sc_iface_no;
-	u_int8_t		sc_last_status;
+	uint8_t	sc_iface_no;
+	uint8_t	sc_last_status;
+	uint8_t	sc_zlps;		/* number of consequtive zero length
+					 * packets received */
 };
 
 /* prototypes */
@@ -117,68 +116,34 @@ static usbd_callback_t ulpt_status_callback;
 static usbd_callback_t ulpt_reset_callback;
 
 static void
-ulpt_watchdog(void *__sc)
-{
-	struct ulpt_softc *sc = __sc;
-
-	mtx_assert(&(sc->sc_mtx), MA_OWNED);
-
-	DPRINTF(2, "start sc=%p\n", sc);
-
-	/* start reading of status, if not already started */
-
-	usbd_transfer_start(sc->sc_xfer[2]);
-
-	if ((sc->sc_flags & (ULPT_FLAG_NO_READ|
-			     ULPT_FLAG_DUMP_READ)) &&
-	    (!(sc->sc_flags & ULPT_FLAG_RESETTING)) &&
-	    (sc->sc_cdev.sc_flags & (USB_CDEV_FLAG_OPEN_READ|
-				     USB_CDEV_FLAG_OPEN_WRITE)) &&
-	    (!(sc->sc_cdev.sc_flags & USB_CDEV_FLAG_CLOSING_READ))) {
-
-	    /* start reading of data, if not already started */
-
-	    usbd_transfer_start(sc->sc_xfer[1]);
-	}
-
-	__callout_reset(&(sc->sc_watchdog), 
-			hz / ULPT_WATCHDOG_INTERVAL, 
-			&ulpt_watchdog, sc);
-
-	mtx_unlock(&(sc->sc_mtx));
-
-	return;
-}
-
-static void
 ulpt_write_callback(struct usbd_xfer *xfer)
 {
 	struct ulpt_softc *sc = xfer->priv_sc;
-	u_int32_t actlen;
+	uint32_t actlen;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
+	case USBD_ST_SETUP:
+		if (sc->sc_flags & ULPT_FLAG_WRITE_STALL) {
+			usbd_transfer_start(sc->sc_xfer[4]);
+			return;
+		}
+		if (usb_cdev_get_data(&(sc->sc_cdev), xfer->frbuffers + 0, 0,
+		    xfer->max_data_length, &actlen, 0)) {
 
- tr_transferred:
- tr_setup:
-	if (sc->sc_flags & ULPT_FLAG_WRITE_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[4]);
-	    return;
+			xfer->frlengths[0] = actlen;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			/* try to clear stall first */
+			sc->sc_flags |= ULPT_FLAG_WRITE_STALL;
+			usbd_transfer_start(sc->sc_xfer[4]);
+		}
+		return;
 	}
-	if (usb_cdev_get_data(&(sc->sc_cdev), xfer->buffer, 
-			      ULPT_BSIZE, &actlen, 0)) {
-
-	    xfer->length = actlen;
-	    usbd_start_hardware(xfer);
-	}
-	return;
-
- tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    /* try to clear stall first */
-	    sc->sc_flags |= ULPT_FLAG_WRITE_STALL;
-	    usbd_transfer_start(sc->sc_xfer[4]);
-	}
-	return;
 }
 
 static void
@@ -188,9 +153,9 @@ ulpt_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(0, "stall cleared\n");
-	    sc->sc_flags &= ~ULPT_FLAG_WRITE_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(0, "stall cleared\n");
+		sc->sc_flags &= ~ULPT_FLAG_WRITE_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -201,35 +166,52 @@ ulpt_read_callback(struct usbd_xfer *xfer)
 	struct ulpt_softc *sc = xfer->priv_sc;
 	struct usbd_mbuf *m;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
 
- tr_transferred:
-	if (sc->sc_flags & (ULPT_FLAG_NO_READ|ULPT_FLAG_DUMP_READ)) {
-	    return;
+		if (xfer->actlen == 0) {
+
+			if (sc->sc_zlps == 4) {
+				/* enable BULK throttle */
+				xfer->interval = 500;	/* ms */
+			} else {
+				sc->sc_zlps++;
+			}
+		} else {
+			/* disable BULK throttle */
+
+			xfer->interval = 0;
+			sc->sc_zlps = 0;
+		}
+
+		usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers + 0, 0,
+		    xfer->actlen, 1);
+
+	case USBD_ST_SETUP:
+		if (sc->sc_flags & ULPT_FLAG_READ_STALL) {
+			usbd_transfer_start(sc->sc_xfer[5]);
+			return;
+		}
+		USBD_IF_POLL(&sc->sc_cdev.sc_rdq_free, m);
+
+		if (m) {
+			xfer->frlengths[0] = xfer->max_data_length;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		/* disable BULK throttle */
+		xfer->interval = 0;
+		sc->sc_zlps = 0;
+
+		if (xfer->error != USBD_CANCELLED) {
+			/* try to clear stall first */
+			sc->sc_flags |= ULPT_FLAG_READ_STALL;
+			usbd_transfer_start(sc->sc_xfer[5]);
+		}
+		return;
 	}
-
-	usb_cdev_put_data(&(sc->sc_cdev), xfer->buffer, xfer->actlen, 1);
-
- tr_setup:
-	if (sc->sc_flags & ULPT_FLAG_READ_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[5]);
-	    return;
-	}
-
-	USBD_IF_POLL(&sc->sc_cdev.sc_rdq_free, m);
-
-	if (m) {
-	    usbd_start_hardware(xfer);
-	}
-	return;
-
- tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    /* try to clear stall first */
-	    sc->sc_flags |= ULPT_FLAG_READ_STALL;
-	    usbd_transfer_start(sc->sc_xfer[5]);
-	}
-	return;
 }
 
 static void
@@ -239,9 +221,9 @@ ulpt_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(0, "stall cleared\n");
-	    sc->sc_flags &= ~ULPT_FLAG_READ_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(0, "stall cleared\n");
+		sc->sc_flags &= ~ULPT_FLAG_READ_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -250,153 +232,171 @@ static void
 ulpt_status_callback(struct usbd_xfer *xfer)
 {
 	struct ulpt_softc *sc = xfer->priv_sc;
-	usb_device_request_t *req = xfer->buffer;
-	u_int8_t cur_status = req->bData[0];
-	u_int8_t new_status;
+	usb_device_request_t req;
+	uint8_t cur_status;
+	uint8_t new_status;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
 
- tr_transferred:
-	cur_status = (cur_status ^ LPS_INVERT) & LPS_MASK;
-	new_status = cur_status & ~sc->sc_last_status;
-	sc->sc_last_status = cur_status;
+		usbd_copy_out(xfer->frbuffers + 1, 0, &cur_status, 1);
 
-	if (new_status & LPS_SELECT)
-		log(LOG_NOTICE, "%s: offline\n", 
-		    device_get_nameunit(sc->sc_dev));
-	else if (new_status & LPS_NOPAPER)
-		log(LOG_NOTICE, "%s: out of paper\n", 
-		    device_get_nameunit(sc->sc_dev));
-	else if (new_status & LPS_NERR)
-		log(LOG_NOTICE, "%s: output error\n", 
-		    device_get_nameunit(sc->sc_dev));
-	return;
+		cur_status = (cur_status ^ LPS_INVERT) & LPS_MASK;
+		new_status = cur_status & ~sc->sc_last_status;
+		sc->sc_last_status = cur_status;
 
- tr_setup:
-	req->bmRequestType = UT_READ_CLASS_INTERFACE;
-	req->bRequest = UR_GET_PORT_STATUS;
-	USETW(req->wValue, 0);
-	USETW(req->wIndex, sc->sc_iface_no);
-	USETW(req->wLength, 1);
+		if (new_status & LPS_SELECT)
+			log(LOG_NOTICE, "%s: offline\n",
+			    device_get_nameunit(sc->sc_dev));
+		else if (new_status & LPS_NOPAPER)
+			log(LOG_NOTICE, "%s: out of paper\n",
+			    device_get_nameunit(sc->sc_dev));
+		else if (new_status & LPS_NERR)
+			log(LOG_NOTICE, "%s: output error\n",
+			    device_get_nameunit(sc->sc_dev));
 
-	usbd_start_hardware(xfer);
+	case USBD_ST_SETUP:
+tr_setup:
+		req.bmRequestType = UT_READ_CLASS_INTERFACE;
+		req.bRequest = UR_GET_PORT_STATUS;
+		USETW(req.wValue, 0);
+		req.wIndex[0] = sc->sc_iface_no;
+		req.wIndex[1] = 0;
+		USETW(req.wLength, 1);
 
-	return;
+		usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
 
- tr_error:
-	DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
-	return;
+		xfer->frlengths[0] = sizeof(req);
+		xfer->frlengths[1] = 1;
+		xfer->nframes = 2;
+		usbd_start_hardware(xfer);
+
+		return;
+
+	default:			/* Error */
+		DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
+		if (xfer->error != USBD_CANCELLED) {
+			goto tr_setup;
+		}
+		return;
+	}
 }
 
 static void
 ulpt_reset_callback(struct usbd_xfer *xfer)
 {
 	struct ulpt_softc *sc = xfer->priv_sc;
-	usb_device_request_t *req = xfer->buffer;
+	usb_device_request_t req;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
+tr_transferred:
+		usb_cdev_wakeup(&(sc->sc_cdev));
+		return;
 
- tr_error:
-	if (xfer->error == USBD_CANCELLED) {
-	    return;
+	case USBD_ST_SETUP:
+		req.bmRequestType = UT_WRITE_CLASS_OTHER;	/* 1.0 */
+		req.bRequest = UR_SOFT_RESET;
+
+tr_setup_sub:
+		USETW(req.wValue, 0);
+		req.wIndex[0] = sc->sc_iface_no;
+		req.wIndex[1] = 0;
+		USETW(req.wLength, 0);
+
+		usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+
+		xfer->frlengths[0] = sizeof(req);
+		xfer->nframes = 1;
+		usbd_start_hardware(xfer);
+		return;
+
+	default:			/* Error */
+		if (xfer->error == USBD_CANCELLED) {
+			return;
+		}
+		usbd_copy_out(xfer->frbuffers + 0, 0, &req, sizeof(req));
+
+		if (req.bmRequestType == UT_WRITE_CLASS_OTHER) {
+			/*
+		         * There was a mistake in the USB printer 1.0 spec that
+		         * gave the request type as UT_WRITE_CLASS_OTHER; it
+		         * should have been UT_WRITE_CLASS_INTERFACE.  Many
+		         * printers use the old one, so try both:
+		         */
+			req.bmRequestType = UT_WRITE_CLASS_INTERFACE;	/* 1.1 */
+			req.bRequest = UR_SOFT_RESET;
+
+			goto tr_setup_sub;
+		}
+		goto tr_transferred;
 	}
-
-	if (req->bmRequestType == UT_WRITE_CLASS_OTHER) {
-	    /*
-	     * There was a mistake in the USB printer 1.0 spec that
-	     * gave the request type as UT_WRITE_CLASS_OTHER; it
-	     * should have been UT_WRITE_CLASS_INTERFACE.  Many
-	     * printers use the old one, so try both:
-	     */
-	    req->bmRequestType = UT_WRITE_CLASS_INTERFACE; /* 1.1 */
-	    req->bRequest = UR_SOFT_RESET;
-	    USETW(req->wValue, 0);
-	    USETW(req->wIndex, sc->sc_iface_no);
-	    USETW(req->wLength, 0);
-
-	    usbd_start_hardware(xfer);
-
-	    return;
-	}
-
- tr_transferred:
-	usb_cdev_wakeup(&(sc->sc_cdev));
-	return;
-
- tr_setup:
-	req->bmRequestType = UT_WRITE_CLASS_OTHER; /* 1.0 */
-	req->bRequest = UR_SOFT_RESET;
-	USETW(req->wValue, 0);
-	USETW(req->wIndex, sc->sc_iface_no);
-	USETW(req->wLength, 0);
-
-	usbd_start_hardware(xfer);
-
-	return;
 }
 
 static const struct usbd_config ulpt_config[ULPT_N_TRANSFER] = {
-    [0] = {
-      .type      = UE_BULK,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_OUT,
-      .bufsize   = ULPT_BSIZE,
-      .flags     = (USBD_PIPE_BOF),
-      .callback  = &ulpt_write_callback,
-    },
+	[0] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_OUT,
+		.bufsize = ULPT_BSIZE,
+		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,.proxy_buffer = 1},
+		.mh.callback = &ulpt_write_callback,
+	},
 
-    [1] = {
-      .type      = UE_BULK,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_IN,
-      .bufsize   = ULPT_BSIZE,
-      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
-      .callback  = &ulpt_read_callback,
-    },
+	[1] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_IN,
+		.bufsize = ULPT_BSIZE,
+		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,.proxy_buffer = 1},
+		.mh.callback = &ulpt_read_callback,
+	},
 
-    [2] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t) + 1,
-      .callback  = &ulpt_status_callback,
-      .timeout   = 1000, /* 1 second */
-    },
+	[2] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t) + 1,
+		.mh.callback = &ulpt_status_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 1000,	/* 1 second */
+	},
 
-    [3] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &ulpt_reset_callback,
-      .timeout   = 1000, /* 1 second */
-    },
+	[3] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.callback = &ulpt_reset_callback,
+		.mh.timeout = 1000,	/* 1 second */
+	},
 
-    [4] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &ulpt_write_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[4] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.callback = &ulpt_write_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 
-    [5] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &ulpt_read_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[5] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.callback = &ulpt_read_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 };
 
 static void
 ulpt_start_read(struct usb_cdev *cdev)
 {
 	struct ulpt_softc *sc = cdev->sc_priv_ptr;
+
 	usbd_transfer_start(sc->sc_xfer[1]);
 	return;
 }
@@ -405,6 +405,7 @@ static void
 ulpt_stop_read(struct usb_cdev *cdev)
 {
 	struct ulpt_softc *sc = cdev->sc_priv_ptr;
+
 	usbd_transfer_stop(sc->sc_xfer[5]);
 	usbd_transfer_stop(sc->sc_xfer[1]);
 	return;
@@ -414,6 +415,7 @@ static void
 ulpt_start_write(struct usb_cdev *cdev)
 {
 	struct ulpt_softc *sc = cdev->sc_priv_ptr;
+
 	usbd_transfer_start(sc->sc_xfer[0]);
 	return;
 }
@@ -422,6 +424,7 @@ static void
 ulpt_stop_write(struct usb_cdev *cdev)
 {
 	struct ulpt_softc *sc = cdev->sc_priv_ptr;
+
 	usbd_transfer_stop(sc->sc_xfer[4]);
 	usbd_transfer_stop(sc->sc_xfer[0]);
 	return;
@@ -429,55 +432,47 @@ ulpt_stop_write(struct usb_cdev *cdev)
 
 static int32_t
 ulpt_open(struct usb_cdev *cdev, int32_t fflags,
-	  int32_t devtype, struct thread *td)
+    int32_t devtype, struct thread *td)
 {
-	u_int8_t prime = ((cdev->sc_last_cdev == cdev->sc_cdev[0]) &&
-			  (cdev->sc_first_open));
+	uint8_t prime = ((cdev->sc_last_cdev == cdev->sc_cdev[0]) &&
+	    (cdev->sc_first_open));
 	struct ulpt_softc *sc = cdev->sc_priv_ptr;
 	int32_t error = 0;
 
 	if (fflags & FREAD) {
-	    /* clear stall first */
-	    sc->sc_flags |= ULPT_FLAG_READ_STALL;
+		/* clear stall first */
+		sc->sc_flags |= ULPT_FLAG_READ_STALL;
 	}
-
 	if (fflags & FWRITE) {
-	    /* clear stall first */
-	    sc->sc_flags |= ULPT_FLAG_WRITE_STALL;
+		/* clear stall first */
+		sc->sc_flags |= ULPT_FLAG_WRITE_STALL;
 	}
-
 	if (prime) {
-	    DPRINTF(0, "opening prime device (reset)\n");
+		DPRINTF(0, "opening prime device (reset)\n");
 
-	    sc->sc_flags |= ULPT_FLAG_RESETTING;
+		sc->sc_flags |= ULPT_FLAG_RESETTING;
 
-	    usbd_transfer_start(sc->sc_xfer[3]);
+		usbd_transfer_start(sc->sc_xfer[3]);
 
-	    error = usb_cdev_sleep(&(sc->sc_cdev), fflags, 0);
+		error = usb_cdev_sleep(&(sc->sc_cdev), fflags, 0);
 
-	    usbd_transfer_stop(sc->sc_xfer[3]);
+		usbd_transfer_stop(sc->sc_xfer[3]);
 
-	    sc->sc_flags &= ~ULPT_FLAG_RESETTING;
+		sc->sc_flags &= ~ULPT_FLAG_RESETTING;
 
-	    if (error) {
-	        goto done;
-	    }
+		if (error) {
+			goto done;
+		}
 	}
-
-	if (cdev->sc_flags & USB_CDEV_FLAG_OPEN_READ) {
-	    sc->sc_flags &= ~ULPT_FLAG_DUMP_READ;
-	} else {
-	    sc->sc_flags |=  ULPT_FLAG_DUMP_READ;
-	}
- done:
-	return error;
+done:
+	return (error);
 }
 
 static int32_t
-ulpt_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t data, 
-	   int32_t fflags, struct thread *td)
+ulpt_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t data,
+    int32_t fflags, struct thread *td)
 {
-	return ENODEV;
+	return (ENODEV);
 }
 
 static int
@@ -488,21 +483,23 @@ ulpt_probe(device_t dev)
 
 	DPRINTF(10, "\n");
 
-	if (uaa->iface == NULL) {
-		return UMATCH_NONE;
+	if (uaa->usb_mode != USB_MODE_HOST) {
+		return (UMATCH_NONE);
 	}
-
+	if (uaa->iface == NULL) {
+		return (UMATCH_NONE);
+	}
 	id = usbd_get_interface_descriptor(uaa->iface);
 
 	if ((id != NULL) &&
 	    (id->bInterfaceClass == UICLASS_PRINTER) &&
 	    (id->bInterfaceSubClass == UISUBCLASS_PRINTER) &&
 	    ((id->bInterfaceProtocol == UIPROTO_PRINTER_UNI) ||
-	     (id->bInterfaceProtocol == UIPROTO_PRINTER_BI) ||
-	     (id->bInterfaceProtocol == UIPROTO_PRINTER_1284))) {
-		return UMATCH_IFACECLASS_IFACESUBCLASS_IFACEPROTO;
+	    (id->bInterfaceProtocol == UIPROTO_PRINTER_BI) ||
+	    (id->bInterfaceProtocol == UIPROTO_PRINTER_1284))) {
+		return (UMATCH_IFACECLASS_IFACESUBCLASS_IFACEPROTO);
 	}
-	return UMATCH_NONE;
+	return (UMATCH_NONE);
 }
 
 static int
@@ -512,85 +509,71 @@ ulpt_attach(device_t dev)
 	struct ulpt_softc *sc = device_get_softc(dev);
 	struct usbd_interface *iface_ptr = uaa->iface;
 	usb_interface_descriptor_t *id;
-	const char * p_buf[3];
-	int32_t iface_index = uaa->iface_index;
+	const char *p_buf[3];
 	int32_t iface_alt_index = 0;
 	int32_t unit = device_get_unit(dev);
 	int32_t error;
 	char buf_1[16];
 	char buf_2[16];
+	uint8_t iface_index = uaa->iface_index;
 
 	DPRINTF(10, "sc=%p\n", sc);
 
 	sc->sc_dev = dev;
 
-	usbd_set_desc(dev, uaa->device);
+	usbd_set_device_desc(dev);
 
-	mtx_init(&(sc->sc_mtx), "ulpt lock", NULL, MTX_DEF|MTX_RECURSE);
-
-	__callout_init_mtx(&(sc->sc_watchdog),
-			   &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
+	mtx_init(&(sc->sc_mtx), "ulpt lock", NULL, MTX_DEF | MTX_RECURSE);
 
 	/* search through all the descriptors looking for bidir mode */
 
-	while(iface_alt_index < 32) {
+	while (iface_alt_index < 32) {
 
-	    error = usbd_fill_iface_data
-	      (uaa->device, iface_index, iface_alt_index);
+		error = usbd_fill_iface_data
+		    (uaa->device, iface_index, iface_alt_index);
 
-	    if (error) {
-	        DPRINTF(0, "end of alternate settings, "
-			"error=%s\n", usbd_errstr(error));
-	        goto detach;
-	    }
+		if (error) {
+			DPRINTF(0, "end of alternate settings, "
+			    "error=%s\n", usbd_errstr(error));
+			goto detach;
+		}
+		id = usbd_get_interface_descriptor(iface_ptr);
 
-	    id = usbd_get_interface_descriptor(iface_ptr);
-
-	    if ((id->bInterfaceClass == UICLASS_PRINTER) &&
-		(id->bInterfaceSubClass == UISUBCLASS_PRINTER) &&
-		(id->bInterfaceProtocol == UIPROTO_PRINTER_BI)) {
-	        goto found;
-	    }
-
-	    iface_alt_index++;
+		if ((id->bInterfaceClass == UICLASS_PRINTER) &&
+		    (id->bInterfaceSubClass == UISUBCLASS_PRINTER) &&
+		    (id->bInterfaceProtocol == UIPROTO_PRINTER_BI)) {
+			goto found;
+		}
+		iface_alt_index++;
 	}
 	goto detach;
 
- found:
+found:
 
 	DPRINTF(0, "setting alternate "
-		"config number: %d\n", iface_alt_index);
+	    "config number: %d\n", iface_alt_index);
 
 	if (iface_alt_index) {
 
-	    error = usbreq_set_interface
-	      (uaa->device, iface_index, iface_alt_index);
+		error = usbd_set_alt_interface_index
+		    (uaa->device, iface_index, iface_alt_index);
 
-	    if (error) {
-	        DPRINTF(0, "could not set alternate "
-			"config, error=%s\n", usbd_errstr(error));
-	        goto detach;
-	    }
+		if (error) {
+			DPRINTF(0, "could not set alternate "
+			    "config, error=%s\n", usbd_errstr(error));
+			goto detach;
+		}
 	}
-
 	sc->sc_iface_no = id->bInterfaceNumber;
 
-	error = usbd_transfer_setup(uaa->device, iface_index, 
-				    sc->sc_xfer, ulpt_config, ULPT_N_TRANSFER, 
-				    sc, &(sc->sc_mtx));
+	error = usbd_transfer_setup(uaa->device, &iface_index,
+	    sc->sc_xfer, ulpt_config, ULPT_N_TRANSFER,
+	    sc, &(sc->sc_mtx));
 	if (error) {
-	    DPRINTF(0, "error=%s\n", usbd_errstr(error)) ;
-	    goto detach;
+		DPRINTF(0, "error=%s\n", usbd_errstr(error));
+		goto detach;
 	}
-
-	if (usbd_get_quirks(uaa->device)->uq_flags & UQ_BROKEN_BIDIR) {
-		/* this device doesn't handle reading properly. */
-		sc->sc_flags |= ULPT_FLAG_NO_READ;
-	}
-
-	device_printf(sc->sc_dev, "using %s-directional mode\n",
-		      (sc->sc_flags & ULPT_FLAG_NO_READ) ? "uni" : "bi");
-
+	device_printf(sc->sc_dev, "using bi-directional mode\n");
 
 #if 0
 /*
@@ -599,32 +582,32 @@ ulpt_attach(device_t dev)
  * UHCI and less often with OHCI.  *sigh*
  */
 	{
-	usb_config_descriptor_t *cd = usbd_get_config_descriptor(dev);
-	usb_device_request_t req;
-	int len, alen;
+		usb_config_descriptor_t *cd = usbd_get_config_descriptor(dev);
+		usb_device_request_t req;
+		int len, alen;
 
-	req.bmRequestType = UT_READ_CLASS_INTERFACE;
-	req.bRequest = UR_GET_DEVICE_ID;
-	USETW(req.wValue, cd->bConfigurationValue);
-	USETW2(req.wIndex, id->bInterfaceNumber, id->bAlternateSetting);
-	USETW(req.wLength, sizeof devinfo - 1);
-	error = usbd_do_request_flags(dev, &req, devinfo, USBD_SHORT_XFER_OK,
-		  &alen, USBD_DEFAULT_TIMEOUT);
-	if (error) {
-	    device_printf(sc->sc_dev, "cannot get device id\n");
-	} else if (alen <= 2) {
-	    device_printf(sc->sc_dev, "empty device id, no "
-			  "printer connected?\n");
-	} else {
-		/* devinfo now contains an IEEE-1284 device ID */
-		len = ((devinfo[0] & 0xff) << 8) | (devinfo[1] & 0xff);
-		if (len > sizeof devinfo - 3)
-			len = sizeof devinfo - 3;
-		devinfo[len] = 0;
-		printf("%s: device id <", device_get_nameunit(sc->sc_dev));
-		ieee1284_print_id(devinfo+2);
-		printf(">\n");
-	}
+		req.bmRequestType = UT_READ_CLASS_INTERFACE;
+		req.bRequest = UR_GET_DEVICE_ID;
+		USETW(req.wValue, cd->bConfigurationValue);
+		USETW2(req.wIndex, id->bInterfaceNumber, id->bAlternateSetting);
+		USETW(req.wLength, sizeof devinfo - 1);
+		error = usbd_do_request_flags(dev, &req, devinfo, USBD_SHORT_XFER_OK,
+		    &alen, USBD_DEFAULT_TIMEOUT);
+		if (error) {
+			device_printf(sc->sc_dev, "cannot get device id\n");
+		} else if (alen <= 2) {
+			device_printf(sc->sc_dev, "empty device id, no "
+			    "printer connected?\n");
+		} else {
+			/* devinfo now contains an IEEE-1284 device ID */
+			len = ((devinfo[0] & 0xff) << 8) | (devinfo[1] & 0xff);
+			if (len > sizeof devinfo - 3)
+				len = sizeof devinfo - 3;
+			devinfo[len] = 0;
+			printf("%s: device id <", device_get_nameunit(sc->sc_dev));
+			ieee1284_print_id(devinfo + 2);
+			printf(">\n");
+		}
 	}
 #endif
 
@@ -641,29 +624,25 @@ ulpt_attach(device_t dev)
 	sc->sc_cdev.sc_stop_write = &ulpt_stop_write;
 	sc->sc_cdev.sc_open = &ulpt_open;
 	sc->sc_cdev.sc_ioctl = &ulpt_ioctl;
-	sc->sc_cdev.sc_flags |= (USB_CDEV_FLAG_FWD_SHORT|
-				 USB_CDEV_FLAG_WAKEUP_RD_IMMED|
-				 USB_CDEV_FLAG_WAKEUP_WR_IMMED);
+	sc->sc_cdev.sc_flags |= (USB_CDEV_FLAG_WAKEUP_RD_IMMED |
+	    USB_CDEV_FLAG_WAKEUP_WR_IMMED);
 
 	error = usb_cdev_attach(&(sc->sc_cdev), sc, &(sc->sc_mtx), p_buf,
-				UID_ROOT, GID_OPERATOR, 0644, 
-				ULPT_BSIZE, ULPT_IFQ_MAXLEN,
-				ULPT_BSIZE, ULPT_IFQ_MAXLEN);
+	    UID_ROOT, GID_OPERATOR, 0644,
+	    sc->sc_xfer[1]->max_data_length, ULPT_IFQ_MAXLEN,
+	    sc->sc_xfer[0]->max_data_length, ULPT_IFQ_MAXLEN);
 	if (error) {
-	    goto detach;
+		goto detach;
 	}
+	/* start reading of status */
 
-	/* start watchdog (returns unlocked) */
+	usbd_transfer_start(sc->sc_xfer[2]);
 
-	mtx_lock(&(sc->sc_mtx));
+	return (0);
 
-	ulpt_watchdog(sc);
-
-	return 0;
-
- detach:
+detach:
 	ulpt_detach(dev);
-	return ENOMEM;
+	return (ENOMEM);
 }
 
 static int
@@ -675,21 +654,37 @@ ulpt_detach(device_t dev)
 
 	usb_cdev_detach(&(sc->sc_cdev));
 
-	mtx_lock(&(sc->sc_mtx));
-	__callout_stop(&(sc->sc_watchdog));
-	mtx_unlock(&(sc->sc_mtx));
-
 	usbd_transfer_unsetup(sc->sc_xfer, ULPT_N_TRANSFER);
-
-	__callout_drain(&(sc->sc_watchdog));
 
 	mtx_destroy(&(sc->sc_mtx));
 
-	return 0;
+	return (0);
 }
 
 #if 0
 /* XXX This does not belong here. */
+
+/*
+ * Compare two strings until the second ends.
+ */
+
+static uint8_t
+ieee1284_compare(const char *a, const char *b)
+{
+	while (1) {
+
+		if (*b == 0) {
+			break;
+		}
+		if (*a != *b) {
+			return 1;
+		}
+		b++;
+		a++;
+	}
+	return 0;
+}
+
 /*
  * Print select parts of an IEEE 1284 device ID.
  */
@@ -698,33 +693,34 @@ ieee1284_print_id(char *str)
 {
 	char *p, *q;
 
-	for (p = str-1; p; p = strchr(p, ';')) {
-		p++;		/* skip ';' */
-		if (strncmp(p, "MFG:", 4) == 0 ||
-		    strncmp(p, "MANUFACTURER:", 14) == 0 ||
-		    strncmp(p, "MDL:", 4) == 0 ||
-		    strncmp(p, "MODEL:", 6) == 0) {
+	for (p = str - 1; p; p = strchr(p, ';')) {
+		p++;			/* skip ';' */
+		if (ieee1284_compare(p, "MFG:") == 0 ||
+		    ieee1284_compare(p, "MANUFACTURER:") == 0 ||
+		    ieee1284_compare(p, "MDL:") == 0 ||
+		    ieee1284_compare(p, "MODEL:") == 0) {
 			q = strchr(p, ';');
 			if (q)
 				printf("%.*s", (int)(q - p + 1), p);
 		}
 	}
 }
+
 #endif
 
 static devclass_t ulpt_devclass;
 
 static device_method_t ulpt_methods[] = {
-    DEVMETHOD(device_probe, ulpt_probe),
-    DEVMETHOD(device_attach, ulpt_attach),
-    DEVMETHOD(device_detach, ulpt_detach),
-    { 0, 0 }
+	DEVMETHOD(device_probe, ulpt_probe),
+	DEVMETHOD(device_attach, ulpt_attach),
+	DEVMETHOD(device_detach, ulpt_detach),
+	{0, 0}
 };
 
 static driver_t ulpt_driver = {
-    .name    = "ulpt",
-    .methods = ulpt_methods,
-    .size    = sizeof(struct ulpt_softc),
+	.name = "ulpt",
+	.methods = ulpt_methods,
+	.size = sizeof(struct ulpt_softc),
 };
 
 DRIVER_MODULE(ulpt, uhub, ulpt_driver, ulpt_devclass, usbd_driver_load, 0);

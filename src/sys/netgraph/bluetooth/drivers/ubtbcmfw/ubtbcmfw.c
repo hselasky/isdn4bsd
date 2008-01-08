@@ -44,31 +44,31 @@
 
 #include "usbdevs.h"
 
-#define DPRINTF(...) do { } while(0)
+#define	DPRINTF(...) do { } while (0)
 
 /*
  * Download firmware to BCM2033.
  */
 
-#define UBTBCMFW_CONFIG_NO	1	/* Config number */
-#define UBTBCMFW_IFACE_IDX	0 	/* Control interface */
-#define UBTBCMFW_T_MAX		4	/* units */
+#define	UBTBCMFW_CONFIG_NO	1	/* Config number */
+#define	UBTBCMFW_IFACE_IDX	0	/* Control interface */
+#define	UBTBCMFW_T_MAX		4	/* units */
 
 struct ubtbcmfw_softc {
-	struct usb_cdev		sc_cdev;
-	struct mtx		sc_mtx;
+	struct usb_cdev sc_cdev;
+	struct mtx sc_mtx;
 
-	device_t		sc_dev;
-	struct usbd_device	*sc_udev;
-	struct usbd_xfer	*sc_xfer[UBTBCMFW_T_MAX];
+	device_t sc_dev;
+	struct usbd_device *sc_udev;
+	struct usbd_xfer *sc_xfer[UBTBCMFW_T_MAX];
 
-	u_int8_t		sc_flags;
-#define UBTBCMFW_FLAG_WRITE_STALL 0x01
-#define UBTBCMFW_FLAG_READ_STALL  0x02
+	uint8_t	sc_flags;
+#define	UBTBCMFW_FLAG_WRITE_STALL 0x01
+#define	UBTBCMFW_FLAG_READ_STALL  0x02
 };
 
-#define UBTBCMFW_BSIZE		1024
-#define UBTBCMFW_IFQ_MAXLEN	2
+#define	UBTBCMFW_BSIZE		1024
+#define	UBTBCMFW_IFQ_MAXLEN	2
 
 /* prototypes */
 
@@ -82,65 +82,65 @@ static usbd_callback_t ubtbcmfw_read_callback;
 static usbd_callback_t ubtbcmfw_read_clear_stall_callback;
 
 static void
-ubtbcmfw_start_read(struct usb_cdev *cdev);
+	ubtbcmfw_start_read(struct usb_cdev *cdev);
 
 static void
-ubtbcmfw_stop_read(struct usb_cdev *cdev);
+	ubtbcmfw_stop_read(struct usb_cdev *cdev);
 
 static void
-ubtbcmfw_start_write(struct usb_cdev *cdev);
+	ubtbcmfw_start_write(struct usb_cdev *cdev);
 
 static void
-ubtbcmfw_stop_write(struct usb_cdev *cdev);
+	ubtbcmfw_stop_write(struct usb_cdev *cdev);
 
 static int32_t
 ubtbcmfw_open(struct usb_cdev *cdev, int32_t fflags,
-	      int32_t devtype, struct thread *td);
+    int32_t devtype, struct thread *td);
 static int32_t
-ubtbcmfw_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t data, 
-	       int32_t fflags, struct thread *td);
+ubtbcmfw_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t data,
+    int32_t fflags, struct thread *td);
 
 static const struct usbd_config ubtbcmfw_config[UBTBCMFW_T_MAX] = {
 
-    [0] = {
-      .type      = UE_BULK,
-      .endpoint  = 0x02, /* fixed */
-      .direction = UE_DIR_OUT,
-      .bufsize   = UBTBCMFW_BSIZE,
-      .flags     = USBD_PIPE_BOF,
-      .callback  = &ubtbcmfw_write_callback,
-    },
+	[0] = {
+		.type = UE_BULK,
+		.endpoint = 0x02,	/* fixed */
+		.direction = UE_DIR_OUT,
+		.bufsize = UBTBCMFW_BSIZE,
+		.mh.flags = {.pipe_bof = 1,},
+		.mh.callback = &ubtbcmfw_write_callback,
+	},
 
-    [1] = {
-      .type      = UE_INTERRUPT,
-      .endpoint  = 0x01, /* fixed */
-      .direction = UE_DIR_IN,
-      .bufsize   = UBTBCMFW_BSIZE,
-      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
-      .callback  = &ubtbcmfw_read_callback,
-    },
+	[1] = {
+		.type = UE_INTERRUPT,
+		.endpoint = 0x01,	/* fixed */
+		.direction = UE_DIR_IN,
+		.bufsize = UBTBCMFW_BSIZE,
+		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
+		.mh.callback = &ubtbcmfw_read_callback,
+	},
 
-    [2] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .flags     = USBD_USE_DMA,
-      .callback  = &ubtbcmfw_write_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[2] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.flags = {},
+		.mh.callback = &ubtbcmfw_write_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 
-    [3] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .flags     = USBD_USE_DMA,
-      .callback  = &ubtbcmfw_read_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[3] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.flags = {},
+		.mh.callback = &ubtbcmfw_read_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 };
 
 /*
@@ -150,20 +150,20 @@ static const struct usbd_config ubtbcmfw_config[UBTBCMFW_T_MAX] = {
 static devclass_t ubtbcmfw_devclass;
 
 static device_method_t ubtbcmfw_methods[] = {
-    DEVMETHOD(device_probe, ubtbcmfw_probe),
-    DEVMETHOD(device_attach, ubtbcmfw_attach),
-    DEVMETHOD(device_detach, ubtbcmfw_detach),
-    { 0, 0 }
+	DEVMETHOD(device_probe, ubtbcmfw_probe),
+	DEVMETHOD(device_attach, ubtbcmfw_attach),
+	DEVMETHOD(device_detach, ubtbcmfw_detach),
+	{0, 0}
 };
 
 static driver_t ubtbcmfw_driver = {
-    .name    = "ubtbcmfw",
-    .methods = ubtbcmfw_methods,
-    .size    = sizeof(struct ubtbcmfw_softc),
+	.name = "ubtbcmfw",
+	.methods = ubtbcmfw_methods,
+	.size = sizeof(struct ubtbcmfw_softc),
 };
 
-DRIVER_MODULE(ubtbcmfw, uhub, ubtbcmfw_driver, ubtbcmfw_devclass, 
-	      usbd_driver_load, 0);
+DRIVER_MODULE(ubtbcmfw, uhub, ubtbcmfw_driver, ubtbcmfw_devclass,
+    usbd_driver_load, 0);
 MODULE_DEPEND(ubtbcmfw, usb, 1, 1, 1);
 
 /*
@@ -175,6 +175,9 @@ ubtbcmfw_probe(device_t dev)
 {
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 
+	if (uaa->usb_mode != USB_MODE_HOST) {
+		return (UMATCH_NONE);
+	}
 	if (uaa->iface != NULL)
 		return (UMATCH_NONE);
 
@@ -200,42 +203,42 @@ ubtbcmfw_attach(device_t dev)
 	char buf_1[32];
 	char buf_2[32];
 	char buf_3[32];
+	uint8_t iface_index;
 
 	if (sc == NULL) {
-	    return ENOMEM;
+		return (ENOMEM);
 	}
-
 	sc->sc_dev = dev;
 	sc->sc_udev = uaa->device;
 
-	usbd_set_desc(dev, uaa->device);
+	usbd_set_device_desc(dev);
 
-	mtx_init(&(sc->sc_mtx), "ubtbcmfw lock", NULL, MTX_DEF|MTX_RECURSE);
+	mtx_init(&(sc->sc_mtx), "ubtbcmfw lock", NULL, MTX_DEF | MTX_RECURSE);
 
 	err = usbd_set_config_no(sc->sc_udev, UBTBCMFW_CONFIG_NO, 1);
 	if (err) {
 		device_printf(dev, "setting config no failed, err=%s\n",
-			      usbd_errstr(err));
+		    usbd_errstr(err));
 		goto detach;;
 	}
+	iface_index = UBTBCMFW_IFACE_IDX;
+	err = usbd_transfer_setup(uaa->device,
+	    &iface_index, sc->sc_xfer, ubtbcmfw_config,
+	    UBTBCMFW_T_MAX, sc, &(sc->sc_mtx));
 
-	err = usbd_transfer_setup(uaa->device, UBTBCMFW_IFACE_IDX,
-				  sc->sc_xfer, ubtbcmfw_config, UBTBCMFW_T_MAX,
-				  sc, &(sc->sc_mtx));
 	if (err) {
 		device_printf(dev, "allocating USB transfers "
-			      "failed, err=%s\n", usbd_errstr(err));
+		    "failed, err=%s\n", usbd_errstr(err));
 		goto detach;
 	}
-
-	snprintf(buf_1, sizeof(buf_1), "%s", 
-		 device_get_nameunit(dev));
+	snprintf(buf_1, sizeof(buf_1), "%s",
+	    device_get_nameunit(dev));
 
 	snprintf(buf_2, sizeof(buf_2), "%s.1",
-		 device_get_nameunit(dev));
+	    device_get_nameunit(dev));
 
 	snprintf(buf_3, sizeof(buf_3), "%s.2",
-		 device_get_nameunit(dev));
+	    device_get_nameunit(dev));
 
 	p_buf[0] = buf_1;
 	p_buf[1] = buf_2;
@@ -248,23 +251,21 @@ ubtbcmfw_attach(device_t dev)
 	sc->sc_cdev.sc_stop_write = &ubtbcmfw_stop_write;
 	sc->sc_cdev.sc_open = &ubtbcmfw_open;
 	sc->sc_cdev.sc_ioctl = &ubtbcmfw_ioctl;
-	sc->sc_cdev.sc_flags |= (USB_CDEV_FLAG_FWD_SHORT|
-				 USB_CDEV_FLAG_WAKEUP_RD_IMMED|
-				 USB_CDEV_FLAG_WAKEUP_WR_IMMED);
+	sc->sc_cdev.sc_flags |= (USB_CDEV_FLAG_WAKEUP_RD_IMMED |
+	    USB_CDEV_FLAG_WAKEUP_WR_IMMED);
 
 	err = usb_cdev_attach(&(sc->sc_cdev), sc, &(sc->sc_mtx), p_buf,
-			      UID_ROOT, GID_OPERATOR, 0644, 
-			      UBTBCMFW_BSIZE, UBTBCMFW_IFQ_MAXLEN,
-			      UBTBCMFW_BSIZE, UBTBCMFW_IFQ_MAXLEN);
+	    UID_ROOT, GID_OPERATOR, 0644,
+	    UBTBCMFW_BSIZE, UBTBCMFW_IFQ_MAXLEN,
+	    UBTBCMFW_BSIZE, UBTBCMFW_IFQ_MAXLEN);
 	if (err) {
 		goto detach;
 	}
+	return (0);			/* success */
 
-	return 0; /* success */
-
- detach:
+detach:
 	ubtbcmfw_detach(dev);
-	return ENOMEM; /* failure */
+	return (ENOMEM);		/* failure */
 }
 
 /*
@@ -289,31 +290,31 @@ static void
 ubtbcmfw_write_callback(struct usbd_xfer *xfer)
 {
 	struct ubtbcmfw_softc *sc = xfer->priv_sc;
-	u_int32_t actlen;
+	uint32_t actlen;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
+	case USBD_ST_SETUP:
+		if (sc->sc_flags & UBTBCMFW_FLAG_WRITE_STALL) {
+			usbd_transfer_start(sc->sc_xfer[2]);
+			return;
+		}
+		if (usb_cdev_get_data(&(sc->sc_cdev), xfer->frbuffers + 0, 0,
+		    UBTBCMFW_BSIZE, &actlen, 0)) {
 
- tr_transferred:
- tr_setup:
-	if (sc->sc_flags & UBTBCMFW_FLAG_WRITE_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[2]);
-	    return;
+			xfer->frlengths[0] = actlen;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			/* try to clear stall first */
+			sc->sc_flags |= UBTBCMFW_FLAG_WRITE_STALL;
+			usbd_transfer_start(sc->sc_xfer[2]);
+		}
+		return;
 	}
-	if (usb_cdev_get_data(&(sc->sc_cdev), xfer->buffer, 
-			      UBTBCMFW_BSIZE, &actlen, 0)) {
-
-	    xfer->length = actlen;
-	    usbd_start_hardware(xfer);
-	}
-	return;
-
- tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    /* try to clear stall first */
-	    sc->sc_flags |= UBTBCMFW_FLAG_WRITE_STALL;
-	    usbd_transfer_start(sc->sc_xfer[2]);
-	}
-	return;
 }
 
 static void
@@ -323,9 +324,9 @@ ubtbcmfw_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(sc, 0, "stall cleared\n");
-	    sc->sc_flags &= ~UBTBCMFW_FLAG_WRITE_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(sc, 0, "stall cleared\n");
+		sc->sc_flags &= ~UBTBCMFW_FLAG_WRITE_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -336,31 +337,32 @@ ubtbcmfw_read_callback(struct usbd_xfer *xfer)
 	struct ubtbcmfw_softc *sc = xfer->priv_sc;
 	struct usbd_mbuf *m;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
+		usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers + 0,
+		    0, xfer->actlen, 1);
 
- tr_transferred:
-	usb_cdev_put_data(&(sc->sc_cdev), xfer->buffer, xfer->actlen, 1);
+	case USBD_ST_SETUP:
+		if (sc->sc_flags & UBTBCMFW_FLAG_READ_STALL) {
+			usbd_transfer_start(sc->sc_xfer[3]);
+			return;
+		}
+		USBD_IF_POLL(&sc->sc_cdev.sc_rdq_free, m);
 
- tr_setup:
-	if (sc->sc_flags & UBTBCMFW_FLAG_READ_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[3]);
-	    return;
+		if (m) {
+			xfer->frlengths[0] = xfer->max_data_length;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			/* try to clear stall first */
+			sc->sc_flags |= UBTBCMFW_FLAG_READ_STALL;
+			usbd_transfer_start(sc->sc_xfer[3]);
+		}
+		return;
 	}
-
-	USBD_IF_POLL(&sc->sc_cdev.sc_rdq_free, m);
-
-	if (m) {
-	    usbd_start_hardware(xfer);
-	}
-	return;
-
- tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    /* try to clear stall first */
-	    sc->sc_flags |= UBTBCMFW_FLAG_READ_STALL;
-	    usbd_transfer_start(sc->sc_xfer[3]);
-	}
-	return;
 }
 
 static void
@@ -370,9 +372,9 @@ ubtbcmfw_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(sc, 0, "stall cleared\n");
-	    sc->sc_flags &= ~UBTBCMFW_FLAG_READ_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(sc, 0, "stall cleared\n");
+		sc->sc_flags &= ~UBTBCMFW_FLAG_READ_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -381,6 +383,7 @@ static void
 ubtbcmfw_start_read(struct usb_cdev *cdev)
 {
 	struct ubtbcmfw_softc *sc = cdev->sc_priv_ptr;
+
 	usbd_transfer_start(sc->sc_xfer[1]);
 	return;
 }
@@ -389,6 +392,7 @@ static void
 ubtbcmfw_stop_read(struct usb_cdev *cdev)
 {
 	struct ubtbcmfw_softc *sc = cdev->sc_priv_ptr;
+
 	usbd_transfer_stop(sc->sc_xfer[3]);
 	usbd_transfer_stop(sc->sc_xfer[1]);
 	return;
@@ -398,6 +402,7 @@ static void
 ubtbcmfw_start_write(struct usb_cdev *cdev)
 {
 	struct ubtbcmfw_softc *sc = cdev->sc_priv_ptr;
+
 	usbd_transfer_start(sc->sc_xfer[0]);
 	return;
 }
@@ -406,6 +411,7 @@ static void
 ubtbcmfw_stop_write(struct usb_cdev *cdev)
 {
 	struct ubtbcmfw_softc *sc = cdev->sc_priv_ptr;
+
 	usbd_transfer_stop(sc->sc_xfer[2]);
 	usbd_transfer_stop(sc->sc_xfer[0]);
 	return;
@@ -413,27 +419,27 @@ ubtbcmfw_stop_write(struct usb_cdev *cdev)
 
 static int32_t
 ubtbcmfw_open(struct usb_cdev *cdev, int32_t fflags,
-	      int32_t devtype, struct thread *td)
+    int32_t devtype, struct thread *td)
 {
 	struct ubtbcmfw_softc *sc = cdev->sc_priv_ptr;
 
 	if (fflags & FWRITE) {
-	    sc->sc_flags |= UBTBCMFW_FLAG_WRITE_STALL;
+		sc->sc_flags |= UBTBCMFW_FLAG_WRITE_STALL;
 	}
-	return 0;
+	return (0);
 }
 
 static int32_t
-ubtbcmfw_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t data, 
-	       int32_t fflags, struct thread *td)
+ubtbcmfw_ioctl(struct usb_cdev *cdev, u_long cmd, caddr_t data,
+    int32_t fflags, struct thread *td)
 {
 	struct ubtbcmfw_softc *sc = cdev->sc_priv_ptr;
 	int32_t error = 0;
 
 	switch (cmd) {
 	case USB_GET_DEVICE_DESC:
-		*(usb_device_descriptor_t *) data =
-				*usbd_get_device_descriptor(sc->sc_udev);
+		*(usb_device_descriptor_t *)data =
+		    *usbd_get_device_descriptor(sc->sc_udev);
 		break;
 
 	default:

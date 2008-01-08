@@ -40,7 +40,7 @@
 
 /*
  * iPAQ driver
- * 
+ *
  * 19 July 2003:	Incorporated changes suggested by Sam Lawrance from
  * 			the uppc module
  *
@@ -49,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.7 2007/06/21 14:42:33 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.8 2007/10/22 08:28:24 mav Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -66,29 +66,29 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.7 2007/06/21 14:42:33 imp Exp $"
 
 #include "usbdevs.h"
 
-#define UIPAQ_CONFIG_NO		1
-#define UIPAQ_IFACE_INDEX	0
+#define	UIPAQ_CONFIG_NO		1
+#define	UIPAQ_IFACE_INDEX	0
 
-#define UIPAQ_BUF_SIZE		1024
-#define UIPAQ_N_DATA_TRANSFER	4
+#define	UIPAQ_BUF_SIZE		1024
+#define	UIPAQ_N_DATA_TRANSFER	4
 
 #define	DPRINTF(...) do { } while (0)
 
 struct uipaq_softc {
-	struct ucom_super_softc	sc_super_ucom;
-	struct ucom_softc	sc_ucom;
+	struct ucom_super_softc sc_super_ucom;
+	struct ucom_softc sc_ucom;
 
-	struct usbd_xfer	*sc_xfer_data[UIPAQ_N_DATA_TRANSFER];
-	struct usbd_device	*sc_udev;
+	struct usbd_xfer *sc_xfer_data[UIPAQ_N_DATA_TRANSFER];
+	struct usbd_device *sc_udev;
 
-	uint16_t	sc_line;
+	uint16_t sc_line;
 
-	uint8_t		sc_lsr;	/* local status register */
-	uint8_t		sc_msr;	/* modem status register */
-	uint8_t		sc_flag;
-#define UIPAQ_FLAG_READ_STALL  0x01
-#define UIPAQ_FLAG_WRITE_STALL 0x02
-#define UIPAQ_FLAG_INTR_STALL  0x04
+	uint8_t	sc_lsr;			/* local status register */
+	uint8_t	sc_msr;			/* modem status register */
+	uint8_t	sc_flag;
+#define	UIPAQ_FLAG_READ_STALL  0x01
+#define	UIPAQ_FLAG_WRITE_STALL 0x02
+#define	UIPAQ_FLAG_INTR_STALL  0x04
 };
 
 static device_probe_t uipaq_probe;
@@ -100,89 +100,90 @@ static usbd_callback_t uipaq_read_callback;
 static usbd_callback_t uipaq_write_clear_stall_callback;
 static usbd_callback_t uipaq_read_clear_stall_callback;
 
-static void	uipaq_start_read(struct ucom_softc *ucom);
-static void	uipaq_stop_read(struct ucom_softc *ucom);
-static void	uipaq_start_write(struct ucom_softc *ucom);
-static void	uipaq_stop_write(struct ucom_softc *ucom);
-static void	uipaq_cfg_do_request(struct uipaq_softc *sc, usb_device_request_t *req, void *data);
-static void	uipaq_cfg_set_dtr(struct ucom_softc *ucom, uint8_t onoff);
-static void	uipaq_cfg_set_rts(struct ucom_softc *ucom, uint8_t onoff);
-static void	uipaq_cfg_set_break(struct ucom_softc *ucom, uint8_t onoff);
+static void uipaq_start_read(struct ucom_softc *ucom);
+static void uipaq_stop_read(struct ucom_softc *ucom);
+static void uipaq_start_write(struct ucom_softc *ucom);
+static void uipaq_stop_write(struct ucom_softc *ucom);
+static void uipaq_cfg_do_request(struct uipaq_softc *sc, usb_device_request_t *req, void *data);
+static void uipaq_cfg_set_dtr(struct ucom_softc *ucom, uint8_t onoff);
+static void uipaq_cfg_set_rts(struct ucom_softc *ucom, uint8_t onoff);
+static void uipaq_cfg_set_break(struct ucom_softc *ucom, uint8_t onoff);
 
 static const struct usbd_config uipaq_config_data[UIPAQ_N_DATA_TRANSFER] = {
 
-    [0] = {
-      .type      = UE_BULK,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_OUT,
-      .bufsize   = UIPAQ_BUF_SIZE,
-      .flags     = (USBD_PIPE_BOF),
-      .callback  = &uipaq_write_callback,
-    },
+	[0] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_OUT,
+		.bufsize = UIPAQ_BUF_SIZE,
+		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,},
+		.mh.callback = &uipaq_write_callback,
+	},
 
-    [1] = {
-      .type      = UE_BULK,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_IN,
-      .bufsize   = UIPAQ_BUF_SIZE,
-      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
-      .callback  = &uipaq_read_callback,
-    },
+	[1] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_IN,
+		.bufsize = UIPAQ_BUF_SIZE,
+		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
+		.mh.callback = &uipaq_read_callback,
+	},
 
-    [2] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &uipaq_write_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[2] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.callback = &uipaq_write_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 
-    [3] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &uipaq_read_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[3] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.callback = &uipaq_read_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 };
 
 static const struct ucom_callback uipaq_callback = {
-  .ucom_cfg_set_dtr     = &uipaq_cfg_set_dtr,
-  .ucom_cfg_set_rts     = &uipaq_cfg_set_rts,
-  .ucom_cfg_set_break   = &uipaq_cfg_set_break,
-  .ucom_start_read      = &uipaq_start_read,
-  .ucom_stop_read       = &uipaq_stop_read,
-  .ucom_start_write     = &uipaq_start_write,
-  .ucom_stop_write      = &uipaq_stop_write,
+	.ucom_cfg_set_dtr = &uipaq_cfg_set_dtr,
+	.ucom_cfg_set_rts = &uipaq_cfg_set_rts,
+	.ucom_cfg_set_break = &uipaq_cfg_set_break,
+	.ucom_start_read = &uipaq_start_read,
+	.ucom_stop_read = &uipaq_stop_read,
+	.ucom_start_write = &uipaq_start_write,
+	.ucom_stop_write = &uipaq_stop_write,
 };
 
 static const struct usb_devno uipaq_devs[] = {
-	{ USB_VENDOR_HP, USB_PRODUCT_HP_2215 },
-	{ USB_VENDOR_HP, USB_PRODUCT_HP_568J },
-	{ USB_VENDOR_COMPAQ, USB_PRODUCT_COMPAQ_IPAQPOCKETPC },
-	{ USB_VENDOR_CASIO, USB_PRODUCT_CASIO_BE300 },
-	{ USB_VENDOR_SHARP, USB_PRODUCT_SHARP_WZERO3ES },
+	{USB_VENDOR_HTC, USB_PRODUCT_HTC_SMARTPHONE},
+	{USB_VENDOR_HP, USB_PRODUCT_HP_2215},
+	{USB_VENDOR_HP, USB_PRODUCT_HP_568J},
+	{USB_VENDOR_COMPAQ, USB_PRODUCT_COMPAQ_IPAQPOCKETPC},
+	{USB_VENDOR_CASIO, USB_PRODUCT_CASIO_BE300},
+	{USB_VENDOR_SHARP, USB_PRODUCT_SHARP_WZERO3ES},
 };
 
-#define uipaq_lookup(v, p) ((const void *)usb_lookup(uipaq_devs, v, p))
+#define	uipaq_lookup(v, p) ((const void *)usb_lookup(uipaq_devs, v, p))
 
 static device_method_t uipaq_methods[] = {
-    DEVMETHOD(device_probe, uipaq_probe),
-    DEVMETHOD(device_attach, uipaq_attach),
-    DEVMETHOD(device_detach, uipaq_detach),
-    { 0, 0 }
+	DEVMETHOD(device_probe, uipaq_probe),
+	DEVMETHOD(device_attach, uipaq_attach),
+	DEVMETHOD(device_detach, uipaq_detach),
+	{0, 0}
 };
 
 static devclass_t uipaq_devclass;
 
 static driver_t uipaq_driver = {
-    .name    = "uipaq",
-    .methods = uipaq_methods,
-    .size    = sizeof(struct uipaq_softc),
+	.name = "uipaq",
+	.methods = uipaq_methods,
+	.size = sizeof(struct uipaq_softc),
 };
 
 DRIVER_MODULE(uipaq, uhub, uipaq_driver, uipaq_devclass, usbd_driver_load, 0);
@@ -195,13 +196,16 @@ uipaq_probe(device_t dev)
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	const struct usb_devno *up;
 
-	if (uaa->iface == NULL) {
-	    up = uipaq_lookup(uaa->vendor, uaa->product);
-	    if (up) {
-	        return UMATCH_VENDOR_PRODUCT;
-	    }
+	if (uaa->usb_mode != USB_MODE_HOST) {
+		return (UMATCH_NONE);
 	}
-	return UMATCH_NONE;
+	if (uaa->iface == NULL) {
+		up = uipaq_lookup(uaa->vendor, uaa->product);
+		if (up) {
+			return (UMATCH_VENDOR_PRODUCT);
+		}
+	}
+	return (UMATCH_NONE);
 }
 
 static int
@@ -210,46 +214,44 @@ uipaq_attach(device_t dev)
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	struct uipaq_softc *sc = device_get_softc(dev);
 	int error;
+	uint8_t iface_index;
 
 	if (sc == NULL) {
-	    return ENOMEM;
+		return (ENOMEM);
 	}
-
 	sc->sc_udev = uaa->device;
 
-	usbd_set_desc(dev, uaa->device);
+	usbd_set_device_desc(dev);
 
 	error = usbd_set_config_no(uaa->device, UIPAQ_CONFIG_NO, 1);
 
 	if (error) {
 		device_printf(dev, "setting config "
-			      "number failed!\n");
+		    "number failed!\n");
 		goto detach;
 	}
+	iface_index = UIPAQ_IFACE_INDEX;
+	error = usbd_transfer_setup(uaa->device, &iface_index,
+	    sc->sc_xfer_data, uipaq_config_data,
+	    UIPAQ_N_DATA_TRANSFER, sc, &Giant);
 
-	error = usbd_transfer_setup(uaa->device, UIPAQ_IFACE_INDEX,
-				    sc->sc_xfer_data, uipaq_config_data, 
-				    UIPAQ_N_DATA_TRANSFER,
-				    sc, &Giant);
 	if (error) {
-	    goto detach;
+		goto detach;
 	}
-
 	/* clear stall at first run */
-	sc->sc_flag |= (UIPAQ_FLAG_READ_STALL|
-			UIPAQ_FLAG_WRITE_STALL);
+	sc->sc_flag |= (UIPAQ_FLAG_READ_STALL |
+	    UIPAQ_FLAG_WRITE_STALL);
 
 	error = ucom_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
-			    &uipaq_callback, &Giant);
+	    &uipaq_callback, &Giant);
 	if (error) {
-	    goto detach;
+		goto detach;
 	}
+	return (0);
 
-	return 0;
-
- detach:
+detach:
 	uipaq_detach(dev);
-	return ENXIO;
+	return (ENXIO);
 }
 
 int
@@ -261,13 +263,14 @@ uipaq_detach(device_t dev)
 
 	usbd_transfer_unsetup(sc->sc_xfer_data, UIPAQ_N_DATA_TRANSFER);
 
-	return 0;
+	return (0);
 }
 
 static void
 uipaq_start_read(struct ucom_softc *ucom)
 {
 	struct uipaq_softc *sc = ucom->sc_parent;
+
 	/* start read endpoint */
 	usbd_transfer_start(sc->sc_xfer_data[1]);
 	return;
@@ -277,6 +280,7 @@ static void
 uipaq_stop_read(struct ucom_softc *ucom)
 {
 	struct uipaq_softc *sc = ucom->sc_parent;
+
 	/* stop read endpoint */
 	usbd_transfer_stop(sc->sc_xfer_data[3]);
 	usbd_transfer_stop(sc->sc_xfer_data[1]);
@@ -287,6 +291,7 @@ static void
 uipaq_start_write(struct ucom_softc *ucom)
 {
 	struct uipaq_softc *sc = ucom->sc_parent;
+
 	usbd_transfer_start(sc->sc_xfer_data[0]);
 	return;
 }
@@ -295,36 +300,35 @@ static void
 uipaq_stop_write(struct ucom_softc *ucom)
 {
 	struct uipaq_softc *sc = ucom->sc_parent;
+
 	usbd_transfer_stop(sc->sc_xfer_data[2]);
 	usbd_transfer_stop(sc->sc_xfer_data[0]);
 	return;
 }
 
 static void
-uipaq_cfg_do_request(struct uipaq_softc *sc, usb_device_request_t *req, 
-		      void *data)
+uipaq_cfg_do_request(struct uipaq_softc *sc, usb_device_request_t *req,
+    void *data)
 {
 	uint16_t length;
-	usbd_status err;
+	usbd_status_t err;
 
 	if (ucom_cfg_is_gone(&(sc->sc_ucom))) {
-	    goto error;
+		goto error;
 	}
-
-	err = usbd_do_request_flags_mtx(sc->sc_udev, &Giant, req, 
-					data, 0, NULL, 1000);
+	err = usbd_do_request(sc->sc_udev, &Giant, req, data);
 
 	if (err) {
 
-	    DPRINTF(-1, "device request failed, err=%s "
+		DPRINTF(-1, "device request failed, err=%s "
 		    "(ignored)\n", usbd_errstr(err));
 
-	error:
-	    length = UGETW(req->wLength);
+error:
+		length = UGETW(req->wLength);
 
-	    if ((req->bmRequestType & UT_READ) && length) {
-		bzero(data, length);
-	    }
+		if ((req->bmRequestType & UT_READ) && length) {
+			bzero(data, length);
+		}
 	}
 	return;
 }
@@ -338,9 +342,9 @@ uipaq_cfg_set_dtr(struct ucom_softc *ucom, uint8_t onoff)
 	DPRINTF(0, "onoff=%d\n", onoff);
 
 	if (onoff)
-	  sc->sc_line |= UCDC_LINE_DTR;
+		sc->sc_line |= UCDC_LINE_DTR;
 	else
-	  sc->sc_line &= ~UCDC_LINE_DTR;
+		sc->sc_line &= ~UCDC_LINE_DTR;
 
 	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
 	req.bRequest = UCDC_SET_CONTROL_LINE_STATE;
@@ -362,9 +366,9 @@ uipaq_cfg_set_rts(struct ucom_softc *ucom, uint8_t onoff)
 	DPRINTF(0, "onoff=%d\n", onoff);
 
 	if (onoff)
-	  sc->sc_line |= UCDC_LINE_RTS;
+		sc->sc_line |= UCDC_LINE_RTS;
 	else
-	  sc->sc_line &= ~UCDC_LINE_RTS;
+		sc->sc_line &= ~UCDC_LINE_RTS;
 
 	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
 	req.bRequest = UCDC_SET_CONTROL_LINE_STATE;
@@ -403,30 +407,29 @@ uipaq_write_callback(struct usbd_xfer *xfer)
 	struct uipaq_softc *sc = xfer->priv_sc;
 	uint32_t actlen;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_SETUP:
+	case USBD_ST_TRANSFERRED:
+		if (sc->sc_flag & UIPAQ_FLAG_WRITE_STALL) {
+			usbd_transfer_start(sc->sc_xfer_data[2]);
+			return;
+		}
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		    UIPAQ_BUF_SIZE, &actlen)) {
 
-tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    sc->sc_flag |= UIPAQ_FLAG_WRITE_STALL;
-	    usbd_transfer_start(sc->sc_xfer_data[2]);
+			xfer->frlengths[0] = actlen;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			sc->sc_flag |= UIPAQ_FLAG_WRITE_STALL;
+			usbd_transfer_start(sc->sc_xfer_data[2]);
+		}
+		return;
+
 	}
-	return;
-
-tr_setup:
-tr_transferred:
-	if (sc->sc_flag & UIPAQ_FLAG_WRITE_STALL) {
-	    usbd_transfer_start(sc->sc_xfer_data[2]);
-	    return;
-	}
-
-	if(ucom_get_data(&(sc->sc_ucom), xfer->buffer,
-			 UIPAQ_BUF_SIZE, &actlen)) {
-
-	    xfer->length = actlen;
-
-	    usbd_start_hardware(xfer);
-	}
-	return;
 }
 
 static void
@@ -436,9 +439,9 @@ uipaq_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer_data[0];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(0, "stall cleared\n");
-	    sc->sc_flag &= ~UIPAQ_FLAG_WRITE_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(0, "stall cleared\n");
+		sc->sc_flag &= ~UIPAQ_FLAG_WRITE_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -448,25 +451,28 @@ uipaq_read_callback(struct usbd_xfer *xfer)
 {
 	struct uipaq_softc *sc = xfer->priv_sc;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		    xfer->actlen);
 
- tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    sc->sc_flag |= UIPAQ_FLAG_READ_STALL;
-	    usbd_transfer_start(sc->sc_xfer_data[3]);
+	case USBD_ST_SETUP:
+		if (sc->sc_flag & UIPAQ_FLAG_READ_STALL) {
+			usbd_transfer_start(sc->sc_xfer_data[3]);
+		} else {
+			xfer->frlengths[0] = xfer->max_data_length;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			sc->sc_flag |= UIPAQ_FLAG_READ_STALL;
+			usbd_transfer_start(sc->sc_xfer_data[3]);
+		}
+		return;
+
 	}
-	return;
-
- tr_transferred:
-	ucom_put_data(&(sc->sc_ucom), xfer->buffer, xfer->actlen);
-
- tr_setup:
-	if (sc->sc_flag & UIPAQ_FLAG_READ_STALL) {
-	    usbd_transfer_start(sc->sc_xfer_data[3]);
-	} else {
-	    usbd_start_hardware(xfer);
-	}
-	return;
 }
 
 static void
@@ -476,9 +482,9 @@ uipaq_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer_data[1];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(0, "stall cleared\n");
-	    sc->sc_flag &= ~UIPAQ_FLAG_READ_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(0, "stall cleared\n");
+		sc->sc_flag &= ~UIPAQ_FLAG_READ_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }

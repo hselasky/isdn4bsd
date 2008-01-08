@@ -33,39 +33,60 @@
  */
 
 #ifndef _USB_IF_CDCEREG_H_
-#define _USB_IF_CDCEREG_H_
+#define	_USB_IF_CDCEREG_H_
 
-#define	CDCE_ENDPT_MAX	4
+#define	CDCE_N_TRANSFER	6		/* units */
+#define	CDCE_IND_SIZE_MAX 32		/* bytes */
+#define	CDCE_512X4_IFQ_MAXLEN MAX((2*CDCE_512X4_FRAMES_MAX), IFQ_MAXLEN)
 
 struct cdce_type {
-	struct usb_devno	cdce_dev;
-	uint16_t		cdce_flags;
+	struct usb_devno cdce_dev;
+	uint16_t cdce_flags;
+};
+
+union cdce_eth_rx {			/* multiframe header */
+	usb_cdc_mf_eth_512x4_header_t hdr;
+	uint8_t	data[MCLBYTES];
+} __aligned(USB_HOST_ALIGN);
+
+union cdce_eth_tx {			/* multiframe header */
+	usb_cdc_mf_eth_512x4_header_t hdr;
+} __aligned(USB_HOST_ALIGN);
+
+struct cdce_mq {			/* mini-queue */
+	struct mbuf *ifq_head;
+	struct mbuf *ifq_tail;
+	uint16_t ifq_len;
 };
 
 struct cdce_softc {
-	void			*sc_evilhack; /* XXX this pointer must be first */
+	void   *sc_evilhack;		/* XXX this pointer must be first */
 
-	struct ifmedia		sc_ifmedia;
-	struct mtx		sc_mtx;
+	union cdce_eth_tx sc_tx;
+	union cdce_eth_rx sc_rx;
+	struct ifmedia sc_ifmedia;
+	struct mtx sc_mtx;
+	struct cdce_mq sc_rx_mq;
+	struct cdce_mq sc_tx_mq;
 
-	struct ifnet		*sc_ifp;
-	struct usbd_xfer	*sc_xfer[CDCE_ENDPT_MAX];
-	struct usbd_device	*sc_udev;
-	device_t		sc_dev;
+	struct ifnet *sc_ifp;
+	struct usbd_xfer *sc_xfer[CDCE_N_TRANSFER];
+	struct usbd_device *sc_udev;
+	device_t sc_dev;
 
-	uint32_t		sc_unit;
+	uint32_t sc_unit;
 
-	uint16_t		sc_flags;
+	uint16_t sc_flags;
 #define	CDCE_FLAG_ZAURUS	0x0001
 #define	CDCE_FLAG_NO_UNION	0x0002
 #define	CDCE_FLAG_LL_READY	0x0004
 #define	CDCE_FLAG_HL_READY	0x0008
-#define	CDCE_FLAG_WRITE_STALL	0x0010
-#define	CDCE_FLAG_READ_STALL	0x0020
+#define	CDCE_FLAG_RX_DATA	0x0010
 
-	uint8_t			sc_name[16];
-	uint8_t			sc_data_iface_no;
-	uint8_t			sc_data_iface_index;
+	uint8_t	sc_name[16];
+	uint8_t	sc_data_iface_no;
+	uint8_t	sc_ifaces_index[2];
+	uint8_t	sc_iface_protocol;
 };
 
-#endif /* _USB_IF_CDCEREG_H_ */
+#endif					/* _USB_IF_CDCEREG_H_ */

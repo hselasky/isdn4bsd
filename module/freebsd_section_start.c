@@ -52,3 +52,5 @@ ZERO_DEF(ing);
 ZERO_DEF(diehl);
 ZERO_DEF(tina_dd);
 ZERO_DEF(amv_b1);
+ZERO_DEF(i4bisppp);
+

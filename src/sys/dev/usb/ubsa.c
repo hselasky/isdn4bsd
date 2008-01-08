@@ -80,23 +80,24 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.32 2007/06/22 05:56:05 imp Exp $"
 #include "usbdevs.h"
 
 #ifdef USB_DEBUG
-#define DPRINTF(n,fmt,...)						\
+#define	DPRINTF(n,fmt,...)						\
   do { if (ubsa_debug > (n)) {						\
       printf("%s: " fmt, __FUNCTION__,## __VA_ARGS__); } } while (0)
 
 static int ubsa_debug = 0;
+
 SYSCTL_NODE(_hw_usb, OID_AUTO, ubsa, CTLFLAG_RW, 0, "USB ubsa");
 SYSCTL_INT(_hw_usb_ubsa, OID_AUTO, debug, CTLFLAG_RW,
-	   &ubsa_debug, 0, "ubsa debug level");
+    &ubsa_debug, 0, "ubsa debug level");
 #else
 #define	DPRINTF(...) do { } while (0)
 #endif
 
-#define UBSA_N_TRANSFER           6 /* units */
-#define	UBSA_BSIZE             1024 /* bytes */
+#define	UBSA_N_TRANSFER           6	/* units */
+#define	UBSA_BSIZE             1024	/* bytes */
 
-#define UBSA_CONFIG_INDEX	1
-#define UBSA_IFACE_INDEX	0
+#define	UBSA_CONFIG_INDEX	1
+#define	UBSA_IFACE_INDEX	0
 
 #define	UBSA_REG_BAUDRATE	0x00
 #define	UBSA_REG_STOP_BITS	0x01
@@ -107,60 +108,60 @@ SYSCTL_INT(_hw_usb_ubsa, OID_AUTO, debug, CTLFLAG_RW,
 #define	UBSA_REG_BREAK		0x0C
 #define	UBSA_REG_FLOW_CTRL	0x10
 
-#define UBSA_PARITY_NONE	0x00
-#define UBSA_PARITY_EVEN	0x01
-#define UBSA_PARITY_ODD		0x02
-#define UBSA_PARITY_MARK	0x03
-#define UBSA_PARITY_SPACE	0x04
+#define	UBSA_PARITY_NONE	0x00
+#define	UBSA_PARITY_EVEN	0x01
+#define	UBSA_PARITY_ODD		0x02
+#define	UBSA_PARITY_MARK	0x03
+#define	UBSA_PARITY_SPACE	0x04
 
-#define UBSA_FLOW_NONE		0x0000
-#define UBSA_FLOW_OCTS		0x0001
-#define UBSA_FLOW_ODSR		0x0002
-#define UBSA_FLOW_IDSR		0x0004
-#define UBSA_FLOW_IDTR		0x0008
-#define UBSA_FLOW_IRTS		0x0010
-#define UBSA_FLOW_ORTS		0x0020
-#define UBSA_FLOW_UNKNOWN	0x0040
-#define UBSA_FLOW_OXON		0x0080
-#define UBSA_FLOW_IXON		0x0100
+#define	UBSA_FLOW_NONE		0x0000
+#define	UBSA_FLOW_OCTS		0x0001
+#define	UBSA_FLOW_ODSR		0x0002
+#define	UBSA_FLOW_IDSR		0x0004
+#define	UBSA_FLOW_IDTR		0x0008
+#define	UBSA_FLOW_IRTS		0x0010
+#define	UBSA_FLOW_ORTS		0x0020
+#define	UBSA_FLOW_UNKNOWN	0x0040
+#define	UBSA_FLOW_OXON		0x0080
+#define	UBSA_FLOW_IXON		0x0100
 
 /* line status register */
-#define UBSA_LSR_TSRE		0x40	/* Transmitter empty: byte sent */
-#define UBSA_LSR_TXRDY		0x20	/* Transmitter buffer empty */
-#define UBSA_LSR_BI		0x10	/* Break detected */
-#define UBSA_LSR_FE		0x08	/* Framing error: bad stop bit */
-#define UBSA_LSR_PE		0x04	/* Parity error */
-#define UBSA_LSR_OE		0x02	/* Overrun, lost incoming byte */
-#define UBSA_LSR_RXRDY		0x01	/* Byte ready in Receive Buffer */
-#define UBSA_LSR_RCV_MASK	0x1f	/* Mask for incoming data or error */
+#define	UBSA_LSR_TSRE		0x40	/* Transmitter empty: byte sent */
+#define	UBSA_LSR_TXRDY		0x20	/* Transmitter buffer empty */
+#define	UBSA_LSR_BI		0x10	/* Break detected */
+#define	UBSA_LSR_FE		0x08	/* Framing error: bad stop bit */
+#define	UBSA_LSR_PE		0x04	/* Parity error */
+#define	UBSA_LSR_OE		0x02	/* Overrun, lost incoming byte */
+#define	UBSA_LSR_RXRDY		0x01	/* Byte ready in Receive Buffer */
+#define	UBSA_LSR_RCV_MASK	0x1f	/* Mask for incoming data or error */
 
 /* modem status register */
 /* All deltas are from the last read of the MSR. */
-#define UBSA_MSR_DCD		0x80	/* Current Data Carrier Detect */
-#define UBSA_MSR_RI		0x40	/* Current Ring Indicator */
-#define UBSA_MSR_DSR		0x20	/* Current Data Set Ready */
+#define	UBSA_MSR_DCD		0x80	/* Current Data Carrier Detect */
+#define	UBSA_MSR_RI		0x40	/* Current Ring Indicator */
+#define	UBSA_MSR_DSR		0x20	/* Current Data Set Ready */
 #define	UBSA_MSR_CTS		0x10	/* Current Clear to Send */
-#define UBSA_MSR_DDCD		0x08	/* DCD has changed state */
-#define UBSA_MSR_TERI		0x04	/* RI has toggled low to high */
-#define UBSA_MSR_DDSR		0x02	/* DSR has changed state */
-#define UBSA_MSR_DCTS		0x01	/* CTS has changed state */
+#define	UBSA_MSR_DDCD		0x08	/* DCD has changed state */
+#define	UBSA_MSR_TERI		0x04	/* RI has toggled low to high */
+#define	UBSA_MSR_DDSR		0x02	/* DSR has changed state */
+#define	UBSA_MSR_DCTS		0x01	/* CTS has changed state */
 
-struct	ubsa_softc {
-	struct ucom_super_softc	sc_super_ucom;
-	struct ucom_softc	sc_ucom;
+struct ubsa_softc {
+	struct ucom_super_softc sc_super_ucom;
+	struct ucom_softc sc_ucom;
 
-	struct usbd_xfer *	sc_xfer[UBSA_N_TRANSFER];
-	struct usbd_device	*sc_udev;
+	struct usbd_xfer *sc_xfer[UBSA_N_TRANSFER];
+	struct usbd_device *sc_udev;
 
-	u_int16_t		sc_flag;
-#define UBSA_FLAG_WRITE_STALL   0x0001
-#define UBSA_FLAG_READ_STALL    0x0002
-#define UBSA_FLAG_INTR_STALL    0x0004
+	uint16_t sc_flag;
+#define	UBSA_FLAG_WRITE_STALL   0x0001
+#define	UBSA_FLAG_READ_STALL    0x0002
+#define	UBSA_FLAG_INTR_STALL    0x0004
 
-	u_int8_t		sc_iface_no; /* interface number */
-	u_int8_t		sc_iface_index; /* interface index */
-	u_int8_t		sc_lsr; /* local status register */
-	u_int8_t		sc_msr; /* UBSA status register */
+	uint8_t	sc_iface_no;		/* interface number */
+	uint8_t	sc_iface_index;		/* interface index */
+	uint8_t	sc_lsr;			/* local status register */
+	uint8_t	sc_msr;			/* UBSA status register */
 };
 
 static device_probe_t ubsa_probe;
@@ -174,135 +175,137 @@ static usbd_callback_t ubsa_read_clear_stall_callback;
 static usbd_callback_t ubsa_intr_callback;
 static usbd_callback_t ubsa_intr_clear_stall_callback;
 
-static void	ubsa_cfg_request(struct ubsa_softc *sc, u_int8_t index, u_int16_t value);
-static void	ubsa_cfg_set_dtr(struct ucom_softc *ucom, u_int8_t onoff);
-static void	ubsa_cfg_set_rts(struct ucom_softc *ucom, u_int8_t onoff);
-static void	ubsa_cfg_set_break(struct ucom_softc *ucom, u_int8_t onoff);
-static int	ubsa_pre_param(struct ucom_softc *ucom, struct termios *t);
-static void	ubsa_cfg_param(struct ucom_softc *ucom, struct termios *t);
-static void	ubsa_start_read(struct ucom_softc *ucom);
-static void	ubsa_stop_read(struct ucom_softc *ucom);
-static void	ubsa_start_write(struct ucom_softc *ucom);
-static void	ubsa_stop_write(struct ucom_softc *ucom);
-static void	ubsa_cfg_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr);
+static void ubsa_cfg_request(struct ubsa_softc *sc, uint8_t index, uint16_t value);
+static void ubsa_cfg_set_dtr(struct ucom_softc *ucom, uint8_t onoff);
+static void ubsa_cfg_set_rts(struct ucom_softc *ucom, uint8_t onoff);
+static void ubsa_cfg_set_break(struct ucom_softc *ucom, uint8_t onoff);
+static int ubsa_pre_param(struct ucom_softc *ucom, struct termios *t);
+static void ubsa_cfg_param(struct ucom_softc *ucom, struct termios *t);
+static void ubsa_start_read(struct ucom_softc *ucom);
+static void ubsa_stop_read(struct ucom_softc *ucom);
+static void ubsa_start_write(struct ucom_softc *ucom);
+static void ubsa_stop_write(struct ucom_softc *ucom);
+static void ubsa_cfg_get_status(struct ucom_softc *ucom, uint8_t *lsr, uint8_t *msr);
 
 static const struct usbd_config ubsa_config[UBSA_N_TRANSFER] = {
 
-    [0] = {
-      .type      = UE_BULK,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_OUT,
-      .bufsize   = UBSA_BSIZE, /* bytes */
-      .flags     = (USBD_PIPE_BOF),
-      .callback  = &ubsa_write_callback,
-    },
+	[0] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_OUT,
+		.bufsize = UBSA_BSIZE,	/* bytes */
+		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,},
+		.mh.callback = &ubsa_write_callback,
+	},
 
-    [1] = {
-      .type      = UE_BULK,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_IN,
-      .bufsize   = UBSA_BSIZE, /* bytes */
-      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
-      .callback  = &ubsa_read_callback,
-    },
+	[1] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_IN,
+		.bufsize = UBSA_BSIZE,	/* bytes */
+		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
+		.mh.callback = &ubsa_read_callback,
+	},
 
-    [2] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &ubsa_write_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[2] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.callback = &ubsa_write_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 
-    [3] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &ubsa_read_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[3] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.callback = &ubsa_read_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 
-    [4] = {
-      .type      = UE_INTERRUPT,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_IN,
-      .flags     = (USBD_PIPE_BOF|USBD_SHORT_XFER_OK),
-      .bufsize   = 0, /* use wMaxPacketSize */
-      .callback  = &ubsa_intr_callback,
-    },
+	[4] = {
+		.type = UE_INTERRUPT,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_IN,
+		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
+		.bufsize = 0,		/* use wMaxPacketSize */
+		.mh.callback = &ubsa_intr_callback,
+	},
 
-    [5] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .callback  = &ubsa_intr_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[5] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.callback = &ubsa_intr_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 };
 
 static const struct ucom_callback ubsa_callback = {
-    .ucom_cfg_get_status  = &ubsa_cfg_get_status,
-    .ucom_cfg_set_dtr     = &ubsa_cfg_set_dtr,
-    .ucom_cfg_set_rts     = &ubsa_cfg_set_rts,
-    .ucom_cfg_set_break   = &ubsa_cfg_set_break,
-    .ucom_cfg_param       = &ubsa_cfg_param,
-    .ucom_pre_param       = &ubsa_pre_param,
-    .ucom_start_read      = &ubsa_start_read,
-    .ucom_stop_read       = &ubsa_stop_read,
-    .ucom_start_write     = &ubsa_start_write,
-    .ucom_stop_write      = &ubsa_stop_write,
+	.ucom_cfg_get_status = &ubsa_cfg_get_status,
+	.ucom_cfg_set_dtr = &ubsa_cfg_set_dtr,
+	.ucom_cfg_set_rts = &ubsa_cfg_set_rts,
+	.ucom_cfg_set_break = &ubsa_cfg_set_break,
+	.ucom_cfg_param = &ubsa_cfg_param,
+	.ucom_pre_param = &ubsa_pre_param,
+	.ucom_start_read = &ubsa_start_read,
+	.ucom_stop_read = &ubsa_stop_read,
+	.ucom_start_write = &ubsa_start_write,
+	.ucom_stop_write = &ubsa_stop_write,
 };
 
-static const struct ubsa_product {
-	u_int16_t	vendor;
-	u_int16_t	product;
-} ubsa_products [] = {
+struct ubsa_product {
+	uint16_t vendor;
+	uint16_t product;
+};
+
+static const struct ubsa_product ubsa_products[] = {
 	/* AnyData ADU-E100A/H */
-	{ USB_VENDOR_ANYDATA, USB_PRODUCT_ANYDATA_ADU_E100X },
+	{USB_VENDOR_ANYDATA, USB_PRODUCT_ANYDATA_ADU_E100X},
 	/* BELKIN F5U103 */
-	{ USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5U103 },
+	{USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5U103},
 	/* BELKIN F5U120 */
-	{ USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5U120 },
+	{USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5U120},
 	/* GoHubs GO-COM232 */
-	{ USB_VENDOR_ETEK, USB_PRODUCT_ETEK_1COM },
+	{USB_VENDOR_ETEK, USB_PRODUCT_ETEK_1COM},
 	/* GoHubs GO-COM232 */
-	{ USB_VENDOR_GOHUBS, USB_PRODUCT_GOHUBS_GOCOM232 },
+	{USB_VENDOR_GOHUBS, USB_PRODUCT_GOHUBS_GOCOM232},
 	/* Peracom */
-	{ USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_SERIAL1 },
+	{USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_SERIAL1},
 	/* Novatel Wireless Merlin cards */
-	{ USB_VENDOR_NOVATEL, USB_PRODUCT_NOVATEL_U740 },
+	{USB_VENDOR_NOVATEL, USB_PRODUCT_NOVATEL_U740},
 	/* Option Vodafone MC3G */
-	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_VODAFONEMC3G },
+	{USB_VENDOR_OPTION, USB_PRODUCT_OPTION_VODAFONEMC3G},
 	/* Option GlobeTrotter 3G */
-	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3G },
+	{USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3G},
 	/* Option GlobeTrotter 3G+ */
-	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GPLUS },
+	{USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GPLUS},
 	/* Option GlobeTrotter 3G QUAD */
-	{ USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GQUAD },
+	{USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GQUAD},
 	/* Huawei Mobile */
-	{ USB_VENDOR_HUAWEI, USB_PRODUCT_HUAWEI_MOBILE },
-	{ 0, 0 }
+	{USB_VENDOR_HUAWEI, USB_PRODUCT_HUAWEI_MOBILE},
+	{0, 0}
 };
 
 static device_method_t ubsa_methods[] = {
-    DEVMETHOD(device_probe, ubsa_probe),
-    DEVMETHOD(device_attach, ubsa_attach),
-    DEVMETHOD(device_detach, ubsa_detach),
-    { 0, 0 }
+	DEVMETHOD(device_probe, ubsa_probe),
+	DEVMETHOD(device_attach, ubsa_attach),
+	DEVMETHOD(device_detach, ubsa_detach),
+	{0, 0}
 };
 
 static devclass_t ubsa_devclass;
 
 static driver_t ubsa_driver = {
-    .name    = "ubsa",
-    .methods = ubsa_methods,
-    .size    = sizeof(struct ubsa_softc),
+	.name = "ubsa",
+	.methods = ubsa_methods,
+	.size = sizeof(struct ubsa_softc),
 };
 
 DRIVER_MODULE(ubsa, uhub, ubsa_driver, ubsa_devclass, usbd_driver_load, 0);
@@ -315,18 +318,20 @@ ubsa_probe(device_t dev)
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	const struct ubsa_product *up = ubsa_products;
 
+	if (uaa->usb_mode != USB_MODE_HOST) {
+		return (UMATCH_NONE);
+	}
 	if (uaa->iface) {
-	    return UMATCH_NONE;
+		return (UMATCH_NONE);
 	}
-
 	while (up->vendor) {
-	    if ((up->vendor == uaa->vendor) &&
-		(up->product == uaa->product)) {
-	        return UMATCH_VENDOR_PRODUCT;
-	    }
-	    up++;
+		if ((up->vendor == uaa->vendor) &&
+		    (up->product == uaa->product)) {
+			return (UMATCH_VENDOR_PRODUCT);
+		}
+		up++;
 	}
-	return UMATCH_NONE;
+	return (UMATCH_NONE);
 }
 
 static int
@@ -341,10 +346,9 @@ ubsa_attach(device_t dev)
 	DPRINTF(0, "sc=%p\n", sc);
 
 	if (sc == NULL) {
-	    return ENOMEM;
+		return (ENOMEM);
 	}
-
-	usbd_set_desc(dev, uaa->device);
+	usbd_set_device_desc(dev);
 
 	sc->sc_udev = uaa->device;
 
@@ -353,52 +357,47 @@ ubsa_attach(device_t dev)
 	error = usbd_set_config_index(uaa->device, UBSA_CONFIG_INDEX, 1);
 
 	if (error) {
-	    DPRINTF(0, "failed to set configuration, error=%s\n",
+		DPRINTF(0, "failed to set configuration, error=%s\n",
 		    usbd_errstr(error));
-	    goto detach;
+		goto detach;
 	}
-
 	iface = usbd_get_iface(uaa->device, UBSA_IFACE_INDEX);
 
 	if (iface == NULL) {
-	    DPRINTF(0, "no interface\n");
-	    goto detach;
+		DPRINTF(0, "no interface\n");
+		goto detach;
 	}
-
 	id = usbd_get_interface_descriptor(iface);
 
 	if (id == NULL) {
-	    DPRINTF(0, "no interface descriptor\n");
-	    goto detach;
+		DPRINTF(0, "no interface descriptor\n");
+		goto detach;
 	}
-
 	sc->sc_iface_no = id->bInterfaceNumber;
 	sc->sc_iface_index = UBSA_IFACE_INDEX;
 
-	error = usbd_transfer_setup(uaa->device, sc->sc_iface_index,
-				    sc->sc_xfer, ubsa_config, UBSA_N_TRANSFER,
-				    sc, &Giant);
-	if (error) {
-	    DPRINTF(0, "could not allocate all pipes\n");
-	    goto detach;
-	}
+	error = usbd_transfer_setup(uaa->device, &(sc->sc_iface_index),
+	    sc->sc_xfer, ubsa_config, UBSA_N_TRANSFER, sc, &Giant);
 
+	if (error) {
+		DPRINTF(0, "could not allocate all pipes\n");
+		goto detach;
+	}
 	/* clear stall at first run */
-	sc->sc_flag |= (UBSA_FLAG_WRITE_STALL|
-			UBSA_FLAG_READ_STALL);
+	sc->sc_flag |= (UBSA_FLAG_WRITE_STALL |
+	    UBSA_FLAG_READ_STALL);
 
 	error = ucom_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
-			    &ubsa_callback, &Giant);
+	    &ubsa_callback, &Giant);
 	if (error) {
-	    DPRINTF(0, "ucom_attach failed\n");
-	    goto detach;
+		DPRINTF(0, "ucom_attach failed\n");
+		goto detach;
 	}
+	return (0);
 
-	return 0;
-
- detach:
+detach:
 	ubsa_detach(dev);
-	return ENXIO;
+	return (ENXIO);
 }
 
 static int
@@ -412,19 +411,18 @@ ubsa_detach(device_t dev)
 
 	usbd_transfer_unsetup(sc->sc_xfer, UBSA_N_TRANSFER);
 
-	return 0;
+	return (0);
 }
 
 static void
-ubsa_cfg_request(struct ubsa_softc *sc, u_int8_t index, u_int16_t value)
+ubsa_cfg_request(struct ubsa_softc *sc, uint8_t index, uint16_t value)
 {
 	usb_device_request_t req;
-	usbd_status err;
+	usbd_status_t err;
 
 	if (ucom_cfg_is_gone(&(sc->sc_ucom))) {
-	    return;
+		return;
 	}
-
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = index;
 	USETW(req.wValue, value);
@@ -432,17 +430,18 @@ ubsa_cfg_request(struct ubsa_softc *sc, u_int8_t index, u_int16_t value)
 	req.wIndex[1] = 0;
 	USETW(req.wLength, 0);
 
-	err = usbd_do_request_flags_mtx(sc->sc_udev, &Giant, &req, 
-					NULL, 0, NULL, 1000);
+	err = usbd_do_request_flags
+	    (sc->sc_udev, &Giant, &req, NULL, 0, NULL, 1000);
+
 	if (err) {
-	    DPRINTF(-1, "device request failed, err=%s "
+		DPRINTF(-1, "device request failed, err=%s "
 		    "(ignored)\n", usbd_errstr(err));
 	}
 	return;
 }
 
 static void
-ubsa_cfg_set_dtr(struct ucom_softc *ucom, u_int8_t onoff)
+ubsa_cfg_set_dtr(struct ucom_softc *ucom, uint8_t onoff)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
 
@@ -453,7 +452,7 @@ ubsa_cfg_set_dtr(struct ucom_softc *ucom, u_int8_t onoff)
 }
 
 static void
-ubsa_cfg_set_rts(struct ucom_softc *ucom, u_int8_t onoff)
+ubsa_cfg_set_rts(struct ucom_softc *ucom, uint8_t onoff)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
 
@@ -464,7 +463,7 @@ ubsa_cfg_set_rts(struct ucom_softc *ucom, u_int8_t onoff)
 }
 
 static void
-ubsa_cfg_set_break(struct ucom_softc *ucom, u_int8_t onoff)
+ubsa_cfg_set_break(struct ucom_softc *ucom, uint8_t onoff)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
 
@@ -481,7 +480,7 @@ ubsa_pre_param(struct ucom_softc *ucom, struct termios *t)
 
 	DPRINTF(0, "sc = %p\n", sc);
 
-	switch(t->c_ospeed) {
+	switch (t->c_ospeed) {
 	case B0:
 	case B300:
 	case B600:
@@ -494,27 +493,27 @@ ubsa_pre_param(struct ucom_softc *ucom, struct termios *t)
 	case B57600:
 	case B115200:
 	case B230400:
-	    break;
+		break;
 	default:
-	    return EINVAL;
+		return (EINVAL);
 	}
-	return 0;
+	return (0);
 }
 
 static void
 ubsa_cfg_param(struct ucom_softc *ucom, struct termios *t)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
-	u_int16_t value = 0;
+	uint16_t value = 0;
 
 	DPRINTF(0, "sc = %p\n", sc);
 
-	switch(t->c_ospeed) {
+	switch (t->c_ospeed) {
 	case B0:
-	    ubsa_cfg_request(sc, UBSA_REG_FLOW_CTRL, 0);
-	    ubsa_cfg_set_dtr(&(sc->sc_ucom), 0);
-	    ubsa_cfg_set_rts(&(sc->sc_ucom), 0);
-	    break;
+		ubsa_cfg_request(sc, UBSA_REG_FLOW_CTRL, 0);
+		ubsa_cfg_set_dtr(&(sc->sc_ucom), 0);
+		ubsa_cfg_set_rts(&(sc->sc_ucom), 0);
+		break;
 	case B300:
 	case B600:
 	case B1200:
@@ -526,11 +525,11 @@ ubsa_cfg_param(struct ucom_softc *ucom, struct termios *t)
 	case B57600:
 	case B115200:
 	case B230400:
-	    value = B230400 / t->c_ospeed;
-	    ubsa_cfg_request(sc, UBSA_REG_BAUDRATE, value);
-	    break;
+		value = B230400 / t->c_ospeed;
+		ubsa_cfg_request(sc, UBSA_REG_BAUDRATE, value);
+		break;
 	default:
-	    return;
+		return;
 	}
 
 	if (t->c_cflag & PARENB)
@@ -541,11 +540,19 @@ ubsa_cfg_param(struct ucom_softc *ucom, struct termios *t)
 	ubsa_cfg_request(sc, UBSA_REG_PARITY, value);
 
 	switch (t->c_cflag & CSIZE) {
-	case CS5: value = 0; break;
-	case CS6: value = 1; break;
-	case CS7: value = 2; break;
+	case CS5:
+		value = 0;
+		break;
+	case CS6:
+		value = 1;
+		break;
+	case CS7:
+		value = 2;
+		break;
 	default:
-	case CS8: value = 3; break;
+	case CS8:
+		value = 3;
+		break;
 	}
 
 	ubsa_cfg_request(sc, UBSA_REG_DATA_BITS, value);
@@ -556,10 +563,10 @@ ubsa_cfg_param(struct ucom_softc *ucom, struct termios *t)
 
 	value = 0;
 	if (t->c_cflag & CRTSCTS)
-	    value |= UBSA_FLOW_OCTS | UBSA_FLOW_IRTS;
+		value |= UBSA_FLOW_OCTS | UBSA_FLOW_IRTS;
 
-	if (t->c_iflag & (IXON|IXOFF))
-	    value |= UBSA_FLOW_OXON | UBSA_FLOW_IXON;
+	if (t->c_iflag & (IXON | IXOFF))
+		value |= UBSA_FLOW_OXON | UBSA_FLOW_IXON;
 
 	ubsa_cfg_request(sc, UBSA_REG_FLOW_CTRL, value);
 	return;
@@ -582,6 +589,7 @@ static void
 ubsa_stop_read(struct ucom_softc *ucom)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
+
 	/* stop interrupt endpoint */
 	usbd_transfer_stop(sc->sc_xfer[5]);
 	usbd_transfer_stop(sc->sc_xfer[4]);
@@ -596,6 +604,7 @@ static void
 ubsa_start_write(struct ucom_softc *ucom)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
+
 	usbd_transfer_start(sc->sc_xfer[0]);
 	return;
 }
@@ -604,13 +613,14 @@ static void
 ubsa_stop_write(struct ucom_softc *ucom)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
+
 	usbd_transfer_stop(sc->sc_xfer[2]);
 	usbd_transfer_stop(sc->sc_xfer[0]);
 	return;
 }
 
 static void
-ubsa_cfg_get_status(struct ucom_softc *ucom, u_int8_t *lsr, u_int8_t *msr)
+ubsa_cfg_get_status(struct ucom_softc *ucom, uint8_t *lsr, uint8_t *msr)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
 
@@ -625,32 +635,31 @@ static void
 ubsa_write_callback(struct usbd_xfer *xfer)
 {
 	struct ubsa_softc *sc = xfer->priv_sc;
-	u_int32_t actlen;
+	uint32_t actlen;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_SETUP:
+	case USBD_ST_TRANSFERRED:
+		if (sc->sc_flag & UBSA_FLAG_WRITE_STALL) {
+			usbd_transfer_start(sc->sc_xfer[2]);
+			return;
+		}
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		    UBSA_BSIZE, &actlen)) {
 
-tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    sc->sc_flag |= UBSA_FLAG_WRITE_STALL;
-	    usbd_transfer_start(sc->sc_xfer[2]);
+			xfer->frlengths[0] = actlen;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			sc->sc_flag |= UBSA_FLAG_WRITE_STALL;
+			usbd_transfer_start(sc->sc_xfer[2]);
+		}
+		return;
+
 	}
-	return;
-
-tr_setup:
-tr_transferred:
-	if (sc->sc_flag & UBSA_FLAG_WRITE_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[2]);
-	    return;
-	}
-
-	if(ucom_get_data(&(sc->sc_ucom), xfer->buffer, 
-			 UBSA_BSIZE, &actlen)) {
-
-	    xfer->length = actlen;
-
-	    usbd_start_hardware(xfer);
-	}
-	return;
 }
 
 static void
@@ -660,9 +669,9 @@ ubsa_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(0, "stall cleared\n");
-	    sc->sc_flag &= ~UBSA_FLAG_WRITE_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(0, "stall cleared\n");
+		sc->sc_flag &= ~UBSA_FLAG_WRITE_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -672,25 +681,27 @@ ubsa_read_callback(struct usbd_xfer *xfer)
 {
 	struct ubsa_softc *sc = xfer->priv_sc;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0, xfer->actlen);
 
- tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    sc->sc_flag |= UBSA_FLAG_READ_STALL;
-	    usbd_transfer_start(sc->sc_xfer[3]);
+	case USBD_ST_SETUP:
+		if (sc->sc_flag & UBSA_FLAG_READ_STALL) {
+			usbd_transfer_start(sc->sc_xfer[3]);
+		} else {
+			xfer->frlengths[0] = xfer->max_data_length;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			sc->sc_flag |= UBSA_FLAG_READ_STALL;
+			usbd_transfer_start(sc->sc_xfer[3]);
+		}
+		return;
+
 	}
-	return;
-
- tr_transferred:
-	ucom_put_data(&(sc->sc_ucom), xfer->buffer, xfer->actlen);
-
- tr_setup:
-	if (sc->sc_flag & UBSA_FLAG_READ_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[3]);
-	} else {
-	    usbd_start_hardware(xfer);
-	}
-	return;
 }
 
 static void
@@ -700,9 +711,9 @@ ubsa_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(0, "stall cleared\n");
-	    sc->sc_flag &= ~UBSA_FLAG_READ_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(0, "stall cleared\n");
+		sc->sc_flag &= ~UBSA_FLAG_READ_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -711,41 +722,48 @@ static void
 ubsa_intr_callback(struct usbd_xfer *xfer)
 {
 	struct ubsa_softc *sc = xfer->priv_sc;
-	u_int8_t *buf = xfer->buffer;
+	uint8_t buf[4];
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
 
- tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    sc->sc_flag |= UBSA_FLAG_INTR_STALL;
-	    usbd_transfer_start(sc->sc_xfer[5]);
+		if (xfer->actlen >= sizeof(buf)) {
+
+			usbd_copy_out(xfer->frbuffers + 0, 0, buf, sizeof(buf));
+
+			/*
+			 * incidentally, Belkin adapter status bits match
+			 * UART 16550 bits
+			 */
+			sc->sc_lsr = buf[2];
+			sc->sc_msr = buf[3];
+
+			DPRINTF(0, "lsr = 0x%02x, msr = 0x%02x\n",
+			    sc->sc_lsr, sc->sc_msr);
+
+			ucom_status_change(&(sc->sc_ucom));
+		} else {
+			DPRINTF(0, "ignoring short packet, %d bytes\n",
+			    xfer->actlen);
+		}
+
+	case USBD_ST_SETUP:
+		if (sc->sc_flag & UBSA_FLAG_INTR_STALL) {
+			usbd_transfer_start(sc->sc_xfer[5]);
+		} else {
+			xfer->frlengths[0] = xfer->max_data_length;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			sc->sc_flag |= UBSA_FLAG_INTR_STALL;
+			usbd_transfer_start(sc->sc_xfer[5]);
+		}
+		return;
+
 	}
-	return;
-
- tr_transferred:
-
-	if (xfer->actlen >= 4) {
-
-	    /* incidentally, Belkin adapter status bits match UART 16550 bits */
-	    sc->sc_lsr = buf[2];
-	    sc->sc_msr = buf[3];
-
-	    DPRINTF(0, "lsr = 0x%02x, msr = 0x%02x\n",
-		    sc->sc_lsr, sc->sc_msr);
-
-	    ucom_status_change(&(sc->sc_ucom));
-	} else {
-	    DPRINTF(0, "ignoring short packet, %d bytes\n",
-		    xfer->actlen);
-	}
-
- tr_setup:
-	if (sc->sc_flag & UBSA_FLAG_INTR_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[5]);
-	} else {
-	    usbd_start_hardware(xfer);
-	}
-	return;
 }
 
 static void
@@ -755,9 +773,9 @@ ubsa_intr_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[4];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(0, "stall cleared\n");
-	    sc->sc_flag &= ~UBSA_FLAG_INTR_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(0, "stall cleared\n");
+		sc->sc_flag &= ~UBSA_FLAG_INTR_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }

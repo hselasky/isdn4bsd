@@ -1,7 +1,7 @@
-VERSION=1_6_3
-DATE=July 2007
+VERSION=1_7_0
+DATE=January 2008
 
-FILTER= grep -v "temp"   | \
+FILTER= grep -v "/temp"   | \
 	grep -v "~"      | \
 	grep -v "\#"     | \
 	grep -v "\.orig" | \
@@ -61,28 +61,76 @@ ${S}/sys/dev/sound/usb/uaudio.h \
 ${S}/sys/dev/sound/usb/uaudio_pcm.c \
 ${S}/sys/dev/sound/usb/uaudioreg.h \
 
-#
-#${S}/sys/dev/sound/pcm/mixer.c \
-#${S}/sys/dev/sound/pcm/mixer.h \
-#
+.if defined(WITH_UAUDIO)
+UAUDIO_FILES+= \
+${S}/sys/dev/sound/pcm/mixer.c \
+${S}/sys/dev/sound/pcm/mixer.h \
 
-URAL_FILES=\
+.endif
+
+WIFI_FILES=\
 ${S}/sys/dev/usb/if_ural.c \
 ${S}/sys/dev/usb/if_uralreg.h \
 ${S}/sys/dev/usb/if_uralvar.h \
 ${S}/sys/dev/usb/if_rum.c \
 ${S}/sys/dev/usb/if_rumreg.h \
 ${S}/sys/dev/usb/if_rumvar.h \
+${S}/sys/dev/usb/if_rumfw.h \
+${S}/sys/dev/usb/if_zyd.c \
+${S}/sys/dev/usb/if_zydfw.h \
+${S}/sys/dev/usb/if_zydreg.h \
+
+USB_MODULES=\
+${S}/sys/modules/ata/atausb/Makefile \
+${S}/sys/modules/aue/Makefile \
+${S}/sys/modules/axe/Makefile \
+${S}/sys/modules/cdce/Makefile \
+${S}/sys/modules/cue/Makefile \
+${S}/sys/modules/if_ndis/Makefile \
+${S}/sys/modules/kue/Makefile \
+${S}/sys/modules/ndis/Makefile \
+${S}/sys/modules/netgraph/bluetooth/ubt/Makefile \
+${S}/sys/modules/netgraph/bluetooth/ubtbcmfw/Makefile \
+${S}/sys/modules/rue/Makefile \
+${S}/sys/modules/rum/Makefile  \
+${S}/sys/modules/slhci/Makefile \
+${S}/sys/modules/sound/driver/uaudio/Makefile \
+${S}/sys/modules/uark/Makefile  \
+${S}/sys/modules/ubsa/Makefile \
+${S}/sys/modules/ubser/Makefile  \
+${S}/sys/modules/uchcom/Makefile \
+${S}/sys/modules/ucom/Makefile \
+${S}/sys/modules/ucycom/Makefile \
+${S}/sys/modules/udav/Makefile \
+${S}/sys/modules/udbp/Makefile \
+${S}/sys/modules/ufm/Makefile \
+${S}/sys/modules/ufoma/Makefile \
+${S}/sys/modules/uftdi/Makefile \
+${S}/sys/modules/ugen/Makefile  \
+${S}/sys/modules/ugensa/Makefile  \
+${S}/sys/modules/uhid/Makefile  \
+${S}/sys/modules/uipaq/Makefile  \
+${S}/sys/modules/ukbd/Makefile  \
+${S}/sys/modules/ulpt/Makefile  \
+${S}/sys/modules/umass/Makefile \
+${S}/sys/modules/umct/Makefile \
+${S}/sys/modules/umodem/Makefile \
+${S}/sys/modules/umoscom/Makefile  \
+${S}/sys/modules/ums/Makefile  \
+${S}/sys/modules/uplcom/Makefile \
+${S}/sys/modules/ural/Makefile \
+${S}/sys/modules/urio/Makefile \
+${S}/sys/modules/usb/Makefile  \
+${S}/sys/modules/uscanner/Makefile \
+${S}/sys/modules/uss820_dci/Makefile  \
+${S}/sys/modules/uvisor/Makefile \
+${S}/sys/modules/uvscom/Makefile \
+${S}/sys/modules/zyd/Makefile \
 
 USB_FILES=\
+${USB_MODULES} \
+${S}/sys/arm/at91/at91_udp.c \
 ${S}/sys/arm/at91/ohci_atmelarm.c \
-${S}/sys/modules/usb/Makefile \
-${S}/sys/modules/ugen/Makefile \
-${S}/sys/modules/ums/Makefile \
-${S}/sys/modules/ukbd/Makefile \
-${S}/sys/modules/ulpt/Makefile \
-${S}/sys/modules/uhid/Makefile \
-${S}/sys/modules/ubser/Makefile \
 ${S}/sys/tools/usbdevs2h.awk\
 ${S}/sys/dev/ata/ata-usb.c \
 ${S}/sys/dev/if_ndis/if_ndis_usb.c \
@@ -91,43 +139,6 @@ ${S}/sys/netgraph/bluetooth/drivers/ubt/TODO \
 ${S}/sys/netgraph/bluetooth/drivers/ubt/ng_ubt.c \
 ${S}/sys/netgraph/bluetooth/drivers/ubt/ng_ubt_var.h \
 ${S}/sys/netgraph/bluetooth/drivers/ubtbcmfw/ubtbcmfw.c \
-
-USB_MODULES=\
-${S}/sys/modules/aue \
-${S}/sys/modules/axe \
-${S}/sys/modules/cdce \
-${S}/sys/modules/cue \
-${S}/sys/modules/if_ndis \
-${S}/sys/modules/kue \
-${S}/sys/modules/ndis \
-${S}/sys/modules/netgraph/bluetooth/ubtbcmfw \
-${S}/sys/modules/netgraph/bluetooth/ubt \
-${S}/sys/modules/rue \
-${S}/sys/modules/sound/driver/uaudio \
-${S}/sys/modules/uark \
-${S}/sys/modules/ubsa \
-${S}/sys/modules/ubser \
-${S}/sys/modules/ucom \
-${S}/sys/modules/ucycom \
-${S}/sys/modules/udav \
-${S}/sys/modules/udbp \
-${S}/sys/modules/ufm \
-${S}/sys/modules/uftdi \
-${S}/sys/modules/ugen \
-${S}/sys/modules/uhid \
-${S}/sys/modules/ukbd \
-${S}/sys/modules/ulpt \
-${S}/sys/modules/umass \
-${S}/sys/modules/umct \
-${S}/sys/modules/umodem \
-${S}/sys/modules/ums \
-${S}/sys/modules/uplcom \
-${S}/sys/modules/ural \
-${S}/sys/modules/urio \
-${S}/sys/modules/usb \
-${S}/sys/modules/uscanner \
-${S}/sys/modules/uvisor \
-${S}/sys/modules/uvscom \
 
 CONFIG_FILES=\
 ${S}/sys/conf/files \
@@ -141,22 +152,12 @@ ${S}/share/examples/isdn/contrib/hplay.c \
 ${S}/share/examples/isdn/contrib/isdntelmux.c \
 ${S}/share/examples/isdn/i4brunppp/i4brunppp.c \
 
-#
-# ${S}/sys/i386/include/bus_at386.h
-#
-
 DIFF_FILES=\
 ${HEADER_FIX_FILES} \
 ${UAUDIO_FILES} \
-${URAL_FILES} \
+${WIFI_FILES} \
 ${S}/sys/conf/kmod.mk \
 ${S}/sys/dev/sound/pcm/sound.c \
-${S}/sys/dev/sound/pcm/vchan.c \
-${S}/sys/dev/sound/pcm/channel.c \
-${S}/sys/dev/sound/pcm/channel.h \
-${S}/sys/dev/sound/pcm/dsp.c \
-${S}/sys/dev/sound/isa/sb16.c \
-${S}/sys/dev/sound/isa/sb8.c \
 ${S}/etc/mtree/BSD.include.dist \
 ${S}/include/Makefile \
 ${S}/usr.sbin/Makefile.inc \
@@ -212,15 +213,12 @@ ${N}dev/usb/usb.c             optional usb \
 ${N}dev/usb/usb_requests.c    optional usb \
 ${N}dev/usb/usb_subr.c        optional usb \
 ${N}dev/usb/usb_transfer.c    optional usb \
+${N}dev/usb/usb_template.c optional usb \
+${N}dev/usb/usb_template_cdce.c optional usb \
 ${N}dev/usb/usb_compat_linux.c optional usb \
 ${N}dev/usb/usb_cdev.c        optional usb \
 ${N}dev/usb/usb_hid.c         optional usb \
 ${N}usbdevs.h                 optional usb dependency \"$$S/tools/usbdevs2h.awk $$S/dev/usb/usbdevs\" compile-with \"$${AWK} -f $$S/tools/usbdevs2h.awk $$S/dev/usb/usbdevs\" no-obj no-implicit-rule before-depend clean \"usbdevs.h\" \
-${N}'
-
-CHANNEL_H_APPEND='\
-${N}void chn_rel(struct cdev *dev, struct pcm_channel *rdch, struct pcm_channel *wrch, u_int32_t prio);\
-${N}int chn_get(struct cdev *dev, struct pcm_channel **rdch, struct pcm_channel **wrch, u_int32_t prio);\
 ${N}'
 
 #
@@ -236,8 +234,8 @@ ${N}\# ISDN4BSD v.${VERSION:C/_/./g} for FreeBSD 6/7/8 - ${DATE} \
 ${N}\# \
 ${N}\# source directory:      ${S} \
 ${N}\# backup directory:      ${.CURDIR} \
-${N}\# targets:               help fetch all install install_mod deinstall clean \
-${N}\#                        distclean \
+${N}\# targets:               help fetch all install deinstall clean \
+${N}\#                        distclean WITH_UAUDIO=YES WITH_WIFI=YES \
 ${N}\# \
 ${N}\# \
 ${N}\# 0. If you installed an older \
@@ -315,7 +313,9 @@ backup:
 .if exists(${BACKUP}.dont.remove)
 
 	@echo "Backup already exists ... continuing"
-
+	@echo ""
+	@echo "If you want to remove the backup run \"make distclean\""
+	@echo ""
 .else
 
 	@echo ""
@@ -352,13 +352,56 @@ backup:
 	mkdir ${S}/sys/dev/ata         || echo -n
 	mkdir ${S}/sys/dev/usb         || echo -n
 	mkdir ${S}/sys/modules         || echo -n
+	mkdir ${S}/sys/modules/ata     || echo -n
+	mkdir ${S}/sys/modules/ata/atausb || echo -n
+	mkdir ${S}/sys/modules/aue     || echo -n
+	mkdir ${S}/sys/modules/axe     || echo -n
+	mkdir ${S}/sys/modules/cdce    || echo -n
+	mkdir ${S}/sys/modules/cue     || echo -n
+	mkdir ${S}/sys/modules/if_ndis || echo -n
+	mkdir ${S}/sys/modules/kue     || echo -n
+	mkdir ${S}/sys/modules/ndis    || echo -n
+	mkdir ${S}/sys/modules/netgraph || echo -n
+	mkdir ${S}/sys/modules/netgraph/bluetooth || echo -n
+	mkdir ${S}/sys/modules/netgraph/bluetooth/ubt || echo -n
+	mkdir ${S}/sys/modules/netgraph/bluetooth/ubtbcmfw || echo -n
+	mkdir ${S}/sys/modules/rue     || echo -n
+	mkdir ${S}/sys/modules/rum     || echo -n
+	mkdir ${S}/sys/modules/slhci   || echo -n
+	mkdir ${S}/sys/modules/sound   || echo -n
+	mkdir ${S}/sys/modules/sound/driver || echo -n
+	mkdir ${S}/sys/modules/sound/driver/uaudio || echo -n
+	mkdir ${S}/sys/modules/uark    || echo -n
+	mkdir ${S}/sys/modules/ubsa    || echo -n
 	mkdir ${S}/sys/modules/ubser   || echo -n
+	mkdir ${S}/sys/modules/uchcom  || echo -n
+	mkdir ${S}/sys/modules/ucom    || echo -n
+	mkdir ${S}/sys/modules/ucycom  || echo -n
+	mkdir ${S}/sys/modules/udav    || echo -n
+	mkdir ${S}/sys/modules/udbp    || echo -n
+	mkdir ${S}/sys/modules/ufm     || echo -n
+	mkdir ${S}/sys/modules/ufoma   || echo -n
+	mkdir ${S}/sys/modules/uftdi   || echo -n
 	mkdir ${S}/sys/modules/ugen    || echo -n
+	mkdir ${S}/sys/modules/ugensa  || echo -n
 	mkdir ${S}/sys/modules/uhid    || echo -n
+	mkdir ${S}/sys/modules/uipaq   || echo -n
 	mkdir ${S}/sys/modules/ukbd    || echo -n
 	mkdir ${S}/sys/modules/ulpt    || echo -n
+	mkdir ${S}/sys/modules/umass   || echo -n
+	mkdir ${S}/sys/modules/umct    || echo -n
+	mkdir ${S}/sys/modules/umodem  || echo -n
+	mkdir ${S}/sys/modules/umoscom || echo -n
 	mkdir ${S}/sys/modules/ums     || echo -n
+	mkdir ${S}/sys/modules/uplcom  || echo -n
+	mkdir ${S}/sys/modules/ural    || echo -n
+	mkdir ${S}/sys/modules/urio    || echo -n
 	mkdir ${S}/sys/modules/usb     || echo -n
+	mkdir ${S}/sys/modules/uscanner || echo -n
+	mkdir ${S}/sys/modules/uss820_dci || echo -n
+	mkdir ${S}/sys/modules/uvisor  || echo -n
+	mkdir ${S}/sys/modules/uvscom  || echo -n
+	mkdir ${S}/sys/modules/zyd     || echo -n
 	mkdir ${S}/sys/netgraph        || echo -n
 	mkdir ${S}/sys/netgraph/bluetooth  || echo -n
 	mkdir ${S}/sys/netgraph/bluetooth/drivers  || echo -n
@@ -422,22 +465,7 @@ ${DIFF_FILES}
 	sync
 .endif
 
-
-update_pcm:
-
-	sed -e s/getchns/chn_get/g \
-	    -e s/relchns/chn_rel/g \
-	    ${S}/sys/dev/sound/pcm/dsp.c \
-	| sed -e s/"chn_get(struct cdev \*"/"chn_get(dev_t "/g \
-	      -e s/"chn_rel(struct cdev \*"/"chn_rel(dev_t "/g \
-	| tr '\n' 'å' \
-	| sed -e s/"static.int.chn_get"/"intåchn_get"/ \
-	      -e s/"static.void.chn_rel"/"voidåchn_rel"/ \
-	| tr 'å' '\n' \
-	| sed -e s/"dev_t dev"/"struct cdev \*dev"/g \
-	> ${TEMP}
-
-	cat ${TEMP} > ${S}/sys/dev/sound/pcm/dsp.c
+update_sound_c:
 
 	sed -e s/"MTX_DEF)"/"MTX_DEF|MTX_RECURSE)"/g \
 	    -e s/"d->flags = 0;"/""/g \
@@ -445,17 +473,6 @@ update_pcm:
 	> ${TEMP}
 
 	cat ${TEMP} > ${S}/sys/dev/sound/pcm/sound.c
-
-	cat ${S}/sys/dev/sound/pcm/channel.h \
-	| grep -v " chn_rel(" \
-	| grep -v " chn_get(" \
-	| cat - \
-	> ${TEMP}
-
-	@printf ${CHANNEL_H_APPEND} >> ${TEMP}
-
-	cat ${TEMP} > ${S}/sys/dev/sound/pcm/channel.h
-
 
 update_config:
 
@@ -482,6 +499,8 @@ update_config:
 	| grep -v "dev/usb/usbdi.c" \
 	| grep -v "dev/usb/usbdi_util.c" \
 	| grep -v "dev/usb/hid.c" \
+	| grep -v "dev/usb/usb_template.c" \
+	| grep -v "dev/usb/usb_template_cdce.c" \
 	| sed -e s/"S\/dev\/usb\/usbdevs -h"/"S\/dev\/usb\/usbdevs"/g \
 	| sed -e s/"S\/dev\/usb\/usbdevs -d"/"S\/dev\/usb\/usbdevs"/g \
 	> ${TEMP}
@@ -497,7 +516,7 @@ all:
 build:
 	@echo "All done."
 
-install: ${DIFF} ${PACKAGE} help backup update_config update_pcm 
+install: ${DIFF} ${PACKAGE} help backup update_config update_sound_c 
 
 # cleanup
 
@@ -601,12 +620,16 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_pcm
 # patch 11
 #
 #
+.if !defined(WITH_UAUDIO)
 	rm -f ${UAUDIO_FILES} || echo -n
 	touch ${UAUDIO_FILES} || echo -n
+.endif
 
 # patch 12
-	rm -f ${URAL_FILES} || echo -n
-	touch ${URAL_FILES} || echo -n
+.if !defined(WITH_WIFI)
+	rm -f ${WIFI_FILES} || echo -n
+	touch ${WIFI_FILES} || echo -n
+.endif
 
 # patch 13
 	rm -f ${S}/usr.sbin/usbd/usbd.c || echo -n
@@ -680,15 +703,6 @@ list_files:
 
 print_all:
 	@printf ${FILES_APPEND}
-	@printf ${CHANNEL_H_APPEND}
 	@printf '${BSD_INCLUDE_DIST_APPEND_2}'
 
-backdate:
-	touch -t 200011111111 ${S}/sys/i386/include/bus_at386.h
-
-install_mod:
-.for FILE in ${USB_MODULES}
-	(cd ${FILE} && make depend all install clean) || echo -n
-.endfor
-
-#-HPS
+#--HPS

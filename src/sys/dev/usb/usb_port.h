@@ -1,5 +1,5 @@
 /* $NetBSD: usb_port.h,v 1.54 2002/03/28 21:49:19 ichiro Exp $ */
-/* $FreeBSD: src/sys/dev/usb/usb_port.h,v 1.98 2007/07/06 20:02:37 imp Exp $ */
+/* $FreeBSD: src/sys/dev/usb/usb_port.h,v 1.99 2007/10/20 23:23:18 julian Exp $ */
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -39,55 +39,62 @@
  */
 
 #ifndef _USB_PORT_H
-#define _USB_PORT_H
+#define	_USB_PORT_H
 
-# ifdef _KERNEL
+#ifdef _KERNEL
 
-#  ifdef __FreeBSD__
+#ifdef __FreeBSD__
 
-#   include <sys/conf.h>
-#   include <machine/bus.h> /* bus_space_xxx() */
-#   include <machine/resource.h> /* SYS_XXX */
-#   include <sys/bus.h> /* device_xxx() */
-#   ifdef INCLUDE_PCIXXX_H
+#include <sys/conf.h>
+#include <machine/bus.h>		/* bus_space_xxx() */
+#include <machine/resource.h>		/* SYS_XXX */
+#include <sys/bus.h>			/* device_xxx() */
+#ifdef INCLUDE_PCIXXX_H
 /* NOTE: one does not want to include these
  * files when building the USB device driver
  * modules!
  */
-#    include <dev/pci/pcireg.h>
-#    include <dev/pci/pcivar.h>
-#   endif
-#   include <sys/lockmgr.h>
-#   include <sys/module.h>
-#   include <sys/mutex.h>
-#   include <sys/rman.h> 
-#   include <sys/selinfo.h>
-#   include <sys/sysctl.h> /* SYSCTL_XXX() */
-#   include <sys/fcntl.h>
-#   include <sys/taskqueue.h>
-#   include <sys/callout.h> /* callout_xxx() */
+#include <dev/pci/pcireg.h>
+#include <dev/pci/pcivar.h>
+#endif
+#include <sys/lockmgr.h>
+#include <sys/module.h>
+#include <sys/mutex.h>
+#include <sys/sx.h>
+#include <sys/rman.h>
+#include <sys/selinfo.h>
+#include <sys/sysctl.h>			/* SYSCTL_XXX() */
+#include <sys/fcntl.h>
+#include <sys/taskqueue.h>
+#include <sys/callout.h>		/* callout_xxx() */
 
-#   include <net/ethernet.h> /* ETHER_XXX */
+#include <net/ethernet.h>		/* ETHER_XXX */
 
-#   ifndef __KASSERT
-     typedef struct cdevsw cdevsw_t;
-#    define __lockmgr lockmgr
-#    define __KASSERT KASSERT
-#    define uio_procp uio_td
-#   endif
-#   ifndef __callout_init_mtx
-#    define __callout_init_mtx(c,m,f) callout_init_mtx(&(c)->co,m,f)
-#    define __callout_reset(c,t,f,d) callout_reset(&(c)->co,t,f,d)
-#    define __callout_stop(c) callout_stop(&(c)->co)
-#    define __callout_drain(c) callout_drain(&(c)->co)
-#    define __callout_pending(c) callout_pending(&(c)->co)
-     struct __callout { struct callout co; };
-#   endif
+#ifndef __KASSERT
+typedef struct cdevsw cdevsw_t;
 
-#  else
-#   include <sys/freebsd_compat.h>
-#  endif
-# endif
+#define	__lockmgr lockmgr
+#define	__KASSERT KASSERT
+#define	uio_procp uio_td
+#endif
+#ifndef usb_callout_init_mtx
+#define	usb_callout_init_mtx(c,m,f) callout_init_mtx(&(c)->co,m,f)
+#define	usb_callout_reset(c,t,f,d) callout_reset(&(c)->co,t,f,d)
+#define	usb_callout_stop(c) callout_stop(&(c)->co)
+#define	usb_callout_drain(c) callout_drain(&(c)->co)
+#define	usb_callout_pending(c) callout_pending(&(c)->co)
+struct usb_callout {
+	struct callout co;
+};
+
+#endif
+
+#include "usb_if.h"
+
+#else
+#include <sys/freebsd_compat.h>
+#endif
+#endif
 
 /*
  * Macros to cope with the differences between operating systems.
@@ -100,47 +107,49 @@
 
 #include "opt_usbverbose.h"
 
-#define SCSI_MODE_SENSE		MODE_SENSE
+#define	SCSI_MODE_SENSE		MODE_SENSE
 
-#define usb_kthread_create1	kthread_create1
-#define usb_kthread_create	kthread_create
+#define	usb_thread_create	kthread_create1
+#define	usb_thread_exit(err)	kthread_exit(err)
 
 #if (__NetBSD_Version__ >= 300000000)
-typedef void * usb_malloc_type;
+typedef void *usb_malloc_type;
+
 #else
 typedef int usb_malloc_type;
+
 #endif
 
-#define Ether_ifattach ether_ifattach
+#define	Ether_ifattach ether_ifattach
 
 #elif defined(__OpenBSD__)
 /*
  * OpenBSD
  */
 
-#define UCOMBUSCF_PORTNO		-1
-#define UCOMBUSCF_PORTNO_DEFAULT	-1
+#define	UCOMBUSCF_PORTNO		-1
+#define	UCOMBUSCF_PORTNO_DEFAULT	-1
 
-#define SCSI_MODE_SENSE		MODE_SENSE
-#define XS_STS_DONE		ITSDONE
-#define XS_CTL_POLL		SCSI_POLL
-#define XS_CTL_DATA_IN		SCSI_DATA_IN
-#define XS_CTL_DATA_OUT		SCSI_DATA_OUT
-#define scsipi_adapter		scsi_adapter
-#define scsipi_cmd		scsi_cmd
-#define scsipi_device		scsi_device
-#define scsipi_done		scsi_done
-#define scsipi_link		scsi_link
-#define scsipi_minphys		scsi_minphys
-#define scsipi_sense		scsi_sense
-#define scsipi_xfer		scsi_xfer
-#define xs_control		flags
-#define xs_status		status
+#define	SCSI_MODE_SENSE		MODE_SENSE
+#define	XS_STS_DONE		ITSDONE
+#define	XS_CTL_POLL		SCSI_POLL
+#define	XS_CTL_DATA_IN		SCSI_DATA_IN
+#define	XS_CTL_DATA_OUT		SCSI_DATA_OUT
+#define	scsipi_adapter		scsi_adapter
+#define	scsipi_cmd		scsi_cmd
+#define	scsipi_device		scsi_device
+#define	scsipi_done		scsi_done
+#define	scsipi_link		scsi_link
+#define	scsipi_minphys		scsi_minphys
+#define	scsipi_sense		scsi_sense
+#define	scsipi_xfer		scsi_xfer
+#define	xs_control		flags
+#define	xs_status		status
 
 #define	memcpy(d, s, l)		bcopy((s),(d),(l))
 #define	memset(d, v, l)		bzero((d),(l))
-#define bswap32(x)		swap32(x)
-#define bswap16(x)		swap16(x)
+#define	bswap32(x)		swap32(x)
+#define	bswap16(x)		swap16(x)
 
 /*
  * The UHCI/OHCI controllers are little endian, so on big endian machines
@@ -148,33 +157,33 @@ typedef int usb_malloc_type;
  */
 
 #if defined(letoh32)
-#define le32toh(x) letoh32(x)
-#define le16toh(x) letoh16(x)
+#define	le32toh(x) letoh32(x)
+#define	le16toh(x) letoh16(x)
 #endif
 
 #if (BYTE_ORDER == BIG_ENDIAN)
-#define htole32(x) (bswap32(x))
-#define le32toh(x) (bswap32(x))
+#define	htole32(x) (bswap32(x))
+#define	le32toh(x) (bswap32(x))
 #else
-#define htole32(x) (x)
-#define le32toh(x) (x)
+#define	htole32(x) (x)
+#define	le32toh(x) (x)
 #endif
 
-#define usb_kthread_create1	kthread_create
-#define usb_kthread_create	kthread_create_deferred
+#define	usb_thread_create	kthread_create
+#define	usb_thread_exit(err)	kthread_exit(err)
 
 typedef int usb_malloc_type;
 
-#define Ether_ifattach(ifp, eaddr) ether_ifattach(ifp)
-#define if_deactivate(x)
+#define	Ether_ifattach(ifp, eaddr) ether_ifattach(ifp)
+#define	if_deactivate(x)
 
-#define powerhook_establish(fn, sc) (fn)
-#define powerhook_disestablish(hdl)
-#define PWR_RESUME 0
+#define	powerhook_establish(fn, sc) (fn)
+#define	powerhook_disestablish(hdl)
+#define	PWR_RESUME 0
 
-#define swap_bytes_change_sign16_le swap_bytes_change_sign16
-#define change_sign16_swap_bytes_le change_sign16_swap_bytes
-#define change_sign16_le change_sign16
+#define	swap_bytes_change_sign16_le swap_bytes_change_sign16
+#define	change_sign16_swap_bytes_le change_sign16_swap_bytes
+#define	change_sign16_le change_sign16
 
 extern int cold;
 
@@ -185,28 +194,36 @@ extern int cold;
 
 #include "opt_usb.h"
 
-#define usb_kthread_create1(f, s, p, ...) \
+#if (__FreeBSD_version >= 700000)
+#define	usb_thread_create(f, s, p, ...) \
+		kproc_create((f), (s), (p), RFHIGHPID, 0, __VA_ARGS__)
+#define	usb_thread_exit(err)	kproc_exit(err)
+#else
+#define	usb_thread_create(f, s, p, ...) \
 		kthread_create((f), (s), (p), RFHIGHPID, 0, __VA_ARGS__)
-#define usb_kthread_create	kthread_create
+#define	usb_thread_exit(err)	kthread_exit(err)
+#define	thread_lock(td) mtx_lock_spin(&sched_lock)
+#define	thread_unlock(td) mtx_unlock_spin(&sched_lock)
+#endif
 
-#define clalloc(p, s, x) (clist_alloc_cblocks((p), (s), (s)), 0)
-#define clfree(p) clist_free_cblocks((p))
+#define	clalloc(p, s, x) (clist_alloc_cblocks((p), (s), (s)), 0)
+#define	clfree(p) clist_free_cblocks((p))
 
-#define PWR_RESUME 0
-#define PWR_SUSPEND 1
+#define	PWR_RESUME 0
+#define	PWR_SUSPEND 1
 
 typedef struct malloc_type *usb_malloc_type;
 
-#endif /* __FreeBSD__ */
+#endif					/* __FreeBSD__ */
 
-#define USBVERBOSE
+#define	USBVERBOSE
 
 #ifndef Static
-#define Static               static
+#define	Static               static
 #endif
 
 #ifndef logprintf
-#define logprintf printf
+#define	logprintf printf
 #endif
 
 #ifdef MALLOC_DECLARE
@@ -221,46 +238,33 @@ SYSCTL_DECL(_hw_usb);
 
 /* force debugging until further */
 #ifndef USB_DEBUG
-#define USB_DEBUG
+#define	USB_DEBUG
 #endif
 
 #ifdef USB_DEBUG
-#define PRINTF(x)      { if (usbdebug) { printf("%s: ", __FUNCTION__); printf x ; } }
-#define PRINTFN(n,x)   { if (usbdebug > (n)) { printf("%s: ", __FUNCTION__); printf x ; } }
+#define	PRINTF(x)      { if (usbdebug) { printf("%s: ", __FUNCTION__); printf x ; } }
+#define	PRINTFN(n,x)   { if (usbdebug > (n)) { printf("%s: ", __FUNCTION__); printf x ; } }
 extern int usbdebug;
+
 #else
-#define PRINTF(x)
-#define PRINTFN(n,x)
+#define	PRINTF(x)
+#define	PRINTFN(n,x)
 #endif
 
-#define USBD_CHECK_STATUS(xfer)			\
-{ if((xfer)->flags & USBD_DEV_TRANSFERRING)	\
-  {						\
-     (xfer)->flags &= ~USBD_DEV_TRANSFERRING;	\
-     if( (xfer)->error )			\
-     { goto tr_error; }				\
-     else					\
-     { goto tr_transferred; }			\
-  }						\
-  else						\
-  { goto tr_setup; }				\
-}						\
-/**/
-
-#define _MAKE_ENUM(enum,value,arg...)		\
+#define	_MAKE_ENUM(enum,value,arg...)		\
         enum value,				\
-/**/
+					/**/
 
-#define MAKE_ENUM(macro,end...)			\
+#define	MAKE_ENUM(macro,end...)			\
 enum { macro(_MAKE_ENUM) end }			\
-/**/
+					/**/
 
-#define __MAKE_TABLE(a...) a    /* double pass to expand all macros */
-#define _MAKE_TABLE(a...) (a),  /* add comma */
-#define MAKE_TABLE(m,field,p,a...) m##_##field p = { __MAKE_TABLE(m(m##_##field _MAKE_TABLE)) a }
+#define	__MAKE_TABLE(a...) a		/* double pass to expand all macros */
+#define	_MAKE_TABLE(a...) (a),		/* add comma */
+#define	MAKE_TABLE(m,field,p,a...) m##_##field p = { __MAKE_TABLE(m(m##_##field _MAKE_TABLE)) a }
 
 #ifndef LOG2
-#define LOG2(x) ( \
+#define	LOG2(x) ( \
 ((x) <= (1<<0x0)) ? 0x0 : \
 ((x) <= (1<<0x1)) ? 0x1 : \
 ((x) <= (1<<0x2)) ? 0x2 : \
@@ -278,18 +282,18 @@ enum { macro(_MAKE_ENUM) end }			\
 ((x) <= (1<<0xE)) ? 0xE : \
 ((x) <= (1<<0xF)) ? 0xF : \
 0x10)
-#endif /* LOG2 */
+#endif					/* LOG2 */
 
-/* preliminary fix for a bug in msleep on FreeBSD, 
+/* preliminary fix for a bug in msleep on FreeBSD,
  * which cannot sleep with Giant:
  */
 #ifdef mtx_sleep
 #undef mtx_sleep
-#define mtx_sleep(i,m,p,w,t) \
+#define	mtx_sleep(i,m,p,w,t) \
   _sleep(i,(((m) == &Giant) ? NULL : &(m)->lock_object),p,w,t)
 #else
-#define mtx_sleep(i,m,p,w,t) \
+#define	mtx_sleep(i,m,p,w,t) \
   msleep(i,(((m) == &Giant) ? NULL : (m)),p,w,t)
 #endif
 
-#endif /* _USB_PORT_H */
+#endif					/* _USB_PORT_H */

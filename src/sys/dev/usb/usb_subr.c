@@ -54,12 +54,15 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.95 2007/06/30 20:18:44 imp Ex
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/endian.h>
-#include <sys/queue.h> /* LIST_XXX() */
+#include <sys/queue.h>			/* LIST_XXX() */
 #include <sys/lock.h>
 #include <sys/malloc.h>
 #include <sys/mbuf.h>
+#include <sys/proc.h>
+#include <sys/sched.h>
 #include <sys/kthread.h>
 #include <sys/unistd.h>
+#include <sys/uio.h>
 
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
@@ -67,21 +70,23 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.95 2007/06/30 20:18:44 imp Ex
 #include <dev/usb/usb_hid.h>
 #include "usbdevs.h"
 #include <dev/usb/usb_quirks.h>
+#include <dev/usb/usb_template.h>
 
 #ifdef USBVERBOSE
 /*
  * Descriptions of of known vendors and devices ("products").
  */
 struct usb_knowndev {
-	u_int16_t		vendor;
-	u_int16_t		product;
-	int			flags;
-	char			*vendorname, *productname;
+	uint16_t vendor;
+	uint16_t product;
+	int	flags;
+	char   *vendorname, *productname;
 };
-#define	USB_KNOWNDEV_NOPROD	0x01		/* match on vendor only */
+
+#define	USB_KNOWNDEV_NOPROD	0x01	/* match on vendor only */
 
 #include "usbdevs_data.h"
-#endif /* USBVERBOSE */
+#endif					/* USBVERBOSE */
 
 static void
 usbd_trim_spaces(char *p)
@@ -89,54 +94,46 @@ usbd_trim_spaces(char *p)
 	char *q;
 	char *e;
 
-	if(p == NULL)
+	if (p == NULL)
 		return;
 	q = e = p;
-	while (*q == ' ')	/* skip leading spaces */
+	while (*q == ' ')		/* skip leading spaces */
 		q++;
-	while ((*p = *q++))	/* copy string */
-		if (*p++ != ' ') /* remember last non-space */
+	while ((*p = *q++))		/* copy string */
+		if (*p++ != ' ')	/* remember last non-space */
 			e = p;
-	*e = 0;			/* kill trailing spaces */
+	*e = 0;				/* kill trailing spaces */
 	return;
 }
 
 static void
-usbd_devinfo_vp(struct usbd_device *udev, char *v, char *p, uint16_t v_len, 
-		uint16_t p_len, uint8_t usedev)
+usbd_finish_vp_info(struct usbd_device *udev)
 {
 	usb_device_descriptor_t *udd = &udev->ddesc;
-	char *vendor;
-	char *product;
+	uint8_t *vendor;
+	uint8_t *product;
+
 #ifdef USBVERBOSE
 	const struct usb_knowndev *kdp;
+
 #endif
 	uint16_t vendor_id;
 	uint16_t product_id;
-	usbd_status err;
 
-	v[0] = 0;
-	p[0] = 0;
+	usbd_trim_spaces(udev->manufacturer);
+	usbd_trim_spaces(udev->product);
 
-	if(udev == NULL) {
-		return;
+	if (udev->manufacturer[0]) {
+		vendor = udev->manufacturer;
+	} else {
+		vendor = NULL;
 	}
 
-	if (usedev)
-	{
-		err = usbreq_get_string_any
-		  (udev, udd->iManufacturer, v, v_len);
-
-		usbd_trim_spaces(v);
-
-		err = usbreq_get_string_any
-		  (udev, udd->iProduct, p, p_len);
-
-		usbd_trim_spaces(p);
+	if (udev->product[0]) {
+		product = udev->product;
+	} else {
+		product = NULL;
 	}
-
-	vendor = (*v) ? v : NULL;
-	product = (*p) ? p : NULL;
 
 	vendor_id = UGETW(udd->idVendor);
 	product_id = UGETW(udd->idProduct);
@@ -144,37 +141,41 @@ usbd_devinfo_vp(struct usbd_device *udev, char *v, char *p, uint16_t v_len,
 #ifdef USBVERBOSE
 	if (vendor == NULL || product == NULL) {
 
-		for(kdp = usb_knowndevs;
+		for (kdp = usb_knowndevs;
 		    kdp->vendorname != NULL;
 		    kdp++) {
 			if (kdp->vendor == vendor_id &&
-			   (kdp->product == product_id ||
+			    (kdp->product == product_id ||
 			    (kdp->flags & USB_KNOWNDEV_NOPROD) != 0))
 				break;
 		}
 		if (kdp->vendorname != NULL) {
 			if (vendor == NULL)
-			    vendor = kdp->vendorname;
+				vendor = kdp->vendorname;
 			if (product == NULL)
-			    product = (kdp->flags & USB_KNOWNDEV_NOPROD) == 0 ?
-			        kdp->productname : NULL;
+				product = (kdp->flags & USB_KNOWNDEV_NOPROD) == 0 ?
+				    kdp->productname : NULL;
 		}
 	}
 #endif
 	if (vendor && *vendor) {
-	    if (v != vendor) {
-	        strlcpy(v, vendor, v_len);
-	    }
+		if (udev->manufacturer != vendor) {
+			strlcpy(udev->manufacturer, vendor,
+			    sizeof(udev->manufacturer));
+		}
 	} else {
-	    snprintf(v, v_len, "vendor 0x%04x", vendor_id);
+		snprintf(udev->manufacturer,
+		    sizeof(udev->manufacturer), "vendor 0x%04x", vendor_id);
 	}
 
 	if (product && *product) {
-	    if (p != product) {
-	        strlcpy(p, product, p_len);
-	    }
+		if (udev->product != product) {
+			strlcpy(udev->product, product,
+			    sizeof(udev->product));
+		}
 	} else {
-	    snprintf(p, p_len, "product 0x%04x", product_id);
+		snprintf(udev->product,
+		    sizeof(udev->product), "product 0x%04x", product_id);
 	}
 	return;
 }
@@ -183,53 +184,46 @@ static void
 usbd_printBCD(char *p, uint16_t p_len, uint16_t bcd)
 {
 	int len;
+
 	len = snprintf(p, p_len, "%x.%02x", bcd >> 8, bcd & 0xff);
 	return;
 }
 
 void
-usbd_devinfo(struct usbd_device *udev, int showclass, 
-	     char *dst_ptr, u_int16_t dst_len)
+usbd_devinfo(struct usbd_device *udev, char *dst_ptr, uint16_t dst_len)
 {
 	usb_device_descriptor_t *udd = &udev->ddesc;
-	char vendor[USB_MAX_STRING_LEN];
-	char product[USB_MAX_STRING_LEN];
-	u_int16_t bcdDevice, bcdUSB;
-
-	usbd_devinfo_vp(udev, vendor, product, 
-			sizeof(vendor), sizeof(product), 1);
+	uint16_t bcdDevice;
+	uint16_t bcdUSB;
 
 	bcdUSB = UGETW(udd->bcdUSB);
 	bcdDevice = UGETW(udd->bcdDevice);
 
-	if(showclass)
-	{
-	    snprintf(dst_ptr, dst_len, "%s %s, class %d/%d, rev %x.%02x/"
-		     "%x.%02x, addr %d", vendor, product,
-		     udd->bDeviceClass, udd->bDeviceSubClass,
-		     (bcdUSB >> 8), bcdUSB & 0xFF,
-		     (bcdDevice >> 8), bcdDevice & 0xFF,
-		     udev->address);
-	}
-	else
-	{
-	    snprintf(dst_ptr, dst_len, "%s %s, rev %x.%02x/"
-		     "%x.%02x, addr %d", vendor, product,
-		     (bcdUSB >> 8), bcdUSB & 0xFF,
-		     (bcdDevice >> 8), bcdDevice & 0xFF,
-		     udev->address);
+	if (udd->bDeviceClass != 0xFF) {
+		snprintf(dst_ptr, dst_len, "%s %s, class %d/%d, rev %x.%02x/"
+		    "%x.%02x, addr %d", udev->manufacturer, udev->product,
+		    udd->bDeviceClass, udd->bDeviceSubClass,
+		    (bcdUSB >> 8), bcdUSB & 0xFF,
+		    (bcdDevice >> 8), bcdDevice & 0xFF,
+		    udev->address);
+	} else {
+		snprintf(dst_ptr, dst_len, "%s %s, rev %x.%02x/"
+		    "%x.%02x, addr %d", udev->manufacturer, udev->product,
+		    (bcdUSB >> 8), bcdUSB & 0xFF,
+		    (bcdDevice >> 8), bcdDevice & 0xFF,
+		    udev->address);
 	}
 	return;
 }
 
-const char * 
-usbd_errstr(usbd_status err)
+const char *
+usbd_errstr(usbd_status_t err)
 {
-	static const char * const
-	  MAKE_TABLE(USBD_STATUS,DESC,[]);
+	static const char *const
+	      MAKE_TABLE(USBD_STATUS, DESC,[]);
 
 	return (err < N_USBD_STATUS) ?
-	  USBD_STATUS_DESC[err] : "unknown error!";
+	    USBD_STATUS_DESC[err] : "unknown error!";
 }
 
 /* Delay for a certain number of ms */
@@ -238,12 +232,12 @@ usb_delay_ms(struct usbd_bus *bus, uint32_t ms)
 {
 	/* Wait at least two clock ticks so we know the time has passed. */
 	if (cold)
-		DELAY((ms+1) * 1000);
+		DELAY((ms + 1) * 1000);
 	else
 #if (__FreeBSD_version >= 700031)
-		pause("usbdly", (((ms*hz)+999)/1000) + 1);
+		pause("usbdly", (((ms * hz) + 999) / 1000) + 1);
 #else
-		tsleep(&ms, PRIBIO, "usbdly", (((ms*hz)+999)/1000) + 1);
+		tsleep(&ms, PRIBIO, "usbdly", (((ms * hz) + 999) / 1000) + 1);
 #endif
 }
 
@@ -254,7 +248,30 @@ usbd_delay_ms(struct usbd_device *udev, uint32_t ms)
 	usb_delay_ms(udev->bus, ms);
 }
 
-#define ADD_BYTES(ptr,len) ((void *)(((u_int8_t *)(ptr)) + (len)))
+/*------------------------------------------------------------------------*
+ *	 usbd_pause_mtx - factored out code
+ *
+ * NOTE: number of milliseconds per second is 1024 for sake of optimisation
+ *------------------------------------------------------------------------*/
+void
+usbd_pause_mtx(struct mtx *mtx, uint32_t ms)
+{
+	if (cold) {
+		ms = (ms + 1) * 1024;
+		DELAY(ms);
+
+	} else {
+
+		ms = USBD_MS_TO_TICKS(ms);
+		ms++;			/* be sure that we don't return too
+					 * early */
+
+		if (mtx_sleep(&ms, mtx, 0, "pause_mtx", ms)) {
+			/* should not happen */
+		}
+	}
+	return;
+}
 
 usb_descriptor_t *
 usbd_desc_foreach(usb_config_descriptor_t *cd, usb_descriptor_t *desc)
@@ -262,115 +279,93 @@ usbd_desc_foreach(usb_config_descriptor_t *cd, usb_descriptor_t *desc)
 	void *end;
 
 	if (cd == NULL) {
-	    return NULL;
+		return (NULL);
 	}
-
-	end = ADD_BYTES(cd, UGETW(cd->wTotalLength));
+	end = USBD_ADD_BYTES(cd, UGETW(cd->wTotalLength));
 
 	if (desc == NULL) {
-	    desc = ADD_BYTES(cd, 0);
+		desc = USBD_ADD_BYTES(cd, 0);
 	} else {
-	    desc = ADD_BYTES(desc, desc->bLength);
+		desc = USBD_ADD_BYTES(desc, desc->bLength);
 	}
 	return (((((void *)desc) >= ((void *)cd)) &&
-		 (((void *)desc) < end) &&
-		 (ADD_BYTES(desc,desc->bLength) >= ((void *)cd)) &&
-		 (ADD_BYTES(desc,desc->bLength) <= end) &&
-		 (desc->bLength >= sizeof(*desc))) ? desc : NULL);
-}
-
-usb_hid_descriptor_t *
-usbd_get_hdesc(usb_config_descriptor_t *cd, usb_interface_descriptor_t *id)
-{
-	usb_descriptor_t *desc = (void *)id;
-
-	if(desc == NULL) {
-	    return NULL;
-	}
-
-	while ((desc = usbd_desc_foreach(cd, desc)))
-	{
-		if ((desc->bDescriptorType == UDESC_HID) &&
-		    (desc->bLength >= USB_HID_DESCRIPTOR_SIZE(0)))
-		{
-			return (void *)desc;
-		}
-
-		if (desc->bDescriptorType == UDESC_INTERFACE)
-		{
-			break;
-		}
-	}
-	return NULL;
+	    (((void *)desc) < end) &&
+	    (USBD_ADD_BYTES(desc, desc->bLength) >= ((void *)cd)) &&
+	    (USBD_ADD_BYTES(desc, desc->bLength) <= end) &&
+	    (desc->bLength >= sizeof(*desc))) ? desc : NULL);
 }
 
 usb_interface_descriptor_t *
-usbd_find_idesc(usb_config_descriptor_t *cd, u_int16_t iface_index, 
-		u_int16_t alt_index)
+usbd_find_idesc(usb_config_descriptor_t *cd,
+    uint8_t iface_index, uint8_t alt_index)
 {
 	usb_descriptor_t *desc = NULL;
 	usb_interface_descriptor_t *id;
-	u_int16_t curidx = 0xFFFF;
-	u_int16_t lastidx = 0xFFFF;
-	u_int16_t curaidx = 0;
+	uint8_t curidx = 0;
+	uint8_t lastidx = 0;
+	uint8_t curaidx = 0;
+	uint8_t first = 1;
 
-	while ((desc = usbd_desc_foreach(cd, desc)))
-	{
-	    if ((desc->bDescriptorType == UDESC_INTERFACE) &&
-		(desc->bLength >= sizeof(*id)))
-	    {
-	        id = (void *)desc;
+	while ((desc = usbd_desc_foreach(cd, desc))) {
+		if ((desc->bDescriptorType == UDESC_INTERFACE) &&
+		    (desc->bLength >= sizeof(*id))) {
+			id = (void *)desc;
 
-		if(id->bInterfaceNumber != lastidx)
-		{
-		    lastidx = id->bInterfaceNumber;
-		    curidx++;
-		    curaidx = 0;
+			if (first) {
+				first = 0;
+				lastidx = id->bInterfaceNumber;
+
+			} else if (id->bInterfaceNumber != lastidx) {
+
+				lastidx = id->bInterfaceNumber;
+				curidx++;
+				curaidx = 0;
+
+			} else {
+				curaidx++;
+			}
+
+			if ((iface_index == curidx) && (alt_index == curaidx)) {
+				return (id);
+			}
 		}
-		else
-		{
-		    curaidx++;
-		}
-		if((iface_index == curidx) && (alt_index == curaidx))
-		{
-		    return (id);
-		}
-	    }
 	}
 	return (NULL);
 }
 
 usb_endpoint_descriptor_t *
-usbd_find_edesc(usb_config_descriptor_t *cd, u_int16_t iface_index, 
-		u_int16_t alt_index, u_int16_t endptidx)
+usbd_find_edesc(usb_config_descriptor_t *cd,
+    uint8_t iface_index, uint8_t alt_index, uint8_t ep_index)
 {
 	usb_descriptor_t *desc = NULL;
 	usb_interface_descriptor_t *d;
-	u_int16_t curidx = 0;
+	uint8_t curidx = 0;
 
 	d = usbd_find_idesc(cd, iface_index, alt_index);
 	if (d == NULL)
-	    return NULL;
+		return (NULL);
 
-	if (endptidx >= d->bNumEndpoints) /* quick exit */
-	    return NULL;
+	if (ep_index >= d->bNumEndpoints)	/* quick exit */
+		return (NULL);
 
 	desc = ((void *)d);
 
 	while ((desc = usbd_desc_foreach(cd, desc))) {
 
-	    if(desc->bDescriptorType == UDESC_INTERFACE) {
-	        break;
-	    }
-
-	    if (desc->bDescriptorType == UDESC_ENDPOINT) {
-
-	        if (curidx == endptidx) {
-		    return ((desc->bLength >= USB_ENDPOINT_DESCRIPTOR_SIZE) ? 
-			    ((void *)desc) : NULL);
+		if (desc->bDescriptorType == UDESC_INTERFACE) {
+			break;
 		}
-		curidx++;
-	    }
+		if (desc->bDescriptorType == UDESC_ENDPOINT) {
+
+			if (curidx == ep_index) {
+				if (desc->bLength < USB_ENDPOINT_DESCRIPTOR_SIZE) {
+					/* endpoint index is invalid */
+					break;
+				}
+				return ((void *)desc);
+			}
+			curidx++;
+		}
 	}
 	return (NULL);
 }
@@ -385,9 +380,10 @@ usbd_find_edesc(usb_config_descriptor_t *cd, u_int16_t iface_index,
  * as the "id" argument. That way one can search for multiple descriptors
  * matching the same criteria.
  *------------------------------------------------------------------------*/
-void *
-usbd_find_descriptor(struct usbd_device *udev, void *id, uint16_t iface_index,
-		     int16_t type, int16_t subtype)
+void   *
+usbd_find_descriptor(struct usbd_device *udev, void *id, uint8_t iface_index,
+    uint8_t type, uint8_t type_mask,
+    uint8_t subtype, uint8_t subtype_mask)
 {
 	usb_descriptor_t *desc;
 	usb_config_descriptor_t *cd;
@@ -395,21 +391,18 @@ usbd_find_descriptor(struct usbd_device *udev, void *id, uint16_t iface_index,
 
 	cd = usbd_get_config_descriptor(udev);
 	if (cd == NULL) {
-		return NULL;
+		return (NULL);
 	}
-
 	if (id == NULL) {
-	    iface = usbd_get_iface(udev, iface_index);
-	    if (iface == NULL) {
-		return NULL;
-	    }
-
-	    id = usbd_get_interface_descriptor(iface);
-	    if (id == NULL) {
-		return NULL;
-	    }
+		iface = usbd_get_iface(udev, iface_index);
+		if (iface == NULL) {
+			return (NULL);
+		}
+		id = usbd_get_interface_descriptor(iface);
+		if (id == NULL) {
+			return (NULL);
+		}
 	}
-
 	desc = (void *)id;
 
 	while ((desc = usbd_desc_foreach(cd, desc))) {
@@ -417,20 +410,16 @@ usbd_find_descriptor(struct usbd_device *udev, void *id, uint16_t iface_index,
 		if (desc->bDescriptorType == UDESC_INTERFACE) {
 			break;
 		}
-
-		if (((type == USBD_TYPE_ANY) ||
-		     (type == desc->bDescriptorType)) &&
-		    ((subtype == USBD_SUBTYPE_ANY) ||
-		     (subtype == desc->bDescriptorSubtype)))
-		{
-			return desc;
+		if (((desc->bDescriptorType & type_mask) == type) &&
+		    ((desc->bDescriptorSubtype & subtype_mask) == subtype)) {
+			return (desc);
 		}
 	}
-	return NULL;
+	return (NULL);
 }
 
 uint16_t
-usbd_get_no_alts(usb_config_descriptor_t *cd, u_int8_t ifaceno)
+usbd_get_no_alts(usb_config_descriptor_t *cd, uint8_t ifaceno)
 {
 	usb_descriptor_t *desc = NULL;
 	usb_interface_descriptor_t *id;
@@ -438,30 +427,29 @@ usbd_get_no_alts(usb_config_descriptor_t *cd, u_int8_t ifaceno)
 
 	while ((desc = usbd_desc_foreach(cd, desc))) {
 
-	    if ((desc->bDescriptorType == UDESC_INTERFACE) &&
-		(desc->bLength >= sizeof(*id))) {
-	        id = (void *)desc;
-		if (id->bInterfaceNumber == ifaceno) {
-		    n++;
+		if ((desc->bDescriptorType == UDESC_INTERFACE) &&
+		    (desc->bLength >= sizeof(*id))) {
+			id = (void *)desc;
+			if (id->bInterfaceNumber == ifaceno) {
+				n++;
+			}
 		}
-	    }
 	}
-	return n;
+	return (n);
 }
 
 static void
-usbd_fill_pipe_data(struct usbd_device *udev, u_int8_t iface_index,
-		    usb_endpoint_descriptor_t *edesc, struct usbd_pipe *pipe)
+usbd_fill_pipe_data(struct usbd_device *udev, uint8_t iface_index,
+    usb_endpoint_descriptor_t *edesc, struct usbd_pipe *pipe)
 {
 	bzero(pipe, sizeof(*pipe));
 
-	(udev->bus->methods->pipe_init)(udev,edesc,pipe);
+	(udev->bus->methods->pipe_init) (udev, edesc, pipe);
 
 	if (pipe->methods == NULL) {
-	    /* the pipe is invalid: just return */
-	    return;
+		/* the pipe is invalid: just return */
+		return;
 	}
-
 	pipe->edesc = edesc;
 	pipe->iface_index = iface_index;
 	LIST_INIT(&pipe->list_head);
@@ -494,7 +482,7 @@ usbd_fill_pipe_data(struct usbd_device *udev, u_int8_t iface_index,
  *
  * USB HUBs have a very simple Transaction Translator, that will
  * simply pipeline all the SPLIT transactions. That means that the
- * first one queued will be executed!
+ * transactions will be executed in the order they are queued!
  *
  */
 
@@ -510,12 +498,12 @@ usbd_find_best_slot(uint32_t *ptr, uint8_t start, uint8_t end)
 	/* find the last slot with lesser used bandwidth */
 
 	for (x = start; x < end; x++) {
-	    if (max >= ptr[x]) {
-	        max = ptr[x];
-		y = x;
-	    }
+		if (max >= ptr[x]) {
+			max = ptr[x];
+			y = x;
+		}
 	}
-	return y;
+	return (y);
 }
 
 uint8_t
@@ -524,32 +512,41 @@ usbd_intr_schedule_adjust(struct usbd_device *udev, int16_t len, uint8_t slot)
 	struct usbd_bus *bus = udev->bus;
 	struct usbd_hub *hub;
 
+	mtx_assert(&(bus->mtx), MA_OWNED);
+
 	if (usbd_get_speed(udev) == USB_SPEED_HIGH) {
-	    if (slot >= USB_HS_MICRO_FRAMES_MAX) {
-	        slot = usbd_find_best_slot(bus->uframe_usage, 0, 
-					   USB_HS_MICRO_FRAMES_MAX);
-	    }
-	    bus->uframe_usage[slot] += len;
+		if (slot >= USB_HS_MICRO_FRAMES_MAX) {
+			slot = usbd_find_best_slot(bus->uframe_usage, 0,
+			    USB_HS_MICRO_FRAMES_MAX);
+		}
+		bus->uframe_usage[slot] += len;
 	} else {
-	    if (usbd_get_speed(udev) == USB_SPEED_LOW) {
-	        len *= 8;
-	    }
-	    hub = udev->myhsport->parent->hub;
-	    if (slot >= USB_HS_MICRO_FRAMES_MAX) {
-	        slot = usbd_find_best_slot(hub->uframe_usage, 
-					   USB_FS_ISOC_UFRAME_MAX, 6);
-	    }
-	    hub->uframe_usage[slot] += len;
-	    bus->uframe_usage[slot] += len;
+		if (usbd_get_speed(udev) == USB_SPEED_LOW) {
+			len *= 8;
+		}
+		/*
+	         * The Host Controller Driver should have
+	         * performed checks so that the lookup
+	         * below does not result in a NULL pointer
+	         * access.
+	         */
+
+		hub = bus->devices[udev->hs_hub_addr]->hub;
+		if (slot >= USB_HS_MICRO_FRAMES_MAX) {
+			slot = usbd_find_best_slot(hub->uframe_usage,
+			    USB_FS_ISOC_UFRAME_MAX, 6);
+		}
+		hub->uframe_usage[slot] += len;
+		bus->uframe_usage[slot] += len;
 	}
-	return slot;
+	return (slot);
 }
 
 static void
 usbd_fs_isoc_schedule_init_sub(struct usbd_fs_isoc_schedule *fss)
 {
-	fss->total_bytes = (USB_FS_ISOC_UFRAME_MAX * 
-			    USB_FS_BYTES_PER_HS_UFRAME);
+	fss->total_bytes = (USB_FS_ISOC_UFRAME_MAX *
+	    USB_FS_BYTES_PER_HS_UFRAME);
 	fss->frame_bytes = (USB_FS_BYTES_PER_HS_UFRAME);
 	fss->frame_slot = 0;
 	return;
@@ -561,17 +558,17 @@ usbd_fs_isoc_schedule_init_all(struct usbd_fs_isoc_schedule *fss)
 	struct usbd_fs_isoc_schedule *fss_end = fss + USB_ISOC_TIME_MAX;
 
 	while (fss != fss_end) {
-	    usbd_fs_isoc_schedule_init_sub(fss);
-	    fss ++;
+		usbd_fs_isoc_schedule_init_sub(fss);
+		fss++;
 	}
 	return;
 }
 
 uint16_t
 usbd_fs_isoc_schedule_isoc_time_expand(struct usbd_device *udev,
-				       struct usbd_fs_isoc_schedule **pp_start,
-				       struct usbd_fs_isoc_schedule **pp_end,
-				       uint16_t isoc_time)
+    struct usbd_fs_isoc_schedule **pp_start,
+    struct usbd_fs_isoc_schedule **pp_end,
+    uint16_t isoc_time)
 {
 	struct usbd_fs_isoc_schedule *fss_end;
 	struct usbd_fs_isoc_schedule *fss_a;
@@ -580,39 +577,38 @@ usbd_fs_isoc_schedule_isoc_time_expand(struct usbd_device *udev,
 
 	isoc_time = usbd_isoc_time_expand(udev->bus, isoc_time);
 
-	if (udev->myhsport &&
-	    udev->myhsport->parent->hub) {
+	hs_hub = udev->bus->devices[udev->hs_hub_addr]->hub;
 
-	    hs_hub = udev->myhsport->parent->hub;
+	if (hs_hub != NULL) {
 
-	    fss_a = hs_hub->fs_isoc_schedule + 
-	      (hs_hub->isoc_last_time % USB_ISOC_TIME_MAX);
+		fss_a = hs_hub->fs_isoc_schedule +
+		    (hs_hub->isoc_last_time % USB_ISOC_TIME_MAX);
 
-	    hs_hub->isoc_last_time = isoc_time;
+		hs_hub->isoc_last_time = isoc_time;
 
-	    fss_b = hs_hub->fs_isoc_schedule +
-	      (isoc_time % USB_ISOC_TIME_MAX);
+		fss_b = hs_hub->fs_isoc_schedule +
+		    (isoc_time % USB_ISOC_TIME_MAX);
 
-	    fss_end = hs_hub->fs_isoc_schedule + USB_ISOC_TIME_MAX;
+		fss_end = hs_hub->fs_isoc_schedule + USB_ISOC_TIME_MAX;
 
-	    *pp_start = hs_hub->fs_isoc_schedule;
-	    *pp_end = fss_end;
+		*pp_start = hs_hub->fs_isoc_schedule;
+		*pp_end = fss_end;
 
-	    while (fss_a != fss_b) {
-	        if (fss_a == fss_end) {
-		    fss_a = hs_hub->fs_isoc_schedule;
-		    continue;
+		while (fss_a != fss_b) {
+			if (fss_a == fss_end) {
+				fss_a = hs_hub->fs_isoc_schedule;
+				continue;
+			}
+			usbd_fs_isoc_schedule_init_sub(fss_a);
+			fss_a++;
 		}
-		usbd_fs_isoc_schedule_init_sub(fss_a);
-		fss_a++;
-	    }
 
 	} else {
 
-	    *pp_start = NULL;
-	    *pp_end = NULL;
+		*pp_start = NULL;
+		*pp_end = NULL;
 	}
-	return isoc_time;
+	return (isoc_time);
 }
 
 uint8_t
@@ -628,38 +624,38 @@ usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss, uint16_t len)
 	len /= 6;
 
 	if (len > fss->total_bytes) {
-	    len = fss->total_bytes;
+		len = fss->total_bytes;
 	}
-
 	if (len > 0) {
 
-	    fss->total_bytes -= len;
+		fss->total_bytes -= len;
 
-	    while (len >= fss->frame_bytes) {
-	        len -= fss->frame_bytes;
-		fss->frame_bytes = USB_FS_BYTES_PER_HS_UFRAME;
-		fss->frame_slot ++;
-	    }
+		while (len >= fss->frame_bytes) {
+			len -= fss->frame_bytes;
+			fss->frame_bytes = USB_FS_BYTES_PER_HS_UFRAME;
+			fss->frame_slot++;
+		}
 
-	    fss->frame_bytes -= len;
+		fss->frame_bytes -= len;
 	}
-	return slot;
+	return (slot);
 }
 
-/* NOTE: pipes should not be in use when
- * ``usbd_free_pipe_data()'' is called
- */
+/*------------------------------------------------------------------------*
+ *	usbd_free_pipe_data
+ *
+ * NOTE: The interface pipes should not be in use when
+ * this function is called !
+ *------------------------------------------------------------------------*/
 static void
-usbd_free_pipe_data(struct usbd_device *udev, int iface_index)
+usbd_free_pipe_data(struct usbd_device *udev,
+    uint8_t iface_index, uint8_t iface_mask)
 {
 	struct usbd_pipe *pipe = udev->pipes;
 	struct usbd_pipe *pipe_end = udev->pipes_end;
 
-	while (pipe != pipe_end)
-	{
-		if((iface_index == pipe->iface_index) ||
-		   (iface_index == -1))
-		{
+	while (pipe != pipe_end) {
+		if ((pipe->iface_index & iface_mask) == iface_index) {
 			/* free pipe */
 			pipe->edesc = NULL;
 		}
@@ -668,34 +664,33 @@ usbd_free_pipe_data(struct usbd_device *udev, int iface_index)
 	return;
 }
 
-usbd_status
-usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
+/*------------------------------------------------------------------------*
+ *	usbd_fill_iface_data
+ *------------------------------------------------------------------------*/
+usbd_status_t
+usbd_fill_iface_data(struct usbd_device *udev,
+    uint8_t iface_index, uint8_t alt_index)
 {
-	struct usbd_interface *iface = usbd_get_iface(udev,iface_index);
+	struct usbd_interface *iface = usbd_get_iface(udev, iface_index);
 	struct usbd_pipe *pipe = udev->pipes;
 	struct usbd_pipe *pipe_end = udev->pipes_end;
 	usb_interface_descriptor_t *id;
 	usb_endpoint_descriptor_t *ed = NULL;
 	usb_descriptor_t *desc;
-	u_int8_t nendpt;
+	uint8_t nendpt;
 
-	if(iface == NULL)
-	{
+	if (iface == NULL) {
 		return (USBD_INVAL);
 	}
-
-	PRINTFN(4,("iface_index=%d alt_index=%d\n",
-		    iface_index, alt_index));
+	PRINTFN(4, ("iface_index=%d alt_index=%d\n",
+	    iface_index, alt_index));
 
 	/* mtx_assert() */
 
-	while (pipe != pipe_end)
-	{
-		if(pipe->iface_index == iface_index)
-		{
-			if(pipe->refcount)
-			{
-				return(USBD_IN_USE);
+	while (pipe != pipe_end) {
+		if (pipe->iface_index == iface_index) {
+			if (pipe->refcount) {
+				return (USBD_IN_USE);
 			}
 		}
 		pipe++;
@@ -704,11 +699,10 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 	pipe = &udev->pipes[0];
 
 	/* free old pipes if any */
-	usbd_free_pipe_data(udev, iface_index);
+	usbd_free_pipe_data(udev, iface_index, 0 - 1);
 
 	id = usbd_find_idesc(udev->cdesc, iface_index, alt_index);
-	if(id == NULL)
-	{
+	if (id == NULL) {
 		return (USBD_INVAL);
 	}
 	iface->idesc = id;
@@ -717,63 +711,32 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 	USBD_CLR_IFACE_NO_PROBE(udev, iface_index);
 
 	nendpt = id->bNumEndpoints;
-	PRINTFN(4,("found idesc nendpt=%d\n", nendpt));
+	PRINTFN(4, ("found idesc nendpt=%d\n", nendpt));
 
 	desc = (void *)id;
 
-	while(nendpt--)
-	{
-		PRINTFN(10,("endpt=%d\n", nendpt));
+	while (nendpt--) {
+		PRINTFN(10, ("endpt=%d\n", nendpt));
 
-		while ((desc = usbd_desc_foreach(udev->cdesc, desc)))
-		{
+		while ((desc = usbd_desc_foreach(udev->cdesc, desc))) {
 			if ((desc->bDescriptorType == UDESC_ENDPOINT) &&
-			    (desc->bLength >= USB_ENDPOINT_DESCRIPTOR_SIZE))
-			{
+			    (desc->bLength >= USB_ENDPOINT_DESCRIPTOR_SIZE)) {
 				goto found;
 			}
-			if (desc->bDescriptorType == UDESC_INTERFACE)
-			{
+			if (desc->bDescriptorType == UDESC_INTERFACE) {
 				break;
 			}
 		}
 		goto error;
 
-	found:
+found:
 		ed = (void *)desc;
 
-		if(udev->speed == USB_SPEED_HIGH)
-		{
-			/* control and bulk endpoints have fixed max packet sizes */
-			switch (UE_GET_XFERTYPE(ed->bmAttributes)) {
-			case UE_CONTROL:
-				USETW(ed->wMaxPacketSize, USB_2_MAX_CTRL_PACKET);
-				break;
-			case UE_BULK:
-				USETW(ed->wMaxPacketSize, USB_2_MAX_BULK_PACKET);
-				break;
-			}
-		}
-
-		if (usbd_get_max_frame_size(ed) == 0) {
-#ifdef USB_DEBUG
-			printf("%s: invalid wMaxPacketSize=0x%04x, addr=%d!\n",
-			       __FUNCTION__, UGETW(ed->wMaxPacketSize),
-			       udev->address);
-#endif
-			/* avoid division by zero 
-			 * (in EHCI/UHCI/OHCI drivers) 
-			 */
-			usbd_set_max_packet_size_count(ed, USB_MAX_IPACKET, 1);
-		}
-
 		/* find a free pipe */
-		while (pipe != pipe_end)
-		{
-			if(pipe->edesc == NULL)
-			{
+		while (pipe != pipe_end) {
+			if (pipe->edesc == NULL) {
 				/* pipe is free */
-				usbd_fill_pipe_data(udev,iface_index,ed,pipe);
+				usbd_fill_pipe_data(udev, iface_index, ed, pipe);
 				break;
 			}
 			pipe++;
@@ -781,13 +744,13 @@ usbd_fill_iface_data(struct usbd_device *udev, int iface_index, int alt_index)
 	}
 	return (USBD_NORMAL_COMPLETION);
 
- error:
+error:
 	/* passed end, or bad desc */
-	printf("%s: bad descriptor(s), addr=%d!\n",
-	       __FUNCTION__, udev->address);
+	PRINTFN(-1, ("%s: bad descriptor(s), addr=%d!\n",
+	    __FUNCTION__, udev->address));
 
 	/* free old pipes if any */
-	usbd_free_pipe_data(udev, iface_index);
+	usbd_free_pipe_data(udev, iface_index, 0 - 1);
 	return (USBD_INVAL);
 }
 
@@ -799,27 +762,40 @@ usbd_free_iface_data(struct usbd_device *udev)
 
 	/* mtx_assert() */
 
+	/* free Linux compat device, if any */
+	if (udev->linux_dev) {
+		usb_linux_free_usb_device(udev->linux_dev);
+		udev->linux_dev = NULL;
+	}
 	/* free all pipes, if any */
-	usbd_free_pipe_data(udev, -1);
+	usbd_free_pipe_data(udev, 0, 0);
 
 	/* free all interfaces, if any */
-	while (iface != iface_end)
-	{
+	while (iface != iface_end) {
 		iface->idesc = NULL;
+		iface->alt_index = 0;
 		iface++;
 	}
 
-	if(udev->cdesc != NULL)
-	{
-		/* free "cdesc" after "ifaces" */
+	/* free "cdesc" after "ifaces", if any */
+	if (udev->cdesc) {
 		free(udev->cdesc, M_USB);
+		udev->cdesc = NULL;
 	}
-	udev->cdesc = NULL;
-	udev->config = USB_UNCONFIG_NO;
+	/* set unconfigured state */
+	udev->curr_config_no = USB_UNCONFIG_NO;
 	return;
 }
 
-/* - USB config 0
+/*------------------------------------------------------------------------*
+ *	usbd_set_config_no
+ *
+ * This function will search all the configuration descriptors for a
+ * matching configuration number. It is recommended to use
+ * the function "usbd_set_config_index()" when the configuration
+ * number does not matter.
+ *
+ * - USB config 0
  *   - USB interfaces
  *     - USB alternative interfaces
  *       - USB pipes
@@ -828,108 +804,92 @@ usbd_free_iface_data(struct usbd_device *udev)
  *   - USB interfaces
  *     - USB alternative interfaces
  *       - USB pipes
- */
-usbd_status
-usbd_search_and_set_config(struct usbd_device *udev, int no, int msg)
+ *------------------------------------------------------------------------*/
+usbd_status_t
+usbd_set_config_no(struct usbd_device *udev, uint8_t no, uint8_t msg)
 {
 	usb_config_descriptor_t cd;
-	usbd_status err;
-	int index;
+	usbd_status_t err;
+	uint8_t index;
 
-	if(no == USB_UNCONFIG_NO)
-	{
+	if (no == USB_UNCONFIG_NO) {
 		return (usbd_set_config_index(udev, USB_UNCONFIG_INDEX, msg));
 	}
-
-	PRINTFN(5,("%d\n", no));
+	PRINTFN(5, ("%d\n", no));
 
 	/* figure out what config index to use */
-	for(index = 0; 
+	for (index = 0;
 	    index < udev->ddesc.bNumConfigurations;
-	    index++)
-	{
-		err = usbreq_get_config_desc(udev, index, &cd);
-		if(err)
-		{
+	    index++) {
+		err = usbreq_get_config_desc(udev, &usb_global_lock, &cd, index);
+		if (err) {
 			return (err);
 		}
-		if(cd.bConfigurationValue == no)
-		{
+		if (cd.bConfigurationValue == no) {
 			return (usbd_set_config_index(udev, index, msg));
 		}
 	}
 	return (USBD_INVAL);
 }
 
-usbd_status
-usbd_set_config_index(struct usbd_device *udev, int index, int msg)
+/*------------------------------------------------------------------------*
+ *	usbd_set_config_index
+ *------------------------------------------------------------------------*/
+usbd_status_t
+usbd_set_config_index(struct usbd_device *udev, uint8_t index, uint8_t msg)
 {
 	usb_status_t ds;
 	usb_hub_descriptor_t hd;
-	usb_config_descriptor_t cd, *cdp;
-	usbd_status err;
-	int nifc, len, selfpowered, power;
+	usb_config_descriptor_t cd;
+	usb_config_descriptor_t *cdp;
+	uint16_t len;
+	uint16_t power;
+	uint16_t max_power;
+	uint8_t nifc;
+	uint8_t selfpowered;
+	usbd_status_t err;
 
-	PRINTFN(5,("udev=%p index=%d\n", udev, index));
+	PRINTFN(5, ("udev=%p index=%d\n", udev, index));
 
-	if(index == USB_UNCONFIG_INDEX)
-	{
-		/* leave unallocated when
-		 * unconfiguring the device
+	if (index == USB_UNCONFIG_INDEX) {
+		/*
+		 * leave unallocated when unconfiguring the device
 		 */
-		err = usbreq_set_config(udev, USB_UNCONFIG_NO);
+		err = usbreq_set_config(udev, &usb_global_lock, USB_UNCONFIG_NO);
 		goto error;
 	}
-
 	/* get the short descriptor */
-	err = usbreq_get_config_desc(udev, index, &cd);
-	if(err)
-	{
+	err = usbreq_get_config_desc(udev, &usb_global_lock, &cd, index);
+	if (err) {
 		goto error;
 	}
-
 	/* free all configuration data structures */
 	usbd_free_iface_data(udev);
 
 	/* get full descriptor */
 	len = UGETW(cd.wTotalLength);
-	udev->cdesc = malloc(len, M_USB, M_WAITOK|M_ZERO);
-	if(udev->cdesc == NULL)
-	{
+	udev->cdesc = malloc(len, M_USB, M_WAITOK | M_ZERO);
+	if (udev->cdesc == NULL) {
 		return (USBD_NOMEM);
 	}
-
 	cdp = udev->cdesc;
 
-	/* Get the full descriptor. Try a few times for slow devices. */
-	for (nifc = 0; nifc < 3; nifc++) {
+	/* Get the full descriptor. Try 3 times for slow devices. */
 
-	    err = usbreq_get_desc(udev, UDESC_CONFIG, index, len, cdp, 3);
-
-	    if (!err) break;
-
-	    usbd_delay_ms(udev, 200);
-	}
-
+	err = usbreq_get_desc(udev, &usb_global_lock, cdp, len, len,
+	    0, UDESC_CONFIG, index, 3);
 	if (err)
 		goto error;
-	if(cdp->bDescriptorType != UDESC_CONFIG)
-	{
-		PRINTF(("bad desc %d\n",
-			     cdp->bDescriptorType));
-		err = USBD_INVAL;
-		goto error;
-	}
-	if(cdp->bNumInterface > (sizeof(udev->ifaces)/sizeof(udev->ifaces[0])))
-	{
-		PRINTF(("too many interfaces: %d\n", cdp->bNumInterface));
-		cdp->bNumInterface = (sizeof(udev->ifaces)/sizeof(udev->ifaces[0]));
-	}
 
+	if (cdp->bNumInterface > (sizeof(udev->ifaces) / sizeof(udev->ifaces[0]))) {
+		PRINTF(("too many interfaces: %d\n", cdp->bNumInterface));
+		cdp->bNumInterface = (sizeof(udev->ifaces) / sizeof(udev->ifaces[0]));
+	}
 	/* Figure out if the device is self or bus powered. */
 	selfpowered = 0;
 	if (!(udev->quirks->uq_flags & UQ_BUS_POWERED) &&
-	    (cdp->bmAttributes & UC_SELF_POWERED)) {
+	    (cdp->bmAttributes & UC_SELF_POWERED) &&
+	    (udev->flags.usb_mode == USB_MODE_HOST)) {
 		/* May be self powered. */
 		if (cdp->bmAttributes & UC_BUS_POWERED) {
 			/* Must ask device. */
@@ -939,797 +899,992 @@ usbd_set_config_index(struct usbd_device *udev, int index, int msg)
 				 * It seems that the power status can be
 				 * determined by the hub characteristics.
 				 */
-				err = usbreq_get_hub_descriptor(udev, &hd);
+				err = usbreq_get_hub_descriptor
+				    (udev, &usb_global_lock, &hd);
 
-				if(!err &&
-				   (UGETW(hd.wHubCharacteristics) &
-				    UHD_PWR_INDIVIDUAL))
-				{
+				if (!err &&
+				    (UGETW(hd.wHubCharacteristics) &
+				    UHD_PWR_INDIVIDUAL)) {
 					selfpowered = 1;
 				}
 				PRINTF(("characteristics=0x%04x, error=%s\n",
-					 UGETW(hd.wHubCharacteristics),
-					 usbd_errstr(err)));
+				    UGETW(hd.wHubCharacteristics),
+				    usbd_errstr(err)));
 			} else {
-				err = usbreq_get_device_status(udev, &ds);
-				if(!err &&
-				   (UGETW(ds.wStatus) & UDS_SELF_POWERED))
-				{
+				err = usbreq_get_device_status
+				    (udev, &usb_global_lock, &ds);
+
+				if (!err &&
+				    (UGETW(ds.wStatus) & UDS_SELF_POWERED)) {
 					selfpowered = 1;
 				}
 				PRINTF(("status=0x%04x, error=%s\n",
-					 UGETW(ds.wStatus), usbd_errstr(err)));
+				    UGETW(ds.wStatus), usbd_errstr(err)));
 			}
 		} else
 			selfpowered = 1;
 	}
 	PRINTF(("udev=%p cdesc=%p (addr %d) cno=%d attr=0x%02x, "
-		 "selfpowered=%d, power=%d\n",
-		 udev, cdp,
-		 cdp->bConfigurationValue, udev->address, cdp->bmAttributes,
-		 selfpowered, cdp->bMaxPower * 2));
+	    "selfpowered=%d, power=%d\n",
+	    udev, cdp,
+	    cdp->bConfigurationValue, udev->address, cdp->bmAttributes,
+	    selfpowered, cdp->bMaxPower * 2));
 
 	/* Check if we have enough power. */
 	power = cdp->bMaxPower * 2;
-	if(power > udev->powersrc->power)
-	{
-		PRINTF(("power exceeded %d %d\n", power, udev->powersrc->power));
+
+	if (udev->parent_hub) {
+		max_power = udev->parent_hub->hub->portpower;
+	} else {
+		max_power = USB_MAX_POWER;
+	}
+
+	if (power > max_power) {
+		PRINTF(("power exceeded %d %d\n", power, max_power));
+
 		/* XXX print nicer message */
-		if(msg)
-		{
+		if (msg) {
 			device_printf(udev->bus->bdev,
-				      "device addr %d (config %d) exceeds power "
-				      "budget, %d mA > %d mA\n",
-				      udev->address,
-				      cdp->bConfigurationValue,
-				      power, udev->powersrc->power);
+			    "device addr %d (config %d) exceeds power "
+			    "budget, %d mA > %d mA\n",
+			    udev->address,
+			    cdp->bConfigurationValue,
+			    power, max_power);
 		}
 		err = USBD_NO_POWER;
 		goto error;
 	}
-
+	/* Only update "self_powered" in USB Host Mode */
+	if (udev->flags.usb_mode == USB_MODE_HOST) {
+		udev->flags.self_powered = selfpowered;
+	}
 	udev->power = power;
-	udev->self_powered = selfpowered;
-	udev->config = cdp->bConfigurationValue;
+	udev->curr_config_no = cdp->bConfigurationValue;
 
 	/* Set the actual configuration value. */
-	err = usbreq_set_config(udev, cdp->bConfigurationValue);
-	if(err)
-	{
+	err = usbreq_set_config(udev, &usb_global_lock,
+	    cdp->bConfigurationValue);
+	if (err) {
 		goto error;
 	}
-
 	/* Allocate and fill interface data. */
 	nifc = cdp->bNumInterface;
-	while(nifc--)
-	{
+	while (nifc--) {
 		err = usbd_fill_iface_data(udev, nifc, 0);
-		if (err)
-		{
+		if (err) {
 			goto error;
 		}
 	}
 
 	return (USBD_NORMAL_COMPLETION);
 
- error:
+error:
 	PRINTF(("error=%s\n", usbd_errstr(err)));
 	usbd_free_iface_data(udev);
 	return (err);
 }
 
-int
-usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di,
-		     int usedev)
+usbd_status_t
+usbd_set_alt_interface_index(struct usbd_device *udev,
+    uint8_t iface_index, uint8_t alt_index)
 {
-	struct usbd_port *p;
-	uint16_t s;
-	uint8_t i;
-	uint8_t err;
+	struct usbd_interface *iface = usbd_get_iface(udev, iface_index);
+	usbd_status_t err;
 
-	if((udev == NULL) || (di == NULL))
-	{
+	if (iface == NULL) {
+		err = USBD_INVAL;
+		goto done;
+	}
+	err = usbd_fill_iface_data(udev, iface_index, alt_index);
+	if (err) {
+		goto done;
+	}
+	err = usbreq_set_alt_interface_no
+	    (udev, &usb_global_lock, iface_index,
+	    iface->idesc->bAlternateSetting);
+
+done:
+	return (err);
+}
+
+int
+usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di)
+{
+	enum {
+		MAX_PORT = (sizeof(di->udi_ports) / sizeof(di->udi_ports[0])),
+	};
+	struct usbd_port *p;
+	struct usbd_interface *iface;
+	struct usbd_device *child;
+	uint8_t i;
+	uint8_t max;
+
+	if ((udev == NULL) || (di == NULL)) {
 		return (ENXIO);
 	}
-
 	bzero(di, sizeof(di[0]));
+
+	mtx_lock(&usb_global_lock);
 
 	di->udi_bus = device_get_unit(udev->bus->bdev);
 	di->udi_addr = udev->address;
-	usbd_devinfo_vp(udev, di->udi_vendor, di->udi_product, 
-			sizeof(di->udi_vendor), sizeof(di->udi_product), usedev);
-	usbd_printBCD(di->udi_release, sizeof(di->udi_release), UGETW(udev->ddesc.bcdDevice));
+	strlcpy(di->udi_vendor, udev->manufacturer,
+	    sizeof(di->udi_vendor));
+	strlcpy(di->udi_product, udev->product,
+	    sizeof(di->udi_product));
+	usbd_printBCD(di->udi_release, sizeof(di->udi_release),
+	    UGETW(udev->ddesc.bcdDevice));
 	di->udi_vendorNo = UGETW(udev->ddesc.idVendor);
 	di->udi_productNo = UGETW(udev->ddesc.idProduct);
 	di->udi_releaseNo = UGETW(udev->ddesc.bcdDevice);
 	di->udi_class = udev->ddesc.bDeviceClass;
 	di->udi_subclass = udev->ddesc.bDeviceSubClass;
 	di->udi_protocol = udev->ddesc.bDeviceProtocol;
-	di->udi_config = udev->config;
-	di->udi_power = udev->self_powered ? 0 : udev->power;
+	di->udi_config = udev->curr_config_no;
+	di->udi_power = udev->flags.self_powered ? 0 : udev->power;
 	di->udi_speed = udev->speed;
 
-	for(i = 0;
-	    (i < (sizeof(udev->subdevs)/sizeof(udev->subdevs[0]))) &&
-	      (i < USB_MAX_DEVNAMES);
-	    i++)
-	{
-		if(udev->subdevs[i] &&
-		   device_is_attached(udev->subdevs[i]))
-		{
-			strlcpy(di->udi_devnames[i],
-				device_get_nameunit(udev->subdevs[i]),
-				USB_MAX_DEVNAMELEN);
+	if (udev->probed == USBD_PROBED_SPECIFIC_AND_FOUND) {
+		if (udev->global_dev &&
+		    device_is_attached(udev->global_dev)) {
+			strlcpy(di->udi_devnames[0],
+			    device_get_nameunit(udev->global_dev),
+			    USB_MAX_DEVNAMELEN);
+		}
+	} else if (udev->probed == USBD_PROBED_IFACE_AND_FOUND) {
+		for (i = 0; i != MIN(USB_MAX_DEVNAMES,
+		    USB_MAX_INTERFACES); i++) {
+			iface = usbd_get_iface(udev, i);
+			if (iface && iface->subdev &&
+			    device_is_attached(iface->subdev)) {
+				strlcpy(di->udi_devnames[i],
+				    device_get_nameunit(iface->subdev),
+				    USB_MAX_DEVNAMELEN);
+			}
 		}
 	}
+	if (udev->hub) {
 
-	if(udev->hub)
-	{
-		for(i = 0;
-		    (i < (sizeof(di->udi_ports)/sizeof(di->udi_ports[0]))) &&
-		      (i < udev->hub->hubdesc.bNbrPorts);
-		    i++)
-		{
-			p = &udev->hub->ports[i];
-			if(p->device)
-			{
-				err = p->device->address;
-			}
-			else
-			{
-				s = UGETW(p->status.wPortStatus);
-				if (s & UPS_PORT_ENABLED)
-				{
-					err = USB_PORT_ENABLED;
-				}
-				else if (s & UPS_SUSPEND)
-				{
-					err = USB_PORT_SUSPENDED;
-				}
-				else if (s & UPS_PORT_POWER)
-				{
-					err = USB_PORT_POWERED;
-				}
-				else
-				{
-					err = USB_PORT_DISABLED;
-				}
-			}
-			di->udi_ports[i] = err;
+		max = udev->hub->nports;
+		if (max > MAX_PORT) {
+			max = MAX_PORT;
 		}
-		di->udi_nports = udev->hub->hubdesc.bNbrPorts;
+		di->udi_nports = max;
+
+		p = udev->hub->ports;
+		for (i = 0; i != max; i++, p++) {
+
+			child = usbd_bus_port_get_device(udev->bus, p);
+
+			if (child) {
+				di->udi_ports[i] = p->device_index;
+			} else {
+				di->udi_ports[i] = USB_PORT_POWERED;
+			}
+		}
 	}
-	return 0;
+	mtx_unlock(&usb_global_lock);
+	return (0);
 }
 
-/* The following function will remove detached 
- * devices from the interface list. This can
- * happen during USB device module unload.
- */
 static void
-usbd_remove_detached_devices(struct usbd_device *udev)
+usbd_reset_probed(struct usbd_device *udev)
 {
-	device_t *subdev = udev->subdevs;
-	device_t *subdev_end = udev->subdevs_end;
-	uint8_t detached_first = 0;
+	udev->probed = (udev->flags.usb_mode == USB_MODE_HOST) ?
+	USBD_PROBED_NOTHING : USBD_PROBED_IFACE_AND_FOUND;
+	return;
+}
 
-	PRINTFN(3,("udev=%p\n", udev));
+static void
+usbd_detach_device_sub(struct usbd_device *udev, device_t *ppdev,
+    uint8_t free_subdev)
+{
+	device_t dev;
+	int err;
 
-	while (subdev != subdev_end) {
-	    if (subdev[0]) {
-	        if (device_is_attached(subdev[0]) == 0) {
-		    if (device_delete_child(device_get_parent(subdev[0]), 
-					    subdev[0]) == 0) {
-		        subdev[0] = NULL;
-			if (subdev == udev->subdevs) {
-			    detached_first = 1;
+	if (!free_subdev) {
+
+		*ppdev = NULL;
+
+	} else if (*ppdev) {
+
+		/*
+		 * NOTE: It is important to clear "*ppdev" before deleting
+		 * the child due to some device methods being called late
+		 * during the delete process !
+		 */
+		dev = *ppdev;
+		*ppdev = NULL;
+
+		device_printf(dev, "at %s, port %d, addr %d "
+		    "(disconnected)\n",
+		    device_get_nameunit(udev->parent_dev),
+		    udev->port_no, udev->address);
+
+		if (device_is_attached(dev)) {
+			if (udev->flags.suspended) {
+				err = DEVICE_RESUME(dev);
+				if (err) {
+					device_printf(dev, "Resume failed!\n");
+				}
 			}
-
-		    } else {
-		        /* Panic here, else one can get a double call to 
-			 * device_detach(). USB devices should never fail
-			 * on detach!
-			 */
-		        panic("device_delete_child() failed!\n");
-		    }
+			if (device_detach(dev)) {
+				goto error;
+			}
 		}
-	    }
-	    subdev++;
+		if (device_delete_child(udev->parent_dev, dev)) {
+			goto error;
+		}
+	}
+	return;
+
+error:
+	/* Detach is not allowed to fail in the USB world */
+	panic("An USB driver would not detach!\n");
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_detach_device
+ *
+ * The following function will detach the matching interfaces.
+ * This function is NULL safe.
+ *------------------------------------------------------------------------*/
+void
+usbd_detach_device(struct usbd_device *udev, uint8_t iface_index,
+    uint8_t free_subdev)
+{
+	struct usbd_interface *iface;
+	uint8_t i;
+
+	if (udev == NULL) {
+		/* nothing to do */
+		return;
+	}
+	PRINTFN(3, ("udev=%p\n", udev));
+
+	/*
+	 * First detach the child to give the child's detach routine a
+	 * chance to detach the sub-devices in the correct order.
+	 * Then delete the child using "device_delete_child()" which
+	 * will detach all sub-devices from the bottom and upwards!
+	 */
+	if (iface_index != USB_IFACE_INDEX_ANY) {
+		i = iface_index;
+		iface_index = i + 1;
+	} else {
+		usbd_detach_device_sub(udev, &(udev->global_dev), free_subdev);
+		i = 0;
+		iface_index = USB_MAX_INTERFACES;
 	}
 
-	if (detached_first) {
-	  if ((udev->probed == USBD_PROBED_SPECIFIC_AND_FOUND) ||
-	      (udev->probed == USBD_PROBED_GENERIC_AND_FOUND)) {
-	      /* The first and only device is gone. 
-	       * Reset the "probed" variable.
-	       */
-	      udev->probed = USBD_PROBED_NOTHING;
-	  }
+	/* do the detach */
+
+	for (; i != iface_index; i++) {
+
+		iface = usbd_get_iface(udev, i);
+		if (iface == NULL) {
+			/* looks like the end of the USB interfaces */
+			break;
+		}
+		usbd_detach_device_sub(udev, &(iface->subdev), free_subdev);
+	}
+
+	if (iface_index == USB_IFACE_INDEX_ANY) {
+		/*
+		 * All devices are gone. Reset the "probed" variable.
+		 */
+		usbd_reset_probed(udev);
 	}
 	return;
 }
 
-/* "usbd_probe_and_attach()" is called 
- * from "usbd_new_device()" and "uhub_explore()"
- */
-usbd_status
-usbd_probe_and_attach(device_t parent, int port, struct usbd_port *up)
+/*------------------------------------------------------------------------*
+ *	usbd_probe_and_attach_sub
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+static uint8_t
+usbd_probe_and_attach_sub(struct usbd_device *udev,
+    struct usb_attach_arg *uaa, device_t *ppdev)
+{
+	device_t dev;
+	int err;
+
+	dev = *ppdev;
+
+	if (dev) {
+
+		/* clean up after module unload */
+
+		if (device_is_attached(dev)) {
+			/* already a device there */
+			return (0);
+		}
+		/* XXX clear "*ppdev" as early as possible */
+
+		*ppdev = NULL;
+
+		if (device_delete_child(udev->parent_dev, dev)) {
+
+			/*
+			 * Panic here, else one can get a double call
+			 * to device_detach().  USB devices should
+			 * never fail on detach!
+			 */
+			panic("device_delete_child() failed!\n");
+		}
+	}
+	if (uaa->temp_dev == NULL) {
+
+		/* create a new child */
+		uaa->temp_dev = device_add_child(udev->parent_dev, NULL, -1);
+		if (uaa->temp_dev == NULL) {
+			device_printf(udev->parent_dev,
+			    "Device creation failed!\n");
+			return (1);	/* failure */
+		}
+		device_set_ivars(uaa->temp_dev, uaa);
+		device_quiet(uaa->temp_dev);
+	}
+	if (device_probe_and_attach(uaa->temp_dev) == 0) {
+		/*
+		 * The USB attach arguments are only available during probe
+		 * and attach !
+		 */
+		*ppdev = uaa->temp_dev;
+		uaa->temp_dev = NULL;
+		device_set_ivars(*ppdev, NULL);
+
+		if (udev->flags.suspended) {
+			err = DEVICE_SUSPEND(*ppdev);
+			device_printf(*ppdev, "Suspend failed\n");
+		}
+		return (0);		/* success */
+	}
+	return (1);			/* failure */
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_probe_and_attach
+ *
+ * This function is called from "uhub_explore_sub()" and
+ * "usbd_serve_request_callback_sub()"
+ *
+ * Returns:
+ *    0: Success
+ * Else: A control transfer failed
+ *------------------------------------------------------------------------*/
+usbd_status_t
+usbd_probe_and_attach(struct usbd_device *udev, uint8_t iface_index)
 {
 	struct usb_attach_arg uaa;
-	struct usbd_device *udev = up->device;
-	device_t bdev = NULL;
-	usbd_status err = 0;
-	u_int8_t config;
-	u_int8_t i;
+	struct usbd_interface *iface;
+	usbd_status_t err;
+	uint8_t nconfig;
+	uint8_t config;
+	uint8_t i;
 
-	up->last_refcount = usb_driver_added_refcount;
-
-	if(udev == NULL)
-	{
-		PRINTF(("%s: port %d has no device\n", 
-			device_get_nameunit(parent), port));
+	if (udev == NULL) {
+		PRINTF(("udev == NULL\n"));
 		return (USBD_INVAL);
 	}
-
-	usbd_remove_detached_devices(udev);
+	if (udev->flags.usb_mode == USB_MODE_DEVICE) {
+		if (udev->curr_config_no == USB_UNCONFIG_NO) {
+			/* do nothing - no configuration has been set */
+			return (0);
+		}
+	}
+	if (udev->probed == USBD_PROBED_SPECIFIC_AND_FOUND) {
+		if ((udev->global_dev == NULL) ||
+		    (!device_is_attached(udev->global_dev))) {
+			/* reset */
+			udev->probed = USBD_PROBED_NOTHING;
+		}
+	}
+	err = 0;
+	config = 0;
 
 	bzero(&uaa, sizeof(uaa));
 
 	/* probe and attach */
 
 	uaa.device = udev;
-	uaa.port = port;
+	uaa.usb_mode = udev->flags.usb_mode;
+	uaa.port = udev->port_no;
 	uaa.configno = -1;
 	uaa.vendor = UGETW(udev->ddesc.idVendor);
 	uaa.product = UGETW(udev->ddesc.idProduct);
 	uaa.release = UGETW(udev->ddesc.bcdDevice);
 
-	if((udev->probed == USBD_PROBED_SPECIFIC_AND_FOUND) ||
-	   (udev->probed == USBD_PROBED_GENERIC_AND_FOUND))
-	{
-		/* nothing more to probe */
-		goto done;
-	}
-
-	bdev = device_add_child(parent, NULL, -1);
-	if(!bdev)
-	{
-		device_printf(udev->bus->bdev,
-			      "Device creation failed\n");
-		err = USBD_INVAL;
-		goto done;
-	}
-
-	device_set_ivars(bdev, &uaa);
-	device_quiet(bdev);
-
-	if(udev->probed == USBD_PROBED_NOTHING)
-	{
-		/* first try device specific drivers */
+	/* first try device specific drivers */
+	if (udev->probed == USBD_PROBED_NOTHING) {
 		PRINTF(("trying device specific drivers\n"));
 
-		if(device_probe_and_attach(bdev) == 0)
-		{
-			device_set_ivars(bdev, NULL); /* no longer accessible */
-			udev->subdevs[0] = bdev;
+		if (!usbd_probe_and_attach_sub(
+		    udev, &uaa, &(udev->global_dev))) {
 			udev->probed = USBD_PROBED_SPECIFIC_AND_FOUND;
-			bdev = 0;
 			goto done;
 		}
-
 		PRINTF(("no device specific driver found; "
-			"looping over %d configurations\n",
-			udev->ddesc.bNumConfigurations));
+		    "looping over %d configurations\n",
+		    udev->ddesc.bNumConfigurations));
 	}
+	/* next try the USB interface drivers */
 
-	/* next try interface drivers */
+	nconfig = udev->ddesc.bNumConfigurations;
 
-	if((udev->probed == USBD_PROBED_NOTHING) ||
-	   (udev->probed == USBD_PROBED_IFACE_AND_FOUND))
-	{
-	  for(config = 0; config < udev->ddesc.bNumConfigurations; config++)
-	  {
-		struct usbd_interface *iface;
+	for (config = 0; config != nconfig; config++) {
 
-		/* only set config index the first 
-		 * time the devices are probed
+		/*
+		 * Only set the config index the first time the
+		 * devices are probed !
 		 */
-		if(udev->probed == USBD_PROBED_NOTHING)
-		{
+		if (udev->probed == USBD_PROBED_NOTHING) {
+
 			err = usbd_set_config_index(udev, config, 1);
-			if(err)
-			{
-			    device_printf(parent,
-					  "port %d, set config at addr %d "
-					  "failed, error=%s\n",
-					  port, udev->address, 
-					  usbd_errstr(err));
-			    goto done;
+			if (err) {
+				goto done;
 			}
-
-			/* ``bNumInterface'' is checked 
-			 * by ``usbd_set_config_index()''
-			 *
-			 * ``USBD_CLR_IFACE_NO_PROBE()'' is run
-			 * by ``usbd_fill_iface_data()'', which
-			 * is called by ``usbd_set_config_index()''
-			 */
 		}
-
 		/*
 		 * else the configuration is already set
 		 */
 
-		uaa.configno = udev->cdesc->bConfigurationValue;
-		uaa.ifaces_start = udev->ifaces;
-		uaa.ifaces_end = udev->ifaces + udev->cdesc->bNumInterface;
+		if ((udev->probed == USBD_PROBED_NOTHING) ||
+		    (udev->probed == USBD_PROBED_IFACE_AND_FOUND)) {
 
-		for(iface = uaa.ifaces_start;
-		    iface != uaa.ifaces_end;
-		    iface++)
-		{
-			uaa.iface = iface;
-			uaa.iface_index = (i = (iface - udev->ifaces));
+			uaa.configno = udev->cdesc->bConfigurationValue;
 
-			if(uaa.iface_index >= (sizeof(udev->subdevs)/
-					       sizeof(udev->subdevs[0])))
-			{
-				device_printf(udev->bus->bdev,
-					      "Too many subdevices\n");
-				break;
+			/* check if only one interface should be probed */
+
+			if (iface_index != USB_IFACE_INDEX_ANY) {
+				i = iface_index;
+				iface_index = i + 1;
+			} else {
+				i = 0;
+				iface_index = USB_MAX_INTERFACES;
 			}
 
-			if((USBD_GET_IFACE_NO_PROBE(udev, i) == 0) &&
-			   (udev->subdevs[i] == NULL) &&
-			   (device_probe_and_attach(bdev) == 0))
-			{
-				/* "ivars" are no longer accessible: */
-				device_set_ivars(bdev, NULL); 
-				udev->subdevs[i] = bdev;
-				udev->probed = USBD_PROBED_IFACE_AND_FOUND;
-				bdev = 0;
+			/* do the probe and attach */
 
-				/* create another child for the next iface [if any] */
-				bdev = device_add_child(parent, NULL, -1);
-				if(!bdev)
-				{
-					device_printf(udev->bus->bdev,
-						      "Device creation failed\n");
+			for (; i != iface_index; i++) {
 
-					/* need to update "IFACE_NO_PROBE": */
-					break; 
+				iface = usbd_get_iface(udev, i);
+				if (iface == NULL) {
+					/*
+					 * Looks like the end of the USB
+					 * interfaces !
+					 */
+					PRINTFN(1, ("end of interfaces "
+					    "at %u\n", i));
+					break;
 				}
-				device_set_ivars(bdev, &uaa);
-				device_quiet(bdev);
+				if (USBD_GET_IFACE_NO_PROBE(udev, i)) {
+					/* somebody grabbed the interface */
+					PRINTFN(1, ("no probe %d\n", i));
+					continue;
+				}
+				uaa.iface_index = i;
+				uaa.iface = iface;
+
+				if (!usbd_probe_and_attach_sub(
+				    udev, &uaa, &(iface->subdev))) {
+					udev->probed = USBD_PROBED_IFACE_AND_FOUND;
+				}
 			}
 		}
-
-		if(udev->probed == USBD_PROBED_IFACE_AND_FOUND)
-		{
+		if (udev->probed != USBD_PROBED_NOTHING) {
+			/* nothing more to do */
 			break;
 		}
-	  }
 	}
 
-	if(udev->probed == USBD_PROBED_NOTHING)
-	{
+	if (udev->probed == USBD_PROBED_NOTHING) {
 		/* set config index 0 */
 
+		config = 0;
 		err = usbd_set_config_index(udev, 0, 1);
-		if(err)
-		{
-		    device_printf(parent,
-				  "port %d, set config at addr %d "
-				  "failed, error=%s\n",
-				  port, udev->address, 
-				  usbd_errstr(err));
-		    goto done;
+		if (err) {
+			goto done;
 		}
-
 		PRINTF(("no interface drivers found\n"));
 
 		/* finally try the generic driver */
 		uaa.iface = NULL;
 		uaa.iface_index = 0;
-		uaa.ifaces_start = NULL;
-		uaa.ifaces_end = NULL;
 		uaa.usegeneric = 1;
 		uaa.configno = -1;
 
-		if(device_probe_and_attach(bdev) == 0)
-		{
-			device_set_ivars(bdev, NULL); /* no longer accessible */
-			udev->subdevs[0] = bdev;
-			udev->probed = USBD_PROBED_GENERIC_AND_FOUND;
-			bdev = 0;
+		if (!usbd_probe_and_attach_sub(
+		    udev, &uaa, &(udev->global_dev))) {
+			udev->probed = USBD_PROBED_SPECIFIC_AND_FOUND;
 			goto done;
 		}
-
 		/*
-		 * Generic attach failed. 
+		 * Generic attach failed.
 		 * The device is left as it is.
 		 * It has no driver, but is fully operational.
 		 */
 		PRINTF(("generic attach failed\n"));
 	}
- done:
-	if(bdev)
-	{
-		/* remove the last created child; it is unused */
-		device_delete_child(parent, bdev);
+done:
+	if (err) {
+		device_printf(udev->parent_dev,
+		    "port %d, set config %d at addr %d "
+		    "failed, error=%s\n",
+		    udev->port_no, config, udev->address,
+		    usbd_errstr(err));
 	}
-	return err;
+	if (uaa.temp_dev) {
+		/* remove the last created child; it is unused */
+
+		if (device_delete_child(udev->parent_dev, uaa.temp_dev)) {
+			PRINTFN(-1, ("device delete child failed!\n"));
+		}
+	}
+	return (err);
 }
 
-/*
- * Called when a new device has been put in the powered state,
- * but not yet in the addressed state.
- * Get initial descriptor, set the address, get full descriptor,
- * and attach a driver.
- */
-usbd_status
-usbd_new_device(device_t parent, struct usbd_bus *bus, int depth,
-		int speed, int port, struct usbd_port *up)
+/*------------------------------------------------------------------------*
+ *	usbd_suspend_resume_sub
+ *------------------------------------------------------------------------*/
+static void
+usbd_suspend_resume_sub(struct usbd_device *udev, device_t dev, uint8_t do_suspend)
 {
-	struct usbd_device *adev;
-	struct usbd_device *udev;
-	struct usbd_device *hub;
-	usbd_status err = 0;
-	int addr;
-	int i;
+	int err;
 
-	PRINTF(("bus=%p port=%d depth=%d speed=%d\n",
-		 bus, port, depth, speed));
+	if (dev == NULL) {
+		return;
+	}
+	if (!device_is_attached(dev)) {
+		return;
+	}
+	if (do_suspend) {
+		err = DEVICE_SUSPEND(dev);
+	} else {
+		err = DEVICE_RESUME(dev);
+	}
+	if (err) {
+		device_printf(dev, "%s failed!\n",
+		    do_suspend ? "Suspend" : "Resume");
+	}
+	return;
+}
 
-	/* find unused address */
-	addr = USB_MAX_DEVICES;
-#if (USB_MAX_DEVICES == 0)
-#error "(USB_MAX_DEVICES == 0)"
-#endif
-	while(addr--)
-	{
-		if(addr == 0)
-		{
-			/* address 0 is always unused */
-			device_printf(bus->bdev,
-				      "No free USB addresses, "
-				      "new device ignored.\n");
-			return (USBD_NO_ADDR);
-		}
-		if(bus->devices[addr] == 0)
-		{
+/*------------------------------------------------------------------------*
+ *	usbd_suspend_resume_device
+ *
+ * The following function will suspend or resume the USB device.
+ *------------------------------------------------------------------------*/
+usbd_status_t
+usbd_suspend_resume(struct usbd_device *udev, uint8_t do_suspend)
+{
+	struct usbd_interface *iface;
+	uint8_t i;
+
+	if (udev == NULL) {
+		/* nothing to do */
+		return (0);
+	}
+	PRINTFN(3, ("udev=%p do_suspend=%d\n", udev, do_suspend));
+
+	mtx_lock(&(udev->bus->mtx));
+	if (udev->flags.suspended == do_suspend) {
+		mtx_unlock(&(udev->bus->mtx));
+		/* nothing to do */
+		return (0);
+	}
+	udev->flags.suspended = do_suspend;
+	mtx_unlock(&(udev->bus->mtx));
+
+	/* do the global_dev first, if any */
+
+	usbd_suspend_resume_sub(udev, udev->global_dev, do_suspend);
+
+	/* do the suspend or resume */
+
+	for (i = 0; i != USB_MAX_INTERFACES; i++) {
+
+		iface = usbd_get_iface(udev, i);
+		if (iface == NULL) {
+			/* looks like the end of the USB interfaces */
 			break;
 		}
+		usbd_suspend_resume_sub(udev, iface->subdev, do_suspend);
+	}
+	return (0);
+}
+
+static const uint8_t
+	usbd_hub_speed_combs[USB_SPEED_MAX][USB_SPEED_MAX] = {
+	/* HUB *//* subdevice */
+	[USB_SPEED_HIGH][USB_SPEED_HIGH] = 1,
+	[USB_SPEED_HIGH][USB_SPEED_FULL] = 1,
+	[USB_SPEED_HIGH][USB_SPEED_LOW] = 1,
+	[USB_SPEED_FULL][USB_SPEED_FULL] = 1,
+	[USB_SPEED_FULL][USB_SPEED_LOW] = 1,
+	[USB_SPEED_LOW][USB_SPEED_LOW] = 1,
+};
+
+/*------------------------------------------------------------------------*
+ *	usbd_alloc_device
+ *
+ * This function allocates a new USB device. This function is called
+ * when a new device has been put in the powered state, but not yet in
+ * the addressed state. Get initial descriptor, set the address, get
+ * full descriptor and get strings.
+ *
+ * Return values:
+ *    0: Failure
+ * Else: Success
+ *------------------------------------------------------------------------*/
+struct usbd_device *
+usbd_alloc_device(device_t parent_dev, struct usbd_bus *bus,
+    struct usbd_device *parent_hub, uint8_t depth,
+    uint8_t port_index, uint8_t port_no, uint8_t speed, uint8_t usb_mode)
+{
+	struct usbd_device *udev;
+	struct usbd_device *adev;
+	struct usbd_device *hub;
+	usbd_status_t err;
+	uint8_t device_index;
+
+	PRINTFN(0, ("parent_dev=%p, bus=%p, parent_hub=%p, depth=%u, "
+	    "port_index=%u, port_no=%u, speed=%u, usb_mode=%u\n",
+	    parent_dev, bus, parent_hub, depth, port_index, port_no,
+	    speed, usb_mode));
+
+	/*
+	 * Find an unused device index. In USB Host mode this is the
+	 * same as the device address.
+	 *
+	 * NOTE: Index 1 is reserved for the Root HUB.
+	 */
+	for (device_index = USB_ROOT_HUB_ADDR; device_index !=
+	    USB_MAX_DEVICES; device_index++) {
+		if (bus->devices[device_index] == NULL)
+			break;
 	}
 
-	udev = malloc(sizeof(udev[0]), M_USB, M_WAITOK|M_ZERO);
-	if(udev == NULL)
-	{
-		return (USBD_NOMEM);
+	if (device_index == USB_MAX_DEVICES) {
+		device_printf(bus->bdev,
+		    "No free USB device index for new device!\n");
+		return (NULL);
 	}
+	udev = malloc(sizeof(*udev), M_USB, M_WAITOK | M_ZERO);
+	if (udev == NULL) {
+		return (NULL);
+	}
+	/* initialize our SX-lock */
+	sx_init(udev->default_sx, "USB device SX lock");
 
-	up->device = udev;
+	/* initialize our mutex */
+	mtx_init(udev->default_mtx, "USB device mutex", NULL, MTX_DEF);
+
+	/* initialize some USB device fields */
+	udev->parent_hub = parent_hub;
+	udev->parent_dev = parent_dev;
+	udev->port_index = port_index;
+	udev->port_no = port_no;
+	udev->depth = depth;
+	udev->bus = bus;
+	udev->address = USB_START_ADDR;	/* default value */
+
+	/* we are not ready yet */
+	udev->flags.detaching = 1;
+	udev->refcount = 1;
+
+	/* register our device */
+	usbd_bus_port_set_device(bus, parent_hub ?
+	    parent_hub->hub->ports + port_index : NULL, udev, device_index);
 
 	/* set up default endpoint descriptor */
 	udev->default_ep_desc.bLength = USB_ENDPOINT_DESCRIPTOR_SIZE;
 	udev->default_ep_desc.bDescriptorType = UDESC_ENDPOINT;
 	udev->default_ep_desc.bEndpointAddress = USB_CONTROL_ENDPOINT;
 	udev->default_ep_desc.bmAttributes = UE_CONTROL;
-	USETW(udev->default_ep_desc.wMaxPacketSize, USB_MAX_IPACKET);
+	udev->default_ep_desc.wMaxPacketSize[0] = USB_MAX_IPACKET;
+	udev->default_ep_desc.wMaxPacketSize[1] = 0;
 	udev->default_ep_desc.bInterval = 0;
+	udev->ddesc.bMaxPacketSize = USB_MAX_IPACKET;
 
-	udev->bus = bus;
 	udev->quirks = &usbd_no_quirk;
-	udev->address = USB_START_ADDR;
-	udev->ddesc.bMaxPacketSize = 0;
-	udev->depth = depth;
-	udev->powersrc = up;
-	udev->myhub = up->parent;
+	udev->speed = speed;
+	udev->flags.usb_mode = usb_mode;
 
-	hub = up->parent;
+	/* setup probed variable */
 
-	if(hub)
-	{
-		if(speed > hub->speed)
-		{
+	usbd_reset_probed(udev);
+
+	/* check speed combination */
+
+	hub = udev->parent_hub;
+	if (hub) {
+		if (usbd_hub_speed_combs[hub->speed][speed] == 0) {
 #ifdef USB_DEBUG
-			printf("%s: maxium speed of attached "
-			       "device, %d, is higher than speed "
-			       "of parent HUB, %d.\n",
-			       __FUNCTION__, speed, hub->speed);
+			printf("%s: the selected subdevice and HUB speed "
+			    "combination is not supported %d/%d.\n",
+			    __FUNCTION__, speed, hub->speed);
 #endif
-			/*
-			 * Reduce the speed, otherwise we won't setup the
-			 * proper transfer methods.
-			 */
-			speed = hub->speed;
+			/* reject this combination */
+			err = USBD_INVAL;
+			goto done;
 		}
 	}
+	/* search for our High Speed USB HUB, if any */
 
 	adev = udev;
-	while(hub && (hub->speed != USB_SPEED_HIGH))
-	{
-		adev = hub;
-		hub = hub->myhub;
-	}
+	hub = udev->parent_hub;
 
-	if(hub)
-	{
-		for(i = 0; i < hub->hub->hubdesc.bNbrPorts; i++)
-		{
-			if(hub->hub->ports[i].device == adev)
-			{
-				udev->myhsport = &hub->hub->ports[i];
-				break;
-			}
+	while (hub) {
+		if (hub->speed == USB_SPEED_HIGH) {
+			udev->hs_hub_addr = hub->address;
+			udev->hs_port_no = adev->port_no;
+			break;
 		}
+		adev = hub;
+		hub = hub->parent_hub;
 	}
-
-	udev->speed = speed;
-	udev->langid = USBD_NOLANG;
 
 	/* init the default pipe */
 	usbd_fill_pipe_data(udev, 0,
-			    &udev->default_ep_desc,
-			    &udev->default_pipe);
+	    &udev->default_ep_desc,
+	    &udev->default_pipe);
 
-	err = usbreq_set_address(udev, addr);
-	if(err)
-	{
-		PRINTF(("set address %d failed\n", addr));
-		err = USBD_SET_ADDR_FAILED;
+	if (udev->flags.usb_mode == USB_MODE_HOST) {
+
+		err = usbreq_set_address(udev, &usb_global_lock, device_index);
+
+		/* This is the new USB device address from now on */
+
+		udev->address = device_index;
+
+		/*
+		 * We ignore any set-address errors, hence there are
+		 * buggy USB devices out there that actually receive
+		 * the SETUP PID, but manage to set the address before
+		 * the STATUS stage is ACK'ed. If the device responds
+		 * to the subsequent get-descriptor at the new
+		 * address, then we know that the set-address command
+		 * was successful.
+		 */
+		if (err) {
+			PRINTFN(-1, ("set address %d failed "
+			    "(ignored)\n", udev->address));
+		}
+		/* allow device time to set new address */
+		usbd_delay_ms(udev, USB_SET_ADDRESS_SETTLE);
+	} else {
+		/* We are not self powered */
+		udev->flags.self_powered = 0;
+
+		/*
+	         * TODO: Make some kind of command that lets the user choose
+	         * the USB template.
+	         */
+		err = usbd_temp_setup(udev, &usb_template_cdce);
+		if (err) {
+			PRINTFN(-1, ("setting up USB template failed\n"));
+			goto done;
+		}
+	}
+
+	/*
+	 * Get the first 8 bytes of the device descriptor !
+	 *
+	 * NOTE: "usbd_do_request" will check the device descriptor
+	 * next time we do a request to see if the maximum packet size
+	 * changed! The 8 first bytes of the device descriptor
+	 * contains the maximum packet size to use on control endpoint
+	 * 0. If this value is different from "USB_MAX_IPACKET" a new
+	 * USB control request will be setup!
+	 */
+	err = usbreq_get_desc(udev, &usb_global_lock, &udev->ddesc,
+	    USB_MAX_IPACKET, USB_MAX_IPACKET, 0, UDESC_DEVICE, 0, 0);
+	if (err) {
+		PRINTFN(-1, ("getting device descriptor "
+		    "at addr %d failed!\n", udev->address));
 		goto done;
 	}
-
-	/* allow device time to set new address */
-	usbd_delay_ms(udev, USB_SET_ADDRESS_SETTLE);
-	udev->address = addr;	/* new device address now */
-
-	mtx_lock(&(bus->mtx));
-	bus->devices[addr] = udev;
-	mtx_unlock(&(bus->mtx));
-
-	/* get the first 8 bytes of the device descriptor */
-	err = usbreq_get_desc(udev, UDESC_DEVICE, 0, USB_MAX_IPACKET, &udev->ddesc, 0);
-	if(err)
-	{
-		PRINTF(("addr=%d, getting first desc failed\n",
-			 udev->address));
-		goto done;
-	}
-
-	if(speed == USB_SPEED_HIGH)
-	{
-		/* max packet size must be 64 (sec 5.5.3) */
-		udev->ddesc.bMaxPacketSize = USB_2_MAX_CTRL_PACKET;
-	}
-
-	if(udev->ddesc.bMaxPacketSize == 0)
-	{
-#ifdef USB_DEBUG
-		printf("%s: addr=%d invalid bMaxPacketSize=0x00!\n",
-		       __FUNCTION__, udev->address);
-#endif
-		/* avoid division by zero */
-		udev->ddesc.bMaxPacketSize = USB_MAX_IPACKET;
-	}
-
 	PRINTF(("adding unit addr=%d, rev=%02x, class=%d, "
-		 "subclass=%d, protocol=%d, maxpacket=%d, len=%d, speed=%d\n",
-		 udev->address, UGETW(udev->ddesc.bcdUSB),
-		 udev->ddesc.bDeviceClass,
-		 udev->ddesc.bDeviceSubClass,
-		 udev->ddesc.bDeviceProtocol,
-		 udev->ddesc.bMaxPacketSize,
-		 udev->ddesc.bLength,
-		 udev->speed));
-
-	if(udev->ddesc.bDescriptorType != UDESC_DEVICE)
-	{
-		/* illegal device descriptor */
-		PRINTF(("illegal descriptor %d\n",
-			 udev->ddesc.bDescriptorType));
-		err = USBD_INVAL;
-		goto done;
-	}
-	if(udev->ddesc.bLength < USB_DEVICE_DESCRIPTOR_SIZE)
-	{
-		PRINTF(("bad length %d\n",
-			 udev->ddesc.bLength));
-		err = USBD_INVAL;
-		goto done;
-	}
-
-	USETW(udev->default_ep_desc.wMaxPacketSize, udev->ddesc.bMaxPacketSize);
+	    "subclass=%d, protocol=%d, maxpacket=%d, len=%d, speed=%d\n",
+	    udev->address, UGETW(udev->ddesc.bcdUSB),
+	    udev->ddesc.bDeviceClass,
+	    udev->ddesc.bDeviceSubClass,
+	    udev->ddesc.bDeviceProtocol,
+	    udev->ddesc.bMaxPacketSize,
+	    udev->ddesc.bLength,
+	    udev->speed));
 
 	/* get the full device descriptor */
-	err = usbreq_get_device_desc(udev, &udev->ddesc);
-	if(err)
-	{
+	err = usbreq_get_device_desc(udev, &usb_global_lock, &udev->ddesc);
+	if (err) {
 		PRINTF(("addr=%d, getting full desc failed\n",
-			 udev->address));
+		    udev->address));
 		goto done;
 	}
-
 	/* figure out what's wrong with this device */
 	udev->quirks = usbd_find_quirk(&udev->ddesc);
+#if 0
+	if (udev->quirks->uq_flags & UQ_NO_STRINGS) {
+		udev->no_strings = 1;
+	}
+#endif
+
+	/*
+	 * Workaround for buggy USB devices.
+	 *
+	 * It appears that some string-less USB chips will crash and
+	 * disappear if any attempts are made to read any string
+	 * descriptors.
+	 *
+	 * Try to detect such chips by checking the strings in the USB
+	 * device descriptor. If no strings are present there we
+	 * simply disable all USB strings.
+	 */
+
+	if (udev->ddesc.iManufacturer ||
+	    udev->ddesc.iProduct ||
+	    udev->ddesc.iSerialNumber) {
+		/* read out the language ID string */
+		err = usbreq_get_string_desc(udev, &usb_global_lock,
+		    udev->scratch[0].data, 4, sizeof(udev->scratch),
+		    USB_LANGUAGE_TABLE);
+	} else {
+		err = USBD_INVAL;
+	}
+
+	if (err || (udev->scratch[0].data[0] < 4)) {
+		udev->flags.no_strings = 1;
+	} else {
+		/* pick the first language as the default */
+		udev->langid = UGETW(udev->scratch[0].data + 2);
+	}
 
 	/* assume 100mA bus powered for now. Changed when configured. */
 	udev->power = USB_MIN_POWER;
-	udev->self_powered = 0;
 
-	/* buffer serial number */
-	(void) usbreq_get_string_any
-	  (udev, udev->ddesc.iSerialNumber, 
-	   &udev->serial[0], sizeof(udev->serial));
+	/* get serial number string */
+	err = usbreq_get_string_any
+	    (udev, &usb_global_lock, udev->scratch[0].data,
+	    sizeof(udev->scratch), udev->ddesc.iSerialNumber);
 
-	/* check serial number format */
+	strlcpy(udev->serial, udev->scratch[0].data, sizeof(udev->serial));
 
-	for(i = 0;;i++)
-	{
-		if(udev->serial[i] == '\0') break;
-		if(udev->serial[i] == '\"') udev->serial[i] = ' ';
-		if(udev->serial[i] == '\n') udev->serial[i] = ' ';
+	/* get manufacturer string */
+	err = usbreq_get_string_any
+	    (udev, &usb_global_lock, udev->scratch[0].data,
+	    sizeof(udev->scratch), udev->ddesc.iManufacturer);
+
+	strlcpy(udev->manufacturer, udev->scratch[0].data, sizeof(udev->manufacturer));
+
+	/* get product string */
+	err = usbreq_get_string_any
+	    (udev, &usb_global_lock, udev->scratch[0].data,
+	    sizeof(udev->scratch), udev->ddesc.iProduct);
+
+	strlcpy(udev->product, udev->scratch[0].data, sizeof(udev->product));
+
+	/* finish up all the strings */
+	usbd_finish_vp_info(udev);
+
+	PRINTF(("new dev (addr %d), udev=%p, parent_hub=%p\n",
+	    udev->address, udev, udev->parent_hub));
+
+	mtx_lock(&(bus->mtx));
+	udev->flags.detaching = 0;
+	mtx_unlock(&(bus->mtx));
+
+	err = 0;			/* force success */
+
+done:
+	if (err) {
+		/* free device  */
+		usbd_free_device(udev);
+		udev = NULL;
 	}
-
-	PRINTF(("new dev (addr %d), udev=%p, parent=%p\n",
-		 udev->address, udev, parent));
-
-	err = usbd_probe_and_attach(parent, port, up);
-
- done:
-	if(err)
-	{
-		/* remove device and sub-devices */
-		usbd_free_device(up, 1);
-	}
-	return(err);
+	return (udev);
 }
 
-/* called when a port has been disconnected
+/*------------------------------------------------------------------------*
+ *	usbd_free_device
  *
- * The general mechanism for detaching:
- *
- * The drivers should use a static softc or a softc which is not freed
- * immediately, so that calls to routines which are about to access
- * the softc, does not access freed memory.
- *
- * The drivers mutex should also be available for some time after
- * detach.
- *
- * The drivers should have a detach flag which is set when the driver
- * is detached. The detach flag is checked after locking drivers mutex
- * and after waking up from sleep. When the detach flag is set, the
- * driver must unlock drivers mutex and exit.
- */
+ * This function is NULL safe.
+ *------------------------------------------------------------------------*/
 void
-usbd_free_device(struct usbd_port *up, u_int8_t free_subdev)
+usbd_free_device(struct usbd_device *udev)
 {
-	struct usbd_device *udev = up->device;
-	device_t *subdev = udev->subdevs;
-	device_t *subdev_end = udev->subdevs_end;
-	int error = 0;
+	struct usbd_bus *bus;
+	int error;
 
 	/* mtx_assert() */
 
-	if(udev == NULL)
-	{
+	if (udev == NULL) {
 		/* already freed */
 		return;
 	}
+	PRINTFN(3, ("udev=%p port=%d\n", udev, udev->port_no));
 
-	PRINTFN(3,("up=%p udev=%p port=%d; "
-		    "disconnect subdevs\n",
-		    up, udev, up->portno));
+	/*
+	 * Wait until all references to our device is gone:
+	 */
+	bus = udev->bus;
+	mtx_lock(&(bus->mtx));
+	udev->flags.detaching = 1;
+	udev->refcount--;
+	while (udev->refcount > 0) {
 
-	while (subdev != subdev_end)
-	{
-		if(subdev[0] && free_subdev)
-		{
-			device_printf(subdev[0], "at %s ", device_get_nameunit
-				(device_get_parent(subdev[0])));
-
-			if(up->portno != 0)
-			{
-				printf("port %d ", up->portno);
-			}
-
-			printf("(addr %d) disconnected\n", udev->address);
-
-			/* first detach the child to give the child's detach routine
-			 * a chance to detach the sub-devices in the correct order.
-			 * Then delete the child using "device_delete_child()" which
-			 * will detach all sub-devices from the bottom and upwards!
-			 */
-			if (device_detach(subdev[0]) || device_delete_child
-				(device_get_parent(subdev[0]), subdev[0]))
-			{
-				/* if detach fails sub-devices will still
-				 * be referring to the udev structure
-				 * which cannot be freed
-				 */
-				device_printf(subdev[0], "detach failed "
-					"(please ensure that this "
-					"device driver supports detach)\n");
-
-				error = ENXIO;
-			}
-		}
-
-		/* always clear subdev[0], 
-		 * because it might be used by
-		 * usbd_add_dev_event()
-		 */
-		subdev[0] = NULL;
-		subdev++;
+		error = mtx_sleep(&(udev->refcount), &(bus->mtx), 0,
+		    "USB detach wait", 0);
 	}
-
-	/* issue detach event and free address */
-	if(udev->bus != NULL)
-	{
-		struct usbd_bus *bus = udev->bus;
-
-		/* NOTE: address 0 is always unused */
-
-		/* Wait until all references to our
-		 * device is gone:
-		 */
-		mtx_lock(&(bus->mtx));
-		udev->detaching = 1;
-		while (udev->refcount > 0) {
-		    int dummy;
-		    dummy = mtx_sleep(&(udev->detaching), &(bus->mtx), 0, 
-				      "USB detach wait", 0);
-		}
-		bus->devices[udev->address] = 0;
-
-		mtx_unlock(&(bus->mtx));
-	}
+	mtx_unlock(&(bus->mtx));
 
 	usbd_free_iface_data(udev);
 
-	if(error)
-	{
-		panic("%s: some USB devices would not detach\n",
-			__FUNCTION__);
-	}
+	usbd_transfer_unsetup(udev->default_xfer, 1);
 
-	/* free Linux compat device if any */
-	if (udev->linux_dev) {
-	    usb_linux_free_usb_device(udev->linux_dev);
-	    udev->linux_dev = NULL;
-	}
+	usbd_temp_unsetup(udev);
+
+	sx_destroy(udev->default_sx);
+
+	mtx_destroy(udev->default_mtx);
+
+	/* unregister our device */
+	usbd_bus_port_set_device(bus, udev->parent_hub ?
+	    udev->parent_hub->hub->ports + udev->port_index : NULL,
+	    NULL, USB_ROOT_HUB_ADDR);
 
 	/* free device */
 	free(udev, M_USB);
-	up->device = 0;
+
 	return;
 }
 
 struct usbd_device *
-usbd_ref_device(struct usbd_bus *bus, uint8_t addr)
+usbd_ref_device(struct usbd_bus *bus, uint8_t index)
 {
 	struct usbd_device *udev;
 
-	if ((addr < 1) ||
-	    (addr >= USB_MAX_DEVICES)) {
-	    /* invalid address */
-	    return NULL;
+	if (index >= USB_MAX_DEVICES) {
+		/* invalid index */
+		return (NULL);
 	}
-
 	mtx_lock(&(bus->mtx));
-	udev = bus->devices[addr];
+	udev = bus->devices[index];
 	if (udev == NULL) {
-	    /* do nothing */
-	} else if (udev->detaching) {
-	    udev = NULL;
+		/* do nothing */
+	} else if (udev->flags.detaching) {
+		udev = NULL;
 	} else if (udev->refcount == USB_DEV_REFCOUNT_MAX) {
-	    udev = NULL;
+		udev = NULL;
 	} else {
-	    udev->refcount ++;
+		udev->refcount++;
 	}
 	mtx_unlock(&(bus->mtx));
-	return udev;
+	return (udev);
 }
 
 void
@@ -1738,732 +1893,704 @@ usbd_unref_device(struct usbd_device *udev)
 	struct usbd_bus *bus;
 
 	if (udev == NULL) {
-	    /* should not happen */
-	    return;
+		/* should not happen */
+		return;
 	}
-
 	bus = udev->bus;
 
 	if (bus == NULL) {
-	    /* should not happen */
-	    return;
+		/* should not happen */
+		return;
 	}
-
 	mtx_lock(&(bus->mtx));
 	if (udev->refcount == 0) {
-	    panic("Invalid USB device refcount!\n");
+		panic("Invalid USB device refcount!\n");
 	} else {
-	  if (--(udev->refcount) == 0) {
-	      if (udev->detaching) {
-	          wakeup(&(udev->detaching));
-	      }
-	  }
+		if (--(udev->refcount) == 0) {
+			if (udev->flags.detaching) {
+				wakeup(&(udev->refcount));
+			}
+		}
 	}
 	mtx_unlock(&(bus->mtx));
 	return;
 }
 
 struct usbd_interface *
-usbd_get_iface(struct usbd_device *udev, u_int8_t iface_index)
+usbd_get_iface(struct usbd_device *udev, uint8_t iface_index)
 {
 	struct usbd_interface *iface = udev->ifaces + iface_index;
 
 	if ((iface < udev->ifaces) ||
 	    (iface >= udev->ifaces_end) ||
 	    (udev->cdesc == NULL) ||
-	    (iface_index >= udev->cdesc->bNumInterface))
-	{
-		return NULL;
+	    (iface_index >= udev->cdesc->bNumInterface)) {
+		return (NULL);
 	}
-	return iface;
+	return (iface);
 }
 
 void
-usbd_set_desc(device_t dev, struct usbd_device *udev)
+usbd_set_device_desc(device_t dev)
 {
-	u_int8_t devinfo[256];
+	struct usb_attach_arg *uaa;
+	struct usbd_device *udev;
+	struct usbd_interface *iface;
+	usbd_status_t err;
 
-	usbd_devinfo(udev, 1, devinfo, sizeof(devinfo));
-	device_set_desc_copy(dev, devinfo);
-	device_printf(dev, "<%s>\n", devinfo);
+	if (dev == NULL) {
+		/* should not happen */
+		return;
+	}
+	uaa = device_get_ivars(dev);
+	if (uaa == NULL) {
+		/* can happend if called at the wrong time */
+		return;
+	}
+	udev = uaa->device;
+	iface = uaa->iface;
+
+	if ((iface == NULL) ||
+	    (iface->idesc == NULL) ||
+	    (iface->idesc->iInterface == 0)) {
+		err = USBD_INVAL;
+	} else {
+		err = 0;
+	}
+
+	if (!err) {
+		/* try to get the interface string ! */
+		err = usbreq_get_string_any
+		    (udev, &usb_global_lock, udev->scratch[0].data,
+		    sizeof(udev->scratch), iface->idesc->iInterface);
+	}
+	if (err) {
+		/* use default description */
+		usbd_devinfo(udev, udev->scratch[0].data,
+		    sizeof(udev->scratch));
+	}
+	device_set_desc_copy(dev, udev->scratch[0].data);
+	device_printf(dev, "<%s> on %s\n", udev->scratch[0].data,
+	    device_get_nameunit(udev->bus->bdev));
 	return;
 }
 
-/*------------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  *      allocate mbufs to an usbd interface queue
  *
  * returns a pointer that eventually should be passed to "free()"
- *------------------------------------------------------------------------------*/
-void *
-usbd_alloc_mbufs(struct malloc_type *type, struct usbd_ifqueue *ifq, 
-		 u_int32_t block_size, u_int16_t block_number)
+ *------------------------------------------------------------------------*/
+void   *
+usbd_alloc_mbufs(struct malloc_type *type, struct usbd_ifqueue *ifq,
+    uint32_t block_size, uint16_t block_number)
 {
 	struct usbd_mbuf *m_ptr;
-	u_int8_t *data_ptr;
+	uint8_t *data_ptr;
 	void *free_ptr = NULL;
-	u_int32_t alloc_size;
+	uint32_t alloc_size;
 
-        /* align data */
-        block_size += ((-block_size) & (USB_HOST_ALIGN-1));
+	/* align data */
+	block_size += ((-block_size) & (USB_HOST_ALIGN - 1));
 
 	if (block_number && block_size) {
 
-	  alloc_size = (block_size + sizeof(struct usbd_mbuf)) * block_number;
+		alloc_size = (block_size + sizeof(struct usbd_mbuf)) * block_number;
 
-	  free_ptr = malloc(alloc_size, type, M_WAITOK|M_ZERO);
+		free_ptr = malloc(alloc_size, type, M_WAITOK | M_ZERO);
 
-	  if (free_ptr == NULL) {
-	      goto done;
-	  }
+		if (free_ptr == NULL) {
+			goto done;
+		}
+		m_ptr = free_ptr;
+		data_ptr = (void *)(m_ptr + block_number);
 
-	  m_ptr = free_ptr;
-	  data_ptr = (void *)(m_ptr + block_number);
+		while (block_number--) {
 
-	  while(block_number--) {
+			m_ptr->cur_data_ptr =
+			    m_ptr->min_data_ptr = data_ptr;
 
-	      m_ptr->cur_data_ptr =
-		m_ptr->min_data_ptr = data_ptr;
+			m_ptr->cur_data_len =
+			    m_ptr->max_data_len = block_size;
 
-	      m_ptr->cur_data_len =
-		m_ptr->max_data_len = block_size;
+			USBD_IF_ENQUEUE(ifq, m_ptr);
 
-	      USBD_IF_ENQUEUE(ifq, m_ptr);
-
-	      m_ptr++;
-	      data_ptr += block_size;
-	  }
+			m_ptr++;
+			data_ptr += block_size;
+		}
 	}
- done:
-	return free_ptr;
+done:
+	return (free_ptr);
 }
 
-/*------------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  *  usbd_get_page - lookup DMA-able memory for the given offset
- *------------------------------------------------------------------------------*/
+ *
+ * NOTE: Only call this function when the "page_cache" structure has
+ * been properly initialized !
+ *------------------------------------------------------------------------*/
 void
-usbd_get_page(struct usbd_page_cache *cache, u_int32_t offset, 
-	      struct usbd_page_search *res)
+usbd_get_page(struct usbd_page_cache *pc, uint32_t offset,
+    struct usbd_page_search *res)
 {
 	struct usbd_page *page;
 
-	offset += cache->page_offset_buf;
+	if (pc->page_start) {
 
-	if ((offset < cache->page_offset_cur) ||
-	    (cache->page_cur == NULL)) {
+		/* Case 1 - something has been loaded into DMA */
 
-	    /* reset the page search */
+		if (pc->buffer) {
 
-	    cache->page_cur = cache->page_start;
-	    cache->page_offset_cur = 0;
-	}
+			/* Case 1a - Kernel Virtual Address */
 
-	offset -= cache->page_offset_cur;
-	page = cache->page_cur;
+			res->buffer = USBD_ADD_BYTES(pc->buffer, offset);
+		}
+		offset += pc->page_offset_buf;
 
-	while (1) {
+		/* compute destination page */
 
-	    if (page >= cache->page_end) {
-	        res->length = 0;
-		res->buffer = NULL;
-		res->physaddr = 0;
-		res->page = NULL;
-		break;
-	    }
+		page = pc->page_start;
 
-	    if (offset < page->length) {
+		page += (offset / USB_PAGE_SIZE);
 
-	        /* found the offset on a page */
+		offset %= USB_PAGE_SIZE;
 
-	        res->length = page->length - offset;
-		res->buffer = ADD_BYTES(page->buffer, offset);
+		res->length = USB_PAGE_SIZE - offset;
 		res->physaddr = page->physaddr + offset;
-		res->page = page;
-		break;
-	    }
+		if (!pc->buffer) {
 
-	    /* get the next page */
+			/* Case 1b - Non Kernel Virtual Address */
 
-	    offset -= page->length;
-	    cache->page_offset_cur += page->length;
-	    page++;
-	    cache->page_cur = page;
+			res->buffer = USBD_ADD_BYTES(page->buffer, offset);
+		}
+	} else {
+
+		/* Case 2 - Plain PIO */
+
+		res->buffer = USBD_ADD_BYTES(pc->buffer, offset);
+		res->length = 0 - 1;
+		res->physaddr = 0;
 	}
 	return;
 }
 
-/*------------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  *  usbd_copy_in - copy directly to DMA-able memory
- *------------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 void
-usbd_copy_in(struct usbd_page_cache *cache, u_int32_t offset, 
-	     const void *ptr, u_int32_t len)
+usbd_copy_in(struct usbd_page_cache *cache, uint32_t offset,
+    const void *ptr, uint32_t len)
 {
-	struct usbd_page_search res;
+	struct usbd_page_search buf_res;
 
-	while (len) {
+	while (len != 0) {
 
-	    usbd_get_page(cache, offset, &res);
+		usbd_get_page(cache, offset, &buf_res);
 
-	    if (res.length == 0) {
-	        panic("%s:%d invalid offset!\n",
-		      __FUNCTION__, __LINE__);
-	    }
+		if (buf_res.length > len) {
+			buf_res.length = len;
+		}
+		bcopy(ptr, buf_res.buffer, buf_res.length);
 
-	    if (res.length > len) {
-	        res.length = len;
-	    }
-
-	    usbd_page_dma_exit(res.page);
-
-	    bcopy(ptr, res.buffer, res.length);
-
-	    usbd_page_dma_enter(res.page);
-
-	    offset += res.length;
-	    len -= res.length;
-	    ptr = ((const u_int8_t *)ptr) + res.length;
+		offset += buf_res.length;
+		len -= buf_res.length;
+		ptr = USBD_ADD_BYTES(ptr, buf_res.length);
 	}
 	return;
 }
 
-/*------------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  *  usbd_m_copy_in - copy a mbuf chain directly into DMA-able memory
- *------------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 struct usbd_m_copy_in_arg {
 	struct usbd_page_cache *cache;
-	u_int32_t dst_offset;
+	uint32_t dst_offset;
 };
 
 static int32_t
 #ifdef __FreeBSD__
-usbd_m_copy_in_cb(void *arg, void *src, u_int32_t count)
+usbd_m_copy_in_cb(void *arg, void *src, uint32_t count)
 #else
-usbd_m_copy_in_cb(void *arg, caddr_t src, u_int32_t count)
+usbd_m_copy_in_cb(void *arg, caddr_t src, uint32_t count)
 #endif
 {
 	register struct usbd_m_copy_in_arg *ua = arg;
+
 	usbd_copy_in(ua->cache, ua->dst_offset, src, count);
 	ua->dst_offset += count;
-	return 0;
+	return (0);
 }
 
 void
-usbd_m_copy_in(struct usbd_page_cache *cache, u_int32_t dst_offset,
-	       struct mbuf *m, u_int32_t src_offset, u_int32_t src_len)
+usbd_m_copy_in(struct usbd_page_cache *cache, uint32_t dst_offset,
+    struct mbuf *m, uint32_t src_offset, uint32_t src_len)
 {
-	struct usbd_m_copy_in_arg arg = { cache, dst_offset };
+	struct usbd_m_copy_in_arg arg = {cache, dst_offset};
 	register int error;
+
 	error = m_apply(m, src_offset, src_len, &usbd_m_copy_in_cb, &arg);
 	return;
 }
 
-/*------------------------------------------------------------------------------*
- *  usbd_copy_out - copy directly from DMA-able memory
- *------------------------------------------------------------------------------*/
-void
-usbd_copy_out(struct usbd_page_cache *cache, u_int32_t offset, 
-	      void *ptr, u_int32_t len)
+/*------------------------------------------------------------------------*
+ *  usbd_uiomove - factored out code
+ *------------------------------------------------------------------------*/
+int
+usbd_uiomove(struct usbd_page_cache *pc, struct uio *uio,
+    uint32_t pc_offset, uint32_t len)
 {
 	struct usbd_page_search res;
+	int error = 0;
 
-	while (len) {
+	while (len != 0) {
 
-	    usbd_get_page(cache, offset, &res);
+		usbd_get_page(pc, pc_offset, &res);
 
-	    if (res.length == 0) {
-	        panic("%s:%d invalid offset!\n",
-		      __FUNCTION__, __LINE__);
-	    }
-
-	    if (res.length > len) {
-	        res.length = len;
-	    }
-
-	    usbd_page_dma_exit(res.page);
-
-	    bcopy(res.buffer, ptr, res.length);
-
-	    usbd_page_dma_enter(res.page);
-
-	    offset += res.length;
-	    len -= res.length;
-	    ptr = ADD_BYTES(ptr, res.length);
-	}
-	return;
-}
-
-/*------------------------------------------------------------------------------*
- *  usbd_bzero - zero DMA-able memory
- *------------------------------------------------------------------------------*/
-void
-usbd_bzero(struct usbd_page_cache *cache, u_int32_t offset, u_int32_t len)
-{
-	struct usbd_page_search res;
-
-	while (len) {
-
-	    usbd_get_page(cache, offset, &res);
-
-	    if (res.length == 0) {
-	        panic("%s:%d invalid offset!\n",
-		      __FUNCTION__, __LINE__);
-	    }
-
-	    if (res.length > len) {
-	        res.length = len;
-	    }
-
-	    usbd_page_dma_exit(res.page);
-
-	    bzero(res.buffer, res.length);
-
-	    usbd_page_dma_enter(res.page);
-
-	    offset += res.length;
-	    len -= res.length;
-	}
-	return;
-}
-
-/*------------------------------------------------------------------------------*
- *  usbd_page_alloc - allocate multiple DMA-able memory pages
- *
- * return values:
- *   1: failure
- *   0: success
- *------------------------------------------------------------------------------*/
-u_int8_t
-usbd_page_alloc(bus_dma_tag_t tag, struct usbd_page *page, 
-		u_int32_t npages)
-{
-	u_int32_t x;
-	void *ptr;
-
-	for (x = 0; x < npages; x++) {
-
-	repeat:
-
-	    ptr = usbd_mem_alloc_sub(tag, page + x, 
-				     USB_PAGE_SIZE, USB_PAGE_SIZE);
-	    if (ptr == NULL) {
-
-	        while(x--) {
-		    usbd_mem_free_sub(page + x);
+		if (res.length > len) {
+			res.length = len;
 		}
-		return 1; /* failure */
-	    } else {
+		/*
+		 * "uiomove()" can sleep so one needs to make a wrapper,
+		 * exiting the mutex and checking things
+		 */
+		error = uiomove(res.buffer, res.length, uio);
 
-	      if ((page + x)->physaddr == 0) {
-
-		  /* at least the OHCI controller
-		   * gives special meaning to 
-		   * physaddr == 0, so discard
-		   * that page if it gets here:
-		   */
-		  printf("%s:%d: Discarded memory "
-			 "page with physaddr=0!\n",
-			 __FUNCTION__, __LINE__);
-		  goto repeat;
-	      }
-	    }
+		if (error) {
+			break;
+		}
+		pc_offset += res.length;
+		len -= res.length;
 	}
-	return 0; /* success */
+	return (error);
 }
 
-/*------------------------------------------------------------------------------*
- *  usbd_page_free - free multiple DMA-able memory pages
- *------------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------*
+ *  usbd_copy_out - copy directly from DMA-able memory
+ *------------------------------------------------------------------------*/
 void
-usbd_page_free(struct usbd_page *page, u_int32_t npages)
+usbd_copy_out(struct usbd_page_cache *cache, uint32_t offset,
+    void *ptr, uint32_t len)
 {
-	while(npages--) {
-	    usbd_mem_free_sub(page + npages);
+	struct usbd_page_search res;
+
+	while (len != 0) {
+
+		usbd_get_page(cache, offset, &res);
+
+		if (res.length > len) {
+			res.length = len;
+		}
+		bcopy(res.buffer, ptr, res.length);
+
+		offset += res.length;
+		len -= res.length;
+		ptr = USBD_ADD_BYTES(ptr, res.length);
 	}
 	return;
 }
 
-/*------------------------------------------------------------------------------*
- *  usbd_page_get_info - get USB page info by size offset
- *------------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------*
+ *  usbd_bzero - zero DMA-able memory
+ *------------------------------------------------------------------------*/
 void
-usbd_page_get_info(struct usbd_page *page, u_int32_t size, 
-		   struct usbd_page_info *info)
+usbd_bzero(struct usbd_page_cache *cache, uint32_t offset, uint32_t len)
 {
-	page += (size / USB_PAGE_SIZE);
-	size &= (USB_PAGE_SIZE-1);
-	info->buffer = ADD_BYTES(page->buffer,size);
-	info->physaddr = (page->physaddr + size);
-	info->page = page;
-	return;
-}
+	struct usbd_page_search res;
 
-/*------------------------------------------------------------------------------*
- *  usbd_page_set_start
- *------------------------------------------------------------------------------*/
-void
-usbd_page_set_start(struct usbd_page_cache *pc, struct usbd_page *page_ptr,
-		    u_int32_t size)
-{
-	pc->page_start = page_ptr + (size / USB_PAGE_SIZE);
-	pc->page_offset_buf = (size % USB_PAGE_SIZE);
-	return;
-}
+	while (len != 0) {
 
-/*------------------------------------------------------------------------------*
- *  usbd_page_set_end
- *------------------------------------------------------------------------------*/
-void
-usbd_page_set_end(struct usbd_page_cache *pc, struct usbd_page *page_ptr,
-		  u_int32_t size)
-{
-	pc->page_end = (page_ptr + 
-			((size + USB_PAGE_SIZE -1) / USB_PAGE_SIZE));
-	return;
-}
+		usbd_get_page(cache, offset, &res);
 
-/*------------------------------------------------------------------------------*
- *  usbd_page_fit_obj - fit object function
- *------------------------------------------------------------------------------*/
-u_int32_t
-usbd_page_fit_obj(u_int32_t size, u_int32_t obj_len)
-{
-	u_int32_t adj;
+		if (res.length > len) {
+			res.length = len;
+		}
+		bzero(res.buffer, res.length);
 
-	if (obj_len > (USB_PAGE_SIZE - (size & (USB_PAGE_SIZE-1)))) {
-
-	  if (obj_len > USB_PAGE_SIZE) {
-	      panic("%s:%d Too large object, %d bytes, will "
-		    "not fit on a USB page, %d bytes!\n", 
-		    __FUNCTION__, __LINE__, obj_len, 
-		    (int32_t)USB_PAGE_SIZE);
-	  }
-
-	  /* adjust offset to the beginning 
-	   * of the next page:
-	   */
-	  adj = ((-size) & (USB_PAGE_SIZE-1));
-	} else {
-	  adj = 0;
+		offset += res.length;
+		len -= res.length;
 	}
-	return adj;
-}
-
-/*------------------------------------------------------------------------------*
- *  usbd_mem_alloc - allocate DMA-able memory
- *------------------------------------------------------------------------------*/
-void *
-usbd_mem_alloc(bus_dma_tag_t parent, struct usbd_page *page, uint32_t size, 
-	       uint8_t align_power)
-{
-	bus_dma_tag_t tag;
-	u_int32_t alignment = (1 << align_power);
-	void *ptr;
-
-	tag = usbd_dma_tag_alloc(parent, size, alignment);
-
-	if (tag == NULL) {
-	    return NULL;
-	}
-
-	ptr = usbd_mem_alloc_sub(tag, page, size, alignment);
-
-	if (ptr == NULL) {
-	    usbd_dma_tag_free(tag);
-	    return NULL;
-	}
-
-	return ptr;
-}
-
-/*------------------------------------------------------------------------------*
- *  usbd_mem_free - free DMA-able memory
- *------------------------------------------------------------------------------*/
-void
-usbd_mem_free(struct usbd_page *page)
-{
-	bus_dma_tag_t tag;
-
-	tag = page->tag;
-
-	usbd_mem_free_sub(page);
-
-	usbd_dma_tag_free(tag);
-
 	return;
 }
 
 #ifdef __FreeBSD__
-/*------------------------------------------------------------------------------*
- *  bus_dmamap_load_callback
- *------------------------------------------------------------------------------*/
-static void
-bus_dmamap_load_callback(void *arg, bus_dma_segment_t *segs, 
-			 int nseg, int error)
-{
-	*((bus_size_t *)arg) = nseg ? segs->ds_addr : 0;
 
-	if(error)
-	{
-	    printf("%s: %s: error=%d\n",
-		   __FILE__, __FUNCTION__, error);
-	}
-	return;
-}
-
-/*------------------------------------------------------------------------------*
- *  usbd_dma_tag_alloc - allocate a bus-DMA tag
- *------------------------------------------------------------------------------*/
-bus_dma_tag_t 
-usbd_dma_tag_alloc(bus_dma_tag_t parent, u_int32_t size, 
-		   u_int32_t alignment)
+/*------------------------------------------------------------------------*
+ *	usbd_pc_tag_create - allocate a DMA tag
+ *
+ * NOTE: If the "align" parameter has a value of 1 the DMA-tag will
+ * allow multi-segment mappings. Else all mappings are single-segment.
+ *------------------------------------------------------------------------*/
+bus_dma_tag_t
+usbd_dma_tag_create(bus_dma_tag_t tag_parent, uint32_t size, uint32_t align)
 {
 	bus_dma_tag_t tag;
 
-	if(bus_dma_tag_create
-	   ( /* parent    */parent,
-	     /* alignment */alignment,
-	     /* boundary  */0,
-	     /* lowaddr   */BUS_SPACE_MAXADDR_32BIT,
-	     /* highaddr  */BUS_SPACE_MAXADDR,
-	     /* filter    */NULL,
-	     /* filterarg */NULL,
-	     /* maxsize   */size,
-	     /* nsegments */1,
-	     /* maxsegsz  */size,
-	     /* flags     */0,
-	     /* lock      */NULL,
-	     /*           */NULL,
-	     &tag))
-	{
-	    tag = NULL;
+	if (bus_dma_tag_create
+	    ( /* parent    */ tag_parent,
+	     /* alignment */ align,
+	     /* boundary  */ 0,
+	     /* lowaddr   */ BUS_SPACE_MAXADDR_32BIT,
+	     /* highaddr  */ BUS_SPACE_MAXADDR,
+	     /* filter    */ NULL,
+	     /* filterarg */ NULL,
+	     /* maxsize   */ size,
+	     /* nsegments */ (align == 1) ?
+	    (2 + (size / USB_PAGE_SIZE)) : 1,
+	     /* maxsegsz  */ USB_PAGE_SIZE,
+	     /* flags     */ 0,
+	     /* lock      */ NULL,
+	     /* */ NULL,
+	    &tag)) {
+		tag = NULL;
 	}
-	return tag;
+	return (tag);
 }
 
-/*------------------------------------------------------------------------------*
- *  usbd_dma_tag_free - free a bus-DMA tag
- *------------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------*
+ *	usbd_dma_tag_free - free a DMA tag
+ *------------------------------------------------------------------------*/
 void
-usbd_dma_tag_free(bus_dma_tag_t tag)
+usbd_dma_tag_destroy(bus_dma_tag_t tag)
 {
 	bus_dma_tag_destroy(tag);
 	return;
 }
 
-/*------------------------------------------------------------------------------*
- *  usbd_mem_alloc_sub - allocate DMA-able memory
- *------------------------------------------------------------------------------*/
-void *
-usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
-		   u_int32_t size, u_int32_t alignment)
+/*------------------------------------------------------------------------*
+ *	usbd_pc_alloc_mem_cb
+ *------------------------------------------------------------------------*/
+static void
+usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
+    int nseg, int error)
 {
+	struct usbd_xfer *xfer;
+	struct usbd_page_cache *pc;
+	struct usbd_page *pg;
+	uint32_t rem;
+	uint8_t owned;
+
+	pc = arg;
+	xfer = pc->xfer;
+
+	/*
+	 * XXX There is sometimes recursive locking here.
+	 * XXX We should try to find a better solution.
+	 * XXX Until further the "owned" variable does
+	 * XXX the trick.
+	 */
+
+	if (error) {
+		if (xfer) {
+			owned = mtx_owned(xfer->priv_mtx);
+			if (!owned)
+				mtx_lock(xfer->priv_mtx);
+			xfer->usb_root->dma_error = 1;
+			usbd_bdma_done_event(xfer->usb_root);
+			if (!owned)
+				mtx_unlock(xfer->priv_mtx);
+		}
+		return;
+	}
+	pg = pc->page_start;
+	pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
+	rem = segs->ds_addr & (USB_PAGE_SIZE - 1);
+	pc->page_offset_buf = rem;
+	pc->page_offset_end += rem;
+	nseg--;
+
+	while (nseg > 0) {
+		nseg--;
+		segs++;
+		pg++;
+		pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
+	}
+
+	if (xfer) {
+		owned = mtx_owned(xfer->priv_mtx);
+		if (!owned)
+			mtx_lock(xfer->priv_mtx);
+		usbd_bdma_done_event(xfer->usb_root);
+		if (!owned)
+			mtx_unlock(xfer->priv_mtx);
+	}
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_alloc_mem - allocate DMA'able memory
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+uint8_t
+usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
+    struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size,
+    uint32_t align, uint8_t utag_max)
+{
+	bus_dma_tag_t tag;
 	bus_dmamap_t map;
-	bus_size_t physaddr = 0;
 	void *ptr;
 
-	if(bus_dmamem_alloc
-	   (tag, &ptr, (BUS_DMA_WAITOK|BUS_DMA_COHERENT), &map))
-	{
-		return NULL;
+	if (align != 1) {
+		/*
+	         * The alignment must be greater or equal to the "size" else the
+	         * object can be split between two memory pages and we get a
+	         * problem!
+	         */
+		while (align < size) {
+			align *= 2;
+			if (align == 0) {
+				goto error;
+			}
+		}
 	}
+	/* get the correct DMA tag */
+	tag = usbd_dma_tag_setup(parent_tag, utag, size, align, utag_max);
+	if (tag == NULL) {
+		goto error;
+	}
+	/* allocate memory */
+	if (bus_dmamem_alloc
+	    (tag, &ptr, (BUS_DMA_WAITOK | BUS_DMA_COHERENT), &map)) {
+		goto error;
+	}
+	/* setup page cache */
+	pc->buffer = ptr;
+	pc->page_start = pg;
+	pc->page_offset_buf = 0;
+	pc->page_offset_end = size;
+	pc->map = map;
+	pc->tag = tag;
 
-	if(bus_dmamap_load
-	   (tag, map, ptr, size, &bus_dmamap_load_callback, 
-	    &physaddr, (BUS_DMA_WAITOK|BUS_DMA_COHERENT)))
-	{
+	/* load memory into DMA */
+	if (bus_dmamap_load
+	    (tag, map, ptr, size, &usbd_pc_alloc_mem_cb,
+	    pc, (BUS_DMA_WAITOK | BUS_DMA_COHERENT))) {
 		bus_dmamem_free(tag, ptr, map);
-		return NULL;
+		goto error;
 	}
-
-	page->tag = tag;
-	page->map = map;
-	page->physaddr = physaddr;
-	page->buffer = ptr;
-	page->length = size;
-	page->exit_level = 0;
-	page->intr_temp = 0;
-
 	bzero(ptr, size);
 
-	bus_dmamap_sync(page->tag, page->map, 
-			BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
+	usbd_pc_cpu_flush(pc);
 
-#ifdef USB_DEBUG
-	if(usbdebug > 14)
-	{
-	    printf("%s: %p, %d bytes, phys=%p\n", 
-		   __FUNCTION__, ptr, size, 
-		   ((char *)0) + physaddr);
-	}
-#endif
-	return ptr;
+	return (0);
+
+error:
+	/* reset most of the page cache */
+	pc->buffer = NULL;
+	pc->page_start = NULL;
+	pc->page_offset_buf = 0;
+	pc->page_offset_end = 0;
+	pc->map = NULL;
+	pc->tag = NULL;
+	return (1);
 }
 
-/*------------------------------------------------------------------------------*
- *  usbd_mem_free_sub - free DMA-able memory
- *------------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------*
+ *	usbd_pc_free_mem - free DMA memory
+ *
+ * This function is NULL safe.
+ *------------------------------------------------------------------------*/
 void
-usbd_mem_free_sub(struct usbd_page *page)
+usbd_pc_free_mem(struct usbd_page_cache *pc)
 {
-	/* NOTE: make a copy of "tag", "map", 
-	 * and "buffer" in case "page" is part 
-	 * of the allocated memory:
-	 */
-	bus_dma_tag_t tag = page->tag;
-	bus_dmamap_t map = page->map;
-	void *ptr = page->buffer;
+	if (pc && pc->buffer) {
 
-	if (page->exit_level == 0) {
-	    bus_dmamap_sync(page->tag, page->map, 
-			    BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
-	} else {
-	    panic("%s:%d: exit_level is not zero!\n",
-		  __FUNCTION__, __LINE__);
-	}
+		bus_dmamap_unload(pc->tag, pc->map);
 
-	bus_dmamap_unload(tag, map);
+		bus_dmamem_free(pc->tag, pc->buffer, pc->map);
 
-	bus_dmamem_free(tag, ptr, map);
-
-#ifdef USB_DEBUG
-	if(usbdebug > 14)
-	{
-	    printf("%s: %p\n", 
-		   __FUNCTION__, ptr);
-	}
-#endif
-	return;
-}
-
-void
-usbd_page_dma_exit(struct usbd_page *page)
-{
-	if ((page->exit_level)++ == 0) {
-		/*
-		 * Disable interrupts so that the
-		 * PCI controller can continue
-		 * using the memory as quick as
-		 * possible:
-		 */
-		page->intr_temp = intr_disable();
-		bus_dmamap_sync(page->tag, page->map, 
-				BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
+		pc->buffer = NULL;
 	}
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_pc_load_mem - load virtual memory into DMA
+ *------------------------------------------------------------------------*/
 void
-usbd_page_dma_enter(struct usbd_page *page)
+usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size)
 {
-	if (--(page->exit_level) == 0) {
-		bus_dmamap_sync(page->tag, page->map, 
-				BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
-		intr_restore(page->intr_temp);
+	/* sanity check */
+	if (pc->xfer == NULL) {
+		panic("This page cache is not loadable!\n");
+		return;
+	}
+	/* setup page cache */
+	pc->page_offset_buf = 0;
+	pc->page_offset_end = size;
+
+	if (size > 0) {
+
+		pc->xfer->usb_root->dma_refcount++;
+
+		/* try to load memory into DMA */
+		if (bus_dmamap_load(
+		    pc->tag, pc->map, pc->buffer, size,
+		    &usbd_pc_alloc_mem_cb, pc, 0)) {
+		}
 	}
 	return;
 }
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_cpu_invalidate - invalidate CPU cache
+ *------------------------------------------------------------------------*/
+void
+usbd_pc_cpu_invalidate(struct usbd_page_cache *pc)
+{
+	bus_dmamap_sync(pc->tag, pc->map,
+	    BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_cpu_flush - flush CPU cache
+ *------------------------------------------------------------------------*/
+void
+usbd_pc_cpu_flush(struct usbd_page_cache *pc)
+{
+	bus_dmamap_sync(pc->tag, pc->map,
+	    BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_dmamap_create
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+uint8_t
+usbd_pc_dmamap_create(struct usbd_page_cache *pc, uint32_t size)
+{
+	struct usbd_memory_info *info;
+	bus_dma_tag_t tag;
+
+	/* sanity check */
+	if (pc->xfer == NULL) {
+		goto error;
+	}
+	info = pc->xfer->usb_root;
+	tag = pc->xfer->udev->bus->dma_tag_parent;
+
+	tag = usbd_dma_tag_setup(tag, info->dma_tag_p,
+	    size, 1, info->dma_tag_max);
+	if (tag == NULL) {
+		goto error;
+	}
+	if (bus_dmamap_create(tag, 0, &(pc->map))) {
+		goto error;
+	}
+	pc->tag = tag;
+	return 0;			/* success */
+
+error:
+	pc->map = NULL;
+	pc->tag = NULL;
+	return 1;			/* failure */
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_dmamap_destroy
+ *
+ * This function is NULL safe.
+ *------------------------------------------------------------------------*/
+void
+usbd_pc_dmamap_destroy(struct usbd_page_cache *pc)
+{
+	if (pc && pc->tag) {
+		bus_dmamap_destroy(pc->tag, pc->map);
+		pc->tag = NULL;
+		pc->map = NULL;
+	}
+	return;
+}
+
 #endif
 
 #ifdef __NetBSD__
 
-bus_dma_tag_t 
-usbd_dma_tag_alloc(bus_dma_tag_t parent, u_int32_t size, 
-		   u_int32_t alignment)
+bus_dma_tag_t
+usbd_dma_tag_alloc(bus_dma_tag_t parent, uint32_t seg_size,
+    uint32_t alignment, uint32_t max_size, uint8_t single_seg)
 {
 	/* FreeBSD specific */
-	return parent;
+	return (parent);
 }
 
 void
 usbd_dma_tag_free(bus_dma_tag_t tag)
 {
+	/* FreeBSD specific */
 	return;
 }
 
-void *
+void   *
 usbd_mem_alloc_sub(bus_dma_tag_t tag, struct usbd_page *page,
-		   u_int32_t size, u_int32_t alignment)
+    uint32_t size, uint32_t alignment)
 {
 	caddr_t ptr = NULL;
 
 	page->tag = tag;
 	page->seg_count = 1;
 
-	if(bus_dmamem_alloc(page->tag, size, alignment, 0,
-			    &page->seg, 1,
-			    &page->seg_count, BUS_DMA_WAITOK))
-	{
+	if (bus_dmamem_alloc(page->tag, size, alignment, 0,
+	    &page->seg, 1,
+	    &page->seg_count, BUS_DMA_WAITOK)) {
 		goto done_4;
 	}
-
-	if(bus_dmamem_map(page->tag, &page->seg, page->seg_count, size,
-			  &ptr, BUS_DMA_WAITOK|BUS_DMA_COHERENT))
-	{
+	if (bus_dmamem_map(page->tag, &page->seg, page->seg_count, size,
+	    &ptr, BUS_DMA_WAITOK | BUS_DMA_COHERENT)) {
 		goto done_3;
 	}
-
-	if(bus_dmamap_create(page->tag, size, 1, size,
-			     0, BUS_DMA_WAITOK, &page->map))
-	{
+	if (bus_dmamap_create(page->tag, size, 1, size,
+	    0, BUS_DMA_WAITOK, &page->map)) {
 		goto done_2;
 	}
-
-	if(bus_dmamap_load(page->tag, page->map, ptr, size, NULL, 
-			   BUS_DMA_WAITOK))
-	{
+	if (bus_dmamap_load(page->tag, page->map, ptr, size, NULL,
+	    BUS_DMA_WAITOK)) {
 		goto done_1;
 	}
-
 	page->physaddr = page->map->dm_segs[0].ds_addr;
 	page->buffer = ptr;
 	page->length = size;
-	page->exit_level = 0;
-	page->intr_temp = 0;
 
+	usbd_page_cpu_invalidate(page);
 	bzero(ptr, size);
-
-	bus_dmamap_sync(page->tag, page->map, 0, page->length, 
-			BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
+	usbd_page_cpu_flush(page);
 
 #ifdef USB_DEBUG
-	if(usbdebug > 14)
-	{
-	    printf("%s: %p, %d bytes, phys=%p\n", 
-		   __FUNCTION__, ptr, size, 
-		   ((char *)0) + page->physaddr);
+	if (usbdebug > 14) {
+		printf("%s: %p, %d bytes, phys=%p\n",
+		    __FUNCTION__, ptr, size,
+		    ((char *)0) + page->physaddr);
 	}
 #endif
-	return ptr;
+	return (ptr);
 
- done_1:
+done_1:
 	bus_dmamap_destroy(page->tag, page->map);
 
- done_2:
+done_2:
 	bus_dmamem_unmap(page->tag, ptr, size);
 
- done_3:
+done_3:
 	bus_dmamem_free(page->tag, &page->seg, page->seg_count);
 
- done_4:
-	return NULL;
+done_4:
+	return (NULL);
 }
 
 void
 usbd_mem_free_sub(struct usbd_page *page)
 {
-	/* NOTE: make a copy of "tag", "map", 
-	 * and "buffer" in case "page" is part 
-	 * of the allocated memory:
+	/*
+	 * NOTE: make a copy of "tag", "map", and "buffer" in case "page" is
+	 * part of the allocated memory:
 	 */
 	struct usbd_page temp = *page;
-
-	if (temp.exit_level == 0) {
-	    bus_dmamap_sync(temp.tag, temp.map, 0, temp.length, 
-			    BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
-	} else {
-	    panic("%s:%d: exit_level is not zero!\n",
-		  __FUNCTION__, __LINE__);
-	}
 
 	bus_dmamap_unload(temp.tag, temp.map);
 	bus_dmamap_destroy(temp.tag, temp.map);
@@ -2471,306 +2598,210 @@ usbd_mem_free_sub(struct usbd_page *page)
 	bus_dmamem_free(temp.tag, &temp.seg, temp.seg_count);
 
 #ifdef USB_DEBUG
-	if(usbdebug > 14)
-	{
-	    printf("%s: %p\n", 
-		   __FUNCTION__, temp.buffer);
+	if (usbdebug > 14) {
+		printf("%s: %p\n",
+		    __FUNCTION__, temp.buffer);
 	}
 #endif
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_pc_cpu_invalidate - invalidate CPU cache
+ *------------------------------------------------------------------------*/
 void
-usbd_page_dma_exit(struct usbd_page *page)
+usbd_pc_cpu_invalidate(struct usbd_page_cache *pc)
 {
-	if ((page->exit_level)++ == 0) {
-		/*
-		 * Disable interrupts so that the
-		 * PCI controller can continue
-		 * using the memory as quick as
-		 * possible:
-		 */
-		page->intr_temp = intr_disable();
-		bus_dmamap_sync(page->tag, page->map, 0, page->length,
-				BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
-	}
+	uint32_t len;
+
+	len = pc->page_offset_end - pc->page_offset_buf;
+
+	bus_dmamap_sync(pc->tag, pc->map, 0, len,
+	    BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_pc_cpu_flush - flush CPU cache
+ *------------------------------------------------------------------------*/
 void
-usbd_page_dma_enter(struct usbd_page *page)
+usbd_pc_cpu_flush(struct usbd_page_cache *pc)
 {
-	if (--(page->exit_level) == 0) {
-		bus_dmamap_sync(page->tag, page->map, 0, page->length,
-				BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
-		intr_restore(page->intr_temp);
-	}
+	uint32_t len;
+
+	len = pc->page_offset_end - pc->page_offset_buf;
+
+	bus_dmamap_sync(page->tag, page->map, 0, len,
+	    BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
 	return;
 }
+
 #endif
 
-/*------------------------------------------------------------------------------*
- *  usbd_std_transfer_setup - standard transfer setup
- *------------------------------------------------------------------------------*/
-void
-usbd_std_transfer_setup(struct usbd_device *udev,
-			struct usbd_xfer *xfer, 
-			const struct usbd_config *setup, 
-			u_int16_t max_packet_size, u_int16_t max_frame_size,
-			uint8_t max_packet_count)
-{
-	usb_endpoint_descriptor_t *edesc = xfer->pipe->edesc;
-	uint8_t type;
-
-	__callout_init_mtx(&xfer->timeout_handle, xfer->usb_mtx,
-			   CALLOUT_RETURNUNLOCKED);
-
-	xfer->flags = setup->flags;
-	xfer->nframes = setup->frames;
-	xfer->timeout = setup->timeout;
-	xfer->callback = setup->callback;
-	xfer->interval = setup->interval;
-	xfer->endpoint = edesc->bEndpointAddress;
-	xfer->max_packet_size = usbd_get_max_packet_size(edesc);
-	xfer->max_packet_count = usbd_get_max_packet_count(edesc);
-	xfer->max_frame_size = usbd_get_max_frame_size(edesc);
-	xfer->length = setup->bufsize;
-
-	/* check interrupt interval and transfer pre-delay */
-
-	type = (edesc->bmAttributes & UE_XFERTYPE);
-
-	if (type == UE_ISOCHRONOUS) {
-	    xfer->interval = 0; /* not used, must be zero */
-
-	    if (xfer->timeout == 0) {
-	        /* set a default timeout in 
-		 * case something goes wrong!
-		 */
-	        xfer->timeout = 1000 / 4;
-	    }
-
-	} else {
-	    /* if a value is specified use that
-	     * else check the endpoint descriptor
-	     */
-	    if (xfer->interval == 0) {
-
-	        if (type == UE_INTERRUPT) {
-
-		    xfer->interval = edesc->bInterval;
-
-		    if (usbd_get_speed(udev) == USB_SPEED_HIGH) {
-		        xfer->interval /= 8; /* 125us -> 1ms */
-		    }
-
-		    if (xfer->interval == 0) {
-		        /* one millisecond is the smallest interval */
-		        xfer->interval = 1;
-		    }
-		}
-	    }
-	}
-
-	/* wMaxPacketSize is also checked by "usbd_fill_iface_data()" */
-
-	if (xfer->max_packet_size == 0) {
-	    xfer->max_packet_size = 8;
-	}
-
-	if (xfer->max_packet_size > max_packet_size) {
-	    xfer->max_packet_size = max_packet_size;
-	}
-
-	/* check the maximum packet count */
-
-	if (xfer->max_packet_count == 0) {
-	    xfer->max_packet_count = 1;
-	}
-
-	if (xfer->max_packet_count > max_packet_count) {
-	    xfer->max_packet_count = max_packet_count;
-	}
-
-	/* check the maximum frame size */
-
-	if (xfer->max_frame_size > max_frame_size) {
-	    xfer->max_frame_size = max_frame_size;
-	}
-
-	if (xfer->length == 0) {
-	    xfer->length = xfer->max_frame_size;
-	    if (xfer->nframes) {
-	        xfer->length *= xfer->nframes;
-	    }
-	}
-	return;
-}
-
-/*------------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  *  usbd_make_str_desc - convert an ASCII string into a UNICODE string
- *------------------------------------------------------------------------------*/
-u_int8_t
-usbd_make_str_desc(void *ptr, u_int16_t max_len, const char *s)
+ *------------------------------------------------------------------------*/
+uint8_t
+usbd_make_str_desc(void *ptr, uint16_t max_len, const char *s)
 {
 	usb_string_descriptor_t *p = ptr;
-	u_int8_t totlen;
+	uint8_t totlen;
 	int32_t j;
 
 	if (max_len < 2) {
-	    /* invalid length */
-	    return 0;
+		/* invalid length */
+		return (0);
 	}
-
 	max_len = ((max_len / 2) - 1);
 
 	j = strlen(s);
 
 	if (j < 0) {
-	    j = 0;
+		j = 0;
 	}
-
 	if (j > 126) {
-	    j = 126;
+		j = 126;
 	}
-
 	if (max_len > j) {
-	    max_len = j;
+		max_len = j;
 	}
-
 	totlen = (max_len + 1) * 2;
 
 	p->bLength = totlen;
 	p->bDescriptorType = UDESC_STRING;
 
 	while (max_len--) {
-	    USETW2(p->bString[max_len], 0, s[max_len]);
+		USETW2(p->bString[max_len], 0, s[max_len]);
 	}
-	return totlen;
+	return (totlen);
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * mtx_drop_recurse - drop mutex recurse level
- *---------------------------------------------------------------------------*/
-u_int32_t
+ *------------------------------------------------------------------------*/
+uint32_t
 mtx_drop_recurse(struct mtx *mtx)
 {
-	u_int32_t recurse_level = mtx->mtx_recurse;
-	u_int32_t recurse_curr = recurse_level;
+	uint32_t recurse_level = mtx->mtx_recurse;
+	uint32_t recurse_curr = recurse_level;
 
 	mtx_assert(mtx, MA_OWNED);
 
-	while(recurse_curr--) {
-	    mtx_unlock(mtx);
+	while (recurse_curr--) {
+		mtx_unlock(mtx);
 	}
 
-	return recurse_level;
+	return (recurse_level);
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * mtx_pickup_recurse - pickup mutex recurse level
- *---------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 void
-mtx_pickup_recurse(struct mtx *mtx, u_int32_t recurse_level)
+mtx_pickup_recurse(struct mtx *mtx, uint32_t recurse_level)
 {
 	mtx_assert(mtx, MA_OWNED);
 
-	while(recurse_level--) {
-	    mtx_lock(mtx);
+	while (recurse_level--) {
+		mtx_lock(mtx);
 	}
 	return;
 }
 
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * usbd_config_thread
- *---------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 static void
 usbd_config_td_thread(void *arg)
 {
 	struct usbd_config_td *ctd = arg;
 	struct usbd_config_td_item *item;
 	struct usbd_mbuf *m;
+	struct thread *td;
 	register int error;
+
+	/* adjust priority */
+	td = curthread;
+	thread_lock(td);
+	sched_prio(td, PI_DISK);
+	thread_unlock(td);
 
 	mtx_lock(ctd->p_mtx);
 
-	while(1) {
+	while (1) {
 
-	    if (ctd->flag_config_td_gone) {
-	        break;
-	    }
+		if (ctd->flag_config_td_gone) {
+			break;
+		}
+		/*
+		 * NOTE to reimplementors: dequeueing a command from the
+		 * "used" queue and executing it must be atomic, with regard
+		 * to the "p_mtx" mutex. That means any attempt to queue a
+		 * command by another thread must be blocked until either:
+		 *
+		 * 1) the command sleeps
+		 *
+		 * 2) the command returns
+		 *
+		 * Here is a practical example that shows how this helps
+		 * solving a problem:
+		 *
+		 * Assume that you want to set the baud rate on a USB serial
+		 * device. During the programming of the device you don't
+		 * want to receive nor transmit any data, because it will be
+		 * garbage most likely anyway. The programming of our USB
+		 * device takes 20 milliseconds and it needs to call
+		 * functions that sleep.
+		 *
+		 * Non-working solution: Before we queue the programming
+		 * command, we stop transmission and reception of data. Then
+		 * we queue a programming command. At the end of the
+		 * programming command we enable transmission and reception
+		 * of data.
+		 *
+		 * Problem: If a second programming command is queued while the
+		 * first one is sleeping, we end up enabling transmission
+		 * and reception of data too early.
+		 *
+		 * Working solution: Before we queue the programming command,
+		 * we stop transmission and reception of data. Then we queue
+		 * a programming command. Then we queue a second command
+		 * that only enables transmission and reception of data.
+		 *
+		 * Why it works: If a second programming command is queued
+		 * while the first one is sleeping, then the queueing of a
+		 * second command to enable the data transfers, will cause
+		 * the previous one, which is still on the queue, to be
+		 * removed from the queue, and re-inserted after the last
+		 * baud rate programming command, which then gives the
+		 * desired result.
+		 *
+		 * This example assumes that you use a "qcount" of zero.
+		 */
 
-	    /* NOTE to reimplementors: dequeueing a command from the
-	     * "used" queue and executing it must be atomic, with
-	     * regard to the "p_mtx" mutex. That means any attempt to
-	     * queue a command by another thread must be blocked until
-	     * either:
-	     *
-	     * 1) the command sleeps
-	     *
-	     * 2) the command returns
-	     *
-	     * Here is a practical example that shows how this
-	     * helps solving a problem:
-	     *
-	     * Assume that you want to set the baud rate on a USB
-	     * serial device. During the programming of the device you
-	     * don't want to receive nor transmit any data, because it
-	     * will be garbage most likely anyway. The programming of
-	     * our USB device takes 20 milliseconds and it needs to
-	     * call functions that sleep.
-	     *
-	     * Non-working solution: Before we queue the programming command,
-	     * we stop transmission and reception of data. Then we
-	     * queue a programming command. At the end of the programming
-	     * command we enable transmission and reception of data.
-	     *
-	     * Problem: If a second programming command is queued
-	     * while the first one is sleeping, we end up enabling
-	     * transmission and reception of data too early.
-	     *
-	     * Working solution: Before we queue the programming
-	     * command, we stop transmission and reception of
-	     * data. Then we queue a programming command. Then we
-	     * queue a second command that only enables transmission
-	     * and reception of data.
-	     *
-	     * Why it works: If a second programming command is queued
-	     * while the first one is sleeping, then the queueing of a
-	     * second command to enable the data transfers, will cause
-	     * the previous one, which is still on the queue, to be
-	     * removed from the queue, and re-inserted after the last
-	     * baud rate programming command, which then gives the
-	     * desired result.
-	     *
-	     * This example assumes that you use a "qcount" of zero.
-	     */
+		USBD_IF_DEQUEUE(&(ctd->cmd_used), m);
 
-	    USBD_IF_DEQUEUE(&(ctd->cmd_used), m);
+		if (m) {
 
-	    if (m) {
+			item = (void *)(m->cur_data_ptr);
 
-	        item = (void *)(m->cur_data_ptr);
+			(item->command_func)
+			    (ctd->p_softc, (void *)(item + 1), item->command_ref);
 
-		(item->command_func)
-		  (ctd->p_softc, (void *)(item+1), item->command_ref);
+			USBD_IF_ENQUEUE(&(ctd->cmd_free), m);
 
-		USBD_IF_ENQUEUE(&(ctd->cmd_free), m);
+			continue;
+		}
+		if (ctd->p_end_of_commands) {
+			(ctd->p_end_of_commands) (ctd->p_softc);
+		}
+		ctd->flag_config_td_sleep = 1;
 
-		continue;
-	    }
+		error = mtx_sleep(&(ctd->wakeup_config_td), ctd->p_mtx,
+		    0, "cfg td sleep", 0);
 
-	    if (ctd->p_end_of_commands) {
-	        (ctd->p_end_of_commands)(ctd->p_softc);
-	    }
-
-	    ctd->flag_config_td_sleep = 1;
-
-	    error = mtx_sleep(&(ctd->wakeup_config_td), ctd->p_mtx,
-			      0, "cfg td sleep", 0);
-
-	    ctd->flag_config_td_sleep = 0;
+		ctd->flag_config_td_sleep = 0;
 	}
 
 	ctd->config_thread = NULL;
@@ -2779,78 +2810,76 @@ usbd_config_td_thread(void *arg)
 
 	mtx_unlock(ctd->p_mtx);
 
-	kthread_exit(0);
+	usb_thread_exit(0);
 
 	return;
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * usbd_config_td_setup
  *
- * NOTE: the structure pointed to by "ctd" must be zeroed before calling 
+ * NOTE: the structure pointed to by "ctd" must be zeroed before calling
  * this function!
  *
  * Return values:
  *    0: success
  * else: failure
- *---------------------------------------------------------------------------*/
-u_int8_t
-usbd_config_td_setup(struct usbd_config_td *ctd, void *priv_sc, 
-		     struct mtx *priv_mtx, 
-		     usbd_config_td_end_of_commands_t *p_func_eoc,
-		     u_int16_t item_size, u_int16_t item_count)
+ *------------------------------------------------------------------------*/
+uint8_t
+usbd_config_td_setup(struct usbd_config_td *ctd, void *priv_sc,
+    struct mtx *priv_mtx,
+    usbd_config_td_end_of_commands_t *p_func_eoc,
+    uint16_t item_size, uint16_t item_count)
 {
 	ctd->p_mtx = priv_mtx;
 	ctd->p_softc = priv_sc;
 	ctd->p_end_of_commands = p_func_eoc;
 
 	if (item_count >= 256) {
-	    PRINTFN(0,("too many items!\n"));
-	    goto error;
+		PRINTFN(0, ("too many items!\n"));
+		goto error;
 	}
-
-	ctd->p_cmd_queue = 
-	  usbd_alloc_mbufs(M_DEVBUF, &(ctd->cmd_free), 
-			   (sizeof(struct usbd_config_td_item) + item_size), 
-			   item_count);
+	ctd->p_cmd_queue =
+	    usbd_alloc_mbufs(M_DEVBUF, &(ctd->cmd_free),
+	    (sizeof(struct usbd_config_td_item) + item_size),
+	    item_count);
 
 	if (ctd->p_cmd_queue == NULL) {
-	    PRINTFN(0,("unable to allocate memory "
-		       "for command queue!\n"));
-	    goto error;
+		PRINTFN(0, ("unable to allocate memory "
+		    "for command queue!\n"));
+		goto error;
 	}
-
-	if (usb_kthread_create1
-	    (&usbd_config_td_thread, ctd, &(ctd->config_thread), 
-	     "usbd config thread")) {
-	    PRINTFN(0,("unable to create config thread!\n"));
-	    ctd->config_thread = NULL;
-	    goto error;
+	if (usb_thread_create
+	    (&usbd_config_td_thread, ctd, &(ctd->config_thread),
+	    "USB config thread")) {
+		PRINTFN(0, ("unable to create config thread!\n"));
+		ctd->config_thread = NULL;
+		goto error;
 	}
-	return 0;
+	return (0);
 
- error:
+error:
 	usbd_config_td_unsetup(ctd);
-	return 1;
+	return (1);
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * usbd_config_td_dummy_cmd
- *---------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 static void
-usbd_config_td_dummy_cmd(struct usbd_config_td_softc *sc, 
-			 struct usbd_config_td_cc *cc, 
-			 u_int16_t reference)
+usbd_config_td_dummy_cmd(struct usbd_config_td_softc *sc,
+    struct usbd_config_td_cc *cc,
+    uint16_t reference)
 {
 	return;
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * usbd_config_td_stop
  *
  * NOTE: If the structure pointed to by "ctd" is all zero,
  * this function does nothing.
- *---------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 void
 usbd_config_td_stop(struct usbd_config_td *ctd)
 {
@@ -2859,73 +2888,72 @@ usbd_config_td_stop(struct usbd_config_td *ctd)
 
 	if (ctd->p_mtx) {
 
-	  mtx_lock(ctd->p_mtx);
+		mtx_lock(ctd->p_mtx);
 
-	  while (ctd->config_thread) {
+		while (ctd->config_thread) {
 
-	    usbd_config_td_queue_command(ctd, NULL, &usbd_config_td_dummy_cmd, 
-					 0, 0);
+			usbd_config_td_queue_command(ctd, NULL, &usbd_config_td_dummy_cmd,
+			    0, 0);
 
-	    /* set the gone flag after queueing the
-	     * last command:
-	     */
-	    ctd->flag_config_td_gone = 1;
+			/*
+			 * set the gone flag after queueing the last
+			 * command:
+			 */
+			ctd->flag_config_td_gone = 1;
 
-	    if (cold) {
-	        panic("%s:%d: cannot stop config thread!\n",
-		      __FUNCTION__, __LINE__);
-	    }
+			if (cold) {
+				panic("%s:%d: cannot stop config thread!\n",
+				    __FUNCTION__, __LINE__);
+			}
+			level = mtx_drop_recurse(ctd->p_mtx);
 
-	    level = mtx_drop_recurse(ctd->p_mtx);
+			error = mtx_sleep(&(ctd->wakeup_config_td_gone),
+			    ctd->p_mtx, 0, "wait config TD", 0);
 
-	    error = mtx_sleep(&(ctd->wakeup_config_td_gone), 
-			      ctd->p_mtx, 0, "wait config TD", 0);
+			mtx_pickup_recurse(ctd->p_mtx, level);
+		}
 
-	    mtx_pickup_recurse(ctd->p_mtx, level);
-	  }
-
-	  mtx_unlock(ctd->p_mtx);
+		mtx_unlock(ctd->p_mtx);
 	}
 	return;
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * usbd_config_td_unsetup
  *
  * NOTE: If the structure pointed to by "ctd" is all zero,
  * this function does nothing.
- *---------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 void
 usbd_config_td_unsetup(struct usbd_config_td *ctd)
 {
 	usbd_config_td_stop(ctd);
 
 	if (ctd->p_cmd_queue) {
-	    free(ctd->p_cmd_queue, M_DEVBUF);
-	    ctd->p_cmd_queue = NULL;
+		free(ctd->p_cmd_queue, M_DEVBUF);
+		ctd->p_cmd_queue = NULL;
 	}
 	return;
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * usbd_config_td_queue_command
- *---------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 void
 usbd_config_td_queue_command(struct usbd_config_td *ctd,
-			     usbd_config_td_command_t *command_pre_func,
-			     usbd_config_td_command_t *command_post_func,
-			     u_int16_t command_qcount,
-			     u_int16_t command_ref)
+    usbd_config_td_command_t *command_pre_func,
+    usbd_config_td_command_t *command_post_func,
+    uint16_t command_qcount,
+    uint16_t command_ref)
 {
 	struct usbd_config_td_item *item;
 	struct usbd_mbuf *m;
 	int32_t qlen;
 
 	if (usbd_config_td_is_gone(ctd)) {
-	    /* nothing more to do */
-	    return;
+		/* nothing more to do */
+		return;
 	}
-
 	/*
 	 * first check if the command was
 	 * already queued, and if so, remove
@@ -2935,91 +2963,84 @@ usbd_config_td_queue_command(struct usbd_config_td *ctd,
 
 	while (qlen--) {
 
-	    USBD_IF_DEQUEUE(&(ctd->cmd_used), m);
+		USBD_IF_DEQUEUE(&(ctd->cmd_used), m);
 
-	    if (m == NULL) {
-	        /* should not happen */
-	        break;
-	    }
-
-	    item = (void *)(m->cur_data_ptr);
-
-	    if ((item->command_func == command_post_func) &&
-		(item->command_ref == command_ref)) {
-	        if (command_qcount == 0) {
-		  USBD_IF_ENQUEUE(&(ctd->cmd_free), m);
-		  continue;
+		if (m == NULL) {
+			/* should not happen */
+			break;
 		}
-		command_qcount--;
-	    }
-	    USBD_IF_ENQUEUE(&(ctd->cmd_used), m);
+		item = (void *)(m->cur_data_ptr);
+
+		if ((item->command_func == command_post_func) &&
+		    (item->command_ref == command_ref)) {
+			if (command_qcount == 0) {
+				USBD_IF_ENQUEUE(&(ctd->cmd_free), m);
+				continue;
+			}
+			command_qcount--;
+		}
+		USBD_IF_ENQUEUE(&(ctd->cmd_used), m);
 	}
 
 	USBD_IF_DEQUEUE(&(ctd->cmd_free), m);
 
 	if (m == NULL) {
-	    /* should not happen */
-	    panic("%s:%d: out of memory!\n",
-		  __FUNCTION__, __LINE__);
+		/* should not happen */
+		panic("%s:%d: out of memory!\n",
+		    __FUNCTION__, __LINE__);
 	}
-
 	USBD_MBUF_RESET(m);
 
 	item = (void *)(m->cur_data_ptr);
 
-	/* The job of the post-command
-	 * function is to finish the command
-	 * in a separate context to allow calls
-	 * to sleeping functions basically.
-	 * Queue the post command before calling
-	 * the pre command. That way commands 
-	 * queued by the pre command will be
-	 * queued after the current command.
+	/*
+	 * The job of the post-command function is to finish the command in
+	 * a separate context to allow calls to sleeping functions
+	 * basically. Queue the post command before calling the pre command.
+	 * That way commands queued by the pre command will be queued after
+	 * the current command.
 	 */
 	item->command_func = command_post_func;
 	item->command_ref = command_ref;
 
 	USBD_IF_ENQUEUE(&(ctd->cmd_used), m);
 
-	/* The job of the pre-command
-	 * function is to copy the needed 
-	 * configuration to the provided
-	 * structure and to execute other
-	 * commands that must happen
-	 * immediately
+	/*
+	 * The job of the pre-command function is to copy the needed
+	 * configuration to the provided structure and to execute other
+	 * commands that must happen immediately
 	 */
 	if (command_pre_func) {
-	    (command_pre_func)(ctd->p_softc, (void *)(item+1), command_ref);
+		(command_pre_func) (ctd->p_softc, (void *)(item + 1), command_ref);
 	}
-
-	/* Currently we use a separate thread
-	 * to execute the command, but it is not
-	 * impossible that we might use
-	 * a so called taskqueue in the future:
+	/*
+	 * Currently we use a separate thread to execute the command, but it
+	 * is not impossible that we might use a so called taskqueue in the
+	 * future:
 	 */
 	if (ctd->flag_config_td_sleep) {
-	    ctd->flag_config_td_sleep = 0;
-	    wakeup(&(ctd->wakeup_config_td));
+		ctd->flag_config_td_sleep = 0;
+		wakeup(&(ctd->wakeup_config_td));
 	}
 	return;
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * usbd_config_td_is_gone
  *
  * Return values:
  *    0: config thread is running
  * else: config thread is gone
- *---------------------------------------------------------------------------*/
-u_int8_t
+ *------------------------------------------------------------------------*/
+uint8_t
 usbd_config_td_is_gone(struct usbd_config_td *ctd)
 {
 	mtx_assert(ctd->p_mtx, MA_OWNED);
 
-	return ctd->flag_config_td_gone ? 1 : 0;
+	return (ctd->flag_config_td_gone ? 1 : 0);
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * usbd_config_td_sleep
  *
  * NOTE: this function can only be called from the config thread
@@ -3027,40 +3048,38 @@ usbd_config_td_is_gone(struct usbd_config_td *ctd)
  * Return values:
  *    0: normal delay
  * else: config thread is gone
- *---------------------------------------------------------------------------*/
-u_int8_t
-usbd_config_td_sleep(struct usbd_config_td *ctd, u_int32_t timeout)
+ *------------------------------------------------------------------------*/
+uint8_t
+usbd_config_td_sleep(struct usbd_config_td *ctd, uint32_t timeout)
 {
 	register int error;
-	u_int8_t is_gone = usbd_config_td_is_gone(ctd);
-	u_int32_t level;
+	uint8_t is_gone = usbd_config_td_is_gone(ctd);
+	uint32_t level;
 
 	if (is_gone) {
-	    goto done;
+		goto done;
 	}
-
 	if (timeout == 0) {
-	    /* zero means no timeout, 
-	     * so avoid that by setting
-	     * timeout to one:
-	     */
-	    timeout = 1;
+		/*
+		 * zero means no timeout, so avoid that by setting timeout
+		 * to one:
+		 */
+		timeout = 1;
 	}
-
 	level = mtx_drop_recurse(ctd->p_mtx);
 
-	error = mtx_sleep(ctd, ctd->p_mtx, 0, 
-			  "config td sleep", timeout);
+	error = mtx_sleep(ctd, ctd->p_mtx, 0,
+	    "config td sleep", timeout);
 
 	mtx_pickup_recurse(ctd->p_mtx, level);
 
- done:
-	return is_gone;
+done:
+	return (is_gone);
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * usbd_ether_get_mbuf - get a new ethernet mbuf
- *---------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 struct mbuf *
 usbd_ether_get_mbuf(void)
 {
@@ -3068,15 +3087,15 @@ usbd_ether_get_mbuf(void)
 
 	m_new = m_getcl(M_DONTWAIT, MT_DATA, M_PKTHDR);
 	if (m_new) {
-	    m_new->m_len = m_new->m_pkthdr.len = MCLBYTES;
-	    m_adj(m_new, ETHER_ALIGN);
+		m_new->m_len = m_new->m_pkthdr.len = MCLBYTES;
+		m_adj(m_new, ETHER_ALIGN);
 	}
 	return (m_new);
 }
 
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * device_delete_all_children - delete all children of a device
- *---------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 int32_t
 device_delete_all_children(device_t dev)
 {
@@ -3086,62 +3105,20 @@ device_delete_all_children(device_t dev)
 
 	error = device_get_children(dev, &devlist, &devcount);
 	if (error == 0) {
-	    while (devcount-- > 0) {
-	        error = device_delete_child(dev, devlist[devcount]);
-		if (error) {
-		    break;
+		while (devcount-- > 0) {
+			error = device_delete_child(dev, devlist[devcount]);
+			if (error) {
+				break;
+			}
 		}
-	    }
-	    free(devlist, M_TEMP);
+		free(devlist, M_TEMP);
 	}
-	return error;
+	return (error);
 }
 
-/*---------------------------------------------------------------------------*
- * usbd_get_max_packet_size - get maximum packet size
- *---------------------------------------------------------------------------*/
-uint16_t
-usbd_get_max_packet_size(usb_endpoint_descriptor_t *edesc)
-{
-	return (UGETW(edesc->wMaxPacketSize) & 0x7FF);
-}
-
-/*---------------------------------------------------------------------------*
- * usbd_get_max_packet_count - get maximum packet count
- *---------------------------------------------------------------------------*/
-uint16_t
-usbd_get_max_packet_count(usb_endpoint_descriptor_t *edesc)
-{
-	return (1 + ((UGETW(edesc->wMaxPacketSize) >> 11) & 3));
-}
-
-/*---------------------------------------------------------------------------*
- * usbd_get_max_frame_size - get maximum frame size
- *---------------------------------------------------------------------------*/
-uint16_t
-usbd_get_max_frame_size(usb_endpoint_descriptor_t *edesc)
-{
-	uint16_t n;
-	n = UGETW(edesc->wMaxPacketSize);
-	return (n & 0x7FF) * (1 + ((n >> 11) & 3));
-}
-
-/*---------------------------------------------------------------------------*
- * usbd_set_max_packet_size_count - set maximum packet size and count
- *---------------------------------------------------------------------------*/
-void
-usbd_set_max_packet_size_count(usb_endpoint_descriptor_t *edesc,
-			       uint16_t size, uint16_t count)
-{
-	uint16_t n;
-	n = (size & 0x7FF)|(((count-1) & 3) << 11);
-	USETW(edesc->wMaxPacketSize, n);
-	return;
-}
-
-/*---------------------------------------------------------------------------*
+/*------------------------------------------------------------------------*
  * usbd_isoc_time_expand - expand time counter from 7-bit to 16-bit
- *---------------------------------------------------------------------------*/
+ *------------------------------------------------------------------------*/
 uint16_t
 usbd_isoc_time_expand(struct usbd_bus *bus, uint16_t isoc_time_curr)
 {
@@ -3149,19 +3126,259 @@ usbd_isoc_time_expand(struct usbd_bus *bus, uint16_t isoc_time_curr)
 
 	mtx_assert(&(bus->mtx), MA_OWNED);
 
-	rem = bus->isoc_time_last & (USB_ISOC_TIME_MAX-1);
+	rem = bus->isoc_time_last & (USB_ISOC_TIME_MAX - 1);
 
-	isoc_time_curr &= (USB_ISOC_TIME_MAX-1);
+	isoc_time_curr &= (USB_ISOC_TIME_MAX - 1);
 
 	if (isoc_time_curr < rem) {
-	    /* the time counter wrapped around */
-	    bus->isoc_time_last += USB_ISOC_TIME_MAX;
+		/* the time counter wrapped around */
+		bus->isoc_time_last += USB_ISOC_TIME_MAX;
 	}
-
 	/* update the remainder */
 
-	bus->isoc_time_last &= ~(USB_ISOC_TIME_MAX-1);
+	bus->isoc_time_last &= ~(USB_ISOC_TIME_MAX - 1);
 	bus->isoc_time_last |= isoc_time_curr;
 
-	return bus->isoc_time_last;
+	return (bus->isoc_time_last);
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_tag_setup - factored out code
+ *------------------------------------------------------------------------*/
+bus_dma_tag_t
+usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
+    uint32_t size, uint32_t align, uint8_t nudt)
+{
+	__KASSERT(align > 0, ("Invalid parameter align = 0!\n"));
+	__KASSERT(size > 0, ("Invalid parameter size = 0!\n"));
+
+	while (nudt--) {
+
+		if (udt->align == 0) {
+			udt->tag =
+			    usbd_dma_tag_create(tag_parent, size, align);
+			if (udt->tag == NULL) {
+				return (NULL);
+			}
+			udt->align = align;
+			udt->size = size;
+			return (udt->tag);
+		}
+		if ((udt->align == align) && (udt->size == size)) {
+			return (udt->tag);
+		}
+		udt++;
+	}
+	return (NULL);
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_tag_unsetup - factored out code
+ *------------------------------------------------------------------------*/
+void
+usbd_dma_tag_unsetup(struct usbd_dma_tag *udt, uint8_t nudt)
+{
+	while (nudt--) {
+
+		if (udt->align) {
+			usbd_dma_tag_destroy(udt->tag);
+			udt->align = 0;
+		}
+		udt++;
+	}
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_mem_flush_all_cb
+ *------------------------------------------------------------------------*/
+static void
+usbd_bus_mem_flush_all_cb(struct usbd_bus *bus, struct usbd_page_cache *pc,
+    struct usbd_page *pg, uint32_t size, uint32_t align)
+{
+	usbd_pc_cpu_flush(pc);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_mem_flush_all - factored out code
+ *------------------------------------------------------------------------*/
+void
+usbd_bus_mem_flush_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb)
+{
+	if (cb) {
+		cb(bus, &usbd_bus_mem_flush_all_cb);
+	}
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_mem_alloc_all_cb
+ *------------------------------------------------------------------------*/
+static void
+usbd_bus_mem_alloc_all_cb(struct usbd_bus *bus, struct usbd_page_cache *pc,
+    struct usbd_page *pg, uint32_t size, uint32_t align)
+{
+	if (usbd_pc_alloc_mem(bus->dma_tag_parent,
+	    bus->dma_tags, pc, pg, size, align,
+	    USB_BUS_DMA_TAG_MAX)) {
+		bus->alloc_failed = 1;
+	}
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_mem_alloc_all - factored out code
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+uint8_t
+usbd_bus_mem_alloc_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb)
+{
+	bus->alloc_failed = 0;
+
+	mtx_init(&(bus->mtx), "USB lock",
+	    NULL, MTX_DEF | MTX_RECURSE);
+
+	LIST_INIT(&(bus->intr_list_head));
+
+	if (cb) {
+		cb(bus, &usbd_bus_mem_alloc_all_cb);
+	}
+	if (bus->alloc_failed) {
+		usbd_bus_mem_free_all(bus, cb);
+	}
+	return (bus->alloc_failed);
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_mem_free_all_cb
+ *------------------------------------------------------------------------*/
+static void
+usbd_bus_mem_free_all_cb(struct usbd_bus *bus, struct usbd_page_cache *pc,
+    struct usbd_page *pg, uint32_t size, uint32_t align)
+{
+	usbd_pc_free_mem(pc);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_mem_free_all - factored out code
+ *------------------------------------------------------------------------*/
+void
+usbd_bus_mem_free_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb)
+{
+	if (cb) {
+		cb(bus, &usbd_bus_mem_free_all_cb);
+	}
+	usbd_dma_tag_unsetup(bus->dma_tags, USB_BUS_DMA_TAG_MAX);
+
+	mtx_destroy(&(bus->mtx));
+
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_transfer_setup_sub_malloc
+ *
+ * This function will allocate DMA'able memory and store the virtual
+ * and physical buffer addresses in the structure pointed to by the
+ * "info" argument.
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+uint8_t
+usbd_transfer_setup_sub_malloc(struct usbd_setup_params *parm,
+    struct usbd_page_search *info, struct usbd_page_cache **ppc,
+    uint32_t size, uint32_t align)
+{
+	__KASSERT(align > 1, ("Invalid alignment, 0x%08x!\n",
+	    align));
+	__KASSERT(size > 0, ("Invalid size = 0!\n"));
+
+	if (parm->buf == NULL) {
+		/* for the future */
+		parm->dma_page_ptr++;
+		parm->dma_page_cache_ptr++;
+		return (0);
+	}
+	if (usbd_pc_alloc_mem(parm->udev->bus->dma_tag_parent,
+	    parm->dma_tag_p, parm->dma_page_cache_ptr,
+	    parm->dma_page_ptr, size, align,
+	    parm->dma_tag_max)) {
+		return (1);		/* failure */
+	}
+	if (info) {
+		usbd_get_page(parm->dma_page_cache_ptr, 0, info);
+	}
+	if (ppc) {
+		*ppc = parm->dma_page_cache_ptr;
+	}
+	parm->dma_page_ptr++;
+	parm->dma_page_cache_ptr++;
+
+	return (0);
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_port_get_device
+ *
+ * This function is NULL safe.
+ *------------------------------------------------------------------------*/
+struct usbd_device *
+usbd_bus_port_get_device(struct usbd_bus *bus, struct usbd_port *up)
+{
+	if ((bus == NULL) || (up == NULL)) {
+		/* be NULL safe */
+		return (NULL);
+	}
+	if (up->device_index == 0) {
+		/* nothing to do */
+		return (NULL);
+	}
+	return (bus->devices[up->device_index]);
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_port_set_device
+ *
+ * This function is NULL safe.
+ *------------------------------------------------------------------------*/
+void
+usbd_bus_port_set_device(struct usbd_bus *bus, struct usbd_port *up,
+    struct usbd_device *udev, uint8_t device_index)
+{
+	if (bus == NULL) {
+		/* be NULL safe */
+		return;
+	}
+	/*
+	 * There is only one case where we don't
+	 * have an USB port, and that is the Root Hub!
+         */
+	if (up) {
+		if (udev) {
+			up->device_index = device_index;
+		} else {
+			device_index = up->device_index;
+			up->device_index = 0;
+		}
+	}
+	/*
+	 * Make relationships to our new device
+	 */
+	mtx_lock(&(bus->mtx));
+	bus->devices[device_index] = udev;
+	mtx_unlock(&(bus->mtx));
+
+	/*
+	 * Debug print
+	 */
+	PRINTFN(1, ("bus %p devices[%u] = %p\n", bus, device_index, udev));
+
+	return;
 }

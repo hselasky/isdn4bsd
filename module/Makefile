@@ -43,6 +43,7 @@ SRCS=
 
 .if (${OSNAME} != "FreeBSD")
 CFLAGS+=-include ${.CURDIR}/fbsdid.h
+
 SRCS+= \
 freebsd_section_start.c \
 freebsd_kern_bus.c \
@@ -69,8 +70,16 @@ bus_if.h device_if.h vnode_if.h opt_bus.h pci_if.h
 # opt_usb.h usb_if.h usb_if.c
 .endif
 
+.if (${OSNAME} == "FreeBSD")
+SRCS+= freebsd_fix.c
+.endif
+
+.if defined(WITH_SPPP)
+SRCS+= i4b_isppp.c
+.endif
+
 SRCS+=\
-i4b_tel.c i4b_ipr.c i4b_isppp.c i4b_rbch.c i4b_trace.c \
+i4b_tel.c i4b_ipr.c i4b_rbch.c i4b_trace.c \
 i4b_ctl.c i4b_i4bdrv.c i4b_capidrv.c i4b_mbuf.c \
 i4b_l4mgmt.c i4b_l4.c i4b_ihfc2_drv.c i4b_ihfc2_pnp.c \
 i4b_ihfc2_dev.c i4b_ihfc2_l1if.c i4b_hdlc.c dss1_l2fsm.c \

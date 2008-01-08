@@ -54,14 +54,14 @@
 #define	KUE_CMD_SEND_SCAN			0xFF
 
 struct kue_ether_desc {
-	uint8_t		kue_len;
-	uint8_t		kue_rsvd0;
-	uint8_t		kue_rsvd1;
-	uint8_t		kue_macaddr[ETHER_ADDR_LEN];
-	uint8_t		kue_etherstats[4];
-	uint8_t		kue_maxseg[2];
-	uint8_t		kue_mcastfilt[2];
-	uint8_t		kue_rsvd2;
+	uint8_t	kue_len;
+	uint8_t	kue_rsvd0;
+	uint8_t	kue_rsvd1;
+	uint8_t	kue_macaddr[ETHER_ADDR_LEN];
+	uint8_t	kue_etherstats[4];
+	uint8_t	kue_maxseg[2];
+	uint8_t	kue_mcastfilt[2];
+	uint8_t	kue_rsvd2;
 } __packed;
 
 #define	KUE_ETHERSTATS(x)	UGETDW((x)->sc_desc.kue_etherstats)
@@ -121,38 +121,38 @@ struct kue_ether_desc {
 #define	KUE_ENDPT_MAX		4
 
 struct kue_type {
-	uint16_t	kue_vid;
-	uint16_t	kue_did;
+	uint16_t kue_vid;
+	uint16_t kue_did;
 };
 
 struct kue_softc {
-	void			*sc_evilhack; /* XXX this pointer must be first */
+	void   *sc_evilhack;		/* XXX this pointer must be first */
 
-	struct usbd_config_td	sc_config_td;
-	struct __callout	sc_watchdog;
-	struct mtx		sc_mtx;
-	struct kue_ether_desc	sc_desc;
+	struct usbd_config_td sc_config_td;
+	struct usb_callout sc_watchdog;
+	struct mtx sc_mtx;
+	struct kue_ether_desc sc_desc;
 
-	struct ifnet		*sc_ifp;
-	device_t		sc_dev;
-	struct usbd_device	*sc_udev;
-	struct usbd_xfer	*sc_xfer[KUE_ENDPT_MAX];
+	struct ifnet *sc_ifp;
+	device_t sc_dev;
+	struct usbd_device *sc_udev;
+	struct usbd_xfer *sc_xfer[KUE_ENDPT_MAX];
 
-	uint32_t		sc_unit;
+	uint32_t sc_unit;
 
-	uint16_t		sc_mcfilt_max;
-	uint16_t		sc_flags;
-#define	KUE_FLAG_READ_STALL	0x0010  /* wait for clearing of stall */
-#define	KUE_FLAG_WRITE_STALL	0x0020  /* wait for clearing of stall */
-#define	KUE_FLAG_LL_READY	0x0040  /* Lower Layer Ready */
-#define	KUE_FLAG_HL_READY	0x0080  /* Higher Layer Ready */
-#define	KUE_FLAG_INTR_STALL	0x0100  /* wait for clearing of stall */
+	uint16_t sc_mcfilt_max;
+	uint16_t sc_flags;
+#define	KUE_FLAG_READ_STALL	0x0010	/* wait for clearing of stall */
+#define	KUE_FLAG_WRITE_STALL	0x0020	/* wait for clearing of stall */
+#define	KUE_FLAG_LL_READY	0x0040	/* Lower Layer Ready */
+#define	KUE_FLAG_HL_READY	0x0080	/* Higher Layer Ready */
+#define	KUE_FLAG_INTR_STALL	0x0100	/* wait for clearing of stall */
 };
 
 struct kue_config_copy {
-	uint32_t	if_flags;
-	uint16_t	if_rxfilt;
-	uint16_t	if_nhash;
-	uint8_t		if_lladdr[ETHER_ADDR_LEN];
-	uint8_t		if_hash[KUE_MCFILT_MAX * ETHER_ADDR_LEN];
+	uint32_t if_flags;
+	uint16_t if_rxfilt;
+	uint16_t if_nhash;
+	uint8_t	if_lladdr[ETHER_ADDR_LEN];
+	uint8_t	if_hash[KUE_MCFILT_MAX * ETHER_ADDR_LEN];
 };

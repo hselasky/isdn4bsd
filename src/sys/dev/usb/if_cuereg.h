@@ -63,7 +63,7 @@
 #define	CUE_TX_MULTICOLL		0x6B
 #define	CUE_TX_EXCESSCOLL		0x6D
 #define	CUE_RX_FRAMEERR			0x6F
-#define CUE_LEDCTL			0x81
+#define	CUE_LEDCTL			0x81
 /* Advenced operating mode register. */
 #define	CUE_AOP_SRAMWAITS		0x03
 #define	CUE_AOP_EMBED_RXLEN		0x08
@@ -116,34 +116,34 @@
 #define	CUE_ENDPT_MAX		4
 
 struct cue_type {
-	uint16_t	cue_vid;
-	uint16_t	cue_did;
+	uint16_t cue_vid;
+	uint16_t cue_did;
 };
 
 struct cue_softc {
-	void			*sc_evilhack; /* XXX this pointer must be first */
+	void   *sc_evilhack;		/* XXX this pointer must be first */
 
-	struct usbd_config_td	sc_config_td;
-	struct __callout	sc_watchdog;
-	struct mtx		sc_mtx;
+	struct usbd_config_td sc_config_td;
+	struct usb_callout sc_watchdog;
+	struct mtx sc_mtx;
 
-	struct ifnet		*sc_ifp;
-	device_t		sc_dev;
-	struct usbd_device	*sc_udev;
-	struct usbd_xfer	*sc_xfer[CUE_ENDPT_MAX];
+	struct ifnet *sc_ifp;
+	device_t sc_dev;
+	struct usbd_device *sc_udev;
+	struct usbd_xfer *sc_xfer[CUE_ENDPT_MAX];
 
-	uint32_t		sc_unit;
+	uint32_t sc_unit;
 
-	uint16_t		sc_flags;
-#define	CUE_FLAG_READ_STALL	0x0010  /* wait for clearing of stall */
-#define	CUE_FLAG_WRITE_STALL	0x0020  /* wait for clearing of stall */
-#define	CUE_FLAG_LL_READY	0x0040  /* Lower Layer Ready */
-#define	CUE_FLAG_HL_READY	0x0080  /* Higher Layer Ready */
-#define	CUE_FLAG_INTR_STALL	0x0100  /* wait for clearing of stall */
+	uint16_t sc_flags;
+#define	CUE_FLAG_READ_STALL	0x0010	/* wait for clearing of stall */
+#define	CUE_FLAG_WRITE_STALL	0x0020	/* wait for clearing of stall */
+#define	CUE_FLAG_LL_READY	0x0040	/* Lower Layer Ready */
+#define	CUE_FLAG_HL_READY	0x0080	/* Higher Layer Ready */
+#define	CUE_FLAG_INTR_STALL	0x0100	/* wait for clearing of stall */
 };
 
 struct cue_config_copy {
-	uint32_t	if_flags;
-	uint8_t		if_lladdr[ETHER_ADDR_LEN];
-	uint8_t		if_hash[CUE_MCAST_TABLE_LEN];
+	uint32_t if_flags;
+	uint8_t	if_lladdr[ETHER_ADDR_LEN];
+	uint8_t	if_hash[CUE_MCAST_TABLE_LEN];
 };

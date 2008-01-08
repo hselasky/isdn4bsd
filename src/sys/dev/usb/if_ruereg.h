@@ -53,13 +53,13 @@
 #define	RUE_MAR6		0x012C
 #define	RUE_MAR7		0x012D
 
-#define	RUE_CR			0x012E		/* B, R/W */
+#define	RUE_CR			0x012E	/* B, R/W */
 #define	RUE_CR_SOFT_RST		0x10
 #define	RUE_CR_RE		0x08
 #define	RUE_CR_TE		0x04
 #define	RUE_CR_EP3CLREN		0x02
 
-#define	RUE_TCR			0x012F		/* B, R/W */
+#define	RUE_TCR			0x012F	/* B, R/W */
 #define	RUE_TCR_TXRR1		0x80
 #define	RUE_TCR_TXRR0		0x40
 #define	RUE_TCR_IFG1		0x10
@@ -68,7 +68,7 @@
 #define	RUE_TCR_CONFIG		(RUE_TCR_TXRR1 | RUE_TCR_TXRR0 | 	\
 				    RUE_TCR_IFG1 | RUE_TCR_IFG0)
 
-#define	RUE_RCR			0x0130		/* W, R/W */
+#define	RUE_RCR			0x0130	/* W, R/W */
 #define	RUE_RCR_TAIL		0x80
 #define	RUE_RCR_AER		0x40
 #define	RUE_RCR_AR		0x20
@@ -87,7 +87,7 @@
 #define	RUE_PHYADD		0x0138
 #define	RUE_PHYDAT		0x0139
 
-#define	RUE_PHYCNT		0x013B		/* B, R/W */
+#define	RUE_PHYCNT		0x013B	/* B, R/W */
 #define	RUE_PHYCNT_PHYOWN	0x40
 #define	RUE_PHYCNT_RWCR		0x20
 
@@ -100,10 +100,10 @@
 
 #define	RUE_BMSR		0x0142
 
-#define	RUE_ANAR		0x0144		/* W, R/W */
+#define	RUE_ANAR		0x0144	/* W, R/W */
 #define	RUE_ANAR_PAUSE		0x0400
 
-#define	RUE_ANLP		0x0146		/* W, R/O */
+#define	RUE_ANLP		0x0146	/* W, R/O */
 #define	RUE_ANLP_PAUSE		0x0400
 
 #define	RUE_AER			0x0148
@@ -150,39 +150,39 @@
 			    device_get_softc((sc)->sc_miibus) : NULL)
 
 struct rue_intrpkt {
-	uint8_t		rue_tsr;
-	uint8_t		rue_rsr;
-	uint8_t		rue_gep_msr;
-	uint8_t		rue_waksr;
-	uint8_t		rue_txok_cnt;
-	uint8_t		rue_rxlost_cnt;
-	uint8_t		rue_crcerr_cnt;
-	uint8_t		rue_col_cnt;
+	uint8_t	rue_tsr;
+	uint8_t	rue_rsr;
+	uint8_t	rue_gep_msr;
+	uint8_t	rue_waksr;
+	uint8_t	rue_txok_cnt;
+	uint8_t	rue_rxlost_cnt;
+	uint8_t	rue_crcerr_cnt;
+	uint8_t	rue_col_cnt;
 } __packed;
 
 struct rue_type {
-	uint16_t	rue_vid;
-	uint16_t	rue_did;
+	uint16_t rue_vid;
+	uint16_t rue_did;
 };
 
 struct rue_softc {
-	void			*sc_evilhack; /* XXX this pointer must be first */
+	void   *sc_evilhack;		/* XXX this pointer must be first */
 
-	struct usbd_config_td	sc_config_td;
-	struct __callout	sc_watchdog;
-	struct mtx		sc_mtx;
+	struct usbd_config_td sc_config_td;
+	struct usb_callout sc_watchdog;
+	struct mtx sc_mtx;
 
-	struct ifnet		*sc_ifp;
-	struct usbd_device	*sc_udev;
-	struct usbd_xfer	*sc_xfer[RUE_ENDPT_MAX];
-	device_t		sc_miibus;
-	device_t		sc_dev;
+	struct ifnet *sc_ifp;
+	struct usbd_device *sc_udev;
+	struct usbd_xfer *sc_xfer[RUE_ENDPT_MAX];
+	device_t sc_miibus;
+	device_t sc_dev;
 
-	uint32_t		sc_unit;
-	uint32_t		sc_media_active;
-	uint32_t		sc_media_status;
+	uint32_t sc_unit;
+	uint32_t sc_media_active;
+	uint32_t sc_media_status;
 
-	uint16_t		sc_flags;
+	uint16_t sc_flags;
 #define	RUE_FLAG_WAIT_LINK	0x0001
 #define	RUE_FLAG_INTR_STALL	0x0002
 #define	RUE_FLAG_READ_STALL	0x0004
@@ -190,11 +190,11 @@ struct rue_softc {
 #define	RUE_FLAG_LL_READY	0x0010
 #define	RUE_FLAG_HL_READY	0x0020
 
-	uint8_t			sc_name[16];
+	uint8_t	sc_name[16];
 };
 
 struct rue_config_copy {
-	uint32_t	if_flags;
-	uint32_t	if_hashes[2];
-	uint8_t		if_lladdr[ETHER_ADDR_LEN];
+	uint32_t if_flags;
+	uint32_t if_hashes[2];
+	uint8_t	if_lladdr[ETHER_ADDR_LEN];
 };

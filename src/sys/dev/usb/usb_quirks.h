@@ -39,25 +39,33 @@
  */
 
 struct usbd_quirks {
-	uint32_t uq_flags;	/* Device problems: */
-#define	UQ_AUDIO_SWAP_LR (1 <<  0) /* left and right sound channels are swapped */
-#define	UQ_AU_INP_ASYNC  (1 <<  1) /* input is async despite claim of adaptive */
-#define	UQ_AU_NO_FRAC    (1 <<  2) /* don't adjust for fractional samples */
-#define	UQ_AU_NO_XU      (1 <<  3) /* audio device has broken extension unit */
-#define	UQ_BAD_ADC       (1 <<  4) /* bad audio spec version number */
-#define	UQ_BAD_AUDIO     (1 <<  5) /* device claims audio class, but isn't */
-#define	UQ_BROKEN_BIDIR  (1 <<  6) /* printer has broken bidir mode */
-#define	UQ_BUS_POWERED   (1 <<  7) /* device is bus powered, despite claim */
-#define	UQ_HID_IGNORE    (1 <<  8) /* device should be ignored by hid class */
-#define	UQ_KBD_IGNORE   ((1 <<  9)|UQ_HID_IGNORE) /* device should be ignored by both kbd and hid class */
-#define	UQ_MS_BAD_CLASS  (1 << 10) /* doesn't identify properly */
-#define	UQ_MS_LEADING_BYTE (1 << 11) /* mouse sends an unknown leading byte */
-#define	UQ_MS_REVZ       (1 << 12) /* mouse has Z-axis reversed */
-#define	UQ_NO_STRINGS    (1 << 13) /* string descriptors are broken */
-#define	UQ_OPEN_CLEARSTALL (1 << 14) /* device needs clear endpoint stall */
-#define	UQ_POWER_CLAIM   (1 << 15) /* hub lies about power status */
-#define	UQ_SPUR_BUT_UP   (1 << 16) /* spurious mouse button up events */
-#define	UQ_SWAP_UNICODE  (1 << 17) /* has some Unicode strings swapped */
+	uint32_t uq_flags;		/* Device problems: */
+#define	UQ_AUDIO_SWAP_LR (1 <<  0)	/* left and right sound channels are
+					 * swapped */
+#define	UQ_AU_INP_ASYNC  (1 <<  1)	/* input is async despite claim of
+					 * adaptive */
+#define	UQ_AU_NO_FRAC    (1 <<  2)	/* don't adjust for fractional samples */
+#define	UQ_AU_NO_XU      (1 <<  3)	/* audio device has broken extension
+					 * unit */
+#define	UQ_BAD_ADC       (1 <<  4)	/* bad audio spec version number */
+#define	UQ_BAD_AUDIO     (1 <<  5)	/* device claims audio class, but
+					 * isn't */
+#define	UQ_BROKEN_BIDIR  (1 <<  6)	/* printer has broken bidir mode */
+#define	UQ_BUS_POWERED   (1 <<  7)	/* device is bus powered, despite
+					 * claim */
+#define	UQ_HID_IGNORE    (1 <<  8)	/* device should be ignored by hid
+					 * class */
+#define	UQ_KBD_IGNORE   ((1 <<  9)|UQ_HID_IGNORE)	/* device should be
+							 * ignored by both kbd
+							 * and hid class */
+#define	UQ_MS_BAD_CLASS  (1 << 10)	/* doesn't identify properly */
+#define	UQ_MS_LEADING_BYTE (1 << 11)	/* mouse sends an unknown leading byte */
+#define	UQ_MS_REVZ       (1 << 12)	/* mouse has Z-axis reversed */
+#define	UQ_NO_STRINGS    (1 << 13)	/* string descriptors are broken */
+#define	UQ_OPEN_CLEARSTALL (1 << 14)	/* device needs clear endpoint stall */
+#define	UQ_POWER_CLAIM   (1 << 15)	/* hub lies about power status */
+#define	UQ_SPUR_BUT_UP   (1 << 16)	/* spurious mouse button up events */
+#define	UQ_SWAP_UNICODE  (1 << 17)	/* has some Unicode strings swapped */
 };
 
 extern const struct usbd_quirks usbd_no_quirk;

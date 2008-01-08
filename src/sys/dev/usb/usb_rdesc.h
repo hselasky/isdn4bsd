@@ -31,7 +31,7 @@
  * This file contains replacements for broken HID report descriptors.
  */
 
-#define UHID_GRAPHIRE_REPORT_DESCR(...) \
+#define	UHID_GRAPHIRE_REPORT_DESCR(...) \
     0x05, 0x0d,                    /*  USAGE_PAGE (Digitizers)		*/\
     0x09, 0x01,                    /*  USAGE (Digitizer)		*/\
     0xa1, 0x01,                    /*  COLLECTION (Application)		*/\
@@ -95,7 +95,7 @@
     0xb1, 0x02,                    /*    FEATURE (Data,Var,Abs)		*/\
     0xc0,                          /*  END_COLLECTION			*/\
 
-#define UHID_GRAPHIRE3_4X5_REPORT_DESCR(...) \
+#define	UHID_GRAPHIRE3_4X5_REPORT_DESCR(...) \
     0x05, 0x01,                    /* USAGE_PAGE (Generic Desktop)	*/\
     0x09, 0x02,                    /* USAGE (Mouse)			*/\
     0xa1, 0x01,                    /* COLLECTION (Application)		*/\
@@ -182,7 +182,7 @@
  * The descriptor has no output report format, thus preventing you from
  * controlling the LEDs and the built-in rumblers.
  */
-#define UHID_XB360GP_REPORT_DESCR(...) \
+#define	UHID_XB360GP_REPORT_DESCR(...) \
     0x05, 0x01,		/* USAGE PAGE (Generic Desktop)		*/\
     0x09, 0x05,		/* USAGE (Gamepad)			*/\
     0xa1, 0x01,		/* COLLECTION (Application)		*/\

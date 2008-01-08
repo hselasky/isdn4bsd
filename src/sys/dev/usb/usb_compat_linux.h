@@ -43,7 +43,7 @@ struct usb_driver;
 struct urb;
 struct pt_regs;
 
-typedef void * pm_message_t;
+typedef void *pm_message_t;
 typedef void (usb_complete_t)(struct urb *, struct pt_regs *);
 
 #define	USB_MAX_FULL_SPEED_ISOC_FRAMES (60 * 1)
@@ -57,7 +57,7 @@ typedef void (usb_complete_t)(struct urb *, struct pt_regs *);
  */
 struct usb_device_id {
 	/* which fields to match against */
-	uint16_t	match_flags;
+	uint16_t match_flags;
 #define	USB_DEVICE_ID_MATCH_VENDOR		0x0001
 #define	USB_DEVICE_ID_MATCH_PRODUCT		0x0002
 #define	USB_DEVICE_ID_MATCH_DEV_LO		0x0004
@@ -70,23 +70,23 @@ struct usb_device_id {
 #define	USB_DEVICE_ID_MATCH_INT_PROTOCOL	0x0200
 
 	/* Used for product specific matches; the BCD range is inclusive */
-	uint16_t	idVendor;
-	uint16_t	idProduct;
-	uint16_t	bcdDevice_lo;
-	uint16_t	bcdDevice_hi;
+	uint16_t idVendor;
+	uint16_t idProduct;
+	uint16_t bcdDevice_lo;
+	uint16_t bcdDevice_hi;
 
 	/* Used for device class matches */
-	uint8_t		bDeviceClass;
-	uint8_t		bDeviceSubClass;
-	uint8_t		bDeviceProtocol;
+	uint8_t	bDeviceClass;
+	uint8_t	bDeviceSubClass;
+	uint8_t	bDeviceProtocol;
 
 	/* Used for interface class matches */
-	uint8_t		bInterfaceClass;
-	uint8_t		bInterfaceSubClass;
-	uint8_t		bInterfaceProtocol;
+	uint8_t	bInterfaceClass;
+	uint8_t	bInterfaceSubClass;
+	uint8_t	bInterfaceProtocol;
 
 	/* Hook for driver specific information */
-	unsigned long	driver_info;
+	unsigned long driver_info;
 };
 
 #define	USB_DEVICE_ID_MATCH_DEVICE \
@@ -105,20 +105,20 @@ struct usb_device_id {
 struct usb_driver {
 	const char *name;
 
-	int (*probe) (struct usb_interface *intf,
-		      const struct usb_device_id *id);
+	int     (*probe) (struct usb_interface *intf,
+	    	const	struct usb_device_id *id);
 
-	void (*disconnect) (struct usb_interface *intf);
+	void    (*disconnect) (struct usb_interface *intf);
 
-	int (*ioctl) (struct usb_interface *intf, unsigned int code,
-		      void *buf);
+	int     (*ioctl) (struct usb_interface *intf, unsigned int code,
+	    	void  *buf);
 
-	int (*suspend) (struct usb_interface *intf, pm_message_t message);
-	int (*resume) (struct usb_interface *intf);
+	int     (*suspend) (struct usb_interface *intf, pm_message_t message);
+	int     (*resume) (struct usb_interface *intf);
 
 	const struct usb_device_id *id_table;
 
-	void (*shutdown) (struct usb_interface *intf);
+	void    (*shutdown) (struct usb_interface *intf);
 
 	LIST_ENTRY(usb_driver) linux_driver_list;
 };
@@ -128,26 +128,26 @@ struct usb_driver {
   SYSUNINIT(id,SI_SUB_KLD,SI_ORDER_ANY,usb_linux_deregister,p_usb_drv)
 
 /*
- * The following structure is the same as "usb_device_descriptor_t" 
+ * The following structure is the same as "usb_device_descriptor_t"
  * except that 16-bit values are "uint16_t" and not an array of "uint8_t".
  * It is used by Linux USB device drivers.
  */
 struct usb_device_descriptor {
-	uint8_t	 bLength;
-	uint8_t	 bDescriptorType;
+	uint8_t	bLength;
+	uint8_t	bDescriptorType;
 
 	uint16_t bcdUSB;
-	uint8_t	 bDeviceClass;
-	uint8_t	 bDeviceSubClass;
-	uint8_t	 bDeviceProtocol;
-	uint8_t	 bMaxPacketSize0;
+	uint8_t	bDeviceClass;
+	uint8_t	bDeviceSubClass;
+	uint8_t	bDeviceProtocol;
+	uint8_t	bMaxPacketSize0;
 	uint16_t idVendor;
 	uint16_t idProduct;
 	uint16_t bcdDevice;
-	uint8_t	 iManufacturer;
-	uint8_t	 iProduct;
-	uint8_t	 iSerialNumber;
-	uint8_t	 bNumConfigurations;
+	uint8_t	iManufacturer;
+	uint8_t	iProduct;
+	uint8_t	iSerialNumber;
+	uint8_t	bNumConfigurations;
 } __packed;
 
 /*
@@ -156,16 +156,16 @@ struct usb_device_descriptor {
  * Linux USB device drivers.
  */
 struct usb_interface_descriptor {
-	uint8_t	 bLength;
-	uint8_t	 bDescriptorType;
+	uint8_t	bLength;
+	uint8_t	bDescriptorType;
 
-	uint8_t	 bInterfaceNumber;
-	uint8_t	 bAlternateSetting;
-	uint8_t	 bNumEndpoints;
-	uint8_t	 bInterfaceClass;
-	uint8_t	 bInterfaceSubClass;
-	uint8_t	 bInterfaceProtocol;
-	uint8_t	 iInterface;
+	uint8_t	bInterfaceNumber;
+	uint8_t	bAlternateSetting;
+	uint8_t	bNumEndpoints;
+	uint8_t	bInterfaceClass;
+	uint8_t	bInterfaceSubClass;
+	uint8_t	bInterfaceProtocol;
+	uint8_t	iInterface;
 } __packed;
 
 /*
@@ -174,17 +174,17 @@ struct usb_interface_descriptor {
  * It is used by Linux USB device drivers.
  */
 struct usb_endpoint_descriptor {
-	uint8_t	 bLength;
-	uint8_t	 bDescriptorType;
+	uint8_t	bLength;
+	uint8_t	bDescriptorType;
 
-	uint8_t	 bEndpointAddress;
-	uint8_t	 bmAttributes;
+	uint8_t	bEndpointAddress;
+	uint8_t	bmAttributes;
 	uint16_t wMaxPacketSize;
-	uint8_t	 bInterval;
+	uint8_t	bInterval;
 
 	/* extension for audio endpoints only: */
-	uint8_t	 bRefresh;
-	uint8_t	 bSynchAddress;
+	uint8_t	bRefresh;
+	uint8_t	bSynchAddress;
 } __packed;
 
 #define	USB_DT_ENDPOINT_SIZE		7
@@ -207,7 +207,7 @@ struct usb_endpoint_descriptor {
 
 /*
  * Definition of direction mask for
- * "bEndpointAddress" and "bRequestType":
+ * "bEndpointAddress" and "bmRequestType":
  */
 #define	USB_DIR_MASK			0x80
 #define	USB_DIR_OUT			0x00	/* write to USB device */
@@ -215,7 +215,7 @@ struct usb_endpoint_descriptor {
 
 /*
  * Definition of type mask for
- * "bRequestType":
+ * "bmRequestType":
  */
 #define	USB_TYPE_MASK			(0x03 << 5)
 #define	USB_TYPE_STANDARD		(0x00 << 5)
@@ -225,7 +225,7 @@ struct usb_endpoint_descriptor {
 
 /*
  * Definition of receiver mask for
- * "bRequestType":
+ * "bmRequestType":
  */
 #define	USB_RECIP_MASK			0x1f
 #define	USB_RECIP_DEVICE		0x00
@@ -271,7 +271,7 @@ struct usb_endpoint_descriptor {
 #define	USB_DEVICE_TEST_MODE		2	/* (wired high speed only) */
 #define	USB_DEVICE_BATTERY		2	/* (wireless) */
 #define	USB_DEVICE_B_HNP_ENABLE		3	/* (otg) dev may initiate HNP */
-#define	USB_DEVICE_WUSB_DEVICE		3	/* (wireless)*/
+#define	USB_DEVICE_WUSB_DEVICE		3	/* (wireless) */
 #define	USB_DEVICE_A_HNP_SUPPORT	4	/* (otg) RH port supports HNP */
 #define	USB_DEVICE_A_ALT_HNP_SUPPORT	5	/* (otg) other RH port does */
 #define	USB_DEVICE_DEBUG_MODE		6	/* (special devices only) */
@@ -329,13 +329,13 @@ struct usb_host_endpoint {
 
 	struct usbd_xfer *bsd_xfer[2];
 
-	uint8_t		*extra; /* Extra descriptors */
+	uint8_t *extra;			/* Extra descriptors */
 
-	uint32_t	fbsd_buf_size;
+	uint32_t fbsd_buf_size;
 
-	uint16_t	extralen;
+	uint16_t extralen;
 
-	uint8_t		bsd_iface_index;
+	uint8_t	bsd_iface_index;
 } __aligned(USB_HOST_ALIGN);
 
 struct usb_host_interface {
@@ -344,8 +344,8 @@ struct usb_host_interface {
 	/* the following array has size "desc.bNumEndpoint" */
 	struct usb_host_endpoint *endpoint;
 
-	const char *string;	/* iInterface string, if present */
-	uint8_t *extra;		/* Extra descriptors */
+	const char *string;		/* iInterface string, if present */
+	uint8_t *extra;			/* Extra descriptors */
 
 	uint16_t extralen;
 } __aligned(USB_HOST_ALIGN);
@@ -355,9 +355,9 @@ struct usb_interface {
 	struct usb_host_interface *altsetting;
 	struct usb_host_interface *cur_altsetting;
 	struct usb_device *linux_udev;
-	void *bsd_priv_sc; /* device specific information */
+	void   *bsd_priv_sc;		/* device specific information */
 
-	uint8_t num_altsetting;	/* number of alternate settings */
+	uint8_t	num_altsetting;		/* number of alternate settings */
 	uint8_t	bsd_iface_index;
 } __aligned(USB_HOST_ALIGN);
 
@@ -378,21 +378,20 @@ struct usb_device {
 
 	uint16_t devnum;
 
-	uint8_t speed; /* USB_SPEED_XXX */
+	uint8_t	speed;			/* USB_SPEED_XXX */
 } __aligned(USB_HOST_ALIGN);
 
 /*
  * The following structure is used to extend "struct urb" when we are
  * dealing with an isochronous endpoint. It contains information about
  * the data offset and data length of an isochronous packet.
- * The "actual_length" field is updated before the "complete" 
+ * The "actual_length" field is updated before the "complete"
  * callback in the "urb" structure is called.
  */
 struct usb_iso_packet_descriptor {
-	uint32_t offset;	/* depreciated buffer offset
-				 * (the packets are usually back to back)
-				 */
-	uint16_t length;	/* expected length */
+	uint32_t offset;		/* depreciated buffer offset (the
+					 * packets are usually back to back) */
+	uint16_t length;		/* expected length */
 	uint16_t actual_length;
 	uint16_t status;
 };
@@ -407,11 +406,11 @@ struct urb {
 	TAILQ_ENTRY(urb) bsd_urb_list;
 
 	struct usb_device *dev;		/* (in) pointer to associated device */
-	struct usb_host_endpoint *pipe; /* (in) pipe pointer */
+	struct usb_host_endpoint *pipe;	/* (in) pipe pointer */
 	uint8_t *setup_packet;		/* (in) setup packet (control only) */
 	uint8_t *bsd_data_ptr;
-	void *transfer_buffer;		/* (in) associated data buffer */
-	void *context;			/* (in) context for completion */
+	void   *transfer_buffer;	/* (in) associated data buffer */
+	void   *context;		/* (in) context for completion */
 	usb_complete_t *complete;	/* (in) completion routine */
 
 	uint32_t transfer_buffer_length;/* (in) data buffer length */
@@ -422,49 +421,51 @@ struct urb {
 	uint16_t transfer_flags;	/* (in) */
 #define	URB_SHORT_NOT_OK	0x0001	/* report short transfers like errors */
 #define	URB_ISO_ASAP		0x0002	/* ignore "start_frame" field */
-#define	URB_ZERO_PACKET		0x0004	/* the USB transfer ends with a short packet */
-#define	URB_NO_TRANSFER_DMA_MAP 0x0008  /* "transfer_dma" is valid on submit */
+#define	URB_ZERO_PACKET		0x0004	/* the USB transfer ends with a short
+					 * packet */
+#define	URB_NO_TRANSFER_DMA_MAP 0x0008	/* "transfer_dma" is valid on submit */
 #define	URB_WAIT_WAKEUP		0x0010	/* custom flags */
 #define	URB_IS_SLEEPING		0x0020	/* custom flags */
 
 	uint16_t start_frame;		/* (modify) start frame (ISO) */
 	uint16_t number_of_packets;	/* (in) number of ISO packets */
-	uint16_t interval;		/* (modify) transfer interval (INT/ISO) */
+	uint16_t interval;		/* (modify) transfer interval
+					 * (INT/ISO) */
 	uint16_t error_count;		/* (return) number of ISO errors */
-	 int16_t status;		/* (return) status */
+	int16_t	status;			/* (return) status */
 
-	uint8_t setup_dma;		/* (in) not used on FreeBSD */
-	uint8_t transfer_dma;		/* (in) not used on FreeBSD */
-	uint8_t bsd_isread;
+	uint8_t	setup_dma;		/* (in) not used on FreeBSD */
+	uint8_t	transfer_dma;		/* (in) not used on FreeBSD */
+	uint8_t	bsd_isread;
 
-	struct usb_iso_packet_descriptor iso_frame_desc[0]; /* (in) ISO ONLY */
+	struct usb_iso_packet_descriptor iso_frame_desc[0];	/* (in) ISO ONLY */
 };
 
 /* various prototypes */
 
-int32_t usb_submit_urb(struct urb *urb, uint16_t mem_flags);
-int32_t usb_unlink_urb(struct urb *urb);
-int32_t usb_clear_halt(struct usb_device *dev, struct usb_host_endpoint *uhe);
-int32_t usb_control_msg(struct usb_device *dev, struct usb_host_endpoint *pipe, uint8_t request, uint8_t requesttype, uint16_t value, uint16_t index, void *data, uint16_t size, uint32_t timeout);
-int32_t usb_set_interface(struct usb_device *dev, uint8_t ifnum, uint8_t alternate);
-int32_t usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32_t bufsize);
+int32_t	usb_submit_urb(struct urb *urb, uint16_t mem_flags);
+int32_t	usb_unlink_urb(struct urb *urb);
+int32_t	usb_clear_halt(struct usb_device *dev, struct usb_host_endpoint *uhe);
+int32_t	usb_control_msg(struct usb_device *dev, struct usb_host_endpoint *pipe, uint8_t request, uint8_t requesttype, uint16_t value, uint16_t index, void *data, uint16_t size, uint32_t timeout);
+int32_t	usb_set_interface(struct usb_device *dev, uint8_t ifnum, uint8_t alternate);
+int32_t	usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32_t bufsize);
 
 struct usb_host_endpoint *usb_find_host_endpoint(struct usb_device *dev, uint8_t type, uint8_t ep);
 struct urb *usb_alloc_urb(uint16_t iso_packets, uint16_t mem_flags);
 struct usb_host_interface *usb_altnum_to_altsetting(const struct usb_interface *intf, uint8_t alt_index);
 struct usb_interface *usb_ifnum_to_if(struct usb_device *dev, uint8_t iface_no);
 
-void *usb_buffer_alloc(struct usb_device *dev, uint32_t size, uint16_t mem_flags, uint8_t *dma_addr);
-void *usb_get_intfdata(struct usb_interface *intf);
+void   *usb_buffer_alloc(struct usb_device *dev, uint32_t size, uint16_t mem_flags, uint8_t *dma_addr);
+void   *usb_get_intfdata(struct usb_interface *intf);
 
-void usb_buffer_free(struct usb_device *dev, uint32_t size, void *addr, uint8_t dma_addr);
-void usb_free_urb(struct urb *urb);
-void usb_init_urb(struct urb *urb);
-void usb_kill_urb(struct urb *urb);
-void usb_set_intfdata(struct usb_interface *intf, void *data);
-void usb_linux_register(void *arg);
-void usb_linux_deregister(void *arg);
+void	usb_buffer_free(struct usb_device *dev, uint32_t size, void *addr, uint8_t dma_addr);
+void	usb_free_urb(struct urb *urb);
+void	usb_init_urb(struct urb *urb);
+void	usb_kill_urb(struct urb *urb);
+void	usb_set_intfdata(struct usb_interface *intf, void *data);
+void	usb_linux_register(void *arg);
+void	usb_linux_deregister(void *arg);
 
 #define	interface_to_usbdev(intf) (intf)->linux_udev
 
-#endif /* _USB_COMPAT_LINUX_H */
+#endif					/* _USB_COMPAT_LINUX_H */

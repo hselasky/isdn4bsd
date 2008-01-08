@@ -71,10 +71,12 @@
  */
 #define WIBUSB_RX_FRAMES	50 /* units (total) */
 #define WIBUSB_RX_FRAMESIZE	41 /* bytes */
+#define WIBUSB_RX_BUFSIZE (WIBUSB_RX_FRAMESIZE * WIBUSB_RX_FRAMES)
 
 #define WIBUSB_TX_FRAMES	50 /* units (total) */
 #define WIBUSB_TX_ADJUST         1 /* units */
 #define WIBUSB_TX_FRAMESIZE	23 /* bytes */
+#define WIBUSB_TX_BUFSIZE (WIBUSB_TX_FRAMESIZE * WIBUSB_TX_FRAMES)
 
 #define WIBUSB_CONF_XFER_WRITE   0
 #define WIBUSB_CONF_XFER_READ    1
@@ -170,18 +172,14 @@ static void
 wibusb_callback_chip_write USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t	*sc  = xfer->priv_sc;
-	uint8_t		*buf = xfer->buffer;
+	uint8_t		buf[2];
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	sc->sc_default.o_BULK_WRITE_STALL = 1;
-
- tr_transferred:
+  switch (USBD_GET_STATE(xfer)) {
+  case USBD_ST_TRANSFERRED: tr_transferred:
 	wakeup(&(sc->sc_reg_temp));
 	return;
 
- tr_setup:
+  case USBD_ST_SETUP: 
 	/* setup packet for register access (2 bytes):
 	 *
 	 * WIBUSB is capable of doing 4 register
@@ -191,7 +189,9 @@ wibusb_callback_chip_write USBD_CALLBACK_T(xfer)
 	buf[0] = sc->sc_reg_temp.reg; /* register */
 	buf[1] = sc->sc_reg_temp.data; /* data */
 
-	xfer->length = 2; /* bytes */
+	usbd_copy_in(xfer->frbuffers + 0, 0, buf, sizeof(buf));
+
+	xfer->frlengths[0] = 2; /* bytes */
 
 	if (sc->sc_default.o_BULK_WRITE_STALL) {
 	    usbd_transfer_start(sc->sc_resources.usb_xfer[7]);
@@ -199,6 +199,12 @@ wibusb_callback_chip_write USBD_CALLBACK_T(xfer)
 	    usbd_start_hardware(xfer);
 	}
 	return;
+
+  default: /* Error */
+	sc->sc_default.o_BULK_WRITE_STALL = 1;
+
+	goto tr_transferred;
+  }
 }
 
 static void
@@ -219,27 +225,25 @@ static void
 wibusb_callback_chip_read USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t	*sc  = xfer->priv_sc;
-	uint8_t		*buf = xfer->buffer;
+	uint8_t		buf[2];
 
-	USBD_CHECK_STATUS(xfer);
+  switch (USBD_GET_STATE(xfer)) {
+  case USBD_ST_TRANSFERRED:
 
- tr_error:
-	sc->sc_default.o_BULK_READ_STALL = 1;
-	buf[1] = 0xFF;
-
- tr_transferred:
+	usbd_copy_out(xfer->frbuffers + 0, 0, buf, sizeof(buf));
 
 	IHFC_MSG("ReadReg:0x%02x, Val:0x%02x\n",
 		 buf[0], buf[1]);
+  tr_wakeup:
 
 	sc->sc_reg_temp.data = buf[1];
 
 	wakeup(&(sc->sc_reg_temp));
 	return;
 
- tr_setup:
+  case USBD_ST_SETUP: 
 	/* setup data length */
-	xfer->length = 2; /* bytes */
+	xfer->frlengths[0] = 2; /* bytes */
 
 	if (sc->sc_default.o_BULK_READ_STALL) {
 	    usbd_transfer_start(sc->sc_resources.usb_xfer[8]);
@@ -247,6 +251,16 @@ wibusb_callback_chip_read USBD_CALLBACK_T(xfer)
 	    usbd_start_hardware(xfer);
 	}
 	return;
+
+  default: /* Error */
+	sc->sc_default.o_BULK_READ_STALL = 1;
+
+	IHFC_MSG("ReadReg: Error\n");
+
+	buf[1] = 0xFF;
+
+	goto tr_wakeup;
+  }
 }
 
 static void
@@ -321,9 +335,9 @@ wibusb_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
  * do processing. A part of the processing is sorting the raw data by
  * channel: D-channel data first then B1-channel data and then
  * B2-channel data. This avoids calling the (f->filter) one time for
- * each ``USB-frame'' and channel. The second half of xfer->buffer is
- * used as temporary storage for this purpose, which is not used by
- * USB transfers.
+ * each ``USB-frame'' and channel. The second half of the buffer
+ * pointed to by "sc->sc_temp_ptr" is used as temporary storage for
+ * this purpose, which is not used by USB transfers.
  *
  *
  * Host transmit direction (``USB-frame'' format; wMaxPacketSize==23 bytes):
@@ -362,31 +376,26 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t *sc = xfer->priv_sc;
 
-	__typeof(xfer->frlengths)
-	  frlengths = xfer->frlengths,
-	  frlengths_end  =  frlengths + WIBUSB_RX_FRAMES;
+	uint32_t *frlengths = xfer->frlengths;
+	uint32_t *frlengths_end = frlengths + WIBUSB_RX_FRAMES;
 
 	u_int8_t
-	  *fifo_ptr = xfer->buffer,
+	  *fifo_ptr = sc->sc_temp_ptr,
 	  *d1_start, *d1_end, d1_stat = 0,
 	  *b1_start, *b1_end, b1_stat = 0,
 	  *b2_start, *b2_end, b2_stat = 0,
 	  *tmp, status;
 
-	USBD_CHECK_STATUS(xfer);
+  switch (USBD_GET_STATE(xfer)) {
+  case USBD_ST_TRANSFERRED: 
 
- tr_error:
-	if (xfer->error == USBD_CANCELLED) {
-		return;
-	}
-	goto tr_setup;
-
- tr_transferred:
+	usbd_copy_out(xfer->frbuffers + 0, 0, 
+		      fifo_ptr, WIBUSB_RX_BUFSIZE);
 
 #if WIBUSB_RX_FRAMESIZE < (8+16+16)
 #error "WIBUSB_RX_FRAMESIZE too small"
 #endif
-	                    tmp = fifo_ptr + (WIBUSB_RX_FRAMES*WIBUSB_RX_FRAMESIZE);
+	     tmp = fifo_ptr + WIBUSB_RX_BUFSIZE;
 	d1_start = d1_end = tmp;
 	b1_start = b1_end = tmp + (WIBUSB_RX_FRAMES*(8));
 	b2_start = b2_end = tmp + (WIBUSB_RX_FRAMES*(8 + 16));
@@ -497,7 +506,7 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 	frlengths -= WIBUSB_RX_FRAMES;
 
 	/* restore fifo_ptr */
-	fifo_ptr -= WIBUSB_RX_FRAMESIZE*WIBUSB_RX_FRAMES;
+	fifo_ptr -= WIBUSB_RX_BUFSIZE;
 
 	/*
 	 * Check for errors (Overflow/Underflow)
@@ -631,7 +640,7 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 	(sc->sc_fifo[b1r].filter)(sc, &sc->sc_fifo[b1r]);
 	(sc->sc_fifo[b2r].filter)(sc, &sc->sc_fifo[b2r]);
 
- tr_setup:
+  case USBD_ST_SETUP: tr_setup:
 	/* setup framelengths and
 	 * start USB hardware;
 	 * Reuse xfer->buffer and
@@ -652,6 +661,13 @@ wibusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 
 	usbd_start_hardware(xfer);
 	return;
+
+  default: /* Error */
+	if (xfer->error == USBD_CANCELLED) {
+		return;
+	}
+	goto tr_setup;
+  }
 }
 
 /*
@@ -670,22 +686,16 @@ wibusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	  *b1_start, b_average,
 	  *b2_start, p_average, x, *tmp;
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	if (xfer->error == USBD_CANCELLED) {
-		return;
-	}
-
- tr_setup:
- tr_transferred:
+  switch (USBD_GET_STATE(xfer)) {
+  case USBD_ST_SETUP: tr_setup:
+  case USBD_ST_TRANSFERRED: 
 
 #if WIBUSB_TX_FRAMESIZE < (4+(2*9))
 #error "WIBUSB_TX_FRAMESIZE too small!"
 #endif
 	/* get 2nd buffer */
-		   tmp = xfer->buffer;
-		   tmp += (WIBUSB_TX_FRAMES*WIBUSB_TX_FRAMESIZE);
+		   tmp = sc->sc_temp_ptr;
+		   tmp += WIBUSB_TX_BUFSIZE;
 	d1_start = tmp;
 	           tmp += (WIBUSB_TX_FRAMES*4);
 	b1_start = tmp;
@@ -768,7 +778,7 @@ wibusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	sc->sc_fifo[b2t].Z_chip = 0;
 
 	/* get 1st buffer */
-	tmp = xfer->buffer;
+	tmp = sc->sc_temp_ptr;
 
 #if WIBUSB_TX_ADJUST == 0
 #error "WIBUSB_TX_ADJUST == 0"
@@ -828,8 +838,19 @@ wibusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 			       (tmp     ) += p_average; /* */
    	}
 
+	usbd_copy_in(xfer->frbuffers + 0, 0, sc->sc_temp_ptr,
+		     tmp - (uint8_t *)(sc->sc_temp_ptr));
+
 	usbd_start_hardware(xfer);
 	return;
+
+  default: /* Error */
+	if (xfer->error == USBD_CANCELLED) {
+		return;
+	}
+
+	goto tr_setup;
+  }
 }
 
 typedef struct {
@@ -858,40 +879,34 @@ static void
 wibusb_callback_interrupt USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t *sc = xfer->priv_sc;
-	wibusb_status_t *stat = xfer->buffer;
+	wibusb_status_t stat;
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	if (xfer->error == USBD_CANCELLED) {
-	    return;
-	}
-	sc->sc_default.o_INTR_READ_STALL = 1;
-	goto tr_setup;
-
- tr_transferred:
+  switch (USBD_GET_STATE(xfer)) {
+  case USBD_ST_TRANSFERRED: 
 	IHFC_MSG("actlen=%d\n", xfer->actlen);
 
-	if (xfer->actlen < 5) {
+	if (xfer->actlen < sizeof(stat)) {
 	    goto tr_setup;
 	}
 
-	/* if(stat->w_ista & 0x80)
+	usbd_copy_out(xfer->frbuffers + 0, 0, &stat, sizeof(stat));
+
+	/* if(stat.w_ista & 0x80)
 	 * check for statemachine change
 	 */
 
 	/* update w_cir */
-	sc->sc_config.w_cir = stat->w_cir;
+	sc->sc_config.w_cir = stat.w_cir;
 
 	/* update statemachine */
 	ihfc_fsm_update(sc,&sc->sc_fifo[0],0);
 
 	/* clear all status bits */
-	stat->w_ista = 0x00;
+	stat.w_ista = 0x00;
 
- tr_setup:
+  case USBD_ST_SETUP: tr_setup:
 	/* setup data length */
-	xfer->length = sizeof(wibusb_status_t); /* == 5 */
+	xfer->frlengths[0] = sizeof(stat);
 
 	if (sc->sc_default.o_INTR_READ_STALL) {
 	    usbd_transfer_start(sc->sc_resources.usb_xfer[9]);
@@ -899,6 +914,14 @@ wibusb_callback_interrupt USBD_CALLBACK_T(xfer)
 	    usbd_start_hardware(xfer);
 	}
 	return;
+
+  default: /* Error */
+	if (xfer->error == USBD_CANCELLED) {
+	    return;
+	}
+	sc->sc_default.o_INTR_READ_STALL = 1;
+	goto tr_setup;
+  }
 }
 
 static void
@@ -1163,9 +1186,9 @@ wibusb_usb[] =
     .endpoint  = 0x01, /* Bulk Out */
     .direction = UE_DIR_OUT,
     .bufsize   = (4*2), /* bytes */
-    .callback  = &wibusb_callback_chip_write,
-    .flags     = 0,
-    .timeout   = 1000, /* 1 second */
+    .mh.callback  = &wibusb_callback_chip_write,
+    .mh.flags     = { },
+    .mh.timeout   = 1000, /* 1 second */
   },
 
   [WIBUSB_CONF_XFER_READ] = {
@@ -1173,91 +1196,91 @@ wibusb_usb[] =
     .endpoint  = 0x02, /* Bulk In  */
     .direction = UE_DIR_IN,
     .bufsize   = (4*2), /* bytes */
-    .callback  = &wibusb_callback_chip_read,
-    .flags     = 0,
-    .timeout   = 1000, /* 1 second */
+    .mh.callback  = &wibusb_callback_chip_read,
+    .mh.flags     = { },
+    .mh.timeout   = 1000, /* 1 second */
   },
 
   [2] = {
     .type      = UE_INTERRUPT,
     .endpoint  = 0x03, /* Interrupt In */
     .direction = UE_DIR_IN,
-    .flags     = USBD_SHORT_XFER_OK,
+    .mh.flags     = { .short_xfer_ok = 1 },
     .bufsize   = sizeof(wibusb_status_t), /* bytes */
-    .callback  = &wibusb_callback_interrupt,
+    .mh.callback  = &wibusb_callback_interrupt,
   },
 
   [3] = {
     .type      = UE_ISOCHRONOUS,
     .endpoint  = 0x04, /* ISOC Out */
     .direction = UE_DIR_OUT,
-    .flags     = USBD_SHORT_XFER_OK,
-    .frames    = 1*(WIBUSB_TX_FRAMES),
-    .bufsize   = 2*(WIBUSB_TX_FRAMES*WIBUSB_TX_FRAMESIZE), /* bytes */
-    .callback  = &wibusb_callback_isoc_tx,
+    .mh.flags     = { .short_xfer_ok = 1 },
+    .frames    = WIBUSB_TX_FRAMES,
+    .bufsize   = WIBUSB_TX_BUFSIZE,
+    .mh.callback  = &wibusb_callback_isoc_tx,
   },
 
   [4] = {
     .type      = UE_ISOCHRONOUS,
     .endpoint  = 0x04, /* ISOC Out */
     .direction = UE_DIR_OUT,
-    .flags     = USBD_SHORT_XFER_OK,
-    .frames    = 1*(WIBUSB_TX_FRAMES),
-    .bufsize   = 2*(WIBUSB_TX_FRAMES*WIBUSB_TX_FRAMESIZE), /* bytes */
-    .callback  = &wibusb_callback_isoc_tx,
+    .mh.flags     = { .short_xfer_ok = 1 },
+    .frames    = WIBUSB_TX_FRAMES,
+    .bufsize   = WIBUSB_TX_BUFSIZE,
+    .mh.callback  = &wibusb_callback_isoc_tx,
   },
 
   [5] = {
     .type      = UE_ISOCHRONOUS,
     .endpoint  = 0x05, /* ISOC In */
     .direction = UE_DIR_IN,
-    .flags     = USBD_SHORT_XFER_OK,
-    .frames    = 1*(WIBUSB_RX_FRAMES),
-    .bufsize   = 2*(WIBUSB_RX_FRAMES*WIBUSB_RX_FRAMESIZE), /* bytes */
-    .callback  = &wibusb_callback_isoc_rx,
+    .mh.flags     = { .short_xfer_ok = 1 },
+    .frames    = WIBUSB_RX_FRAMES,
+    .bufsize   = WIBUSB_RX_BUFSIZE,
+    .mh.callback  = &wibusb_callback_isoc_rx,
   },
 
   [6] = {
     .type      = UE_ISOCHRONOUS,
     .endpoint  = 0x05, /* ISOC In */
     .direction = UE_DIR_IN,
-    .flags     = USBD_SHORT_XFER_OK,
-    .frames    = 1*(WIBUSB_RX_FRAMES),
-    .bufsize   = 2*(WIBUSB_RX_FRAMES*WIBUSB_RX_FRAMESIZE), /* bytes */
-    .callback  = &wibusb_callback_isoc_rx,
+    .mh.flags     = { .short_xfer_ok = 1 },
+    .frames    = WIBUSB_RX_FRAMES,
+    .bufsize   = WIBUSB_RX_BUFSIZE,
+    .mh.callback  = &wibusb_callback_isoc_rx,
   },
 
   [7] = {
     .type      = UE_CONTROL,
     .endpoint  = 0,
     .direction = UE_DIR_ANY,
-    .timeout   = 1000, /* 1 second */
+    .mh.timeout   = 1000, /* 1 second */
     .interval  = 50, /* 50 milliseconds */
-    .flags     = 0,
+    .mh.flags     = { },
     .bufsize   = sizeof(usb_device_request_t),
-    .callback  = &wibusb_clear_stall_callback_chip_write,
+    .mh.callback  = &wibusb_clear_stall_callback_chip_write,
   },
 
   [8] = {
     .type      = UE_CONTROL,
     .endpoint  = 0,
     .direction = UE_DIR_ANY,
-    .timeout   = 1000, /* 1 second */
+    .mh.timeout   = 1000, /* 1 second */
     .interval  = 50, /* 50 milliseconds */
-    .flags     = 0,
+    .mh.flags     = { },
     .bufsize   = sizeof(usb_device_request_t),
-    .callback  = &wibusb_clear_stall_callback_chip_read,
+    .mh.callback  = &wibusb_clear_stall_callback_chip_read,
   },
 
   [9] = {
     .type      = UE_CONTROL,
     .endpoint  = 0,
     .direction = UE_DIR_ANY,
-    .timeout   = 1000, /* 1 second */
+    .mh.timeout   = 1000, /* 1 second */
     .interval  = 50, /* 50 milliseconds */
-    .flags     = 0,
+    .mh.flags     = { },
     .bufsize   = sizeof(usb_device_request_t),
-    .callback  = &wibusb_clear_stall_callback_interrupt,
+    .mh.callback  = &wibusb_clear_stall_callback_interrupt,
   },
 };
 
@@ -1281,6 +1304,8 @@ I4B_DBASE(wibusb_dbase_root)
 
   I4B_DBASE_ADD(d_register_list         , &wibusb_register_list[0]);
   I4B_DBASE_ADD(d_channels              , 6);
+
+  I4B_DBASE_ADD(d_temp_size		, (2*MAX(WIBUSB_RX_BUFSIZE,WIBUSB_TX_BUFSIZE)));
 
   I4B_DBASE_ADD(usb                     , &wibusb_usb[0]);
   I4B_DBASE_ADD(usb_length              , (sizeof(wibusb_usb)/sizeof(wibusb_usb[0])));

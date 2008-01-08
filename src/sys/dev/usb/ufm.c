@@ -50,40 +50,34 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ufm.c,v 1.36 2007/06/21 14:42:33 imp Exp $")
 #include <dev/usb/dsbr100io.h>
 
 #ifdef USB_DEBUG
-#define DPRINTF(sc,n,fmt,...)   \
+#define	DPRINTF(sc,n,fmt,...)   \
   do { if (ufm_debug > (n)) {        \
       printf("%s:%s: " fmt, (sc)->sc_name, \
              __FUNCTION__,## __VA_ARGS__); } } while (0)
 
 static int ufm_debug = 0;
+
 SYSCTL_NODE(_hw_usb, OID_AUTO, ufm, CTLFLAG_RW, 0, "USB ufm");
 SYSCTL_INT(_hw_usb_ufm, OID_AUTO, debug, CTLFLAG_RW,
-	   &ufm_debug, 0, "ufm debug level");
+    &ufm_debug, 0, "ufm debug level");
 #else
 #define	DPRINTF(...) do { } while (0)
 #endif
 
-#define UFM_N_TRANSFER		1 /* units */
-#define UFM_BUF_SIZE		(sizeof(usb_device_request_t) + 1) /* bytes */
-#define UFM_CMD0		0x00
-#define UFM_CMD_SET_FREQ	0x01
-#define UFM_CMD2		0x02
+#define	UFM_CMD0		0x00
+#define	UFM_CMD_SET_FREQ	0x01
+#define	UFM_CMD2		0x02
 
 struct ufm_softc {
-	struct usb_cdev		sc_cdev;
-	struct mtx		sc_mtx;
+	struct usb_cdev sc_cdev;
+	struct mtx sc_mtx;
 
-	struct usbd_device 	*sc_udev;
-	struct usbd_xfer 	*sc_xfer[UFM_N_TRANSFER];
+	struct usbd_device *sc_udev;
 
-	u_int32_t		sc_unit;
-	u_int32_t		sc_freq;
+	uint32_t sc_unit;
+	uint32_t sc_freq;
 
-	u_int16_t		sc_flags;
-#define UFM_FLAG_COMMAND_ERR 0x0001
-
-	u_int8_t		sc_transfer_buf[UFM_BUF_SIZE];
-	u_int8_t		sc_name[16];
+	uint8_t	sc_name[16];
 };
 
 /* prototypes */
@@ -94,58 +88,43 @@ static device_detach_t ufm_detach;
 
 static int32_t
 ufm_open(struct usb_cdev *dev, int32_t fflags,
-	 int32_t devtype, struct thread *td);
-
-static void
-ufm_ioctl_callback(struct usbd_xfer *xfer);
+    int32_t devtype, struct thread *td);
 
 static int
-ufm_do_req(struct ufm_softc *sc, int32_t fflags, u_int8_t request, 
-	   u_int16_t value, u_int16_t index, u_int8_t *retbuf);
+ufm_do_req(struct ufm_softc *sc, int32_t fflags, uint8_t request,
+    uint16_t value, uint16_t index, uint8_t *retbuf);
 static int
-ufm_set_freq(struct ufm_softc *sc, caddr_t addr, int32_t fflags);
+	ufm_set_freq(struct ufm_softc *sc, caddr_t addr, int32_t fflags);
 
 static int
-ufm_get_freq(struct ufm_softc *sc, caddr_t addr, int32_t fflags);
+	ufm_get_freq(struct ufm_softc *sc, caddr_t addr, int32_t fflags);
 
 static int
-ufm_start(struct ufm_softc *sc, caddr_t addr, int32_t fflags);
+	ufm_start(struct ufm_softc *sc, caddr_t addr, int32_t fflags);
 
 static int
-ufm_stop(struct ufm_softc *sc, caddr_t addr, int32_t fflags);
+	ufm_stop(struct ufm_softc *sc, caddr_t addr, int32_t fflags);
 
 static int
-ufm_get_stat(struct ufm_softc *sc, caddr_t addr, int32_t fflags);
+	ufm_get_stat(struct ufm_softc *sc, caddr_t addr, int32_t fflags);
 
 static int
-ufm_ioctl(struct usb_cdev *dev, u_long cmd, caddr_t addr, 
-	  int32_t fflags, struct thread *td);
-
-static const struct usbd_config ufm_config[UFM_N_TRANSFER] = {
-    [0] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = UFM_BUF_SIZE,
-      .flags     = USBD_USE_DMA,
-      .callback  = &ufm_ioctl_callback,
-      .timeout   = 1000, /* 1 second */
-    },
-};
+ufm_ioctl(struct usb_cdev *dev, u_long cmd, caddr_t addr,
+    int32_t fflags, struct thread *td);
 
 static devclass_t ufm_devclass;
 
 static device_method_t ufm_methods[] = {
-    DEVMETHOD(device_probe, ufm_probe),
-    DEVMETHOD(device_attach, ufm_attach),
-    DEVMETHOD(device_detach, ufm_detach),
-    { 0, 0 }
+	DEVMETHOD(device_probe, ufm_probe),
+	DEVMETHOD(device_attach, ufm_attach),
+	DEVMETHOD(device_detach, ufm_detach),
+	{0, 0}
 };
 
 static driver_t ufm_driver = {
-    .name    = "ufm",
-    .methods = ufm_methods,
-    .size    = sizeof(struct ufm_softc),
+	.name = "ufm",
+	.methods = ufm_methods,
+	.size = sizeof(struct ufm_softc),
 };
 
 MODULE_DEPEND(ufm, usb, 1, 1, 1);
@@ -156,15 +135,17 @@ ufm_probe(device_t dev)
 {
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 
-	if (uaa->iface == NULL) {
-	    return UMATCH_NONE;
+	if (uaa->usb_mode != USB_MODE_HOST) {
+		return (UMATCH_NONE);
 	}
-
+	if (uaa->iface == NULL) {
+		return (UMATCH_NONE);
+	}
 	if ((uaa->vendor == USB_VENDOR_CYPRESS) &&
 	    (uaa->product == USB_PRODUCT_CYPRESS_FMRADIO)) {
-		return UMATCH_VENDOR_PRODUCT;
+		return (UMATCH_VENDOR_PRODUCT);
 	}
-	return UMATCH_NONE;
+	return (UMATCH_NONE);
 }
 
 static int
@@ -172,50 +153,41 @@ ufm_attach(device_t dev)
 {
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	struct ufm_softc *sc = device_get_softc(dev);
-	const char * p_buf[2];
+	const char *p_buf[2];
 	char buf[16];
 	int32_t error;
 
 	if (sc == NULL) {
-	    return ENOMEM;
+		return (ENOMEM);
 	}
-
 	sc->sc_udev = uaa->device;
 	sc->sc_unit = device_get_unit(dev);
 
 	snprintf(sc->sc_name, sizeof(sc->sc_name), "%s",
-		 device_get_nameunit(dev));
+	    device_get_nameunit(dev));
 
-	mtx_init(&(sc->sc_mtx), "ufm lock", NULL, MTX_DEF|MTX_RECURSE);
+	mtx_init(&(sc->sc_mtx), "ufm lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	usbd_set_desc(dev, uaa->device);
-
-	error = usbd_transfer_setup(uaa->device, uaa->iface_index, 
-				    sc->sc_xfer, ufm_config, UFM_N_TRANSFER,
-				    sc, &(sc->sc_mtx));
-	if (error) {
-	    DPRINTF(sc, 0, "error=%s\n", usbd_errstr(error)) ;
-	    goto detach;
-	}
+	usbd_set_device_desc(dev);
 
 	snprintf(buf, sizeof(buf), "ufm%d", sc->sc_unit);
 
 	p_buf[0] = buf;
 	p_buf[1] = NULL;
 
-        sc->sc_cdev.sc_open = &ufm_open;
-        sc->sc_cdev.sc_ioctl = &ufm_ioctl;
+	sc->sc_cdev.sc_open = &ufm_open;
+	sc->sc_cdev.sc_ioctl = &ufm_ioctl;
 
-        error = usb_cdev_attach(&(sc->sc_cdev), sc, &(sc->sc_mtx), p_buf,
-                                UID_ROOT, GID_OPERATOR, 0644, 0, 0, 0, 0);
-        if (error) {
-            goto detach;
-        }
-	return 0; /* success */
+	error = usb_cdev_attach(&(sc->sc_cdev), sc, &(sc->sc_mtx), p_buf,
+	    UID_ROOT, GID_OPERATOR, 0644, 0, 0, 0, 0);
+	if (error) {
+		goto detach;
+	}
+	return (0);			/* success */
 
- detach:
+detach:
 	ufm_detach(dev);
-	return ENXIO;
+	return (ENXIO);
 }
 
 static int
@@ -225,85 +197,45 @@ ufm_detach(device_t dev)
 
 	usb_cdev_detach(&(sc->sc_cdev));
 
-	usbd_transfer_unsetup(sc->sc_xfer, UFM_N_TRANSFER);
-
 	mtx_destroy(&(sc->sc_mtx));
 
-	return 0;
+	return (0);
 }
 
 static int32_t
 ufm_open(struct usb_cdev *dev, int32_t fflags,
-	 int32_t devtype, struct thread *td)
+    int32_t devtype, struct thread *td)
 {
-	if ((fflags & (FWRITE|FREAD)) != (FWRITE|FREAD)) {
-	    return EACCES;
+	if ((fflags & (FWRITE | FREAD)) != (FWRITE | FREAD)) {
+		return (EACCES);
 	}
-	return 0;
-}
-
-static void
-ufm_ioctl_callback(struct usbd_xfer *xfer)
-{
-        struct ufm_softc *sc = xfer->priv_sc;
-
-        USBD_CHECK_STATUS(xfer);
-
- tr_transferred:
-        usbd_copy_out(&(xfer->buf_data), 0, 
-		      sc->sc_transfer_buf, UFM_BUF_SIZE);
-        sc->sc_flags &= ~UFM_FLAG_COMMAND_ERR;
-        usb_cdev_wakeup(&(sc->sc_cdev));
-        return;
-
- tr_error:
-        DPRINTF(sc, 0, "error=%s\n", usbd_errstr(xfer->error));
-        sc->sc_flags |= UFM_FLAG_COMMAND_ERR;
-        usb_cdev_wakeup(&(sc->sc_cdev));
-        return;
-
- tr_setup:
-        usbd_copy_in(&(xfer->buf_data), 0, 
-		     sc->sc_transfer_buf, UFM_BUF_SIZE);
-        xfer->length = UFM_BUF_SIZE;
-        usbd_start_hardware(xfer);
-        return;
+	return (0);
 }
 
 static int
-ufm_do_req(struct ufm_softc *sc, int32_t fflags, u_int8_t request, 
-	   u_int16_t value, u_int16_t index, u_int8_t *retbuf)
+ufm_do_req(struct ufm_softc *sc, int32_t fflags, uint8_t request,
+    uint16_t value, uint16_t index, uint8_t *retbuf)
 {
 	int32_t error;
 
-	usb_device_request_t *req = (void *)(sc->sc_transfer_buf);
+	usb_device_request_t req;
+	uint8_t buf[1];
 
-	req->bmRequestType = UT_READ_VENDOR_DEVICE;
-	req->bRequest = request;
-	USETW(req->wValue, value);
-	USETW(req->wIndex, index);
-	USETW(req->wLength, 1);
+	req.bmRequestType = UT_READ_VENDOR_DEVICE;
+	req.bRequest = request;
+	USETW(req.wValue, value);
+	USETW(req.wIndex, index);
+	USETW(req.wLength, 1);
 
-	sc->sc_flags |=	 UFM_FLAG_COMMAND_ERR;
-
-	usbd_transfer_start(sc->sc_xfer[0]);
-
-	error = usb_cdev_sleep(&(sc->sc_cdev), fflags, 0);
-
-	usbd_transfer_stop(sc->sc_xfer[0]);
+	error = usbd_do_request(sc->sc_udev, NULL, &req, buf);
 
 	if (retbuf) {
-	   *retbuf = req->bData[0];
+		*retbuf = buf[0];
 	}
-
 	if (error) {
-	    return error;
+		return (ENXIO);
 	}
-
-	if (sc->sc_flags & UFM_FLAG_COMMAND_ERR) {
-	    return ENXIO;
-	}
-	return 0;
+	return (0);
 }
 
 static int
@@ -318,19 +250,21 @@ ufm_set_freq(struct ufm_softc *sc, caddr_t addr, int32_t fflags)
 	 * units of 12.5kHz.  We add one to the IFM to make rounding
 	 * easier.
 	 */
+	mtx_lock(&(sc->sc_mtx));
 	sc->sc_freq = freq;
+	mtx_unlock(&(sc->sc_mtx));
+
 	freq = (freq + 10700001) / 12500;
 
 	/* This appears to set the frequency */
-	if (ufm_do_req(sc, fflags, UFM_CMD_SET_FREQ, 
-		       freq >> 8, freq, NULL) != 0) {
-	    return EIO;
+	if (ufm_do_req(sc, fflags, UFM_CMD_SET_FREQ,
+	    freq >> 8, freq, NULL) != 0) {
+		return (EIO);
 	}
-
 	/* Not sure what this does */
-	if (ufm_do_req(sc, fflags, UFM_CMD0, 
-		       0x96, 0xb7, NULL) != 0) {
-	    return EIO;
+	if (ufm_do_req(sc, fflags, UFM_CMD0,
+	    0x96, 0xb7, NULL) != 0) {
+		return (EIO);
 	}
 	return (0);
 }
@@ -339,25 +273,28 @@ static int
 ufm_get_freq(struct ufm_softc *sc, caddr_t addr, int32_t fflags)
 {
 	int *valp = (int *)addr;
+
+	mtx_lock(&(sc->sc_mtx));
 	*valp = sc->sc_freq;
+	mtx_unlock(&(sc->sc_mtx));
 	return (0);
 }
 
 static int
 ufm_start(struct ufm_softc *sc, caddr_t addr, int32_t fflags)
 {
-	u_int8_t ret;
+	uint8_t ret;
 
-	if (ufm_do_req(sc, fflags, UFM_CMD0, 
-		       0x00, 0xc7, &ret)) {
-	    return EIO;
+	if (ufm_do_req(sc, fflags, UFM_CMD0,
+	    0x00, 0xc7, &ret)) {
+		return (EIO);
 	}
-	if (ufm_do_req(sc, fflags, UFM_CMD2, 
-		       0x01, 0x00, &ret)) {
-	    return EIO;
+	if (ufm_do_req(sc, fflags, UFM_CMD2,
+	    0x01, 0x00, &ret)) {
+		return (EIO);
 	}
 	if (ret & 0x1) {
-	    return EIO;
+		return (EIO);
 	}
 	return (0);
 }
@@ -365,13 +302,13 @@ ufm_start(struct ufm_softc *sc, caddr_t addr, int32_t fflags)
 static int
 ufm_stop(struct ufm_softc *sc, caddr_t addr, int32_t fflags)
 {
-	if (ufm_do_req(sc, fflags, UFM_CMD0, 
-		       0x16, 0x1C, NULL)) {
-	    return EIO;
+	if (ufm_do_req(sc, fflags, UFM_CMD0,
+	    0x16, 0x1C, NULL)) {
+		return (EIO);
 	}
-	if (ufm_do_req(sc, fflags, UFM_CMD2, 
-		       0x00, 0x00, NULL)) {
-	    return EIO;
+	if (ufm_do_req(sc, fflags, UFM_CMD2,
+	    0x00, 0x00, NULL)) {
+		return (EIO);
 	}
 	return (0);
 }
@@ -379,39 +316,32 @@ ufm_stop(struct ufm_softc *sc, caddr_t addr, int32_t fflags)
 static int
 ufm_get_stat(struct ufm_softc *sc, caddr_t addr, int32_t fflags)
 {
-	u_int8_t ret;
-	u_int32_t timeout = (hz / 4);
-
-	if (timeout == 0) {
-	    timeout = 1;
-	}
+	uint8_t ret;
 
 	/*
 	 * Note, there's a 240ms settle time before the status
-	 * will be valid, so sleep that amount.  hz/4 is a good
-	 * approximation of that.
+	 * will be valid, so sleep that amount.
 	 */
 
-	if (usb_cdev_sleep(&(sc->sc_cdev), fflags, timeout)) {
-	    return EIO;
-	}
+	usbd_pause_mtx(NULL, 250);
 
-	if (ufm_do_req(sc, fflags, UFM_CMD0, 
-		       0x00, 0x24, &ret)) {
-	    return EIO;
+	if (ufm_do_req(sc, fflags, UFM_CMD0,
+	    0x00, 0x24, &ret)) {
+		return (EIO);
 	}
-
 	*(int *)addr = ret;
 
-	return 0;
+	return (0);
 }
 
 static int
-ufm_ioctl(struct usb_cdev *dev, u_long cmd, caddr_t addr, 
-	  int32_t fflags, struct thread *td)
+ufm_ioctl(struct usb_cdev *dev, u_long cmd, caddr_t addr,
+    int32_t fflags, struct thread *td)
 {
 	struct ufm_softc *sc = dev->sc_priv_ptr;
 	int error = 0;
+
+	usb_cdev_unlock(dev, fflags);
 
 	switch (cmd) {
 	case FM_SET_FREQ:
@@ -430,8 +360,8 @@ ufm_ioctl(struct usb_cdev *dev, u_long cmd, caddr_t addr,
 		error = ufm_get_stat(sc, addr, fflags);
 		break;
 	default:
-		return ENOTTY;
+		error = ENOTTY;
 		break;
 	}
-	return error;
+	return (usb_cdev_lock(dev, fflags, error));
 }

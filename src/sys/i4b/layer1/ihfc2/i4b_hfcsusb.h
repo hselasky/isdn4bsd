@@ -84,10 +84,12 @@
 
 #define HFCSUSB_RX_FRAMES          25 /* units (total) */
 #define HFCSUSB_RX_FRAMESIZE       12 /* bytes */
+#define HFCSUSB_RX_BUFSIZE (HFCSUSB_RX_FRAMESIZE * HFCSUSB_RX_FRAMES)
 
 #define HFCSUSB_TX_FRAMES          25 /* units (total) */
 #define HFCSUSB_TX_ADJUST           1 /* units */
 #define HFCSUSB_TX_FRAMESIZE       12 /* bytes */
+#define HFCSUSB_TX_BUFSIZE (HFCSUSB_TX_FRAMESIZE * HFCSUSB_TX_FRAMES)
 
 #define HFCSUSB_CONF_XFER_WRITE     0
 #define HFCSUSB_CONF_XFER_READ      1
@@ -160,72 +162,85 @@ static void
 hfcsusb_callback_chip_read USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t              *sc  = xfer->priv_sc;
-	usb_device_request_t   *req = xfer->buffer;
+	usb_device_request_t   req;
+	uint8_t		       buf[1];
 
-	USBD_CHECK_STATUS(xfer);
+  switch (USBD_GET_STATE(xfer)) {
+  case USBD_ST_TRANSFERRED: 
 
- tr_transferred:
+	usbd_copy_out(xfer->frbuffers + 1, 0, buf, sizeof(buf));
 
 	IHFC_MSG("ReadReg:0x%02x, Val:0x%02x\n",
-		 req->wIndex[0], req->bData[0]);
+		 sc->sc_reg_temp.reg, buf[0]);
 
-	sc->sc_reg_temp.data = req->bData[0];
+	sc->sc_reg_temp.data = buf[0];
 
- tr_error:
-	wakeup(&(sc->sc_reg_temp));
-	return;
-
- tr_setup:
+	goto tr_error;
+  case USBD_ST_SETUP: 
 
 	/* setup request (8-bytes) */
-	req->bmRequestType = 0xC0; /* read data */
-	req->bRequest      = 0x01; /* register read access HFC_REG_RD */
-	req->wValue[0]     = 0x00; /* data (low byte, ignored) */
-	req->wValue[1]     = 0x00; /* data (high byte, ignored) */
-	req->wIndex[0]     = sc->sc_reg_temp.reg; /* index (low byte) */
-	req->wIndex[1]     = 0x00; /* index (high byte, ignored) */
-	req->wLength[0]    = 0x01; /* length (0x0001 for read) */
-	req->wLength[1]    = 0x00; /* length (0x0001 for read) */
+	req.bmRequestType = 0xC0; /* read data */
+	req.bRequest      = 0x01; /* register read access HFC_REG_RD */
+	req.wValue[0]     = 0x00; /* data (low byte, ignored) */
+	req.wValue[1]     = 0x00; /* data (high byte, ignored) */
+	req.wIndex[0]     = sc->sc_reg_temp.reg; /* index (low byte) */
+	req.wIndex[1]     = 0x00; /* index (high byte, ignored) */
+	req.wLength[0]    = 0x01; /* length (0x0001 for read) */
+	req.wLength[1]    = 0x00; /* length (0x0001 for read) */
 
-	/* setup data length (including one data byte) */
-	xfer->length = sizeof(*req) + 1;
+	/* setup data lengths */
+	xfer->frlengths[0] = sizeof(req);
+	xfer->frlengths[1] = 1;
 
+	usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+
+	/* start hardware */
 	usbd_start_hardware(xfer);
 
 	return;
+
+  default: tr_error:
+	wakeup(&(sc->sc_reg_temp));
+	return;
+  }
 }
 
 static void
 hfcsusb_callback_chip_write USBD_CALLBACK_T(xfer)
 {
 	ihfc_sc_t             *sc  = xfer->priv_sc;
-	usb_device_request_t  *req = xfer->buffer;
+	usb_device_request_t  req;
 
-	USBD_CHECK_STATUS(xfer);
+  switch (USBD_GET_STATE(xfer)) {
+  case USBD_ST_TRANSFERRED: 
+	goto tr_error;
 
- tr_transferred:
- tr_error:
-	wakeup(&(sc->sc_reg_temp));
-	return;
-
- tr_setup:
+  case USBD_ST_SETUP: 
 	/* setup request (8-bytes) */
-	req->bmRequestType = 0x40; /* write data */
-	req->bRequest      = 0x00; /* register write access HFC_REG_WR */
-	req->wValue[0]     = sc->sc_reg_temp.data; /* data (low byte) */
-	req->wValue[1]     = 0x00; /* data (high byte, ignored) */
-	req->wIndex[0]     = sc->sc_reg_temp.reg; /* index (low byte) */
-	req->wIndex[1]     = 0x00; /* index (high byte, ignored) */
-	req->wLength[0]    = 0x00; /* length (0x0000 for write) */
-	req->wLength[1]    = 0x00; /* length (0x0000 for write) */
+	req.bmRequestType = 0x40; /* write data */
+	req.bRequest      = 0x00; /* register write access HFC_REG_WR */
+	req.wValue[0]     = sc->sc_reg_temp.data; /* data (low byte) */
+	req.wValue[1]     = 0x00; /* data (high byte, ignored) */
+	req.wIndex[0]     = sc->sc_reg_temp.reg; /* index (low byte) */
+	req.wIndex[1]     = 0x00; /* index (high byte, ignored) */
+	req.wLength[0]    = 0x00; /* length (0x0000 for write) */
+	req.wLength[1]    = 0x00; /* length (0x0000 for write) */
 
 	/* setup data length */
-	xfer->length = sizeof(*req);
+	xfer->frlengths[0] = sizeof(req);
+	xfer->frlengths[1] = 0;
 
-	/* [re-]transfer ``xfer->buffer'' */
+	usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+
+	/* start hardware */
 	usbd_start_hardware(xfer);
 
 	return;
+
+  default: tr_error:
+	wakeup(&(sc->sc_reg_temp));
+	return;
+  }
 }
 
 static void
@@ -404,9 +419,8 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 #define FRAME_SIZE    0x08 /*bytes*/
 
 	/* get pointers to store frame lengths */
-	__typeof(xfer->frlengths)
-	  frlengths = xfer->frlengths,
-	  frlengths_end  =  frlengths + FRAME_NUMBER;
+	uint32_t *frlengths = xfer->frlengths;
+	uint32_t *frlengths_end = frlengths + FRAME_NUMBER;
 
 	u_int8_t 
 	  *d1_start, *tmp, len, average = FRAME_SIZE,
@@ -416,14 +430,9 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 #error "(FRAME_NUMBER > HFCSUSB_TX_FRAMES) || (FRAME_SIZE > HFCSUSB_TX_FRAMESIZE)"
 #endif
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	if (xfer->error == USBD_CANCELLED) {
-		return;
-	}
- tr_transferred:
- tr_setup:
+  switch (USBD_GET_STATE(xfer)) {
+  case USBD_ST_TRANSFERRED: tr_transferred:
+  case USBD_ST_SETUP: 
 
 	if(xfer != sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_DCHAN])
 	{
@@ -432,8 +441,8 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 	}
 
 	/* get start of 2nd buffer */
-	d1_start = xfer->buffer;
-	d1_start += (HFCSUSB_TX_FRAMES*HFCSUSB_TX_FRAMESIZE);
+	d1_start = sc->sc_temp_ptr;
+	d1_start += HFCSUSB_TX_BUFSIZE;
 
 	/* need to re-read F_USAGE */
 	if(f->Z_chip & 0x80)
@@ -509,7 +518,7 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 	 * get start of 1st buffer
 	 * (output pointer)
 	 */
-	tmp = xfer->buffer;
+	tmp = sc->sc_temp_ptr;
 
 	/* build ``USB frames'' */
 	for(;
@@ -553,7 +562,13 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 	   * insertion:
 	   */
 	  *(tmp) = control_byte; /**/
+
+	  /* restore "tmp" pointer */
+	  tmp += (average +1);
 	}
+
+	usbd_copy_in(xfer->frbuffers + 0, 0, sc->sc_temp_ptr,
+		     tmp - ((uint8_t *)(sc->sc_temp_ptr)));
 
 	xfer->nframes = FRAME_NUMBER;
 
@@ -564,6 +579,13 @@ hfcsusb_callback_isoc_tx_d_hdlc USBD_CALLBACK_T(xfer)
 
 #undef FRAME_SIZE
 #undef FRAME_NUMBER
+
+  default: /* Error */
+	if (xfer->error == USBD_CANCELLED) {
+		return;
+	}
+	goto tr_transferred;
+  }
 }
 
 /*
@@ -646,10 +668,10 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	  average = 8; /* default */
 
 	/* get pointers to store frame lengths */
-	__typeof(xfer->frlengths)
-	  frlengths = xfer->frlengths,
-	  frlengths_end  =  frlengths + (HFCSUSB_TX_FRAMES),
-	  frlengths_adj  =  frlengths + (HFCSUSB_TX_ADJUST);
+	
+	uint32_t *frlengths = xfer->frlengths;
+	uint32_t *frlengths_end = frlengths + (HFCSUSB_TX_FRAMES);
+	uint32_t *frlengths_adj = frlengths + (HFCSUSB_TX_ADJUST);
 
 	if(PROT_IS_HDLC(&(f->prot_curr)))
 	{
@@ -657,14 +679,9 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	  goto done;
 	}
 
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	if (xfer->error == USBD_CANCELLED) {
-		return;
-	}
- tr_setup:
- tr_transferred:
+  switch (USBD_GET_STATE(xfer)) {
+  case USBD_ST_SETUP: tr_setup:
+  case USBD_ST_TRANSFERRED: 
 
 	/* get FIFO fill level (cleared elsewhere) */
 	fifo_level = sc->sc_config.fifo_level & (1 << (f->s_fifo_sel));
@@ -726,8 +743,8 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	Z_chip_written = f->Z_chip;
 
 	/* get start of 2nd buffer */
-	d1_start = xfer->buffer;
-	d1_start += (HFCSUSB_TX_FRAMES*HFCSUSB_TX_FRAMESIZE);
+	d1_start = sc->sc_temp_ptr;
+	d1_start += HFCSUSB_TX_BUFSIZE;
 
 	/* get start of 2nd buffer */
 	f->Z_ptr = d1_start;
@@ -767,12 +784,11 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	 */
 	if(FIFO_CMP(f,<,(b1t & b1r)))
 	{
-	  enum { EXPANSION_BUFFER_SIZE =
-		 (HFCSUSB_TX_FRAMES*HFCSUSB_TX_FRAMESIZE)
+	  enum { EXPANSION_BUFFER_SIZE = HFCSUSB_TX_BUFSIZE
 		 /* leave room for optimization: */
 		 - (HFCSUSB_TX_FRAMESIZE) };
 
-#if ((HFCSUSB_TX_FRAMES*HFCSUSB_TX_FRAMESIZE) -		\
+#if (HFCSUSB_TX_BUFSIZE -		\
      (2*HFCSUSB_TX_FRAMES) - (1*HFCSUSB_TX_ADJUST) -	\
      (8*HFCSUSB_TX_FRAMES) - (4*HFCSUSB_TX_ADJUST) -	\
      (HFCSUSB_TX_FRAMESIZE)) < 0
@@ -820,7 +836,7 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	 * get start of 1st buffer
 	 * (output pointer)
 	 */
-	tmp = xfer->buffer;
+	tmp = sc->sc_temp_ptr;
 
 	/* build ``USB frames'' */
 	for(;
@@ -873,6 +889,9 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 	  }
 	}
 
+	usbd_copy_in(xfer->frbuffers + 0, 0, sc->sc_temp_ptr,
+		     tmp - ((uint8_t *)(sc->sc_temp_ptr)));
+
 	xfer->nframes = HFCSUSB_TX_FRAMES; 
 
 	usbd_start_hardware(xfer);
@@ -890,6 +909,13 @@ hfcsusb_callback_isoc_tx USBD_CALLBACK_T(xfer)
 				 */
  done:
 	return;
+
+  default: /* Error */
+	if (xfer->error == USBD_CANCELLED) {
+		return;
+	}
+	goto tr_setup;
+  }
 }
 
 static void
@@ -901,27 +927,21 @@ hfcsusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 	u_int8_t
 	  *d1_start, *d1_end, *tmp, *tmp_end, len;
 
-	__typeof(xfer->frlengths)
-	  frlengths = xfer->frlengths,
-	  frlengths_end  =  frlengths + HFCSUSB_RX_FRAMES;
+	uint32_t *frlengths = xfer->frlengths;
+	uint32_t *frlengths_end  =  frlengths + HFCSUSB_RX_FRAMES;
 
-
-	USBD_CHECK_STATUS(xfer);
-
- tr_error:
-	if (xfer->error == USBD_CANCELLED) {
-		return;
-	}
-	goto tr_setup;
-
- tr_transferred:
+  switch (USBD_GET_STATE(xfer)) {
+  case USBD_ST_TRANSFERRED: 
 
 	/* store "Z_read_time", which is used by echo-cancelling */
 
 	f->Z_read_time = (xfer->isoc_time_complete * 8);
 
 	/* get start of 1st buffer */
-	tmp = xfer->buffer;
+	tmp = sc->sc_temp_ptr;
+
+	usbd_copy_out(xfer->frbuffers + 0, 0, 
+		      tmp, HFCSUSB_RX_BUFSIZE);
 
 	/* get start of 2nd buffer */
 	d1_start = d1_end = tmp + (HFCSUSB_RX_FRAMES*HFCSUSB_RX_FRAMESIZE);
@@ -1054,14 +1074,11 @@ hfcsusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 
 	(f->filter)(sc, f);
 
- tr_setup:
-	/* setup framelengths and
-	 * start USB hardware;
-	 * Reuse xfer->buffer and
-	 * xfer->nframes
-	 *
-	 * xfer->nframes == HFCSUSB_RX_FRAMES;
-	 */
+  case USBD_ST_SETUP: tr_setup:
+
+	/* setup transfer */
+
+	xfer->nframes = HFCSUSB_RX_FRAMES;
 
 	for(;
 	    frlengths < frlengths_end;
@@ -1070,11 +1087,16 @@ hfcsusb_callback_isoc_rx USBD_CALLBACK_T(xfer)
 	  *frlengths = HFCSUSB_RX_FRAMESIZE;
 	}
 
-	/* restore frlengths */
-	frlengths -= HFCSUSB_RX_FRAMES;
-
 	usbd_start_hardware(xfer);
 	return;
+
+  default: /* Error */
+	if (xfer->error == USBD_CANCELLED) {
+		return;
+	}
+	goto tr_setup;
+
+  }
 }
 
 static void
@@ -1328,8 +1350,8 @@ hfcsusb_usb[] =
     .endpoint  = 0x00, /* Control pipe */
     .direction = UE_DIR_ANY,
     .bufsize   = sizeof(usb_device_request_t), /* bytes */
-    .callback  = &hfcsusb_callback_chip_write,
-    .timeout   = 1000, /* ms */
+    .mh.callback  = &hfcsusb_callback_chip_write,
+    .mh.timeout   = 1000, /* ms */
   },
 
   [HFCSUSB_CONF_XFER_READ] = {
@@ -1337,8 +1359,8 @@ hfcsusb_usb[] =
     .endpoint  = 0x00, /* Control pipe */
     .direction = UE_DIR_ANY,
     .bufsize   = sizeof(usb_device_request_t)+1, /* bytes */
-    .callback  = &hfcsusb_callback_chip_read,
-    .timeout   = 1000, /* ms */
+    .mh.callback  = &hfcsusb_callback_chip_read,
+    .mh.timeout   = 1000, /* ms */
   },
 
 #define HFCSUSB_XFER(index, pipe_no, fifo)\
@@ -1346,37 +1368,37 @@ hfcsusb_usb[] =
     .type      = UE_ISOCHRONOUS,\
     .endpoint  = pipe_no, /* ISOC Out */\
     .direction = UE_DIR_OUT,\
-    .flags     = USBD_SHORT_XFER_OK,\
-    .frames    = 1*(HFCSUSB_TX_FRAMES), /* bytes */\
-    .bufsize   = 2*(HFCSUSB_TX_FRAMES*HFCSUSB_TX_FRAMESIZE), /* bytes */\
-    .callback  = &hfcsusb_callback_isoc_tx,\
+    .mh.flags     = { .short_xfer_ok = 1 },\
+    .frames    = HFCSUSB_TX_FRAMES,\
+    .bufsize   = HFCSUSB_TX_BUFSIZE,\
+    .mh.callback  = &hfcsusb_callback_isoc_tx,\
   },\
   [index+1] = {\
     .type      = UE_ISOCHRONOUS,\
     .endpoint  = pipe_no, /* ISOC Out */\
     .direction = UE_DIR_OUT,\
-    .flags     = USBD_SHORT_XFER_OK,\
-    .frames    = 1*(HFCSUSB_TX_FRAMES), /* bytes */\
-    .bufsize   = 2*(HFCSUSB_TX_FRAMES*HFCSUSB_TX_FRAMESIZE), /* bytes */\
-    .callback  = &hfcsusb_callback_isoc_tx,\
+    .mh.flags     = { .short_xfer_ok = 1 },\
+    .frames    = HFCSUSB_TX_FRAMES,\
+    .bufsize   = HFCSUSB_TX_BUFSIZE,\
+    .mh.callback  = &hfcsusb_callback_isoc_tx,\
   },\
   [index+2] = {\
     .type      = UE_ISOCHRONOUS,\
     .endpoint  = pipe_no, /* ISOC In */\
     .direction = UE_DIR_IN,\
-    .flags     = USBD_SHORT_XFER_OK,\
-    .frames    = 1*(HFCSUSB_RX_FRAMES), /* bytes */\
-    .bufsize   = 2*(HFCSUSB_RX_FRAMES*HFCSUSB_RX_FRAMESIZE), /* bytes */\
-    .callback  = &hfcsusb_callback_isoc_rx,\
+    .mh.flags     = { .short_xfer_ok = 1 },\
+    .frames    = HFCSUSB_RX_FRAMES,\
+    .bufsize   = HFCSUSB_RX_BUFSIZE,\
+    .mh.callback  = &hfcsusb_callback_isoc_rx,\
   },\
   [index+3] = {\
     .type      = UE_ISOCHRONOUS,\
     .endpoint  = pipe_no, /* ISOC In */\
     .direction = UE_DIR_IN,\
-    .flags     = USBD_SHORT_XFER_OK,\
-    .frames    = 1*(HFCSUSB_RX_FRAMES), /* bytes */\
-    .bufsize   = 2*(HFCSUSB_RX_FRAMES*HFCSUSB_RX_FRAMESIZE), /* bytes */\
-    .callback  = &hfcsusb_callback_isoc_rx,\
+    .mh.flags     = { .short_xfer_ok = 1 },\
+    .frames    = HFCSUSB_RX_FRAMES,\
+    .bufsize   = HFCSUSB_RX_BUFSIZE,\
+    .mh.callback  = &hfcsusb_callback_isoc_rx,\
   },\
   /**/
 
@@ -1514,6 +1536,8 @@ I4B_DBASE(hfcsusb_dbase_root)
 
   I4B_DBASE_ADD(d_register_list         , &hfcsusb_register_list[0]);
   I4B_DBASE_ADD(d_channels              , 6);
+
+  I4B_DBASE_ADD(d_temp_size		, (2*MAX(HFCSUSB_RX_BUFSIZE,HFCSUSB_TX_BUFSIZE)));
 
   I4B_DBASE_ADD(usb                     , &hfcsusb_usb[0]);
   I4B_DBASE_ADD(usb_length              , (sizeof(hfcsusb_usb)/sizeof(hfcsusb_usb[0])));

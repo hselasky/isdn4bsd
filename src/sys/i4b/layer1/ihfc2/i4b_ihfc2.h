@@ -957,6 +957,8 @@ struct sc_default {
 
   u_int32_t		      d_interrupt_delay;
 
+  u_int32_t		      d_temp_size;
+
   const union fifo_map *      d_fifo_map[IHFC_CHANNELS];
 
   const struct register_list *d_register_list;
@@ -2503,6 +2505,8 @@ struct ihfc_sc {
 
 	device_t		sc_device;
 
+	void			*sc_temp_ptr;
+
 	i4b_trace_hdr_t		sc_trace_hdr;
 
 	register_t		sc_intr_temp;
@@ -2527,6 +2531,8 @@ struct ihfc_sc {
 
 	struct mtx *		sc_mtx_p;	/* pointer to driver mutex */
 	struct usbd_page	sc_hw_page;
+	struct usbd_page_cache	sc_hw_page_cache;
+	struct usbd_dma_tag	sc_hw_dma_tag;
 
 	struct sc_resources	sc_resources;
 	struct sc_reg_temp	sc_reg_temp;

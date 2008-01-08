@@ -53,7 +53,9 @@ __FBSDID("$FreeBSD: $");
 #if 0
 #define TEL_USE_SIGNED_8_BIT
 #endif
-#define TEL_USE_SOUND_BRIDGE
+#if 1
+#define TEL_NO_SOUND_BRIDGE
+#endif
 
 struct tel_parameters {
 	u_int8_t	audio_amp;	/* audio amplification */
@@ -898,6 +900,7 @@ tel_get_mbuf(struct fifo_translator *f)
 /*---------------------------------------------------------------------------*
  *	sound-bridge
  *---------------------------------------------------------------------------*/
+#ifndef TEL_NO_SOUND_BRIDGE
 #include <i4b/layer1/ihfc2/i4b_ihfc2.h> /* struct buffer */
 
 #define TEL_AUDIORATE	8000 /*hz*/
@@ -1514,6 +1517,7 @@ tel_tx_interrupt(struct fifo_translator *f, struct buffer *out_buf)
 	}
 	return;
 }
+#endif
 
 /*---------------------------------------------------------------------------*
  *	setup the FIFO-translator for this driver
@@ -1556,9 +1560,10 @@ tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	  f->L5_PUT_MBUF     = tel_put_mbuf;
 	  f->L5_GET_MBUF     = tel_get_mbuf;
+#ifndef TEL_NO_SOUND_BRIDGE
 	  f->L5_TX_INTERRUPT = tel_tx_interrupt;
 	  f->L5_RX_INTERRUPT = tel_rx_interrupt;
-
+#endif
 	  sc->cdp = cd;
 
 	  sc->rd.audio_output_bsubprot = pp->protocol_4;
@@ -1566,6 +1571,7 @@ tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	  if(sc->use_sound_bridge)  /* driver_type == DRVR_TEL_SB */
 	  {
+#ifndef TEL_NO_SOUND_BRIDGE
 		/* open sound-brigde */
 		if(snd_open(sc))
 		{
@@ -1581,6 +1587,7 @@ tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 #endif
 		}
 		else
+#endif
 		{
 		  /* error */
 		  /* see unsetup under
@@ -1596,9 +1603,11 @@ tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	  sc->cdp = NULL;
 	
+#ifndef TEL_NO_SOUND_BRIDGE
 	  /* close sound-bridge */
 	  snd_close(&sc->rd.audio_dev);
 	  snd_close(&sc->wr.audio_dev);
+#endif
 	
 	  if(sc->state & ST_RDWAIT_DATA)
 	  {

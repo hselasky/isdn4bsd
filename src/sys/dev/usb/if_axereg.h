@@ -29,11 +29,11 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- * $FreeBSD: src/sys/dev/usb/if_axereg.h,v 1.13 2007/06/30 20:08:08 imp Exp $
+ * $FreeBSD: src/sys/dev/usb/if_axereg.h,v 1.17 2007/11/10 16:23:38 sam Exp $
  */
 
 /*
- * Definitions for the ASIX Electronics AX88172, AX88178 
+ * Definitions for the ASIX Electronics AX88172, AX88178
  * and AX88772 to ethernet controllers.
  */
 
@@ -108,8 +108,9 @@
 #define	AXE_MEDIA_FULL_DUPLEX			0x0002
 #define	AXE_172_MEDIA_TX_ABORT_ALLOW		0x0004
 
-/* AX88178 documentation says to always write 1 to reserved bit... */
+/* AX88178/88772 documentation says to always write 1 to bit 2 */
 #define	AXE_178_MEDIA_MAGIC			0x0004
+/* AX88772 documentation says to always write 0 to bit 3 */
 #define	AXE_178_MEDIA_ENCK			0x0008
 #define	AXE_172_MEDIA_FLOW_CONTROL_EN		0x0010
 #define	AXE_178_MEDIA_RXFLOW_CONTROL_EN		0x0010
@@ -137,7 +138,7 @@
 #define	AXE_NOPHY				0xE0
 #define	AXE_INTPHY				0x10
 
-#define AXE_BULK_BUF_SIZE	16384 /* bytes */
+#define	AXE_BULK_BUF_SIZE	16384	/* bytes */
 
 #define	AXE_CTL_READ		0x01
 #define	AXE_CTL_WRITE		0x02
@@ -149,54 +150,54 @@
 #define	AXE_ENDPT_MAX		6
 
 struct axe_type {
-	uint16_t		axe_vid;
-	uint16_t		axe_did;
-	uint16_t		axe_flags;
+	uint16_t axe_vid;
+	uint16_t axe_did;
+	uint16_t axe_flags;
 };
 
 struct axe_sframe_hdr {
-	uint16_t		len;
-	uint16_t		ilen;
+	uint16_t len;
+	uint16_t ilen;
 } __packed;
 
 #define	GET_MII(sc)	((sc)->sc_miibus ?				\
 			    device_get_softc((sc)->sc_miibus) : NULL)
 
 struct axe_softc {
-	void			*sc_evilhack; /* XXX this pointer must be first */
+	void   *sc_evilhack;		/* XXX this pointer must be first */
 
-	struct usbd_config_td	sc_config_td;
-	struct __callout	sc_watchdog;
-	struct mtx		sc_mtx;
+	struct usbd_config_td sc_config_td;
+	struct usb_callout sc_watchdog;
+	struct mtx sc_mtx;
 
-	struct ifnet		*sc_ifp;
-	struct usbd_device	*sc_udev;
-	struct usbd_xfer	*sc_xfer[AXE_ENDPT_MAX];
-	device_t		sc_miibus;
-	device_t		sc_dev;
+	struct ifnet *sc_ifp;
+	struct usbd_device *sc_udev;
+	struct usbd_xfer *sc_xfer[AXE_ENDPT_MAX];
+	device_t sc_miibus;
+	device_t sc_dev;
 
-	uint32_t		sc_unit;
-	uint32_t		sc_media_active;
-	uint32_t		sc_media_status;
+	uint32_t sc_unit;
+	uint32_t sc_media_active;
+	uint32_t sc_media_status;
 
-	uint16_t		sc_flags;
+	uint16_t sc_flags;
 #define	AXE_FLAG_WAIT_LINK	0x0001
 #define	AXE_FLAG_INTR_STALL	0x0002
 #define	AXE_FLAG_READ_STALL	0x0004
 #define	AXE_FLAG_WRITE_STALL	0x0008
 #define	AXE_FLAG_LL_READY	0x0010
 #define	AXE_FLAG_HL_READY	0x0020
-#define	AXE_FLAG_772		0x0040 /* AX88772 */
-#define	AXE_FLAG_178		0x0080 /* AX88178 */
+#define	AXE_FLAG_772		0x0040	/* AX88772 */
+#define	AXE_FLAG_178		0x0080	/* AX88178 */
 
-	uint8_t     		sc_ipgs[3];
-	uint8_t      		sc_phyaddrs[2];
+	uint8_t	sc_ipgs[3];
+	uint8_t	sc_phyaddrs[2];
 
-	uint8_t			sc_name[16];
+	uint8_t	sc_name[16];
 };
 
 struct axe_config_copy {
-	uint32_t	if_flags;
-	uint8_t		if_lladdr[ETHER_ADDR_LEN];
-	uint8_t		if_hash[8];
+	uint32_t if_flags;
+	uint8_t	if_lladdr[ETHER_ADDR_LEN];
+	uint8_t	if_hash[8];
 };

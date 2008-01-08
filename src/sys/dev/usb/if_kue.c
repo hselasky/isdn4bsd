@@ -88,8 +88,8 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/if_kue.c,v 1.82 2007/06/23 06:47:43 imp Exp 
 
 #include <net/bpf.h>
 
-#define usbd_config_td_cc kue_config_copy
-#define usbd_config_td_softc kue_softc
+#define	usbd_config_td_cc kue_config_copy
+#define	usbd_config_td_softc kue_softc
 
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
@@ -105,41 +105,41 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/if_kue.c,v 1.82 2007/06/23 06:47:43 imp Exp 
  * Various supported device vendors/products.
  */
 static struct kue_type kue_devs[] = {
-	{ USB_VENDOR_3COM, USB_PRODUCT_3COM_3C19250 },
-	{ USB_VENDOR_3COM, USB_PRODUCT_3COM_3C460 },
-	{ USB_VENDOR_ABOCOM, USB_PRODUCT_ABOCOM_URE450 },
-	{ USB_VENDOR_ADS, USB_PRODUCT_ADS_UBS10BT },
-	{ USB_VENDOR_ADS, USB_PRODUCT_ADS_UBS10BTX },	
-	{ USB_VENDOR_AOX, USB_PRODUCT_AOX_USB101 },
-	{ USB_VENDOR_ASANTE, USB_PRODUCT_ASANTE_EA },
-	{ USB_VENDOR_ATEN, USB_PRODUCT_ATEN_DSB650C },
-	{ USB_VENDOR_ATEN, USB_PRODUCT_ATEN_UC10T },
-	{ USB_VENDOR_COREGA, USB_PRODUCT_COREGA_ETHER_USB_T },
-	{ USB_VENDOR_DLINK, USB_PRODUCT_DLINK_DSB650C },
-	{ USB_VENDOR_ENTREGA, USB_PRODUCT_ENTREGA_E45 },
-	{ USB_VENDOR_ENTREGA, USB_PRODUCT_ENTREGA_XX1 },
-	{ USB_VENDOR_ENTREGA, USB_PRODUCT_ENTREGA_XX2 },
-	{ USB_VENDOR_IODATA, USB_PRODUCT_IODATA_USBETT },
-	{ USB_VENDOR_JATON, USB_PRODUCT_JATON_EDA },
-	{ USB_VENDOR_KINGSTON, USB_PRODUCT_KINGSTON_XX1 },
-	{ USB_VENDOR_KLSI, USB_PRODUCT_AOX_USB101 },
-	{ USB_VENDOR_KLSI, USB_PRODUCT_KLSI_DUH3E10BT },
-	{ USB_VENDOR_KLSI, USB_PRODUCT_KLSI_DUH3E10BTN },
-	{ USB_VENDOR_LINKSYS, USB_PRODUCT_LINKSYS_USB10T },
-	{ USB_VENDOR_MOBILITY, USB_PRODUCT_MOBILITY_EA },
-	{ USB_VENDOR_NETGEAR, USB_PRODUCT_NETGEAR_EA101 },
-	{ USB_VENDOR_NETGEAR, USB_PRODUCT_NETGEAR_EA101X },
-	{ USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_ENET },
-	{ USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_ENET2 },
-	{ USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_ENET3 },
-	{ USB_VENDOR_PORTGEAR, USB_PRODUCT_PORTGEAR_EA8 },
-	{ USB_VENDOR_PORTGEAR, USB_PRODUCT_PORTGEAR_EA9 },
-	{ USB_VENDOR_PORTSMITH, USB_PRODUCT_PORTSMITH_EEA },
-	{ USB_VENDOR_SHARK, USB_PRODUCT_SHARK_PA },
-	{ USB_VENDOR_SILICOM, USB_PRODUCT_SILICOM_GPE },
-	{ USB_VENDOR_SILICOM, USB_PRODUCT_SILICOM_U2E },
-	{ USB_VENDOR_SMC, USB_PRODUCT_SMC_2102USB },
-	{ 0, 0 }
+	{USB_VENDOR_3COM, USB_PRODUCT_3COM_3C19250},
+	{USB_VENDOR_3COM, USB_PRODUCT_3COM_3C460},
+	{USB_VENDOR_ABOCOM, USB_PRODUCT_ABOCOM_URE450},
+	{USB_VENDOR_ADS, USB_PRODUCT_ADS_UBS10BT},
+	{USB_VENDOR_ADS, USB_PRODUCT_ADS_UBS10BTX},
+	{USB_VENDOR_AOX, USB_PRODUCT_AOX_USB101},
+	{USB_VENDOR_ASANTE, USB_PRODUCT_ASANTE_EA},
+	{USB_VENDOR_ATEN, USB_PRODUCT_ATEN_DSB650C},
+	{USB_VENDOR_ATEN, USB_PRODUCT_ATEN_UC10T},
+	{USB_VENDOR_COREGA, USB_PRODUCT_COREGA_ETHER_USB_T},
+	{USB_VENDOR_DLINK, USB_PRODUCT_DLINK_DSB650C},
+	{USB_VENDOR_ENTREGA, USB_PRODUCT_ENTREGA_E45},
+	{USB_VENDOR_ENTREGA, USB_PRODUCT_ENTREGA_XX1},
+	{USB_VENDOR_ENTREGA, USB_PRODUCT_ENTREGA_XX2},
+	{USB_VENDOR_IODATA, USB_PRODUCT_IODATA_USBETT},
+	{USB_VENDOR_JATON, USB_PRODUCT_JATON_EDA},
+	{USB_VENDOR_KINGSTON, USB_PRODUCT_KINGSTON_XX1},
+	{USB_VENDOR_KLSI, USB_PRODUCT_AOX_USB101},
+	{USB_VENDOR_KLSI, USB_PRODUCT_KLSI_DUH3E10BT},
+	{USB_VENDOR_KLSI, USB_PRODUCT_KLSI_DUH3E10BTN},
+	{USB_VENDOR_LINKSYS, USB_PRODUCT_LINKSYS_USB10T},
+	{USB_VENDOR_MOBILITY, USB_PRODUCT_MOBILITY_EA},
+	{USB_VENDOR_NETGEAR, USB_PRODUCT_NETGEAR_EA101},
+	{USB_VENDOR_NETGEAR, USB_PRODUCT_NETGEAR_EA101X},
+	{USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_ENET},
+	{USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_ENET2},
+	{USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_ENET3},
+	{USB_VENDOR_PORTGEAR, USB_PRODUCT_PORTGEAR_EA8},
+	{USB_VENDOR_PORTGEAR, USB_PRODUCT_PORTGEAR_EA9},
+	{USB_VENDOR_PORTSMITH, USB_PRODUCT_PORTSMITH_EEA},
+	{USB_VENDOR_SHARK, USB_PRODUCT_SHARK_PA},
+	{USB_VENDOR_SILICOM, USB_PRODUCT_SILICOM_GPE},
+	{USB_VENDOR_SILICOM, USB_PRODUCT_SILICOM_U2E},
+	{USB_VENDOR_SMC, USB_PRODUCT_SMC_2102USB},
+	{0, 0}
 };
 
 /* prototypes */
@@ -164,96 +164,96 @@ static usbd_config_td_command_t kue_cfg_pre_stop;
 static usbd_config_td_command_t kue_cfg_stop;
 
 static void
-kue_cfg_do_request(struct kue_softc *sc, usb_device_request_t *req, 
-		   void *data);
+kue_cfg_do_request(struct kue_softc *sc, usb_device_request_t *req,
+    void *data);
 static void
-kue_cfg_setword(struct kue_softc *sc, u_int8_t breq, u_int16_t word);
+	kue_cfg_setword(struct kue_softc *sc, uint8_t breq, uint16_t word);
 
 static void
-kue_cfg_ctl(struct kue_softc *sc, u_int8_t rw, u_int8_t breq, 
-	    u_int16_t val, void *data, u_int16_t len);
+kue_cfg_ctl(struct kue_softc *sc, uint8_t rw, uint8_t breq,
+    uint16_t val, void *data, uint16_t len);
 static void
-kue_cfg_load_fw(struct kue_softc *sc);
+	kue_cfg_load_fw(struct kue_softc *sc);
 
 static void
-kue_cfg_reset(struct kue_softc *sc);
+	kue_cfg_reset(struct kue_softc *sc);
 
 static void
-kue_start_cb(struct ifnet *ifp);
+	kue_start_cb(struct ifnet *ifp);
 
 static void
-kue_start_transfers(struct kue_softc *sc);
+	kue_start_transfers(struct kue_softc *sc);
 
 static void
-kue_init_cb(void *arg);
+	kue_init_cb(void *arg);
 
 static int
-kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
+	kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
 
 static void
-kue_watchdog(void *arg);
+	kue_watchdog(void *arg);
 
-#define DPRINTF(...)
+#define	DPRINTF(...)
 
 static const struct usbd_config kue_config[KUE_ENDPT_MAX] = {
 
-    [0] = {
-      .type      = UE_BULK,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_OUT,
-      .bufsize   = (MCLBYTES + 2 + 64),
-      .flags     = (USBD_PIPE_BOF|USBD_USE_DMA),
-      .callback  = &kue_bulk_write_callback,
-      .timeout   = 10000, /* 10 seconds */
-    },
+	[0] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_OUT,
+		.bufsize = (MCLBYTES + 2 + 64),
+		.mh.flags = {.pipe_bof = 1,},
+		.mh.callback = &kue_bulk_write_callback,
+		.mh.timeout = 10000,	/* 10 seconds */
+	},
 
-    [1] = {
-      .type      = UE_BULK,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_IN,
-      .bufsize   = (MCLBYTES + 2),
-      .flags     = (USBD_PIPE_BOF|USBD_USE_DMA|USBD_SHORT_XFER_OK),
-      .callback  = &kue_bulk_read_callback,
-      .timeout   = 0, /* no timeout */
-    },
+	[1] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_IN,
+		.bufsize = (MCLBYTES + 2),
+		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
+		.mh.callback = &kue_bulk_read_callback,
+		.mh.timeout = 0,	/* no timeout */
+	},
 
-    [2] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .flags     = USBD_USE_DMA,
-      .callback  = &kue_bulk_write_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[2] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.flags = {},
+		.mh.callback = &kue_bulk_write_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 
-    [3] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .flags     = USBD_USE_DMA,
-      .callback  = &kue_bulk_read_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[3] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.flags = {},
+		.mh.callback = &kue_bulk_read_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 };
 
 static device_method_t kue_methods[] = {
 	/* Device interface */
-	DEVMETHOD(device_probe,		kue_probe),
-	DEVMETHOD(device_attach,	kue_attach),
-	DEVMETHOD(device_detach,	kue_detach),
-	DEVMETHOD(device_shutdown,	kue_shutdown),
+	DEVMETHOD(device_probe, kue_probe),
+	DEVMETHOD(device_attach, kue_attach),
+	DEVMETHOD(device_detach, kue_detach),
+	DEVMETHOD(device_shutdown, kue_shutdown),
 
-	{ 0, 0 }
+	{0, 0}
 };
 
 static driver_t kue_driver = {
-	.name    = "kue",
+	.name = "kue",
 	.methods = kue_methods,
-	.size    = sizeof(struct kue_softc),
+	.size = sizeof(struct kue_softc),
 };
 
 static devclass_t kue_devclass;
@@ -270,35 +270,34 @@ MODULE_DEPEND(kue, ether, 1, 1, 1);
  * than the default timeout.
  */
 static void
-kue_cfg_do_request(struct kue_softc *sc, usb_device_request_t *req, 
-		   void *data)
+kue_cfg_do_request(struct kue_softc *sc, usb_device_request_t *req,
+    void *data)
 {
-	u_int16_t length;
-	usbd_status             err;
+	uint16_t length;
+	usbd_status_t err;
 
 	if (usbd_config_td_is_gone(&(sc->sc_config_td))) {
-	    goto error;
+		goto error;
 	}
-
-	err = usbd_do_request_flags_mtx(sc->sc_udev, &(sc->sc_mtx), req, 
-					data, 0, NULL, 60000);
+	err = usbd_do_request_flags
+	    (sc->sc_udev, &(sc->sc_mtx), req, data, 0, NULL, 60000);
 
 	if (err) {
-	    DPRINTF(sc, 0, "device request failed, err=%s "
+		DPRINTF(sc, 0, "device request failed, err=%s "
 		    "(ignored)\n", usbd_errstr(err));
 
-	error:
-	    length = UGETW(req->wLength);
+error:
+		length = UGETW(req->wLength);
 
-	    if ((req->bmRequestType & UT_READ) && length) {
-	        bzero(data, length);
-	    }
+		if ((req->bmRequestType & UT_READ) && length) {
+			bzero(data, length);
+		}
 	}
 	return;
 }
 
 static void
-kue_cfg_setword(struct kue_softc *sc, u_int8_t breq, u_int16_t word)
+kue_cfg_setword(struct kue_softc *sc, uint8_t breq, uint16_t word)
 {
 	usb_device_request_t req;
 
@@ -313,15 +312,15 @@ kue_cfg_setword(struct kue_softc *sc, u_int8_t breq, u_int16_t word)
 }
 
 static void
-kue_cfg_ctl(struct kue_softc *sc, u_int8_t rw, u_int8_t breq, 
-	    u_int16_t val, void *data, u_int16_t len)
+kue_cfg_ctl(struct kue_softc *sc, uint8_t rw, uint8_t breq,
+    uint16_t val, void *data, uint16_t len)
 {
 	usb_device_request_t req;
 
 	if (rw == KUE_CTL_WRITE) {
-	    req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
+		req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	} else {
-	    req.bmRequestType = UT_READ_VENDOR_DEVICE;
+		req.bmRequestType = UT_READ_VENDOR_DEVICE;
 	}
 
 	req.bRequest = breq;
@@ -336,8 +335,8 @@ kue_cfg_ctl(struct kue_softc *sc, u_int8_t rw, u_int8_t breq,
 static void
 kue_cfg_load_fw(struct kue_softc *sc)
 {
-	usb_device_descriptor_t	*dd;
-	u_int16_t hwrev;
+	usb_device_descriptor_t *dd;
+	uint16_t hwrev;
 
 	dd = &sc->sc_udev->ddesc;
 	hwrev = UGETW(dd->bcdDevice);
@@ -357,29 +356,28 @@ kue_cfg_load_fw(struct kue_softc *sc)
 	 * running.
 	 */
 	if (hwrev == 0x0202) {
-	    return;
+		return;
 	}
-
 	/* load code segment */
 	kue_cfg_ctl(sc, KUE_CTL_WRITE, KUE_CMD_SEND_SCAN,
-		    0, kue_code_seg, sizeof(kue_code_seg));
+	    0, kue_code_seg, sizeof(kue_code_seg));
 
 	/* load fixup segment */
 	kue_cfg_ctl(sc, KUE_CTL_WRITE, KUE_CMD_SEND_SCAN,
-		    0, kue_fix_seg, sizeof(kue_fix_seg));
+	    0, kue_fix_seg, sizeof(kue_fix_seg));
 
 	/* send trigger command */
 	kue_cfg_ctl(sc, KUE_CTL_WRITE, KUE_CMD_SEND_SCAN,
-		    0, kue_trig_seg, sizeof(kue_trig_seg));
+	    0, kue_trig_seg, sizeof(kue_trig_seg));
 	return;
 }
 
 static void
 kue_cfg_promisc_upd(struct kue_softc *sc,
-		    struct kue_config_copy *cc, u_int16_t refcount)
+    struct kue_config_copy *cc, uint16_t refcount)
 {
 	kue_cfg_ctl(sc, KUE_CTL_WRITE, KUE_CMD_SET_MCAST_FILTERS,
-		    cc->if_nhash, cc->if_hash, cc->if_nhash * ETHER_ADDR_LEN);
+	    cc->if_nhash, cc->if_hash, cc->if_nhash * ETHER_ADDR_LEN);
 
 	kue_cfg_setword(sc, KUE_CMD_SET_PKT_FILTER, cc->if_rxfilt);
 
@@ -387,64 +385,61 @@ kue_cfg_promisc_upd(struct kue_softc *sc,
 }
 
 static void
-kue_config_copy(struct kue_softc *sc, 
-		struct kue_config_copy *cc, u_int16_t refcount)
+kue_config_copy(struct kue_softc *sc,
+    struct kue_config_copy *cc, uint16_t refcount)
 {
-	struct ifnet * ifp = sc->sc_ifp;
-	struct ifmultiaddr * ifma;
-	u_int16_t rxfilt = (KUE_RXFILT_UNICAST|KUE_RXFILT_BROADCAST);
-	u_int16_t i;
+	struct ifnet *ifp = sc->sc_ifp;
+	struct ifmultiaddr *ifma;
+	uint16_t rxfilt = (KUE_RXFILT_UNICAST | KUE_RXFILT_BROADCAST);
+	uint16_t i;
 
 	bzero(cc, sizeof(*cc));
 
 	if (ifp) {
-	    for (i = 0; i < ETHER_ADDR_LEN; i++) {
-	        cc->if_lladdr[i] = IF_LLADDR(ifp)[i];
-	    }
-
-	    cc->if_flags = ifp->if_flags;
-
-	    /* if we want promiscuous mode, 
-	     * set the all-frames bit:
-	     */
-	    if (ifp->if_flags & IFF_PROMISC) {
-	        rxfilt |= KUE_RXFILT_PROMISC;
-	    }
-
-	    if ((ifp->if_flags & IFF_ALLMULTI) || 
-		(ifp->if_flags & IFF_PROMISC)) {
-	        rxfilt |= KUE_RXFILT_ALLMULTI;
-	    } else {
-
-	        i = 0;
-
-	        IF_ADDR_LOCK(ifp);
-		TAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link)
-		{
-		    if (ifma->ifma_addr->sa_family != AF_LINK) {
-		        continue;
-		    }
-
-		    /*
-		     * If there are too many addresses for the
-		     * internal filter, switch over to allmulti mode.
-		     */
-		    if (i == sc->sc_mcfilt_max) {
-		        rxfilt |= KUE_RXFILT_ALLMULTI;
-			break;
-		    }
-		    bcopy(LLADDR((struct sockaddr_dl *)ifma->ifma_addr),
-			  cc->if_hash + (i * ETHER_ADDR_LEN), ETHER_ADDR_LEN);
-		    i++;
+		for (i = 0; i < ETHER_ADDR_LEN; i++) {
+			cc->if_lladdr[i] = IF_LLADDR(ifp)[i];
 		}
-		IF_ADDR_UNLOCK(ifp);
 
-		cc->if_nhash = i;
+		cc->if_flags = ifp->if_flags;
 
-		if (!(rxfilt & KUE_RXFILT_ALLMULTI)) {
-		    rxfilt |= KUE_RXFILT_MULTICAST;
+		/*
+		 * if we want promiscuous mode, set the all-frames bit:
+		 */
+		if (ifp->if_flags & IFF_PROMISC) {
+			rxfilt |= KUE_RXFILT_PROMISC;
 		}
-	    }
+		if ((ifp->if_flags & IFF_ALLMULTI) ||
+		    (ifp->if_flags & IFF_PROMISC)) {
+			rxfilt |= KUE_RXFILT_ALLMULTI;
+		} else {
+
+			i = 0;
+
+			IF_ADDR_LOCK(ifp);
+			TAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
+				if (ifma->ifma_addr->sa_family != AF_LINK) {
+					continue;
+				}
+				/*
+			         * If there are too many addresses for the
+			         * internal filter, switch over to allmulti mode.
+			         */
+				if (i == sc->sc_mcfilt_max) {
+					rxfilt |= KUE_RXFILT_ALLMULTI;
+					break;
+				}
+				bcopy(LLADDR((struct sockaddr_dl *)ifma->ifma_addr),
+				    cc->if_hash + (i * ETHER_ADDR_LEN), ETHER_ADDR_LEN);
+				i++;
+			}
+			IF_ADDR_UNLOCK(ifp);
+
+			cc->if_nhash = i;
+
+			if (!(rxfilt & KUE_RXFILT_ALLMULTI)) {
+				rxfilt |= KUE_RXFILT_MULTICAST;
+			}
+		}
 	}
 	cc->if_rxfilt = rxfilt;
 	return;
@@ -458,28 +453,19 @@ kue_config_copy(struct kue_softc *sc,
 static void
 kue_cfg_reset(struct kue_softc *sc)
 {
-        usbd_status err;
+	usbd_status_t err;
 
-        mtx_unlock(&(sc->sc_mtx));
+	err = usbreq_set_config(sc->sc_udev, &(sc->sc_mtx), KUE_CONFIG_NO);
 
-        mtx_lock(&Giant);
+	if (err) {
+		DPRINTF(sc, 0, "reset failed (ignored)\n");
+	}
+	/*
+	 * wait a little while for the chip to get its brains in order:
+	 */
+	err = usbd_config_td_sleep(&(sc->sc_config_td), hz / 100);
 
-        err = usbreq_set_config(sc->sc_udev, KUE_CONFIG_NO);
-
-        mtx_unlock(&Giant);
-
-        mtx_lock(&(sc->sc_mtx));
-
-        if (err) {
-            DPRINTF(sc, 0, "reset failed (ignored)\n");
-        }
-
-        /* wait a little while for the 
-         * chip to get its brains in order:
-         */
-        err = usbd_config_td_sleep(&(sc->sc_config_td), hz/100);
-
-        return;
+	return;
 }
 
 /*
@@ -491,19 +477,21 @@ kue_probe(device_t dev)
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	struct kue_type *t;
 
+	if (uaa->usb_mode != USB_MODE_HOST) {
+		return (UMATCH_NONE);
+	}
 	if (uaa->iface != NULL) {
-	    return(UMATCH_NONE);
+		return (UMATCH_NONE);
 	}
-
 	t = kue_devs;
-	while(t->kue_vid) {
-	    if ((uaa->vendor == t->kue_vid) &&
-		(uaa->product == t->kue_did)) {
-	        return UMATCH_VENDOR_PRODUCT;
-	    }
-	    t++;
+	while (t->kue_vid) {
+		if ((uaa->vendor == t->kue_vid) &&
+		    (uaa->product == t->kue_did)) {
+			return (UMATCH_VENDOR_PRODUCT);
+		}
+		t++;
 	}
-	return(UMATCH_NONE);
+	return (UMATCH_NONE);
 }
 
 /*
@@ -516,70 +504,67 @@ kue_attach(device_t dev)
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 	struct kue_softc *sc = device_get_softc(dev);
 	int32_t error;
+	uint8_t iface_index;
 
 	if (sc == NULL) {
-	    return ENOMEM;
+		return (ENOMEM);
 	}
-
 	sc->sc_udev = uaa->device;
 	sc->sc_dev = dev;
 	sc->sc_unit = device_get_unit(dev);
 
-	usbd_set_desc(dev, uaa->device);
+	usbd_set_device_desc(dev);
 
 	mtx_init(&(sc->sc_mtx), "kue lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	__callout_init_mtx(&(sc->sc_watchdog),
-			   &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
+	usb_callout_init_mtx(&(sc->sc_watchdog),
+	    &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
 
 	error = usbd_set_config_no(uaa->device, KUE_CONFIG_NO, 0);
 
 	if (error) {
-	    device_printf(dev, "setting config "
-			  "number failed!\n");
-	    goto detach;
-	}
-
-	error = usbd_transfer_setup(uaa->device, KUE_IFACE_IDX, 
-				    sc->sc_xfer, kue_config, KUE_ENDPT_MAX,
-				    sc, &(sc->sc_mtx));
-	if (error) {
-	    device_printf(dev, "allocating USB "
-			  "transfers failed!\n");
-	    goto detach;
-	}
-
-	error = usbd_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
-				     NULL, sizeof(struct kue_config_copy), 16);
-	if (error) {
-		device_printf(dev, "could not setup config "
-			      "thread!\n");
+		device_printf(dev, "setting config "
+		    "number failed!\n");
 		goto detach;
 	}
-
+	iface_index = KUE_IFACE_IDX;
+	error = usbd_transfer_setup(uaa->device, &iface_index,
+	    sc->sc_xfer, kue_config, KUE_ENDPT_MAX, sc, &(sc->sc_mtx));
+	if (error) {
+		device_printf(dev, "allocating USB "
+		    "transfers failed!\n");
+		goto detach;
+	}
+	error = usbd_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
+	    NULL, sizeof(struct kue_config_copy), 16);
+	if (error) {
+		device_printf(dev, "could not setup config "
+		    "thread!\n");
+		goto detach;
+	}
 	mtx_lock(&(sc->sc_mtx));
 
 	/* start setup */
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), NULL, &kue_cfg_first_time_setup, 0, 0);
+	    (&(sc->sc_config_td), NULL, &kue_cfg_first_time_setup, 0, 0);
 
 	/* start watchdog (will exit mutex) */
 
 	kue_watchdog(sc);
 
-	return 0; /* success */
+	return (0);			/* success */
 
- detach:
+detach:
 	kue_detach(dev);
-	return ENXIO; /* failure */
+	return (ENXIO);			/* failure */
 }
 
 static void
 kue_cfg_first_time_setup(struct kue_softc *sc,
-			 struct kue_config_copy *cc, u_int16_t refcount)
+    struct kue_config_copy *cc, uint16_t refcount)
 {
-	struct ifnet * ifp;
+	struct ifnet *ifp;
 
 	/* load the firmware into the NIC */
 
@@ -591,13 +576,12 @@ kue_cfg_first_time_setup(struct kue_softc *sc,
 
 	/* read ethernet descriptor */
 	kue_cfg_ctl(sc, KUE_CTL_READ, KUE_CMD_GET_ETHER_DESCRIPTOR,
-		    0, &(sc->sc_desc), sizeof(sc->sc_desc));
+	    0, &(sc->sc_desc), sizeof(sc->sc_desc));
 
 	sc->sc_mcfilt_max = KUE_MCFILTCNT(sc);
 	if (sc->sc_mcfilt_max > KUE_MCFILT_MAX) {
-	    sc->sc_mcfilt_max = KUE_MCFILT_MAX;
+		sc->sc_mcfilt_max = KUE_MCFILT_MAX;
 	}
-
 	mtx_unlock(&(sc->sc_mtx));
 
 	ifp = if_alloc(IFT_ETHER);
@@ -605,11 +589,10 @@ kue_cfg_first_time_setup(struct kue_softc *sc,
 	mtx_lock(&(sc->sc_mtx));
 
 	if (ifp == NULL) {
-	    printf("kue%d: could not if_alloc()\n",
-		   sc->sc_unit);
-	    goto done;
+		printf("kue%d: could not if_alloc()\n",
+		    sc->sc_unit);
+		goto done;
 	}
-
 	sc->sc_evilhack = ifp;
 
 	ifp->if_softc = sc;
@@ -632,21 +615,21 @@ kue_cfg_first_time_setup(struct kue_softc *sc,
 	ether_ifattach(ifp, sc->sc_desc.kue_macaddr);
 
 	mtx_lock(&(sc->sc_mtx));
- done:
+done:
 	return;
 }
 
 static int
 kue_detach(device_t dev)
 {
-	struct kue_softc * sc = device_get_softc(dev);
-	struct ifnet * ifp;
+	struct kue_softc *sc = device_get_softc(dev);
+	struct ifnet *ifp;
 
 	usbd_config_td_stop(&(sc->sc_config_td));
 
 	mtx_lock(&(sc->sc_mtx));
 
-	__callout_stop(&(sc->sc_watchdog));
+	usb_callout_stop(&(sc->sc_watchdog));
 
 	kue_cfg_pre_stop(sc, NULL, 0);
 
@@ -661,17 +644,16 @@ kue_detach(device_t dev)
 	bus_generic_detach(dev);
 
 	if (ifp) {
-	    ether_ifdetach(ifp);
-	    if_free(ifp);
+		ether_ifdetach(ifp);
+		if_free(ifp);
 	}
-
 	usbd_config_td_unsetup(&(sc->sc_config_td));
 
-	__callout_drain(&(sc->sc_watchdog));
+	usb_callout_drain(&(sc->sc_watchdog));
 
 	mtx_destroy(&(sc->sc_mtx));
 
-	return 0;
+	return (0);
 }
 
 /*
@@ -685,9 +667,9 @@ kue_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(sc, 0, "stall cleared\n");
-	    sc->sc_flags &= ~KUE_FLAG_READ_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(sc, 0, "stall cleared\n");
+		sc->sc_flags &= ~KUE_FLAG_READ_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -698,69 +680,70 @@ kue_bulk_read_callback(struct usbd_xfer *xfer)
 	struct kue_softc *sc = xfer->priv_sc;
 	struct ifnet *ifp = sc->sc_ifp;
 	struct mbuf *m = NULL;
-	u_int8_t buf[2];
-	u_int16_t len;
+	uint8_t buf[2];
+	uint16_t len;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
 
- tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    /* try to clear stall first */
-	    sc->sc_flags |= KUE_FLAG_READ_STALL;
-	    usbd_transfer_start(sc->sc_xfer[3]);
+		if (xfer->actlen <= (2 + sizeof(struct ether_header))) {
+			ifp->if_ierrors++;
+			goto tr_setup;
+		}
+		usbd_copy_out(xfer->frbuffers + 0, 0, buf, 2);
+
+		len = buf[0] | (buf[1] << 8);
+
+		xfer->actlen -= 2;
+
+		m = usbd_ether_get_mbuf();
+
+		if (m == NULL) {
+			ifp->if_ierrors++;
+			goto tr_setup;
+		}
+		xfer->actlen = min(xfer->actlen, m->m_len);
+		xfer->actlen = min(xfer->actlen, len);
+
+		usbd_copy_out(xfer->frbuffers + 0, 2, m->m_data, xfer->actlen);
+
+		ifp->if_ipackets++;
+		m->m_pkthdr.rcvif = ifp;
+		m->m_pkthdr.len = m->m_len = xfer->actlen;
+
+	case USBD_ST_SETUP:
+tr_setup:
+
+		if (sc->sc_flags & KUE_FLAG_READ_STALL) {
+			usbd_transfer_start(sc->sc_xfer[3]);
+		} else {
+			xfer->frlengths[0] = xfer->max_data_length;
+			usbd_start_hardware(xfer);
+		}
+
+		/*
+		 * At the end of a USB callback it is always safe to unlock
+		 * the private mutex of a device! That is why we do the
+		 * "if_input" here, and not some lines up!
+		 */
+		if (m) {
+			mtx_unlock(&(sc->sc_mtx));
+			(ifp->if_input) (ifp, m);
+			mtx_lock(&(sc->sc_mtx));
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			/* try to clear stall first */
+			sc->sc_flags |= KUE_FLAG_READ_STALL;
+			usbd_transfer_start(sc->sc_xfer[3]);
+		}
+		DPRINTF(sc, 0, "bulk read error, %s\n",
+		    usbd_errstr(xfer->error));
+		return;
+
 	}
-	DPRINTF(sc, 0, "bulk read error, %s\n",
-		usbd_errstr(xfer->error));
-	return;
-
- tr_transferred:
-
-	if (xfer->actlen <= (2 + sizeof(struct ether_header))) {
-	    ifp->if_ierrors++;
-	    goto tr_setup;
-	}
-
-	usbd_copy_out(&(xfer->buf_data), 0, buf, 2);
-
-	len = buf[0] | (buf[1] << 8);
-
-	xfer->actlen -= 2;
-
-	m = usbd_ether_get_mbuf();
-
-	if (m == NULL) {
-	    ifp->if_ierrors++;
-	    goto tr_setup;
-	}
-
-	xfer->actlen = min(xfer->actlen, m->m_len);
-	xfer->actlen = min(xfer->actlen, len);
-
-	usbd_copy_out(&(xfer->buf_data), 2, m->m_data, xfer->actlen);
-
-	ifp->if_ipackets++;
-	m->m_pkthdr.rcvif = ifp;
-	m->m_pkthdr.len = m->m_len = xfer->actlen;
-
- tr_setup:
-
-	if (sc->sc_flags & KUE_FLAG_READ_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[3]);
-	} else {
-	    usbd_start_hardware(xfer);
-	}
-
-	/* At the end of a USB callback it is always safe
-	 * to unlock the private mutex of a device! That
-	 * is why we do the "if_input" here, and not
-	 * some lines up!
-	 */
-	if (m) {
-	    mtx_unlock(&(sc->sc_mtx));
-	    (ifp->if_input)(ifp, m);
-	    mtx_lock(&(sc->sc_mtx));
-	}
-	return;
 }
 
 static void
@@ -770,9 +753,9 @@ kue_bulk_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(sc, 0, "stall cleared\n");
-	    sc->sc_flags &= ~KUE_FLAG_WRITE_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(sc, 0, "stall cleared\n");
+		sc->sc_flags &= ~KUE_FLAG_WRITE_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -783,82 +766,80 @@ kue_bulk_write_callback(struct usbd_xfer *xfer)
 	struct kue_softc *sc = xfer->priv_sc;
 	struct ifnet *ifp = sc->sc_ifp;
 	struct mbuf *m;
-	u_int32_t total_len;
-	u_int8_t buf[2];
+	uint32_t total_len;
+	uint32_t temp_len;
+	uint8_t buf[2];
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
+		DPRINTF(sc, 10, "transfer complete\n");
 
- tr_error:
-	DPRINTF(sc, 10, "transfer error, %s\n",
-		 usbd_errstr(xfer->error));
+		ifp->if_opackets++;
 
-	if (xfer->error != USBD_CANCELLED) {
-	    /* try to clear stall first */
-	    sc->sc_flags |= KUE_FLAG_WRITE_STALL;
-	    usbd_transfer_start(sc->sc_xfer[2]);
+	case USBD_ST_SETUP:
+
+		if (sc->sc_flags & KUE_FLAG_WRITE_STALL) {
+			usbd_transfer_start(sc->sc_xfer[2]);
+			goto done;
+		}
+		IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
+
+		if (m == NULL) {
+			goto done;
+		}
+		if (m->m_pkthdr.len > MCLBYTES) {
+			m->m_pkthdr.len = MCLBYTES;
+		}
+		temp_len = (m->m_pkthdr.len + 2);
+		total_len = (temp_len + (64 - (temp_len % 64)));
+
+		/* the first two bytes are the frame length */
+
+		buf[0] = (uint8_t)(m->m_pkthdr.len);
+		buf[1] = (uint8_t)(m->m_pkthdr.len >> 8);
+
+		usbd_copy_in(xfer->frbuffers + 0, 0, buf, 2);
+
+		usbd_m_copy_in(xfer->frbuffers + 0, 2,
+		    m, 0, m->m_pkthdr.len);
+
+		usbd_bzero(xfer->frbuffers + 0, temp_len,
+		    total_len - temp_len);
+
+		xfer->frlengths[0] = total_len;
+
+		/*
+		 * if there's a BPF listener, bounce a copy
+		 * of this frame to him:
+		 */
+		BPF_MTAP(ifp, m);
+
+		m_freem(m);
+
+		usbd_start_hardware(xfer);
+
+done:
+		return;
+
+	default:			/* Error */
+		DPRINTF(sc, 10, "transfer error, %s\n",
+		    usbd_errstr(xfer->error));
+
+		if (xfer->error != USBD_CANCELLED) {
+			/* try to clear stall first */
+			sc->sc_flags |= KUE_FLAG_WRITE_STALL;
+			usbd_transfer_start(sc->sc_xfer[2]);
+		}
+		ifp->if_oerrors++;
+		return;
+
 	}
-
-	ifp->if_oerrors++;
-	return;
-
- tr_transferred:
-	DPRINTF(sc, 10, "transfer complete\n");
-
-	ifp->if_opackets++;
-
- tr_setup:
-
-	if (sc->sc_flags & KUE_FLAG_WRITE_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[2]);
-	    goto done;
-	}
-
-	IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
-
-	if (m == NULL) {
-	    goto done;
-	}
-
-	if (m->m_pkthdr.len > MCLBYTES) {
-	    m->m_pkthdr.len = MCLBYTES;
-	}
-
-	xfer->length = (m->m_pkthdr.len + 2);
-	total_len = (xfer->length + (64 - (xfer->length % 64)));
-
-	/* the first two bytes are the frame length */
-
-	buf[0] = (u_int8_t)(m->m_pkthdr.len);
-	buf[1] = (u_int8_t)(m->m_pkthdr.len >> 8);
-
-	usbd_copy_in(&(xfer->buf_data), 0, buf, 2);
-
-	usbd_m_copy_in(&(xfer->buf_data), 2, 
-		       m, 0, m->m_pkthdr.len);
-
-	usbd_bzero(&(xfer->buf_data), xfer->length,
-		   total_len - xfer->length);
-
-	xfer->length = total_len;
-
-	/*
-	 * if there's a BPF listener, bounce a copy 
-	 * of this frame to him:
-	 */
-	BPF_MTAP(ifp, m);
-
-	m_freem(m);
-
-	usbd_start_hardware(xfer);
-
- done:
-	return;
 }
 
 static void
 kue_start_cb(struct ifnet *ifp)
 {
-	struct kue_softc * sc = ifp->if_softc;
+	struct kue_softc *sc = ifp->if_softc;
 
 	mtx_lock(&(sc->sc_mtx));
 
@@ -875,11 +856,11 @@ kue_start_transfers(struct kue_softc *sc)
 	if ((sc->sc_flags & KUE_FLAG_LL_READY) &&
 	    (sc->sc_flags & KUE_FLAG_HL_READY)) {
 
-	    /* start the USB transfers, 
-	     * if not already started:
-	     */
-	    usbd_transfer_start(sc->sc_xfer[1]);
-	    usbd_transfer_start(sc->sc_xfer[0]);
+		/*
+		 * start the USB transfers, if not already started:
+		 */
+		usbd_transfer_start(sc->sc_xfer[1]);
+		usbd_transfer_start(sc->sc_xfer[0]);
 	}
 	return;
 }
@@ -891,8 +872,8 @@ kue_init_cb(void *arg)
 
 	mtx_lock(&(sc->sc_mtx));
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &kue_cfg_pre_init, 
-	   &kue_cfg_init, 0, 0);
+	    (&(sc->sc_config_td), &kue_cfg_pre_init,
+	    &kue_cfg_init, 0, 0);
 	mtx_unlock(&(sc->sc_mtx));
 
 	return;
@@ -900,7 +881,7 @@ kue_init_cb(void *arg)
 
 static void
 kue_cfg_pre_init(struct kue_softc *sc,
-		 struct kue_config_copy *cc, u_int16_t refcount)
+    struct kue_config_copy *cc, uint16_t refcount)
 {
 	struct ifnet *ifp = sc->sc_ifp;
 
@@ -917,11 +898,11 @@ kue_cfg_pre_init(struct kue_softc *sc,
 
 static void
 kue_cfg_init(struct kue_softc *sc,
-	     struct kue_config_copy *cc, u_int16_t refcount)
+    struct kue_config_copy *cc, uint16_t refcount)
 {
 	/* set MAC address */
 	kue_cfg_ctl(sc, KUE_CTL_WRITE, KUE_CMD_SET_MAC,
-		    0, cc->if_lladdr, ETHER_ADDR_LEN);
+	    0, cc->if_lladdr, ETHER_ADDR_LEN);
 
 	/* I'm not sure how to tune these. */
 #if 0
@@ -936,9 +917,9 @@ kue_cfg_init(struct kue_softc *sc,
 	/* load the multicast filter */
 	kue_cfg_promisc_upd(sc, cc, 0);
 
-	sc->sc_flags |= (KUE_FLAG_READ_STALL|
-			 KUE_FLAG_WRITE_STALL|
-			 KUE_FLAG_LL_READY);
+	sc->sc_flags |= (KUE_FLAG_READ_STALL |
+	    KUE_FLAG_WRITE_STALL |
+	    KUE_FLAG_LL_READY);
 
 	kue_start_transfers(sc);
 	return;
@@ -947,60 +928,59 @@ kue_cfg_init(struct kue_softc *sc,
 static int
 kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 {
-       struct kue_softc        *sc = ifp->if_softc;
-       int                     error = 0;
+	struct kue_softc *sc = ifp->if_softc;
+	int error = 0;
 
 	mtx_lock(&(sc->sc_mtx));
 
-	switch(command) {
+	switch (command) {
 	case SIOCSIFFLAGS:
-	    if (ifp->if_flags & IFF_UP) {
-	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
-		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &kue_config_copy,
-		       &kue_cfg_promisc_upd, 0, 0);
+		if (ifp->if_flags & IFF_UP) {
+			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
+				usbd_config_td_queue_command
+				    (&(sc->sc_config_td), &kue_config_copy,
+				    &kue_cfg_promisc_upd, 0, 0);
+			} else {
+				usbd_config_td_queue_command
+				    (&(sc->sc_config_td), &kue_cfg_pre_init,
+				    &kue_cfg_init, 0, 0);
+			}
 		} else {
-		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &kue_cfg_pre_init,
-		       &kue_cfg_init, 0, 0); 
+			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
+				usbd_config_td_queue_command
+				    (&(sc->sc_config_td), &kue_cfg_pre_stop,
+				    &kue_cfg_stop, 0, 0);
+			}
 		}
-	    } else {
-	        if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
-		    usbd_config_td_queue_command
-		      (&(sc->sc_config_td), &kue_cfg_pre_stop,
-		       &kue_cfg_stop, 0, 0);
-		}
-	    }
-	    break;
+		break;
 
 	case SIOCADDMULTI:
 	case SIOCDELMULTI:
-	    usbd_config_td_queue_command
-	      (&(sc->sc_config_td), &kue_config_copy, 
-	       &kue_cfg_promisc_upd, 0, 0);
-	    break;
+		usbd_config_td_queue_command
+		    (&(sc->sc_config_td), &kue_config_copy,
+		    &kue_cfg_promisc_upd, 0, 0);
+		break;
 
 	default:
-	    error = ether_ioctl(ifp, command, data);
-	    break;
+		error = ether_ioctl(ifp, command, data);
+		break;
 	}
 
 	mtx_unlock(&(sc->sc_mtx));
 
-	return error;
+	return (error);
 }
 
 static void
 kue_cfg_tick(struct kue_softc *sc,
-	     struct kue_config_copy *cc, u_int16_t refcount)
+    struct kue_config_copy *cc, uint16_t refcount)
 {
-	struct ifnet * ifp = sc->sc_ifp;
+	struct ifnet *ifp = sc->sc_ifp;
 
 	if ((ifp == NULL)) {
-	    /* not ready */
-	    return;
+		/* not ready */
+		return;
 	}
-
 	/* start stopped transfers, if any */
 
 	kue_start_transfers(sc);
@@ -1015,13 +995,13 @@ kue_cfg_tick(struct kue_softc *sc,
 static void
 kue_watchdog(void *arg)
 {
-	struct kue_softc * sc = arg;
+	struct kue_softc *sc = arg;
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), NULL, &kue_cfg_tick, 0, 0);
+	    (&(sc->sc_config_td), NULL, &kue_cfg_tick, 0, 0);
 
-	__callout_reset(&(sc->sc_watchdog), 
-			hz, &kue_watchdog, sc);
+	usb_callout_reset(&(sc->sc_watchdog),
+	    hz, &kue_watchdog, sc);
 
 	mtx_unlock(&(sc->sc_mtx));
 	return;
@@ -1029,27 +1009,25 @@ kue_watchdog(void *arg)
 
 static void
 kue_cfg_pre_stop(struct kue_softc *sc,
-		 struct kue_config_copy *cc, u_int16_t refcount)
+    struct kue_config_copy *cc, uint16_t refcount)
 {
 	struct ifnet *ifp = sc->sc_ifp;
 
 	if (cc) {
-	    /* copy the needed configuration */
-	    kue_config_copy(sc, cc, refcount);
+		/* copy the needed configuration */
+		kue_config_copy(sc, cc, refcount);
 	}
-
 	/* immediate configuration */
 
 	if (ifp) {
-	    /* clear flags */
-	    ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
+		/* clear flags */
+		ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 	}
+	sc->sc_flags &= ~(KUE_FLAG_HL_READY |
+	    KUE_FLAG_LL_READY);
 
-	sc->sc_flags &= ~(KUE_FLAG_HL_READY|
-			  KUE_FLAG_LL_READY);
-
-	/* stop all the transfers, 
-	 * if not already stopped:
+	/*
+	 * stop all the transfers, if not already stopped:
 	 */
 	usbd_transfer_stop(sc->sc_xfer[0]);
 	usbd_transfer_stop(sc->sc_xfer[1]);
@@ -1060,7 +1038,7 @@ kue_cfg_pre_stop(struct kue_softc *sc,
 
 static void
 kue_cfg_stop(struct kue_softc *sc,
-	     struct kue_config_copy *cc, u_int16_t refcount)
+    struct kue_config_copy *cc, uint16_t refcount)
 {
 	return;
 }
@@ -1077,10 +1055,10 @@ kue_shutdown(device_t dev)
 	mtx_lock(&(sc->sc_mtx));
 
 	usbd_config_td_queue_command
-	  (&(sc->sc_config_td), &kue_cfg_pre_stop,
-	   &kue_cfg_stop, 0, 0);
+	    (&(sc->sc_config_td), &kue_cfg_pre_stop,
+	    &kue_cfg_stop, 0, 0);
 
 	mtx_unlock(&(sc->sc_mtx));
 
-	return 0;
+	return (0);
 }

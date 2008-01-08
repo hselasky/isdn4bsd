@@ -39,7 +39,7 @@
  */
 
 #ifndef _USB_CDC_H_
-#define _USB_CDC_H_
+#define	_USB_CDC_H_
 
 #define	UDESCSUB_CDC_HEADER	0
 #define	UDESCSUB_CDC_CM		1	/* Call Management */
@@ -60,27 +60,27 @@
 #define	UDESCSUB_CDC_ANF	16
 
 typedef struct {
-	uByte		bLength;
-	uByte		bDescriptorType;
-	uByte		bDescriptorSubtype;
-	uWord		bcdCDC;
+	uByte	bLength;
+	uByte	bDescriptorType;
+	uByte	bDescriptorSubtype;
+	uWord	bcdCDC;
 } __packed usb_cdc_header_descriptor_t;
 
 typedef struct {
-	uByte		bLength;
-	uByte		bDescriptorType;
-	uByte		bDescriptorSubtype;
-	uByte		bmCapabilities;
+	uByte	bLength;
+	uByte	bDescriptorType;
+	uByte	bDescriptorSubtype;
+	uByte	bmCapabilities;
 #define	USB_CDC_CM_DOES_CM		0x01
 #define	USB_CDC_CM_OVER_DATA		0x02
-	uByte		bDataInterface;
+	uByte	bDataInterface;
 } __packed usb_cdc_cm_descriptor_t;
 
 typedef struct {
-	uByte		bLength;
-	uByte		bDescriptorType;
-	uByte		bDescriptorSubtype;
-	uByte		bmCapabilities;
+	uByte	bLength;
+	uByte	bDescriptorType;
+	uByte	bDescriptorSubtype;
+	uByte	bmCapabilities;
 #define	USB_CDC_ACM_HAS_FEATURE		0x01
 #define	USB_CDC_ACM_HAS_LINE		0x02
 #define	USB_CDC_ACM_HAS_BREAK		0x04
@@ -88,22 +88,22 @@ typedef struct {
 } __packed usb_cdc_acm_descriptor_t;
 
 typedef struct {
-	uByte		bLength;
-	uByte		bDescriptorType;
-	uByte		bDescriptorSubtype;
-	uByte		bMasterInterface;
-	uByte		bSlaveInterface[1];
+	uByte	bLength;
+	uByte	bDescriptorType;
+	uByte	bDescriptorSubtype;
+	uByte	bMasterInterface;
+	uByte	bSlaveInterface[1];
 } __packed usb_cdc_union_descriptor_t;
 
 typedef struct {
-	uByte		bLength;
-	uByte		bDescriptorType;
-	uByte		bDescriptorSubtype;
-	uByte		iMacAddress;
-	uDWord		bmEthernetStatistics;
-	uWord		wMaxSegmentSize;
-	uWord		wNumberMCFikters;
-	uByte		bNumberPowerFilters;
+	uByte	bLength;
+	uByte	bDescriptorType;
+	uByte	bDescriptorSubtype;
+	uByte	iMacAddress;
+	uDWord	bmEthernetStatistics;
+	uWord	wMaxSegmentSize;
+	uWord	wNumberMCFilters;
+	uByte	bNumberPowerFilters;
 } __packed usb_cdc_ethernet_descriptor_t;
 
 #define	UCDC_SEND_ENCAPSULATED_COMMAND	0x00
@@ -188,4 +188,18 @@ typedef struct {
 #define	UCDC_MDM_PARITY_ERR		0x20
 #define	UCDC_MDM_OVERRUN_ERR		0x40
 
-#endif /* _USB_CDC_H_ */
+/* 512x4 Multi Frame Ethernet Header */
+typedef struct {
+	uByte	bSig[2];		/* "FL" - Frag List */
+	uByte	bReserved[4];
+	uWord	wFragLength[511 * 4];
+#define	CDCE_512X4_FRAG_LENGTH_OFFSET 6	/* bytes */
+#define	CDCE_512X4_FRAG_LAST_MASK 0x8000
+#define	CDCE_512X4_FRAG_LENGTH_MASK 0x1FFF	/* bytes */
+#define	CDCE_512X4_FRAME_FRAG_MAX 4	/* fragments */
+#define	CDCE_512X4_FRAMES_MAX 511	/* frames */
+#define	CDCE_512X4_FRAGS_MAX (511 * 4)	/* fragments */
+	uWord	wPadding;		/* used to make transfer short */
+} __packed usb_cdc_mf_eth_512x4_header_t;
+
+#endif					/* _USB_CDC_H_ */

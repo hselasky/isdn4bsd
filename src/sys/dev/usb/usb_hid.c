@@ -53,27 +53,27 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/hid.c,v 1.26 2006/03/22 02:04:12 iedowse Exp
 #include <dev/usb/usb_hid.h>
 
 #ifdef USB_DEBUG
-#define DPRINTF(x)	if (usbdebug) logprintf x
-#define DPRINTFN(n,x)	if (usbdebug>(n)) logprintf x
+#define	DPRINTF(x)	if (usbdebug) logprintf x
+#define	DPRINTFN(n,x)	if (usbdebug>(n)) logprintf x
 #else
-#define DPRINTF(x)
-#define DPRINTFN(n,x)
+#define	DPRINTF(x)
+#define	DPRINTFN(n,x)
 #endif
 
 Static void hid_clear_local(struct hid_item *);
 
-#define MAXUSAGE 100
+#define	MAXUSAGE 100
 struct hid_data {
 	const u_char *start;
 	const u_char *end;
 	const u_char *p;
 	struct hid_item cur;
-	int32_t usages[MAXUSAGE];
-	int nu;
-	int minset;
-	int multi;
-	int multimax;
-	int kindset;
+	int32_t	usages[MAXUSAGE];
+	int	nu;
+	int	minset;
+	int	multi;
+	int	multimax;
+	int	kindset;
 };
 
 Static void
@@ -97,7 +97,7 @@ hid_start_parse(const void *d, int len, int kindset)
 {
 	struct hid_data *s;
 
-	s = malloc(sizeof *s, M_TEMP, M_WAITOK|M_ZERO);
+	s = malloc(sizeof *s, M_TEMP, M_WAITOK | M_ZERO);
 	s->start = s->p = d;
 	s->end = ((const char *)d) + len;
 	s->kindset = kindset;
@@ -110,6 +110,7 @@ hid_end_parse(struct hid_data *s)
 
 	while (s->cur.next != NULL) {
 		struct hid_item *hi = s->cur.next->next;
+
 		free(s->cur.next, M_TEMP);
 		s->cur.next = hi;
 	}
@@ -121,17 +122,17 @@ hid_get_item(struct hid_data *s, struct hid_item *h)
 {
 	struct hid_item *c = &s->cur;
 	unsigned int bTag, bType, bSize;
-	u_int32_t oldpos;
+	uint32_t oldpos;
 	const u_char *data;
 	int32_t dval;
 	const u_char *p;
 	struct hid_item *hi;
 	int i;
 
- top:
+top:
 	if (s->multimax != 0) {
 		if (s->multi < s->multimax) {
-			c->usage = s->usages[min(s->multi, s->nu-1)];
+			c->usage = s->usages[min(s->multi, s->nu - 1)];
 			s->multi++;
 			*h = *c;
 			c->loc.pos += c->loc.size;
@@ -157,18 +158,19 @@ hid_get_item(struct hid_data *s, struct hid_item *h)
 			bTag = *p++;
 			data = p;
 			p += bSize;
-			bType = 0xff; /* XXX what should it be */
+			bType = 0xff;	/* XXX what should it be */
 		} else {
 			/* short item */
 			bTag = bSize >> 4;
 			bType = (bSize >> 2) & 3;
 			bSize &= 3;
-			if (bSize == 3) bSize = 4;
+			if (bSize == 3)
+				bSize = 4;
 			data = p;
 			p += bSize;
 		}
 		s->p = p;
-		switch(bSize) {
+		switch (bSize) {
 		case 0:
 			dval = 0;
 			break;
@@ -192,24 +194,24 @@ hid_get_item(struct hid_data *s, struct hid_item *h)
 		}
 
 		switch (bType) {
-		case 0:			/* Main */
+		case 0:		/* Main */
 			switch (bTag) {
-			case 8:		/* Input */
+			case 8:	/* Input */
 				if (!(s->kindset & (1 << hid_input)))
 					continue;
 				c->kind = hid_input;
 				c->flags = dval;
-			ret:
+		ret:
 				if (c->flags & HIO_VARIABLE) {
 					s->multimax = c->loc.count;
 					s->multi = 0;
 					c->loc.count = 1;
 					if (s->minset) {
 						for (i = c->usage_minimum;
-						     i <= c->usage_maximum;
-						     i++) {
+						    i <= c->usage_maximum;
+						    i++) {
 							s->usages[s->nu] = i;
-							if (s->nu < MAXUSAGE-1)
+							if (s->nu < MAXUSAGE - 1)
 								s->nu++;
 						}
 						s->minset = 0;
@@ -219,12 +221,12 @@ hid_get_item(struct hid_data *s, struct hid_item *h)
 					*h = *c;
 					h->next = 0;
 					c->loc.pos +=
-						c->loc.size * c->loc.count;
+					    c->loc.size * c->loc.count;
 					hid_clear_local(c);
 					s->minset = 0;
 					return (1);
 				}
-			case 9:		/* Output */
+			case 9:	/* Output */
 				if (!(s->kindset & (1 << hid_output)))
 					continue;
 				c->kind = hid_output;
@@ -288,12 +290,12 @@ hid_get_item(struct hid_data *s, struct hid_item *h)
 			case 9:
 				c->loc.count = dval;
 				break;
-			case 10: /* Push */
+			case 10:	/* Push */
 				hi = malloc(sizeof *hi, M_TEMP, M_WAITOK);
 				*hi = s->cur;
 				c->next = hi;
 				break;
-			case 11: /* Pop */
+			case 11:	/* Pop */
 				hi = c->next;
 				oldpos = c->loc.pos;
 				s->cur = *hi;
@@ -309,9 +311,9 @@ hid_get_item(struct hid_data *s, struct hid_item *h)
 			switch (bTag) {
 			case 0:
 				if (bSize == 1)
-					dval = c->_usage_page | (dval&0xff);
+					dval = c->_usage_page | (dval & 0xff);
 				else if (bSize == 2)
-					dval = c->_usage_page | (dval&0xffff);
+					dval = c->_usage_page | (dval & 0xffff);
 				c->usage = dval;
 				if (s->nu < MAXUSAGE)
 					s->usages[s->nu++] = dval;
@@ -320,16 +322,16 @@ hid_get_item(struct hid_data *s, struct hid_item *h)
 			case 1:
 				s->minset = 1;
 				if (bSize == 1)
-					dval = c->_usage_page | (dval&0xff);
+					dval = c->_usage_page | (dval & 0xff);
 				else if (bSize == 2)
-					dval = c->_usage_page | (dval&0xffff);
+					dval = c->_usage_page | (dval & 0xffff);
 				c->usage_minimum = dval;
 				break;
 			case 2:
 				if (bSize == 1)
-					dval = c->_usage_page | (dval&0xff);
+					dval = c->_usage_page | (dval & 0xff);
 				else if (bSize == 2)
-					dval = c->_usage_page | (dval&0xffff);
+					dval = c->_usage_page | (dval & 0xffff);
 				c->usage_maximum = dval;
 				break;
 			case 3:
@@ -366,7 +368,7 @@ hid_get_item(struct hid_data *s, struct hid_item *h)
 }
 
 int
-hid_report_size(const void *buf, int len, enum hid_kind k, u_int8_t *idp)
+hid_report_size(const void *buf, int len, enum hid_kind k, uint8_t *idp)
 {
 	struct hid_data *d;
 	struct hid_item h;
@@ -374,7 +376,7 @@ hid_report_size(const void *buf, int len, enum hid_kind k, u_int8_t *idp)
 
 	id = 0;
 	hi = lo = -1;
-	for (d = hid_start_parse(buf, len, 1<<k); hid_get_item(d, &h); )
+	for (d = hid_start_parse(buf, len, 1 << k); hid_get_item(d, &h);)
 		if (h.kind == k) {
 			if (h.report_ID != 0 && !id)
 				id = h.report_ID;
@@ -388,20 +390,20 @@ hid_report_size(const void *buf, int len, enum hid_kind k, u_int8_t *idp)
 	size = hi - lo;
 	if (id != 0) {
 		size += 8;
-		*idp = id;	/* XXX wrong */
+		*idp = id;		/* XXX wrong */
 	} else
 		*idp = 0;
 	return ((size + 7) / 8);
 }
 
 int
-hid_locate(const void *desc, int size, u_int32_t u, enum hid_kind k,
-	   struct hid_location *loc, u_int32_t *flags)
+hid_locate(const void *desc, int size, uint32_t u, enum hid_kind k,
+    struct hid_location *loc, uint32_t *flags)
 {
 	struct hid_data *d;
 	struct hid_item h;
 
-	for (d = hid_start_parse(desc, size, 1<<k); hid_get_item(d, &h); ) {
+	for (d = hid_start_parse(desc, size, 1 << k); hid_get_item(d, &h);) {
 		if (h.kind == k && !(h.flags & HIO_CONST) && h.usage == u) {
 			if (loc != NULL)
 				*loc = h.loc;
@@ -417,11 +419,11 @@ hid_locate(const void *desc, int size, u_int32_t u, enum hid_kind k,
 }
 
 u_long
-hid_get_data(const u_char *buf, u_int32_t len, struct hid_location *loc)
+hid_get_data(const u_char *buf, uint32_t len, struct hid_location *loc)
 {
 	u_int hpos = loc->pos;
 	u_int hsize = loc->size;
-	u_int32_t data;
+	uint32_t data;
 	int i, s, t;
 
 	DPRINTFN(10, ("hid_get_data: loc %d/%d\n", hpos, hsize));
@@ -431,24 +433,24 @@ hid_get_data(const u_char *buf, u_int32_t len, struct hid_location *loc)
 
 	data = 0;
 	s = hpos / 8;
-	for (i = hpos; i < (hpos+hsize); i += 8) {
-	    t = (i / 8);
-	    if (t < len) {
-	        data |= buf[t] << ((t - s) * 8);
-	    }
+	for (i = hpos; i < (hpos + hsize); i += 8) {
+		t = (i / 8);
+		if (t < len) {
+			data |= buf[t] << ((t - s) * 8);
+		}
 	}
 	data >>= hpos % 8;
 	data &= (1 << hsize) - 1;
 	hsize = 32 - hsize;
 	/* Sign extend */
 	data = ((int32_t)data << hsize) >> hsize;
-	DPRINTFN(10,("hid_get_data: loc %d/%d = %lu\n",
-		    loc->pos, loc->size, (long)data));
+	DPRINTFN(10, ("hid_get_data: loc %d/%d = %lu\n",
+	    loc->pos, loc->size, (long)data));
 	return (data);
 }
 
 int
-hid_is_collection(const void *desc, int size, u_int32_t usage)
+hid_is_collection(const void *desc, int size, uint32_t usage)
 {
 	struct hid_data *hd;
 	struct hid_item hi;
@@ -463,4 +465,69 @@ hid_is_collection(const void *desc, int size, u_int32_t usage)
 	    hi.usage == usage;
 	hid_end_parse(hd);
 	return (err);
+}
+
+usb_hid_descriptor_t *
+hid_get_descriptor_from_usb(usb_config_descriptor_t *cd,
+    usb_interface_descriptor_t *id)
+{
+	usb_descriptor_t *desc = (void *)id;
+
+	if (desc == NULL) {
+		return (NULL);
+	}
+	while ((desc = usbd_desc_foreach(cd, desc))) {
+		if ((desc->bDescriptorType == UDESC_HID) &&
+		    (desc->bLength >= USB_HID_DESCRIPTOR_SIZE(0))) {
+			return (void *)desc;
+		}
+		if (desc->bDescriptorType == UDESC_INTERFACE) {
+			break;
+		}
+	}
+	return (NULL);
+}
+
+usbd_status_t
+hid_read_report_desc_from_usb(struct usbd_device *udev, struct mtx *mtx,
+    void **descp, uint16_t *sizep,
+    usb_malloc_type mem, uint8_t iface_index)
+{
+	struct usbd_interface *iface = usbd_get_iface(udev, iface_index);
+	usb_hid_descriptor_t *hid;
+	usbd_status_t err;
+
+	if ((iface == NULL) || (iface->idesc == NULL)) {
+		return (USBD_INVAL);
+	}
+	hid = hid_get_descriptor_from_usb
+	    (usbd_get_config_descriptor(udev), iface->idesc);
+
+	if (hid == NULL) {
+		return (USBD_IOERROR);
+	}
+	*sizep = UGETW(hid->descrs[0].wDescriptorLength);
+	if (*sizep == 0) {
+		return (USBD_IOERROR);
+	}
+	if (mtx)
+		mtx_unlock(mtx);
+
+	*descp = malloc(*sizep, mem, M_ZERO | M_WAITOK);
+
+	if (mtx)
+		mtx_lock(mtx);
+
+	if (*descp == NULL) {
+		return (USBD_NOMEM);
+	}
+	err = usbreq_get_report_descriptor
+	    (udev, mtx, *descp, *sizep, iface_index);
+
+	if (err) {
+		free(*descp, mem);
+		*descp = NULL;
+		return (err);
+	}
+	return (USBD_NORMAL_COMPLETION);
 }

@@ -68,32 +68,32 @@ __FBSDID("$FreeBSD: src/sys/dev/if_ndis/if_ndis_usb.c,v 1.5 2005/04/24 20:21:22 
 
 MODULE_DEPEND(ndis, usb, 1, 1, 1);
 
-static device_probe_t    ndisusb_probe;
-static device_attach_t   ndisusb_attach;
+static device_probe_t ndisusb_probe;
+static device_attach_t ndisusb_attach;
 static struct resource_list *ndis_get_resource_list(device_t, device_t);
 
-extern device_attach_t   ndis_attach;
+extern device_attach_t ndis_attach;
 extern device_shutdown_t ndis_shutdown;
-extern device_detach_t   ndis_detach;
-extern device_suspend_t  ndis_suspend;
-extern device_resume_t   ndis_resume;
+extern device_detach_t ndis_detach;
+extern device_suspend_t ndis_suspend;
+extern device_resume_t ndis_resume;
 extern int ndisdrv_modevent(module_t, int, void *);
 
 extern unsigned char drv_data[];
 
 static device_method_t ndis_methods[] = {
-        /* Device interface */
-	DEVMETHOD(device_probe,		ndisusb_probe),
-	DEVMETHOD(device_attach,	ndisusb_attach),
-	DEVMETHOD(device_detach,	ndis_detach),
-	DEVMETHOD(device_shutdown,	ndis_shutdown),
+	/* Device interface */
+	DEVMETHOD(device_probe, ndisusb_probe),
+	DEVMETHOD(device_attach, ndisusb_attach),
+	DEVMETHOD(device_detach, ndis_detach),
+	DEVMETHOD(device_shutdown, ndis_shutdown),
 
-        /* bus interface */
-	DEVMETHOD(bus_print_child,	bus_generic_print_child),
-	DEVMETHOD(bus_driver_added,	bus_generic_driver_added),
+	/* bus interface */
+	DEVMETHOD(bus_print_child, bus_generic_print_child),
+	DEVMETHOD(bus_driver_added, bus_generic_driver_added),
 	DEVMETHOD(bus_get_resource_list, ndis_get_resource_list),
 
-	{ 0, 0 }
+	{0, 0}
 };
 
 static driver_t ndis_driver = {
@@ -112,21 +112,22 @@ ndisusb_probe(device_t dev)
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 
 	if (windrv_lookup(0, "USB Bus") == NULL) {
-	    return UMATCH_NONE;
+		return (UMATCH_NONE);
 	}
-
+	if (uaa->usb_mode != USB_MODE_HOST) {
+		return (UMATCH_NONE);
+	}
 	if (uaa->iface != NULL) {
-	    return UMATCH_NONE;
+		return (UMATCH_NONE);
 	}
-
-	return UMATCH_NONE;
+	return (UMATCH_NONE);
 }
 
 static int
 ndisusb_attach(device_t dev)
 {
-	struct ndis_softc *sc  = device_get_softc(dev);
-	driver_object	  *drv;
+	struct ndis_softc *sc = device_get_softc(dev);
+	driver_object *drv;
 
 	sc->ndis_dev = dev;
 
@@ -136,10 +137,9 @@ ndisusb_attach(device_t dev)
 	windrv_create_pdo(drv, dev);
 
 	if (ndis_attach(dev) != 0) {
-	    return ENXIO;
+		return (ENXIO);
 	}
-
-	return 0; /* success */
+	return (0);			/* success */
 }
 
 static struct resource_list *

@@ -5,7 +5,7 @@ S=	${.CURDIR}/../..
 .PATH: $S/dev/usb $S/pci
 
 KMOD=	usb
-SRCS=	bus_if.h device_if.h usb_if.h usb_if.c vnode_if.h \
+SRCS=  bus_if.h usb_if.h vnode_if.h   device_if.h  usb_if.c \
 	opt_usb.h \
 	uhub.c \
 	usbdevs.h usbdevs_data.h \
@@ -15,6 +15,8 @@ SRCS=	bus_if.h device_if.h usb_if.h usb_if.c vnode_if.h \
 	usb_quirks.c usb_quirks.h \
 	usb_requests.c \
 	usb_subr.c usb_subr.h \
+	usb_template.c usb_template.h \
+	usb_template_cdce.c \
 	usb_transfer.c \
 	usb_compat_linux.c \
 

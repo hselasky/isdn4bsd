@@ -384,6 +384,8 @@ ihfc_alloc_all_resources(register ihfc_sc_t *sc, device_t dev,
 	__typeof(sc->sc_default.o_RES_start[0])
 	  o_RES = sc->sc_default.o_RES_start[0];
 
+	struct usbd_page_search buf_res;
+
 	struct sc_default  *def = &sc->sc_default;
 	struct resource_id *rid = &sc->sc_resources.rid[0];
 static const
@@ -562,11 +564,10 @@ const   struct resource_tab *ptr;
 		if(!sc->sc_resources.mwba_start[0])
 		{
 		    sc->sc_resources.mwba_size [0] = (1<<15);
-		    sc->sc_resources.mwba_start[0] = 
-		      usbd_mem_alloc(device_get_dma_tag(dev),
-				     &(sc->sc_hw_page),(1<<15),15);
 
-		    if(!sc->sc_resources.mwba_start[0])
+		    if (usbd_pc_alloc_mem(device_get_dma_tag(dev),
+			  &(sc->sc_hw_dma_tag), &(sc->sc_hw_page_cache), 
+			  &(sc->sc_hw_page), (1<<15), (1<<15), 1))
 		    {
 			IHFC_ADD_ERR(error,
 				     "Could not allocate memory(32Kbyte) "
@@ -574,7 +575,9 @@ const   struct resource_tab *ptr;
 		    }
 		    else
 		    {
-			bzero(sc->sc_resources.mwba_start[0], (1<<15));
+		        usbd_get_page(&(sc->sc_hw_page_cache), 0, &buf_res);
+			sc->sc_resources.mwba_phys_start[0] = buf_res.physaddr;
+			sc->sc_resources.mwba_start[0] = buf_res.buffer;
 		    }
 		}
 	}
@@ -590,11 +593,10 @@ const   struct resource_tab *ptr;
 		if(!sc->sc_resources.mwba_start[0])
 		{
 		    sc->sc_resources.mwba_size [0] = (1<<14);
-		    sc->sc_resources.mwba_start[0] = 
-		      usbd_mem_alloc(device_get_dma_tag(dev),
-				     &(sc->sc_hw_page),(1<<14),2);
 
-		    if(!sc->sc_resources.mwba_start[0])
+		    if (usbd_pc_alloc_mem(device_get_dma_tag(dev),
+			  &(sc->sc_hw_dma_tag), &(sc->sc_hw_page_cache), 
+			  &(sc->sc_hw_page), (1<<14), (1<<14), 1))
 		    {
 			IHFC_ADD_ERR(error,
 				     "Could not allocate memory(16Kbyte) "
@@ -602,18 +604,16 @@ const   struct resource_tab *ptr;
 		    }
 		    else
 		    {
+		        usbd_get_page(&(sc->sc_hw_page_cache), 0, &buf_res);
+			sc->sc_resources.mwba_phys_start[0] = buf_res.physaddr;
+			sc->sc_resources.mwba_start[0] = buf_res.buffer;
+
 			/*
 			 * Default is 0xff
 			 */
 			memset_1(sc->sc_resources.mwba_start[0],0xff,(1<<14));
 		    }
 		}
-	}
-
-	/* get physical memory address */
-	if(sc->sc_resources.mwba_start[0])
-	{
-		sc->sc_resources.mwba_phys_start[0] = sc->sc_hw_page.physaddr;
 	}
 
 #ifdef IHFC_USB_ENABLED
@@ -666,12 +666,13 @@ const   struct resource_tab *ptr;
 
 		/* set wanted alternate config
 		 */
-		err = usbreq_set_interface(udev, def->usb_iface_no, 
-					   def->usb_alt_iface_no);
+		err = usbd_set_alt_interface_index
+		  (udev, def->usb_iface_no, def->usb_alt_iface_no);
+
 		if(err) goto usb_err;
 
 		/* setup transfers */
-		err = usbd_transfer_setup(udev, def->usb_iface_no, 
+		err = usbd_transfer_setup(udev, &(def->usb_iface_no), 
 					  &sc->sc_resources.usb_xfer[0],
 					  &def->usb[0], def->usb_length,
 					  sc, sc->sc_mtx_p);
@@ -791,7 +792,7 @@ ihfc_unsetup_resource(device_t dev)
 	 */
 	if(sc->sc_resources.mwba_start[0])
         {
-		usbd_mem_free(&(sc->sc_hw_page));
+		usbd_pc_free_mem(&(sc->sc_hw_page_cache));
 	}
 
 	bzero(&sc->sc_resources,sizeof(sc->sc_resources));
@@ -837,6 +838,11 @@ ihfc_unsetup(device_t dev, u_int8_t *error, u_int8_t level)
 	  break;
 	}
 
+	if (sc->sc_temp_ptr != NULL) {
+	    free(sc->sc_temp_ptr, M_TEMP);
+	    sc->sc_temp_ptr = NULL;
+	}
+
 	if(IHFC_IS_ERR(error))
 	{
 	  device_printf(dev,"ERROR(s): %s\n", error);
@@ -849,11 +855,12 @@ ihfc_unsetup(device_t dev, u_int8_t *error, u_int8_t level)
  * : default probe routine
  *---------------------------------------------------------------------------*/
 static int
-__ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
+ihfc_pnp_probe_sub(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 {
         u_int32_t flags =  device_get_flags(dev);
         u_int8_t name = *device_get_name(device_get_parent(dev));
-	u_int8_t error[IHFC_MAX_ERR];
+	uint8_t error_desc[IHFC_MAX_ERR];
+	uint8_t *error = error_desc;
 	ihfc_fifo_t *f;
 	u_int32_t n;
 	u_int8_t level = 0;
@@ -1070,6 +1077,15 @@ __ihfc_pnp_probe(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 
 	level = 1;
 
+	if (sc->sc_default.d_temp_size > 0) {
+	    sc->sc_temp_ptr = 
+	      malloc(sc->sc_default.d_temp_size, M_TEMP, M_WAITOK|M_ZERO);
+	    if (sc->sc_temp_ptr == NULL) {
+	        IHFC_ADD_ERR(error, "Could not allocate memory");
+		goto err;
+	    }
+	}
+
 	/*
 	 * Setup softc
 	 * and reset chip
@@ -1165,10 +1181,16 @@ ihfc_pnp_probe(device_t dev)
 #ifdef IHFC_USB_ENABLED
 	  if(name == 'u')
 	  {
+		struct usb_attach_arg *uaa;
+
 		/* Probe USB */
 		id       = &ihfc_usb_id_start[0];
 		id_end   = &ihfc_usb_id_end[0];
 
+		uaa = device_get_ivars(dev);
+		if (uaa->usb_mode != USB_MODE_HOST) {
+			return (ENXIO);
+		}
 		vid = usb_get_devid(dev);
 	  }
 #endif
@@ -1196,7 +1218,7 @@ ihfc_pnp_probe(device_t dev)
 	  {
 	      if(id->dbase)
 	      {
-	          return __ihfc_pnp_probe(dev,sc,id);
+	          return ihfc_pnp_probe_sub(dev,sc,id);
 	      }
 	  }
 	}

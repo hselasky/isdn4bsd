@@ -75,54 +75,57 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/udbp.c,v 1.41 2007/07/05 15:25:32 imp Exp $"
 #include <netgraph/bluetooth/include/ng_bluetooth.h>
 
 #ifdef USB_DEBUG
-#define DPRINTF(sc,n,fmt,...) do {		\
+#define	DPRINTF(sc,n,fmt,...) do {		\
     if (udbp_debug > (n))			\
         printf("%s:%s: " fmt, (sc)->sc_name,	\
 	       __FUNCTION__,## __VA_ARGS__);	\
-} while(0)
+} while (0)
 
 static int udbp_debug = 0;
+
 SYSCTL_NODE(_hw_usb, OID_AUTO, udbp, CTLFLAG_RW, 0, "USB udbp");
 SYSCTL_INT(_hw_usb_udbp, OID_AUTO, debug, CTLFLAG_RW,
-	   &udbp_debug, 0, "udbp debug level");
+    &udbp_debug, 0, "udbp debug level");
 #else
 #define	DPRINTF(...) do { } while (0)
 #endif
 
-#define UDBP_TIMEOUT	2000	 /* timeout on outbound transfers, in msecs */
-#define UDBP_BUFFERSIZE	MCLBYTES /* maximum number of bytes in one transfer */
-#define UDBP_T_WR       0
-#define UDBP_T_RD       1
-#define UDBP_T_WR_CS    2
-#define UDBP_T_RD_CS    3
-#define UDBP_T_MAX      4
-#define UDBP_Q_MAXLEN   50
+#define	UDBP_TIMEOUT	2000		/* timeout on outbound transfers, in
+					 * msecs */
+#define	UDBP_BUFFERSIZE	MCLBYTES	/* maximum number of bytes in one
+					 * transfer */
+#define	UDBP_T_WR       0
+#define	UDBP_T_RD       1
+#define	UDBP_T_WR_CS    2
+#define	UDBP_T_RD_CS    3
+#define	UDBP_T_MAX      4
+#define	UDBP_Q_MAXLEN   50
 
 struct udbp_softc {
 
-	struct mtx		sc_mtx;
-	struct ng_bt_mbufq	sc_xmitq_hipri;	/* hi-priority transmit queue */
-	struct ng_bt_mbufq	sc_xmitq;	/* low-priority transmit queue */
+	struct mtx sc_mtx;
+	struct ng_bt_mbufq sc_xmitq_hipri;	/* hi-priority transmit queue */
+	struct ng_bt_mbufq sc_xmitq;	/* low-priority transmit queue */
 
-	struct usbd_xfer *	sc_xfer[UDBP_T_MAX];
-	node_p			sc_node;	/* back pointer to node */
-	hook_p			sc_hook;	/* pointer to the hook */
-	struct mbuf *		sc_bulk_in_buffer;
+	struct usbd_xfer *sc_xfer[UDBP_T_MAX];
+	node_p	sc_node;		/* back pointer to node */
+	hook_p	sc_hook;		/* pointer to the hook */
+	struct mbuf *sc_bulk_in_buffer;
 
-	u_int32_t		sc_packets_in;  /* packets in from downstream */
-	u_int32_t		sc_packets_out; /* packets out towards downstream */
+	uint32_t sc_packets_in;		/* packets in from downstream */
+	uint32_t sc_packets_out;	/* packets out towards downstream */
 
-	u_int8_t		sc_flags;
-#define UDBP_FLAG_READ_STALL    0x01 /* read transfer stalled */
-#define UDBP_FLAG_WRITE_STALL   0x02 /* write transfer stalled */
+	uint8_t	sc_flags;
+#define	UDBP_FLAG_READ_STALL    0x01	/* read transfer stalled */
+#define	UDBP_FLAG_WRITE_STALL   0x02	/* write transfer stalled */
 
-	u_int8_t		sc_name[16];
+	uint8_t	sc_name[16];
 };
 
 /* prototypes */
 
 static int
-udbp_modload(module_t mod, int event, void *data);
+	udbp_modload(module_t mod, int event, void *data);
 
 static device_probe_t udbp_probe;
 static device_attach_t udbp_attach;
@@ -134,15 +137,15 @@ static usbd_callback_t udbp_bulk_write_callback;
 static usbd_callback_t udbp_bulk_write_clear_stall_callback;
 
 static void
-udbp_bulk_read_complete(node_p node, hook_p hook, void *arg1, int arg2);
+	udbp_bulk_read_complete(node_p node, hook_p hook, void *arg1, int arg2);
 
-static ng_constructor_t	ng_udbp_constructor;
-static ng_rcvmsg_t	ng_udbp_rcvmsg;
-static ng_shutdown_t	ng_udbp_rmnode;
-static ng_newhook_t	ng_udbp_newhook;
-static ng_connect_t	ng_udbp_connect;
-static ng_rcvdata_t	ng_udbp_rcvdata;
-static ng_disconnect_t	ng_udbp_disconnect;
+static ng_constructor_t ng_udbp_constructor;
+static ng_rcvmsg_t ng_udbp_rcvmsg;
+static ng_shutdown_t ng_udbp_rmnode;
+static ng_newhook_t ng_udbp_newhook;
+static ng_connect_t ng_udbp_connect;
+static ng_rcvdata_t ng_udbp_rcvdata;
+static ng_disconnect_t ng_udbp_disconnect;
 
 /* Parse type for struct ngudbpstat */
 static const struct ng_parse_struct_field
@@ -155,100 +158,100 @@ static const struct ng_parse_type ng_udbp_stat_type = {
 /* List of commands and how to convert arguments to/from ASCII */
 static const struct ng_cmdlist ng_udbp_cmdlist[] = {
 	{
-	  NGM_UDBP_COOKIE,
-	  NGM_UDBP_GET_STATUS,
-	  "getstatus",
-	  NULL,
-	  &ng_udbp_stat_type,
+		NGM_UDBP_COOKIE,
+		NGM_UDBP_GET_STATUS,
+		"getstatus",
+		NULL,
+		&ng_udbp_stat_type,
 	},
 	{
-	  NGM_UDBP_COOKIE,
-	  NGM_UDBP_SET_FLAG,
-	  "setflag",
-	  &ng_parse_int32_type,
-	  NULL
+		NGM_UDBP_COOKIE,
+		NGM_UDBP_SET_FLAG,
+		"setflag",
+		&ng_parse_int32_type,
+		NULL
 	},
-	{ 0 }
+	{0}
 };
 
 /* Netgraph node type descriptor */
 static struct ng_type ng_udbp_typestruct = {
-	.version =	NG_ABI_VERSION,
-	.name =		NG_UDBP_NODE_TYPE,
-	.constructor =	ng_udbp_constructor,
-	.rcvmsg =	ng_udbp_rcvmsg,
-	.shutdown =	ng_udbp_rmnode,
-	.newhook =	ng_udbp_newhook,
-	.connect =	ng_udbp_connect,
-	.rcvdata =	ng_udbp_rcvdata,
-	.disconnect =	ng_udbp_disconnect,
-	.cmdlist =	ng_udbp_cmdlist,
+	.version = NG_ABI_VERSION,
+	.name = NG_UDBP_NODE_TYPE,
+	.constructor = ng_udbp_constructor,
+	.rcvmsg = ng_udbp_rcvmsg,
+	.shutdown = ng_udbp_rmnode,
+	.newhook = ng_udbp_newhook,
+	.connect = ng_udbp_connect,
+	.rcvdata = ng_udbp_rcvdata,
+	.disconnect = ng_udbp_disconnect,
+	.cmdlist = ng_udbp_cmdlist,
 };
 
 /* USB config */
 static const struct usbd_config udbp_config[UDBP_T_MAX] = {
 
-    [UDBP_T_WR] = {
-      .type      = UE_BULK,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_OUT,
-      .bufsize   = UDBP_BUFFERSIZE,
-      .flags     = (USBD_PIPE_BOF|USBD_USE_DMA|USBD_FORCE_SHORT_XFER),
-      .callback  = &udbp_bulk_write_callback,
-      .timeout   = UDBP_TIMEOUT,
-    },
+	[UDBP_T_WR] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_OUT,
+		.bufsize = UDBP_BUFFERSIZE,
+		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,},
+		.mh.callback = &udbp_bulk_write_callback,
+		.mh.timeout = UDBP_TIMEOUT,
+	},
 
-    [UDBP_T_RD] = {
-      .type      = UE_BULK,
-      .endpoint  = UE_ADDR_ANY,
-      .direction = UE_DIR_IN,
-      .bufsize   = UDBP_BUFFERSIZE,
-      .flags     = (USBD_PIPE_BOF|USBD_USE_DMA|USBD_SHORT_XFER_OK),
-      .callback  = &udbp_bulk_read_callback,
-    },
+	[UDBP_T_RD] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_IN,
+		.bufsize = UDBP_BUFFERSIZE,
+		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
+		.mh.callback = &udbp_bulk_read_callback,
+	},
 
-    [UDBP_T_WR_CS] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .flags     = USBD_USE_DMA,
-      .callback  = &udbp_bulk_write_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[UDBP_T_WR_CS] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.flags = {},
+		.mh.callback = &udbp_bulk_write_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 
-    [UDBP_T_RD_CS] = {
-      .type      = UE_CONTROL,
-      .endpoint  = 0x00, /* Control pipe */
-      .direction = UE_DIR_ANY,
-      .bufsize   = sizeof(usb_device_request_t),
-      .flags     = USBD_USE_DMA,
-      .callback  = &udbp_bulk_read_clear_stall_callback,
-      .timeout   = 1000, /* 1 second */
-      .interval  = 50, /* 50ms */
-    },
+	[UDBP_T_RD_CS] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.bufsize = sizeof(usb_device_request_t),
+		.mh.flags = {},
+		.mh.callback = &udbp_bulk_read_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.interval = 50,		/* 50ms */
+	},
 };
 
 static devclass_t udbp_devclass;
 
 static device_method_t udbp_methods[] = {
-  /* Device interface */
-  DEVMETHOD(device_probe, udbp_probe), 
-  DEVMETHOD(device_attach, udbp_attach),
-  DEVMETHOD(device_detach, udbp_detach),
-  { 0, 0 }
+	/* Device interface */
+	DEVMETHOD(device_probe, udbp_probe),
+	DEVMETHOD(device_attach, udbp_attach),
+	DEVMETHOD(device_detach, udbp_detach),
+	{0, 0}
 };
 
 static driver_t udbp_driver = {
-  .name    = "udbp",
-  .methods = udbp_methods,
-  .size    = sizeof(struct udbp_softc),
+	.name = "udbp",
+	.methods = udbp_methods,
+	.size = sizeof(struct udbp_softc),
 };
 
 DRIVER_MODULE(udbp, uhub, udbp_driver, udbp_devclass, udbp_modload, 0);
 MODULE_DEPEND(udbp, netgraph, NG_ABI_VERSION, NG_ABI_VERSION, NG_ABI_VERSION);
-MODULE_DEPEND(udbp, usb, 1,1,1);
+MODULE_DEPEND(udbp, usb, 1, 1, 1);
 
 static int
 udbp_modload(module_t mod, int event, void *data)
@@ -257,25 +260,24 @@ udbp_modload(module_t mod, int event, void *data)
 
 	switch (event) {
 	case MOD_LOAD:
-	    error = ng_newtype(&ng_udbp_typestruct);
-	    if (error != 0) {
-	        printf("%s: Could not register "
-		       "Netgraph node type, error=%d\n",
-		       NG_UDBP_NODE_TYPE, error);
-	    }
-	    else
-	        error = usbd_driver_load(mod, event, data);
-	    break;
+		error = ng_newtype(&ng_udbp_typestruct);
+		if (error != 0) {
+			printf("%s: Could not register "
+			    "Netgraph node type, error=%d\n",
+			    NG_UDBP_NODE_TYPE, error);
+		} else
+			error = usbd_driver_load(mod, event, data);
+		break;
 
 	case MOD_UNLOAD:
-	    error = ng_rmtype(&ng_udbp_typestruct);
-	    if (error == 0)
-	        error = usbd_driver_load(mod, event, data);
-	    break;
+		error = ng_rmtype(&ng_udbp_typestruct);
+		if (error == 0)
+			error = usbd_driver_load(mod, event, data);
+		break;
 
 	default:
-	    error = EOPNOTSUPP;
-	    break;
+		error = EOPNOTSUPP;
+		break;
 	}
 	return (error);
 }
@@ -285,24 +287,27 @@ udbp_probe(device_t dev)
 {
 	struct usb_attach_arg *uaa = device_get_ivars(dev);
 
+	if (uaa->usb_mode != USB_MODE_HOST) {
+		return (UMATCH_NONE);
+	}
 	if (!uaa->iface)
-	  return (UMATCH_NONE);
+		return (UMATCH_NONE);
 
-	/* XXX Julian, add the id of the device if you have one to test
+	/*
+	 * XXX Julian, add the id of the device if you have one to test
 	 * things with. run 'usbdevs -v' and note the 3 ID's that appear.
 	 * The Vendor Id and Product Id are in hex and the Revision Id is in
-	 * bcd. But as usual if the revision is 0x101 then you should compare
-	 * the revision id in the device descriptor with 0x101
-	 * Or go search the file usbdevs.h. Maybe the device is already in
-	 * there.
+	 * bcd. But as usual if the revision is 0x101 then you should
+	 * compare the revision id in the device descriptor with 0x101 Or go
+	 * search the file usbdevs.h. Maybe the device is already in there.
 	 */
 	if (((uaa->vendor == USB_VENDOR_NETCHIP) &&
-	     (uaa->product == USB_PRODUCT_NETCHIP_TURBOCONNECT)))
+	    (uaa->product == USB_PRODUCT_NETCHIP_TURBOCONNECT)))
 		return (UMATCH_VENDOR_PRODUCT);
 
 	if (((uaa->vendor == USB_VENDOR_PROLIFIC) &&
-	     ((uaa->product == USB_PRODUCT_PROLIFIC_PL2301) ||
-	      (uaa->product == USB_PRODUCT_PROLIFIC_PL2302))))
+	    ((uaa->product == USB_PRODUCT_PROLIFIC_PL2301) ||
+	    (uaa->product == USB_PRODUCT_PROLIFIC_PL2302))))
 		return (UMATCH_VENDOR_PRODUCT);
 
 	if ((uaa->vendor == USB_VENDOR_ANCHOR) &&
@@ -324,24 +329,21 @@ udbp_attach(device_t dev)
 	int32_t error;
 
 	if (sc == NULL) {
-	    return ENOMEM;
+		return (ENOMEM);
 	}
-
-	usbd_set_desc(dev, uaa->device);
+	usbd_set_device_desc(dev);
 
 	snprintf(sc->sc_name, sizeof(sc->sc_name),
-		 "%s", device_get_nameunit(dev));
+	    "%s", device_get_nameunit(dev));
 
-	mtx_init(&(sc->sc_mtx), "udbp lock", NULL, MTX_DEF|MTX_RECURSE);
+	mtx_init(&(sc->sc_mtx), "udbp lock", NULL, MTX_DEF | MTX_RECURSE);
 
-  	error = usbd_transfer_setup(uaa->device, uaa->iface_index, 
-				    sc->sc_xfer, udbp_config,  UDBP_T_MAX, 
-				    sc, &(sc->sc_mtx));
+	error = usbd_transfer_setup(uaa->device, &(uaa->iface_index),
+	    sc->sc_xfer, udbp_config, UDBP_T_MAX, sc, &(sc->sc_mtx));
 	if (error) {
-	    DPRINTF(sc, 0, "error=%s\n", usbd_errstr(error)) ;
-	    goto detach;
+		DPRINTF(sc, 0, "error=%s\n", usbd_errstr(error));
+		goto detach;
 	}
-
 	NG_BT_MBUFQ_INIT(&(sc->sc_xmitq), UDBP_Q_MAXLEN);
 
 	NG_BT_MBUFQ_INIT(&(sc->sc_xmitq_hipri), UDBP_Q_MAXLEN);
@@ -350,30 +352,28 @@ udbp_attach(device_t dev)
 
 	if (ng_make_node_common(&ng_udbp_typestruct, &sc->sc_node) != 0) {
 		printf("%s: Could not create Netgraph node\n",
-		       sc->sc_name);
+		    sc->sc_name);
 		sc->sc_node = NULL;
 		goto detach;
 	}
-
 	/* name node */
 
 	if (ng_name_node(sc->sc_node, sc->sc_name) != 0) {
 		printf("%s: Could not name node\n",
-		       sc->sc_name);
+		    sc->sc_name);
 		NG_NODE_UNREF(sc->sc_node);
 		sc->sc_node = NULL;
 		goto detach;
 	}
-
 	NG_NODE_SET_PRIVATE(sc->sc_node, sc);
 
 	/* the device is now operational */
 
-	return 0; /* success */
+	return (0);			/* success */
 
- detach:
+detach:
 	udbp_detach(dev);
-	return ENOMEM; /* failure */
+	return (ENOMEM);		/* failure */
 }
 
 static int
@@ -384,11 +384,10 @@ udbp_detach(device_t dev)
 	/* destroy Netgraph node */
 
 	if (sc->sc_node != NULL) {
-	    NG_NODE_SET_PRIVATE(sc->sc_node, NULL);
-	    ng_rmnode_self(sc->sc_node);
-	    sc->sc_node = NULL;
+		NG_NODE_SET_PRIVATE(sc->sc_node, NULL);
+		ng_rmnode_self(sc->sc_node);
+		sc->sc_node = NULL;
 	}
-
 	/* free USB transfers, if any */
 
 	usbd_transfer_unsetup(sc->sc_xfer, UDBP_T_MAX);
@@ -403,11 +402,10 @@ udbp_detach(device_t dev)
 	/* extra check */
 
 	if (sc->sc_bulk_in_buffer) {
-	    m_freem(sc->sc_bulk_in_buffer);
-	    sc->sc_bulk_in_buffer = NULL;
+		m_freem(sc->sc_bulk_in_buffer);
+		sc->sc_bulk_in_buffer = NULL;
 	}
-
-	return 0; /* success */
+	return (0);			/* success */
 }
 
 static void
@@ -416,55 +414,54 @@ udbp_bulk_read_callback(struct usbd_xfer *xfer)
 	struct udbp_softc *sc = xfer->priv_sc;
 	struct mbuf *m;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
 
- tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    /* try to clear stall first */
-	    sc->sc_flags |= UDBP_FLAG_READ_STALL;
-	    usbd_transfer_start(sc->sc_xfer[UDBP_T_RD_CS]);
+		/* allocate new mbuf */
+
+		MGETHDR(m, M_DONTWAIT, MT_DATA);
+
+		if (m == NULL) {
+			goto tr_setup;
+		}
+		MCLGET(m, M_DONTWAIT);
+
+		if (!(m->m_flags & M_EXT)) {
+			m_freem(m);
+			goto tr_setup;
+		}
+		m->m_pkthdr.len = m->m_len = xfer->actlen;
+
+		usbd_copy_out(xfer->frbuffers + 0, 0, m->m_data, xfer->actlen);
+
+		sc->sc_bulk_in_buffer = m;
+
+		DPRINTF(sc, 0, "received package %d "
+		    "bytes\n", xfer->actlen);
+
+	case USBD_ST_SETUP:
+tr_setup:
+		if (sc->sc_bulk_in_buffer) {
+			ng_send_fn(sc->sc_node, NULL, &udbp_bulk_read_complete, NULL, 0);
+			return;
+		}
+		if (sc->sc_flags & UDBP_FLAG_READ_STALL) {
+			usbd_transfer_start(sc->sc_xfer[UDBP_T_RD_CS]);
+			return;
+		}
+		xfer->frlengths[0] = xfer->max_data_length;
+		usbd_start_hardware(xfer);
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			/* try to clear stall first */
+			sc->sc_flags |= UDBP_FLAG_READ_STALL;
+			usbd_transfer_start(sc->sc_xfer[UDBP_T_RD_CS]);
+		}
+		return;
+
 	}
-	return;
-
- tr_transferred:
-
-	/* allocate new mbuf */
-
-	MGETHDR(m, M_DONTWAIT, MT_DATA);
-
-	if (m == NULL) {
-	    goto tr_setup;
-	}
-
-	MCLGET(m, M_DONTWAIT);
-
-	if (!(m->m_flags & M_EXT)) {
-	    m_freem(m);
-	    goto tr_setup;
-	}
-
-	m->m_pkthdr.len = m->m_len = xfer->actlen;
-
-	usbd_copy_out(&(xfer->buf_data), 0, m->m_data, xfer->actlen);
-
-	sc->sc_bulk_in_buffer = m;
-
-	DPRINTF(sc, 0, "received package %d "
-		"bytes\n", xfer->actlen);
-
- tr_setup:
-	if (sc->sc_bulk_in_buffer) {
-	    ng_send_fn(sc->sc_node, NULL, &udbp_bulk_read_complete, NULL, 0);
-	    return;
-	}
-
-	if (sc->sc_flags & UDBP_FLAG_READ_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[UDBP_T_RD_CS]);
-	    return;
-	}
-
-	usbd_start_hardware(xfer);
-	return;
 }
 
 static void
@@ -474,9 +471,9 @@ udbp_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[UDBP_T_RD];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(sc, 0, "stall cleared\n");
-	    sc->sc_flags &= ~UDBP_FLAG_READ_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(sc, 0, "stall cleared\n");
+		sc->sc_flags &= ~UDBP_FLAG_READ_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -484,40 +481,36 @@ udbp_bulk_read_clear_stall_callback(struct usbd_xfer *xfer)
 static void
 udbp_bulk_read_complete(node_p node, hook_p hook, void *arg1, int arg2)
 {
-	struct udbp_softc * sc = NG_NODE_PRIVATE(node);
-	struct mbuf * m;
+	struct udbp_softc *sc = NG_NODE_PRIVATE(node);
+	struct mbuf *m;
 	int error;
 
 	if (sc == NULL) {
-	    return;
+		return;
 	}
-
 	mtx_lock(&(sc->sc_mtx));
 
 	m = sc->sc_bulk_in_buffer;
 
 	if (m) {
 
-	    sc->sc_bulk_in_buffer = NULL;
+		sc->sc_bulk_in_buffer = NULL;
 
-	    if ((sc->sc_hook == NULL) || 
-		NG_HOOK_NOT_VALID(sc->sc_hook)) {
-	        DPRINTF(sc, 0, "No upstream hook\n");
-		goto done;
-	    }
+		if ((sc->sc_hook == NULL) ||
+		    NG_HOOK_NOT_VALID(sc->sc_hook)) {
+			DPRINTF(sc, 0, "No upstream hook\n");
+			goto done;
+		}
+		sc->sc_packets_in++;
 
-	    sc->sc_packets_in ++;
+		NG_SEND_DATA_ONLY(error, sc->sc_hook, m);
 
-	    NG_SEND_DATA_ONLY(error, sc->sc_hook, m);
-
-	    m = NULL;
+		m = NULL;
 	}
-
- done:
+done:
 	if (m) {
-	    m_freem(m);
+		m_freem(m);
 	}
-
 	/* start USB bulk-in transfer, if not already started */
 
 	usbd_transfer_start(sc->sc_xfer[UDBP_T_RD]);
@@ -533,55 +526,53 @@ udbp_bulk_write_callback(struct usbd_xfer *xfer)
 	struct udbp_softc *sc = xfer->priv_sc;
 	struct mbuf *m;
 
-	USBD_CHECK_STATUS(xfer);
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
 
- tr_error:
-	if (xfer->error != USBD_CANCELLED) {
-	    /* try to clear stall first */
-	    sc->sc_flags |= UDBP_FLAG_WRITE_STALL;
-	    usbd_transfer_start(sc->sc_xfer[UDBP_T_WR_CS]);
-	}
-	return;
+		sc->sc_packets_out++;
 
- tr_transferred:
+	case USBD_ST_SETUP:
+		if (sc->sc_flags & UDBP_FLAG_WRITE_STALL) {
+			usbd_transfer_start(sc->sc_xfer[UDBP_T_WR_CS]);
+			return;
+		}
+		/* get next mbuf, if any */
 
-	sc->sc_packets_out ++;
+		NG_BT_MBUFQ_DEQUEUE(&(sc->sc_xmitq_hipri), m);
+		if (m == NULL) {
+			NG_BT_MBUFQ_DEQUEUE(&(sc->sc_xmitq), m);
+			if (m == NULL) {
+				DPRINTF(sc, 0, "Data queue is empty\n");
+				return;
+			}
+		}
+		if (m->m_pkthdr.len > MCLBYTES) {
+			DPRINTF(sc, 0, "truncating large packet "
+			    "from %d to %d bytes\n", m->m_pkthdr.len,
+			    MCLBYTES);
+			m->m_pkthdr.len = MCLBYTES;
+		}
+		usbd_m_copy_in(xfer->frbuffers + 0, 0, m, 0, m->m_pkthdr.len);
 
- tr_setup:
-	if (sc->sc_flags & UDBP_FLAG_WRITE_STALL) {
-	    usbd_transfer_start(sc->sc_xfer[UDBP_T_WR_CS]);
-	    return;
-	}
+		xfer->frlengths[0] = m->m_pkthdr.len;
 
-	/* get next mbuf, if any */
+		m_freem(m);
 
-	NG_BT_MBUFQ_DEQUEUE(&(sc->sc_xmitq_hipri), m);
-	if (m == NULL) {
-	  NG_BT_MBUFQ_DEQUEUE(&(sc->sc_xmitq), m);
-	    if (m == NULL) {
-	        DPRINTF(sc, 0, "Data queue is empty\n");
+		DPRINTF(sc, 0, "packet out: %d bytes\n",
+		    xfer->frlengths[0]);
+
+		usbd_start_hardware(xfer);
 		return;
-	    }
+
+	default:			/* Error */
+		if (xfer->error != USBD_CANCELLED) {
+			/* try to clear stall first */
+			sc->sc_flags |= UDBP_FLAG_WRITE_STALL;
+			usbd_transfer_start(sc->sc_xfer[UDBP_T_WR_CS]);
+		}
+		return;
+
 	}
-
-	if (m->m_pkthdr.len > MCLBYTES) {
-	    DPRINTF(sc, 0, "truncating large packet "
-		    "from %d to %d bytes\n", m->m_pkthdr.len,
-		    MCLBYTES);
-	    m->m_pkthdr.len = MCLBYTES;
-	}
-
-	usbd_m_copy_in(&(xfer->buf_data), 0, m, 0, m->m_pkthdr.len);
-
-	xfer->length = m->m_pkthdr.len;
-
-	m_freem(m);
-
-	DPRINTF(sc, 0, "packet out: %d bytes\n", 
-		xfer->length);
-
-	usbd_start_hardware(xfer);
-	return;
 }
 
 static void
@@ -591,9 +582,9 @@ udbp_bulk_write_clear_stall_callback(struct usbd_xfer *xfer)
 	struct usbd_xfer *xfer_other = sc->sc_xfer[UDBP_T_WR];
 
 	if (usbd_clear_stall_callback(xfer, xfer_other)) {
-	    DPRINTF(sc, 0, "stall cleared\n");
-	    sc->sc_flags &= ~UDBP_FLAG_WRITE_STALL;
-	    usbd_transfer_start(xfer_other);
+		DPRINTF(sc, 0, "stall cleared\n");
+		sc->sc_flags &= ~UDBP_FLAG_WRITE_STALL;
+		usbd_transfer_start(xfer_other);
 	}
 	return;
 }
@@ -631,21 +622,20 @@ ng_udbp_newhook(node_p node, hook_p hook, const char *name)
 	int32_t error = 0;
 
 	if (strcmp(name, NG_UDBP_HOOK_NAME)) {
-		return EINVAL;
+		return (EINVAL);
 	}
-
 	mtx_lock(&(sc->sc_mtx));
 
 	if (sc->sc_hook != NULL) {
-	    error = EISCONN;
+		error = EISCONN;
 	} else {
-	    sc->sc_hook = hook;
-	    NG_HOOK_SET_PRIVATE(hook, NULL);
+		sc->sc_hook = hook;
+		NG_HOOK_SET_PRIVATE(hook, NULL);
 	}
 
 	mtx_unlock(&(sc->sc_mtx));
 
-	return error;
+	return (error);
 }
 
 /*
@@ -673,43 +663,43 @@ ng_udbp_rcvmsg(node_p node, item_p item, hook_p lasthook)
 	case NGM_UDBP_COOKIE:
 		switch (msg->header.cmd) {
 		case NGM_UDBP_GET_STATUS:
-		    {
-			struct ngudbpstat *stats;
+			{
+				struct ngudbpstat *stats;
 
-			NG_MKRESPONSE(resp, msg, sizeof(*stats), M_NOWAIT);
-			if (!resp) {
-				error = ENOMEM;
+				NG_MKRESPONSE(resp, msg, sizeof(*stats), M_NOWAIT);
+				if (!resp) {
+					error = ENOMEM;
+					break;
+				}
+				stats = (struct ngudbpstat *)resp->data;
+				mtx_lock(&(sc->sc_mtx));
+				stats->packets_in = sc->sc_packets_in;
+				stats->packets_out = sc->sc_packets_out;
+				mtx_unlock(&(sc->sc_mtx));
 				break;
 			}
-			stats = (struct ngudbpstat *) resp->data;
-			mtx_lock(&(sc->sc_mtx));
-			stats->packets_in = sc->sc_packets_in;
-			stats->packets_out = sc->sc_packets_out;
-			mtx_unlock(&(sc->sc_mtx));
-			break;
-		    }
 		case NGM_UDBP_SET_FLAG:
-			if (msg->header.arglen != sizeof(u_int32_t)) {
+			if (msg->header.arglen != sizeof(uint32_t)) {
 				error = EINVAL;
 				break;
 			}
-			DPRINTF(sc, 0, "flags = 0x%08x\n", 
-				*((u_int32_t *) msg->data));
+			DPRINTF(sc, 0, "flags = 0x%08x\n",
+			    *((uint32_t *)msg->data));
 			break;
 		default:
-			error = EINVAL;		/* unknown command */
+			error = EINVAL;	/* unknown command */
 			break;
 		}
 		break;
 	default:
-		error = EINVAL;			/* unknown cookie type */
+		error = EINVAL;		/* unknown cookie type */
 		break;
 	}
 
 	/* Take care of synchronous response, if any */
 	NG_RESPOND_MSG(error, node, item, resp);
 	NG_FREE_MSG(msg);
-	return(error);
+	return (error);
 }
 
 /*
@@ -726,9 +716,8 @@ ng_udbp_rcvdata(hook_p hook, item_p item)
 
 	if (sc == NULL) {
 		NG_FREE_ITEM(item);
-		return EHOSTDOWN;
+		return (EHOSTDOWN);
 	}
-
 	NGI_GET_M(item, m);
 	NG_FREE_ITEM(item);
 
@@ -736,7 +725,7 @@ ng_udbp_rcvdata(hook_p hook, item_p item)
 	 * Now queue the data for when it can be sent
 	 */
 	ptag = (void *)m_tag_locate(m, NGM_GENERIC_COOKIE,
-				    NG_TAG_PRIO, NULL);
+	    NG_TAG_PRIO, NULL);
 
 	if (ptag && (ptag->priority > NG_PRIO_CUTOFF))
 		queue_ptr = &(sc->sc_xmitq_hipri);
@@ -751,8 +740,8 @@ ng_udbp_rcvdata(hook_p hook, item_p item)
 		error = ENOBUFS;
 	} else {
 		NG_BT_MBUFQ_ENQUEUE(queue_ptr, m);
-		/* start bulk-out transfer, if not 
-		 * already started:
+		/*
+		 * start bulk-out transfer, if not already started:
 		 */
 		usbd_transfer_start(sc->sc_xfer[UDBP_T_WR]);
 		error = 0;
@@ -760,7 +749,7 @@ ng_udbp_rcvdata(hook_p hook, item_p item)
 
 	mtx_unlock(&(sc->sc_mtx));
 
-	return error;
+	return (error);
 }
 
 /*
@@ -775,37 +764,33 @@ ng_udbp_rmnode(node_p node)
 
 	/* Let old node go */
 	NG_NODE_SET_PRIVATE(node, NULL);
-	NG_NODE_UNREF(node);			/* forget it ever existed */
+	NG_NODE_UNREF(node);		/* forget it ever existed */
 
 	if (sc == NULL) {
 		goto done;
 	}
-
 	/* Create Netgraph node */
 	if (ng_make_node_common(&ng_udbp_typestruct, &sc->sc_node) != 0) {
 		printf("%s: Could not create Netgraph node\n",
-			sc->sc_name);
+		    sc->sc_name);
 		sc->sc_node = NULL;
 		goto done;
 	}
-	
-	/* Name node */	
+	/* Name node */
 	if (ng_name_node(sc->sc_node, sc->sc_name) != 0) {
 		printf("%s: Could not name Netgraph node\n",
-			sc->sc_name);
+		    sc->sc_name);
 		NG_NODE_UNREF(sc->sc_node);
 		sc->sc_node = NULL;
 		goto done;
 	}
-
 	NG_NODE_SET_PRIVATE(sc->sc_node, sc);
 
- done:
+done:
 	if (sc) {
 		mtx_unlock(&(sc->sc_mtx));
 	}
-
-	return 0;
+	return (0);
 }
 
 /*
@@ -822,8 +807,8 @@ ng_udbp_connect(hook_p hook)
 
 	mtx_lock(&(sc->sc_mtx));
 
-	sc->sc_flags |= (UDBP_FLAG_READ_STALL|
-			 UDBP_FLAG_WRITE_STALL);
+	sc->sc_flags |= (UDBP_FLAG_READ_STALL |
+	    UDBP_FLAG_WRITE_STALL);
 
 	/* start bulk-in transfer */
 	usbd_transfer_start(sc->sc_xfer[UDBP_T_RD]);
@@ -849,38 +834,36 @@ ng_udbp_disconnect(hook_p hook)
 
 	if (sc != NULL) {
 
-	    mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&(sc->sc_mtx));
 
-	    if (hook != sc->sc_hook) {
-	        error = EINVAL;
-	    } else {
+		if (hook != sc->sc_hook) {
+			error = EINVAL;
+		} else {
 
-		/* stop bulk-in transfer */
-		usbd_transfer_stop(sc->sc_xfer[UDBP_T_RD_CS]);
-		usbd_transfer_stop(sc->sc_xfer[UDBP_T_RD]);
+			/* stop bulk-in transfer */
+			usbd_transfer_stop(sc->sc_xfer[UDBP_T_RD_CS]);
+			usbd_transfer_stop(sc->sc_xfer[UDBP_T_RD]);
 
-		/* stop bulk-out transfer */
-		usbd_transfer_stop(sc->sc_xfer[UDBP_T_WR_CS]);
-		usbd_transfer_stop(sc->sc_xfer[UDBP_T_WR]);
+			/* stop bulk-out transfer */
+			usbd_transfer_stop(sc->sc_xfer[UDBP_T_WR_CS]);
+			usbd_transfer_stop(sc->sc_xfer[UDBP_T_WR]);
 
-		/* cleanup queues */
-		NG_BT_MBUFQ_DRAIN(&sc->sc_xmitq);
-		NG_BT_MBUFQ_DRAIN(&sc->sc_xmitq_hipri);
+			/* cleanup queues */
+			NG_BT_MBUFQ_DRAIN(&sc->sc_xmitq);
+			NG_BT_MBUFQ_DRAIN(&sc->sc_xmitq_hipri);
 
-		if (sc->sc_bulk_in_buffer) {
-		    m_freem(sc->sc_bulk_in_buffer);
-		    sc->sc_bulk_in_buffer = NULL;
+			if (sc->sc_bulk_in_buffer) {
+				m_freem(sc->sc_bulk_in_buffer);
+				sc->sc_bulk_in_buffer = NULL;
+			}
+			sc->sc_hook = NULL;
 		}
 
-		sc->sc_hook = NULL;
-	    }
-
-	    mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&(sc->sc_mtx));
 	}
-
 	if ((NG_NODE_NUMHOOKS(NG_HOOK_NODE(hook)) == 0)
-	&& (NG_NODE_IS_VALID(NG_HOOK_NODE(hook))))
+	    && (NG_NODE_IS_VALID(NG_HOOK_NODE(hook))))
 		ng_rmnode_self(NG_HOOK_NODE(hook));
 
-	return error;
+	return (error);
 }

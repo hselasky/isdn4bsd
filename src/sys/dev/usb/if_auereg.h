@@ -168,7 +168,7 @@
 #define	AUE_GPIO_OUT1		0x10
 #define	AUE_GPIO_SEL1		0x20
 
-#define	AUE_TIMEOUT		100 /* 10*ms */
+#define	AUE_TIMEOUT		100	/* 10*ms */
 #define	AUE_MIN_FRAMELEN	60
 
 #define	AUE_RXSTAT_MCAST	0x01
@@ -182,58 +182,58 @@
 			    device_get_softc((sc)->sc_miibus) : NULL)
 
 struct aue_intrpkt {
-	uint8_t			aue_txstat0;
-	uint8_t			aue_txstat1;
-	uint8_t			aue_rxstat;
-	uint8_t			aue_rxlostpkt0;
-	uint8_t			aue_rxlostpkt1;
-	uint8_t			aue_wakeupstat;
-	uint8_t			aue_rsvd;
+	uint8_t	aue_txstat0;
+	uint8_t	aue_txstat1;
+	uint8_t	aue_rxstat;
+	uint8_t	aue_rxlostpkt0;
+	uint8_t	aue_rxlostpkt1;
+	uint8_t	aue_wakeupstat;
+	uint8_t	aue_rsvd;
 } __packed;
 
 struct aue_rxpkt {
-	uint16_t		aue_pktlen;
-	uint8_t			aue_rxstat;
+	uint16_t aue_pktlen;
+	uint8_t	aue_rxstat;
 } __packed;
 
 
 struct aue_softc {
-	void			*sc_evilhack; /* XXX this pointer must be first */
+	void   *sc_evilhack;		/* XXX this pointer must be first */
 
-	struct usbd_config_td	sc_config_td;
-	struct __callout	sc_watchdog;
-	struct mtx		sc_mtx;
-	struct aue_rxpkt	sc_rxpkt;
+	struct usbd_config_td sc_config_td;
+	struct usb_callout sc_watchdog;
+	struct mtx sc_mtx;
+	struct aue_rxpkt sc_rxpkt;
 
-	struct ifnet		*sc_ifp;
-	struct usbd_device	*sc_udev;
-	struct usbd_xfer	*sc_xfer[AUE_ENDPT_MAX];
-	device_t		sc_miibus;
-	device_t		sc_dev;
+	struct ifnet *sc_ifp;
+	struct usbd_device *sc_udev;
+	struct usbd_xfer *sc_xfer[AUE_ENDPT_MAX];
+	device_t sc_miibus;
+	device_t sc_dev;
 
-	uint32_t		sc_unit;
-	uint32_t		sc_media_active;
-	uint32_t		sc_media_status;
+	uint32_t sc_unit;
+	uint32_t sc_media_active;
+	uint32_t sc_media_status;
 
-	uint16_t		sc_vendor;
-	uint16_t		sc_product;
-	uint16_t		sc_flags;
+	uint16_t sc_vendor;
+	uint16_t sc_product;
+	uint16_t sc_flags;
 #define	AUE_FLAG_LSYS		0x0001	/* use Linksys reset */
 #define	AUE_FLAG_PNA		0x0002	/* has Home PNA */
 #define	AUE_FLAG_PII		0x0004	/* Pegasus II chip */
-#define	AUE_FLAG_WAIT_LINK	0x0008  /* wait for link to come up */
-#define	AUE_FLAG_READ_STALL	0x0010  /* wait for clearing of stall */
-#define	AUE_FLAG_WRITE_STALL	0x0020  /* wait for clearing of stall */
-#define	AUE_FLAG_LL_READY	0x0040  /* Lower Layer Ready */
-#define	AUE_FLAG_HL_READY	0x0080  /* Higher Layer Ready */
-#define	AUE_FLAG_INTR_STALL	0x0100  /* wait for clearing of stall */
-#define	AUE_FLAG_VER_2		0x0200  /* chip is version 2 */
+#define	AUE_FLAG_WAIT_LINK	0x0008	/* wait for link to come up */
+#define	AUE_FLAG_READ_STALL	0x0010	/* wait for clearing of stall */
+#define	AUE_FLAG_WRITE_STALL	0x0020	/* wait for clearing of stall */
+#define	AUE_FLAG_LL_READY	0x0040	/* Lower Layer Ready */
+#define	AUE_FLAG_HL_READY	0x0080	/* Higher Layer Ready */
+#define	AUE_FLAG_INTR_STALL	0x0100	/* wait for clearing of stall */
+#define	AUE_FLAG_VER_2		0x0200	/* chip is version 2 */
 
-	uint8_t			sc_name[16];
+	uint8_t	sc_name[16];
 };
 
 struct aue_config_copy {
-	uint32_t		if_flags;
-	uint8_t			if_lladdr[ETHER_ADDR_LEN];
-	uint8_t			if_hash[8];
+	uint32_t if_flags;
+	uint8_t	if_lladdr[ETHER_ADDR_LEN];
+	uint8_t	if_hash[8];
 };

@@ -23,7 +23,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/arm/at91/ohci_atmelarm.c,v 1.2 2007/03/01 09:10:55 piso Exp $");
+__FBSDID("$FreeBSD: src/sys/arm/at91/ohci_atmelarm.c,v 1.4 2007/10/29 21:01:50 imp Exp $");
 
 #include "opt_bus.h"
 
@@ -38,18 +38,18 @@ __FBSDID("$FreeBSD: src/sys/arm/at91/ohci_atmelarm.c,v 1.2 2007/03/01 09:10:55 p
 #include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_subr.h>
-#include <dev/usb/ohci.h> 
+#include <dev/usb/ohci.h>
 
 #include <arm/at91/at91_pmcvar.h>
 
-#define MEM_RID	0
+#define	MEM_RID	0
 
 static device_probe_t ohci_atmelarm_probe;
 static device_attach_t ohci_atmelarm_attach;
 static device_detach_t ohci_atmelarm_detach;
 
 struct at91_ohci_softc {
-	struct ohci_softc sc_ohci; /* must be first */
+	struct ohci_softc sc_ohci;	/* must be first */
 	struct at91_pmc_clock *iclk;
 	struct at91_pmc_clock *fclk;
 };
@@ -69,32 +69,22 @@ ohci_atmelarm_attach(device_t dev)
 	int rid;
 
 	if (sc == NULL) {
-		return ENXIO;
+		return (ENXIO);
 	}
+	/* store parent DMA tag */
 
-	sc->sc_ohci.sc_hw_ptr =
-	  usbd_mem_alloc(device_get_dma_tag(dev),
-	    &(sc->sc_ohci.sc_hw_page), sizeof(*(sc->sc_ohci.sc_hw_ptr)),
-	    LOG2(OHCI_HCCA_ALIGN));
+	sc->sc_ohci.sc_bus.dma_tag_parent = device_get_dma_tag(dev);
 
-	if (sc->sc_ohci.sc_hw_ptr == NULL) {
-		return ENXIO;
+	/* get all DMA memory */
+
+	if (usbd_bus_mem_alloc_all(&(sc->sc_ohci.sc_bus),
+	    &ohci_iterate_hw_softc)) {
+		return ENOMEM;
 	}
-
-      	sc->iclk = at91_pmc_clock_ref("ohci_clk");
+	sc->iclk = at91_pmc_clock_ref("ohci_clk");
 	sc->fclk = at91_pmc_clock_ref("uhpck");
 
-	mtx_init(&(sc->sc_ohci.sc_bus.mtx), "usb lock",
-	    NULL, MTX_DEF|MTX_RECURSE);
-
 	sc->sc_ohci.sc_dev = dev;
-
-	sc->sc_ohci.sc_bus.dma_tag = usbd_dma_tag_alloc(device_get_dma_tag(dev),
-		USB_PAGE_SIZE, USB_PAGE_SIZE);
-
-	if (sc->sc_ohci.sc_bus.dma_tag == NULL) {
-		goto error;
-	}
 
 	rid = MEM_RID;
 	sc->sc_ohci.sc_io_res = bus_alloc_resource_any(dev, SYS_RES_MEMORY,
@@ -114,34 +104,35 @@ ohci_atmelarm_attach(device_t dev)
 	if (!(sc->sc_ohci.sc_irq_res)) {
 		goto error;
 	}
-
 	sc->sc_ohci.sc_bus.bdev = device_add_child(dev, "usb", -1);
 	if (!(sc->sc_ohci.sc_bus.bdev)) {
 		goto error;
 	}
-
 	device_set_ivars(sc->sc_ohci.sc_bus.bdev, &(sc->sc_ohci.sc_bus));
 	device_set_softc(sc->sc_ohci.sc_bus.bdev, &(sc->sc_ohci.sc_bus));
 
 	strlcpy(sc->sc_ohci.sc_vendor, "Atmel", sizeof(sc->sc_ohci.sc_vendor));
 
+	err = usbd_config_td_setup(&(sc->sc_ohci.sc_config_td), sc,
+	    &(sc->sc_ohci.sc_bus.mtx), NULL, 0, 4);
+	if (err) {
+		device_printf(dev, "could not setup config thread!\n");
+		goto error;
+	}
 #if (__FreeBSD_version >= 700031)
-	err = bus_setup_intr(dev, sc->sc_ohci.sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
-	    NULL, (void *)(void *)ohci_interrupt, sc, &(sc->sc_ohci.sc_intr_hdl));
+	err = bus_setup_intr(dev, sc->sc_ohci.sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
+	    NULL, (void *)ohci_interrupt, sc, &(sc->sc_ohci.sc_intr_hdl));
 #else
-	err = bus_setup_intr(dev, sc->sc_ohci.sc_irq_res, INTR_TYPE_BIO|INTR_MPSAFE,
-	    (void *)(void *)ohci_interrupt, sc, &(sc->sc_ohci.sc_intr_hdl));
+	err = bus_setup_intr(dev, sc->sc_ohci.sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
+	    (void *)ohci_interrupt, sc, &(sc->sc_ohci.sc_intr_hdl));
 #endif
 	if (err) {
 		sc->sc_ohci.sc_intr_hdl = NULL;
 		goto error;
 	}
-
 	/*
 	 * turn on the clocks from the AT91's point of view.  Keep the unit in reset.
 	 */
-//	bus_space_write_4(sc->sc_ohci.sc_io_tag, sc->sc_ohci.sc_io_hdl,
-//	    OHCI_CONTROL, 0);
 	at91_pmc_clock_enable(sc->iclk);
 	at91_pmc_clock_enable(sc->fclk);
 	bus_space_write_4(sc->sc_ohci.sc_io_tag, sc->sc_ohci.sc_io_hdl,
@@ -151,15 +142,14 @@ ohci_atmelarm_attach(device_t dev)
 	if (!err) {
 		err = device_probe_and_attach(sc->sc_ohci.sc_bus.bdev);
 	}
-
 	if (err) {
 		goto error;
 	}
-	return 0;
+	return (0);
 
- error:
+error:
 	ohci_atmelarm_detach(dev);
-	return ENXIO;
+	return (ENXIO);
 }
 
 static int
@@ -173,7 +163,6 @@ ohci_atmelarm_detach(device_t dev)
 		device_delete_child(dev, sc->sc_ohci.sc_bus.bdev);
 		sc->sc_ohci.sc_bus.bdev = NULL;
 	}
-
 	/* during module unload there are lots of children leftover */
 	device_delete_all_children(dev);
 
@@ -186,7 +175,7 @@ ohci_atmelarm_detach(device_t dev)
 	 * clocks after we disable them, so the system could, in
 	 * theory, reuse them.
 	 */
-	bus_space_write_4(sc->sc_ohci.sc_io_tag, sc->sc_ohci.sc_io_hdl, 
+	bus_space_write_4(sc->sc_ohci.sc_io_tag, sc->sc_ohci.sc_io_hdl,
 	    OHCI_CONTROL, 0);
 
 	at91_pmc_clock_disable(sc->fclk);
@@ -195,35 +184,28 @@ ohci_atmelarm_detach(device_t dev)
 	at91_pmc_clock_deref(sc->iclk);
 
 	if (sc->sc_ohci.sc_irq_res && sc->sc_ohci.sc_intr_hdl) {
-		/* only call ohci_detach()
-		 * after ohci_init()
+		/*
+		 * only call ohci_detach() after ohci_init()
 		 */
 		ohci_detach(&(sc->sc_ohci));
 
 		err = bus_teardown_intr(dev, sc->sc_ohci.sc_irq_res, sc->sc_ohci.sc_intr_hdl);
 		sc->sc_ohci.sc_intr_hdl = NULL;
 	}
-
 	if (sc->sc_ohci.sc_irq_res) {
 		bus_release_resource(dev, SYS_RES_IRQ, 0, sc->sc_ohci.sc_irq_res);
 		sc->sc_ohci.sc_irq_res = NULL;
 	}
-
 	if (sc->sc_ohci.sc_io_res) {
 		bus_release_resource(dev, SYS_RES_MEMORY, MEM_RID,
 		    sc->sc_ohci.sc_io_res);
 		sc->sc_ohci.sc_io_res = NULL;
 	}
+	usbd_config_td_unsetup(&(sc->sc_ohci.sc_config_td));
 
-	if (sc->sc_ohci.sc_bus.dma_tag) {
-		usbd_dma_tag_free(sc->sc_ohci.sc_bus.dma_tag);
-	}
+	usbd_bus_mem_free_all(&(sc->sc_ohci.sc_bus), &ohci_iterate_hw_softc);
 
-	mtx_destroy(&(sc->sc_ohci.sc_bus.mtx));
-
-	usbd_mem_free(&(sc->sc_ohci.sc_hw_page));
-
-	return 0;
+	return (0);
 }
 
 static device_method_t ohci_methods[] = {
