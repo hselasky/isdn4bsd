@@ -137,7 +137,7 @@ ulpt_write_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			sc->sc_flags |= ULPT_FLAG_WRITE_STALL;
 			usbd_transfer_start(sc->sc_xfer[4]);
@@ -205,7 +205,7 @@ ulpt_read_callback(struct usbd_xfer *xfer)
 		xfer->interval = 0;
 		sc->sc_zlps = 0;
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			sc->sc_flags |= ULPT_FLAG_READ_STALL;
 			usbd_transfer_start(sc->sc_xfer[5]);
@@ -275,7 +275,7 @@ tr_setup:
 
 	default:			/* Error */
 		DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			goto tr_setup;
 		}
 		return;
@@ -312,7 +312,7 @@ tr_setup_sub:
 		return;
 
 	default:			/* Error */
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			return;
 		}
 		usbd_copy_out(xfer->frbuffers + 0, 0, &req, sizeof(req));
@@ -338,7 +338,7 @@ static const struct usbd_config ulpt_config[ULPT_N_TRANSFER] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = ULPT_BSIZE,
+		.mh.bufsize = ULPT_BSIZE,
 		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,.proxy_buffer = 1},
 		.mh.callback = &ulpt_write_callback,
 	},
@@ -347,7 +347,7 @@ static const struct usbd_config ulpt_config[ULPT_N_TRANSFER] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = ULPT_BSIZE,
+		.mh.bufsize = ULPT_BSIZE,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,.proxy_buffer = 1},
 		.mh.callback = &ulpt_read_callback,
 	},
@@ -356,17 +356,17 @@ static const struct usbd_config ulpt_config[ULPT_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t) + 1,
+		.mh.bufsize = sizeof(usb_device_request_t) + 1,
 		.mh.callback = &ulpt_status_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 1000,	/* 1 second */
+		.mh.interval = 1000,	/* 1 second */
 	},
 
 	[3] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.callback = &ulpt_reset_callback,
 		.mh.timeout = 1000,	/* 1 second */
 	},
@@ -375,20 +375,20 @@ static const struct usbd_config ulpt_config[ULPT_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.callback = &ulpt_write_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[5] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.callback = &ulpt_read_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 };
 
@@ -591,7 +591,7 @@ found:
 		USETW(req.wValue, cd->bConfigurationValue);
 		USETW2(req.wIndex, id->bInterfaceNumber, id->bAlternateSetting);
 		USETW(req.wLength, sizeof devinfo - 1);
-		error = usbd_do_request_flags(dev, &req, devinfo, USBD_SHORT_XFER_OK,
+		error = usbd_do_request_flags(dev, &req, devinfo, USBD_ERR_SHORT_XFER_OK,
 		    &alen, USBD_DEFAULT_TIMEOUT);
 		if (error) {
 			device_printf(sc->sc_dev, "cannot get device id\n");

@@ -114,7 +114,7 @@ static const struct usbd_config ucycom_config[UCYCOM_ENDPT_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = (sizeof(usb_device_request_t) + UCYCOM_MAX_IOLEN),
+		.mh.bufsize = (sizeof(usb_device_request_t) + UCYCOM_MAX_IOLEN),
 		.mh.flags = {},
 		.mh.callback = &ucycom_ctrl_write_callback,
 		.mh.timeout = 1000,	/* 1 second */
@@ -125,7 +125,7 @@ static const struct usbd_config ucycom_config[UCYCOM_ENDPT_MAX] = {
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
-		.bufsize = UCYCOM_MAX_IOLEN,
+		.mh.bufsize = UCYCOM_MAX_IOLEN,
 		.mh.callback = &ucycom_intr_read_callback,
 	},
 
@@ -133,11 +133,11 @@ static const struct usbd_config ucycom_config[UCYCOM_ENDPT_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &ucycom_intr_read_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 };
 
@@ -444,7 +444,7 @@ tr_transferred:
 		return;
 
 	default:			/* Error */
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			return;
 		}
 		DPRINTF(sc, 0, "error=%s\n",
@@ -634,7 +634,7 @@ tr_setup:
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			sc->sc_flags |= UCYCOM_FLAG_INTR_STALL;
 			usbd_transfer_start(sc->sc_xfer[2]);
 		}

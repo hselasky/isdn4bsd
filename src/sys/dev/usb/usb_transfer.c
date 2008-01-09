@@ -296,10 +296,10 @@ usbd_status_t
 usbd_interface_count(struct usbd_device *udev, uint8_t *count)
 {
 	if (udev->cdesc == NULL) {
-		return (USBD_NOT_CONFIGURED);
+		return (USBD_ERR_NOT_CONFIGURED);
 	}
 	*count = udev->cdesc->bNumInterface;
-	return (USBD_NORMAL_COMPLETION);
+	return (USBD_ERR_NORMAL_COMPLETION);
 }
 
 struct usbd_std_packet_size {
@@ -370,7 +370,6 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 		MIN_PKT = 8,
 	};
 	struct usbd_xfer *xfer = parm->curr_xfer;
-	const struct usbd_config *setup = parm->curr_setup;
 	const struct usbd_config_sub *setup_sub = parm->curr_setup_sub;
 	usb_endpoint_descriptor_t *edesc;
 	struct usbd_std_packet_size std_size;
@@ -385,7 +384,7 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 	if ((parm->hc_max_packet_size == 0) ||
 	    (parm->hc_max_packet_count == 0) ||
 	    (parm->hc_max_frame_size == 0)) {
-		parm->err = USBD_INVAL;
+		parm->err = USBD_ERR_INVAL;
 		goto done;
 	}
 	edesc = xfer->pipe->edesc;
@@ -393,16 +392,16 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 	type = (edesc->bmAttributes & UE_XFERTYPE);
 
 	xfer->flags = setup_sub->flags;
-	xfer->nframes = setup->frames;
+	xfer->nframes = setup_sub->frames;
 	xfer->timeout = setup_sub->timeout;
 	xfer->callback = setup_sub->callback;
-	xfer->interval = setup->interval;
+	xfer->interval = setup_sub->interval;
 	xfer->endpoint = edesc->bEndpointAddress;
 	xfer->max_packet_size = UGETW(edesc->wMaxPacketSize);
 	xfer->max_packet_count = 1;
 	xfer->flags_int.usb_mode = parm->udev->flags.usb_mode;	/* make a shadow copy */
 
-	parm->bufsize = setup->bufsize;
+	parm->bufsize = setup_sub->bufsize;
 
 	if (parm->speed == USB_SPEED_HIGH) {
 		xfer->max_packet_count += (xfer->max_packet_size >> 11) & 3;
@@ -475,14 +474,14 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 			 * this is not going to work
 			 * cross hardware
 			 */
-			parm->err = USBD_INVAL;
+			parm->err = USBD_ERR_INVAL;
 			goto done;
 		}
 		if (xfer->nframes == 0) {
 			/*
 			 * this is not a valid value
 			 */
-			parm->err = USBD_ZERO_NFRAMES;
+			parm->err = USBD_ERR_ZERO_NFRAMES;
 			goto done;
 		}
 	} else {
@@ -533,7 +532,7 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 			usbd_compute_max_frame_size(xfer);
 
 		} else {
-			parm->err = USBD_ZERO_MAXP;
+			parm->err = USBD_ERR_ZERO_MAXP;
 			goto done;
 		}
 
@@ -567,7 +566,7 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 
 		if (parm->bufsize < xfer->max_frame_size) {
 			/* length wrapped around */
-			parm->err = USBD_INVAL;
+			parm->err = USBD_ERR_INVAL;
 			goto done;
 		}
 		/* subtract remainder */
@@ -621,7 +620,7 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 
 		if (xfer->max_data_length < REQ_SIZE) {
 			/* length wrapped around or too small bufsize */
-			parm->err = USBD_INVAL;
+			parm->err = USBD_ERR_INVAL;
 			goto done;
 		}
 		xfer->max_data_length -= REQ_SIZE;
@@ -709,7 +708,7 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 	    (parm->hc_max_frame_size % xfer->max_frame_size));
 
 	if (xfer->max_usb_frame_size == 0) {
-		parm->err = USBD_INVAL;
+		parm->err = USBD_ERR_INVAL;
 		goto done;
 	}
 	/* initialize frame buffers */
@@ -724,7 +723,7 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 				if (usbd_pc_dmamap_create(
 				    xfer->frbuffers + x,
 				    parm->bufsize_max)) {
-					parm->err = USBD_NOMEM;
+					parm->err = USBD_ERR_NOMEM;
 					goto done;
 				}
 			}
@@ -780,11 +779,11 @@ usbd_transfer_setup(struct usbd_device *udev,
 
 	if (n_setup == 0) {
 		PRINTFN(5, ("setup array has zero length!\n"));
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	if (ifaces == 0) {
 		PRINTFN(5, ("ifaces array is NULL!\n"));
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	if (priv_mtx == NULL) {
 		PRINTFN(5, ("using global lock\n"));
@@ -793,13 +792,14 @@ usbd_transfer_setup(struct usbd_device *udev,
 	/* sanity checks */
 	for (setup = setup_start, n = 0;
 	    setup != setup_end; setup++, n++) {
-		if (setup->bufsize == 0xffffffff) {
-			parm.err = USBD_BAD_BUFSIZE;
+		if ((setup->mh.bufsize == 0xffffffff) ||
+		    (setup->md.bufsize == 0xffffffff)) {
+			parm.err = USBD_ERR_BAD_BUFSIZE;
 			PRINTF(("invalid bufsize\n"));
 		}
 		if ((setup->mh.callback == NULL) &&
 		    (setup->md.callback == NULL)) {
-			parm.err = USBD_NO_CALLBACK;
+			parm.err = USBD_ERR_NO_CALLBACK;
 			PRINTF(("no callback\n"));
 		}
 		ppxfer[n] = NULL;
@@ -815,7 +815,7 @@ usbd_transfer_setup(struct usbd_device *udev,
 	parm.hc_max_packet_count = 1;
 
 	if (parm.speed >= USB_SPEED_MAX) {
-		parm.err = USBD_INVAL;
+		parm.err = USBD_ERR_INVAL;
 		goto done;
 	}
 	/* setup all transfers */
@@ -846,11 +846,10 @@ usbd_transfer_setup(struct usbd_device *udev,
 			    (&usbd_callback_intr_td, info,
 			    &(info->done_thread), "USB interrupt thread")) {
 				info->done_thread = NULL;
-				parm.err = USBD_NO_INTR_THREAD;
+				parm.err = USBD_ERR_NO_INTR_THREAD;
 				goto done;
 			}
 		}
-
 		/* reset sizes */
 
 		parm.size[0] = 0;
@@ -882,7 +881,7 @@ usbd_transfer_setup(struct usbd_device *udev,
 				if (parm.curr_setup_sub->flags.no_pipe_ok) {
 					continue;
 				}
-				parm.err = USBD_NO_PIPE;
+				parm.err = USBD_ERR_NO_PIPE;
 				goto done;
 			}
 			/* store current setup pointer */
@@ -1003,7 +1002,7 @@ usbd_transfer_setup(struct usbd_device *udev,
 		buf = malloc(parm.size[0], M_USB, M_WAITOK | M_ZERO);
 
 		if (buf == NULL) {
-			parm.err = USBD_NOMEM;
+			parm.err = USBD_ERR_NOMEM;
 			PRINTFN(-1, ("cannot allocate memory block for "
 			    "configuration (%d bytes)\n",
 			    parm.size[0]));
@@ -1113,7 +1112,7 @@ usbd_transfer_unsetup_sub(struct usbd_memory_info *info, uint8_t needs_delay)
  *	usbd_transfer_unsetup - unsetup/free an array of USB transfers
  *
  * NOTE: if the transfer was in progress, the callback will
- * called with "xfer->error=USBD_CANCELLED", before this
+ * called with "xfer->error=USBD_ERR_CANCELLED", before this
  * function returns
  *------------------------------------------------------------------------*/
 void
@@ -1239,7 +1238,7 @@ usbd_std_root_transfer(struct usbd_std_root_transfer *std,
 				usbd_copy_out(xfer->frbuffers + 0, 0,
 				    &(std->req), sizeof(std->req));
 			} else {
-				std->err = USBD_INVAL;
+				std->err = USBD_ERR_INVAL;
 				goto done;
 			}
 
@@ -1569,7 +1568,7 @@ usbd_start_hardware(struct usbd_xfer *xfer)
 	/* sanity check */
 
 	if (xfer->nframes == 0) {
-		usbd_premature_callback(xfer, USBD_INVAL);
+		usbd_premature_callback(xfer, USBD_ERR_INVAL);
 		return;
 	}
 	/* compute total transfer length */
@@ -1578,7 +1577,7 @@ usbd_start_hardware(struct usbd_xfer *xfer)
 		xfer->sumlen += xfer->frlengths[x];
 		if (xfer->sumlen < xfer->frlengths[x]) {
 			/* length wrapped around */
-			usbd_premature_callback(xfer, USBD_INVAL);
+			usbd_premature_callback(xfer, USBD_ERR_INVAL);
 			return;
 		}
 	}
@@ -1593,7 +1592,7 @@ usbd_start_hardware(struct usbd_xfer *xfer)
 	if (xfer->flags_int.control_xfr) {
 
 		if (usbd_start_hardware_sub(xfer)) {
-			usbd_premature_callback(xfer, USBD_STALLED);
+			usbd_premature_callback(xfer, USBD_ERR_STALLED);
 			return;
 		}
 	}
@@ -1714,7 +1713,7 @@ load_complete:
 
 			info->dma_refcount++;
 			usbd_premature_callback(xfer,
-			    USBD_CANCELLED);
+			    USBD_ERR_CANCELLED);
 			info->dma_refcount--;
 
 		} else if (info->dma_error) {
@@ -1726,7 +1725,7 @@ load_complete:
 			/* report error */
 
 			usbd_premature_callback(xfer,
-			    USBD_DMA_LOAD_FAILED);
+			    USBD_ERR_DMA_LOAD_FAILED);
 
 			info->dma_refcount--;
 
@@ -1973,7 +1972,7 @@ usbd_transfer_stop(struct usbd_xfer *xfer)
 
 #ifdef USB_DEBUG
 	/* check error value */
-	if (xfer->error != USBD_CANCELLED) {
+	if (xfer->error != USBD_ERR_CANCELLED) {
 		PRINTFN(-1, ("wrong error code: %s\n",
 		    usbd_errstr(xfer->error)));
 	}
@@ -2335,8 +2334,8 @@ usbd_callback_wrapper(struct usbd_xfer *xfer, void *ctd, uint8_t context)
 			 */
 			if (xfer->flags_int.transferring &&
 			    xfer->flags_int.bdma_enable &&
-			    ((xfer->error == USBD_CANCELLED) ||
-			    (xfer->error == USBD_TIMEOUT)) &&
+			    ((xfer->error == USBD_ERR_CANCELLED) ||
+			    (xfer->error == USBD_ERR_TIMEOUT)) &&
 			    (!xfer->flags_int.did_dma_delay)) {
 
 				/* only do this one time */
@@ -2377,9 +2376,9 @@ usbd_callback_wrapper(struct usbd_xfer *xfer, void *ctd, uint8_t context)
 				 * Check if we got started after that
 				 * we got cancelled, but before we
 				 * managed to deliver the
-				 * USBD_CANCELLED message!
+				 * USBD_ERR_CANCELLED message!
 				 */
-				if ((xfer->error == USBD_CANCELLED) &&
+				if ((xfer->error == USBD_ERR_CANCELLED) &&
 				    (xfer->flags_int.started)) {
 					/* restart by doing a second loop */
 					xfer->flags_int.recursed_2 = 0;
@@ -2657,7 +2656,7 @@ done:
  *
  * NOTE: In some special cases the USB transfer will not be removed from
  * the pipe queue, but remain first. To enforce USB transfer removal call
- * this function passing the error code "USBD_CANCELLED".
+ * this function passing the error code "USBD_ERR_CANCELLED".
  *------------------------------------------------------------------------*/
 void
 usbd_transfer_dequeue(struct usbd_xfer *xfer, usbd_status_t error)
@@ -2724,7 +2723,7 @@ usbd_transfer_dequeue(struct usbd_xfer *xfer, usbd_status_t error)
 			xfer->flags_int.control_act = 0;
 
 			if (!xfer->flags_int.short_xfer_ok) {
-				error = USBD_SHORT_XFER;
+				error = USBD_ERR_SHORT_XFER;
 			}
 		}
 	}
@@ -2745,7 +2744,7 @@ usbd_transfer_dequeue(struct usbd_xfer *xfer, usbd_status_t error)
 	 * execution queue:
 	 */
 	if ((xfer->error) &&
-	    (xfer->error != USBD_CANCELLED) &&
+	    (xfer->error != USBD_ERR_CANCELLED) &&
 	    (xfer->flags.pipe_bof)) {
 		PRINTFN(4, ("xfer=%p: Block On Failure "
 		    "on pipe=%p\n", xfer, xfer->pipe));
@@ -2817,7 +2816,7 @@ usbd_handle_request_callback(struct usbd_xfer *xfer)
 		err = usbd_handle_request(xfer);
 
 		if (err) {
-			if (err == USBD_BAD_CONTEXT) {
+			if (err == USBD_ERR_BAD_CONTEXT) {
 				/*
 				 * Currently we get a "start" context by
 				 * waking up the explore thread.
@@ -2836,7 +2835,7 @@ usbd_handle_request_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* should not happen - try stalling */
 			goto tr_restart;
 		}
@@ -2877,12 +2876,12 @@ usbd_handle_set_config(struct usbd_xfer *xfer, uint8_t conf_no)
 	if (usbd_set_config_index(xfer->udev, conf_no, 0)) {
 		PRINTFN(0, ("set config %d failed\n", conf_no));
 		mtx_lock(xfer->priv_mtx);
-		return (USBD_STALLED);
+		return (USBD_ERR_STALLED);
 	}
 	if (usbd_probe_and_attach(xfer->udev, USB_IFACE_INDEX_ANY)) {
 		PRINTFN(0, ("probe and attach failed\n"));
 		mtx_lock(xfer->priv_mtx);
-		return (USBD_STALLED);
+		return (USBD_ERR_STALLED);
 	}
 	mtx_lock(xfer->priv_mtx);
 	return (0);
@@ -2906,7 +2905,7 @@ usbd_handle_set_stall_sub(struct usbd_device *udev, uint8_t ea_val,
 	if (pipe == NULL) {
 		/* nothing to do */
 		PRINTFN(0, ("Cannot find endpoint\n"));
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	et = (pipe->edesc->bmAttributes & UE_XFERTYPE);
 
@@ -2949,7 +2948,7 @@ usbd_handle_set_stall_sub(struct usbd_device *udev, uint8_t ea_val,
 		/*
 		 * If "xfer" is non-NULL the "set_stall" method will
 		 * complete the USB transfer like in case of a timeout
-		 * setting the error code "USBD_STALLED".
+		 * setting the error code "USBD_ERR_STALLED".
 		 */
 		(udev->bus->methods->set_stall) (udev, xfer, pipe);
 	} else {
@@ -3035,7 +3034,7 @@ usbd_handle_remote_wakeup(struct usbd_xfer *xfer, uint8_t is_on)
  *
  * Returns:
  * 0: Ready to start hardware
- * USBD_BAD_CONTEXT: Need to switch context
+ * USBD_ERR_BAD_CONTEXT: Need to switch context
  * Else: Stall current transfer, if any
  *------------------------------------------------------------------------*/
 static usbd_status_t
@@ -3469,11 +3468,11 @@ tr_valid:
 tr_stalled:
 	PRINTFN(0, ("%s\n", (state == ST_POST_STATUS) ?
 	    "complete" : "stalled"));
-	return (USBD_STALLED);
+	return (USBD_ERR_STALLED);
 
 tr_bad_context:
 	PRINTFN(0, ("bad context\n"));
-	return (USBD_BAD_CONTEXT);
+	return (USBD_ERR_BAD_CONTEXT);
 }
 
 static const struct usbd_config usbd_control_ep_cfg[1] = {
@@ -3481,9 +3480,10 @@ static const struct usbd_config usbd_control_ep_cfg[1] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control endpoint */
 		.direction = UE_DIR_ANY,
-		.bufsize = 1024,	/* bytes */
+		.mh.bufsize = 1024,	/* bytes */
 		.mh.flags = {.proxy_buffer = 1,.short_xfer_ok = 1,},
 		.mh.callback = &usbd_do_request_callback,
+		.md.bufsize = 1024,	/* bytes */
 		.md.flags = {.proxy_buffer = 1,.short_xfer_ok = 0,},
 		.md.callback = &usbd_handle_request_callback,
 	},
@@ -3606,8 +3606,8 @@ usbd_do_request_flags(struct usbd_device *udev, struct mtx *mtx,
 		PRINTFN(0, ("USB device mode\n"));
 		usbd_temp_get_desc(udev, req, &desc, &temp);
 		if (length > temp) {
-			if (!(flags & USBD_SHORT_XFER_OK)) {
-				return (USBD_SHORT_XFER);
+			if (!(flags & USBD_ERR_SHORT_XFER_OK)) {
+				return (USBD_ERR_SHORT_XFER);
 			}
 			length = temp;
 		}
@@ -3649,7 +3649,7 @@ usbd_do_request_flags(struct usbd_device *udev, struct mtx *mtx,
 	xfer = udev->default_xfer[0];
 	if (xfer == NULL) {
 		/* most likely out of memory */
-		err = USBD_NOMEM;
+		err = USBD_ERR_NOMEM;
 		goto done;
 	}
 	mtx_lock(xfer->priv_mtx);
@@ -3732,8 +3732,8 @@ usbd_do_request_flags(struct usbd_device *udev, struct mtx *mtx,
 
 		if (temp > xfer->actlen) {
 			temp = xfer->actlen;
-			if (!(flags & USBD_SHORT_XFER_OK)) {
-				err = USBD_SHORT_XFER;
+			if (!(flags & USBD_ERR_SHORT_XFER_OK)) {
+				err = USBD_ERR_SHORT_XFER;
 			}
 			length = temp;
 		}
@@ -3760,7 +3760,7 @@ usbd_do_request_flags(struct usbd_device *udev, struct mtx *mtx,
 		delta_ticks = ticks - start_ticks;
 		if (delta_ticks > max_ticks) {
 			if (!err) {
-				err = USBD_TIMEOUT;
+				err = USBD_ERR_TIMEOUT;
 			}
 		}
 		if (err) {
@@ -3884,7 +3884,7 @@ usbd_clear_stall_callback(struct usbd_xfer *xfer1,
 		break;
 
 	default:			/* Error */
-		if (xfer1->error == USBD_CANCELLED) {
+		if (xfer1->error == USBD_ERR_CANCELLED) {
 			return (0);
 		}
 		break;

@@ -115,14 +115,16 @@ static const struct usbd_config cdce_config[CDCE_N_TRANSFER] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.frames = CDCE_512X4_FRAGS_MAX + 1,
-		.bufsize = (CDCE_512X4_FRAMES_MAX * MCLBYTES) + sizeof(usb_cdc_mf_eth_512x4_header_t),
 		.if_index = 0,
 		/* Host Mode */
+		.mh.frames = CDCE_512X4_FRAGS_MAX + 1,
+		.mh.bufsize = (CDCE_512X4_FRAMES_MAX * MCLBYTES) + sizeof(usb_cdc_mf_eth_512x4_header_t),
 		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,.ext_buffer = 1,},
 		.mh.callback = &cdce_bulk_write_callback,
 		.mh.timeout = 10000,	/* 10 seconds */
 		/* Device Mode */
+		.md.frames = CDCE_512X4_FRAGS_MAX + 1,
+		.md.bufsize = (CDCE_512X4_FRAMES_MAX * MCLBYTES) + sizeof(usb_cdc_mf_eth_512x4_header_t),
 		.md.flags = {.pipe_bof = 1,.short_xfer_ok = 1,.ext_buffer = 1,},
 		.md.callback = &cdce_bulk_read_callback,
 		.md.timeout = 0,	/* no timeout */
@@ -132,14 +134,16 @@ static const struct usbd_config cdce_config[CDCE_N_TRANSFER] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.frames = CDCE_512X4_FRAGS_MAX + 1,
-		.bufsize = (CDCE_512X4_FRAMES_MAX * MCLBYTES) + sizeof(usb_cdc_mf_eth_512x4_header_t),
 		.if_index = 0,
 		/* Host Mode */
+		.mh.frames = CDCE_512X4_FRAGS_MAX + 1,
+		.mh.bufsize = (CDCE_512X4_FRAMES_MAX * MCLBYTES) + sizeof(usb_cdc_mf_eth_512x4_header_t),
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,.ext_buffer = 1,},
 		.mh.callback = &cdce_bulk_read_callback,
 		.mh.timeout = 0,	/* no timeout */
 		/* Device Mode */
+		.md.frames = CDCE_512X4_FRAGS_MAX + 1,
+		.md.bufsize = (CDCE_512X4_FRAMES_MAX * MCLBYTES) + sizeof(usb_cdc_mf_eth_512x4_header_t),
 		.md.flags = {.pipe_bof = 1,.force_short_xfer = 1,.ext_buffer = 1,},
 		.md.callback = &cdce_bulk_write_callback,
 		.md.timeout = 10000,	/* 10 seconds */
@@ -149,10 +153,10 @@ static const struct usbd_config cdce_config[CDCE_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
-		.interval = 50,		/* 50ms */
 		.if_index = 0,
 		/* Host Mode Only */
+		.mh.bufsize = sizeof(usb_device_request_t),
+		.mh.interval = 50,	/* 50ms */
 		.mh.flags = {},
 		.mh.callback = &cdce_bulk_write_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
@@ -162,10 +166,10 @@ static const struct usbd_config cdce_config[CDCE_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
-		.interval = 50,		/* 50ms */
 		.if_index = 0,
 		/* Host Mode Only */
+		.mh.bufsize = sizeof(usb_device_request_t),
+		.mh.interval = 50,	/* 50ms */
 		.mh.flags = {},
 		.mh.callback = &cdce_bulk_read_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
@@ -175,13 +179,14 @@ static const struct usbd_config cdce_config[CDCE_N_TRANSFER] = {
 		.type = UE_INTERRUPT,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = CDCE_IND_SIZE_MAX,
 		.if_index = 1,
 		/* Host Mode */
+		.mh.bufsize = CDCE_IND_SIZE_MAX,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,.no_pipe_ok = 1,},
 		.mh.callback = &cdce_intr_read_callback,
 		.mh.timeout = 0,
 		/* Device Mode */
+		.md.bufsize = CDCE_IND_SIZE_MAX,
 		.md.flags = {.pipe_bof = 1,.force_short_xfer = 1,.no_pipe_ok = 1,},
 		.md.callback = &cdce_intr_write_callback,
 		.md.timeout = 10000,	/* 10 seconds */
@@ -191,10 +196,10 @@ static const struct usbd_config cdce_config[CDCE_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
-		.interval = 50,		/* 50ms */
 		.if_index = 1,
 		/* Host Mode Only */
+		.mh.bufsize = sizeof(usb_device_request_t),
+		.mh.interval = 50,	/* 50ms */
 		.mh.flags = {},
 		.mh.callback = &cdce_intr_read_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
@@ -443,7 +448,7 @@ alloc_transfers:
 	    UDESC_CS_INTERFACE, 0 - 1, UDESCSUB_CDC_ENF, 0 - 1);
 
 	if ((ue == NULL) || (ue->bLength < sizeof(*ue))) {
-		error = USBD_INVAL;
+		error = USBD_ERR_INVAL;
 	} else {
 		error = usbreq_get_string_any
 		    (uaa->device, &Giant, eaddr_str,
@@ -781,7 +786,7 @@ tr_setup:
 		/* free all previous mbufs */
 		cdce_free_mq(&(sc->sc_tx_mq));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			xfer->flags.stall_pipe = 1;
 			goto tr_setup;
@@ -873,7 +878,7 @@ tr_setup:
 		cdce_free_mq(&(sc->sc_tx_mq));
 		ifp->if_oerrors++;
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			xfer->flags.stall_pipe = 1;
 			goto tr_setup;
@@ -1248,7 +1253,7 @@ tr_setup:
 		DPRINTF(sc, 0, "error = %s\n",
 		    usbd_errstr(xfer->error));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			xfer->flags.stall_pipe = 1;
 			goto tr_setup;
@@ -1264,7 +1269,7 @@ tr_setup:
 	 *
 	 * By safe we mean that if "usbd_transfer_stop()" is called,
 	 * we will get a callback having the error code
-	 * USBD_CANCELLED.
+	 * USBD_ERR_CANCELLED.
 	 */
 	if (fwd_mq) {
 		cdce_fwd_mq(sc, &(sc->sc_rx_mq));
@@ -1344,7 +1349,7 @@ tr_setup:
 		/* free all mbufs */
 		cdce_free_mq(&(sc->sc_rx_mq));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			xfer->flags.stall_pipe = 1;
 			goto tr_setup;
@@ -1359,7 +1364,7 @@ tr_setup:
 	 *
 	 * By safe we mean that if "usbd_transfer_stop()" is called,
 	 * we will get a callback having the error code
-	 * USBD_CANCELLED.
+	 * USBD_ERR_CANCELLED.
 	 */
 	if (m_rx) {
 		mtx_unlock(&(sc->sc_mtx));
@@ -1437,7 +1442,7 @@ tr_setup:
 		break;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* start clear stall */
 			xfer->flags.stall_pipe = 1;
 			goto tr_setup;
@@ -1471,7 +1476,7 @@ tr_setup:
 		break;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* start clear stall */
 			xfer->flags.stall_pipe = 1;
 			goto tr_setup;

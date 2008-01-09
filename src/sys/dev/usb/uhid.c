@@ -169,7 +169,7 @@ uhid_intr_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			sc->sc_flags |= UHID_FLAG_INTR_STALL;
 			usbd_transfer_start(sc->sc_xfer[1]);
@@ -293,7 +293,7 @@ static const struct usbd_config uhid_config[UHID_N_TRANSFER] = {
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
-		.bufsize = 0,		/* use wMaxPacketSize */
+		.mh.bufsize = 0,	/* use wMaxPacketSize */
 		.mh.callback = &uhid_intr_callback,
 	},
 
@@ -301,17 +301,17 @@ static const struct usbd_config uhid_config[UHID_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.callback = &uhid_intr_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[2] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t) + UHID_BSIZE,
+		.mh.bufsize = sizeof(usb_device_request_t) + UHID_BSIZE,
 		.mh.callback = &uhid_write_callback,
 		.mh.timeout = 1000,	/* 1 second */
 	},
@@ -320,7 +320,7 @@ static const struct usbd_config uhid_config[UHID_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t) + UHID_BSIZE,
+		.mh.bufsize = sizeof(usb_device_request_t) + UHID_BSIZE,
 		.mh.callback = &uhid_read_callback,
 		.mh.timeout = 1000,	/* 1 second */
 	},

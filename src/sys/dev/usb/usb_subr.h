@@ -40,35 +40,35 @@
 
 #define	USBD_STATUS_DESC(enum,value) #enum
 #define	USBD_STATUS(m)\
-m(USBD_NORMAL_COMPLETION,=0 /* must be zero*/)\
+m(USBD_ERR_NORMAL_COMPLETION,=0 /* must be zero*/)\
 /* errors */\
-m(USBD_PENDING_REQUESTS,)\
-m(USBD_NOT_STARTED,)\
-m(USBD_INVAL,)\
-m(USBD_NOMEM,)\
-m(USBD_CANCELLED,)\
-m(USBD_BAD_ADDRESS,)\
-m(USBD_BAD_BUFSIZE,)\
-m(USBD_BAD_FLAG,)\
-m(USBD_NO_CALLBACK,)\
-m(USBD_IN_USE,)\
-m(USBD_NO_ADDR,)\
-m(USBD_NO_PIPE,)\
-m(USBD_ZERO_NFRAMES,)\
-m(USBD_ZERO_MAXP,)\
-m(USBD_SET_ADDR_FAILED,)\
-m(USBD_NO_POWER,)\
-m(USBD_TOO_DEEP,)\
-m(USBD_IOERROR,)\
-m(USBD_NOT_CONFIGURED,)\
-m(USBD_TIMEOUT,)\
-m(USBD_SHORT_XFER,)\
-m(USBD_STALLED,)\
-m(USBD_INTERRUPTED,)\
-m(USBD_DMA_LOAD_FAILED,)\
-m(USBD_BAD_CONTEXT,)\
-m(USBD_NO_ROOT_HUB,)\
-m(USBD_NO_INTR_THREAD,)\
+m(USBD_ERR_PENDING_REQUESTS,)\
+m(USBD_ERR_NOT_STARTED,)\
+m(USBD_ERR_INVAL,)\
+m(USBD_ERR_NOMEM,)\
+m(USBD_ERR_CANCELLED,)\
+m(USBD_ERR_BAD_ADDRESS,)\
+m(USBD_ERR_BAD_BUFSIZE,)\
+m(USBD_ERR_BAD_FLAG,)\
+m(USBD_ERR_NO_CALLBACK,)\
+m(USBD_ERR_IN_USE,)\
+m(USBD_ERR_NO_ADDR,)\
+m(USBD_ERR_NO_PIPE,)\
+m(USBD_ERR_ZERO_NFRAMES,)\
+m(USBD_ERR_ZERO_MAXP,)\
+m(USBD_ERR_SET_ADDR_FAILED,)\
+m(USBD_ERR_NO_POWER,)\
+m(USBD_ERR_TOO_DEEP,)\
+m(USBD_ERR_IOERROR,)\
+m(USBD_ERR_NOT_CONFIGURED,)\
+m(USBD_ERR_TIMEOUT,)\
+m(USBD_ERR_SHORT_XFER,)\
+m(USBD_ERR_STALLED,)\
+m(USBD_ERR_INTERRUPTED,)\
+m(USBD_ERR_DMA_LOAD_FAILED,)\
+m(USBD_ERR_BAD_CONTEXT,)\
+m(USBD_ERR_NO_ROOT_HUB,)\
+m(USBD_ERR_NO_INTR_THREAD,)\
 					/**/
 
 MAKE_ENUM(USBD_STATUS,
@@ -505,8 +505,8 @@ struct usbd_xfer_flags {
 	uint8_t	ext_buffer:1;		/* uses external DMA buffer */
 	uint8_t	manual_status:1;	/* non automatic status stage on
 					 * control transfers */
-	uint8_t	no_pipe_ok:1;		/* set if "USBD_NO_PIPE" error can be
-					 * ignored */
+	uint8_t	no_pipe_ok:1;		/* set if "USBD_ERR_NO_PIPE" error can
+					 * be ignored */
 	uint8_t	stall_pipe:1;		/* set if the endpoint belonging to
 					 * this USB transfer should be stalled
 					 * before starting this transfer! */
@@ -544,6 +544,10 @@ struct usbd_xfer_flags_int {
 
 struct usbd_config_sub {
 	usbd_callback_t *callback;	/* USB transfer callback */
+	uint32_t bufsize;		/* total pipe buffer size in bytes */
+	uint32_t frames;		/* maximum number of USB frames */
+	uint16_t interval;		/* interval in milliseconds */
+#define	USBD_DEFAULT_INTERVAL	0
 	uint16_t timeout;		/* transfer timeout in milliseconds */
 	struct usbd_xfer_flags flags;	/* transfer flags */
 };
@@ -551,10 +555,6 @@ struct usbd_config_sub {
 struct usbd_config {
 	struct usbd_config_sub mh;	/* parameters for USB_MODE_HOST */
 	struct usbd_config_sub md;	/* parameters for USB_MODE_DEVICE */
-	uint32_t bufsize;		/* total pipe buffer size in bytes */
-	uint32_t frames;		/* maximum number of USB frames */
-	uint16_t interval;		/* interval in milliseconds */
-#define	USBD_DEFAULT_INTERVAL	0
 	uint8_t	type;			/* pipe type */
 	uint8_t	endpoint;		/* pipe number */
 	uint8_t	direction;		/* pipe direction */

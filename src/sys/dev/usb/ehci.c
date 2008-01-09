@@ -191,7 +191,7 @@ ehci_hc_reset(ehci_softc_t *sc)
 	}
 
 	if (hcr) {
-		return (USBD_IOERROR);
+		return (USBD_ERR_IOERROR);
 	}
 	return (0);
 }
@@ -258,7 +258,7 @@ ehci_init(ehci_softc_t *sc)
 	 */
 	if (EHCI_CMD_FLS(EOREAD4(sc, EHCI_USBCMD)) == 3) {
 		device_printf(sc->sc_bus.bdev, "invalid frame-list-size\n");
-		err = USBD_IOERROR;
+		err = USBD_ERR_IOERROR;
 		goto done;
 	}
 	/* set up the bus struct */
@@ -475,7 +475,7 @@ ehci_init(ehci_softc_t *sc)
 	}
 	if (hcr) {
 		device_printf(sc->sc_bus.bdev, "run timeout\n");
-		err = USBD_IOERROR;
+		err = USBD_ERR_IOERROR;
 		goto done;
 	}
 done:
@@ -1215,7 +1215,7 @@ ehci_non_isoc_done_sub(struct usbd_xfer *xfer)
 #endif
 
 	return ((status & EHCI_QTD_HALTED) ?
-	    USBD_STALLED : USBD_NORMAL_COMPLETION);
+	    USBD_ERR_STALLED : USBD_ERR_NORMAL_COMPLETION);
 }
 
 static void
@@ -1303,7 +1303,7 @@ ehci_check_transfer(struct usbd_xfer *xfer)
 		status |= le32toh(td->sitd_status);
 
 		if (!(status & EHCI_SITD_ACTIVE)) {
-			ehci_device_done(xfer, USBD_NORMAL_COMPLETION);
+			ehci_device_done(xfer, USBD_ERR_NORMAL_COMPLETION);
 			goto transferred;
 		}
 	} else if (methods == &ehci_device_isoc_hs_methods) {
@@ -1330,7 +1330,7 @@ ehci_check_transfer(struct usbd_xfer *xfer)
 
 		/* if no transactions are active we continue */
 		if (!(status & htole32(EHCI_ITD_ACTIVE))) {
-			ehci_device_done(xfer, USBD_NORMAL_COMPLETION);
+			ehci_device_done(xfer, USBD_ERR_NORMAL_COMPLETION);
 			goto transferred;
 		}
 	} else {
@@ -1518,7 +1518,7 @@ ehci_timeout(struct usbd_xfer *xfer)
 	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	/* transfer is transferred */
-	ehci_device_done(xfer, USBD_TIMEOUT);
+	ehci_device_done(xfer, USBD_ERR_TIMEOUT);
 
 	/* queue callback for execution */
 	usbd_callback_wrapper(xfer, NULL, USBD_CONTEXT_CALLBACK);
@@ -2158,7 +2158,7 @@ ehci_device_bulk_open(struct usbd_xfer *xfer)
 static void
 ehci_device_bulk_close(struct usbd_xfer *xfer)
 {
-	ehci_device_done(xfer, USBD_CANCELLED);
+	ehci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2208,7 +2208,7 @@ ehci_device_ctrl_open(struct usbd_xfer *xfer)
 static void
 ehci_device_ctrl_close(struct usbd_xfer *xfer)
 {
-	ehci_device_done(xfer, USBD_CANCELLED);
+	ehci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2314,7 +2314,7 @@ ehci_device_intr_close(struct usbd_xfer *xfer)
 
 	sc->sc_intr_stat[xfer->qh_pos]--;
 
-	ehci_device_done(xfer, USBD_CANCELLED);
+	ehci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2399,7 +2399,7 @@ ehci_device_isoc_fs_open(struct usbd_xfer *xfer)
 static void
 ehci_device_isoc_fs_close(struct usbd_xfer *xfer)
 {
-	ehci_device_done(xfer, USBD_CANCELLED);
+	ehci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2682,7 +2682,7 @@ ehci_device_isoc_hs_open(struct usbd_xfer *xfer)
 static void
 ehci_device_isoc_hs_close(struct usbd_xfer *xfer)
 {
-	ehci_device_done(xfer, USBD_CANCELLED);
+	ehci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2939,7 +2939,7 @@ ehci_root_ctrl_close(struct usbd_xfer *xfer)
 	if (sc->sc_root_ctrl.xfer == xfer) {
 		sc->sc_root_ctrl.xfer = NULL;
 	}
-	ehci_device_done(xfer, USBD_CANCELLED);
+	ehci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -3119,7 +3119,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 		switch (value >> 8) {
 		case UDESC_DEVICE:
 			if ((value & 0xff) != 0) {
-				std->err = USBD_IOERROR;
+				std->err = USBD_ERR_IOERROR;
 				goto done;
 			}
 			std->len = sizeof(ehci_devd);
@@ -3132,7 +3132,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 			 */
 		case UDESC_DEVICE_QUALIFIER:
 			if ((value & 0xff) != 0) {
-				std->err = USBD_IOERROR;
+				std->err = USBD_ERR_IOERROR;
 				goto done;
 			}
 			std->len = sizeof(ehci_odevd);
@@ -3141,7 +3141,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 
 		case UDESC_CONFIG:
 			if ((value & 0xff) != 0) {
-				std->err = USBD_IOERROR;
+				std->err = USBD_ERR_IOERROR;
 				goto done;
 			}
 			std->len = sizeof(ehci_confd);
@@ -3173,7 +3173,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 			    ptr);
 			break;
 		default:
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		break;
@@ -3192,14 +3192,14 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 		break;
 	case C(UR_SET_ADDRESS, UT_WRITE_DEVICE):
 		if (value >= USB_MAX_DEVICES) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		sc->sc_addr = value;
 		break;
 	case C(UR_SET_CONFIG, UT_WRITE_DEVICE):
 		if ((value != 0) && (value != 1)) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		sc->sc_conf = value;
@@ -3209,7 +3209,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 	case C(UR_SET_FEATURE, UT_WRITE_DEVICE):
 	case C(UR_SET_FEATURE, UT_WRITE_INTERFACE):
 	case C(UR_SET_FEATURE, UT_WRITE_ENDPOINT):
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	case C(UR_SET_INTERFACE, UT_WRITE_INTERFACE):
 		break;
@@ -3223,7 +3223,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 
 		if ((index < 1) ||
 		    (index > sc->sc_noport)) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		port = EHCI_PORTSC(index);
@@ -3263,7 +3263,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 			sc->sc_isreset = 0;
 			break;
 		default:
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 #if 0
@@ -3286,7 +3286,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 		break;
 	case C(UR_GET_DESCRIPTOR, UT_READ_CLASS_DEVICE):
 		if ((value & 0xff) != 0) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		v = EOREAD4(sc, EHCI_HCSPARAMS);
@@ -3314,7 +3314,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 		    index));
 		if ((index < 1) ||
 		    (index > sc->sc_noport)) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		v = EOREAD4(sc, EHCI_PORTSC(index));
@@ -3346,14 +3346,14 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 		std->len = sizeof(sc->sc_hub_desc.ps);
 		break;
 	case C(UR_SET_DESCRIPTOR, UT_WRITE_CLASS_DEVICE):
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	case C(UR_SET_FEATURE, UT_WRITE_CLASS_DEVICE):
 		break;
 	case C(UR_SET_FEATURE, UT_WRITE_CLASS_OTHER):
 		if ((index < 1) ||
 		    (index > sc->sc_noport)) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		port = EHCI_PORTSC(index);
@@ -3404,7 +3404,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 			if (v & EHCI_PS_PR) {
 				device_printf(sc->sc_bus.bdev,
 				    "port reset timeout\n");
-				std->err = USBD_TIMEOUT;
+				std->err = USBD_ERR_TIMEOUT;
 				goto done;
 			}
 			if (!(v & EHCI_PS_PE)) {
@@ -3435,7 +3435,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 			break;
 
 		default:
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		break;
@@ -3445,7 +3445,7 @@ ehci_root_ctrl_done(struct usbd_xfer *xfer,
 	case C(UR_STOP_TT, UT_WRITE_CLASS_OTHER):
 		break;
 	default:
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	}
 done:
@@ -3485,7 +3485,7 @@ ehci_root_intr_close(struct usbd_xfer *xfer)
 	if (sc->sc_root_intr.xfer == xfer) {
 		sc->sc_root_intr.xfer = NULL;
 	}
-	ehci_device_done(xfer, USBD_CANCELLED);
+	ehci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -3671,7 +3671,7 @@ alloc_dma_set:
 		if (usbd_transfer_setup_sub_malloc(
 		    parm, &page_info, &pc, sizeof(*td),
 		    EHCI_ITD_ALIGN)) {
-			parm->err = USBD_NOMEM;
+			parm->err = USBD_ERR_NOMEM;
 			break;
 		}
 		if (parm->buf) {
@@ -3696,7 +3696,7 @@ alloc_dma_set:
 		if (usbd_transfer_setup_sub_malloc(
 		    parm, &page_info, &pc, sizeof(*td),
 		    EHCI_SITD_ALIGN)) {
-			parm->err = USBD_NOMEM;
+			parm->err = USBD_ERR_NOMEM;
 			break;
 		}
 		if (parm->buf) {
@@ -3721,7 +3721,7 @@ alloc_dma_set:
 		if (usbd_transfer_setup_sub_malloc(
 		    parm, &page_info, &pc, sizeof(*qtd),
 		    EHCI_QTD_ALIGN)) {
-			parm->err = USBD_NOMEM;
+			parm->err = USBD_ERR_NOMEM;
 			break;
 		}
 		if (parm->buf) {
@@ -3750,7 +3750,7 @@ alloc_dma_set:
 		if (usbd_transfer_setup_sub_malloc(
 		    parm, &page_info, &pc, sizeof(*qh),
 		    EHCI_QH_ALIGN)) {
-			parm->err = USBD_NOMEM;
+			parm->err = USBD_ERR_NOMEM;
 			break;
 		}
 		if (parm->buf) {

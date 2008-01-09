@@ -1060,40 +1060,40 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_bbb_reset1_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
-		.interval = 500,	/* 500 milliseconds */
+		.mh.interval = 500,	/* 500 milliseconds */
 	},
 
 	[UMASS_T_BBB_RESET2] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_bbb_reset2_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
-		.interval = 50,		/* 50 milliseconds */
+		.mh.interval = 50,	/* 50 milliseconds */
 	},
 
 	[UMASS_T_BBB_RESET3] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_bbb_reset3_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
-		.interval = 50,		/* 50 milliseconds */
+		.mh.interval = 50,	/* 50 milliseconds */
 	},
 
 	[UMASS_T_BBB_COMMAND] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = sizeof(umass_bbb_cbw_t),
+		.mh.bufsize = sizeof(umass_bbb_cbw_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_bbb_command_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
@@ -1103,7 +1103,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = UMASS_BULK_SIZE,
+		.mh.bufsize = UMASS_BULK_SIZE,
 		.mh.flags = {.proxy_buffer = 1,.short_xfer_ok = 1, UMASS_USB_FLAGS},
 		.mh.callback = &umass_t_bbb_data_read_callback,
 		.mh.timeout = 0,	/* overwritten later */
@@ -1113,7 +1113,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_bbb_data_rd_cs_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
@@ -1123,7 +1123,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = UMASS_BULK_SIZE,
+		.mh.bufsize = UMASS_BULK_SIZE,
 		.mh.flags = {.proxy_buffer = 1,.short_xfer_ok = 1, UMASS_USB_FLAGS},
 		.mh.callback = &umass_t_bbb_data_write_callback,
 		.mh.timeout = 0,	/* overwritten later */
@@ -1133,7 +1133,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_bbb_data_wr_cs_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
@@ -1143,7 +1143,7 @@ struct usbd_config umass_bbb_config[UMASS_T_BBB_MAX] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = sizeof(umass_bbb_csw_t),
+		.mh.bufsize = sizeof(umass_bbb_csw_t),
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &umass_t_bbb_status_callback,
 		.mh.timeout = 5000,	/* ms */
@@ -1156,41 +1156,41 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = (sizeof(usb_device_request_t) +
+		.mh.bufsize = (sizeof(usb_device_request_t) +
 		    UMASS_CBI_DIAGNOSTIC_CMDLEN),
 		.mh.flags = {},
 		.mh.callback = &umass_t_cbi_reset1_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
-		.interval = 500,	/* 500 milliseconds */
+		.mh.interval = 500,	/* 500 milliseconds */
 	},
 
 	[UMASS_T_CBI_RESET2] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_cbi_reset2_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
-		.interval = 50,		/* 50 milliseconds */
+		.mh.interval = 50,	/* 50 milliseconds */
 	},
 
 	[UMASS_T_CBI_RESET3] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_cbi_reset3_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
-		.interval = 50,		/* 50 milliseconds */
+		.mh.interval = 50,	/* 50 milliseconds */
 	},
 
 	[UMASS_T_CBI_COMMAND] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = (sizeof(usb_device_request_t) +
+		.mh.bufsize = (sizeof(usb_device_request_t) +
 		    UMASS_MAX_CMDLEN),
 		.mh.flags = {},
 		.mh.callback = &umass_t_cbi_command_callback,
@@ -1201,7 +1201,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = UMASS_BULK_SIZE,
+		.mh.bufsize = UMASS_BULK_SIZE,
 		.mh.flags = {.proxy_buffer = 1,.short_xfer_ok = 1, UMASS_USB_FLAGS},
 		.mh.callback = &umass_t_cbi_data_read_callback,
 		.mh.timeout = 0,	/* overwritten later */
@@ -1211,7 +1211,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_cbi_data_rd_cs_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
@@ -1221,7 +1221,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = UMASS_BULK_SIZE,
+		.mh.bufsize = UMASS_BULK_SIZE,
 		.mh.flags = {.proxy_buffer = 1,.short_xfer_ok = 1, UMASS_USB_FLAGS},
 		.mh.callback = &umass_t_cbi_data_write_callback,
 		.mh.timeout = 0,	/* overwritten later */
@@ -1231,7 +1231,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_cbi_data_wr_cs_callback,
 		.mh.timeout = 5000,	/* 5 seconds */
@@ -1242,7 +1242,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
 		.mh.flags = {.short_xfer_ok = 1,},
-		.bufsize = sizeof(umass_cbi_sbl_t),
+		.mh.bufsize = sizeof(umass_cbi_sbl_t),
 		.mh.callback = &umass_t_cbi_status_callback,
 		.mh.timeout = 5000,	/* ms */
 	},
@@ -1251,7 +1251,7 @@ struct usbd_config umass_cbi_config[UMASS_T_CBI_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umass_t_cbi_reset4_callback,
 		.mh.timeout = 5000,	/* ms */
@@ -1547,7 +1547,7 @@ umass_attach(device_t dev)
 		sc->sc_last_xfer_index = UMASS_T_CBI_COMMAND;
 
 	} else {
-		err = USBD_INVAL;
+		err = USBD_ERR_INVAL;
 	}
 
 	if (err) {
@@ -1707,7 +1707,7 @@ umass_tr_error(struct usbd_xfer *xfer)
 {
 	struct umass_softc *sc = xfer->priv_sc;
 
-	if (xfer->error != USBD_CANCELLED) {
+	if (xfer->error != USBD_ERR_CANCELLED) {
 
 		DPRINTF(sc, UDMASS_GEN, "transfer error, %s -> "
 		    "reset\n", usbd_errstr(xfer->error));
@@ -1934,7 +1934,7 @@ umass_t_bbb_data_read_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			umass_tr_error(xfer);
 		} else {
 			umass_transfer_start(sc, UMASS_T_BBB_DATA_RD_CS);
@@ -1993,7 +1993,7 @@ umass_t_bbb_data_write_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			umass_tr_error(xfer);
 		} else {
 			umass_transfer_start(sc, UMASS_T_BBB_DATA_WR_CS);
@@ -2113,7 +2113,7 @@ tr_error:
 		DPRINTF(sc, UDMASS_BBB, "Failed to read CSW: %s, try %d\n",
 		    usbd_errstr(xfer->error), sc->sc_status_try);
 
-		if ((xfer->error == USBD_CANCELLED) ||
+		if ((xfer->error == USBD_ERR_CANCELLED) ||
 		    (sc->sc_status_try)) {
 			umass_tr_error(xfer);
 		} else {
@@ -2433,7 +2433,7 @@ umass_t_cbi_data_read_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if ((xfer->error == USBD_CANCELLED) ||
+		if ((xfer->error == USBD_ERR_CANCELLED) ||
 		    (sc->sc_transfer.callback != &umass_cam_cb)) {
 			umass_tr_error(xfer);
 		} else {
@@ -2493,7 +2493,7 @@ umass_t_cbi_data_write_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if ((xfer->error == USBD_CANCELLED) ||
+		if ((xfer->error == USBD_ERR_CANCELLED) ||
 		    (sc->sc_transfer.callback != &umass_cam_cb)) {
 			umass_tr_error(xfer);
 		} else {

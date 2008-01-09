@@ -310,7 +310,7 @@ tr_setup:
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* start clear stall */
 			sc->sc_flags |= UMS_FLAG_INTR_STALL;
 			usbd_transfer_start(sc->sc_xfer[1]);
@@ -326,7 +326,7 @@ static const struct usbd_config ums_config[UMS_N_TRANSFER] = {
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
-		.bufsize = 0,		/* use wMaxPacketSize */
+		.mh.bufsize = 0,	/* use wMaxPacketSize */
 		.mh.callback = &ums_intr_callback,
 	},
 
@@ -334,10 +334,10 @@ static const struct usbd_config ums_config[UMS_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.callback = &ums_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 };
 

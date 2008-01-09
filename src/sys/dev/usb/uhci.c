@@ -1199,7 +1199,7 @@ uhci_non_isoc_done_sub(struct usbd_xfer *xfer)
 	}
 #endif
 	return (status & UHCI_TD_STALLED) ?
-	    USBD_STALLED : USBD_NORMAL_COMPLETION;
+	    USBD_ERR_STALLED : USBD_ERR_NORMAL_COMPLETION;
 }
 
 static void
@@ -1344,7 +1344,7 @@ uhci_check_transfer(struct usbd_xfer *xfer)
 		status |= le32toh(td->td_status);
 
 		if (!(status & UHCI_TD_ACTIVE)) {
-			uhci_device_done(xfer, USBD_NORMAL_COMPLETION);
+			uhci_device_done(xfer, USBD_ERR_NORMAL_COMPLETION);
 			goto transferred;
 		}
 	} else {
@@ -1519,7 +1519,7 @@ uhci_timeout(struct usbd_xfer *xfer)
 	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	/* transfer is transferred */
-	uhci_device_done(xfer, USBD_TIMEOUT);
+	uhci_device_done(xfer, USBD_ERR_TIMEOUT);
 
 	/* queue callback for execution */
 	usbd_callback_wrapper(xfer, NULL, USBD_CONTEXT_CALLBACK);
@@ -1915,7 +1915,7 @@ uhci_device_bulk_open(struct usbd_xfer *xfer)
 static void
 uhci_device_bulk_close(struct usbd_xfer *xfer)
 {
-	uhci_device_done(xfer, USBD_CANCELLED);
+	uhci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1974,7 +1974,7 @@ uhci_device_ctrl_open(struct usbd_xfer *xfer)
 static void
 uhci_device_ctrl_close(struct usbd_xfer *xfer)
 {
-	uhci_device_done(xfer, USBD_CANCELLED);
+	uhci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2071,7 +2071,7 @@ uhci_device_intr_close(struct usbd_xfer *xfer)
 
 	sc->sc_intr_stat[xfer->qh_pos]--;
 
-	uhci_device_done(xfer, USBD_CANCELLED);
+	uhci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2153,7 +2153,7 @@ uhci_device_isoc_open(struct usbd_xfer *xfer)
 static void
 uhci_device_isoc_close(struct usbd_xfer *xfer)
 {
-	uhci_device_done(xfer, USBD_CANCELLED);
+	uhci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2348,7 +2348,7 @@ uhci_root_ctrl_close(struct usbd_xfer *xfer)
 	if (sc->sc_root_ctrl.xfer == xfer) {
 		sc->sc_root_ctrl.xfer = NULL;
 	}
-	uhci_device_done(xfer, USBD_CANCELLED);
+	uhci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2443,7 +2443,7 @@ uhci_portreset(uhci_softc_t *sc, uint16_t index, uint8_t use_polling)
 	else if (index == 2)
 		port = UHCI_PORTSC2;
 	else
-		return (USBD_IOERROR);
+		return (USBD_ERR_IOERROR);
 
 	x = URWMASK(UREAD2(sc, port));
 	UWRITE2(sc, port, x | UHCI_PORTSC_PR);
@@ -2523,14 +2523,14 @@ uhci_portreset(uhci_softc_t *sc, uint16_t index, uint8_t use_polling)
 	}
 
 	DPRINTFN(1, ("uhci port %d reset timed out\n", index));
-	return (USBD_TIMEOUT);
+	return (USBD_ERR_TIMEOUT);
 
 done:
 	DPRINTFN(3, ("uhci port %d reset, status2 = 0x%04x\n",
 	    index, UREAD2(sc, port)));
 
 	sc->sc_isreset = 1;
-	return (USBD_NORMAL_COMPLETION);
+	return (USBD_ERR_NORMAL_COMPLETION);
 }
 
 static void
@@ -2617,7 +2617,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 		switch (value >> 8) {
 		case UDESC_DEVICE:
 			if ((value & 0xff) != 0) {
-				std->err = USBD_IOERROR;
+				std->err = USBD_ERR_IOERROR;
 				goto done;
 			}
 			std->len = sizeof(uhci_devd);
@@ -2626,7 +2626,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 
 		case UDESC_CONFIG:
 			if ((value & 0xff) != 0) {
-				std->err = USBD_IOERROR;
+				std->err = USBD_ERR_IOERROR;
 				goto done;
 			}
 			std->len = sizeof(uhci_confd);
@@ -2659,7 +2659,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 			break;
 
 		default:
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		break;
@@ -2678,14 +2678,14 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 		break;
 	case C(UR_SET_ADDRESS, UT_WRITE_DEVICE):
 		if (value >= USB_MAX_DEVICES) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		sc->sc_addr = value;
 		break;
 	case C(UR_SET_CONFIG, UT_WRITE_DEVICE):
 		if ((value != 0) && (value != 1)) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		sc->sc_conf = value;
@@ -2695,7 +2695,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 	case C(UR_SET_FEATURE, UT_WRITE_DEVICE):
 	case C(UR_SET_FEATURE, UT_WRITE_INTERFACE):
 	case C(UR_SET_FEATURE, UT_WRITE_ENDPOINT):
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	case C(UR_SET_INTERFACE, UT_WRITE_INTERFACE):
 		break;
@@ -2713,7 +2713,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 		else if (index == 2)
 			port = UHCI_PORTSC2;
 		else {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		switch (value) {
@@ -2743,7 +2743,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 			break;
 		case UHF_C_PORT_RESET:
 			sc->sc_isreset = 0;
-			std->err = USBD_NORMAL_COMPLETION;
+			std->err = USBD_ERR_NORMAL_COMPLETION;
 			goto done;
 		case UHF_PORT_CONNECTION:
 		case UHF_PORT_OVER_CURRENT:
@@ -2751,7 +2751,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 		case UHF_PORT_LOW_SPEED:
 		case UHF_C_PORT_SUSPEND:
 		default:
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		break;
@@ -2761,7 +2761,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 		else if (index == 2)
 			port = UHCI_PORTSC2;
 		else {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		std->len = 1;
@@ -2771,7 +2771,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 		break;
 	case C(UR_GET_DESCRIPTOR, UT_READ_CLASS_DEVICE):
 		if ((value & 0xff) != 0) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		std->len = sizeof(uhci_hubd_piix);
@@ -2787,7 +2787,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 		else if (index == 2)
 			port = UHCI_PORTSC2;
 		else {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		x = UREAD2(sc, port);
@@ -2816,7 +2816,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 		std->len = sizeof(sc->sc_hub_desc.ps);
 		break;
 	case C(UR_SET_DESCRIPTOR, UT_WRITE_CLASS_DEVICE):
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	case C(UR_SET_FEATURE, UT_WRITE_CLASS_DEVICE):
 		break;
@@ -2826,7 +2826,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 		else if (index == 2)
 			port = UHCI_PORTSC2;
 		else {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		switch (value) {
@@ -2843,7 +2843,7 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 			goto done;
 		case UHF_PORT_POWER:
 			/* pretend we turned on power */
-			std->err = USBD_NORMAL_COMPLETION;
+			std->err = USBD_ERR_NORMAL_COMPLETION;
 			goto done;
 		case UHF_C_PORT_CONNECTION:
 		case UHF_C_PORT_ENABLE:
@@ -2854,12 +2854,12 @@ uhci_root_ctrl_done(struct usbd_xfer *xfer,
 		case UHF_C_PORT_SUSPEND:
 		case UHF_C_PORT_RESET:
 		default:
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		break;
 	default:
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	}
 done:
@@ -2899,7 +2899,7 @@ uhci_root_intr_close(struct usbd_xfer *xfer)
 	if (sc->sc_root_intr.xfer == xfer) {
 		sc->sc_root_intr.xfer = NULL;
 	}
-	uhci_device_done(xfer, USBD_CANCELLED);
+	uhci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -3113,7 +3113,7 @@ uhci_xfer_setup(struct usbd_setup_params *parm)
 		if (usbd_transfer_setup_sub_malloc(
 		    parm, &page_info, &pc, xfer->max_frame_size,
 		    align)) {
-			parm->err = USBD_NOMEM;
+			parm->err = USBD_ERR_NOMEM;
 			break;
 		}
 		if (n == 0) {
@@ -3140,7 +3140,7 @@ alloc_dma_set:
 		if (usbd_transfer_setup_sub_malloc(
 		    parm, &page_info, &pc, sizeof(*td),
 		    UHCI_TD_ALIGN)) {
-			parm->err = USBD_NOMEM;
+			parm->err = USBD_ERR_NOMEM;
 			break;
 		}
 		if (parm->buf) {
@@ -3177,7 +3177,7 @@ alloc_dma_set:
 		if (usbd_transfer_setup_sub_malloc(
 		    parm, &page_info, &pc, sizeof(*qh),
 		    UHCI_QH_ALIGN)) {
-			parm->err = USBD_NOMEM;
+			parm->err = USBD_ERR_NOMEM;
 			break;
 		}
 		if (parm->buf) {

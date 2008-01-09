@@ -508,7 +508,7 @@ ukbd_intr_callback(struct usbd_xfer *xfer)
 	default:			/* Error */
 		DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			sc->sc_flags |= UKBD_FLAG_INTR_STALL;
 			usbd_transfer_start(sc->sc_xfer[1]);
@@ -562,7 +562,7 @@ static const struct usbd_config ukbd_config[UKBD_N_TRANSFER] = {
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
-		.bufsize = 0,		/* use wMaxPacketSize */
+		.mh.bufsize = 0,	/* use wMaxPacketSize */
 		.mh.callback = &ukbd_intr_callback,
 	},
 
@@ -570,17 +570,17 @@ static const struct usbd_config ukbd_config[UKBD_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.callback = &ukbd_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[2] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t) + 1,
+		.mh.bufsize = sizeof(usb_device_request_t) + 1,
 		.mh.callback = &ukbd_set_leds_callback,
 		.mh.timeout = 1000,	/* 1 second */
 	},

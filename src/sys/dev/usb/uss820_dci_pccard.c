@@ -131,6 +131,7 @@ uss820_pccard_lookup(device_t dev)
 	pccard_get_vendor(dev, &vend);
 	pccard_get_product(dev, &prod);
 
+	/* ID's will be added later */
 	return (0);
 }
 

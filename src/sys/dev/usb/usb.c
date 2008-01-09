@@ -364,11 +364,11 @@ usb_attach_sub(device_t dev, struct usbd_bus *bus)
 		    USB_IFACE_INDEX_ANY);
 		if (!err) {
 			if (!bus->devices[USB_ROOT_HUB_ADDR]->hub) {
-				err = USBD_NO_ROOT_HUB;
+				err = USBD_ERR_NO_ROOT_HUB;
 			}
 		}
 	} else {
-		err = USBD_NOMEM;
+		err = USBD_ERR_NOMEM;
 	}
 
 	if (err) {

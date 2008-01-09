@@ -463,8 +463,8 @@ static const struct usbd_config
 		.type = UE_ISOCHRONOUS,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = 0,		/* use "wMaxPacketSize * frames" */
-		.frames = UAUDIO_NFRAMES,
+		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
+		.mh.frames = UAUDIO_NFRAMES,
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_record_callback,
 	},
@@ -473,8 +473,8 @@ static const struct usbd_config
 		.type = UE_ISOCHRONOUS,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = 0,		/* use "wMaxPacketSize * frames" */
-		.frames = UAUDIO_NFRAMES,
+		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
+		.mh.frames = UAUDIO_NFRAMES,
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_record_callback,
 	},
@@ -486,8 +486,8 @@ static const struct usbd_config
 		.type = UE_ISOCHRONOUS,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = 0,		/* use "wMaxPacketSize * frames" */
-		.frames = (UAUDIO_NFRAMES * 8),
+		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
+		.mh.frames = (UAUDIO_NFRAMES * 8),
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_record_callback,
 	},
@@ -496,8 +496,8 @@ static const struct usbd_config
 		.type = UE_ISOCHRONOUS,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = 0,		/* use "wMaxPacketSize * frames" */
-		.frames = (UAUDIO_NFRAMES * 8),
+		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
+		.mh.frames = (UAUDIO_NFRAMES * 8),
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_record_callback,
 	},
@@ -509,8 +509,8 @@ static const struct usbd_config
 		.type = UE_ISOCHRONOUS,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = 0,		/* use "wMaxPacketSize * frames" */
-		.frames = UAUDIO_NFRAMES,
+		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
+		.mh.frames = UAUDIO_NFRAMES,
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_play_callback,
 	},
@@ -519,8 +519,8 @@ static const struct usbd_config
 		.type = UE_ISOCHRONOUS,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = 0,		/* use "wMaxPacketSize * frames" */
-		.frames = UAUDIO_NFRAMES,
+		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
+		.mh.frames = UAUDIO_NFRAMES,
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_play_callback,
 	},
@@ -532,8 +532,8 @@ static const struct usbd_config
 		.type = UE_ISOCHRONOUS,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = 0,		/* use "wMaxPacketSize * frames" */
-		.frames = (UAUDIO_NFRAMES * 8),
+		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
+		.mh.frames = (UAUDIO_NFRAMES * 8),
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_play_callback,
 	},
@@ -542,8 +542,8 @@ static const struct usbd_config
 		.type = UE_ISOCHRONOUS,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = 0,		/* use "wMaxPacketSize * frames" */
-		.frames = (UAUDIO_NFRAMES * 8),
+		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
+		.mh.frames = (UAUDIO_NFRAMES * 8),
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_play_callback,
 	},
@@ -555,7 +555,7 @@ static const struct usbd_config
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = (sizeof(usb_device_request_t) + 4),
+		.mh.bufsize = (sizeof(usb_device_request_t) + 4),
 		.mh.callback = &uaudio_mixer_write_cfg_callback,
 		.mh.timeout = 1000,	/* 1 second */
 	},
@@ -587,7 +587,7 @@ static const struct usbd_config
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = UMIDI_BULK_SIZE,
+		.mh.bufsize = UMIDI_BULK_SIZE,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
 		.mh.callback = &umidi_bulk_write_callback,
 	},
@@ -596,7 +596,7 @@ static const struct usbd_config
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = UMIDI_BULK_SIZE,
+		.mh.bufsize = UMIDI_BULK_SIZE,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
 		.mh.callback = &umidi_bulk_read_callback,
 	},
@@ -605,22 +605,22 @@ static const struct usbd_config
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umidi_write_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[3] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &umidi_read_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 };
 
@@ -1264,7 +1264,7 @@ tr_transferred:
 		return;
 
 	default:			/* Error */
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			return;
 		}
 		goto tr_transferred;
@@ -1341,7 +1341,7 @@ tr_transferred:
 		return;
 
 	default:			/* Error */
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			return;
 		}
 		goto tr_transferred;
@@ -3312,7 +3312,7 @@ tr_error:
 
 		DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			chan->flags |= UMIDI_FLAG_READ_STALL;
 			usbd_transfer_start(chan->xfer[3]);
@@ -3558,7 +3558,7 @@ umidi_bulk_write_callback(struct usbd_xfer *xfer)
 
 		DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			chan->flags |= UMIDI_FLAG_WRITE_STALL;
 			usbd_transfer_start(chan->xfer[2]);

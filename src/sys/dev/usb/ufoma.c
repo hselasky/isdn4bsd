@@ -219,7 +219,7 @@ static const struct usbd_config
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
-		.bufsize = sizeof(usb_cdc_notification_t),
+		.mh.bufsize = sizeof(usb_cdc_notification_t),
 		.mh.callback = &ufoma_intr_callback,
 	},
 
@@ -227,18 +227,18 @@ static const struct usbd_config
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &ufoma_intr_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[2] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = (sizeof(usb_device_request_t) + UFOMA_CMD_BUF_SIZE),
+		.mh.bufsize = (sizeof(usb_device_request_t) + UFOMA_CMD_BUF_SIZE),
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &ufoma_ctrl_read_callback,
 		.mh.timeout = 1000,	/* 1 second */
@@ -248,7 +248,7 @@ static const struct usbd_config
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = (sizeof(usb_device_request_t) + 1),
+		.mh.bufsize = (sizeof(usb_device_request_t) + 1),
 		.mh.flags = {},
 		.mh.callback = &ufoma_ctrl_write_callback,
 		.mh.timeout = 1000,	/* 1 second */
@@ -262,7 +262,7 @@ static const struct usbd_config
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = UFOMA_BULK_BUF_SIZE,
+		.mh.bufsize = UFOMA_BULK_BUF_SIZE,
 		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,},
 		.mh.callback = &ufoma_bulk_write_callback,
 	},
@@ -271,7 +271,7 @@ static const struct usbd_config
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = UFOMA_BULK_BUF_SIZE,
+		.mh.bufsize = UFOMA_BULK_BUF_SIZE,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
 		.mh.callback = &ufoma_bulk_read_callback,
 	},
@@ -280,22 +280,22 @@ static const struct usbd_config
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &ufoma_bulk_write_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[3] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &ufoma_bulk_read_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 };
 
@@ -608,7 +608,7 @@ tr_setup:
 		DPRINTF(sc, 0, "error = %s\n",
 		    usbd_errstr(xfer->error));
 
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			return;
 		} else {
 			goto tr_setup;
@@ -653,7 +653,7 @@ tr_setup:
 		DPRINTF(sc, 0, "error = %s\n",
 		    usbd_errstr(xfer->error));
 
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			return;
 		} else {
 			goto tr_setup;
@@ -778,7 +778,7 @@ tr_setup:
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* start clear stall */
 			sc->sc_flags |= UFOMA_FLAG_INTR_STALL;
 			usbd_transfer_start(sc->sc_ctrl_xfer[1]);
@@ -809,7 +809,7 @@ ufoma_bulk_write_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			sc->sc_flags |= UFOMA_FLAG_BULK_WRITE_STALL;
 			usbd_transfer_start(sc->sc_bulk_xfer[2]);
 		}
@@ -852,7 +852,7 @@ ufoma_bulk_read_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			sc->sc_flags |= UFOMA_FLAG_BULK_READ_STALL;
 			usbd_transfer_start(sc->sc_bulk_xfer[3]);
 		}

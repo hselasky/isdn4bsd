@@ -1004,7 +1004,7 @@ uss820_dci_timeout(struct usbd_xfer *xfer)
 	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	/* transfer is transferred */
-	uss820_dci_device_done(xfer, USBD_TIMEOUT);
+	uss820_dci_device_done(xfer, USBD_ERR_TIMEOUT);
 
 	/* queue callback for execution */
 	usbd_callback_wrapper(xfer, NULL, USBD_CONTEXT_CALLBACK);
@@ -1178,7 +1178,7 @@ uss820_dci_standard_done_sub(struct usbd_xfer *xfer)
 	xfer->td_transfer_cache = td;
 
 	return (error ?
-	    USBD_STALLED : USBD_NORMAL_COMPLETION);
+	    USBD_ERR_STALLED : USBD_ERR_NORMAL_COMPLETION);
 }
 
 static void
@@ -1263,7 +1263,7 @@ uss820_dci_set_stall(struct usbd_device *udev, struct usbd_xfer *xfer,
 
 	if (xfer) {
 		/* cancel any ongoing transfers */
-		uss820_dci_device_done(xfer, USBD_STALLED);
+		uss820_dci_device_done(xfer, USBD_ERR_STALLED);
 	}
 	/* set FORCESTALL */
 	sc = USS820_DCI_BUS2SC(udev->bus);
@@ -1516,7 +1516,7 @@ uss820_dci_init(struct uss820_dci_softc *sc)
 		}
 		if (n == 100) {
 			mtx_unlock(&(sc->sc_bus.mtx));
-			return (USBD_INVAL);
+			return (USBD_ERR_INVAL);
 		}
 		/* wait a little for things to stabilise */
 		DELAY(100);
@@ -1534,7 +1534,7 @@ uss820_dci_init(struct uss820_dci_softc *sc)
 
 	if (temp < 0x13) {
 		mtx_unlock(&(sc->sc_bus.mtx));
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	/* enable interrupts */
 	USS820_WRITE_1(sc, USS820_SCR,
@@ -1640,7 +1640,7 @@ uss820_dci_device_bulk_open(struct usbd_xfer *xfer)
 static void
 uss820_dci_device_bulk_close(struct usbd_xfer *xfer)
 {
-	uss820_dci_device_done(xfer, USBD_CANCELLED);
+	uss820_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1681,7 +1681,7 @@ uss820_dci_device_ctrl_open(struct usbd_xfer *xfer)
 static void
 uss820_dci_device_ctrl_close(struct usbd_xfer *xfer)
 {
-	uss820_dci_device_done(xfer, USBD_CANCELLED);
+	uss820_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1722,7 +1722,7 @@ uss820_dci_device_intr_open(struct usbd_xfer *xfer)
 static void
 uss820_dci_device_intr_close(struct usbd_xfer *xfer)
 {
-	uss820_dci_device_done(xfer, USBD_CANCELLED);
+	uss820_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1763,7 +1763,7 @@ uss820_dci_device_isoc_fs_open(struct usbd_xfer *xfer)
 static void
 uss820_dci_device_isoc_fs_close(struct usbd_xfer *xfer)
 {
-	uss820_dci_device_done(xfer, USBD_CANCELLED);
+	uss820_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1856,7 +1856,7 @@ uss820_dci_root_ctrl_close(struct usbd_xfer *xfer)
 	if (sc->sc_root_ctrl.xfer == xfer) {
 		sc->sc_root_ctrl.xfer = NULL;
 	}
-	uss820_dci_device_done(xfer, USBD_CANCELLED);
+	uss820_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2279,7 +2279,7 @@ tr_handle_clear_port_feature:
 		sc->sc_flags.change_suspend = 0;
 		break;
 	default:
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	}
 	goto tr_valid;
@@ -2304,7 +2304,7 @@ tr_handle_set_port_feature:
 		sc->sc_flags.port_powered = 1;
 		break;
 	default:
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	}
 	goto tr_valid;
@@ -2412,7 +2412,7 @@ tr_handle_get_class_descriptor:
 	goto tr_valid;
 
 tr_stalled:
-	std->err = USBD_STALLED;
+	std->err = USBD_ERR_STALLED;
 tr_valid:
 done:
 	return;
@@ -2451,7 +2451,7 @@ uss820_dci_root_intr_close(struct usbd_xfer *xfer)
 	if (sc->sc_root_intr.xfer == xfer) {
 		sc->sc_root_intr.xfer = NULL;
 	}
-	uss820_dci_device_done(xfer, USBD_CANCELLED);
+	uss820_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2555,7 +2555,7 @@ uss820_dci_xfer_setup(struct usbd_setup_params *parm)
 
 		if (pf == NULL) {
 			/* should not happen */
-			parm->err = USBD_INVAL;
+			parm->err = USBD_ERR_INVAL;
 			return;
 		}
 	} else {

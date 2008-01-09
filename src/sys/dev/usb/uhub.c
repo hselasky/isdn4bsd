@@ -109,9 +109,9 @@ static const struct usbd_config uhub_config[2] = {
 		.direction = UE_DIR_ANY,
 		.mh.timeout = 0,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
-		.bufsize = 0,		/* use wMaxPacketSize */
+		.mh.bufsize = 0,	/* use wMaxPacketSize */
 		.mh.callback = &uhub_intr_callback,
-		.interval = UHUB_INTR_INTERVAL,
+		.mh.interval = UHUB_INTR_INTERVAL,
 	},
 
 	[1] = {
@@ -119,9 +119,9 @@ static const struct usbd_config uhub_config[2] = {
 		.endpoint = 0,
 		.direction = UE_DIR_ANY,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 		.mh.flags = {},
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.callback = &uhub_intr_clear_stall_callback,
 	},
 };
@@ -197,7 +197,7 @@ uhub_intr_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* start clear stall */
 			sc->sc_flags |= UHUB_FLAG_INTR_STALL;
 			usbd_transfer_start(sc->sc_xfer[1]);
@@ -508,7 +508,7 @@ uhub_explore(struct usbd_device *udev)
 
 	/* ignore hubs that are too deep */
 	if (udev->depth > USB_HUB_MAX_DEPTH) {
-		return (USBD_TOO_DEEP);
+		return (USBD_ERR_TOO_DEEP);
 	}
 	for (x = 0; x != hub->nports; x++) {
 		up = hub->ports + x;
@@ -568,7 +568,7 @@ uhub_explore(struct usbd_device *udev)
 		/* explore succeeded - reset restart counter */
 		up->restartcnt = 0;
 	}
-	return (USBD_NORMAL_COMPLETION);
+	return (USBD_ERR_NORMAL_COMPLETION);
 }
 
 static int

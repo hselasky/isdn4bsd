@@ -227,7 +227,7 @@ NOTE: this function must be called with "priv_mtx" locked
 NOTE: this function must be called with "priv_mtx" locked
 
 NOTE: if the transfer was in progress, the callback will called with 
-      "xfer->error=USBD_CANCELLED", before this function returns
+      "xfer->error=USBD_ERR_CANCELLED", before this function returns
 
 /*------------------------------------------------------------------------*
  * struct usbd_config {
@@ -321,13 +321,13 @@ NOTE: if the transfer was in progress, the callback will called with
 	has timed out. This flag can be changed during operation.
 
 	NOTE: If polling is used the "timeout" field should be non-zero!
-	NOTE: USBD_CANCELLED is returned in case of timeout
-	      instead of USBD_TIMEOUT!
+	NOTE: USBD_ERR_CANCELLED is returned in case of timeout
+	      instead of USBD_ERR_TIMEOUT!
 
   pipe_bof
 	This flag causes a failing USB transfer to remain first
 	in the PIPE queue except in the case of "xfer->error" equal
-	to "USBD_CANCELLED". No other USB transfers in the affected
+	to "USBD_ERR_CANCELLED". No other USB transfers in the affected
 	PIPE queue will be started until either:
 
 	1) The failing USB transfer is stopped using "usbd_transfer_stop()".
@@ -371,7 +371,7 @@ NOTE: if the transfer was in progress, the callback will called with
 	operation.
 
   no_pipe_ok
-	Setting this flag causes the USBD_NO_PIPE error to be
+	Setting this flag causes the USBD_ERR_NO_PIPE error to be
 	ignored. This flag can not be changed during operation.
 
   stall_pipe

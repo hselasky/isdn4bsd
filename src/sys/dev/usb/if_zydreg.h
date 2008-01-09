@@ -1143,7 +1143,7 @@ struct zyd_rf {
 	void    (*cfg_init_hw) (struct zyd_softc *, struct zyd_rf *);
 	void    (*cfg_switch_radio) (struct zyd_softc *, uint8_t on);
 	void    (*cfg_set_channel) (struct zyd_softc *, struct zyd_rf *, uint8_t);
-	uint8_t width;
+	uint8_t	width;
 };
 
 enum {

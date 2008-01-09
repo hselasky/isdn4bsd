@@ -680,7 +680,7 @@ usbd_fill_iface_data(struct usbd_device *udev,
 	uint8_t nendpt;
 
 	if (iface == NULL) {
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	PRINTFN(4, ("iface_index=%d alt_index=%d\n",
 	    iface_index, alt_index));
@@ -690,7 +690,7 @@ usbd_fill_iface_data(struct usbd_device *udev,
 	while (pipe != pipe_end) {
 		if (pipe->iface_index == iface_index) {
 			if (pipe->refcount) {
-				return (USBD_IN_USE);
+				return (USBD_ERR_IN_USE);
 			}
 		}
 		pipe++;
@@ -703,7 +703,7 @@ usbd_fill_iface_data(struct usbd_device *udev,
 
 	id = usbd_find_idesc(udev->cdesc, iface_index, alt_index);
 	if (id == NULL) {
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	iface->idesc = id;
 	iface->alt_index = alt_index;
@@ -742,7 +742,7 @@ found:
 			pipe++;
 		}
 	}
-	return (USBD_NORMAL_COMPLETION);
+	return (USBD_ERR_NORMAL_COMPLETION);
 
 error:
 	/* passed end, or bad desc */
@@ -751,7 +751,7 @@ error:
 
 	/* free old pipes if any */
 	usbd_free_pipe_data(udev, iface_index, 0 - 1);
-	return (USBD_INVAL);
+	return (USBD_ERR_INVAL);
 }
 
 static void
@@ -829,7 +829,7 @@ usbd_set_config_no(struct usbd_device *udev, uint8_t no, uint8_t msg)
 			return (usbd_set_config_index(udev, index, msg));
 		}
 	}
-	return (USBD_INVAL);
+	return (USBD_ERR_INVAL);
 }
 
 /*------------------------------------------------------------------------*
@@ -870,7 +870,7 @@ usbd_set_config_index(struct usbd_device *udev, uint8_t index, uint8_t msg)
 	len = UGETW(cd.wTotalLength);
 	udev->cdesc = malloc(len, M_USB, M_WAITOK | M_ZERO);
 	if (udev->cdesc == NULL) {
-		return (USBD_NOMEM);
+		return (USBD_ERR_NOMEM);
 	}
 	cdp = udev->cdesc;
 
@@ -951,7 +951,7 @@ usbd_set_config_index(struct usbd_device *udev, uint8_t index, uint8_t msg)
 			    cdp->bConfigurationValue,
 			    power, max_power);
 		}
-		err = USBD_NO_POWER;
+		err = USBD_ERR_NO_POWER;
 		goto error;
 	}
 	/* Only update "self_powered" in USB Host Mode */
@@ -976,7 +976,7 @@ usbd_set_config_index(struct usbd_device *udev, uint8_t index, uint8_t msg)
 		}
 	}
 
-	return (USBD_NORMAL_COMPLETION);
+	return (USBD_ERR_NORMAL_COMPLETION);
 
 error:
 	PRINTF(("error=%s\n", usbd_errstr(err)));
@@ -992,7 +992,7 @@ usbd_set_alt_interface_index(struct usbd_device *udev,
 	usbd_status_t err;
 
 	if (iface == NULL) {
-		err = USBD_INVAL;
+		err = USBD_ERR_INVAL;
 		goto done;
 	}
 	err = usbd_fill_iface_data(udev, iface_index, alt_index);
@@ -1289,7 +1289,7 @@ usbd_probe_and_attach(struct usbd_device *udev, uint8_t iface_index)
 
 	if (udev == NULL) {
 		PRINTF(("udev == NULL\n"));
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	if (udev->flags.usb_mode == USB_MODE_DEVICE) {
 		if (udev->curr_config_no == USB_UNCONFIG_NO) {
@@ -1630,7 +1630,7 @@ usbd_alloc_device(device_t parent_dev, struct usbd_bus *bus,
 			    __FUNCTION__, speed, hub->speed);
 #endif
 			/* reject this combination */
-			err = USBD_INVAL;
+			err = USBD_ERR_INVAL;
 			goto done;
 		}
 	}
@@ -1754,7 +1754,7 @@ usbd_alloc_device(device_t parent_dev, struct usbd_bus *bus,
 		    udev->scratch[0].data, 4, sizeof(udev->scratch),
 		    USB_LANGUAGE_TABLE);
 	} else {
-		err = USBD_INVAL;
+		err = USBD_ERR_INVAL;
 	}
 
 	if (err || (udev->scratch[0].data[0] < 4)) {
@@ -1953,7 +1953,7 @@ usbd_set_device_desc(device_t dev)
 	if ((iface == NULL) ||
 	    (iface->idesc == NULL) ||
 	    (iface->idesc->iInterface == 0)) {
-		err = USBD_INVAL;
+		err = USBD_ERR_INVAL;
 	} else {
 		err = 0;
 	}
@@ -2214,7 +2214,7 @@ usbd_bzero(struct usbd_page_cache *cache, uint32_t offset, uint32_t len)
 #ifdef __FreeBSD__
 
 /*------------------------------------------------------------------------*
- *	usbd_pc_tag_create - allocate a DMA tag
+ *	usbd_dma_tag_create - allocate a DMA tag
  *
  * NOTE: If the "align" parameter has a value of 1 the DMA-tag will
  * allow multi-segment mappings. Else all mappings are single-segment.

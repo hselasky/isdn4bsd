@@ -214,7 +214,7 @@ static const struct usbd_config rue_config[RUE_ENDPT_MAX] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = MCLBYTES,
+		.mh.bufsize = MCLBYTES,
 		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,},
 		.mh.callback = &rue_bulk_write_callback,
 		.mh.timeout = 10000,	/* 10 seconds */
@@ -224,7 +224,7 @@ static const struct usbd_config rue_config[RUE_ENDPT_MAX] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = (MCLBYTES + 4),
+		.mh.bufsize = (MCLBYTES + 4),
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
 		.mh.callback = &rue_bulk_read_callback,
 		.mh.timeout = 0,	/* no timeout */
@@ -234,22 +234,22 @@ static const struct usbd_config rue_config[RUE_ENDPT_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &rue_bulk_write_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[3] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &rue_bulk_read_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[4] = {
@@ -257,7 +257,7 @@ static const struct usbd_config rue_config[RUE_ENDPT_MAX] = {
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
-		.bufsize = 0,		/* use wMaxPacketSize */
+		.mh.bufsize = 0,	/* use wMaxPacketSize */
 		.mh.callback = &rue_intr_callback,
 	},
 
@@ -265,11 +265,11 @@ static const struct usbd_config rue_config[RUE_ENDPT_MAX] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &rue_intr_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 };
 
@@ -917,7 +917,7 @@ rue_intr_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* start clear stall */
 			sc->sc_flags |= RUE_FLAG_INTR_STALL;
 			usbd_transfer_start(sc->sc_xfer[5]);
@@ -1009,7 +1009,7 @@ tr_setup:
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			sc->sc_flags |= RUE_FLAG_READ_STALL;
 			usbd_transfer_start(sc->sc_xfer[3]);
@@ -1103,7 +1103,7 @@ done:
 		DPRINTF(sc, 10, "transfer error, %s\n",
 		    usbd_errstr(xfer->error));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			sc->sc_flags |= RUE_FLAG_WRITE_STALL;
 			usbd_transfer_start(sc->sc_xfer[2]);

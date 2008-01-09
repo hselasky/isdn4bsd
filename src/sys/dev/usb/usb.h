@@ -577,7 +577,7 @@ struct usb_ctl_request {
 	void   *ucr_data;
 	int	ucr_flags;
 #define	USBD_USE_POLLING         0x0001	/* internal flag */
-#define	USBD_SHORT_XFER_OK       0x0004	/* allow short reads */
+#define	USBD_ERR_SHORT_XFER_OK       0x0004	/* allow short reads */
 #define	USBD_DELAY_STATUS_STAGE  0x0010	/* insert delay before STATUS stage */
 	int	ucr_actlen;		/* actual length transferred */
 };

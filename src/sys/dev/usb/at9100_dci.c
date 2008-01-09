@@ -1059,7 +1059,7 @@ at9100_dci_timeout(struct usbd_xfer *xfer)
 	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	/* transfer is transferred */
-	at9100_dci_device_done(xfer, USBD_TIMEOUT);
+	at9100_dci_device_done(xfer, USBD_ERR_TIMEOUT);
 
 	/* queue callback for execution */
 	usbd_callback_wrapper(xfer, NULL, USBD_CONTEXT_CALLBACK);
@@ -1198,7 +1198,7 @@ at9100_dci_standard_done_sub(struct usbd_xfer *xfer)
 	xfer->td_transfer_cache = td;
 
 	return (error ?
-	    USBD_STALLED : USBD_NORMAL_COMPLETION);
+	    USBD_ERR_STALLED : USBD_ERR_NORMAL_COMPLETION);
 }
 
 static void
@@ -1289,7 +1289,7 @@ at9100_dci_set_stall(struct usbd_device *udev, struct usbd_xfer *xfer,
 
 	if (xfer) {
 		/* cancel any ongoing transfers */
-		at9100_dci_device_done(xfer, USBD_STALLED);
+		at9100_dci_device_done(xfer, USBD_ERR_STALLED);
 	}
 	/* set FORCESTALL */
 	sc = AT9100_DCI_BUS2SC(udev->bus);
@@ -1569,7 +1569,7 @@ at9100_dci_device_bulk_open(struct usbd_xfer *xfer)
 static void
 at9100_dci_device_bulk_close(struct usbd_xfer *xfer)
 {
-	at9100_dci_device_done(xfer, USBD_CANCELLED);
+	at9100_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1610,7 +1610,7 @@ at9100_dci_device_ctrl_open(struct usbd_xfer *xfer)
 static void
 at9100_dci_device_ctrl_close(struct usbd_xfer *xfer)
 {
-	at9100_dci_device_done(xfer, USBD_CANCELLED);
+	at9100_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1651,7 +1651,7 @@ at9100_dci_device_intr_open(struct usbd_xfer *xfer)
 static void
 at9100_dci_device_intr_close(struct usbd_xfer *xfer)
 {
-	at9100_dci_device_done(xfer, USBD_CANCELLED);
+	at9100_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1692,7 +1692,7 @@ at9100_dci_device_isoc_fs_open(struct usbd_xfer *xfer)
 static void
 at9100_dci_device_isoc_fs_close(struct usbd_xfer *xfer)
 {
-	at9100_dci_device_done(xfer, USBD_CANCELLED);
+	at9100_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1785,7 +1785,7 @@ at9100_dci_root_ctrl_close(struct usbd_xfer *xfer)
 	if (sc->sc_root_ctrl.xfer == xfer) {
 		sc->sc_root_ctrl.xfer = NULL;
 	}
-	at9100_dci_device_done(xfer, USBD_CANCELLED);
+	at9100_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2209,7 +2209,7 @@ tr_handle_clear_port_feature:
 		sc->sc_flags.change_suspend = 0;
 		break;
 	default:
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	}
 	goto tr_valid;
@@ -2234,7 +2234,7 @@ tr_handle_set_port_feature:
 		sc->sc_flags.port_powered = 1;
 		break;
 	default:
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	}
 	goto tr_valid;
@@ -2308,7 +2308,7 @@ tr_handle_get_class_descriptor:
 	goto tr_valid;
 
 tr_stalled:
-	std->err = USBD_STALLED;
+	std->err = USBD_ERR_STALLED;
 tr_valid:
 done:
 	return;
@@ -2347,7 +2347,7 @@ at9100_dci_root_intr_close(struct usbd_xfer *xfer)
 	if (sc->sc_root_intr.xfer == xfer) {
 		sc->sc_root_intr.xfer = NULL;
 	}
-	at9100_dci_device_done(xfer, USBD_CANCELLED);
+	at9100_dci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2451,7 +2451,7 @@ at9100_dci_xfer_setup(struct usbd_setup_params *parm)
 
 		if (pf == NULL) {
 			/* should not happen */
-			parm->err = USBD_INVAL;
+			parm->err = USBD_ERR_INVAL;
 			return;
 		}
 	} else {

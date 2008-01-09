@@ -241,7 +241,7 @@ reset:
 	}
 	if (hcr) {
 		device_printf(sc->sc_bus.bdev, "reset timeout\n");
-		return (USBD_IOERROR);
+		return (USBD_ERR_IOERROR);
 	}
 #ifdef USB_DEBUG
 	if (ohcidebug > 15) {
@@ -305,7 +305,7 @@ reset:
 		ohci_dumpregs(sc);
 	}
 #endif
-	return (USBD_NORMAL_COMPLETION);
+	return (USBD_ERR_NORMAL_COMPLETION);
 }
 
 static struct ohci_ed *
@@ -434,12 +434,12 @@ ohci_init(ohci_softc_t *sc)
 
 	if (ohci_controller_init(sc)) {
 		mtx_unlock(&sc->sc_bus.mtx);
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	} else {
 		mtx_unlock(&sc->sc_bus.mtx);
 		/* catch any lost interrupts */
 		ohci_do_poll(&(sc->sc_bus));
-		return (USBD_NORMAL_COMPLETION);
+		return (USBD_ERR_NORMAL_COMPLETION);
 	}
 }
 
@@ -816,7 +816,7 @@ ohci_isoc_done(struct usbd_xfer *xfer)
 	}
 
 	xfer->aframes = xfer->nframes;
-	ohci_device_done(xfer, USBD_NORMAL_COMPLETION);
+	ohci_device_done(xfer, USBD_ERR_NORMAL_COMPLETION);
 	return;
 }
 
@@ -928,8 +928,8 @@ ohci_non_isoc_done_sub(struct usbd_xfer *xfer)
 	DPRINTFN(15, ("error cc=%d (%s)\n",
 	    cc, ohci_cc_strs[cc]));
 
-	return ((cc == 0) ? USBD_NORMAL_COMPLETION :
-	    (cc == OHCI_CC_STALL) ? USBD_STALLED : USBD_IOERROR);
+	return ((cc == 0) ? USBD_ERR_NORMAL_COMPLETION :
+	    (cc == OHCI_CC_STALL) ? USBD_ERR_STALLED : USBD_ERR_IOERROR);
 }
 
 static void
@@ -1268,7 +1268,7 @@ ohci_timeout(struct usbd_xfer *xfer)
 	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	/* transfer is transferred */
-	ohci_device_done(xfer, USBD_TIMEOUT);
+	ohci_device_done(xfer, USBD_ERR_TIMEOUT);
 
 	/* queue callback for execution */
 	usbd_callback_wrapper(xfer, NULL, USBD_CONTEXT_CALLBACK);
@@ -1712,7 +1712,7 @@ ohci_device_bulk_open(struct usbd_xfer *xfer)
 static void
 ohci_device_bulk_close(struct usbd_xfer *xfer)
 {
-	ohci_device_done(xfer, USBD_CANCELLED);
+	ohci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1762,7 +1762,7 @@ ohci_device_ctrl_open(struct usbd_xfer *xfer)
 static void
 ohci_device_ctrl_close(struct usbd_xfer *xfer)
 {
-	ohci_device_done(xfer, USBD_CANCELLED);
+	ohci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1844,7 +1844,7 @@ ohci_device_intr_close(struct usbd_xfer *xfer)
 
 	sc->sc_intr_stat[xfer->qh_pos]--;
 
-	ohci_device_done(xfer, USBD_CANCELLED);
+	ohci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -1895,7 +1895,7 @@ static void
 ohci_device_isoc_close(struct usbd_xfer *xfer)
 {
 	/**/
-	ohci_device_done(xfer, USBD_CANCELLED);
+	ohci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2117,7 +2117,7 @@ ohci_root_ctrl_close(struct usbd_xfer *xfer)
 	if (sc->sc_root_ctrl.xfer == xfer) {
 		sc->sc_root_ctrl.xfer = NULL;
 	}
-	ohci_device_done(xfer, USBD_CANCELLED);
+	ohci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2271,7 +2271,7 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 		switch (value >> 8) {
 		case UDESC_DEVICE:
 			if ((value & 0xff) != 0) {
-				std->err = USBD_IOERROR;
+				std->err = USBD_ERR_IOERROR;
 				goto done;
 			}
 			std->len = sizeof(ohci_devd);
@@ -2280,7 +2280,7 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 
 		case UDESC_CONFIG:
 			if ((value & 0xff) != 0) {
-				std->err = USBD_IOERROR;
+				std->err = USBD_ERR_IOERROR;
 				goto done;
 			}
 			std->len = sizeof(ohci_confd);
@@ -2313,7 +2313,7 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 			break;
 
 		default:
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		break;
@@ -2332,14 +2332,14 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 		break;
 	case C(UR_SET_ADDRESS, UT_WRITE_DEVICE):
 		if (value >= USB_MAX_DEVICES) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		sc->sc_addr = value;
 		break;
 	case C(UR_SET_CONFIG, UT_WRITE_DEVICE):
 		if ((value != 0) && (value != 1)) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		sc->sc_conf = value;
@@ -2349,7 +2349,7 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 	case C(UR_SET_FEATURE, UT_WRITE_DEVICE):
 	case C(UR_SET_FEATURE, UT_WRITE_INTERFACE):
 	case C(UR_SET_FEATURE, UT_WRITE_ENDPOINT):
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	case C(UR_SET_INTERFACE, UT_WRITE_INTERFACE):
 		break;
@@ -2364,7 +2364,7 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 		    index, value));
 		if ((index < 1) ||
 		    (index > sc->sc_noport)) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		port = OHCI_RH_PORT_STATUS(index);
@@ -2395,7 +2395,7 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 			OWRITE4(sc, port, UPS_C_PORT_RESET << 16);
 			break;
 		default:
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		switch (value) {
@@ -2416,7 +2416,7 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 		break;
 	case C(UR_GET_DESCRIPTOR, UT_READ_CLASS_DEVICE):
 		if ((value & 0xff) != 0) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		v = OREAD4(sc, OHCI_RH_DESCRIPTOR_A);
@@ -2450,7 +2450,7 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 		    index));
 		if ((index < 1) ||
 		    (index > sc->sc_noport)) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		v = OREAD4(sc, OHCI_RH_PORT_STATUS(index));
@@ -2460,14 +2460,14 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 		std->len = sizeof(sc->sc_hub_desc.ps);
 		break;
 	case C(UR_SET_DESCRIPTOR, UT_WRITE_CLASS_DEVICE):
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	case C(UR_SET_FEATURE, UT_WRITE_CLASS_DEVICE):
 		break;
 	case C(UR_SET_FEATURE, UT_WRITE_CLASS_OTHER):
 		if ((index < 1) ||
 		    (index > sc->sc_noport)) {
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		port = OHCI_RH_PORT_STATUS(index);
@@ -2496,7 +2496,7 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 						break;
 					}
 				} else {
-					std->err = USBD_TIMEOUT;
+					std->err = USBD_ERR_TIMEOUT;
 					goto done;
 				}
 			}
@@ -2508,12 +2508,12 @@ ohci_root_ctrl_done(struct usbd_xfer *xfer,
 			OWRITE4(sc, port, UPS_PORT_POWER);
 			break;
 		default:
-			std->err = USBD_IOERROR;
+			std->err = USBD_ERR_IOERROR;
 			goto done;
 		}
 		break;
 	default:
-		std->err = USBD_IOERROR;
+		std->err = USBD_ERR_IOERROR;
 		goto done;
 	}
 done:
@@ -2553,7 +2553,7 @@ ohci_root_intr_close(struct usbd_xfer *xfer)
 	if (sc->sc_root_intr.xfer == xfer) {
 		sc->sc_root_intr.xfer = NULL;
 	}
-	ohci_device_done(xfer, USBD_CANCELLED);
+	ohci_device_done(xfer, USBD_ERR_CANCELLED);
 	return;
 }
 
@@ -2676,7 +2676,7 @@ alloc_dma_set:
 		if (usbd_transfer_setup_sub_malloc(
 		    parm, &page_info, &pc, sizeof(*td),
 		    OHCI_TD_ALIGN)) {
-			parm->err = USBD_NOMEM;
+			parm->err = USBD_ERR_NOMEM;
 			break;
 		}
 		if (parm->buf) {
@@ -2701,7 +2701,7 @@ alloc_dma_set:
 		if (usbd_transfer_setup_sub_malloc(
 		    parm, &page_info, &pc, sizeof(*itd),
 		    OHCI_ITD_ALIGN)) {
-			parm->err = USBD_NOMEM;
+			parm->err = USBD_ERR_NOMEM;
 			break;
 		}
 		if (parm->buf) {
@@ -2730,7 +2730,7 @@ alloc_dma_set:
 		if (usbd_transfer_setup_sub_malloc(
 		    parm, &page_info, &pc, sizeof(*ed),
 		    OHCI_ED_ALIGN)) {
-			parm->err = USBD_NOMEM;
+			parm->err = USBD_ERR_NOMEM;
 			break;
 		}
 		if (parm->buf) {

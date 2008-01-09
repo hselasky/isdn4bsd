@@ -203,7 +203,7 @@ static const struct usbd_config uvisor_config[UVISOR_N_TRANSFER] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = UVISOR_BUFSIZE,	/* bytes */
+		.mh.bufsize = UVISOR_BUFSIZE,	/* bytes */
 		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,},
 		.mh.callback = &uvisor_write_callback,
 	},
@@ -212,7 +212,7 @@ static const struct usbd_config uvisor_config[UVISOR_N_TRANSFER] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = UVISOR_BUFSIZE,	/* bytes */
+		.mh.bufsize = UVISOR_BUFSIZE,	/* bytes */
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
 		.mh.callback = &uvisor_read_callback,
 	},
@@ -221,20 +221,20 @@ static const struct usbd_config uvisor_config[UVISOR_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.callback = &uvisor_write_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[3] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.callback = &uvisor_read_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 };
 
@@ -436,7 +436,7 @@ uvisor_init(struct uvisor_softc *sc, struct usbd_device *udev, struct usbd_confi
 		USETW(req.wIndex, 0);
 		USETW(req.wLength, UVISOR_CONNECTION_INFO_SIZE);
 		err = usbd_do_request_flags
-		    (udev, &Giant, &req, &coninfo, USBD_SHORT_XFER_OK,
+		    (udev, &Giant, &req, &coninfo, USBD_ERR_SHORT_XFER_OK,
 		    &actlen, USBD_DEFAULT_TIMEOUT);
 
 		if (err) {
@@ -489,7 +489,7 @@ uvisor_init(struct uvisor_softc *sc, struct usbd_device *udev, struct usbd_confi
 		USETW(req.wLength, UVISOR_GET_PALM_INFORMATION_LEN);
 
 		err = usbd_do_request_flags
-		    (udev, &Giant, &req, &pconinfo, USBD_SHORT_XFER_OK,
+		    (udev, &Giant, &req, &pconinfo, USBD_ERR_SHORT_XFER_OK,
 		    &actlen, USBD_DEFAULT_TIMEOUT);
 
 		if (err) {
@@ -497,7 +497,7 @@ uvisor_init(struct uvisor_softc *sc, struct usbd_device *udev, struct usbd_confi
 		}
 		if (actlen < 12) {
 			DPRINTF(0, "too little data\n");
-			err = USBD_INVAL;
+			err = USBD_ERR_INVAL;
 			goto done;
 		}
 		if (pconinfo.endpoint_numbers_different) {
@@ -653,7 +653,7 @@ uvisor_write_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			sc->sc_flag |= UVISOR_FLAG_WRITE_STALL;
 			usbd_transfer_start(sc->sc_xfer[2]);
 		}
@@ -695,7 +695,7 @@ uvisor_read_callback(struct usbd_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			sc->sc_flag |= UVISOR_FLAG_READ_STALL;
 			usbd_transfer_start(sc->sc_xfer[3]);
 		}

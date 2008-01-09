@@ -227,7 +227,7 @@ static const struct usbd_config zyd_config[ZYD_N_TRANSFER] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = ZYD_MAX_TXBUFSZ,
+		.mh.bufsize = ZYD_MAX_TXBUFSZ,
 		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,},
 		.mh.callback = &zyd_bulk_write_callback,
 		.ep_index = 0,
@@ -238,7 +238,7 @@ static const struct usbd_config zyd_config[ZYD_N_TRANSFER] = {
 		.type = UE_BULK,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = ZYX_MAX_RXBUFSZ,
+		.mh.bufsize = ZYX_MAX_RXBUFSZ,
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
 		.mh.callback = &zyd_bulk_read_callback,
 		.ep_index = 0,
@@ -248,29 +248,29 @@ static const struct usbd_config zyd_config[ZYD_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &zyd_bulk_write_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[ZYD_TR_BULK_CS_RD] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &zyd_bulk_read_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[ZYD_TR_INTR_DT_WR] = {
 		.type = UE_BULK_INTR,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
-		.bufsize = sizeof(struct zyd_cmd),
+		.mh.bufsize = sizeof(struct zyd_cmd),
 		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,},
 		.mh.callback = &zyd_intr_write_callback,
 		.mh.timeout = 1000,	/* 1 second */
@@ -281,7 +281,7 @@ static const struct usbd_config zyd_config[ZYD_N_TRANSFER] = {
 		.type = UE_BULK_INTR,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
-		.bufsize = sizeof(struct zyd_cmd),
+		.mh.bufsize = sizeof(struct zyd_cmd),
 		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
 		.mh.callback = &zyd_intr_read_callback,
 		.ep_index = 1,
@@ -291,22 +291,22 @@ static const struct usbd_config zyd_config[ZYD_N_TRANSFER] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &zyd_intr_write_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 
 	[ZYD_TR_INTR_CS_RD] = {
 		.type = UE_CONTROL,
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
-		.bufsize = sizeof(usb_device_request_t),
+		.mh.bufsize = sizeof(usb_device_request_t),
 		.mh.flags = {},
 		.mh.callback = &zyd_intr_read_clear_stall_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.interval = 50,		/* 50ms */
+		.mh.interval = 50,	/* 50ms */
 	},
 };
 
@@ -449,7 +449,7 @@ tr_setup:
 		DPRINTF(sc, 2, "error = %s\n",
 		    usbd_errstr(xfer->error));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			sc->sc_flags |= ZYD_FLAG_INTR_READ_STALL;
 			usbd_transfer_start(sc->sc_xfer[ZYD_TR_INTR_CS_RD]);
@@ -638,7 +638,7 @@ zyd_intr_write_callback(struct usbd_xfer *xfer)
 		DPRINTF(sc, 2, "error = %s\n",
 		    usbd_errstr(xfer->error));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			sc->sc_flags |= ZYD_FLAG_INTR_WRITE_STALL;
 			usbd_transfer_start(sc->sc_xfer[ZYD_TR_INTR_CS_WR]);
@@ -979,7 +979,7 @@ tr_setup:
 	default:			/* Error */
 		DPRINTF(sc, 0, "frame error: %s\n", usbd_errstr(xfer->error));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			sc->sc_flags |= ZYD_FLAG_BULK_READ_STALL;
 			usbd_transfer_start(sc->sc_xfer[ZYD_TR_BULK_CS_RD]);
@@ -2868,7 +2868,7 @@ error:
 		DPRINTF(sc, 10, "transfer error, %s\n",
 		    usbd_errstr(xfer->error));
 
-		if (xfer->error != USBD_CANCELLED) {
+		if (xfer->error != USBD_ERR_CANCELLED) {
 			/* try to clear stall first */
 			sc->sc_flags |= ZYD_FLAG_BULK_WRITE_STALL;
 			usbd_transfer_start(sc->sc_xfer[ZYD_TR_BULK_CS_WR]);

@@ -108,13 +108,13 @@ usbd_make_endpoint_desc(struct usbd_temp_setup *temp,
 	}
 	if (ted->pPacketSize == NULL) {
 		/* not initialized */
-		temp->err = USBD_INVAL;
+		temp->err = USBD_ERR_INVAL;
 		return;
 	}
 	mps = ted->pPacketSize->mps[temp->usb_speed];
 	if (mps == 0) {
 		/* not initialized */
-		temp->err = USBD_INVAL;
+		temp->err = USBD_ERR_INVAL;
 		return;
 	} else if (mps == UE_ZERO_MPS) {
 		/* escape for Zero Max Packet Size */
@@ -380,7 +380,7 @@ usbd_make_device_desc(struct usbd_temp_setup *temp,
 			utd->udd.bMaxPacketSize = 255;	/* 512 bytes */
 			break;
 		default:
-			temp->err = USBD_INVAL;
+			temp->err = USBD_ERR_INVAL;
 			break;
 		}
 	}
@@ -677,30 +677,30 @@ usbd_hw_ep_resolve(struct usbd_device *udev,
 	uint16_t mps;
 
 	if (desc == NULL) {
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	/* get bus methods */
 	methods = udev->bus->methods;
 
 	if (methods->get_hw_ep_profile == NULL) {
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	if (desc->bDescriptorType == UDESC_DEVICE) {
 
 		if (desc->bLength < sizeof(*dd)) {
-			return (USBD_INVAL);
+			return (USBD_ERR_INVAL);
 		}
 		dd = (void *)desc;
 
 		/* get HW control endpoint 0 profile */
 		(methods->get_hw_ep_profile) (udev, &pf, 0);
 		if (pf == NULL) {
-			return (USBD_INVAL);
+			return (USBD_ERR_INVAL);
 		}
 		if (!usbd_hw_ep_match(pf, UE_CONTROL, 0)) {
 			PRINTFN(-1, ("Endpoint 0 does not "
 			    "support control\n"));
-			return (USBD_INVAL);
+			return (USBD_ERR_INVAL);
 		}
 		mps = dd->bMaxPacketSize;
 
@@ -718,7 +718,7 @@ usbd_hw_ep_resolve(struct usbd_device *udev,
 
 				/* check if "mps" is too small */
 				if (mps < 8) {
-					return (USBD_INVAL);
+					return (USBD_ERR_INVAL);
 				}
 			}
 
@@ -731,16 +731,16 @@ usbd_hw_ep_resolve(struct usbd_device *udev,
 			}
 			/* Check if we support the specified wMaxPacketSize */
 			if (pf->max_frame_size < mps) {
-				return (USBD_INVAL);
+				return (USBD_ERR_INVAL);
 			}
 		}
 		return (0);		/* success */
 	}
 	if (desc->bDescriptorType != UDESC_CONFIG) {
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	if (desc->bLength < sizeof(*(ues->cd))) {
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	ues = udev->scratch[0].hw_ep_scratch;
 
@@ -758,7 +758,7 @@ usbd_hw_ep_resolve(struct usbd_device *udev,
 	    usbd_hw_ep_get_needs(ues, UE_CONTROL, 0) ||
 	    usbd_hw_ep_get_needs(ues, UE_BULK, 0)) {
 		PRINTFN(-1, ("Could not get needs\n"));
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	for (ep = ues->ep; ep != ues->ep_max; ep++) {
 
@@ -771,7 +771,7 @@ usbd_hw_ep_resolve(struct usbd_device *udev,
 			if (usbd_hw_ep_find_match(ues, ep, 1) &&
 			    usbd_hw_ep_find_match(ues, ep, 0)) {
 				PRINTFN(-1, ("Could not find match\n"));
-				return (USBD_INVAL);
+				return (USBD_ERR_INVAL);
 			}
 		}
 	}
@@ -785,7 +785,7 @@ usbd_hw_ep_resolve(struct usbd_device *udev,
 	    usbd_hw_ep_get_needs(ues, UE_CONTROL, 1) ||
 	    usbd_hw_ep_get_needs(ues, UE_BULK, 1)) {
 		PRINTFN(-1, ("Could not update endpoint address\n"));
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	return (0);			/* success */
 }
@@ -1062,13 +1062,13 @@ usbd_temp_setup(struct usbd_device *udev,
 	}
 	/* sanity check */
 	if (uts->size == 0) {
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	/* allocate zeroed memory */
 	uts->buf = malloc(uts->size, M_USB, M_WAITOK | M_ZERO);
 	if (uts->buf == NULL) {
 		/* could not allocate memory */
-		return (USBD_NOMEM);
+		return (USBD_ERR_NOMEM);
 	}
 	/* second pass */
 

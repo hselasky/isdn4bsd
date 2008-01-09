@@ -772,8 +772,8 @@ usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32
 		cfg[0].endpoint = addr & UE_ADDR;
 		cfg[0].direction = addr & (UE_DIR_OUT | UE_DIR_IN);
 		cfg[0].mh.callback = &usb_linux_isoc_callback;
-		cfg[0].bufsize = 0;	/* use wMaxPacketSize */
-		cfg[0].frames = usb_max_isoc_frames(dev);
+		cfg[0].mh.bufsize = 0;	/* use wMaxPacketSize */
+		cfg[0].mh.frames = usb_max_isoc_frames(dev);
 		cfg[0].mh.flags.proxy_buffer = 1;
 #if 0
 		/*
@@ -806,7 +806,7 @@ usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32
 		cfg[0].endpoint = addr & UE_ADDR;
 		cfg[0].direction = addr & (UE_DIR_OUT | UE_DIR_IN);
 		cfg[0].mh.callback = &usb_linux_non_isoc_callback;
-		cfg[0].bufsize = bufsize;
+		cfg[0].mh.bufsize = bufsize;
 		cfg[0].mh.flags.ext_buffer = 1;	/* enable zero-copy */
 		cfg[0].mh.flags.proxy_buffer = 1;
 		cfg[0].mh.flags.short_xfer_ok = 1;
@@ -1416,7 +1416,7 @@ tr_setup:
 		return;
 
 	default:			/* Error */
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			urb->status = -ECONNRESET;
 		} else {
 			urb->status = -EPIPE;	/* stalled */
@@ -1433,7 +1433,7 @@ tr_setup:
 		/* call callback */
 		usb_linux_complete(xfer);
 
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			/* we need to return in this case */
 			return;
 		}
@@ -1590,7 +1590,7 @@ setup_bulk:
 
 	default:
 tr_error:
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			urb->status = -ECONNRESET;
 		} else {
 			urb->status = -EPIPE;
@@ -1602,7 +1602,7 @@ tr_error:
 		/* call callback */
 		usb_linux_complete(xfer);
 
-		if (xfer->error == USBD_CANCELLED) {
+		if (xfer->error == USBD_ERR_CANCELLED) {
 			/* we need to return in this case */
 			return;
 		}

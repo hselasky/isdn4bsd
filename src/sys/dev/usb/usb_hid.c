@@ -498,17 +498,17 @@ hid_read_report_desc_from_usb(struct usbd_device *udev, struct mtx *mtx,
 	usbd_status_t err;
 
 	if ((iface == NULL) || (iface->idesc == NULL)) {
-		return (USBD_INVAL);
+		return (USBD_ERR_INVAL);
 	}
 	hid = hid_get_descriptor_from_usb
 	    (usbd_get_config_descriptor(udev), iface->idesc);
 
 	if (hid == NULL) {
-		return (USBD_IOERROR);
+		return (USBD_ERR_IOERROR);
 	}
 	*sizep = UGETW(hid->descrs[0].wDescriptorLength);
 	if (*sizep == 0) {
-		return (USBD_IOERROR);
+		return (USBD_ERR_IOERROR);
 	}
 	if (mtx)
 		mtx_unlock(mtx);
@@ -519,7 +519,7 @@ hid_read_report_desc_from_usb(struct usbd_device *udev, struct mtx *mtx,
 		mtx_lock(mtx);
 
 	if (*descp == NULL) {
-		return (USBD_NOMEM);
+		return (USBD_ERR_NOMEM);
 	}
 	err = usbreq_get_report_descriptor
 	    (udev, mtx, *descp, *sizep, iface_index);
@@ -529,5 +529,5 @@ hid_read_report_desc_from_usb(struct usbd_device *udev, struct mtx *mtx,
 		*descp = NULL;
 		return (err);
 	}
-	return (USBD_NORMAL_COMPLETION);
+	return (USBD_ERR_NORMAL_COMPLETION);
 }
