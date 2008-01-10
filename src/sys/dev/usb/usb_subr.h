@@ -248,16 +248,17 @@ struct usbd_page_cache {
 	bus_dma_tag_t tag;
 	bus_dmamap_t map;
 #endif
-
 #ifdef __NetBSD__
-	bus_dma_segment_t seg;
 	bus_dma_tag_t tag;
 	bus_dmamap_t map;
-	int32_t	seg_count;
+	bus_dma_segment_t *p_seg;
 #endif
 	struct usbd_page *page_start;
 	struct usbd_xfer *xfer;		/* if set, backpointer to USB transfer */
 	void   *buffer;			/* virtual buffer pointer */
+#ifdef __NetBSD__
+	int	n_seg;
+#endif
 	uint32_t page_offset_buf;
 	uint32_t page_offset_end;
 	uint8_t	isread:1;
@@ -323,9 +324,15 @@ struct usbd_hw_ep_scratch {
 };
 
 struct usbd_dma_tag {
+#ifdef __NetBSD__
+	bus_dma_segment_t *p_seg;
+#endif
 	bus_dma_tag_t tag;
 	uint32_t align;
 	uint32_t size;
+#ifdef __NetBSD__
+	uint32_t n_seg;
+#endif
 };
 
 /* USB BUS explore commands */
@@ -856,8 +863,8 @@ void	usbd_m_copy_in(struct usbd_page_cache *cache, uint32_t dst_offset, struct m
 int	usbd_uiomove(struct usbd_page_cache *pc, struct uio *uio, uint32_t pc_offset, uint32_t len);
 void	usbd_copy_out(struct usbd_page_cache *cache, uint32_t offset, void *ptr, uint32_t len);
 void	usbd_bzero(struct usbd_page_cache *cache, uint32_t offset, uint32_t len);
-bus_dma_tag_t usbd_dma_tag_create(bus_dma_tag_t tag_parent, uint32_t size, uint32_t align);
-void	usbd_dma_tag_destroy(bus_dma_tag_t tag);
+void	usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt, uint32_t size, uint32_t align);
+void	usbd_dma_tag_destroy(struct usbd_dma_tag *udt);
 uint8_t	usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag, struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align, uint8_t utag_max);
 void	usbd_pc_free_mem(struct usbd_page_cache *pc);
 void	usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size);
@@ -877,7 +884,7 @@ uint8_t	usbd_config_td_sleep(struct usbd_config_td *ctd, uint32_t timeout);
 struct mbuf *usbd_ether_get_mbuf(void);
 int32_t	device_delete_all_children(device_t dev);
 uint16_t usbd_isoc_time_expand(struct usbd_bus *bus, uint16_t isoc_time_curr);
-bus_dma_tag_t usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt, uint32_t size, uint32_t align, uint8_t nudt);
+struct usbd_dma_tag *usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt, uint32_t size, uint32_t align, uint8_t nudt);
 void	usbd_dma_tag_unsetup(struct usbd_dma_tag *udt, uint8_t nudt);
 void	usbd_bus_mem_flush_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb);
 uint8_t	usbd_bus_mem_alloc_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb);
