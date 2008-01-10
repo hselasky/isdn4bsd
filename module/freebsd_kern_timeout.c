@@ -30,9 +30,9 @@
 #include <sys/freebsd_compat.h>
 
 static void
-__callout_cb(void *arg)
+usb_callout_cb(void *arg)
 {
-    struct __callout *c = (struct __callout *)arg;
+    struct usb_callout *c = (struct usb_callout *)arg;
 
     mtx_lock(c->mtx);
 
@@ -49,7 +49,7 @@ __callout_cb(void *arg)
 }
 
 void
-__callout_init_mtx(struct __callout *c, struct mtx *mtx, u_int32_t flags)
+usb_callout_init_mtx(struct usb_callout *c, struct mtx *mtx, u_int32_t flags)
 {
     bzero(c, sizeof(*c));
 
@@ -70,20 +70,20 @@ __callout_init_mtx(struct __callout *c, struct mtx *mtx, u_int32_t flags)
 }
 
 void
-__callout_reset(struct __callout *c, u_int32_t to_ticks, 
+usb_callout_reset(struct usb_callout *c, u_int32_t to_ticks, 
 		void (*func)(void *), void *arg)
 {
     mtx_assert(c->mtx, MA_OWNED);
 
-    __callout_stop(c);
+    usb_callout_stop(c);
 
     c->func = func;
     c->arg = arg;
 
 #ifdef __NetBSD__
-    callout_reset(&c->c_old, to_ticks, &__callout_cb, c);
+    callout_reset(&c->c_old, to_ticks, &usb_callout_cb, c);
 #elif defined(__OpenBSD__)
-    timeout(&__callout_cb, c, to_ticks);
+    timeout(&usb_callout_cb, c, to_ticks);
 #else
 #error "Unknown operating system"
 #endif
@@ -91,7 +91,7 @@ __callout_reset(struct __callout *c, u_int32_t to_ticks,
 }
 
 void
-__callout_stop(struct __callout *c)
+usb_callout_stop(struct usb_callout *c)
 {
     if (c->mtx) {
         mtx_assert(c->mtx, MA_OWNED);
@@ -100,7 +100,7 @@ __callout_stop(struct __callout *c)
 #ifdef __NetBSD__
     callout_stop(&c->c_old);
 #elif defined(__OpenBSD__)
-    untimeout(&__callout_cb, c);
+    untimeout(&usb_callout_cb, c);
 #else
 #error "Unknown operating system"
 #endif
@@ -110,13 +110,13 @@ __callout_stop(struct __callout *c)
 }
 
 void
-__callout_drain(struct __callout *c)
+usb_callout_drain(struct usb_callout *c)
 {
 #ifdef __NetBSD__
     /* XXX NetBSD doesn't have any callout_drain() */
-    __callout_stop(c);
+    usb_callout_stop(c);
 #elif defined(__OpenBSD__)
-    __callout_stop(c);
+    usb_callout_stop(c);
 #else
 #error "Unknown operating system"
 #endif
@@ -124,7 +124,7 @@ __callout_drain(struct __callout *c)
 }
 
 u_int8_t
-__callout_pending(struct __callout *c)
+usb_callout_pending(struct usb_callout *c)
 {
     u_int8_t retval;
 

@@ -27,7 +27,7 @@
 #ifndef __FREEBSD_CALLOUT_H__
 #define __FREEBSD_CALLOUT_H__
 
-struct __callout {
+struct usb_callout {
 #ifdef __NetBSD__
     struct callout c_old;
 #elif defined(__OpenBSD__)
@@ -43,18 +43,18 @@ struct __callout {
 #define CALLOUT_RETURNUNLOCKED 0x0001
 
 extern void
-__callout_init_mtx(struct __callout *c, struct mtx *mtx, u_int32_t flags);
+usb_callout_init_mtx(struct usb_callout *c, struct mtx *mtx, u_int32_t flags);
 
 extern void
-__callout_reset(struct __callout *c, u_int32_t to_ticks, 
+usb_callout_reset(struct usb_callout *c, u_int32_t to_ticks, 
 		void (*func)(void *), void *arg);
 extern void
-__callout_stop(struct __callout *c);
+usb_callout_stop(struct usb_callout *c);
 
 extern void
-__callout_drain(struct __callout *c);
+usb_callout_drain(struct usb_callout *c);
 
 extern u_int8_t
-__callout_pending(struct __callout *c);
+usb_callout_pending(struct usb_callout *c);
 
 #endif
