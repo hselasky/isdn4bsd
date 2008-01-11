@@ -266,6 +266,20 @@ static __inline time_t time_second() { return time.tv_sec; }
 
 #ifndef IHFC_USB_ENABLED
 
+#define	USB_PAGE_SIZE PAGE_SIZE
+
+struct usbd_dma_tag {
+#ifdef __NetBSD__
+	bus_dma_segment_t *p_seg;
+#endif
+	bus_dma_tag_t tag;
+	uint32_t align;
+	uint32_t size;
+#ifdef __NetBSD__
+	uint32_t n_seg;
+#endif
+};
+
 struct usbd_page {
 	bus_size_t physaddr;
 	void   *buffer;			/* non Kernel Virtual Address */
