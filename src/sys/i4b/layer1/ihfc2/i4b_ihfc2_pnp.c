@@ -793,6 +793,8 @@ ihfc_unsetup_resource(device_t dev)
 	if(sc->sc_resources.mwba_start[0])
         {
 		usbd_pc_free_mem(&(sc->sc_hw_page_cache));
+
+		usbd_dma_tag_unsetup(&(sc->sc_hw_dma_tag), 1);
 	}
 
 	bzero(&sc->sc_resources,sizeof(sc->sc_resources));
