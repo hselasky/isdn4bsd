@@ -267,28 +267,42 @@ static __inline time_t time_second() { return time.tv_sec; }
 #ifndef IHFC_USB_ENABLED
 
 struct usbd_page {
-	void *buffer;
 	bus_size_t physaddr;
+	void   *buffer;			/* non Kernel Virtual Address */
+};
+
+struct usbd_page_search {
+	void   *buffer;
+	bus_size_t physaddr;
+	uint32_t length;
+};
+
+struct usbd_page_cache {
 
 #ifdef __FreeBSD__
-	bus_dma_tag_t  tag;
+	bus_dma_tag_t tag;
 	bus_dmamap_t map;
 #endif
-
 #ifdef __NetBSD__
 	bus_dma_tag_t tag;
 	bus_dmamap_t map;
-	bus_dma_segment_t seg;
-	int32_t seg_count;
+	bus_dma_segment_t *p_seg;
 #endif
-	u_int32_t  length;
+	struct usbd_page *page_start;
+	struct usbd_xfer *xfer;		/* if set, backpointer to USB transfer */
+	void   *buffer;			/* virtual buffer pointer */
+#ifdef __NetBSD__
+	int	n_seg;
+#endif
+	uint32_t page_offset_buf;
+	uint32_t page_offset_end;
+	uint8_t	isread:1;
 };
 
-void * usbd_mem_alloc(bus_dma_tag_t parent, struct usbd_page *page, uint32_t size, uint8_t align_power);
-
-void usbd_mem_free(struct usbd_page *page);
-
-void usbd_page_sync(struct usbd_page *page, uint8_t op);
+uint8_t usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag, struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align, uint8_t utag_max);
+void usbd_pc_free_mem(struct usbd_page_cache *pc);
+void usbd_pc_cpu_invalidate(struct usbd_page_cache *pc);
+void usbd_pc_cpu_flush(struct usbd_page_cache *pc);
 
 #endif
 

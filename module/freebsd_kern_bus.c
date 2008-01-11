@@ -1411,85 +1411,221 @@ devclass_find(const char *classname)
 
 #ifndef IHFC_USB_ENABLED
 
-void *
-usbd_mem_alloc(bus_dma_tag_t dma_tag, struct usbd_page *page, u_int32_t size, u_int8_t align_power)
+#ifdef __NetBSD__
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_alloc_mem_cb
+ *------------------------------------------------------------------------*/
+static void
+usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
+    int nseg, int error)
 {
-    caddr_t ptr = NULL;
+	struct usbd_xfer *xfer;
+	struct usbd_page *pg;
+	uint32_t rem;
+	uint8_t owned;
 
-    page->tag = dma_tag;
-    page->seg_count = 1;
+	xfer = pc->xfer;
 
-    if(bus_dmamem_alloc(page->tag, size, (1 << align_power), 0,
-			&page->seg, 1,
-			&page->seg_count, BUS_DMA_WAITOK))
-    {
-        goto done_4;
-    }
+	/*
+	 * XXX There is sometimes recursive locking here.
+	 * XXX We should try to find a better solution.
+	 * XXX Until further the "owned" variable does
+	 * XXX the trick.
+	 */
 
-    if(bus_dmamem_map(page->tag, &page->seg, page->seg_count, size,
-		      &ptr, BUS_DMA_WAITOK|BUS_DMA_COHERENT))
-    {
-        goto done_3;
-    }
+	if (error) {
+		if (xfer) {
+			owned = mtx_owned(xfer->priv_mtx);
+			if (!owned)
+				mtx_lock(xfer->priv_mtx);
+			xfer->usb_root->dma_error = 1;
+			usbd_bdma_done_event(xfer->usb_root);
+			if (!owned)
+				mtx_unlock(xfer->priv_mtx);
+		}
+		return;
+	}
+	pg = pc->page_start;
+	pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
+	rem = segs->ds_addr & (USB_PAGE_SIZE - 1);
+	pc->page_offset_buf = rem;
+	pc->page_offset_end += rem;
+	nseg--;
 
-    if(bus_dmamap_create(page->tag, size, 1, size,
-			 0, BUS_DMA_WAITOK, &page->map))
-    {
-        goto done_2;
-    }
+	while (nseg > 0) {
+		nseg--;
+		segs++;
+		pg++;
+		pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
+	}
 
-    if(bus_dmamap_load(page->tag, page->map, ptr, size, NULL, 
-		       BUS_DMA_WAITOK))
-    {
-        goto done_1;
-    }
-
-    page->physaddr = page->map->dm_segs[0].ds_addr;
-    page->buffer = ptr;
-    page->length = size;
-
-    bzero(ptr, size);
-
-    usbd_page_sync(page, BUS_DMASYNC_PREWRITE|BUS_DMASYNC_PREREAD);
- 
-    return ptr;
-
- done_1:
-    bus_dmamap_destroy(page->tag, page->map);
-
- done_2:
-    bus_dmamem_unmap(page->tag, ptr, size);
-
- done_3:
-    bus_dmamem_free(page->tag, &page->seg, page->seg_count);
-
- done_4:
-    return NULL;
+	if (xfer) {
+		owned = mtx_owned(xfer->priv_mtx);
+		if (!owned)
+			mtx_lock(xfer->priv_mtx);
+		usbd_bdma_done_event(xfer->usb_root);
+		if (!owned)
+			mtx_unlock(xfer->priv_mtx);
+	}
+	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_pc_alloc_mem - allocate DMA'able memory
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+uint8_t
+usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
+    struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size,
+    uint32_t align, uint8_t utag_max)
+{
+	caddr_t ptr = NULL;
+	bus_dma_tag_t tag;
+	bus_dmamap_t map;
+	int seg_count;
+
+	if (align != 1) {
+		/*
+	         * The alignment must be greater or equal to the
+	         * "size" else the object can be split between two
+	         * memory pages and we get a problem!
+	         */
+		while (align < size) {
+			align *= 2;
+			if (align == 0) {
+				goto done_5;
+			}
+		}
+	}
+	/* get the correct DMA tag */
+	utag = usbd_dma_tag_setup(parent_tag, utag, size, align, utag_max);
+	if (utag == NULL) {
+		goto done_5;
+	}
+	/* get the DMA tag */
+	tag = utag->tag;
+
+	if (bus_dmamem_alloc(tag, size, align, 0, utag->p_seg,
+	    utag->n_seg, &seg_count, BUS_DMA_WAITOK)) {
+		goto done_4;
+	}
+	if (bus_dmamem_map(tag, utag->p_seg, seg_count, size,
+	    &ptr, BUS_DMA_WAITOK | BUS_DMA_COHERENT)) {
+		goto done_3;
+	}
+	if (bus_dmamap_create(tag, size, utag->n_seg, USB_PAGE_SIZE,
+	    0, BUS_DMA_WAITOK, &map)) {
+		goto done_2;
+	}
+	if (bus_dmamap_load(tag, map, ptr, size, NULL,
+	    BUS_DMA_WAITOK)) {
+		goto done_1;
+	}
+	pc->p_seg = malloc(seg_count * sizeof(*(pc->p_seg)),
+	    M_USB, M_WAITOK | M_ZERO);
+	if (pc->p_seg == NULL) {
+		goto done_0;
+	}
+	/* store number if actual segments used */
+	pc->n_seg = seg_count;
+
+	/* make a copy of the segments */
+	bcopy(utag->p_seg, pc->p_seg,
+	    seg_count * sizeof(*(pc->p_seg)));
+
+	/* setup page cache */
+	pc->buffer = ptr;
+	pc->page_start = pg;
+	pc->page_offset_buf = 0;
+	pc->page_offset_end = size;
+	pc->map = map;
+	pc->tag = tag;
+
+	usbd_pc_alloc_mem_cb(pc, utag->p_seg, seg_count, 0);
+
+	bzero(ptr, size);
+
+	usbd_pc_cpu_flush(pc);
+
+	return (0);
+
+done_0:
+	bus_dmamap_unload(tag, map);
+done_1:
+	bus_dmamap_destroy(tag, map);
+done_2:
+	bus_dmamem_unmap(tag, ptr, size);
+done_3:
+	bus_dmamem_free(tag, utag->p_seg, seg_count);
+done_4:
+	/* utag is destroyed later */
+done_5:
+	/* reset most of the page cache */
+	pc->buffer = NULL;
+	pc->page_start = NULL;
+	pc->page_offset_buf = 0;
+	pc->page_offset_end = 0;
+	pc->map = NULL;
+	pc->tag = NULL;
+	pc->n_seg = 0;
+	pc->p_seg = NULL;
+	return (1);
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_free_mem - free DMA memory
+ *
+ * This function is NULL safe.
+ *------------------------------------------------------------------------*/
 void
-usbd_mem_free(struct usbd_page *page)
+usbd_pc_free_mem(struct usbd_page_cache *pc)
 {
-    /* NOTE: make a copy of "tag", "map", 
-     * and "buffer" in case "page" is part 
-     * of the allocated memory:
-     */
-    struct usbd_page temp = *page;
-
-    usbd_page_sync(page, BUS_DMASYNC_POSTWRITE|BUS_DMASYNC_POSTREAD);
-
-    bus_dmamap_unload(temp.tag, temp.map);
-    bus_dmamap_destroy(temp.tag, temp.map);
-    bus_dmamem_unmap(temp.tag, temp.buffer, temp.length);
-    bus_dmamem_free(temp.tag, &temp.seg, temp.seg_count);
-    return;
+	if (pc && pc->buffer) {
+		bus_dmamap_unload(pc->tag, pc->map);
+		bus_dmamap_destroy(pc->tag, pc->map);
+		bus_dmamem_unmap(pc->tag, pc->buffer,
+		    pc->page_offset_end - pc->page_offset_buf);
+		bus_dmamem_free(pc->tag, pc->p_seg, pc->n_seg);
+		free(pc->p_seg, M_USB);
+		pc->buffer = NULL;
+	}
+	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_pc_cpu_invalidate - invalidate CPU cache
+ *------------------------------------------------------------------------*/
 void
-usbd_page_sync(struct usbd_page *page, uint8_t op)
+usbd_pc_cpu_invalidate(struct usbd_page_cache *pc)
 {
-    bus_dmamap_sync(page->tag, page->map, 0, page->length, op);
-    return;
+	uint32_t len;
+
+	len = pc->page_offset_end - pc->page_offset_buf;
+
+	bus_dmamap_sync(pc->tag, pc->map, 0, len,
+	    BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
+	return;
 }
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_cpu_flush - flush CPU cache
+ *------------------------------------------------------------------------*/
+void
+usbd_pc_cpu_flush(struct usbd_page_cache *pc)
+{
+	uint32_t len;
+
+	len = pc->page_offset_end - pc->page_offset_buf;
+
+	bus_dmamap_sync(pc->tag, pc->map, 0, len,
+	    BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
+	return;
+}
+
+#endif
 
 #endif
