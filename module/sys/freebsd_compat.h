@@ -319,6 +319,8 @@ struct usbd_page_cache {
 	uint8_t	isread:1;
 };
 
+struct usbd_dma_tag * usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt, uint32_t size, uint32_t align, uint8_t nudt);
+void usbd_dma_tag_unsetup(struct usbd_dma_tag *udt, uint8_t nudt);
 uint8_t usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag, struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align, uint8_t utag_max);
 void usbd_pc_free_mem(struct usbd_page_cache *pc);
 void usbd_pc_cpu_invalidate(struct usbd_page_cache *pc);

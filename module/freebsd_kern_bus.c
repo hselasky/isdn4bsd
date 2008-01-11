@@ -1414,6 +1414,91 @@ devclass_find(const char *classname)
 #ifdef __NetBSD__
 
 /*------------------------------------------------------------------------*
+ *	usbd_dma_tag_create - allocate a DMA tag
+ *
+ * NOTE: If the "align" parameter has a value of 1 the DMA-tag will
+ * allow multi-segment mappings. Else all mappings are single-segment.
+ *------------------------------------------------------------------------*/
+static void
+usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
+    uint32_t size, uint32_t align)
+{
+	uint32_t nseg;
+
+	if (align == 1) {
+		nseg = (2 + (size / USB_PAGE_SIZE));
+	} else {
+		nseg = 1;
+	}
+
+	udt->p_seg = malloc(nseg * sizeof(*(udt->p_seg)),
+	    M_DEVBUF, M_WAITOK | M_ZERO);
+
+	if (udt->p_seg == NULL) {
+		return;
+	}
+	udt->tag = tag_parent;
+	udt->n_seg = nseg;
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_dma_tag_free - free a DMA tag
+ *------------------------------------------------------------------------*/
+static void
+usbd_dma_tag_destroy(struct usbd_dma_tag *udt)
+{
+	free(udt->p_seg, M_DEVBUF);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_tag_setup - factored out code
+ *------------------------------------------------------------------------*/
+struct usbd_dma_tag *
+usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
+    uint32_t size, uint32_t align, uint8_t nudt)
+{
+	__KASSERT(align > 0, ("Invalid parameter align = 0!\n"));
+	__KASSERT(size > 0, ("Invalid parameter size = 0!\n"));
+
+	while (nudt--) {
+
+		if (udt->align == 0) {
+			usbd_dma_tag_create(tag_parent, udt, size, align);
+			if (udt->tag == NULL) {
+				return (NULL);
+			}
+			udt->align = align;
+			udt->size = size;
+			return (udt);
+		}
+		if ((udt->align == align) && (udt->size == size)) {
+			return (udt);
+		}
+		udt++;
+	}
+	return (NULL);
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_bus_tag_unsetup - factored out code
+ *------------------------------------------------------------------------*/
+void
+usbd_dma_tag_unsetup(struct usbd_dma_tag *udt, uint8_t nudt)
+{
+	while (nudt--) {
+
+		if (udt->align) {
+			usbd_dma_tag_destroy(udt);
+			udt->align = 0;
+		}
+		udt++;
+	}
+	return;
+}
+
+/*------------------------------------------------------------------------*
  *	usbd_pc_alloc_mem_cb
  *------------------------------------------------------------------------*/
 static void
