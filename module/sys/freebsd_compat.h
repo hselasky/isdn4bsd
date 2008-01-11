@@ -289,7 +289,6 @@ struct usbd_page_cache {
 	bus_dma_segment_t *p_seg;
 #endif
 	struct usbd_page *page_start;
-	struct usbd_xfer *xfer;		/* if set, backpointer to USB transfer */
 	void   *buffer;			/* virtual buffer pointer */
 #ifdef __NetBSD__
 	int	n_seg;

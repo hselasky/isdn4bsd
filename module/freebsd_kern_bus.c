@@ -1420,30 +1420,11 @@ static void
 usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
     int nseg, int error)
 {
-	struct usbd_xfer *xfer;
 	struct usbd_page *pg;
 	uint32_t rem;
 	uint8_t owned;
 
-	xfer = pc->xfer;
-
-	/*
-	 * XXX There is sometimes recursive locking here.
-	 * XXX We should try to find a better solution.
-	 * XXX Until further the "owned" variable does
-	 * XXX the trick.
-	 */
-
 	if (error) {
-		if (xfer) {
-			owned = mtx_owned(xfer->priv_mtx);
-			if (!owned)
-				mtx_lock(xfer->priv_mtx);
-			xfer->usb_root->dma_error = 1;
-			usbd_bdma_done_event(xfer->usb_root);
-			if (!owned)
-				mtx_unlock(xfer->priv_mtx);
-		}
 		return;
 	}
 	pg = pc->page_start;
@@ -1458,15 +1439,6 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 		segs++;
 		pg++;
 		pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
-	}
-
-	if (xfer) {
-		owned = mtx_owned(xfer->priv_mtx);
-		if (!owned)
-			mtx_lock(xfer->priv_mtx);
-		usbd_bdma_done_event(xfer->usb_root);
-		if (!owned)
-			mtx_unlock(xfer->priv_mtx);
 	}
 	return;
 }
