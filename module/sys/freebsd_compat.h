@@ -316,6 +316,7 @@ uint8_t usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag, s
 void usbd_pc_free_mem(struct usbd_page_cache *pc);
 void usbd_pc_cpu_invalidate(struct usbd_page_cache *pc);
 void usbd_pc_cpu_flush(struct usbd_page_cache *pc);
+void usbd_get_page(struct usbd_page_cache *pc, uint32_t offset, struct usbd_page_search *res);
 
 #endif
 

@@ -1597,6 +1597,57 @@ usbd_pc_cpu_flush(struct usbd_page_cache *pc)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *  usbd_get_page - lookup DMA-able memory for the given offset
+ *
+ * NOTE: Only call this function when the "page_cache" structure has
+ * been properly initialized !
+ *------------------------------------------------------------------------*/
+void
+usbd_get_page(struct usbd_page_cache *pc, uint32_t offset,
+    struct usbd_page_search *res)
+{
+	struct usbd_page *page;
+
+	if (pc->page_start) {
+
+		/* Case 1 - something has been loaded into DMA */
+
+		if (pc->buffer) {
+
+			/* Case 1a - Kernel Virtual Address */
+
+			res->buffer = USBD_ADD_BYTES(pc->buffer, offset);
+		}
+		offset += pc->page_offset_buf;
+
+		/* compute destination page */
+
+		page = pc->page_start;
+
+		page += (offset / USB_PAGE_SIZE);
+
+		offset %= USB_PAGE_SIZE;
+
+		res->length = USB_PAGE_SIZE - offset;
+		res->physaddr = page->physaddr + offset;
+		if (!pc->buffer) {
+
+			/* Case 1b - Non Kernel Virtual Address */
+
+			res->buffer = USBD_ADD_BYTES(page->buffer, offset);
+		}
+	} else {
+
+		/* Case 2 - Plain PIO */
+
+		res->buffer = USBD_ADD_BYTES(pc->buffer, offset);
+		res->length = 0 - 1;
+		res->physaddr = 0;
+	}
+	return;
+}
+
 #endif
 
 #endif
