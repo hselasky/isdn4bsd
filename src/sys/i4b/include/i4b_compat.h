@@ -30,12 +30,12 @@
 #   define __lockmgr lockmgr
 #   define __KASSERT KASSERT
 #  endif
-#  ifndef __callout_init_mtx
-#   define __callout_init_mtx(c,m,f) callout_init_mtx(&(c)->co,m,f)
-#   define __callout_reset(c,t,f,d) callout_reset(&(c)->co,t,f,d)
-#   define __callout_stop(c) callout_stop(&(c)->co)
-#   define __callout_pending(c) callout_pending(&(c)->co)
-    struct __callout { struct callout co; };
+#  ifndef usb_callout_init_mtx
+#   define usb_callout_init_mtx(c,m,f) callout_init_mtx(&(c)->co,m,f)
+#   define usb_callout_reset(c,t,f,d) callout_reset(&(c)->co,t,f,d)
+#   define usb_callout_stop(c) callout_stop(&(c)->co)
+#   define usb_callout_pending(c) callout_pending(&(c)->co)
+    struct usb_callout { struct callout co; };
 #  endif
 # else
 #  include <ncurses.h>

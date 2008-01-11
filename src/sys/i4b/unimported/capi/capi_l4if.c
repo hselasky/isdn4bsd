@@ -770,10 +770,10 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 #endif
 
 	  /* initialize the callout handles for timeout routines */
-	  __callout_init_mtx(&sc->ID_REQUEST_callout, 
+	  usb_callout_init_mtx(&sc->ID_REQUEST_callout, 
 			     CNTL_GET_LOCK(cntl), 0);
 
-	  __callout_init_mtx(&sc->L1_activity_callout, 
+	  usb_callout_init_mtx(&sc->L1_activity_callout, 
 			     CNTL_GET_LOCK(cntl), 0);
 
 	  sc->sc_cntl = cntl;
@@ -802,10 +802,10 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	      ((cntl->N_serial_number + PIPE_NO(pipe))
 	       DSS1_TEI_IS_ODD(*2)) DSS1_TEI_IS_ODD(|1);
 
-	    __callout_init_mtx(&pipe->set_state_callout, 
+	    usb_callout_init_mtx(&pipe->set_state_callout, 
 			       CNTL_GET_LOCK(cntl), 0);
 
-	    __callout_init_mtx(&pipe->get_mbuf_callout, 
+	    usb_callout_init_mtx(&pipe->get_mbuf_callout, 
 			       CNTL_GET_LOCK(cntl), 0);
 #if 0
 	    _IF_QUEUE_GET(pipe)->ifq_maxlen = IFQ_MAXLEN;
@@ -831,8 +831,8 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	  cntl->N_lapdstat = NULL;
 
 	  /* untimeout */
-	  __callout_stop(&sc->ID_REQUEST_callout);
-	  __callout_stop(&sc->L1_activity_callout);
+	  usb_callout_stop(&sc->ID_REQUEST_callout);
+	  usb_callout_stop(&sc->L1_activity_callout);
 
 	  PIPE_FOREACH(pipe,&sc->sc_pipe[0])
 	  {
@@ -846,8 +846,8 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 		}
 
 		/* untimeout */
-		__callout_stop(&pipe->set_state_callout);
-		__callout_stop(&pipe->get_mbuf_callout);
+		usb_callout_stop(&pipe->set_state_callout);
+		usb_callout_stop(&pipe->get_mbuf_callout);
 	  }
 
 	  _IF_DRAIN(sc);
