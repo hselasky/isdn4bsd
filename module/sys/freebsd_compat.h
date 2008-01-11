@@ -268,6 +268,13 @@ static __inline time_t time_second() { return time.tv_sec; }
 
 #define	USB_PAGE_SIZE PAGE_SIZE
 
+/* helper for computing offsets */
+#define	POINTER_TO_UNSIGNED(ptr) \
+  (((const uint8_t *)(ptr)) - ((const uint8_t *)0))
+
+#define	USBD_ADD_BYTES(ptr,size) \
+  ((void *)(POINTER_TO_UNSIGNED(ptr) + (size)))
+
 struct usbd_dma_tag {
 #ifdef __NetBSD__
 	bus_dma_segment_t *p_seg;
