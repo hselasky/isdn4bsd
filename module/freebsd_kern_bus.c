@@ -1422,7 +1422,6 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 {
 	struct usbd_page *pg;
 	uint32_t rem;
-	uint8_t owned;
 
 	if (error) {
 		return;
@@ -1498,7 +1497,7 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 		goto done_1;
 	}
 	pc->p_seg = malloc(seg_count * sizeof(*(pc->p_seg)),
-	    M_USB, M_WAITOK | M_ZERO);
+	    M_DEVBUF, M_WAITOK | M_ZERO);
 	if (pc->p_seg == NULL) {
 		goto done_0;
 	}
@@ -1562,7 +1561,7 @@ usbd_pc_free_mem(struct usbd_page_cache *pc)
 		bus_dmamem_unmap(pc->tag, pc->buffer,
 		    pc->page_offset_end - pc->page_offset_buf);
 		bus_dmamem_free(pc->tag, pc->p_seg, pc->n_seg);
-		free(pc->p_seg, M_USB);
+		free(pc->p_seg, M_DEVBUF);
 		pc->buffer = NULL;
 	}
 	return;
