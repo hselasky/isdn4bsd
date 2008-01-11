@@ -2573,7 +2573,6 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 	uint32_t rem;
 	uint8_t owned;
 
-	pc = arg;
 	xfer = pc->xfer;
 
 	/*
@@ -2635,7 +2634,6 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 	caddr_t ptr = NULL;
 	bus_dma_tag_t tag;
 	bus_dmamap_t map;
-	void *ptr;
 	int seg_count;
 
 	if (align != 1) {
@@ -2752,7 +2750,6 @@ usbd_pc_free_mem(struct usbd_page_cache *pc)
 void
 usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size)
 {
-	int n_seg;
 	int error;
 
 	/* sanity check */
@@ -2770,14 +2767,14 @@ usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size)
 
 		/* try to load memory into DMA */
 		if (bus_dmamap_load(pc->tag, pc->map, pc->buffer,
-		    size, &n_seg, BUS_DMA_NOWAIT)) {
+		    size, NULL, BUS_DMA_NOWAIT)) {
 			error = ENOMEM;
 		} else {
 			error = 0;
 		}
 
 		usbd_pc_alloc_mem_cb(pc, pc->map->dm_segs,
-		    n_seg, error);
+		    pc->map->dm_nsegs, error);
 	}
 	return;
 }
@@ -2838,10 +2835,9 @@ usbd_pc_dmamap_create(struct usbd_page_cache *pc, uint32_t size)
 		goto error;
 	}
 	if (bus_dmamap_create(utag->tag, size, utag->n_seg,
-/**INDENT** Error@2843: Unbalanced parens */
-		    USB_PAGE_SIZE, 0, BUS_DMA_WAITOK, &(pc->map)) {
+	    USB_PAGE_SIZE, 0, BUS_DMA_WAITOK, &(pc->map))) {
 		goto error;
-		}
+	}
 	pc->tag = utag->tag;
 	pc->p_seg = utag->p_seg;
 	pc->n_seg = utag->n_seg;
