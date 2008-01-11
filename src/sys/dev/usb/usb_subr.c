@@ -2804,7 +2804,7 @@ usbd_pc_cpu_flush(struct usbd_page_cache *pc)
 
 	len = pc->page_offset_end - pc->page_offset_buf;
 
-	bus_dmamap_sync(page->tag, page->map, 0, len,
+	bus_dmamap_sync(pc->tag, pc->map, 0, len,
 	    BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
 	return;
 }
@@ -2821,6 +2821,7 @@ usbd_pc_dmamap_create(struct usbd_page_cache *pc, uint32_t size)
 {
 	struct usbd_memory_info *info;
 	struct usbd_dma_tag *utag;
+	bus_dma_tag_t tag;
 
 	/* sanity check */
 	if (pc->xfer == NULL) {
