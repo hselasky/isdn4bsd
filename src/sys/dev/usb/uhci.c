@@ -2255,9 +2255,21 @@ uhci_device_isoc_enter(struct usbd_xfer *xfer)
 
 		td->len = *plen;
 
-		/* fill out buffer pointer and do fixup, if any */
+		if (td->len == 0) {
+			/*
+			 * Do not call "uhci_mem_layout_fixup()" when the
+			 * length is zero!
+			 */
+			td->td_buffer = 0;
+			td->fix_pc = NULL;
 
-		uhci_mem_layout_fixup(&ml, td);
+		} else {
+
+			/* fill out buffer pointer and do fixup, if any */
+
+			uhci_mem_layout_fixup(&ml, td);
+
+		}
 
 		/* update status */
 		if (nframes == 0) {

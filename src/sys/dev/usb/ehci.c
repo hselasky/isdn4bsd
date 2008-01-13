@@ -2474,7 +2474,6 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 	nframes = xfer->nframes;
 
 	buf_offset = 0;
-	usbd_get_page(xfer->frbuffers + 0, buf_offset, &buf_res);
 
 	plen = xfer->frlengths;
 
@@ -2524,12 +2523,24 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 		 */
 		sa = usbd_fs_isoc_schedule_alloc(fss, *plen);
 
-		td->sitd_bp[0] = htole32(buf_res.physaddr);
-
-		buf_offset += *plen;
-		usbd_get_page(xfer->frbuffers + 0, buf_offset, &buf_res);
-
-		temp = buf_res.physaddr & (~0xFFF);
+		if (*plen) {
+			/*
+			 * only call "usbd_get_page()" when we have a
+			 * non-zero length
+			 */
+			usbd_get_page(xfer->frbuffers + 0, buf_offset, &buf_res);
+			td->sitd_bp[0] = htole32(buf_res.physaddr);
+			buf_offset += *plen;
+			/*
+			 * NOTE: We need to subtract one from the offset so
+			 * that we are on a valid page!
+			 */
+			usbd_get_page(xfer->frbuffers + 0, buf_offset - 1, &buf_res);
+			temp = buf_res.physaddr & ~0xFFF;
+		} else {
+			td->sitd_bp[0] = 0;
+			temp = 0;
+		}
 
 		if (UE_GET_DIR(xfer->endpoint) == UE_DIR_OUT) {
 			tlen = *plen;
@@ -2696,8 +2707,10 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 	uint32_t buf_offset;
 	uint32_t nframes;
 	uint32_t *plen;
-	uint8_t page_no;
+	uint32_t itd_offset[8 + 1];
+	uint8_t x;
 	uint8_t td_no;
+	uint8_t page_no;
 
 #ifdef USB_DEBUG
 	uint8_t once = 1;
@@ -2752,10 +2765,6 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 	nframes = xfer->nframes;
 
 	buf_offset = 0;
-	usbd_get_page(xfer->frbuffers + 0, buf_offset, &buf_res);
-
-	page_addr = buf_res.physaddr & ~0xFFF;
-	page_no = 0;
 	td_no = 0;
 
 	plen = xfer->frlengths;
@@ -2793,78 +2802,68 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 #endif
 			*plen = xfer->max_frame_size;
 		}
-		if (td_no == 0) {
-
-			/* update page address */
-			td->itd_bp[page_no] &= htole32(0xFFF);
-			td->itd_bp[page_no] |= htole32(page_addr);
-
-			if (nframes < 7) {
-				/*
-				 * clear all status in case some are not
-				 * initialized
-				 */
-				td->itd_status[0] = 0;
-				td->itd_status[1] = 0;
-				td->itd_status[2] = 0;
-				td->itd_status[3] = 0;
-				td->itd_status[4] = 0;
-				td->itd_status[5] = 0;
-				td->itd_status[6] = 0;
-				td->itd_status[7] = 0;
-			}
-		}
-		/* compute status */
-		if (nframes == 0) {
-			status =
-			    (EHCI_ITD_SET_LEN(*plen) |
-			    EHCI_ITD_ACTIVE |
-			    EHCI_ITD_IOC |
-			    EHCI_ITD_SET_PG(page_no) |
-			    (buf_res.physaddr & 0xFFF));
-		} else {
-			status =
-			    (EHCI_ITD_SET_LEN(*plen) |
-			    EHCI_ITD_ACTIVE |
-			    EHCI_ITD_SET_PG(page_no) |
-			    (buf_res.physaddr & 0xFFF));
-		}
-
+		status = (EHCI_ITD_SET_LEN(*plen) |
+		    EHCI_ITD_ACTIVE |
+		    EHCI_ITD_SET_PG(0));
+		td->itd_status[td_no] = htole32(status);
+		itd_offset[td_no] = buf_offset;
 		buf_offset += *plen;
-		usbd_get_page(xfer->frbuffers + 0, buf_offset, &buf_res);
-
-		if ((buf_res.physaddr ^ page_addr) & ~0xFFF) {
-			/* new page needed */
-			page_addr = buf_res.physaddr & ~0xFFF;
-			page_no++;
-
-			if (page_no < 7) {
-				/* update page address */
-				td->itd_bp[page_no] &= htole32(0xFFF);
-				td->itd_bp[page_no] |= htole32(page_addr);
-			}
-		}
-		if (page_no < 7) {
-			/* activate the transfer */
-			td->itd_status[td_no] = htole32(status);
-		} else {
-			/* pretend that the transfer has finished */
-			td->itd_status[td_no] = (nframes == 0) ?
-			    htole32(EHCI_ITD_IOC) : 0;
-#ifdef USB_DEBUG
-			if (once) {
-				once = 0;
-				printf("%s: isoc limit reached! "
-				    "Max %d bytes per 8 frames. Frame skipped.\n",
-				    __FUNCTION__, (6 << 12));
-			}
-#endif
-		}
-
 		plen++;
 		td_no++;
 
 		if ((td_no == 8) || (nframes == 0)) {
+
+			/* the rest of the transfers are not active, if any */
+			for (x = td_no; x != 8; x++) {
+				td->itd_status[x] = 0;	/* not active */
+			}
+
+			/* check if there is any data to be transferred */
+			if (itd_offset[0] != buf_offset) {
+				page_no = 0;
+				itd_offset[td_no] = buf_offset;
+
+				/* get first page offset */
+				usbd_get_page(xfer->frbuffers + 0, itd_offset[0], &buf_res);
+				/* get page address */
+				page_addr = buf_res.physaddr & ~0xFFF;
+
+				for (x = 0; x != td_no; x++) {
+					/* set page number and page offset */
+					status = (EHCI_ITD_SET_PG(page_no) |
+					    (buf_res.physaddr & 0xFFF));
+					td->itd_status[x] |= htole32(status);
+
+					/* get next page offset */
+					if (itd_offset[x + 1] == buf_offset) {
+						/*
+						 * We subtract one so that
+						 * we don't go off the last
+						 * page!
+						 */
+						usbd_get_page(xfer->frbuffers + 0, buf_offset - 1, &buf_res);
+					} else {
+						usbd_get_page(xfer->frbuffers + 0, itd_offset[x + 1], &buf_res);
+					}
+
+					/* check if we need a new page */
+					if ((buf_res.physaddr ^ page_addr) & ~0xFFF) {
+						/* new page needed */
+						page_addr = buf_res.physaddr & ~0xFFF;
+						if (page_no == 6) {
+							panic("%s: too many pages\n", __FUNCTION__);
+						}
+						page_no++;
+						/* update page address */
+						td->itd_bp[page_no] &= htole32(0xFFF);
+						td->itd_bp[page_no] |= htole32(page_addr);
+					}
+				}
+			}
+			/* set IOC bit if we are complete */
+			if (nframes == 0) {
+				td->itd_status[7] |= htole32(EHCI_ITD_IOC);
+			}
 			usbd_pc_cpu_flush(td->page_cache);
 #ifdef USB_DEBUG
 			if (ehcidebug > 15) {
@@ -2876,7 +2875,6 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 			EHCI_APPEND_HS_TD(td, *pp_last);
 			pp_last++;
 
-			page_no = 0;
 			td_no = 0;
 			td_last = td;
 			td = td->obj_next;

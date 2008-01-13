@@ -1907,23 +1907,21 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 	struct ohci_hcca *hcca;
 	uint32_t buf_offset;
 	uint32_t nframes;
-	uint32_t bp0;
-	uint32_t end_phy;
 	uint32_t ed_flags;
 	uint32_t *plen;
 	uint16_t itd_offset[OHCI_ITD_NOFFSET];
+	uint16_t length;
 	uint8_t ncur;
-	uint8_t allzero = 1;
 	ohci_itd_t *td;
 	ohci_itd_t *td_last = NULL;
 	ohci_ed_t *ed;
 
-	DPRINTFN(5, ("xfer=%p next=%d nframes=%d\n",
-	    xfer, xfer->pipe->isoc_next, xfer->nframes));
-
 	hcca = ohci_get_hcca(sc);
 
 	nframes = le32toh(hcca->hcca_frame_number);
+
+	DPRINTFN(5, ("xfer=%p isoc_next=%u nframes=%u hcca_fn=%u\n",
+	    xfer, xfer->pipe->isoc_next, xfer->nframes, nframes));
 
 	if ((LIST_FIRST(&(xfer->pipe->list_head)) == NULL) ||
 	    (((nframes - xfer->pipe->isoc_next) & 0xFFFF) < xfer->nframes) ||
@@ -1955,7 +1953,6 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 	nframes = xfer->nframes;
 
 	buf_offset = 0;
-	usbd_get_page(xfer->frbuffers + 0, buf_offset, &buf_res);
 
 	plen = xfer->frlengths;
 
@@ -1968,32 +1965,24 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 	xfer->td_transfer_first = td;
 
 	ncur = 0;
-
-	bp0 = OHCI_PAGE(buf_res.physaddr);
-
-	end_phy = 0;
+	length = 0;
 
 	while (nframes--) {
 		if (td == NULL) {
 			panic("%s:%d: out of TD's\n",
 			    __FUNCTION__, __LINE__);
 		}
-		itd_offset[ncur] = htole16(OHCI_ITD_MK_OFFS
-		    (buf_res.physaddr - bp0));
-		if (*plen) {
-			allzero = 0;
-			buf_offset += (*plen) - 1;
-			usbd_get_page(xfer->frbuffers + 0, buf_offset, &buf_res);
-
-			end_phy = buf_res.physaddr;
-			buf_offset += 1;
-			usbd_get_page(xfer->frbuffers + 0, buf_offset, &buf_res);
-		}
+		itd_offset[ncur] = length;
+		buf_offset += *plen;
+		length += *plen;
 		plen++;
 		ncur++;
 
-		if ((ncur == OHCI_ITD_NOFFSET) ||
-		    (OHCI_PAGE(buf_res.physaddr) != bp0) ||
+		if (			/* check if the ITD is full */
+		    (ncur == OHCI_ITD_NOFFSET) ||
+		/* check if we have put more than 4K into the ITD */
+		    (length & 0xF000) ||
+		/* check if it is the last frame */
 		    (nframes == 0)) {
 
 			/* fill current ITD */
@@ -2003,22 +1992,37 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 			    OHCI_ITD_NOINTR |
 			    OHCI_ITD_SET_FC(ncur));
 
-			if (allzero) {
+			td->frames = ncur;
+			xfer->pipe->isoc_next += ncur;
+
+			if (length == 0) {
+				/* all zero */
 				td->itd_bp0 = 0;
 				td->itd_be = ~0;
-			} else {
-				td->itd_bp0 = htole32(bp0);
-				td->itd_be = htole32(end_phy);
-			}
-			td->frames = ncur;
 
-			xfer->pipe->isoc_next += ncur;
-			bp0 = OHCI_PAGE(buf_res.physaddr);
-			while (ncur--) {
-				td->itd_offset[ncur] = itd_offset[ncur];
+				while (ncur--) {
+					td->itd_offset[ncur] =
+					    htole16(OHCI_ITD_MK_OFFS(0));
+				}
+			} else {
+				usbd_get_page(xfer->frbuffers + 0, buf_offset - length, &buf_res);
+				length = OHCI_PAGE_MASK(buf_res.physaddr);
+				buf_res.physaddr =
+				    OHCI_PAGE(buf_res.physaddr);
+				td->itd_bp0 = htole32(buf_res.physaddr);
+				usbd_get_page(xfer->frbuffers + 0, buf_offset - 1, &buf_res);
+				td->itd_be = htole32(buf_res.physaddr);
+
+				while (ncur--) {
+					itd_offset[ncur] += length;
+					itd_offset[ncur] =
+					    OHCI_ITD_MK_OFFS(itd_offset[ncur]);
+					td->itd_offset[ncur] =
+					    htole16(itd_offset[ncur]);
+				}
 			}
 			ncur = 0;
-			allzero = 1;
+			length = 0;
 			td_last = td;
 			td = td->obj_next;
 

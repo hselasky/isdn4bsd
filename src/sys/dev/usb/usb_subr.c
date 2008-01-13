@@ -2269,6 +2269,7 @@ usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
 	struct usbd_page *pg;
 	uint32_t rem;
 	uint8_t owned;
+	uint8_t ext_seg;		/* extend last segment */
 
 	pc = arg;
 	xfer = pc->xfer;
@@ -2297,6 +2298,12 @@ usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
 	rem = segs->ds_addr & (USB_PAGE_SIZE - 1);
 	pc->page_offset_buf = rem;
 	pc->page_offset_end += rem;
+	if (nseg < ((pc->page_offset_end +
+	    (USB_PAGE_SIZE - 1)) / USB_PAGE_SIZE)) {
+		ext_seg = 1;
+	} else {
+		ext_seg = 0;
+	}
 	nseg--;
 
 	while (nseg > 0) {
@@ -2306,6 +2313,14 @@ usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
 		pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
 	}
 
+	/*
+	 * XXX The segments we get from BUS-DMA are not aligned,
+	 * XXX so we need to extend the last segment if we are
+	 * XXX unaligned and cross the segment boundary!
+	 */
+	if (ext_seg) {
+		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
+	}
 	if (xfer) {
 		owned = mtx_owned(xfer->priv_mtx);
 		if (!owned)
@@ -2572,6 +2587,7 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 	struct usbd_page *pg;
 	uint32_t rem;
 	uint8_t owned;
+	uint8_t ext_seg;		/* extend last segment */
 
 	xfer = pc->xfer;
 
@@ -2599,6 +2615,12 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 	rem = segs->ds_addr & (USB_PAGE_SIZE - 1);
 	pc->page_offset_buf = rem;
 	pc->page_offset_end += rem;
+	if (nseg < ((pc->page_offset_end +
+	    (USB_PAGE_SIZE - 1)) / USB_PAGE_SIZE)) {
+		ext_seg = 1;
+	} else {
+		ext_seg = 0;
+	}
 	nseg--;
 
 	while (nseg > 0) {
@@ -2608,6 +2630,14 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 		pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
 	}
 
+	/*
+	 * XXX The segments we get from BUS-DMA are not aligned,
+	 * XXX so we need to extend the last segment if we are
+	 * XXX unaligned and cross the segment boundary!
+	 */
+	if (ext_seg) {
+		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
+	}
 	if (xfer) {
 		owned = mtx_owned(xfer->priv_mtx);
 		if (!owned)
