@@ -194,7 +194,7 @@ extern int cold;
 
 #include "opt_usb.h"
 
-#if (__FreeBSD_version >= 700000)
+#if (__FreeBSD_version >= 800000)
 #define	usb_thread_create(f, s, p, ...) \
 		kproc_create((f), (s), (p), RFHIGHPID, 0, __VA_ARGS__)
 #define	usb_thread_exit(err)	kproc_exit(err)

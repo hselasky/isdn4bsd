@@ -2110,31 +2110,33 @@ usbd_callback_intr_td(void *arg)
 repeat:
 	xfer[0] = LIST_FIRST(&(info->done_head));
 	if (xfer[0]) {
-		LIST_REMOVE(xfer[0], done_list);
-		xfer[0]->done_list.le_prev = NULL;
-		xfer[1] = LIST_FIRST(&(info->done_head));
-		if (xfer[1] == NULL) {
-			dropcount = 1;
-			goto lockchange_0;
-		}
-		LIST_REMOVE(xfer[1], done_list);
-		xfer[1]->done_list.le_prev = NULL;
-		xfer[2] = LIST_FIRST(&(info->done_head));
-		if (xfer[2] == NULL) {
-			dropcount = 2;
-			goto lockchange_0;
-		}
-		LIST_REMOVE(xfer[2], done_list);
-		xfer[2]->done_list.le_prev = NULL;
-		xfer[3] = LIST_FIRST(&(info->done_head));
-		if (xfer[3] == NULL) {
-			dropcount = 3;
-			goto lockchange_0;
-		}
-		LIST_REMOVE(xfer[3], done_list);
-		xfer[3]->done_list.le_prev = NULL;
-		dropcount = 4;
-lockchange_0:
+		do {
+			LIST_REMOVE(xfer[0], done_list);
+			xfer[0]->done_list.le_prev = NULL;
+			xfer[1] = LIST_FIRST(&(info->done_head));
+			if (xfer[1] == NULL) {
+				dropcount = 1;
+				break;
+			}
+			LIST_REMOVE(xfer[1], done_list);
+			xfer[1]->done_list.le_prev = NULL;
+			xfer[2] = LIST_FIRST(&(info->done_head));
+			if (xfer[2] == NULL) {
+				dropcount = 2;
+				break;
+			}
+			LIST_REMOVE(xfer[2], done_list);
+			xfer[2]->done_list.le_prev = NULL;
+			xfer[3] = LIST_FIRST(&(info->done_head));
+			if (xfer[3] == NULL) {
+				dropcount = 3;
+				break;
+			}
+			LIST_REMOVE(xfer[3], done_list);
+			xfer[3]->done_list.le_prev = NULL;
+			dropcount = 4;
+		} while (0);
+
 		mtx_unlock(info->usb_mtx);
 
 		/*
@@ -2144,20 +2146,18 @@ lockchange_0:
 		mtx_lock(info->priv_mtx);
 
 		/* call callback(s) */
-		usbd_callback_wrapper(xfer[0], info, USBD_CONTEXT_CALLBACK);
-		if (xfer[1] == NULL) {
-			goto lockchange_1;
+		switch (dropcount) {
+		case 4:
+			usbd_callback_wrapper(xfer[3], info, USBD_CONTEXT_CALLBACK);
+		case 3:
+			usbd_callback_wrapper(xfer[2], info, USBD_CONTEXT_CALLBACK);
+		case 2:
+			usbd_callback_wrapper(xfer[1], info, USBD_CONTEXT_CALLBACK);
+		case 1:
+			usbd_callback_wrapper(xfer[0], info, USBD_CONTEXT_CALLBACK);
+		default:
+			break;
 		}
-		usbd_callback_wrapper(xfer[1], info, USBD_CONTEXT_CALLBACK);
-		if (xfer[2] == NULL) {
-			goto lockchange_1;
-		}
-		usbd_callback_wrapper(xfer[2], info, USBD_CONTEXT_CALLBACK);
-		if (xfer[3] == NULL) {
-			goto lockchange_1;
-		}
-		usbd_callback_wrapper(xfer[3], info, USBD_CONTEXT_CALLBACK);
-lockchange_1:
 		mtx_unlock(info->priv_mtx);
 
 		mtx_lock(info->usb_mtx);
