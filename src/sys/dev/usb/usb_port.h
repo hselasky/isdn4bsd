@@ -202,6 +202,9 @@ extern int cold;
 #define	usb_thread_create(f, s, p, ...) \
 		kthread_create((f), (s), (p), RFHIGHPID, 0, __VA_ARGS__)
 #define	usb_thread_exit(err)	kthread_exit(err)
+#endif
+
+#if (__FreeBSD_version < 700000)
 #define	thread_lock(td) mtx_lock_spin(&sched_lock)
 #define	thread_unlock(td) mtx_unlock_spin(&sched_lock)
 #endif
