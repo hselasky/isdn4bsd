@@ -2080,6 +2080,38 @@ usbd_callback_intr_sched(struct usbd_memory_info *info)
 	return;
 }
 
+static void
+usbd_callback_intr_td_sub(struct usbd_xfer **xfer, uint8_t dropcount)
+{
+	struct usbd_memory_info *info = xfer[0]->usb_root;
+
+	mtx_unlock(info->usb_mtx);
+
+	/*
+	 * We exploit the fact that the mutex is the same for
+	 * all callbacks:
+	 */
+	mtx_lock(info->priv_mtx);
+
+	/* call callback(s) */
+	switch (dropcount) {
+	case 4:
+		usbd_callback_wrapper(xfer[3], info, USBD_CONTEXT_CALLBACK);
+	case 3:
+		usbd_callback_wrapper(xfer[2], info, USBD_CONTEXT_CALLBACK);
+	case 2:
+		usbd_callback_wrapper(xfer[1], info, USBD_CONTEXT_CALLBACK);
+	case 1:
+		usbd_callback_wrapper(xfer[0], info, USBD_CONTEXT_CALLBACK);
+	default:
+		break;
+	}
+	mtx_unlock(info->priv_mtx);
+	mtx_lock(info->usb_mtx);
+	info->memory_refcount -= dropcount;
+	return;
+}
+
 /*------------------------------------------------------------------------*
  *	usbd_callback_intr_td
  *
@@ -2093,7 +2125,6 @@ usbd_callback_intr_td(void *arg)
 	struct usbd_memory_info *info = arg;
 	struct usbd_xfer *xfer[4];
 	struct thread *td;
-	uint8_t dropcount;
 
 	/* adjust priority */
 	td = curthread;
@@ -2110,60 +2141,31 @@ usbd_callback_intr_td(void *arg)
 repeat:
 	xfer[0] = LIST_FIRST(&(info->done_head));
 	if (xfer[0]) {
-		do {
 			LIST_REMOVE(xfer[0], done_list);
 			xfer[0]->done_list.le_prev = NULL;
 			xfer[1] = LIST_FIRST(&(info->done_head));
 			if (xfer[1] == NULL) {
-				dropcount = 1;
-				break;
+				usbd_callback_intr_td_sub(xfer, 1);
+				goto repeat;
 			}
 			LIST_REMOVE(xfer[1], done_list);
 			xfer[1]->done_list.le_prev = NULL;
 			xfer[2] = LIST_FIRST(&(info->done_head));
 			if (xfer[2] == NULL) {
-				dropcount = 2;
-				break;
+				usbd_callback_intr_td_sub(xfer, 2);
+				goto repeat;
 			}
 			LIST_REMOVE(xfer[2], done_list);
 			xfer[2]->done_list.le_prev = NULL;
 			xfer[3] = LIST_FIRST(&(info->done_head));
 			if (xfer[3] == NULL) {
-				dropcount = 3;
-				break;
+				usbd_callback_intr_td_sub(xfer, 3);
+				goto repeat;
 			}
 			LIST_REMOVE(xfer[3], done_list);
 			xfer[3]->done_list.le_prev = NULL;
-			dropcount = 4;
-		} while (0);
-
-		mtx_unlock(info->usb_mtx);
-
-		/*
-		 * we exploit the fact that the mutex is the same for
-		 * all callbacks
-		 */
-		mtx_lock(info->priv_mtx);
-
-		/* call callback(s) */
-		switch (dropcount) {
-		case 4:
-			usbd_callback_wrapper(xfer[3], info, USBD_CONTEXT_CALLBACK);
-		case 3:
-			usbd_callback_wrapper(xfer[2], info, USBD_CONTEXT_CALLBACK);
-		case 2:
-			usbd_callback_wrapper(xfer[1], info, USBD_CONTEXT_CALLBACK);
-		case 1:
-			usbd_callback_wrapper(xfer[0], info, USBD_CONTEXT_CALLBACK);
-		default:
-			break;
-		}
-		mtx_unlock(info->priv_mtx);
-
-		mtx_lock(info->usb_mtx);
-		info->memory_refcount -= dropcount;
-		goto repeat;
-
+			usbd_callback_intr_td_sub(xfer, 4);
+			goto repeat;
 	} else {
 		if (info->memory_refcount != 0) {
 			info->done_sleep = 1;
