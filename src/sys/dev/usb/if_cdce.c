@@ -285,7 +285,6 @@ cdce_attach(device_t dev)
 	const usb_cdc_union_descriptor_t *ud;
 	const usb_cdc_ethernet_descriptor_t *ue;
 	const usb_interface_descriptor_t *id;
-	usb_descriptor_t *desc = NULL;
 	const struct cdce_type *t;
 	struct ifnet *ifp;
 	int error;
@@ -308,11 +307,15 @@ cdce_attach(device_t dev)
 	/* search for alternate settings */
 	if (uaa->usb_mode == USB_MODE_HOST) {
 
-		id = uaa->iface->idesc;
+		usb_descriptor_t *desc;
+		usb_config_descriptor_t *cd;
+
+		cd = usbd_get_config_descriptor(uaa->device);
+		desc = (void *)(uaa->iface->idesc);
+		id = (void *)desc;
 		i = id->bInterfaceNumber;
 		alt_index = 0;
-		while ((desc = usbd_desc_foreach(
-		    usbd_get_config_descriptor(uaa->device), desc))) {
+		while ((desc = usbd_desc_foreach(cd, desc))) {
 			id = (void *)desc;
 			if ((id->bDescriptorType == UDESC_INTERFACE) &&
 			    (id->bLength >= sizeof(*id))) {
