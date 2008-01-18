@@ -1901,7 +1901,7 @@ ugenioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *p
 		}
 		error = usbd_do_request_flags
 		    (sc->sc_udev, NULL, &ur->ucr_request, data,
-		    (ur->ucr_flags & USBD_ERR_SHORT_XFER_OK), &actlen,
+		    (ur->ucr_flags & USBD_SHORT_XFER_OK), &actlen,
 		    USBD_DEFAULT_TIMEOUT);
 
 		ur->ucr_actlen = actlen;

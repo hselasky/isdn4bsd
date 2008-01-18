@@ -436,7 +436,7 @@ uvisor_init(struct uvisor_softc *sc, struct usbd_device *udev, struct usbd_confi
 		USETW(req.wIndex, 0);
 		USETW(req.wLength, UVISOR_CONNECTION_INFO_SIZE);
 		err = usbd_do_request_flags
-		    (udev, &Giant, &req, &coninfo, USBD_ERR_SHORT_XFER_OK,
+		    (udev, &Giant, &req, &coninfo, USBD_SHORT_XFER_OK,
 		    &actlen, USBD_DEFAULT_TIMEOUT);
 
 		if (err) {
@@ -489,7 +489,7 @@ uvisor_init(struct uvisor_softc *sc, struct usbd_device *udev, struct usbd_confi
 		USETW(req.wLength, UVISOR_GET_PALM_INFORMATION_LEN);
 
 		err = usbd_do_request_flags
-		    (udev, &Giant, &req, &pconinfo, USBD_ERR_SHORT_XFER_OK,
+		    (udev, &Giant, &req, &pconinfo, USBD_SHORT_XFER_OK,
 		    &actlen, USBD_DEFAULT_TIMEOUT);
 
 		if (err) {

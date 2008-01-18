@@ -255,12 +255,6 @@
 #define	USS820_GET_REG(sc,reg) \
   ((reg) << (sc)->sc_reg_shift)
 
-#define	USS820_WRITE_SHARED_1(sc, reg, data) do {	\
-    USS820_WRITE_1(sc, USS820_PEND, 1);			\
-    USS820_WRITE_1(sc, reg, data);			\
-    USS820_WRITE_1(sc, USS820_PEND, 0);			\
-} while (0)
-
 #define	USS820_READ_1(sc, reg) \
   bus_space_read_1((sc)->sc_io_tag, (sc)->sc_io_hdl, \
     USS820_GET_REG(sc,reg))
@@ -294,7 +288,6 @@ struct uss820_dci_td {
 	uint8_t	tx_count_high_reg;
 	uint8_t	rx_cntl_reg;
 	uint8_t	tx_cntl_reg;
-	uint8_t	ep_con_reg;
 	uint8_t	ep_reg;
 	uint8_t	pend_reg;
 	uint8_t	ep_index;

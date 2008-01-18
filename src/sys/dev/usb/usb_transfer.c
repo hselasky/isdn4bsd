@@ -2141,31 +2141,31 @@ usbd_callback_intr_td(void *arg)
 repeat:
 	xfer[0] = LIST_FIRST(&(info->done_head));
 	if (xfer[0]) {
-			LIST_REMOVE(xfer[0], done_list);
-			xfer[0]->done_list.le_prev = NULL;
-			xfer[1] = LIST_FIRST(&(info->done_head));
-			if (xfer[1] == NULL) {
-				usbd_callback_intr_td_sub(xfer, 1);
-				goto repeat;
-			}
-			LIST_REMOVE(xfer[1], done_list);
-			xfer[1]->done_list.le_prev = NULL;
-			xfer[2] = LIST_FIRST(&(info->done_head));
-			if (xfer[2] == NULL) {
-				usbd_callback_intr_td_sub(xfer, 2);
-				goto repeat;
-			}
-			LIST_REMOVE(xfer[2], done_list);
-			xfer[2]->done_list.le_prev = NULL;
-			xfer[3] = LIST_FIRST(&(info->done_head));
-			if (xfer[3] == NULL) {
-				usbd_callback_intr_td_sub(xfer, 3);
-				goto repeat;
-			}
-			LIST_REMOVE(xfer[3], done_list);
-			xfer[3]->done_list.le_prev = NULL;
-			usbd_callback_intr_td_sub(xfer, 4);
+		LIST_REMOVE(xfer[0], done_list);
+		xfer[0]->done_list.le_prev = NULL;
+		xfer[1] = LIST_FIRST(&(info->done_head));
+		if (xfer[1] == NULL) {
+			usbd_callback_intr_td_sub(xfer, 1);
 			goto repeat;
+		}
+		LIST_REMOVE(xfer[1], done_list);
+		xfer[1]->done_list.le_prev = NULL;
+		xfer[2] = LIST_FIRST(&(info->done_head));
+		if (xfer[2] == NULL) {
+			usbd_callback_intr_td_sub(xfer, 2);
+			goto repeat;
+		}
+		LIST_REMOVE(xfer[2], done_list);
+		xfer[2]->done_list.le_prev = NULL;
+		xfer[3] = LIST_FIRST(&(info->done_head));
+		if (xfer[3] == NULL) {
+			usbd_callback_intr_td_sub(xfer, 3);
+			goto repeat;
+		}
+		LIST_REMOVE(xfer[3], done_list);
+		xfer[3]->done_list.le_prev = NULL;
+		usbd_callback_intr_td_sub(xfer, 4);
+		goto repeat;
 	} else {
 		if (info->memory_refcount != 0) {
 			info->done_sleep = 1;
@@ -3608,7 +3608,7 @@ usbd_do_request_flags(struct usbd_device *udev, struct mtx *mtx,
 		PRINTFN(0, ("USB device mode\n"));
 		usbd_temp_get_desc(udev, req, &desc, &temp);
 		if (length > temp) {
-			if (!(flags & USBD_ERR_SHORT_XFER_OK)) {
+			if (!(flags & USBD_SHORT_XFER_OK)) {
 				return (USBD_ERR_SHORT_XFER);
 			}
 			length = temp;
@@ -3734,7 +3734,7 @@ usbd_do_request_flags(struct usbd_device *udev, struct mtx *mtx,
 
 		if (temp > xfer->actlen) {
 			temp = xfer->actlen;
-			if (!(flags & USBD_ERR_SHORT_XFER_OK)) {
+			if (!(flags & USBD_SHORT_XFER_OK)) {
 				err = USBD_ERR_SHORT_XFER;
 			}
 			length = temp;

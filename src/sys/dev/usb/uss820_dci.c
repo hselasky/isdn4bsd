@@ -88,6 +88,7 @@ static void uss820_dci_do_poll(struct usbd_bus *bus);
 static void uss820_dci_root_ctrl_poll(struct uss820_dci_softc *sc);
 static void uss820_dci_standard_done(struct usbd_xfer *xfer);
 static void uss820_dci_intr_set(struct usbd_xfer *xfer, uint8_t set);
+static void uss820_dci_update_shared_1(struct uss820_dci_softc *sc, uint8_t reg, uint8_t keep_mask, uint8_t set_mask);
 
 static usbd_std_root_transfer_func_t uss820_dci_root_intr_done;
 static usbd_std_root_transfer_func_t uss820_dci_root_ctrl_done;
@@ -133,6 +134,21 @@ static const struct usbd_hw_ep_profile
 		.support_out = 1,
 	},
 };
+
+static void
+uss820_dci_update_shared_1(struct uss820_dci_softc *sc, uint8_t reg,
+    uint8_t keep_mask, uint8_t set_mask)
+{
+	uint8_t temp;
+
+	USS820_WRITE_1(sc, USS820_PEND, 1);
+	temp = USS820_READ_1(sc, reg);
+	temp &= (keep_mask);
+	temp |= (set_mask);
+	USS820_WRITE_1(sc, reg, temp);
+	USS820_WRITE_1(sc, USS820_PEND, 0);
+	return;
+}
 
 static void
 uss820_dci_get_hw_ep_profile(struct usbd_device *udev,
@@ -266,30 +282,23 @@ uss820_dci_setup_rx(struct uss820_dci_td *td)
 
 			/* set stall */
 
-			temp = USS820_READ_1(sc, USS820_EPCON);
-
-			temp |= (USS820_EPCON_TXSTL |
-			    USS820_EPCON_RXSTL);
-
-			USS820_WRITE_SHARED_1(sc, USS820_EPCON, temp);
+			uss820_dci_update_shared_1(sc, USS820_EPCON, 0xFF,
+			    (USS820_EPCON_TXSTL | USS820_EPCON_RXSTL));
 
 			td->did_stall = 1;
 		}
 		goto not_complete;
 	}
 	/* clear stall and all I/O */
-	temp = USS820_READ_1(sc, USS820_EPCON);
-
-	temp &= ~(USS820_EPCON_TXSTL |
+	uss820_dci_update_shared_1(sc, USS820_EPCON,
+	    0xFF ^ (USS820_EPCON_TXSTL |
 	    USS820_EPCON_RXSTL |
 	    USS820_EPCON_RXIE |
-	    USS820_EPCON_TXOE);
-
-	USS820_WRITE_SHARED_1(sc, USS820_EPCON, temp);
+	    USS820_EPCON_TXOE), 0);
 
 	/* clear end overwrite flag */
-	rx_stat &= ~USS820_RXSTAT_EDOVW;
-	USS820_WRITE_SHARED_1(sc, USS820_RXSTAT, rx_stat);
+	uss820_dci_update_shared_1(sc, USS820_RXSTAT,
+	    0xFF ^ USS820_RXSTAT_EDOVW, 0);
 
 	/* get the packet byte count */
 	count = bus_space_read_1(td->io_tag, td->io_hdl,
@@ -323,10 +332,10 @@ uss820_dci_setup_rx(struct uss820_dci_td *td)
 		return (1);		/* not complete */
 	}
 	/* clear receive setup bit */
-	rx_stat &= ~(USS820_RXSTAT_RXSETUP |
+	uss820_dci_update_shared_1(sc, USS820_RXSTAT,
+	    0xFF ^ (USS820_RXSTAT_RXSETUP |
 	    USS820_RXSTAT_EDOVW |
-	    USS820_RXSTAT_STOVW);
-	USS820_WRITE_SHARED_1(sc, USS820_RXSTAT, rx_stat);
+	    USS820_RXSTAT_STOVW), 0);
 
 	/* set RXFFRC bit */
 	temp = bus_space_read_1(td->io_tag, td->io_hdl,
@@ -353,23 +362,13 @@ uss820_dci_setup_rx(struct uss820_dci_td *td)
 not_complete:
 	/* clear end overwrite flag, if any */
 	if (rx_stat & USS820_RXSTAT_RXSETUP) {
-		rx_stat &= ~(USS820_RXSTAT_EDOVW |
+		uss820_dci_update_shared_1(sc, USS820_RXSTAT,
+		    0xFF ^ (USS820_RXSTAT_EDOVW |
 		    USS820_RXSTAT_STOVW |
-		    USS820_RXSTAT_RXSETUP);
-		USS820_WRITE_SHARED_1(sc, USS820_RXSTAT, rx_stat);
+		    USS820_RXSTAT_RXSETUP), 0);
 	}
 	return (1);			/* not complete */
 
-}
-
-static void
-uss820_dci_shared_write(struct uss820_dci_td *td, uint8_t reg,
-    uint8_t val)
-{
-	bus_space_write_1(td->io_tag, td->io_hdl, td->pend_reg, 1);
-	bus_space_write_1(td->io_tag, td->io_hdl, reg, val);
-	bus_space_write_1(td->io_tag, td->io_hdl, td->pend_reg, 0);
-	return;
 }
 
 static uint8_t
@@ -380,7 +379,6 @@ uss820_dci_data_rx(struct uss820_dci_td *td)
 	uint8_t rx_flag;
 	uint8_t rx_stat;
 	uint8_t rx_cntl;
-	uint8_t ep_con;
 	uint8_t to;
 	uint8_t got_short;
 
@@ -431,12 +429,11 @@ repeat:
 	    USS820_RXFLG_RXFIF1))) {
 
 		/* read out EPCON register */
-		ep_con = bus_space_read_1(td->io_tag,
-		    td->io_hdl, td->ep_con_reg);
 		/* enable RX input */
-		if (!(ep_con & USS820_EPCON_RXIE)) {
-			ep_con |= USS820_EPCON_RXIE;
-			uss820_dci_shared_write(td, td->ep_con_reg, ep_con);
+		if (!td->did_stall) {
+			uss820_dci_update_shared_1(td->pc->xfer->usb_sc,
+			    USS820_EPCON, 0xFF, USS820_EPCON_RXIE);
+			td->did_stall = 1;
 		}
 		return (1);		/* not complete */
 	}
@@ -512,7 +509,6 @@ uss820_dci_data_tx(struct uss820_dci_td *td)
 	uint16_t count_copy;
 	uint8_t rx_stat;
 	uint8_t tx_flag;
-	uint8_t ep_con;
 	uint8_t to;
 
 	/* select the correct endpoint */
@@ -591,16 +587,14 @@ repeat:
 	bus_space_write_1(td->io_tag, td->io_hdl,
 	    td->tx_count_low_reg, count_copy);
 
-	/* read out EPCON register */
-	ep_con = bus_space_read_1(td->io_tag, td->io_hdl,
-	    td->ep_con_reg);
 	/*
 	 * Enable TX output, which must happen after that we have written
 	 * data into the FIFO. This is undocumented.
 	 */
-	if (!(ep_con & USS820_EPCON_TXOE)) {
-		ep_con |= USS820_EPCON_TXOE;
-		uss820_dci_shared_write(td, td->ep_con_reg, ep_con);
+	if (!td->did_stall) {
+		uss820_dci_update_shared_1(td->pc->xfer->usb_sc,
+		    USS820_EPCON, 0xFF, USS820_EPCON_TXOE);
+		td->did_stall = 1;
 	}
 	/* check remainder */
 	if (td->remainder == 0) {
@@ -759,7 +753,7 @@ uss820_dci_interrupt(struct uss820_dci_softc *sc)
 
 	/* acknowledge all interrupts */
 
-	USS820_WRITE_SHARED_1(sc, USS820_SSR, 0);
+	uss820_dci_update_shared_1(sc, USS820_SSR, 0, 0);
 
 	/* check for any bus state change interrupts */
 
@@ -812,10 +806,10 @@ uss820_dci_interrupt(struct uss820_dci_softc *sc)
 		}
 	}
 	/* acknowledge all SBI interrupts */
-	USS820_WRITE_SHARED_1(sc, USS820_SBI, 0);
+	uss820_dci_update_shared_1(sc, USS820_SBI, 0, 0);
 
 	/* acknowledge all SBI1 interrupts */
-	USS820_WRITE_SHARED_1(sc, USS820_SBI1, 0);
+	uss820_dci_update_shared_1(sc, USS820_SBI1, 0, 0);
 
 	/* poll all active transfers */
 	uss820_dci_interrupt_poll(sc);
@@ -1277,14 +1271,12 @@ uss820_dci_set_stall(struct usbd_device *udev, struct usbd_xfer *xfer,
 	}
 	USS820_WRITE_1(sc, USS820_EPINDEX, ep_no);
 
-	temp = USS820_READ_1(sc, USS820_EPCON);
-
 	if (ep_dir == UE_DIR_IN) {
-		temp |= USS820_EPCON_TXSTL;
+		temp = USS820_EPCON_TXSTL;
 	} else {
-		temp |= USS820_EPCON_RXSTL;
+		temp = USS820_EPCON_RXSTL;
 	}
-	USS820_WRITE_SHARED_1(sc, USS820_EPCON, temp);
+	uss820_dci_update_shared_1(sc, USS820_EPCON, 0xFF, temp);
 	return;
 }
 
@@ -1316,15 +1308,14 @@ uss820_dci_clear_stall(struct usbd_device *udev, struct usbd_pipe *pipe)
 	USS820_WRITE_1(sc, USS820_EPINDEX, ep_no);
 
 	/* clear stall and disable I/O transfers */
-	temp = USS820_READ_1(sc, USS820_EPCON);
 	if (ep_dir == UE_DIR_IN) {
-		temp &= ~(USS820_EPCON_TXOE |
+		temp = 0xFF ^ (USS820_EPCON_TXOE |
 		    USS820_EPCON_TXSTL);
 	} else {
-		temp &= ~(USS820_EPCON_RXIE |
+		temp = 0xFF ^ (USS820_EPCON_RXIE |
 		    USS820_EPCON_RXSTL);
 	}
-	USS820_WRITE_SHARED_1(sc, USS820_EPCON, temp);
+	uss820_dci_update_shared_1(sc, USS820_EPCON, temp, 0);
 
 	if (ep_dir == UE_DIR_IN) {
 		/* reset data toggle */
@@ -1340,8 +1331,8 @@ uss820_dci_clear_stall(struct usbd_device *udev, struct usbd_pipe *pipe)
 	} else {
 
 		/* reset data toggle */
-		USS820_WRITE_SHARED_1(sc, USS820_RXSTAT,
-		    USS820_RXSTAT_RXSOVW);
+		uss820_dci_update_shared_1(sc, USS820_RXSTAT,
+		    0, USS820_RXSTAT_RXSOVW);
 
 		/* reset FIFO */
 		temp = USS820_READ_1(sc, USS820_RXCON);
@@ -1388,7 +1379,7 @@ uss820_dci_set_config(struct usbd_device *udev,
 		USS820_WRITE_1(sc, USS820_EPINDEX, n);
 
 		/* disable endpoint - both directions */
-		USS820_WRITE_SHARED_1(sc, USS820_EPCON, 0x00);
+		uss820_dci_update_shared_1(sc, USS820_EPCON, 0, 0);
 	}
 
 	if (cd == NULL) {
@@ -1464,22 +1455,20 @@ uss820_dci_set_config(struct usbd_device *udev,
 			USS820_WRITE_1(sc, USS820_RXCON, temp);
 		}
 		/* enable endpoint */
-		temp = USS820_READ_1(sc, USS820_EPCON);
-
 		if (ep_type == UE_CONTROL) {
-			temp |= (USS820_EPCON_CTLEP |
+			temp = (USS820_EPCON_CTLEP |
 			    USS820_EPCON_RXSPM |
 			    USS820_EPCON_RXEPEN |
 			    USS820_EPCON_TXEPEN);
 		} else {
 			if (ep_dir == UE_DIR_IN) {
-				temp |= USS820_EPCON_TXEPEN;
+				temp = USS820_EPCON_TXEPEN;
 			} else {
-				temp |= USS820_EPCON_RXEPEN;
+				temp = USS820_EPCON_RXEPEN;
 			}
 		}
 
-		USS820_WRITE_SHARED_1(sc, USS820_EPCON, temp);
+		uss820_dci_update_shared_1(sc, USS820_EPCON, 0xFF, temp);
 	}
 	return;
 }
@@ -1567,7 +1556,7 @@ uss820_dci_init(struct uss820_dci_softc *sc)
 		USS820_WRITE_1(sc, USS820_EPINDEX, n);
 
 		/* disable endpoint */
-		USS820_WRITE_SHARED_1(sc, USS820_EPCON, 0);
+		uss820_dci_update_shared_1(sc, USS820_EPCON, 0, 0);
 	}
 
 	mtx_unlock(&(sc->sc_bus.mtx));
@@ -2384,7 +2373,7 @@ tr_handle_get_port_status:
 			USS820_WRITE_1(sc, USS820_RXCON, temp);
 
 			/* enable control endpoint */
-			USS820_WRITE_SHARED_1(sc, USS820_EPCON,
+			uss820_dci_update_shared_1(sc, USS820_EPCON, 0,
 			    (USS820_EPCON_CTLEP |
 			    USS820_EPCON_RXSPM |
 			    USS820_EPCON_RXIE |
@@ -2590,7 +2579,6 @@ uss820_dci_xfer_setup(struct usbd_setup_params *parm)
 			td->tx_count_high_reg = USS820_GET_REG(sc, USS820_TXCNTH);
 			td->rx_cntl_reg = USS820_GET_REG(sc, USS820_RXCON);
 			td->tx_cntl_reg = USS820_GET_REG(sc, USS820_TXCON);
-			td->ep_con_reg = USS820_GET_REG(sc, USS820_EPCON);
 			td->pend_reg = USS820_GET_REG(sc, USS820_PEND);
 			td->ep_reg = USS820_GET_REG(sc, USS820_EPINDEX);
 			td->ep_index = ep_no;

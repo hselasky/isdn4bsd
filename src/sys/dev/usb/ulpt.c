@@ -591,7 +591,7 @@ found:
 		USETW(req.wValue, cd->bConfigurationValue);
 		USETW2(req.wIndex, id->bInterfaceNumber, id->bAlternateSetting);
 		USETW(req.wLength, sizeof devinfo - 1);
-		error = usbd_do_request_flags(dev, &req, devinfo, USBD_ERR_SHORT_XFER_OK,
+		error = usbd_do_request_flags(dev, &req, devinfo, USBD_SHORT_XFER_OK,
 		    &alen, USBD_DEFAULT_TIMEOUT);
 		if (error) {
 			device_printf(sc->sc_dev, "cannot get device id\n");
