@@ -1241,6 +1241,10 @@ I4B_PCI_DRIVER(/* HFC-8S Beronet card */
 	       .vid = 0x16b81397,
 	       .sub = 0xb5621397);
 
+I4B_PCI_DRIVER(/* HFC-8S Junghanns OctoBRI */
+	       .vid = 0x16b81397,
+	       .sub = 0xb55b1397);
+
 /* cleanup */
 
 #undef hfc4s8s_fifo_inc_fx_pre
