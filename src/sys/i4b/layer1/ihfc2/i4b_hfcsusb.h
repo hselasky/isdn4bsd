@@ -1695,6 +1695,10 @@ I4B_DBASE(COUNT())
   I4B_ADD_LED_SUPPORT(LED_SCHEME);
 }
 
+I4B_USB_DRIVER(/* ISDN USB TA */
+               .vid      = 0x07b00006,
+               );
+
 I4B_USB_DRIVER(/* Billion tinyUSB
                 * Billion USB TA 2
                 */
