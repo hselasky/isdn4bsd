@@ -1018,6 +1018,12 @@ usbd_transfer_setup(struct usbd_device *udev,
 done:
 	if (buf) {
 		if (info->setup_refcount == 0) {
+			/*
+			 * "usbd_transfer_unsetup_sub" will unlock
+			 * "usb_mtx" before returning !
+			 */
+			mtx_lock(info->usb_mtx);
+
 			/* something went wrong */
 			usbd_transfer_unsetup_sub(info, 0);
 		}
@@ -1057,6 +1063,8 @@ usbd_transfer_unsetup_sub(struct usbd_memory_info *info, uint8_t needs_delay)
 {
 	struct usbd_page_cache *pc;
 	uint32_t temp;
+
+	mtx_assert(info->usb_mtx, MA_OWNED);
 
 	/* wait for any outstanding DMA operations */
 
