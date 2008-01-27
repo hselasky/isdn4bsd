@@ -55,6 +55,9 @@ __FBSDID("$FreeBSD: $");
 #endif
 #if 1
 #define TEL_NO_SOUND_BRIDGE
+#else
+#include <dev/sound/pcm/sound.h>
+#include <dev/sound/pcm/dsp.h>
 #endif
 
 struct tel_parameters {
