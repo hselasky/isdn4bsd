@@ -72,6 +72,7 @@ bus_if.h device_if.h vnode_if.h opt_bus.h pci_if.h
 
 .if (${OSNAME} == "FreeBSD")
 SRCS+= freebsd_fix.c
+SRCS+= usb_if.h
 .endif
 
 .if defined(WITH_SPPP)
