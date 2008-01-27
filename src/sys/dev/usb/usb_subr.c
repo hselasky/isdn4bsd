@@ -2318,7 +2318,7 @@ usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
 	 * XXX so we need to extend the last segment if we are
 	 * XXX unaligned and cross the segment boundary!
 	 */
-	if (ext_seg) {
+	if (ext_seg && pc->ismultiseg) {
 		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
 	}
 	if (xfer) {
@@ -2381,6 +2381,7 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 	pc->page_offset_end = size;
 	pc->map = map;
 	pc->tag = tag;
+	pc->ismultiseg = (align == 1);
 
 	/* load memory into DMA */
 	if (bus_dmamap_load
@@ -2635,7 +2636,7 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 	 * XXX so we need to extend the last segment if we are
 	 * XXX unaligned and cross the segment boundary!
 	 */
-	if (ext_seg) {
+	if (ext_seg && pc->ismultiseg) {
 		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
 	}
 	if (xfer) {
@@ -2722,6 +2723,7 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 	pc->page_offset_end = size;
 	pc->map = map;
 	pc->tag = tag;
+	pc->ismultiseg = (align == 1);
 
 	usbd_pc_alloc_mem_cb(pc, utag->p_seg, seg_count, 0);
 

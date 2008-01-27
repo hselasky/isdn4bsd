@@ -50,6 +50,16 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/usb_requests.c $");
 #include <dev/usb/usb_quirks.h>
 #include <dev/usb/usb_hid.h>
 
+#ifdef USB_DEBUG
+static int usb_pr_poll_delay = USB_PORT_RESET_DELAY;
+static int usb_pr_recovery_delay = USB_PORT_RESET_RECOVERY;
+
+SYSCTL_INT(_hw_usb, OID_AUTO, pr_poll_delay, CTLFLAG_RW,
+    &usb_pr_poll_delay, 0, "USB port reset poll delay in ms");
+SYSCTL_INT(_hw_usb, OID_AUTO, pr_recovery_delay, CTLFLAG_RW,
+    &usb_pr_recovery_delay, 0, "USB port reset recovery delay in ms");
+#endif
+
 /*------------------------------------------------------------------------*
  *	usbreq_reset_port
  *------------------------------------------------------------------------*/
@@ -58,16 +68,41 @@ usbreq_reset_port(struct usbd_device *udev, struct mtx *mtx, uint8_t port)
 {
 	usb_port_status_t ps;
 	usbd_status_t err;
-	uint8_t n;
+	uint16_t n;
 
+#ifdef USB_DEBUG
+	uint16_t pr_poll_delay;
+	uint16_t pr_recovery_delay;
+
+#endif
 	err = usbreq_set_port_feature(udev, mtx, port, UHF_PORT_RESET);
 	if (err) {
 		goto done;
 	}
-	for (n = 12; n != 0; n--) {
-
+#ifdef USB_DEBUG
+	/* range check input parameters */
+	pr_poll_delay = usb_pr_poll_delay;
+	if (pr_poll_delay < 1) {
+		pr_poll_delay = 1;
+	} else if (pr_poll_delay > 1000) {
+		pr_poll_delay = 1000;
+	}
+	pr_recovery_delay = usb_pr_recovery_delay;
+	if (pr_recovery_delay > 1000) {
+		pr_recovery_delay = 1000;
+	}
+#endif
+	n = 0;
+	while (1) {
+#ifdef USB_DEBUG
+		/* wait for the device to recover from reset */
+		usbd_pause_mtx(mtx, pr_poll_delay);
+		n += pr_poll_delay;
+#else
 		/* wait for the device to recover from reset */
 		usbd_pause_mtx(mtx, USB_PORT_RESET_DELAY);
+		n += USB_PORT_RESET_DELAY;
+#endif
 		err = usbreq_get_port_status(udev, mtx, &ps, port);
 		if (err) {
 			goto done;
@@ -78,6 +113,11 @@ usbreq_reset_port(struct usbd_device *udev, struct mtx *mtx, uint8_t port)
 		}
 		/* check if reset is complete */
 		if (UGETW(ps.wPortChange) & UPS_C_PORT_RESET) {
+			break;
+		}
+		/* check for timeout */
+		if (n > 1000) {
+			n = 0;
 			break;
 		}
 	}
@@ -93,8 +133,14 @@ usbreq_reset_port(struct usbd_device *udev, struct mtx *mtx, uint8_t port)
 		err = USBD_ERR_TIMEOUT;
 		goto done;
 	}
+#ifdef USB_DEBUG
+	/* wait for the device to recover from reset */
+	usbd_pause_mtx(mtx, pr_recovery_delay);
+#else
 	/* wait for the device to recover from reset */
 	usbd_pause_mtx(mtx, USB_PORT_RESET_RECOVERY);
+#endif
+
 done:
 	PRINTFN(1, ("port %d reset returning error=%s\n",
 	    port, usbd_errstr(err)));
@@ -432,7 +478,8 @@ usbreq_set_address(struct usbd_device *udev, struct mtx *mtx, uint16_t addr)
 	USETW(req.wLength, 0);
 
 	/* Setting the address should not take more than 1 second ! */
-	return (usbd_do_request_flags(udev, mtx, &req, NULL, 0, NULL, 1000));
+	return (usbd_do_request_flags(udev, mtx, &req, NULL,
+	    USBD_DELAY_STATUS_STAGE, NULL, 1000));
 }
 
 /*------------------------------------------------------------------------*

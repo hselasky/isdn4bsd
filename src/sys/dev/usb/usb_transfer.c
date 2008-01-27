@@ -3570,6 +3570,13 @@ repeat:
 	return;
 }
 
+#ifdef USB_DEBUG
+static int usb_ss_delay = 0;
+
+SYSCTL_INT(_hw_usb, OID_AUTO, ss_delay, CTLFLAG_RW,
+    &usb_ss_delay, 0, "USB status stage delay in ms");
+#endif
+
 /*------------------------------------------------------------------------*
  *	usbd_do_request_flags and usbd_do_request
  *
@@ -3702,12 +3709,18 @@ usbd_do_request_flags(struct usbd_device *udev, struct mtx *mtx,
 		} else {
 			if (xfer->frlengths[0] == 0) {
 				if (xfer->flags.manual_status) {
-					/*
-					 * Delay 70 milliseconds
-					 * before doing the status
-					 * stage:
-					 */
-					usbd_pause_mtx(xfer->priv_mtx, 70);
+#ifdef USB_DEBUG
+					int temp;
+
+					temp = usb_ss_delay;
+					if (temp > 5000) {
+						temp = 5000;
+					}
+					if (temp > 0) {
+						usbd_pause_mtx(
+						    xfer->priv_mtx, temp);
+					}
+#endif
 					xfer->flags.manual_status = 0;
 				} else {
 					break;
