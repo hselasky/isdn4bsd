@@ -2050,12 +2050,18 @@ usbd_get_page(struct usbd_page_cache *pc, uint32_t offset,
 
 		page = pc->page_start;
 
-		page += (offset / USB_PAGE_SIZE);
+		if (pc->ismultiseg) {
 
-		offset %= USB_PAGE_SIZE;
+			page += (offset / USB_PAGE_SIZE);
 
-		res->length = USB_PAGE_SIZE - offset;
-		res->physaddr = page->physaddr + offset;
+			offset %= USB_PAGE_SIZE;
+
+			res->length = USB_PAGE_SIZE - offset;
+			res->physaddr = page->physaddr + offset;
+		} else {
+			res->length = 0 - 1;
+			res->physaddr = page->physaddr + offset;
+		}
 		if (!pc->buffer) {
 
 			/* Case 1b - Non Kernel Virtual Address */
@@ -2440,6 +2446,7 @@ usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size)
 	/* setup page cache */
 	pc->page_offset_buf = 0;
 	pc->page_offset_end = size;
+	pc->ismultiseg = 1;
 
 	if (size > 0) {
 
@@ -2792,6 +2799,7 @@ usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size)
 	/* setup page cache */
 	pc->page_offset_buf = 0;
 	pc->page_offset_end = size;
+	pc->ismultiseg = 1;
 
 	if (size > 0) {
 

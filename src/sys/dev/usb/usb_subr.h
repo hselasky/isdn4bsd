@@ -262,7 +262,8 @@ struct usbd_page_cache {
 	uint32_t page_offset_buf;
 	uint32_t page_offset_end;
 	uint8_t	isread:1;
-	uint8_t ismultiseg:1; /* set if we can have multiple segments */
+	uint8_t	ismultiseg:1;		/* set if we can have multiple
+					 * segments */
 };
 
 struct usbd_setup_params {
