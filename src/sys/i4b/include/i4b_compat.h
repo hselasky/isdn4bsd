@@ -5,8 +5,6 @@
 # ifdef _KERNEL
 #  include <machine/resource.h>
 #  include <sys/bus.h>
-#  include <dev/sound/pcm/sound.h>
-#  include <dev/sound/pcm/dsp.h>
 #  include <dev/pci/pcireg.h>
 #  include <dev/pci/pcivar.h>
 #  include <isa/isavar.h>
@@ -23,6 +21,8 @@
 #  include <sys/selinfo.h>
 #  include <sys/sysctl.h>
 #  include <sys/sx.h>
+#  include <sys/filio.h>
+#  include <sys/proc.h>
 #  include <fs/devfs/devfs.h>
 #  include <sys/callout.h> /* callout_xxx() */
 #  ifndef __KASSERT
