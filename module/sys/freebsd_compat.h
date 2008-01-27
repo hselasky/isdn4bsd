@@ -317,6 +317,7 @@ struct usbd_page_cache {
 	uint32_t page_offset_buf;
 	uint32_t page_offset_end;
 	uint8_t	isread:1;
+	uint8_t ismultiseg:1;
 };
 
 struct usbd_dma_tag * usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt, uint32_t size, uint32_t align, uint8_t nudt);
