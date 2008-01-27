@@ -2242,7 +2242,8 @@ usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
 	     /* maxsize   */ size,
 	     /* nsegments */ (align == 1) ?
 	    (2 + (size / USB_PAGE_SIZE)) : 1,
-	     /* maxsegsz  */ USB_PAGE_SIZE,
+	     /* maxsegsz  */ (align == 1) ?
+	    USB_PAGE_SIZE : size,
 	     /* flags     */ 0,
 	     /* lock      */ NULL,
 	     /* */ NULL,
