@@ -2357,9 +2357,9 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 
 	if (align != 1) {
 		/*
-	         * The alignment must be greater or equal to the "size" else the
-	         * object can be split between two memory pages and we get a
-	         * problem!
+	         * The alignment must be greater or equal to the
+	         * "size" else the object can be split between two
+	         * memory pages and we get a problem!
 	         */
 		while (align < size) {
 			align *= 2;
@@ -2367,6 +2367,27 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 				goto error;
 			}
 		}
+#if 1
+		/*
+		 * XXX BUS-DMA workaround - FIXME later:
+		 *
+		 * We assume that that the aligment at this point of
+		 * the code is greater than or equal to the size and
+		 * less than two times the size, so that if we double
+		 * the size, the size will be greater than the
+		 * alignment.
+		 *
+		 * The bus-dma system has a check for "alignment"
+		 * being less than "size". If that check fails we end
+		 * up using contigmalloc which is page based even for
+		 * small allocations. Try to avoid that to save
+		 * memory, hence we sometimes to a large number of
+		 * small allocations!
+		 */
+		if (size < USB_PAGE_SIZE) {
+			size *= 2;
+		}
+#endif
 	}
 	/* get the correct DMA tag */
 	utag = usbd_dma_tag_setup(parent_tag, utag, size, align, utag_max);

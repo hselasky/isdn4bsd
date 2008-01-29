@@ -101,10 +101,13 @@ static void cdce_ifmedia_sts_cb(struct ifnet *const ifp, struct ifmediareq *req)
 	     __FUNCTION__,## __VA_ARGS__); } } while (0)
 
 static int cdce_debug = 0;
+static int cdce_force_512x4 = 0;
 
 SYSCTL_NODE(_hw_usb, OID_AUTO, cdce, CTLFLAG_RW, 0, "USB cdce");
 SYSCTL_INT(_hw_usb_cdce, OID_AUTO, debug, CTLFLAG_RW, &cdce_debug, 0,
     "cdce debug level");
+SYSCTL_INT(_hw_usb_cdce, OID_AUTO, force_512x4, CTLFLAG_RW,
+    &cdce_force_512x4, 0, "cdce force 512x4 protocol");
 #else
 #define	DPRINTF(...)
 #endif
@@ -352,7 +355,11 @@ cdce_attach(device_t dev)
 	}
 	/* get the interface subclass we are using */
 	sc->sc_iface_protocol = uaa->iface->idesc->bInterfaceProtocol;
-
+#ifdef USB_DEBUG
+	if (cdce_force_512x4) {
+		sc->sc_iface_protocol = UIPROTO_CDC_ETH_512X4;
+	}
+#endif
 	usbd_set_device_desc(dev);
 
 	snprintf(sc->sc_name, sizeof(sc->sc_name), "%s",
