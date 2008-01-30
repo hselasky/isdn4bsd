@@ -859,20 +859,23 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 
 /* prototypes from i4b_echo_cancel.c */
 
+#define	I4B_ECHO_CANCEL_P_PRE	   (13 - I4B_ECHO_CANCEL_P_COMPLEX)
+#define I4B_ECHO_CANCEL_N_PRE      (1 << I4B_ECHO_CANCEL_P_PRE)
+#define I4B_ECHO_CANCEL_P_COMPLEX  (10) /* bits */
+#define I4B_ECHO_CANCEL_N_COMPLEX  (1 << I4B_ECHO_CANCEL_P_COMPLEX)
+#define I4B_ECHO_CANCEL_N_TAPS     (I4B_ECHO_CANCEL_N_COMPLEX / 2)
 #define I4B_ECHO_CANCEL_SAMPLE_MAX (0x7FC0) /* units */
 #define I4B_ECHO_CANCEL_T_MAX      (2048) /* samples (max delay) */
-#define I4B_ECHO_CANCEL_P_COMPLEX  (9)
-#define I4B_ECHO_CANCEL_N_COMPLEX  (1 << I4B_ECHO_CANCEL_P_COMPLEX)
-#define I4B_ECHO_CANCEL_N_TAPS (I4B_ECHO_CANCEL_N_COMPLEX / 2)
+
 #define I4B_ECHO_CANCEL_F_SIZE (I4B_ECHO_CANCEL_N_COMPLEX + \
 				I4B_ECHO_CANCEL_T_MAX) /* samples */
 #define I4B_ECHO_CANCEL_R_SIZE (I4B_ECHO_CANCEL_F_SIZE + \
 				I4B_ECHO_CANCEL_T_MAX) /* samples */
-#define I4B_ECHO_CANCEL_W_SUB       (4) /* units */
-#define I4B_ECHO_CANCEL_HR_DP  (I4B_ECHO_CANCEL_PRE_M * \
-				I4B_ECHO_CANCEL_PRE_M * \
-				I4B_ECHO_CANCEL_N_COMPLEX) /* decimal point */
-#define I4B_ECHO_CANCEL_PRE_M       (1 << (13 - I4B_ECHO_CANCEL_P_COMPLEX))
+#define I4B_ECHO_CANCEL_W_SUB      (1) /* units */
+
+/* coefficient decimal point in time domain: */
+#define	I4B_ECHO_CANCEL_P_HR_DP  (2*I4B_ECHO_CANCEL_P_COMPLEX)
+#define I4B_ECHO_CANCEL_N_HR_DP  (1 << I4B_ECHO_CANCEL_P_HR_DP)
 
 struct i4b_complex {
     int32_t x;
@@ -881,40 +884,49 @@ struct i4b_complex {
 
 struct i4b_echo_cancel {
 
-    struct i4b_complex buf_XD[I4B_ECHO_CANCEL_N_COMPLEX];
-    struct i4b_complex buf_ED[I4B_ECHO_CANCEL_N_COMPLEX];
+    uint8_t zero_start[0];
 
-    int64_t buf_AP[I4B_ECHO_CANCEL_N_TAPS]; /* average power */
+    struct i4b_complex buf_HC[I4B_ECHO_CANCEL_N_COMPLEX]; /* background echo filter */
 
     int32_t buf_HR[I4B_ECHO_CANCEL_W_SUB][I4B_ECHO_CANCEL_N_TAPS];
-    int32_t buf_AA[I4B_ECHO_CANCEL_N_TAPS]; /* average amplitude */
-    int32_t buf_ET[I4B_ECHO_CANCEL_N_TAPS]; /* copy of received echo */
+    int32_t buf_E0[I4B_ECHO_CANCEL_N_TAPS];
+    int32_t buf_ET[4*I4B_ECHO_CANCEL_N_TAPS];
+
+    uint8_t buf_state[I4B_ECHO_CANCEL_N_TAPS];
+#define	I4B_ECHO_CANCEL_SHIFT_MASK 0x1F
+#define	I4B_ECHO_CANCEL_ST_INCREMENT 0x20
+#define	I4B_ECHO_CANCEL_SIGN_MASK 0x40
+#define	I4B_ECHO_CANCEL_MSB_MASK 0x80
+
+    uint8_t  adapt;
+    uint8_t  active;
+
+    uint8_t zero_end[0];
+
+    struct i4b_complex buf_EC[I4B_ECHO_CANCEL_N_COMPLEX];
+    struct i4b_complex buf_XC[I4B_ECHO_CANCEL_N_COMPLEX];
 
     int32_t low_pass_1;
     int32_t low_pass_2;
 
-    int32_t echo_level_max;
-  u_int32_t noise_rem; /* noise remainder */
+   uint32_t noise_rem; /* noise remainder */
 
-  u_int16_t offset_x; /* input offset for ring buffer 1 */
+    uint16_t mute_count; /* one time only mute count */
+   uint16_t offset_x; /* input offset for ring buffer 1 */
+   uint16_t offset_wr; /* input offset for ring buffer 2 */
+   uint16_t offset_rd; /* output offset for ring buffer 2 */
 
-  u_int16_t offset_wr; /* input offset for ring buffer 2 */
-  u_int16_t offset_rd; /* output offset for ring buffer 2 */
-
-  u_int16_t pre_delay; /* pre delay length in sample units */
-  u_int16_t mute_count; /* number of samples to mute */
-
-  u_int16_t rx_time;
-  u_int16_t tx_time;
+   uint16_t pre_delay; /* pre delay length in sample units */
+   uint16_t offset_e; /* input echo offset for ring buffer 3 */
+  
+   uint16_t rx_time;
+   uint16_t tx_time;
 
     int16_t offset_adjust;
-    int16_t buf_X0[2*I4B_ECHO_CANCEL_F_SIZE]; /* copy of transmitted sound */
+    int16_t buf_X0[2*I4B_ECHO_CANCEL_F_SIZE]; /* copy of transmitted data */
 
-  u_int8_t  is_ulaw;
-  u_int8_t  last_byte;
-  u_int8_t  coeffs_adapt;
-  u_int8_t  coeffs_state;
-  u_int8_t  adapt_step;
+   uint8_t  is_ulaw;
+   uint8_t  last_byte;
 };
 
 extern void

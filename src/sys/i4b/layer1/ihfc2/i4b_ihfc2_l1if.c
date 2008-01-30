@@ -364,8 +364,7 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	    {
 	        ec_p = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
 		ec_dbg->npoints = EC_POINTS;
-		ec_dbg->decimal_point = (I4B_ECHO_CANCEL_HR_DP *
-					 I4B_ECHO_CANCEL_N_COMPLEX);
+		ec_dbg->decimal_point = I4B_ECHO_CANCEL_N_HR_DP;
 		for (x = 0; x < points; x++) {
 			ec_dbg->ydata[x] = ec_p->buf_HR[0][x+ec_dbg->offset];
 		}
