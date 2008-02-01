@@ -1186,6 +1186,10 @@ I4B_PCI_DRIVER(/* HFC-4S Junghanns quadBRI miniPCI */
 	       .vid = 0x08b41397,
 	       .sub = 0xb5581397);
 
+I4B_PCI_DRIVER(/* HFC-4S Beronet BN4S0 miniPCI */
+	       .vid = 0x08b41397,
+	       .sub = 0xb5681397);
+
 #include <i4b/layer1/ihfc2/i4b_count.h>
 
 I4B_DBASE(hfc8s_dbase_root)
