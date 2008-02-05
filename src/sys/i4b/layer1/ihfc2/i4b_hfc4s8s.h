@@ -1213,10 +1213,6 @@ I4B_PCI_DRIVER(/* HFC-8S generic */
 	       .vid = 0x16b81397,
 	       .sub = 0x16b81397);
 
-I4B_PCI_DRIVER(/* HFC-8S OpenVox B800P */
-	       .vid = 0x16b81397,
-	       .sub = 0xe9981397);
-
 #include <i4b/layer1/ihfc2/i4b_count.h>
 
 I4B_DBASE(COUNT())
@@ -1248,6 +1244,10 @@ I4B_PCI_DRIVER(/* HFC-8S Beronet card */
 I4B_PCI_DRIVER(/* HFC-8S Junghanns OctoBRI */
 	       .vid = 0x16b81397,
 	       .sub = 0xb55b1397);
+
+I4B_PCI_DRIVER(/* HFC-8S OpenVox B800P */
+	       .vid = 0x16b81397,
+	       .sub = 0xe9981397);
 
 /* cleanup */
 
