@@ -1115,10 +1115,6 @@ I4B_PCI_DRIVER(/* HFC-2S Junghanns duoBRI miniPCI */
 	       .vid = 0x08b41397,
 	       .sub = 0xb5591397);
 
-I4B_PCI_DRIVER(/* HFC-4S OpenVox B200P */
-	       .vid = 0x08b41397,
-	       .sub = 0xe8881397);
-
 #include <i4b/layer1/ihfc2/i4b_count.h>
 
 I4B_DBASE(hfc4s_dbase_root)
@@ -1185,6 +1181,10 @@ I4B_PCI_DRIVER(/* HFC-4S Junghanns quadBRI miniPCI */
 I4B_PCI_DRIVER(/* HFC-4S Beronet BN4S0 miniPCI */
 	       .vid = 0x08b41397,
 	       .sub = 0xb5681397);
+
+I4B_PCI_DRIVER(/* HFC-4S OpenVox B200P */
+	       .vid = 0x08b41397,
+	       .sub = 0xe8881397);
 
 I4B_PCI_DRIVER(/* HFC-4S OpenVox B400P */
 	       .vid = 0x08b41397,
