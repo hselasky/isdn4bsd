@@ -1030,7 +1030,7 @@ capi20_get_manufacturer(u_int32_t controller, u_int8_t *buf_ptr,
 	    return error;
 	}
 
-        snprintf(buf_ptr, buf_len, "%s", &req.name[0]);
+        snprintf((void *)buf_ptr, buf_len, "%s", &req.name[0]);
 	return 0;
 }
 
@@ -1492,7 +1492,7 @@ capi_get_error_string(u_int16_t wError)
 	struct error
 	{
 	    u_int16_t wError;
-	    const u_int8_t * desc;
+	    const char * desc;
 	};
 
 	static const struct error errors[] =
@@ -1503,22 +1503,24 @@ capi_get_error_string(u_int16_t wError)
 
 	const struct error *ptr = &errors[0];
 
-	static const u_int8_t *
+	static const char *
 	  MAKE_TABLE(Q850_CAUSES,DESC,[0x80]);
 
 	if(wError == 0)
 	{
-	    return "no error";
+	    return ((const void *)("no error"));
 	}
 
 	if((wError & 0xFF00) == 0x3600)
 	{
-	    return "0x36XX: unknown supplementary service error";
+	    return ((const void *)
+		    ("0x36XX: unknown supplementary service error"));
 	}
 
 	if((wError & 0xFF00) == 0x3700)
 	{
-	    return "0x37XX: unknown supplementary service context error";
+	    return ((const void *)
+		    ("0x37XX: unknown supplementary service context error"));
 	}
 
 	if((wError & 0xFF00) == 0x3400)
@@ -1526,20 +1528,23 @@ capi_get_error_string(u_int16_t wError)
 	    wError &= 0x7F;
 
 	    if(Q850_CAUSES_DESC[wError])
-	      return Q850_CAUSES_DESC[wError];
+	      return ((const void *)
+		      (Q850_CAUSES_DESC[wError]));
 	    else
-	      return "0x34XX: unknown Q.850 cause";
+	      return ((const void *)
+		      ("0x34XX: unknown Q.850 cause"));
 	}
 
 	while(ptr->desc)
 	{
 	    if(ptr->wError == wError)
 	    {
-	        return ptr->desc;
+		return ((const void *)(ptr->desc));
 	    }
 	    ptr++;
 	}
-	return "unknown CAPI error";
+	return ((const void *)
+		("unknown CAPI error"));
 }
 
 static u_int16_t
@@ -1560,7 +1565,7 @@ capi_print_byte_array(u_int8_t *dst, u_int16_t len,
 	     */
 	    if((c < 0x20) || (c > 0x7e)) c = '?';
 
-	    temp = snprintf(dst, len, "0x%02x '%c'%s%s",
+	    temp = snprintf((void *)dst, len, "0x%02x '%c'%s%s",
 			    buf_ptr[0], c, buf_len ? ", " : ".",
 			    ((!(e & 3)) && (buf_len)) ? 
 			    "\n                     "
@@ -1575,7 +1580,7 @@ capi_print_byte_array(u_int8_t *dst, u_int16_t len,
 	    buf_ptr++;
 
 	};
-	temp = snprintf(dst, len, "\n");
+	temp = snprintf((void *)dst, len, "\n");
 
 	if(temp > len) temp = len;
 
@@ -1620,7 +1625,7 @@ capi_print_struct(u_int8_t *dst, u_int16_t len, u_int8_t *buf_ptr)
 	}
 	else
 	{
-	    temp = snprintf(dst, len, "(empty)\n");
+	    temp = snprintf((void *)dst, len, "(empty)\n");
 	}
 
 	if(temp > len) temp = len;
@@ -1636,7 +1641,7 @@ capi_print_struct(u_int8_t *dst, u_int16_t len, u_int8_t *buf_ptr)
    u_int8_t what;
    u_int16_t size;
    u_int16_t offset;
-   const u_int8_t *field;
+   const char *field;
 } __packed;
 
 static const struct debug debug[] = {
@@ -1684,12 +1689,12 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
 
     if(ptr->field)
     {
-        temp = snprintf(dst, len, "%s {\n", ptr->field);
+        temp = snprintf((void *)dst, len, "%s {\n", ptr->field);
 	ptr++;
     }
     else
     {
-        temp = snprintf(dst, len, "UNKNOWN {\n");
+        temp = snprintf((void *)dst, len, "UNKNOWN {\n");
     }
 
     if(temp > len) temp = len;
@@ -1698,7 +1703,7 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
     len -= temp;
 
     temp = snprintf
-      (dst, len,
+      ((void *)dst, len,
        " header {\n"
        "  WORD       %-20s= 0x%04x\n"
        "  WORD       %-20s= 0x%04x\n"
@@ -1730,29 +1735,29 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
 	goto done;
 
       case IE_BYTE:
-	temp = snprintf(dst, len, "  BYTE       %-20s= 0x%02x\n",
+	temp = snprintf((void *)dst, len, "  BYTE       %-20s= 0x%02x\n",
 			ptr->field, ((u_int8_t *)(var))[0]);
 	break;
 
       case IE_WORD:
-	temp = snprintf(dst, len, "  WORD       %-20s= 0x%04x\n",
+	temp = snprintf((void *)dst, len, "  WORD       %-20s= 0x%04x\n",
 			ptr->field, ((u_int16_p_t *)(var))->data);
 	break;
 
       case IE_DWORD:
-	temp = snprintf(dst, len, "  DWORD      %-20s= 0x%08x\n",
+	temp = snprintf((void *)dst, len, "  DWORD      %-20s= 0x%08x\n",
 			ptr->field, ((u_int32_p_t *)(var))->data);
 	break;
 
       case IE_QWORD:
-	temp = snprintf(dst, len, "  QWORD      %-20s= 0x%08x%08x\n",
+	temp = snprintf((void *)dst, len, "  QWORD      %-20s= 0x%08x%08x\n",
 			ptr->field, 
 			(u_int32_t)(((u_int64_p_t *)(var))->data >> 32),
 			(u_int32_t)(((u_int64_p_t *)(var))->data >> 0));
 	break;
 
       case IE_STRUCT:
-	temp = snprintf(dst, len, "  STRUCT     %-20s= ", ptr->field);
+	temp = snprintf((void *)dst, len, "  STRUCT     %-20s= ", ptr->field);
 
 	if(temp > len) temp = len;
 
@@ -1763,7 +1768,7 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
 	break;
 
       case IE_BYTE_ARRAY:
-	temp = snprintf(dst, len, "  BYTE_ARRAY %-20s= ", ptr->field);
+	temp = snprintf((void *)dst, len, "  BYTE_ARRAY %-20s= ", ptr->field);
 
 	if(temp > len) temp = len;
 
@@ -1783,7 +1788,7 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
 
  done:
 
-      temp = snprintf(dst, len, " }\n" "}\n");
+      temp = snprintf((void *)dst, len, " }\n" "}\n");
 
       if(temp > len) temp = len;
 
@@ -1818,9 +1823,9 @@ capi_get_command_string(u_int16_t wCmd)
 	       ((ptr->size == wCmd) ||
 		(ptr->offset == wCmd)))
 	    {
-	      return ptr->field;
+	        return ((const void *)(ptr->field));
 	    }
 	    ptr++;
 	}
-	return "UNKNOWN";
+	return ((const void *)("UNKNOWN"));
 }
