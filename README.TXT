@@ -18,6 +18,7 @@ SUPPORTED OPERATING SYSTEMS
  - FreeBSD-6.2-release
  - FreeBSD-6-current
  - FreeBSD-7-current
+ - FreeBSD-8-current
 
  - NetBSD 2.x.x
  - NetBSD 3.x.x
@@ -151,30 +152,13 @@ mount_devfs "/dev/dev"
 HOW TO SET NT-MODE
 ==================
 
-See "man isdnconfig" or "man isdnd.rc".
+See "man isdnconfig"
 
 #
-# If one has "isdnd" running, then NT-mode can be set
-# by adding some lines to "/etc/isdn/isdnd.rc", under
-# the "SYSTEM section":
+# USB controllers start at n = 63 and decrements
 #
-
-controller # 0
-# uncomment the next line to
-# enable NT-mode for controller 0:
-#
-# driver_type = DRVR_DSS1_NT
-#
-controller # 1
-controller # 2
-controller # n
-
-#
-# USB controllers start at n = 7 and decrements
-#
-# NOTE: NT-mode will only be set when "isdnd" is
-# started or "isdnconfig" is executed. When one plugs
-# an USB ISDN adapter, TE-mode will be selected by
+# NOTE: NT-mode will only be set when "isdnconfig" is executed.
+# When one plugs an USB ISDN adapter, TE-mode will be selected by
 # default. This might change in the future.
 #
 
