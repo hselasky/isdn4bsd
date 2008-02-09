@@ -2725,8 +2725,8 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 	    &ptr, BUS_DMA_WAITOK | BUS_DMA_COHERENT)) {
 		goto done_3;
 	}
-	if (bus_dmamap_create(tag, size, utag->n_seg, USB_PAGE_SIZE,
-	    0, BUS_DMA_WAITOK, &map)) {
+	if (bus_dmamap_create(tag, size, utag->n_seg, (align == 1) ?
+	    USB_PAGE_SIZE : size, 0, BUS_DMA_WAITOK, &map)) {
 		goto done_2;
 	}
 	if (bus_dmamap_load(tag, map, ptr, size, NULL,
