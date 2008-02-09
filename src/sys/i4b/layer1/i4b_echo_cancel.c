@@ -666,6 +666,7 @@ i4b_echo_cancel_complex_adapt(struct i4b_echo_cancel *ec)
 
     int64_t t;
     int64_t u;
+    int64_t v;
 
     int32_t dx;
     int32_t dy;
@@ -691,13 +692,16 @@ i4b_echo_cancel_complex_adapt(struct i4b_echo_cancel *ec)
 
 	t = ((L64(dx) * L64(ex)) + (L64(dy) * L64(ey)));
 	u = ((L64(dx) * L64(dx)) + (L64(dy) * L64(dy)));
+	v = ((L64(ex) * L64(ex)) + (L64(ey) * L64(ey)));
 
-	if (u < (L64(MIN) * L64(MIN))) {
+	/* 
+	 * Check if we should not train.
+	 * Else just set some values.
+	 */
+	if ((v > u) || (u < (L64(MIN) * L64(MIN))))  {
 	    na ++;
-	}
-
-	/* just set some values */
-	if (t > 0) {
+	    t = 0;
+	} else if (t > 0) {
 	    t = I4B_ECHO_CANCEL_N_TAPS;
 	} else {
 	    t = -I4B_ECHO_CANCEL_N_TAPS;
@@ -721,7 +725,7 @@ i4b_echo_cancel_complex_adapt(struct i4b_echo_cancel *ec)
     ec->buf_EC[I4B_ECHO_CANCEL_N_TAPS].x = 0;
     ec->buf_EC[I4B_ECHO_CANCEL_N_TAPS].y = 0;
 
-    if (na < (I4B_ECHO_CANCEL_N_TAPS/2)) {
+    if (na < (I4B_ECHO_CANCEL_N_TAPS/4)) {
         ec->adapt = 1;
     } else {
         ec->adapt = 0;
