@@ -1589,8 +1589,8 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 	    &ptr, BUS_DMA_WAITOK | BUS_DMA_COHERENT)) {
 		goto done_3;
 	}
-	if (bus_dmamap_create(tag, size, utag->n_seg, USB_PAGE_SIZE,
-	    0, BUS_DMA_WAITOK, &map)) {
+	if (bus_dmamap_create(tag, size, utag->n_seg, (align == 1) ?
+	    USB_PAGE_SIZE : size, 0, BUS_DMA_WAITOK, &map)) {
 		goto done_2;
 	}
 	if (bus_dmamap_load(tag, map, ptr, size, NULL,
@@ -1627,22 +1627,16 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 	return (0);
 
 done_0:
-	printf("done0\n");
 	bus_dmamap_unload(tag, map);
 done_1:
-	printf("done1\n");
 	bus_dmamap_destroy(tag, map);
 done_2:
-	printf("done2\n");
 	bus_dmamem_unmap(tag, ptr, size);
 done_3:
-	printf("done3\n");
 	bus_dmamem_free(tag, utag->p_seg, seg_count);
 done_4:
-	printf("done4\n");
 	/* utag is destroyed later */
 done_5:
-	printf("done5\n");
 
 	/* reset most of the page cache */
 	pc->buffer = NULL;
