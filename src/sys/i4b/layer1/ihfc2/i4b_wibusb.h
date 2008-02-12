@@ -1340,6 +1340,12 @@ I4B_USB_DRIVER(/* Asuscom ISDNlink 128K (USB)
 		*/
 	       .vid           = 0x07356694,
 	       );
+
+I4B_USB_DRIVER(/* DrayTek USB ISDN TA
+	        */
+	       .vid           = 0x06756694,
+	       );
+
 /*
  * cleanup
  */
