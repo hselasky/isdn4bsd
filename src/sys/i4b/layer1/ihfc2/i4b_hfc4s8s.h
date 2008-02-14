@@ -186,8 +186,8 @@ static void
 hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 {
 	static const uint8_t led_mask[8] = {
-	  (1 << 0), (1 << 2), (1 << 4), (1 << 6),
-	  (1 << 7), (1 << 5), (1 << 3), (1 << 1),
+	  (1 << 0), (1 << 1), (1 << 2), (1 << 3),
+	  (1 << 7), (1 << 6), (1 << 5), (1 << 4),
 	};
 
 	HFC4S8S_BUS_VAR(sc);
@@ -202,7 +202,7 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 	/* increment timer */
 	i = ++(sc->sc_default.led_time_count);
 
-	if (i != 25) {
+	if (i != 3) {
 	    /* nothing to do */
 	    return;
 	}
@@ -239,6 +239,8 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 
 	  if (sc->sc_state[i].state.active) {
 	      led_value[i] ^= 0xFFFF;
+	  } else {
+	      led_value[i] = 0x1000;
 	  }
 
 	  if (led_value[i] & temp_mask) {
@@ -246,12 +248,11 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 	  }
 	}
 
-	/* write new led values by an external SRAM write */
+	/* write new led values */
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_sel_write, 0xF0);
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_en1_write, l);
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_out1_write, l);
 
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr0_write, 0x00);
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr1_write, 0x80);
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr2_write, 0x00);
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_data, l);
 	return;
 }
 
