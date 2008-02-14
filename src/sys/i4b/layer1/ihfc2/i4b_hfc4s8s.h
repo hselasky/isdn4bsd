@@ -251,7 +251,7 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr0_write, 0x00);
 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr1_write, 0x80);
 	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr2_write, 0x00);
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_misc_write, l);
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_data, l);
 	return;
 }
 
