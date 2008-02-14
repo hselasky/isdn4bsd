@@ -199,6 +199,12 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 	uint8_t k;
 	uint8_t l;
 
+	if (sc->sc_default.led_time_count == 0xFF) {
+	    /* the board is in power-save mode */
+	    l = 0;
+	    goto update;
+	}
+
 	/* increment timer */
 	i = ++(sc->sc_default.led_time_count);
 
@@ -248,10 +254,28 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 	  }
 	}
 
-	/* write new led values */
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_sel_write, 0xF0);
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_en1_write, l);
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_out1_write, l);
+ update:
+
+	switch (sc->sc_default.cookie) {
+	case 1:
+	    /* write new led values */
+	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_sel_write, 0xF0);
+	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_en1_write, l);
+	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_out1_write, l);
+	    break;
+
+	case 2:
+	    /* write new led values using an SRAM write */
+	    l ^= 0xFF;
+	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr0_write, 0x00);
+	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr1_write, 0x80);
+	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr2_write, 0x00);
+	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_data, l);
+	    break;
+
+	default:
+	    break;
+	}
 
 	return;
 }
@@ -602,6 +626,19 @@ hfc4s8s_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	    {
 	        /* enable timer, 32ms */
 	        temp = 0x07;
+		sc->sc_default.led_time_count = 0xFF; /* power save */
+
+		/* turn off leds */
+		if (sc->sc_default.cookie) {
+		    hfc4s8s_leds_openvox(sc);
+		}
+	    }
+	    else
+	    {
+	        if (sc->sc_default.led_time_count == 0xFF) {
+		    /* get leds going again */
+		    sc->sc_default.led_time_count = 0;
+		}
 	    }
 
 	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_ti_wd_write, temp);
@@ -1042,7 +1079,7 @@ hfc4s8s_chip_status_read CHIP_STATUS_READ_T(sc)
 		sc->sc_intr_status[5] = 0xFF;
 	    }
 
-	    if (sc->sc_default.cookie == 1) {
+	    if (sc->sc_default.cookie) {
 	        hfc4s8s_leds_openvox(sc);
 	    }
 	}
@@ -1338,7 +1375,7 @@ I4B_DBASE(COUNT())
 {
   I4B_DBASE_IMPORT(hfc8s_dbase_root);
   I4B_DBASE_ADD(double_clock, 1);
-  I4B_DBASE_ADD(cookie, 1);
+  I4B_DBASE_ADD(cookie, 2);
 }
 
 I4B_PCI_DRIVER(/* HFC-8S OpenVox B800P */
