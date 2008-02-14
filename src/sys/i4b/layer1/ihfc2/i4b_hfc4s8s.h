@@ -230,7 +230,7 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 
 	  k = 0;
 
-	  for (j = 0; j != 3; j += 2) {
+	  for (j = 0; j != 3; j++) {
 
 	    if ((sc->sc_fifo[(i*6) + (j*2) + receive].
 		 prot_curr.protocol_1 != P_DISABLE) ||
