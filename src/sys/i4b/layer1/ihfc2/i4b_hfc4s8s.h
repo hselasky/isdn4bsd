@@ -620,24 +620,27 @@ hfc4s8s_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	     * - statemachine change
 	     * - timer elapsed
 	     */
-	    temp = 0x0C; /* enable timer, 1.024s */
-
 	    if(ihfc_fifos_active(sc))
 	    {
 	        /* enable timer, 32ms */
 	        temp = 0x07;
-		sc->sc_default.led_time_count = 0xFF; /* power save */
 
-		/* turn off leds */
-		if (sc->sc_default.cookie) {
-		    hfc4s8s_leds_openvox(sc);
+		/* get leds going again */
+	        if (sc->sc_default.led_time_count == 0xFF) {
+		    sc->sc_default.led_time_count = 0;
 		}
 	    }
 	    else
 	    {
-	        if (sc->sc_default.led_time_count == 0xFF) {
-		    /* get leds going again */
-		    sc->sc_default.led_time_count = 0;
+	        /* enable timer, 1.024s */
+	        temp = 0x0C;
+
+		/* power save */
+		sc->sc_default.led_time_count = 0xFF;
+
+		/* turn off leds */
+		if (sc->sc_default.cookie) {
+		    hfc4s8s_leds_openvox(sc);
 		}
 	    }
 
