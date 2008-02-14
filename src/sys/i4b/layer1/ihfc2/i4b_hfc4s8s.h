@@ -182,6 +182,80 @@
 #define HFC4S8S_WRITE_1(reg,var)		\
 	bus_space_write_1(t,h,(reg),(var))
 
+static void
+hfc4s8s_leds_openvox(ihfc_sc_t *sc)
+{
+	static const uint8_t led_mask[8] = {
+	  (1 << 0), (1 << 2), (1 << 4), (1 << 6),
+	  (1 << 7), (1 << 5), (1 << 3), (1 << 1),
+	};
+
+	HFC4S8S_BUS_VAR(sc);
+
+	uint16_t led_value[8];
+	uint16_t temp_mask;
+	uint8_t i;
+	uint8_t j;
+	uint8_t k;
+	uint8_t l;
+
+	/* increment timer */
+	i = ++(sc->sc_default.led_time_count);
+
+	if (i != 25) {
+	    /* nothing to do */
+	    return;
+	}
+
+	/* reset timer */
+	sc->sc_default.led_time_count = 0;
+
+	/* increment sub timer */
+	i = ++(sc->sc_default.led_time_count_sub);
+	if (i == 16) {
+	    sc->sc_default.led_time_count_sub = 0;
+	}
+
+	/* setup GPIO */
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_sel_write, 0x0F);
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_en0_write, 0xFF);
+
+	bzero(led_value, sizeof(led_value));
+
+	l = 0;
+
+	temp_mask = (1 << (sc->sc_default.led_time_count_sub));
+
+	for (i = 0; i != sc->sc_default.d_sub_controllers; i++) {
+
+	  k = 0;
+
+	  for (j = 0; j != 3; j += 2) {
+
+	    if ((sc->sc_fifo[(i*6) + (j*2) + receive].
+		 prot_curr.protocol_1 != P_DISABLE) ||
+		(sc->sc_fifo[(i*6) + (j*2) + transmit].
+		 prot_curr.protocol_1 != P_DISABLE)) {
+	        led_value[i] |= (1 << (2*k));
+		k++;
+	    }
+	  }
+
+	  if (sc->sc_state[i].state.active) {
+	      led_value[i] ^= 0xFFFF;
+	  }
+
+	  if (led_value[i] & temp_mask) {
+	      l |= led_mask[i];
+	  }
+	}
+
+	/* write new led values */
+
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_out0_write, l);
+	return;
+}
+
 static u_int8_t
 hfc4s8s_stable_read_1(ihfc_sc_t *sc, bus_size_t offset)
 {
@@ -967,6 +1041,10 @@ hfc4s8s_chip_status_read CHIP_STATUS_READ_T(sc)
 		sc->sc_intr_status[4] = 0xFF;
 		sc->sc_intr_status[5] = 0xFF;
 	    }
+
+	    if (sc->sc_default.cookie == 1) {
+	        hfc4s8s_leds_openvox(sc);
+	    }
 	}
 	return;
 }
@@ -1182,6 +1260,15 @@ I4B_PCI_DRIVER(/* HFC-4S Beronet BN4S0 miniPCI */
 	       .vid = 0x08b41397,
 	       .sub = 0xb5681397);
 
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
+I4B_DBASE(COUNT())
+{
+  I4B_DBASE_IMPORT(hfc4s_dbase_root);
+  I4B_DBASE_ADD(double_clock, 1);
+  I4B_DBASE_ADD(cookie, 1);
+}
+
 I4B_PCI_DRIVER(/* HFC-4S OpenVox B200P */
 	       .vid = 0x08b41397,
 	       .sub = 0xe8881397);
@@ -1244,6 +1331,15 @@ I4B_PCI_DRIVER(/* HFC-8S Beronet card */
 I4B_PCI_DRIVER(/* HFC-8S Junghanns OctoBRI */
 	       .vid = 0x16b81397,
 	       .sub = 0xb55b1397);
+
+#include <i4b/layer1/ihfc2/i4b_count.h>
+
+I4B_DBASE(COUNT())
+{
+  I4B_DBASE_IMPORT(hfc8s_dbase_root);
+  I4B_DBASE_ADD(double_clock, 1);
+  I4B_DBASE_ADD(cookie, 1);
+}
 
 I4B_PCI_DRIVER(/* HFC-8S OpenVox B800P */
 	       .vid = 0x16b81397,

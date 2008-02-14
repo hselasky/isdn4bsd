@@ -949,6 +949,9 @@ struct sc_default {
   u_int8_t			led_p1_mask;
   u_int8_t			led_inverse_mask; /* inverse bits */
 
+  u_int8_t			led_time_count;
+  u_int8_t			led_time_count_sub;
+
   u_int8_t		      d_L1_type; 
 
   u_int8_t		      d_sub_controllers;
