@@ -216,10 +216,6 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 	    sc->sc_default.led_time_count_sub = 0;
 	}
 
-	/* setup GPIO */
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_sel_write, 0x0F);
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_en0_write, 0xFF);
-
 	bzero(led_value, sizeof(led_value));
 
 	l = 0;
@@ -250,9 +246,12 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 	  }
 	}
 
-	/* write new led values */
+	/* write new led values by an external SRAM write */
 
-	HFC4S8S_WRITE_1(REG_hfc4s8s_r_gpio_out0_write, l);
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr0_write, 0x00);
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr1_write, 0x80);
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr2_write, 0x00);
+	HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_misc_write, l);
 	return;
 }
 
