@@ -185,11 +185,6 @@
 static void
 hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 {
-	static const uint8_t led_mask[8] = {
-	  (1 << 0), (1 << 1), (1 << 2), (1 << 3),
-	  (1 << 7), (1 << 6), (1 << 5), (1 << 4),
-	};
-
 	HFC4S8S_BUS_VAR(sc);
 
 	uint16_t led_value[8];
@@ -250,7 +245,7 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 	  }
 
 	  if (led_value[i] & temp_mask) {
-	      l |= led_mask[i];
+	      l |= (1 << i);
 	  }
 	}
 
@@ -267,7 +262,6 @@ hfc4s8s_leds_openvox(ihfc_sc_t *sc)
 	case 2:
 	    /* write new led values using an SRAM write */
 	    l ^= 0xFF;
-	    l = ((l & 0x55) << 1) | ((l & 0xAA) >> 1);
 	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr0_write, 0x00);
 	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr1_write, 0x80);
 	    HFC4S8S_WRITE_1(REG_hfc4s8s_r_ram_addr2_write, 0x00);
