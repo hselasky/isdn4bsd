@@ -55,19 +55,34 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/usb_transfer.c $");
 
 /* prototypes */
 
-static void usbd_pipe_enter_wrapper(struct usbd_xfer *xfer);
 static void usbd_compute_max_frame_size(struct usbd_xfer *xfer);
+static uint32_t usbd_get_dma_delay(struct usbd_bus *bus);
+static void usbd_transfer_unsetup_sub(struct usbd_memory_info *info, uint8_t needs_delay);
+static void usbd_control_transfer_init(struct usbd_xfer *xfer);
 static uint8_t usbd_start_hardware_sub(struct usbd_xfer *xfer);
 static void usbd_premature_callback(struct usbd_xfer *xfer, usbd_status_t error);
-static void usbd_delayed_transfer_start(void *arg);
+static void usbd_pipe_enter_wrapper(struct usbd_xfer *xfer);
 static void usbd_bdma_work_loop(struct usbd_memory_info *info);
-static usbd_status_t usbd_handle_request(struct usbd_xfer *xfer);
-static void usbd_callback_intr_td(void *arg);
-static void usbd_transfer_unsetup_sub(struct usbd_memory_info *info, uint8_t need_delay);
 static void usbd_callback_intr_sched(struct usbd_memory_info *info);
-
+static void usbd_callback_intr_td_sub(struct usbd_xfer **xfer, uint8_t dropcount);
+static void usbd_callback_intr_td(void *arg);
+static void usbd_dma_delay_done_cb(struct usbd_xfer *xfer);
+static void usbd_delayed_transfer_start(void *arg);
+static void usbd_do_request_callback(struct usbd_xfer *xfer);
+static void usbd_handle_request_callback(struct usbd_xfer *xfer);
+static usbd_status_t usbd_handle_set_config(struct usbd_xfer *xfer, uint8_t conf_no);
+static usbd_status_t usbd_handle_set_stall_sub(struct usbd_device *udev, uint8_t ea_val, uint8_t do_stall);
+static usbd_status_t usbd_handle_set_stall(struct usbd_xfer *xfer, uint8_t ep, uint8_t do_stall);
+static uint8_t usbd_handle_get_stall(struct usbd_device *udev, uint8_t ea_val);
+static usbd_status_t usbd_handle_remote_wakeup(struct usbd_xfer *xfer, uint8_t is_on);
+static usbd_status_t usbd_handle_request(struct usbd_xfer *xfer);
 
 #ifdef USB_DEBUG
+/*------------------------------------------------------------------------*
+ *	usbd_dump_iface
+ *
+ * This function dumps information about an USB interface.
+ *------------------------------------------------------------------------*/
 void
 usbd_dump_iface(struct usbd_interface *iface)
 {
@@ -80,6 +95,11 @@ usbd_dump_iface(struct usbd_interface *iface)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_dump_device
+ *
+ * This function dumps information about an USB device.
+ *------------------------------------------------------------------------*/
 void
 usbd_dump_device(struct usbd_device *udev)
 {
@@ -96,6 +116,11 @@ usbd_dump_device(struct usbd_device *udev)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_dump_queue
+ *
+ * This function dumps the USB transfer that are queued up on an USB pipe.
+ *------------------------------------------------------------------------*/
 void
 usbd_dump_queue(struct usbd_pipe *pipe)
 {
@@ -108,6 +133,11 @@ usbd_dump_queue(struct usbd_pipe *pipe)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_dump_pipe
+ *
+ * This function dumps information about an USB pipe.
+ *------------------------------------------------------------------------*/
 void
 usbd_dump_pipe(struct usbd_pipe *pipe)
 {
@@ -129,6 +159,11 @@ usbd_dump_pipe(struct usbd_pipe *pipe)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_dump_xfer
+ *
+ * This function dumps information about an USB transfer.
+ *------------------------------------------------------------------------*/
 void
 usbd_dump_xfer(struct usbd_xfer *xfer)
 {
@@ -154,6 +189,12 @@ usbd_dump_xfer(struct usbd_xfer *xfer)
 
 #endif
 
+/*------------------------------------------------------------------------*
+ *	usb_get_devid
+ *
+ * This function returns the USB Vendor and Product ID like a 32-bit
+ * unsigned integer.
+ *------------------------------------------------------------------------*/
 uint32_t
 usb_get_devid(device_t dev)
 {
@@ -176,8 +217,16 @@ usbd_get_pipe_by_addr(struct usbd_device *udev, uint8_t ea_val)
 		EA_MASK = (UE_DIR_IN | UE_DIR_OUT | UE_ADDR),
 	};
 
+	/*
+	 * According to the USB specification not all bits are used
+	 * for the endpoint address. Mask away the reserved bits:
+	 */
 	ea_val &= EA_MASK;
 
+	/*
+	 * Iterate accross all the USB pipes searching for a match
+	 * based on the endpoint address:
+	 */
 	for (; pipe != pipe_end; pipe++) {
 
 		if (pipe->edesc == NULL) {
@@ -189,7 +238,9 @@ usbd_get_pipe_by_addr(struct usbd_device *udev, uint8_t ea_val)
 		}
 	}
 
-	/* do the mask and check the value */
+	/*
+	 * The default pipe is always present and is checked separately:
+	 */
 	if ((udev->default_pipe.edesc) &&
 	    ((udev->default_pipe.edesc->bEndpointAddress & EA_MASK) == ea_val)) {
 		pipe = &udev->default_pipe;
@@ -201,6 +252,16 @@ found:
 	return (pipe);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_get_pipe
+ *
+ * This function searches for an USB pipe based on the information
+ * given by the passed "struct usbd_config" pointer.
+ *
+ * Return values:
+ * NULL: No match.
+ * Else: Pointer to "struct usbd_pipe".
+ *------------------------------------------------------------------------*/
 struct usbd_pipe *
 usbd_get_pipe(struct usbd_device *udev, uint8_t iface_index,
     const struct usbd_config *setup)
@@ -256,8 +317,11 @@ usbd_get_pipe(struct usbd_device *udev, uint8_t iface_index,
 		type_val = (setup->type & UE_XFERTYPE);
 	}
 
-	/* NOTE: pipes are searched from the beginning */
-
+	/*
+	 * Iterate accross all the USB pipes searching for a match
+	 * based on the endpoint address. Note that we are searching
+	 * the pipes from the beginning of the "udev->pipes" array.
+	 */
 	for (; pipe != pipe_end; pipe++) {
 
 		if ((pipe->edesc == NULL) ||
@@ -292,6 +356,13 @@ found:
 	return (pipe);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_interface_count
+ *
+ * This function stores the number of USB interfaces excluding
+ * alternate settings, which the USB config descriptor reports into
+ * the unsigned 8-bit integer pointed to by "count".
+ *------------------------------------------------------------------------*/
 usbd_status_t
 usbd_interface_count(struct usbd_device *udev, uint8_t *count)
 {
@@ -312,6 +383,10 @@ struct usbd_std_packet_size {
 
 };
 
+/*
+ * This table stores the all the allowed packet sizes based on
+ * endpoint type and USB speed:
+ */
 static const struct usbd_std_packet_size
 	usbd_std_packet_size[4][USB_SPEED_MAX] = {
 
@@ -344,6 +419,12 @@ static const struct usbd_std_packet_size
 	},
 };
 
+/*------------------------------------------------------------------------*
+ *	usbd_compute_max_frame_size
+ *
+ * This function computes the maximum frame size, hence high speed USB
+ * can transfer multiple consecutive packets.
+ *------------------------------------------------------------------------*/
 static void
 usbd_compute_max_frame_size(struct usbd_xfer *xfer)
 {
@@ -360,7 +441,13 @@ usbd_compute_max_frame_size(struct usbd_xfer *xfer)
 }
 
 /*------------------------------------------------------------------------*
- *  usbd_transfer_setup_sub - transfer setup subroutine
+ *	usbd_transfer_setup_sub - transfer setup subroutine
+ *
+ * This function must be called from the "xfer_setup" callback of the
+ * USB Host or Device controller driver when setting up an USB
+ * transfer. This function will setup correct packet sizes, buffer
+ * sizes, flags and more, that are stored in the "usbd_xfer"
+ * structure.
  *------------------------------------------------------------------------*/
 void
 usbd_transfer_setup_sub(struct usbd_setup_params *parm)
@@ -379,8 +466,10 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 	uint8_t type;
 	uint8_t zmps;
 
-	/* sanity check */
-
+	/*
+	 * Sanity check. The following parameters must be initialized before
+	 * calling this function.
+	 */
 	if ((parm->hc_max_packet_size == 0) ||
 	    (parm->hc_max_packet_count == 0) ||
 	    (parm->hc_max_frame_size == 0)) {
@@ -746,10 +835,15 @@ done:
 /*------------------------------------------------------------------------*
  *	usbd_transfer_setup - setup an array of USB transfers
  *
- * NOTE: must always call unsetup after setup
+ * NOTE: You must always call "usbd_transfer_unsetup" after calling
+ * "usbd_transfer_setup" if success was returned.
  *
- * The idea is that the USB device driver should pre-allocate all
- * its transfers by one call to this function.
+ * The idea is that the USB device driver should pre-allocate all its
+ * transfers by one call to this function.
+ *
+ * Return values:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbd_transfer_setup(struct usbd_device *udev,
@@ -823,7 +917,10 @@ usbd_transfer_setup(struct usbd_device *udev,
 	while (1) {
 
 		if (buf) {
-
+			/*
+			 * Initialize the "usbd_memory_info" structure,
+			 * which is common for all our USB transfers.
+			 */
 			info = USBD_ADD_BYTES(buf, 0);
 
 			info->memory_base = buf;
@@ -841,6 +938,8 @@ usbd_transfer_setup(struct usbd_device *udev,
 			info->bus = udev->bus;
 
 			LIST_INIT(&(info->done_head));
+
+			/* create a callback thread */
 
 			if (usb_thread_create
 			    (&usbd_callback_intr_td, info,
@@ -865,12 +964,8 @@ usbd_transfer_setup(struct usbd_device *udev,
 			} else {
 				parm.curr_setup_sub = &(setup->md);
 			}
-
+			/* skip USB transfers without callbacks: */
 			if (parm.curr_setup_sub->callback == NULL) {
-				/*
-				 * Skip USB transfers without
-				 * callbacks !
-				 */
 				continue;
 			}
 			/* see if there is a matching endpoint */
@@ -887,11 +982,15 @@ usbd_transfer_setup(struct usbd_device *udev,
 			/* store current setup pointer */
 			parm.curr_setup = setup;
 
-			/* align data to 8 byte boundary */
+			/* align data properly */
 			parm.size[0] += ((-parm.size[0]) & (USB_HOST_ALIGN - 1));
 
 			if (buf) {
 
+				/*
+				 * Common initialization of the
+				 * "usbd_xfer" structure.
+				 */
 				xfer = USBD_ADD_BYTES(buf, parm.size[0]);
 
 				ppxfer[n] = xfer;
@@ -907,7 +1006,13 @@ usbd_transfer_setup(struct usbd_device *udev,
 				usb_callout_init_mtx(&xfer->timeout_handle, xfer->usb_mtx,
 				    CALLOUT_RETURNUNLOCKED);
 			} else {
-				/* dummy xfer */
+				/*
+				 * Setup a dummy xfer, hence we are
+				 * writing to the "usbd_xfer"
+				 * structure pointed to by "xfer"
+				 * before we have allocated any
+				 * memory:
+				 */
 				xfer = &dummy;
 				bzero(&dummy, sizeof(dummy));
 				refcount++;
@@ -918,11 +1023,24 @@ usbd_transfer_setup(struct usbd_device *udev,
 			xfer->pipe = pipe;
 
 			if (buf) {
+				/*
+				 * Increment the pipe refcount. This
+				 * basically prevents setting a new
+				 * configuration and alternate setting
+				 * when USB transfers are in use on
+				 * the given interface. Search the USB
+				 * code for "pipe->refcount" if you
+				 * want more information.
+				 */
 				xfer->pipe->refcount++;
 			}
 			parm.methods = xfer->pipe->methods;
 			parm.curr_xfer = xfer;
 
+			/*
+			 * Call the Host or Device controller transfer setup
+			 * routine:
+			 */
 			(udev->bus->methods->xfer_setup) (&parm);
 
 			if (parm.err) {
@@ -937,7 +1055,7 @@ usbd_transfer_setup(struct usbd_device *udev,
 			/* no transfers - nothing to do ! */
 			goto done;
 		}
-		/* align data to 8 byte boundary */
+		/* align data properly */
 		parm.size[0] += ((-parm.size[0]) & (USB_HOST_ALIGN - 1));
 
 		/* store offset temporarily */
@@ -959,7 +1077,7 @@ usbd_transfer_setup(struct usbd_device *udev,
 		parm.size[0] += ((uint8_t *)parm.dma_tag_p) -
 		    ((uint8_t *)0);
 
-		/* align data to 8 byte boundary */
+		/* align data properly */
 		parm.size[0] += ((-parm.size[0]) & (USB_HOST_ALIGN - 1));
 
 		/* store offset temporarily */
@@ -968,7 +1086,7 @@ usbd_transfer_setup(struct usbd_device *udev,
 		parm.size[0] += ((uint8_t *)parm.dma_page_ptr) -
 		    ((uint8_t *)0);
 
-		/* align data to 8 byte boundary */
+		/* align data properly */
 		parm.size[0] += ((-parm.size[0]) & (USB_HOST_ALIGN - 1));
 
 		/* store offset temporarily */
@@ -987,7 +1105,7 @@ usbd_transfer_setup(struct usbd_device *udev,
 
 		parm.size[2] = parm.size[0];
 
-		/* align data to 8 byte boundary */
+		/* align data properly */
 		parm.size[0] += ((-parm.size[0]) & (USB_HOST_ALIGN - 1));
 
 		parm.size[6] = parm.size[0];
@@ -995,7 +1113,7 @@ usbd_transfer_setup(struct usbd_device *udev,
 		parm.size[0] += ((uint8_t *)parm.xfer_length_ptr) -
 		    ((uint8_t *)0);
 
-		/* align data to 8 byte boundary */
+		/* align data properly */
 		parm.size[0] += ((-parm.size[0]) & (USB_HOST_ALIGN - 1));
 
 		/* allocate zeroed memory */
@@ -1051,7 +1169,10 @@ usbd_get_dma_delay(struct usbd_bus *bus)
 
 	if (bus->methods->get_dma_delay) {
 		(bus->methods->get_dma_delay) (bus, &temp);
-		/* round up and convert to milliseconds */
+		/*
+		 * Round up and convert to milliseconds. Note that we use
+		 * 1024 milliseconds per second. to save a division.
+		 */
 		temp += 0x3FF;
 		temp /= 0x400;
 	}
@@ -1092,10 +1213,7 @@ usbd_transfer_unsetup_sub(struct usbd_memory_info *info, uint8_t needs_delay)
 		pc++;
 	}
 
-	/*
-	 * free DMA maps in all
-	 * "xfer->frbuffers"
-	 */
+	/* free DMA maps in all "xfer->frbuffers" */
 	pc = info->xfer_page_cache_start;
 	while (pc != info->xfer_page_cache_end) {
 		usbd_pc_dmamap_destroy(pc);
@@ -1107,10 +1225,8 @@ usbd_transfer_unsetup_sub(struct usbd_memory_info *info, uint8_t needs_delay)
 	    info->dma_tag_max);
 
 	/*
-	 * free the "memory_base" last,
-	 * hence the "info" structure is
-	 * contained within the
-	 * "memory_base"!
+	 * free the "memory_base" last, hence the "info" structure is
+	 * contained within the "memory_base"!
 	 */
 	free(info->memory_base, M_USB);
 	return;
@@ -1119,9 +1235,9 @@ usbd_transfer_unsetup_sub(struct usbd_memory_info *info, uint8_t needs_delay)
 /*------------------------------------------------------------------------*
  *	usbd_transfer_unsetup - unsetup/free an array of USB transfers
  *
- * NOTE: if the transfer was in progress, the callback will
- * called with "xfer->error=USBD_ERR_CANCELLED", before this
- * function returns
+ * NOTE: All USB transfers in progress will get called back passing
+ * the error code "USBD_ERR_CANCELLED" before this function
+ * returns.
  *------------------------------------------------------------------------*/
 void
 usbd_transfer_unsetup(struct usbd_xfer **pxfer, uint16_t n_setup)
@@ -1212,6 +1328,16 @@ usbd_transfer_unsetup(struct usbd_xfer **pxfer, uint16_t n_setup)
 
 /*------------------------------------------------------------------------*
  *	usbd_std_root_transfer - factored out code
+ *
+ * This function is basically used for the Virtual Root HUB, end can
+ * emulate control, bulk and interrupt endpoints. Data is exchanged
+ * using the "std->ptr" and "std->len" fields, that allows kernel
+ * virtual memory to be transferred. All state is kept in the
+ * structure pointed to by the "std" argument passed to this
+ * function. The "func" argument points to a function that is called
+ * back in the various states, so that the application using this
+ * function can get a chance to select the outcome. The "func"
+ * function is allowed to sleep, exiting all mutexes.
  *------------------------------------------------------------------------*/
 void
 usbd_std_root_transfer(struct usbd_std_root_transfer *std,
@@ -1237,7 +1363,9 @@ usbd_std_root_transfer(struct usbd_std_root_transfer *std,
 	/* signal that we plan to do the callback */
 	xfer->usb_thread = td;
 
+	/* check for control transfer */
 	if (xfer->flags_int.control_xfr) {
+		/* check if we are transferring the SETUP packet */
 		if (xfer->flags_int.control_hdr) {
 
 			/* copy out the USB request */
@@ -1281,8 +1409,7 @@ usbd_std_root_transfer(struct usbd_std_root_transfer *std,
 	if (std->err) {
 		goto done;
 	}
-	/* transfer data */
-
+	/* Transfer data. Iterate accross all frames. */
 	while (xfer->aframes != xfer->nframes) {
 
 		len = xfer->frlengths[xfer->aframes];
@@ -1322,6 +1449,7 @@ usbd_std_root_transfer(struct usbd_std_root_transfer *std,
 	if (std->err) {
 		goto done;
 	}
+	/* check if the control transfer is complete */
 	if (xfer->flags_int.control_xfr &&
 	    !xfer->flags_int.control_act) {
 
@@ -1352,7 +1480,15 @@ done:
 }
 
 /*------------------------------------------------------------------------*
- *	usbd_control_transfer_init
+ *	usbd_control_transfer_init - factored out code
+ *
+ * In USB Device Mode we have to wait for the SETUP packet which
+ * containst the "usb_device_request_t" structure, before we can
+ * transfer any data. In USB Host Mode we already have the SETUP
+ * packet at the moment the USB transfer is started. This leads us to
+ * having to setup the USB transfer at two different places in
+ * time. This function just contains factored out control transfer
+ * initialisation code, so that we don't duplicate the code.
  *------------------------------------------------------------------------*/
 static void
 usbd_control_transfer_init(struct usbd_xfer *xfer)
@@ -1379,8 +1515,13 @@ usbd_control_transfer_init(struct usbd_xfer *xfer)
 /*------------------------------------------------------------------------*
  *	usbd_start_hardware_sub
  *
- * To support split control transfers we need a special wrapper which
- * this function implements.
+ * This function handles initialisation of control transfers. Control
+ * transfers are special in that regard that they can both transmit
+ * and receive data.
+ *
+ * Return values:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 static uint8_t
 usbd_start_hardware_sub(struct usbd_xfer *xfer)
@@ -1497,10 +1638,10 @@ usbd_start_hardware_sub(struct usbd_xfer *xfer)
 		/* time to execute the STATUS stage */
 		xfer->flags_int.control_act = 0;
 	}
-	return (0);
+	return (0);			/* success */
 
 error:
-	return (1);
+	return (1);			/* failure */
 }
 
 /*------------------------------------------------------------------------*
@@ -1523,6 +1664,8 @@ usbd_premature_callback(struct usbd_xfer *xfer, usbd_status_t error)
 
 /*------------------------------------------------------------------------*
  *	usbd_start_hardware - start USB hardware for the given transfer
+ *
+ * This function should only be called from the USB callback.
  *------------------------------------------------------------------------*/
 void
 usbd_start_hardware(struct usbd_xfer *xfer)
@@ -1841,6 +1984,9 @@ usbd_bdma_done_event(struct usbd_memory_info *info)
 
 /*------------------------------------------------------------------------*
  *	usbd_bdma_pre_sync
+ *
+ * This function handles DMA synchronisation that must be done before
+ * an USB transfer is started.
  *------------------------------------------------------------------------*/
 void
 usbd_bdma_pre_sync(struct usbd_xfer *xfer)
@@ -1875,6 +2021,9 @@ usbd_bdma_pre_sync(struct usbd_xfer *xfer)
 
 /*------------------------------------------------------------------------*
  *	usbd_bdma_post_sync
+ *
+ * This function handles DMA synchronisation that must be done after
+ * an USB transfer is complete.
  *------------------------------------------------------------------------*/
 void
 usbd_bdma_post_sync(struct usbd_xfer *xfer)
@@ -1910,7 +2059,7 @@ usbd_bdma_post_sync(struct usbd_xfer *xfer)
  * NOTE: Calling this function more than one time will only
  *       result in a single transfer start, until the USB transfer
  *       completes.
- * NOTE: if "use_polling" is set in "xfer->flags", then this
+ * NOTE: If "use_polling" is set in "xfer->flags", then this
  *       function will spin until transfer is completed
  *------------------------------------------------------------------------*/
 void
@@ -2076,6 +2225,12 @@ usbd_set_frame_offset(struct usbd_xfer *xfer, uint32_t offset,
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_callback_intr_sched
+ *
+ * This function gets the USB callback thread running if it is
+ * sleeping.
+ *------------------------------------------------------------------------*/
 static void
 usbd_callback_intr_sched(struct usbd_memory_info *info)
 {
@@ -2088,6 +2243,11 @@ usbd_callback_intr_sched(struct usbd_memory_info *info)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_callback_intr_td_sub - factored out code
+ *
+ * This function performs USB callbacks.
+ *------------------------------------------------------------------------*/
 static void
 usbd_callback_intr_td_sub(struct usbd_xfer **xfer, uint8_t dropcount)
 {
@@ -2190,6 +2350,14 @@ repeat:
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_dma_delay_done_cb
+ *
+ * This function is called when the DMA delay has been exectuded, and
+ * will make sure that the callback is called to complete the USB
+ * transfer. This code path is ususally only used when there is an USB
+ * error like USBD_ERR_CANCELLED.
+ *------------------------------------------------------------------------*/
 static void
 usbd_dma_delay_done_cb(struct usbd_xfer *xfer)
 {
@@ -2489,6 +2657,13 @@ usbd_callback_wrapper(struct usbd_xfer *xfer, void *ctd, uint8_t context)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_delayed_transfer_start
+ *
+ * This function is called to start the USB transfer when
+ * "xfer->interval" is greater than zero, and and the endpoint type is
+ * BULK or CONTROL.
+ *------------------------------------------------------------------------*/
 static void
 usbd_delayed_transfer_start(void *arg)
 {
@@ -2789,6 +2964,9 @@ done:
 
 /*------------------------------------------------------------------------*
  *	usbd_do_request_callback
+ *
+ * This function is the USB callback for generic USB Host control
+ * transfers.
  *------------------------------------------------------------------------*/
 static void
 usbd_do_request_callback(struct usbd_xfer *xfer)
@@ -2810,6 +2988,9 @@ usbd_do_request_callback(struct usbd_xfer *xfer)
 
 /*------------------------------------------------------------------------*
  *	usbd_handle_request_callback
+ *
+ * This function is the USB callback for generic USB Device control
+ * transfers.
  *------------------------------------------------------------------------*/
 static void
 usbd_handle_request_callback(struct usbd_xfer *xfer)
@@ -3803,6 +3984,9 @@ done:
 	return (err);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_fill_get_report - factored out code
+ *------------------------------------------------------------------------*/
 void
 usbd_fill_get_report(usb_device_request_t *req, uint8_t iface_no,
     uint8_t type, uint8_t id, uint16_t size)
@@ -3816,6 +4000,9 @@ usbd_fill_get_report(usb_device_request_t *req, uint8_t iface_no,
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_fill_set_report - factored out code
+ *------------------------------------------------------------------------*/
 void
 usbd_fill_set_report(usb_device_request_t *req, uint8_t iface_no,
     uint8_t type, uint8_t id, uint16_t size)
@@ -3829,6 +4016,11 @@ usbd_fill_set_report(usb_device_request_t *req, uint8_t iface_no,
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_clear_data_toggle - factored out code
+ *
+ * NOTE: the intention of this function is not to reset the hardware data toggle.
+ *------------------------------------------------------------------------*/
 void
 usbd_clear_data_toggle(struct usbd_device *udev, struct usbd_pipe *pipe)
 {
@@ -3852,6 +4044,22 @@ usbd_clear_data_toggle(struct usbd_device *udev, struct usbd_pipe *pipe)
  * Return values:
  *   0: In progress
  *   Else: Finished
+ *
+ * Clear stall config example:
+ *
+ * static const struct usbd_config my_clearstall =  {
+ *	.type = UE_CONTROL,
+ *	.endpoint = 0,
+ *	.direction = UE_DIR_ANY,
+ *	.interval = 50, //50 milliseconds
+ *	.bufsize = sizeof(usb_device_request_t),
+ *	.mh.timeout = 1000, //1.000 seconds
+ *	.mh.flags = { },
+ *	.mh.callback = &my_clear_stall_callback, // **
+ * };
+ *
+ * ** "my_clear_stall_callback" calls "usbd_clear_stall_callback"
+ * passing the correct parameters.
  *------------------------------------------------------------------------*/
 uint8_t
 usbd_clear_stall_callback(struct usbd_xfer *xfer1,
@@ -3918,23 +4126,11 @@ usbd_clear_stall_callback(struct usbd_xfer *xfer1,
 	return (1);			/* Clear Stall Finished */
 }
 
-/* Clear stall config (example):
+/*------------------------------------------------------------------------*
+ *	usbd_do_poll
  *
- * static const struct usbd_config my_clearstall =  {
- *	.type = UE_CONTROL,
- *	.endpoint = 0,
- *	.direction = UE_DIR_ANY,
- *	.interval = 50, //50 milliseconds
- *	.bufsize = sizeof(usb_device_request_t),
- *	.mh.timeout = 1000, //1.000 seconds
- *	.mh.flags = { },
- *	.mh.callback = &my_clear_stall_callback,
- * };
- */
-
-/*
  * called from keyboard driver when in polling mode
- */
+ *------------------------------------------------------------------------*/
 void
 usbd_do_poll(struct usbd_device *udev)
 {
@@ -3942,10 +4138,12 @@ usbd_do_poll(struct usbd_device *udev)
 	return;
 }
 
-/*
+/*------------------------------------------------------------------------*
+ *	usb_match_device
+ *
  * Search for a vendor/product pair in an array.  The item size is
  * given as an argument.
- */
+ *------------------------------------------------------------------------*/
 const struct usb_devno *
 usb_match_device(const struct usb_devno *tbl, u_int nentries, u_int size,
     uint16_t vendor, uint16_t product)
@@ -3962,6 +4160,9 @@ usb_match_device(const struct usb_devno *tbl, u_int nentries, u_int size,
 	return (NULL);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_driver_load
+ *------------------------------------------------------------------------*/
 int
 usbd_driver_load(struct module *mod, int what, void *arg)
 {

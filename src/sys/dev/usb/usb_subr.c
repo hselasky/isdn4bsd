@@ -72,6 +72,36 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/usb_subr.c,v 1.95 2007/06/30 20:18:44 imp Ex
 #include <dev/usb/usb_quirks.h>
 #include <dev/usb/usb_template.h>
 
+/* prototypes */
+
+static void usbd_trim_spaces(char *p);
+static void usbd_finish_vp_info(struct usbd_device *udev);
+static void usbd_printBCD(char *p, uint16_t p_len, uint16_t bcd);
+static void usbd_fill_pipe_data(struct usbd_device *udev, uint8_t iface_index, usb_endpoint_descriptor_t *edesc, struct usbd_pipe *pipe);
+static uint8_t usbd_find_best_slot(uint32_t *ptr, uint8_t start, uint8_t end);
+static void usbd_fs_isoc_schedule_init_sub(struct usbd_fs_isoc_schedule *fss);
+static void usbd_free_pipe_data(struct usbd_device *udev, uint8_t iface_index, uint8_t iface_mask);
+static void usbd_free_iface_data(struct usbd_device *udev);;
+static void usbd_reset_probed(struct usbd_device *udev);;
+static void usbd_detach_device_sub(struct usbd_device *udev, device_t *ppdev, uint8_t free_subdev);;
+static uint8_t usbd_probe_and_attach_sub(struct usbd_device *udev, struct usb_attach_arg *uaa, device_t *ppdev);;
+static void usbd_suspend_resume_sub(struct usbd_device *udev, device_t dev, uint8_t do_suspend);
+
+#ifdef __FreeBSD__
+static int32_t usbd_m_copy_in_cb(void *arg, void *src, uint32_t count);
+static void usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs, int nseg, int error);
+
+#else
+static int32_t usbd_m_copy_in_cb(void *arg, caddr_t src, uint32_t count);
+static void usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs, int nseg, int error);
+
+#endif
+static void usbd_config_td_thread(void *arg);;
+static void usbd_config_td_dummy_cmd(struct usbd_config_td_softc *sc, struct usbd_config_td_cc *cc, uint16_t reference);
+static void usbd_bus_mem_flush_all_cb(struct usbd_bus *bus, struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align);
+static void usbd_bus_mem_alloc_all_cb(struct usbd_bus *bus, struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align);
+static void usbd_bus_mem_free_all_cb(struct usbd_bus *bus, struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align);
+
 #ifdef USBVERBOSE
 /*
  * Descriptions of of known vendors and devices ("products").
@@ -88,6 +118,12 @@ struct usb_knowndev {
 #include "usbdevs_data.h"
 #endif					/* USBVERBOSE */
 
+/*------------------------------------------------------------------------*
+ *	usbd_trim_spaces
+ *
+ * This function removes spaces at the beginning and the end of the string
+ * pointed to by the "p" argument.
+ *------------------------------------------------------------------------*/
 static void
 usbd_trim_spaces(char *p)
 {
@@ -106,6 +142,12 @@ usbd_trim_spaces(char *p)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_finish_vp_info
+ *
+ * This function checks the manufacturer and product strings and will
+ * fill in defaults for missing strings.
+ *------------------------------------------------------------------------*/
 static void
 usbd_finish_vp_info(struct usbd_device *udev)
 {
@@ -180,6 +222,13 @@ usbd_finish_vp_info(struct usbd_device *udev)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_printBCD
+ *
+ * This function will print the version number "bcd" to the string
+ * pointed to by "p" having a maximum length of "p_len" bytes
+ * including the terminating zero.
+ *------------------------------------------------------------------------*/
 static void
 usbd_printBCD(char *p, uint16_t p_len, uint16_t bcd)
 {
@@ -189,6 +238,14 @@ usbd_printBCD(char *p, uint16_t p_len, uint16_t bcd)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_devinfo
+ *
+ * This function will dump information from the device descriptor
+ * belonging to the USB device pointed to by "udev", to the string
+ * pointed to by "dst_ptr" having a maximum length of "dst_len" bytes
+ * including the terminating zero.
+ *------------------------------------------------------------------------*/
 void
 usbd_devinfo(struct usbd_device *udev, char *dst_ptr, uint16_t dst_len)
 {
@@ -216,6 +273,11 @@ usbd_devinfo(struct usbd_device *udev, char *dst_ptr, uint16_t dst_len)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_errstr
+ *
+ * This function converts an USB error code into a string.
+ *------------------------------------------------------------------------*/
 const char *
 usbd_errstr(usbd_status_t err)
 {
@@ -226,7 +288,12 @@ usbd_errstr(usbd_status_t err)
 	    USBD_STATUS_DESC[err] : "unknown error!";
 }
 
-/* Delay for a certain number of ms */
+/*------------------------------------------------------------------------*
+ *	usb_delay_ms
+ *
+ * This function will delay the code by the passed number of
+ * milliseconds.
+ *------------------------------------------------------------------------*/
 void
 usb_delay_ms(struct usbd_bus *bus, uint32_t ms)
 {
@@ -241,7 +308,12 @@ usb_delay_ms(struct usbd_bus *bus, uint32_t ms)
 #endif
 }
 
-/* Delay given a device handle. */
+/*------------------------------------------------------------------------*
+ *	usbd_delay_ms
+ *
+ * This function will delay the code by the passed number of
+ * milliseconds.
+ *------------------------------------------------------------------------*/
 void
 usbd_delay_ms(struct usbd_device *udev, uint32_t ms)
 {
@@ -251,7 +323,10 @@ usbd_delay_ms(struct usbd_device *udev, uint32_t ms)
 /*------------------------------------------------------------------------*
  *	 usbd_pause_mtx - factored out code
  *
- * NOTE: number of milliseconds per second is 1024 for sake of optimisation
+ * This function will delay the code by the passed number of
+ * milliseconds. The passed mutex "mtx" will be dropped while
+ * waiting. The number of milliseconds per second is 1024 for sake of
+ * optimisation.
  *------------------------------------------------------------------------*/
 void
 usbd_pause_mtx(struct mtx *mtx, uint32_t ms)
@@ -273,6 +348,18 @@ usbd_pause_mtx(struct mtx *mtx, uint32_t ms)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_desc_foreach
+ *
+ * This function is the safe way to iterate across the USB config
+ * descriptor. It contains several checks against invalid
+ * descriptors. If the "desc" argument passed to this function is
+ * "NULL" the first descriptor, if any, will be returned.
+ *
+ * Return values:
+ *   NULL: End of descriptors
+ *   Else: Next descriptor after "desc"
+ *------------------------------------------------------------------------*/
 usb_descriptor_t *
 usbd_desc_foreach(usb_config_descriptor_t *cd, usb_descriptor_t *desc)
 {
@@ -295,6 +382,16 @@ usbd_desc_foreach(usb_config_descriptor_t *cd, usb_descriptor_t *desc)
 	    (desc->bLength >= sizeof(*desc))) ? desc : NULL);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_find_idesc
+ *
+ * This function will return the interface descriptor, if any, that
+ * has index "iface_index" and alternate index "alt_index".
+ *
+ * Return values:
+ *   NULL: End of descriptors
+ *   Else: A valid interface descriptor
+ *------------------------------------------------------------------------*/
 usb_interface_descriptor_t *
 usbd_find_idesc(usb_config_descriptor_t *cd,
     uint8_t iface_index, uint8_t alt_index)
@@ -333,6 +430,16 @@ usbd_find_idesc(usb_config_descriptor_t *cd,
 	return (NULL);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_find_edesc
+ *
+ * This function will return the endpoint descriptor for the passed
+ * interface index, alternate index and endpoint index.
+ *
+ * Return values:
+ *   NULL: End of descriptors
+ *   Else: A valid endpoint descriptor
+ *------------------------------------------------------------------------*/
 usb_endpoint_descriptor_t *
 usbd_find_edesc(usb_config_descriptor_t *cd,
     uint8_t iface_index, uint8_t alt_index, uint8_t ep_index)
@@ -373,12 +480,17 @@ usbd_find_edesc(usb_config_descriptor_t *cd,
 /*------------------------------------------------------------------------*
  *	usbd_find_descriptor
  *
- * This function will lookup the first descriptor that matches
- * the criteria given by the arguments "type" and "subtype". Descriptors
- * will only be searched within the interface having the index "iface_index".
- * It is possible to specify the last descriptor returned by this function
- * as the "id" argument. That way one can search for multiple descriptors
- * matching the same criteria.
+ * This function will lookup the first descriptor that matches the
+ * criteria given by the arguments "type" and "subtype". Descriptors
+ * will only be searched within the interface having the index
+ * "iface_index".  If the "id" argument points to an USB descriptor,
+ * it will be skipped before the search is started. This allows
+ * searching for multiple descriptors using the same criteria. Else
+ * the search is started after the interface descriptor.
+ *
+ * Return values:
+ *   NULL: End of descriptors
+ *   Else: A descriptor matching the criteria
  *------------------------------------------------------------------------*/
 void   *
 usbd_find_descriptor(struct usbd_device *udev, void *id, uint8_t iface_index,
@@ -418,6 +530,15 @@ usbd_find_descriptor(struct usbd_device *udev, void *id, uint8_t iface_index,
 	return (NULL);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_get_no_alts
+ *
+ * Return value:
+ *   Number of alternate settings for the given "ifaceno".
+ *
+ * NOTE: The returned can be larger than the actual number of
+ * alternate settings.
+ *------------------------------------------------------------------------*/
 uint16_t
 usbd_get_no_alts(usb_config_descriptor_t *cd, uint8_t ifaceno)
 {
@@ -438,6 +559,12 @@ usbd_get_no_alts(usb_config_descriptor_t *cd, uint8_t ifaceno)
 	return (n);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_fill_pipe_data
+ *
+ * This function will initialize the USB pipe structure pointed to by
+ * the "pipe" argument.
+ *------------------------------------------------------------------------*/
 static void
 usbd_fill_pipe_data(struct usbd_device *udev, uint8_t iface_index,
     usb_endpoint_descriptor_t *edesc, struct usbd_pipe *pipe)
@@ -486,6 +613,12 @@ usbd_fill_pipe_data(struct usbd_device *udev, uint8_t iface_index,
  *
  */
 
+/*------------------------------------------------------------------------*
+ *	usbd_find_best_slot
+ *
+ * Return value:
+ *   The best Transaction Translation slot for an interrupt endpoint.
+ *------------------------------------------------------------------------*/
 static uint8_t
 usbd_find_best_slot(uint32_t *ptr, uint8_t start, uint8_t end)
 {
@@ -506,6 +639,18 @@ usbd_find_best_slot(uint32_t *ptr, uint8_t start, uint8_t end)
 	return (y);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_intr_schedule_adjust
+ *
+ * This function will update the bandwith usage for the microframe
+ * having index "slot" by "len" bytes. "len" can be negative.  If the
+ * "slot" argument is greater or equal to "USB_HS_MICRO_FRAMES_MAX"
+ * the "slot" argument will be replaced by the slot having least used
+ * bandwidth.
+ *
+ * Returns:
+ *   The slot on which the bandwidth update was done.
+ *------------------------------------------------------------------------*/
 uint8_t
 usbd_intr_schedule_adjust(struct usbd_device *udev, int16_t len, uint8_t slot)
 {
@@ -542,6 +687,12 @@ usbd_intr_schedule_adjust(struct usbd_device *udev, int16_t len, uint8_t slot)
 	return (slot);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_fs_isoc_schedule_init_sub
+ *
+ * This function initialises an USB FULL speed isochronous schedule
+ * entry.
+ *------------------------------------------------------------------------*/
 static void
 usbd_fs_isoc_schedule_init_sub(struct usbd_fs_isoc_schedule *fss)
 {
@@ -552,6 +703,12 @@ usbd_fs_isoc_schedule_init_sub(struct usbd_fs_isoc_schedule *fss)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_fs_isoc_schedule_init_all
+ *
+ * This function will reset the complete USB FULL speed isochronous
+ * bandwidth schedule.
+ *------------------------------------------------------------------------*/
 void
 usbd_fs_isoc_schedule_init_all(struct usbd_fs_isoc_schedule *fss)
 {
@@ -564,6 +721,21 @@ usbd_fs_isoc_schedule_init_all(struct usbd_fs_isoc_schedule *fss)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_fs_isoc_schedule_isoc_time_expand
+ *
+ * This function does multiple things. First of all it will expand the
+ * passed isochronous time, which is the return value. Then it will
+ * store where the current FULL speed isochronous schedule is
+ * positioned in time and where the end is. See "pp_start" and
+ * "pp_end" arguments.
+ *
+ * Returns:
+ *   Expanded version of "isoc_time".
+ *
+ * NOTE: This function depends on being called regularly with
+ * intervals less than "USB_ISOC_TIME_MAX".
+ *------------------------------------------------------------------------*/
 uint16_t
 usbd_fs_isoc_schedule_isoc_time_expand(struct usbd_device *udev,
     struct usbd_fs_isoc_schedule **pp_start,
@@ -611,6 +783,16 @@ usbd_fs_isoc_schedule_isoc_time_expand(struct usbd_device *udev,
 	return (isoc_time);
 }
 
+
+/*------------------------------------------------------------------------*
+ *	usbd_fs_isoc_schedule_alloc
+ *
+ * This function will allocate bandwidth for the isochronous FULL
+ * speed schedule.
+ *
+ * Returns:
+ *   Microframe slot where the transaction will start.
+ *------------------------------------------------------------------------*/
 uint8_t
 usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss, uint16_t len)
 {
@@ -644,8 +826,12 @@ usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss, uint16_t len)
 /*------------------------------------------------------------------------*
  *	usbd_free_pipe_data
  *
- * NOTE: The interface pipes should not be in use when
- * this function is called !
+ * This function will free USB pipe data for the given interface
+ * index. Hence we do not have any dynamic allocations we simply clear
+ * "pipe->edesc" to indicate that the USB pipe structure can be
+ * reused. The pipes belonging to the given interface should not be in
+ * use when this function is called and no check is performed to
+ * prevent this.
  *------------------------------------------------------------------------*/
 static void
 usbd_free_pipe_data(struct usbd_device *udev,
@@ -666,6 +852,11 @@ usbd_free_pipe_data(struct usbd_device *udev,
 
 /*------------------------------------------------------------------------*
  *	usbd_fill_iface_data
+ *
+ * This function will fill in interface data and allocate USB pipes
+ * for all the endpoints that belong to the given interface. This
+ * function is typically called when setting the configuration or when
+ * setting an alternate interface.
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbd_fill_iface_data(struct usbd_device *udev,
@@ -754,6 +945,12 @@ error:
 	return (USBD_ERR_INVAL);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_free_iface_data
+ *
+ * This function will free all USB interfaces and USB pipes belonging
+ * to an USB device.
+ *------------------------------------------------------------------------*/
 static void
 usbd_free_iface_data(struct usbd_device *udev)
 {
@@ -791,9 +988,9 @@ usbd_free_iface_data(struct usbd_device *udev)
  *	usbd_set_config_no
  *
  * This function will search all the configuration descriptors for a
- * matching configuration number. It is recommended to use
- * the function "usbd_set_config_index()" when the configuration
- * number does not matter.
+ * matching configuration number. It is recommended to use the
+ * function "usbd_set_config_index()" when the configuration number
+ * does not matter.
  *
  * - USB config 0
  *   - USB interfaces
@@ -834,6 +1031,9 @@ usbd_set_config_no(struct usbd_device *udev, uint8_t no, uint8_t msg)
 
 /*------------------------------------------------------------------------*
  *	usbd_set_config_index
+ *
+ * This function selects configuration by index, independent of the
+ * actual configuration number.
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbd_set_config_index(struct usbd_device *udev, uint8_t index, uint8_t msg)
@@ -984,6 +1184,14 @@ error:
 	return (err);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_set_alt_interface_index
+ *
+ * This function will select an alternate interface index for the
+ * given interface index. The interface should not be in use when this
+ * function is called. That means there should be no open USB
+ * transfers. Else an error is returned.
+ *------------------------------------------------------------------------*/
 usbd_status_t
 usbd_set_alt_interface_index(struct usbd_device *udev,
     uint8_t iface_index, uint8_t alt_index)
@@ -1007,6 +1215,13 @@ done:
 	return (err);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_fill_deviceinfo
+ *
+ * This function dumps information about an USB device to the
+ * structure pointed to by the "di" argument. It is used by some
+ * IOCTLs.
+ *------------------------------------------------------------------------*/
 int
 usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di)
 {
@@ -1087,6 +1302,12 @@ usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di)
 	return (0);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_reset_probed
+ *
+ * This function will reset the "udev->probed" variable to its default
+ * value, typically when drivers have been unloaded.
+ *------------------------------------------------------------------------*/
 static void
 usbd_reset_probed(struct usbd_device *udev)
 {
@@ -1095,6 +1316,12 @@ usbd_reset_probed(struct usbd_device *udev)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_detach_device_sub
+ *
+ * This function will try to detach an USB device. If it fails a panic
+ * will result.
+ *------------------------------------------------------------------------*/
 static void
 usbd_detach_device_sub(struct usbd_device *udev, device_t *ppdev,
     uint8_t free_subdev)
@@ -1450,6 +1677,9 @@ done:
 
 /*------------------------------------------------------------------------*
  *	usbd_suspend_resume_sub
+ *
+ * This function is called when the suspend or resume methods should
+ * be executed on an USB device.
  *------------------------------------------------------------------------*/
 static void
 usbd_suspend_resume_sub(struct usbd_device *udev, device_t dev, uint8_t do_suspend)
@@ -1812,7 +2042,7 @@ done:
 /*------------------------------------------------------------------------*
  *	usbd_free_device
  *
- * This function is NULL safe.
+ * This function is NULL safe and will free an USB device.
  *------------------------------------------------------------------------*/
 void
 usbd_free_device(struct usbd_device *udev)
@@ -1863,6 +2093,17 @@ usbd_free_device(struct usbd_device *udev)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_ref_device
+ *
+ * This function increments the reference count on the USB device at
+ * index "index" so that it cannot be freed before the reference count
+ * reaches zero.
+ *
+ * Return values:
+ *  NULL: USB device not present.
+ *  Else: Refcount incremented on the given USB device.
+ *------------------------------------------------------------------------*/
 struct usbd_device *
 usbd_ref_device(struct usbd_bus *bus, uint8_t index)
 {
@@ -1887,6 +2128,12 @@ usbd_ref_device(struct usbd_bus *bus, uint8_t index)
 	return (udev);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_unref_device
+ *
+ * This function will release the reference count by one unit for the
+ * given USB device.
+ *------------------------------------------------------------------------*/
 void
 usbd_unref_device(struct usbd_device *udev)
 {
@@ -1916,6 +2163,16 @@ usbd_unref_device(struct usbd_device *udev)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_get_iface
+ *
+ * This function is the safe way to get the USB interface structure
+ * pointer by interface index.
+ *
+ * Return values:
+ *   NULL: Interface not present.
+ *   Else: Pointer to USB interface structure.
+ *------------------------------------------------------------------------*/
 struct usbd_interface *
 usbd_get_iface(struct usbd_device *udev, uint8_t iface_index)
 {
@@ -1930,6 +2187,12 @@ usbd_get_iface(struct usbd_device *udev, uint8_t iface_index)
 	return (iface);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_set_device_desc
+ *
+ * This function can be called at probe or attach to set the USB
+ * device supplied textual description for the given device.
+ *------------------------------------------------------------------------*/
 void
 usbd_set_device_desc(device_t dev)
 {
@@ -1976,9 +2239,11 @@ usbd_set_device_desc(device_t dev)
 }
 
 /*------------------------------------------------------------------------*
- *      allocate mbufs to an usbd interface queue
+ *      usbd_alloc_mbufs - allocate mbufs to an usbd interface queue
  *
- * returns a pointer that eventually should be passed to "free()"
+ * Returns:
+ *   A pointer that should be passed to "free()" when the buffer(s)
+ *   should be released.
  *------------------------------------------------------------------------*/
 void   *
 usbd_alloc_mbufs(struct malloc_type *type, struct usbd_ifqueue *ifq,
@@ -2265,7 +2530,7 @@ usbd_dma_tag_destroy(struct usbd_dma_tag *udt)
 }
 
 /*------------------------------------------------------------------------*
- *	usbd_pc_alloc_mem_cb
+ *	usbd_pc_alloc_mem_cb - BUS-DMA callback function
  *------------------------------------------------------------------------*/
 static void
 usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
@@ -2506,7 +2771,7 @@ usbd_pc_cpu_flush(struct usbd_page_cache *pc)
 }
 
 /*------------------------------------------------------------------------*
- *	usbd_pc_dmamap_create
+ *	usbd_pc_dmamap_create - create a DMA map
  *
  * Returns:
  *    0: Success
@@ -2607,7 +2872,7 @@ usbd_dma_tag_destroy(struct usbd_dma_tag *udt)
 }
 
 /*------------------------------------------------------------------------*
- *	usbd_pc_alloc_mem_cb
+ *	usbd_pc_alloc_mem_cb - BUS-DMA callback function
  *------------------------------------------------------------------------*/
 static void
 usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
@@ -2872,7 +3137,7 @@ usbd_pc_cpu_flush(struct usbd_page_cache *pc)
 }
 
 /*------------------------------------------------------------------------*
- *	usbd_pc_dmamap_create
+ *	usbd_pc_dmamap_create - create a DMA map
  *
  * Returns:
  *    0: Success
@@ -3004,7 +3269,9 @@ mtx_pickup_recurse(struct mtx *mtx, uint32_t recurse_level)
 
 
 /*------------------------------------------------------------------------*
- * usbd_config_thread
+ *	usbd_config_thread
+ *
+ * This function is the dispatcher in the USB config thread system.
  *------------------------------------------------------------------------*/
 static void
 usbd_config_td_thread(void *arg)
@@ -3110,7 +3377,7 @@ usbd_config_td_thread(void *arg)
 }
 
 /*------------------------------------------------------------------------*
- * usbd_config_td_setup
+ *	usbd_config_td_setup
  *
  * NOTE: the structure pointed to by "ctd" must be zeroed before calling
  * this function!
@@ -3158,7 +3425,7 @@ error:
 }
 
 /*------------------------------------------------------------------------*
- * usbd_config_td_dummy_cmd
+ *	usbd_config_td_dummy_cmd - a NOP
  *------------------------------------------------------------------------*/
 static void
 usbd_config_td_dummy_cmd(struct usbd_config_td_softc *sc,
@@ -3169,7 +3436,10 @@ usbd_config_td_dummy_cmd(struct usbd_config_td_softc *sc,
 }
 
 /*------------------------------------------------------------------------*
- * usbd_config_td_stop
+ *	usbd_config_td_stop
+ *
+ * This function will tear down an USB config thread, waiting for the
+ * currently executing command to return.
  *
  * NOTE: If the structure pointed to by "ctd" is all zero,
  * this function does nothing.
@@ -3213,7 +3483,7 @@ usbd_config_td_stop(struct usbd_config_td *ctd)
 }
 
 /*------------------------------------------------------------------------*
- * usbd_config_td_unsetup
+ *	usbd_config_td_unsetup
  *
  * NOTE: If the structure pointed to by "ctd" is all zero,
  * this function does nothing.
@@ -3231,7 +3501,18 @@ usbd_config_td_unsetup(struct usbd_config_td *ctd)
 }
 
 /*------------------------------------------------------------------------*
- * usbd_config_td_queue_command
+ *	usbd_config_td_queue_command
+ *
+ * This function will enter a command into the config thread queue for
+ * execution. The "command_qcount" gives the maximum number of
+ * equivalent commands that will be kept on the queue before queueing
+ * the next command. "command_ref" is the reference count for the
+ * current command which is passed on to the "command_post_func"
+ * function. This parameter can be used to make a command
+ * unique. "command_pre_func" is called from this function when we
+ * have the final queue element. "command_post_func" is called from
+ * the USB config thread when the command reaches the beginning of the
+ * USB config thread queue.
  *------------------------------------------------------------------------*/
 void
 usbd_config_td_queue_command(struct usbd_config_td *ctd,
@@ -3320,7 +3601,7 @@ usbd_config_td_queue_command(struct usbd_config_td *ctd,
 }
 
 /*------------------------------------------------------------------------*
- * usbd_config_td_is_gone
+ *	usbd_config_td_is_gone
  *
  * Return values:
  *    0: config thread is running
@@ -3335,7 +3616,7 @@ usbd_config_td_is_gone(struct usbd_config_td *ctd)
 }
 
 /*------------------------------------------------------------------------*
- * usbd_config_td_sleep
+ *	usbd_config_td_sleep
  *
  * NOTE: this function can only be called from the config thread
  *
@@ -3372,7 +3653,7 @@ done:
 }
 
 /*------------------------------------------------------------------------*
- * usbd_ether_get_mbuf - get a new ethernet mbuf
+ *	usbd_ether_get_mbuf - get a new ethernet aligned mbuf
  *------------------------------------------------------------------------*/
 struct mbuf *
 usbd_ether_get_mbuf(void)
@@ -3411,7 +3692,12 @@ device_delete_all_children(device_t dev)
 }
 
 /*------------------------------------------------------------------------*
- * usbd_isoc_time_expand - expand time counter from 7-bit to 16-bit
+ *	usbd_isoc_time_expand
+ *
+ * This function will expand the time counter from 7-bit to 16-bit.
+ *
+ * Returns:
+ *   16-bit isochronous time counter.
  *------------------------------------------------------------------------*/
 uint16_t
 usbd_isoc_time_expand(struct usbd_bus *bus, uint16_t isoc_time_curr)
