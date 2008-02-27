@@ -1228,6 +1228,10 @@ I4B_PCI_DRIVER(/* HFC-2S Junghanns duoBRI miniPCI */
 	       .vid = 0x08b41397,
 	       .sub = 0xb5591397);
 
+I4B_PCI_DRIVER(/* HFC-2S Beronet BN2S0 miniPCI */
+	       .vid = 0x08b41397,
+	       .sub = 0xb5691397);
+
 #include <i4b/layer1/ihfc2/i4b_count.h>
 
 I4B_DBASE(hfc4s_dbase_root)
