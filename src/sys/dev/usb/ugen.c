@@ -1029,7 +1029,7 @@ ue_interrupt:
 			PRINTFN(1, ("got %d of %d bytes\n", xfer->actlen, n));
 
 			error = ugen_usb_uiomove
-			    (sc, sce, xfer->frbuffers + 0, uio, 0,
+			    (sc, sce, xfer->frbuffers, uio, 0,
 			    xfer->actlen, UGEN_RD_UIO);
 
 			if (error || (xfer->actlen < n)) {
@@ -1092,7 +1092,7 @@ ugenwrite(struct cdev *dev, struct uio *uio, int flag)
 			xfer = sce->xfer_out[0];
 
 			error = ugen_usb_uiomove
-			    (sc, sce, xfer->frbuffers + 0, uio,
+			    (sc, sce, xfer->frbuffers, uio,
 			    0, n, UGEN_WR_UIO);
 
 			if (error) {
@@ -1302,7 +1302,7 @@ ugen_interrupt_callback(struct usbd_xfer *xfer)
 		if (ptr == NULL) {
 			PRINTFN(5, ("dropping one packet, sce=%p\n", sce));
 		} else {
-			usbd_copy_out(xfer->frbuffers + 0, 0, ptr, xfer->actlen);
+			usbd_copy_out(xfer->frbuffers, 0, ptr, xfer->actlen);
 
 			if (xfer->actlen > *plen) {
 				xfer->actlen = *plen;
@@ -1406,7 +1406,7 @@ ugenisoc_read_callback(struct usbd_xfer *xfer)
 				if (*plen1 > *plen2) {
 					*plen1 = *plen2;
 				}
-				usbd_copy_out(xfer->frbuffers + 0, offset,
+				usbd_copy_out(xfer->frbuffers, offset,
 				    ptr2, *plen1);
 
 				*plen2 = *plen1;
@@ -1469,7 +1469,7 @@ tr_transferred:
 			if (len2 > xfer->max_frame_size) {
 				len2 = xfer->max_frame_size;
 			}
-			usbd_copy_in(xfer->frbuffers + 0, offset, ptr2, len2);
+			usbd_copy_in(xfer->frbuffers, offset, ptr2, len2);
 
 			*plen1 = len2;
 

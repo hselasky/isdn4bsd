@@ -433,7 +433,7 @@ tr_transferred:
 				break;
 			}
 
-			usbd_copy_in(xfer->frbuffers + 0, 0, &(req), sizeof(req));
+			usbd_copy_in(xfer->frbuffers, 0, &(req), sizeof(req));
 			usbd_copy_in(xfer->frbuffers + 1, 0, data, offset);
 
 			xfer->frlengths[0] = sizeof(req);
@@ -585,7 +585,7 @@ ucycom_intr_read_callback(struct usbd_xfer *xfer)
 			if (xfer->actlen < 1) {
 				goto tr_setup;
 			}
-			usbd_copy_out(xfer->frbuffers + 0, 0, buf, 1);
+			usbd_copy_out(xfer->frbuffers, 0, buf, 1);
 
 			sc->sc_ist = buf[0] & ~0x07;
 			len = buf[0] & 0x07;
@@ -600,7 +600,7 @@ ucycom_intr_read_callback(struct usbd_xfer *xfer)
 			if (xfer->actlen < 2) {
 				goto tr_setup;
 			}
-			usbd_copy_out(xfer->frbuffers + 0, 0, buf, 2);
+			usbd_copy_out(xfer->frbuffers, 0, buf, 2);
 
 			sc->sc_ist = buf[0] & ~0x07;
 			len = buf[1];
@@ -620,7 +620,7 @@ ucycom_intr_read_callback(struct usbd_xfer *xfer)
 			len = xfer->actlen;
 		}
 		if (len) {
-			ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0,
+			ucom_put_data(&(sc->sc_ucom), xfer->frbuffers,
 			    offset, len);
 		}
 	case USBD_ST_SETUP:

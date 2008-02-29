@@ -477,7 +477,7 @@ uscanner_read_callback(struct usbd_xfer *xfer)
 
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
-		usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers + 0, 0,
+		usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers, 0,
 		    xfer->actlen, 1);
 
 	case USBD_ST_SETUP:
@@ -547,7 +547,7 @@ uscanner_write_callback(struct usbd_xfer *xfer)
 		/*
 		 * Write datas, setup and perform hardware transfer.
 		 */
-		if (usb_cdev_get_data(&(sc->sc_cdev), xfer->frbuffers + 0, 0,
+		if (usb_cdev_get_data(&(sc->sc_cdev), xfer->frbuffers, 0,
 		    xfer->max_data_length, &actlen, 0)) {
 			xfer->frlengths[0] = actlen;
 			usbd_start_hardware(xfer);

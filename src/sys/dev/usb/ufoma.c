@@ -595,7 +595,7 @@ tr_setup:
 			USETW(req.wValue, 0);
 			USETW(req.wLength, UFOMA_CMD_BUF_SIZE);
 
-			usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+			usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 
 			xfer->frlengths[0] = sizeof(req);
 			xfer->frlengths[1] = UFOMA_CMD_BUF_SIZE;
@@ -639,7 +639,7 @@ tr_setup:
 			USETW(req.wValue, 0);
 			USETW(req.wLength, 1);
 
-			usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+			usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 
 			xfer->frlengths[0] = sizeof(req);
 			xfer->frlengths[1] = 1;
@@ -696,7 +696,7 @@ ufoma_intr_callback(struct usbd_xfer *xfer)
 			DPRINTF(sc, 0, "truncating message\n");
 			xfer->actlen = sizeof(pkt);
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0, &pkt, xfer->actlen);
+		usbd_copy_out(xfer->frbuffers, 0, &pkt, xfer->actlen);
 
 		xfer->actlen -= 8;
 
@@ -801,7 +801,7 @@ ufoma_bulk_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_bulk_xfer[2]);
 			return;
 		}
-		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    UFOMA_BULK_BUF_SIZE, &actlen)) {
 			xfer->frlengths[0] = actlen;
 			usbd_start_hardware(xfer);
@@ -839,7 +839,7 @@ ufoma_bulk_read_callback(struct usbd_xfer *xfer)
 
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
-		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    xfer->actlen);
 
 	case USBD_ST_SETUP:

@@ -1069,7 +1069,7 @@ uhci_isoc_done(uhci_softc_t *sc, struct usbd_xfer *xfer)
 
 			usbd_pc_cpu_invalidate(td->fix_pc);
 
-			usbd_copy_in(xfer->frbuffers + 0, offset,
+			usbd_copy_in(xfer->frbuffers, offset,
 			    res.buffer, len);
 		}
 		offset += *plen;

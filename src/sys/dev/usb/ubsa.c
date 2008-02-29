@@ -644,7 +644,7 @@ ubsa_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    UBSA_BSIZE, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -683,7 +683,7 @@ ubsa_read_callback(struct usbd_xfer *xfer)
 
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
-		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0, xfer->actlen);
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers, 0, xfer->actlen);
 
 	case USBD_ST_SETUP:
 		if (sc->sc_flag & UBSA_FLAG_READ_STALL) {
@@ -729,7 +729,7 @@ ubsa_intr_callback(struct usbd_xfer *xfer)
 
 		if (xfer->actlen >= sizeof(buf)) {
 
-			usbd_copy_out(xfer->frbuffers + 0, 0, buf, sizeof(buf));
+			usbd_copy_out(xfer->frbuffers, 0, buf, sizeof(buf));
 
 			/*
 			 * incidentally, Belkin adapter status bits match

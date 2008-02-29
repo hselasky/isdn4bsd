@@ -192,7 +192,7 @@ ums_intr_callback(struct usbd_xfer *xfer)
 		if (len == 0) {
 			goto tr_setup;
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0, buf, len);
+		usbd_copy_out(xfer->frbuffers, 0, buf, len);
 
 		DPRINTF(5, "data = %02x %02x %02x %02x "
 		    "%02x %02x %02x %02x\n",

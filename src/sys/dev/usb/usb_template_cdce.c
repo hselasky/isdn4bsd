@@ -269,6 +269,13 @@ const struct usb_temp_device_desc usb_template_cdce = {
 	.iSerialNumber = STRING_ETH_SERIAL_INDEX,
 };
 
+/*------------------------------------------------------------------------*
+ *	eth_get_string_desc
+ *
+ * Return values:
+ * NULL: Failure. No such string.
+ * Else: Success. Pointer to string descriptor is returned.
+ *------------------------------------------------------------------------*/
 static const void *
 eth_get_string_desc(uint16_t lang_id, uint8_t string_index)
 {

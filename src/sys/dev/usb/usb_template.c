@@ -46,6 +46,12 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/usb_template.c $");
 #include <dev/usb/usb_template.h>
 #include <dev/usb/usb_cdc.h>
 
+/*------------------------------------------------------------------------*
+ *	usbd_make_raw_desc
+ *
+ * This function will insert a raw USB descriptor into the generated
+ * USB configuration.
+ *------------------------------------------------------------------------*/
 static void
 usbd_make_raw_desc(struct usbd_temp_setup *temp,
     const uint8_t *raw)
@@ -82,6 +88,13 @@ usbd_make_raw_desc(struct usbd_temp_setup *temp,
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_make_endpoint_desc
+ *
+ * This function will generate an USB endpoint descriptor from the
+ * given USB template endpoint descriptor, which will be inserted into
+ * the USB configuration.
+ *------------------------------------------------------------------------*/
 static void
 usbd_make_endpoint_desc(struct usbd_temp_setup *temp,
     const struct usb_temp_endpoint_desc *ted)
@@ -176,6 +189,13 @@ usbd_make_endpoint_desc(struct usbd_temp_setup *temp,
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_make_interface_desc
+ *
+ * This function will generate an USB interface descriptor from the
+ * given USB template interface descriptor, which will be inserted
+ * into the USB configuration.
+ *------------------------------------------------------------------------*/
 static void
 usbd_make_interface_desc(struct usbd_temp_setup *temp,
     const struct usb_temp_interface_desc *tid)
@@ -241,6 +261,13 @@ usbd_make_interface_desc(struct usbd_temp_setup *temp,
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_make_config_desc
+ *
+ * This function will generate an USB config descriptor from the given
+ * USB template config descriptor, which will be inserted into the USB
+ * configuration.
+ *------------------------------------------------------------------------*/
 static void
 usbd_make_config_desc(struct usbd_temp_setup *temp,
     const struct usb_temp_config_desc *tcd)
@@ -297,6 +324,12 @@ usbd_make_config_desc(struct usbd_temp_setup *temp,
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_make_device_desc
+ *
+ * This function will generate an USB device descriptor from the
+ * given USB template device descriptor.
+ *------------------------------------------------------------------------*/
 static void
 usbd_make_device_desc(struct usbd_temp_setup *temp,
     const struct usb_temp_device_desc *tdd)
@@ -387,6 +420,13 @@ usbd_make_device_desc(struct usbd_temp_setup *temp,
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_hw_ep_match
+ *
+ * Return values:
+ *    0: The endpoint profile does not match the criterias
+ * Else: The endpoint profile matches the criterias
+ *------------------------------------------------------------------------*/
 static uint8_t
 usbd_hw_ep_match(const struct usbd_hw_ep_profile *pf,
     uint8_t ep_type, uint8_t ep_dir_in)
@@ -406,6 +446,16 @@ usbd_hw_ep_match(const struct usbd_hw_ep_profile *pf,
 	return (0);
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_hw_ep_find_match
+ *
+ * This function is used to find the best matching endpoint profile
+ * for and endpoint belonging to an USB descriptor.
+ *
+ * Return values:
+ *    0: Success. Got a match.
+ * Else: Failure. No match.
+ *------------------------------------------------------------------------*/
 static uint8_t
 usbd_hw_ep_find_match(struct usbd_hw_ep_scratch *ues,
     struct usbd_sw_ep_scratch *ep, uint8_t is_simplex)
@@ -517,6 +567,16 @@ usbd_hw_ep_find_match(struct usbd_hw_ep_scratch *ues,
 	return (1);			/* failure */
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_hw_ep_get_needs
+ *
+ * This function will figure out the type and number of endpoints
+ * which are needed for an USB configuration.
+ *
+ * Return values:
+ *    0: Success.
+ * Else: Failure.
+ *------------------------------------------------------------------------*/
 static uint8_t
 usbd_hw_ep_get_needs(struct usbd_hw_ep_scratch *ues,
     uint8_t ep_type, uint8_t is_complete)
@@ -665,6 +725,16 @@ handle_endpoint_desc:
 	goto repeat;
 }
 
+/*------------------------------------------------------------------------*
+ *	usbd_hw_ep_resolve
+ *
+ * This function will try to resolve endpoint requirements by the
+ * given endpoint profiles that the USB hardware reports.
+ *
+ * Return values:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
 static usbd_status_t
 usbd_hw_ep_resolve(struct usbd_device *udev,
     usb_descriptor_t *desc)
@@ -931,7 +1001,8 @@ usbd_temp_get_hub_desc(struct usbd_device *udev)
 /*------------------------------------------------------------------------*
  *	usbd_temp_get_desc
  *
- * This function is a demultiplexer for USB device requests.
+ * This function is a demultiplexer for local USB device side control
+ * endpoint requests.
  *------------------------------------------------------------------------*/
 void
 usbd_temp_get_desc(struct usbd_device *udev, usb_device_request_t *req,

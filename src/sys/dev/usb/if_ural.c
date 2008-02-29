@@ -1052,7 +1052,7 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 		}
 		max_len = (xfer->actlen - RAL_RX_DESC_SIZE);
 
-		usbd_copy_out(xfer->frbuffers + 0, max_len,
+		usbd_copy_out(xfer->frbuffers, max_len,
 		    &(sc->sc_rx_desc), RAL_RX_DESC_SIZE);
 
 		flags = le32toh(sc->sc_rx_desc.flags);
@@ -1088,7 +1088,7 @@ ural_bulk_read_callback(struct usbd_xfer *xfer)
 			ifp->if_ierrors++;
 			goto tr_setup;
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0, m->m_data, max_len);
+		usbd_copy_out(xfer->frbuffers, 0, m->m_data, max_len);
 
 		/* finalize mbuf */
 		m->m_pkthdr.rcvif = ifp;
@@ -1422,10 +1422,10 @@ ural_bulk_write_callback_sub(struct usbd_xfer *xfer, struct mbuf *m,
 	}
 	ural_setup_tx_desc(sc, flags, m->m_pkthdr.len, rate);
 
-	usbd_copy_in(xfer->frbuffers + 0, 0, &(sc->sc_tx_desc),
+	usbd_copy_in(xfer->frbuffers, 0, &(sc->sc_tx_desc),
 	    RAL_TX_DESC_SIZE);
 
-	usbd_m_copy_in(xfer->frbuffers + 0, RAL_TX_DESC_SIZE,
+	usbd_m_copy_in(xfer->frbuffers, RAL_TX_DESC_SIZE,
 	    m, 0, m->m_pkthdr.len);
 
 	/* compute transfer length */
@@ -1434,13 +1434,13 @@ ural_bulk_write_callback_sub(struct usbd_xfer *xfer, struct mbuf *m,
 	/* make transfer length 16-bit aligned */
 	if (temp_len & 1) {
 		/* zero the extra byte */
-		usbd_bzero(xfer->frbuffers + 0, temp_len, 1);
+		usbd_bzero(xfer->frbuffers, temp_len, 1);
 		temp_len++;
 	}
 	/* check if we need to add two extra bytes */
 	if ((temp_len % 64) == 0) {
 		/* zero the extra bytes */
-		usbd_bzero(xfer->frbuffers + 0, temp_len, 2);
+		usbd_bzero(xfer->frbuffers, temp_len, 2);
 		temp_len += 2;
 	}
 	DPRINTF(sc, 10, "sending frame len=%u rate=%u xferlen=%u\n",
@@ -1492,7 +1492,7 @@ tr_setup:
 		if (sc->sc_flags & URAL_FLAG_SEND_BYTE_FRAME) {
 			sc->sc_flags &= ~URAL_FLAG_SEND_BYTE_FRAME;
 
-			usbd_bzero(xfer->frbuffers + 0, 0, 1);
+			usbd_bzero(xfer->frbuffers, 0, 1);
 
 			xfer->frlengths[0] = 1;	/* bytes */
 

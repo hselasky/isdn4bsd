@@ -901,7 +901,7 @@ rue_intr_callback(struct usbd_xfer *xfer)
 		if (ifp && (ifp->if_drv_flags & IFF_DRV_RUNNING) &&
 		    (xfer->actlen >= sizeof(pkt))) {
 
-			usbd_copy_out(xfer->frbuffers + 0, 0, &pkt, sizeof(pkt));
+			usbd_copy_out(xfer->frbuffers, 0, &pkt, sizeof(pkt));
 
 			ifp->if_ierrors += pkt.rue_rxlost_cnt;
 			ifp->if_ierrors += pkt.rue_crcerr_cnt;
@@ -955,7 +955,7 @@ rue_bulk_read_callback(struct usbd_xfer *xfer)
 			ifp->if_ierrors++;
 			goto tr_setup;
 		}
-		usbd_copy_out(xfer->frbuffers + 0, xfer->actlen - 4,
+		usbd_copy_out(xfer->frbuffers, xfer->actlen - 4,
 		    &status, sizeof(status));
 
 		status = le16toh(status);
@@ -980,7 +980,7 @@ rue_bulk_read_callback(struct usbd_xfer *xfer)
 		}
 		xfer->actlen = min(xfer->actlen, m->m_len);
 
-		usbd_copy_out(xfer->frbuffers + 0, 0, m->m_data, xfer->actlen);
+		usbd_copy_out(xfer->frbuffers, 0, m->m_data, xfer->actlen);
 
 		ifp->if_ipackets++;
 		m->m_pkthdr.rcvif = ifp;
@@ -1071,7 +1071,7 @@ rue_bulk_write_callback(struct usbd_xfer *xfer)
 		}
 		temp_len = m->m_pkthdr.len;
 
-		usbd_m_copy_in(xfer->frbuffers + 0, 0,
+		usbd_m_copy_in(xfer->frbuffers, 0,
 		    m, 0, m->m_pkthdr.len);
 
 		/*
@@ -1080,7 +1080,7 @@ rue_bulk_write_callback(struct usbd_xfer *xfer)
 		 * RUE_MIN_FRAMELEN (60) byte packet.
 		 */
 		if (temp_len < RUE_MIN_FRAMELEN) {
-			usbd_bzero(xfer->frbuffers + 0, temp_len,
+			usbd_bzero(xfer->frbuffers, temp_len,
 			    RUE_MIN_FRAMELEN - temp_len);
 			temp_len = RUE_MIN_FRAMELEN;
 		}

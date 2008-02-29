@@ -206,7 +206,12 @@ usb_get_devid(device_t dev)
 /*------------------------------------------------------------------------*
  *	usbd_get_pipe_by_addr
  *
- * This function searches for an USB pipe by endpoint address.
+ * This function searches for an USB pipe by endpoint address and
+ * direction.
+ *
+ * Returns:
+ * NULL: Failure
+ * Else: Success
  *------------------------------------------------------------------------*/
 struct usbd_pipe *
 usbd_get_pipe_by_addr(struct usbd_device *udev, uint8_t ea_val)
@@ -219,7 +224,7 @@ usbd_get_pipe_by_addr(struct usbd_device *udev, uint8_t ea_val)
 
 	/*
 	 * According to the USB specification not all bits are used
-	 * for the endpoint address. Mask away the reserved bits:
+	 * for the endpoint address. Keep defined bits only:
 	 */
 	ea_val &= EA_MASK;
 
@@ -362,6 +367,10 @@ found:
  * This function stores the number of USB interfaces excluding
  * alternate settings, which the USB config descriptor reports into
  * the unsigned 8-bit integer pointed to by "count".
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbd_interface_count(struct usbd_device *udev, uint8_t *count)
@@ -1371,7 +1380,7 @@ usbd_std_root_transfer(struct usbd_std_root_transfer *std,
 			/* copy out the USB request */
 
 			if (xfer->frlengths[0] == sizeof(std->req)) {
-				usbd_copy_out(xfer->frbuffers + 0, 0,
+				usbd_copy_out(xfer->frbuffers, 0,
 				    &(std->req), sizeof(std->req));
 			} else {
 				std->err = USBD_ERR_INVAL;
@@ -1497,7 +1506,7 @@ usbd_control_transfer_init(struct usbd_xfer *xfer)
 
 	/* copy out the USB request header */
 
-	usbd_copy_out(xfer->frbuffers + 0, 0, &req, sizeof(req));
+	usbd_copy_out(xfer->frbuffers, 0, &req, sizeof(req));
 
 	/* setup remainder */
 
@@ -1941,7 +1950,7 @@ load_complete:
 
 	xfer->frbuffers[0].page_start = pg;
 
-	usbd_pc_load_mem(xfer->frbuffers + 0, frlength_0);
+	usbd_pc_load_mem(xfer->frbuffers, frlength_0);
 
 	pg += (frlength_0 / USB_PAGE_SIZE);
 	pg += 2;
@@ -3046,6 +3055,10 @@ tr_restart:
 
 /*------------------------------------------------------------------------*
  *	usbd_handle_set_config
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 static usbd_status_t
 usbd_handle_set_config(struct usbd_xfer *xfer, uint8_t conf_no)
@@ -3083,6 +3096,10 @@ usbd_handle_set_config(struct usbd_xfer *xfer, uint8_t conf_no)
  *
  * This function is used to make a BULK or INTERRUPT endpoint
  * send STALL tokens.
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 static usbd_status_t
 usbd_handle_set_stall_sub(struct usbd_device *udev, uint8_t ea_val,
@@ -3096,7 +3113,13 @@ usbd_handle_set_stall_sub(struct usbd_device *udev, uint8_t ea_val,
 	if (pipe == NULL) {
 		/* nothing to do */
 		PRINTFN(0, ("Cannot find endpoint\n"));
-		return (USBD_ERR_INVAL);
+		/*
+		 * Pretend that the clear or set stall request is
+		 * successful else some USB host stacks can do
+		 * strange things, especially when a control endpoint
+		 * stalls.
+		 */
+		return (0);
 	}
 	et = (pipe->edesc->bmAttributes & UE_XFERTYPE);
 
@@ -3159,6 +3182,10 @@ usbd_handle_set_stall_sub(struct usbd_device *udev, uint8_t ea_val,
 
 /*------------------------------------------------------------------------*
  *	usbd_handle_stall
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 static usbd_status_t
 usbd_handle_set_stall(struct usbd_xfer *xfer, uint8_t ep, uint8_t do_stall)
@@ -3173,6 +3200,10 @@ usbd_handle_set_stall(struct usbd_xfer *xfer, uint8_t ep, uint8_t do_stall)
 
 /*------------------------------------------------------------------------*
  *	usbd_handle_get_stall
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 static uint8_t
 usbd_handle_get_stall(struct usbd_device *udev, uint8_t ea_val)
@@ -3195,6 +3226,10 @@ usbd_handle_get_stall(struct usbd_device *udev, uint8_t ea_val)
 
 /*------------------------------------------------------------------------*
  *	usbd_handle_remote_wakeup
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 static usbd_status_t
 usbd_handle_remote_wakeup(struct usbd_xfer *xfer, uint8_t is_on)
@@ -3297,7 +3332,7 @@ usbd_handle_request(struct usbd_xfer *xfer)
 
 	/* get the current request, if any */
 
-	usbd_copy_out(xfer->frbuffers + 0, 0, &req, sizeof(req));
+	usbd_copy_out(xfer->frbuffers, 0, &req, sizeof(req));
 
 	if (xfer->flags_int.control_rem == 0xFFFF) {
 		/* first time - not initialised */
@@ -3870,7 +3905,7 @@ usbd_do_request_flags(struct usbd_device *udev, struct mtx *mtx,
 
 	max_ticks = USBD_MS_TO_TICKS(timeout);
 
-	usbd_copy_in(xfer->frbuffers + 0, 0, req, sizeof(*req));
+	usbd_copy_in(xfer->frbuffers, 0, req, sizeof(*req));
 
 	xfer->frlengths[0] = sizeof(*req);
 	xfer->nframes = 2;
@@ -4102,7 +4137,7 @@ usbd_clear_stall_callback(struct usbd_xfer *xfer1,
 
 		/* copy in the transfer */
 
-		usbd_copy_in(xfer1->frbuffers + 0, 0, &req, sizeof(req));
+		usbd_copy_in(xfer1->frbuffers, 0, &req, sizeof(req));
 
 		/* set length */
 		xfer1->frlengths[0] = sizeof(req);

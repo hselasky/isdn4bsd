@@ -719,7 +719,7 @@ tr_transferred:
 		NG_UBT_INFO(sc, "Sending control request, bmRequestType=0x%02x, "
 		    "wLength=%d\n", req.bmRequestType, UGETW(req.wLength));
 
-		usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+		usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 		usbd_m_copy_in(xfer->frbuffers + 1, 0, m, 0, m->m_pkthdr.len);
 
 		xfer->frlengths[0] = sizeof(req);
@@ -778,7 +778,7 @@ ubt_intr_read_callback(struct usbd_xfer *xfer)
 		}
 		ptr = ((uint8_t *)(m->m_data)) + m->m_len;
 
-		usbd_copy_out(xfer->frbuffers + 0, 0, ptr, xfer->actlen);
+		usbd_copy_out(xfer->frbuffers, 0, ptr, xfer->actlen);
 
 		m->m_pkthdr.len += xfer->actlen;
 		m->m_len += xfer->actlen;
@@ -933,7 +933,7 @@ ubt_bulk_read_callback(struct usbd_xfer *xfer)
 		}
 		ptr = ((uint8_t *)(m->m_data)) + m->m_len;
 
-		usbd_copy_out(xfer->frbuffers + 0, 0, ptr, xfer->actlen);
+		usbd_copy_out(xfer->frbuffers, 0, ptr, xfer->actlen);
 
 		m->m_pkthdr.len += xfer->actlen;
 		m->m_len += xfer->actlen;
@@ -1089,7 +1089,7 @@ ubt_bulk_write_callback(struct usbd_xfer *xfer)
 			    UBT_BULK_WRITE_BUFFER_SIZE,
 			    m->m_pkthdr.len);
 		}
-		usbd_m_copy_in(xfer->frbuffers + 0, 0, m, 0, m->m_pkthdr.len);
+		usbd_m_copy_in(xfer->frbuffers, 0, m, 0, m->m_pkthdr.len);
 
 		NG_UBT_INFO(sc, "bulk-out transfer has been started, "
 		    "len=%d\n", m->m_pkthdr.len);
@@ -1152,7 +1152,7 @@ tr_transferred:
 
 			if (xfer->frlengths[n] >= sizeof(hdr)) {
 
-				usbd_copy_out(xfer->frbuffers + 0, offset,
+				usbd_copy_out(xfer->frbuffers, offset,
 				    &hdr, sizeof(hdr));
 
 				if (hdr.length == (xfer->frlengths[n] - sizeof(hdr))) {
@@ -1195,7 +1195,7 @@ tr_transferred:
 						ptr = ((uint8_t *)(m->m_data)) + m->m_len;
 
 						usbd_copy_out
-						    (xfer->frbuffers + 0, offset,
+						    (xfer->frbuffers, offset,
 						    ptr, xfer->frlengths[n]);
 
 						m->m_pkthdr.len += xfer->frlengths[n];
@@ -1306,7 +1306,7 @@ tr_transferred:
 			if (m) {
 				len = min(xfer->max_frame_size, m->m_pkthdr.len);
 
-				usbd_m_copy_in(xfer->frbuffers + 0, offset, m, 0, len);
+				usbd_m_copy_in(xfer->frbuffers, offset, m, 0, len);
 
 				NG_FREE_M(m);
 

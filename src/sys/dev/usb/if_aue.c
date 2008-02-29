@@ -1005,7 +1005,7 @@ aue_intr_callback(struct usbd_xfer *xfer)
 		if (ifp && (ifp->if_drv_flags & IFF_DRV_RUNNING) &&
 		    (xfer->actlen >= sizeof(pkt))) {
 
-			usbd_copy_out(xfer->frbuffers + 0, 0, &pkt, sizeof(pkt));
+			usbd_copy_out(xfer->frbuffers, 0, &pkt, sizeof(pkt));
 
 			if (pkt.aue_txstat0) {
 				ifp->if_oerrors++;
@@ -1071,7 +1071,7 @@ aue_bulk_read_callback(struct usbd_xfer *xfer)
 				ifp->if_ierrors++;
 				goto tr_setup;
 			}
-			usbd_copy_out(xfer->frbuffers + 0, xfer->actlen - 4, &(sc->sc_rxpkt),
+			usbd_copy_out(xfer->frbuffers, xfer->actlen - 4, &(sc->sc_rxpkt),
 			    sizeof(sc->sc_rxpkt));
 
 			/*
@@ -1096,7 +1096,7 @@ aue_bulk_read_callback(struct usbd_xfer *xfer)
 		}
 		xfer->actlen = min(xfer->actlen, m->m_len);
 
-		usbd_copy_out(xfer->frbuffers + 0, 0, m->m_data, xfer->actlen);
+		usbd_copy_out(xfer->frbuffers, 0, m->m_data, xfer->actlen);
 
 		ifp->if_ipackets++;
 		m->m_pkthdr.rcvif = ifp;
@@ -1189,7 +1189,7 @@ aue_bulk_write_callback(struct usbd_xfer *xfer)
 
 			xfer->frlengths[0] = m->m_pkthdr.len;
 
-			usbd_m_copy_in(xfer->frbuffers + 0, 0,
+			usbd_m_copy_in(xfer->frbuffers, 0,
 			    m, 0, m->m_pkthdr.len);
 
 		} else {
@@ -1205,9 +1205,9 @@ aue_bulk_write_callback(struct usbd_xfer *xfer)
 			buf[0] = (uint8_t)(m->m_pkthdr.len);
 			buf[1] = (uint8_t)(m->m_pkthdr.len >> 8);
 
-			usbd_copy_in(xfer->frbuffers + 0, 0, buf, 2);
+			usbd_copy_in(xfer->frbuffers, 0, buf, 2);
 
-			usbd_m_copy_in(xfer->frbuffers + 0, 2,
+			usbd_m_copy_in(xfer->frbuffers, 2,
 			    m, 0, m->m_pkthdr.len);
 		}
 

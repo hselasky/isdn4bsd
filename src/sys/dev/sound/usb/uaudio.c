@@ -1249,7 +1249,7 @@ tr_transferred:
 			if (n > total) {
 				n = total;
 			}
-			usbd_copy_in(xfer->frbuffers + 0, offset, ch->cur, n);
+			usbd_copy_in(xfer->frbuffers, offset, ch->cur, n);
 
 			total -= n;
 			ch->cur += n;
@@ -1305,7 +1305,7 @@ tr_transferred:
 				if (m > p_len[n]) {
 					m = p_len[n];
 				}
-				usbd_copy_out(xfer->frbuffers + 0, offset1, ch->cur, m);
+				usbd_copy_out(xfer->frbuffers, offset1, ch->cur, m);
 
 				p_len[n] -= m;
 				offset1 += m;
@@ -3032,7 +3032,7 @@ tr_setup:
 					if (len > 1) {
 						buf[1] = (mc->wData[chan] >> 8) & 0xFF;
 					}
-					usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+					usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 					usbd_copy_in(xfer->frbuffers + 1, 0, buf, len);
 
 					xfer->frlengths[0] = sizeof(req);
@@ -3279,14 +3279,14 @@ umidi_bulk_read_callback(struct usbd_xfer *xfer)
 
 		while (xfer->actlen >= 4) {
 
-			usbd_copy_out(xfer->frbuffers + 0, pos, buf, 1);
+			usbd_copy_out(xfer->frbuffers, pos, buf, 1);
 
 			cmd_len = umidi_cmd_to_len[buf[0] & 0xF];	/* command length */
 			cn = buf[0] >> 4;	/* cable number */
 			sub = &(chan->sub[cn]);
 
 			if (cmd_len && (cn < chan->max_cable) && sub->read_open) {
-				usb_cdev_put_data(&(sub->cdev), xfer->frbuffers + 0,
+				usb_cdev_put_data(&(sub->cdev), xfer->frbuffers,
 				    pos + 1, cmd_len, 1);
 			} else {
 				/* ignore the command */
@@ -3505,14 +3505,14 @@ umidi_bulk_write_callback(struct usbd_xfer *xfer)
 			sub = &(chan->sub[chan->curr_cable]);
 
 			if (sub->write_open) {
-				usb_cdev_get_data(&(sub->cdev), xfer->frbuffers + 0,
+				usb_cdev_get_data(&(sub->cdev), xfer->frbuffers,
 				    total_length, 1, &actlen, 0);
 			} else {
 				actlen = 0;
 			}
 
 			if (actlen) {
-				usbd_copy_out(xfer->frbuffers + 0, total_length, &buf, 1);
+				usbd_copy_out(xfer->frbuffers, total_length, &buf, 1);
 
 				tr_any = 1;
 
@@ -3524,7 +3524,7 @@ umidi_bulk_write_callback(struct usbd_xfer *xfer)
 					    sub->temp_cmd[0], sub->temp_cmd[1],
 					    sub->temp_cmd[2], sub->temp_cmd[3]);
 
-					usbd_copy_in(xfer->frbuffers + 0, total_length,
+					usbd_copy_in(xfer->frbuffers, total_length,
 					    sub->temp_cmd, 4);
 
 					total_length += 4;

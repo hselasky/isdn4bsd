@@ -1755,7 +1755,7 @@ umass_t_bbb_reset1_callback(struct usbd_xfer *xfer)
 		req.wIndex[1] = 0;
 		USETW(req.wLength, 0);
 
-		usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+		usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 
 		xfer->frlengths[0] = sizeof(req);
 		xfer->nframes = 1;
@@ -1879,7 +1879,7 @@ umass_t_bbb_command_callback(struct usbd_xfer *xfer)
 
 			DIF(UDMASS_BBB, umass_bbb_dump_cbw(sc, &sc->cbw));
 
-			usbd_copy_in(xfer->frbuffers + 0, 0, &(sc->cbw), sizeof(sc->cbw));
+			usbd_copy_in(xfer->frbuffers, 0, &(sc->cbw), sizeof(sc->cbw));
 
 			xfer->frlengths[0] = sizeof(sc->cbw);
 			usbd_start_hardware(xfer);
@@ -1902,7 +1902,7 @@ umass_t_bbb_data_read_callback(struct usbd_xfer *xfer)
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
 		if (!xfer->flags.ext_buffer) {
-			usbd_copy_out(xfer->frbuffers + 0, 0,
+			usbd_copy_out(xfer->frbuffers, 0,
 			    sc->sc_transfer.data_ptr, xfer->actlen);
 		}
 		sc->sc_transfer.data_rem -= xfer->actlen;
@@ -1985,7 +1985,7 @@ umass_t_bbb_data_write_callback(struct usbd_xfer *xfer)
 		if (xfer->flags.ext_buffer) {
 			usbd_set_frame_data(xfer, sc->sc_transfer.data_ptr, 0);
 		} else {
-			usbd_copy_in(xfer->frbuffers + 0, 0,
+			usbd_copy_in(xfer->frbuffers, 0,
 			    sc->sc_transfer.data_ptr, max_bulk);
 		}
 
@@ -2031,7 +2031,7 @@ umass_t_bbb_status_callback(struct usbd_xfer *xfer)
 		if (xfer->actlen < sizeof(sc->csw)) {
 			bzero(&(sc->csw), sizeof(sc->csw));
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0, &(sc->csw), xfer->actlen);
+		usbd_copy_out(xfer->frbuffers, 0, &(sc->csw), xfer->actlen);
 
 		DIF(UDMASS_BBB, umass_bbb_dump_csw(sc, &(sc->csw)));
 
@@ -2257,7 +2257,7 @@ umass_t_cbi_reset1_callback(struct usbd_xfer *xfer)
 			buf[i] = 0xff;
 		}
 
-		usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+		usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 		usbd_copy_in(xfer->frbuffers + 1, 0, buf, sizeof(buf));
 
 		xfer->frlengths[0] = sizeof(req);
@@ -2371,7 +2371,7 @@ umass_t_cbi_command_callback(struct usbd_xfer *xfer)
 			req.wLength[0] = sc->sc_transfer.cmd_len;
 			req.wLength[1] = 0;
 
-			usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+			usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 			usbd_copy_in(xfer->frbuffers + 1, 0, sc->sc_transfer.cmd_data,
 			    sc->sc_transfer.cmd_len);
 
@@ -2404,7 +2404,7 @@ umass_t_cbi_data_read_callback(struct usbd_xfer *xfer)
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
 		if (!xfer->flags.ext_buffer) {
-			usbd_copy_out(xfer->frbuffers + 0, 0,
+			usbd_copy_out(xfer->frbuffers, 0,
 			    sc->sc_transfer.data_ptr, xfer->actlen);
 		}
 		sc->sc_transfer.data_rem -= xfer->actlen;
@@ -2484,7 +2484,7 @@ umass_t_cbi_data_write_callback(struct usbd_xfer *xfer)
 		if (xfer->flags.ext_buffer) {
 			usbd_set_frame_data(xfer, sc->sc_transfer.data_ptr, 0);
 		} else {
-			usbd_copy_in(xfer->frbuffers + 0, 0,
+			usbd_copy_in(xfer->frbuffers, 0,
 			    sc->sc_transfer.data_ptr, max_bulk);
 		}
 
@@ -2526,7 +2526,7 @@ umass_t_cbi_status_callback(struct usbd_xfer *xfer)
 		if (xfer->actlen < sizeof(sc->sbl)) {
 			goto tr_setup;
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0, &(sc->sbl), sizeof(sc->sbl));
+		usbd_copy_out(xfer->frbuffers, 0, &(sc->sbl), sizeof(sc->sbl));
 
 		residue = (sc->sc_transfer.data_len -
 		    sc->sc_transfer.actlen);

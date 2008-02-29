@@ -644,7 +644,7 @@ uvisor_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    UVISOR_BUFSIZE, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -683,7 +683,7 @@ uvisor_read_callback(struct usbd_xfer *xfer)
 
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
-		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0, xfer->actlen);
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers, 0, xfer->actlen);
 
 	case USBD_ST_SETUP:
 		if (sc->sc_flag & UVISOR_FLAG_READ_STALL) {

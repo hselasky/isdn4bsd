@@ -2005,12 +2005,12 @@ ohci_device_isoc_enter(struct usbd_xfer *xfer)
 					    htole16(OHCI_ITD_MK_OFFS(0));
 				}
 			} else {
-				usbd_get_page(xfer->frbuffers + 0, buf_offset - length, &buf_res);
+				usbd_get_page(xfer->frbuffers, buf_offset - length, &buf_res);
 				length = OHCI_PAGE_MASK(buf_res.physaddr);
 				buf_res.physaddr =
 				    OHCI_PAGE(buf_res.physaddr);
 				td->itd_bp0 = htole32(buf_res.physaddr);
-				usbd_get_page(xfer->frbuffers + 0, buf_offset - 1, &buf_res);
+				usbd_get_page(xfer->frbuffers, buf_offset - 1, &buf_res);
 				td->itd_be = htole32(buf_res.physaddr);
 
 				while (ncur--) {

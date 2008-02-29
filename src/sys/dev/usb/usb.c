@@ -65,7 +65,8 @@ MALLOC_DEFINE(M_USB, "USB", "USB");
 MALLOC_DEFINE(M_USBDEV, "USBdev", "USB device");
 MALLOC_DEFINE(M_USBHC, "USBHC", "USB host controller");
 
-/* define this unconditionally in case a kernel module is loaded that
+/*
+ * Define this unconditionally in case a kernel module is loaded that
  * has been compiled with debugging options.
  */
 SYSCTL_NODE(_hw, OID_AUTO, usb, CTLFLAG_RW, 0, "USB debugging");
@@ -85,6 +86,8 @@ SYSCTL_INT(_hw_usb, OID_AUTO, debug, CTLFLAG_RW,
 #endif
 
 static uint8_t usb_post_init_called = 0;
+
+/* prototypes */
 
 static device_probe_t usb_probe;
 static device_attach_t usb_attach;
@@ -134,6 +137,9 @@ static cdevsw_t usb_dummy_cdevsw = {
 	.d_name = "usb_dummy_cdev",
 };
 
+/*------------------------------------------------------------------------*
+ *	usb_dummy_open
+ *------------------------------------------------------------------------*/
 static int
 usb_dummy_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
@@ -141,7 +147,9 @@ usb_dummy_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 }
 
 /*------------------------------------------------------------------------*
- *	usb_event_thread - explore the device tree from the root
+ *	usb_event_thread
+ *
+ * This function is used to explore the device tree from the root.
  *------------------------------------------------------------------------*/
 static void
 usb_event_thread(struct usbd_bus *bus)
@@ -211,8 +219,7 @@ retry:
 /*------------------------------------------------------------------------*
  *	usb_needs_explore
  *
- * This functions is called when the USB event thread
- * needs to be explored.
+ * This functions is called when the USB event thread needs to run.
  *------------------------------------------------------------------------*/
 void
 usb_needs_explore(struct usbd_bus *bus, uint8_t what)
@@ -297,6 +304,11 @@ repeat:
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_create_event_thread
+ *
+ * This function will simply create the event thread for an USB bus.
+ *------------------------------------------------------------------------*/
 static void
 usb_create_event_thread(struct usbd_bus *bus)
 {
@@ -308,8 +320,11 @@ usb_create_event_thread(struct usbd_bus *bus)
 	return;
 }
 
-/* called from "{ehci,ohci,uhci}_pci_attach()" */
-
+/*------------------------------------------------------------------------*
+ *	usb_probe
+ *
+ * This function is called from "{ehci,ohci,uhci}_pci_attach()".
+ *------------------------------------------------------------------------*/
 static int
 usb_probe(device_t dev)
 {
@@ -317,6 +332,14 @@ usb_probe(device_t dev)
 	return (0);
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_attach_sub
+ *
+ * This function is the real USB bus attach code. It is factored out,
+ * hence it can be called at two different places in time. During
+ * bootup this function is called from "usb_post_init". During
+ * hot-plug it is called directly from the "usb_attach()" method.
+ *------------------------------------------------------------------------*/
 static void
 usb_attach_sub(device_t dev, struct usbd_bus *bus)
 {
@@ -399,6 +422,9 @@ usb_attach_sub(device_t dev, struct usbd_bus *bus)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_attach
+ *------------------------------------------------------------------------*/
 static int
 usb_attach(device_t dev)
 {
@@ -414,6 +440,12 @@ usb_attach(device_t dev)
 	return (0);			/* return success */
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_post_init
+ *
+ * This function is called to attach all USB busses that were found
+ * during bootup.
+ *------------------------------------------------------------------------*/
 static void
 usb_post_init(void *arg)
 {
@@ -450,6 +482,9 @@ usb_post_init(void *arg)
 
 SYSINIT(usb_post_init, SI_SUB_KICK_SCHEDULER, SI_ORDER_ANY, usb_post_init, NULL);
 
+/*------------------------------------------------------------------------*
+ *	usb_detach
+ *------------------------------------------------------------------------*/
 static int
 usb_detach(device_t dev)
 {
@@ -500,6 +535,11 @@ usb_detach(device_t dev)
 	return (0);
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_clone_sub
+ *
+ * This function will create a dynamic "/dev/usbX.Y" device file.
+ *------------------------------------------------------------------------*/
 static struct usbd_clone *
 usb_clone_sub(struct usbd_bus *bus)
 {
@@ -563,6 +603,11 @@ error:
 	return (NULL);
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_clone_remove
+ *
+ * This function will cleanup all the "/dev/usbX.Y" kernel files.
+ *------------------------------------------------------------------------*/
 static void
 usb_clone_remove(struct usbd_bus *bus)
 {
@@ -615,6 +660,11 @@ usb_clone_remove(struct usbd_bus *bus)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_clone
+ *
+ * This function is the kernel clone callback for "/dev/usbX.Y".
+ *------------------------------------------------------------------------*/
 static void
 usb_clone(void *arg, USB_UCRED char *name, int namelen, struct cdev **dev)
 {
@@ -637,6 +687,11 @@ usb_clone(void *arg, USB_UCRED char *name, int namelen, struct cdev **dev)
 	return;
 }
 
+/*------------------------------------------------------------------------*
+ *	usb_ioctl
+ *
+ * This function handles all IOCTL's on "/dev/usbX.Y".
+ *------------------------------------------------------------------------*/
 static int
 usb_ioctl(struct usb_cdev *dev, u_long cmd, caddr_t addr,
     int32_t fflags, struct thread *td)
@@ -794,6 +849,12 @@ struct mtx usb_global_lock;
 
 #endif
 
+/*------------------------------------------------------------------------*
+ *	usb_init
+ *
+ * This function is called before the USB system is started, and is
+ * used to initialise global mutexes, if any.
+ *------------------------------------------------------------------------*/
 static void
 usb_init(void *arg)
 {
@@ -807,6 +868,9 @@ usb_init(void *arg)
 
 SYSINIT(usb_init, SI_SUB_DRIVERS, SI_ORDER_FIRST, usb_init, NULL);
 
+/*------------------------------------------------------------------------*
+ *	usb_uninit
+ *------------------------------------------------------------------------*/
 static void
 usb_uninit(void *arg)
 {

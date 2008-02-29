@@ -420,7 +420,7 @@ zyd_intr_read_callback(struct usbd_xfer *xfer)
 		if (actlen > sizeof(sc->sc_intr_ibuf)) {
 			actlen = sizeof(sc->sc_intr_ibuf);
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0,
+		usbd_copy_out(xfer->frbuffers, 0,
 		    &(sc->sc_intr_ibuf), actlen);
 
 		switch (cmd->code) {
@@ -626,7 +626,7 @@ zyd_intr_write_callback(struct usbd_xfer *xfer)
 			goto wakeup;
 		}
 		if (sc->sc_intr_owakeup) {
-			usbd_copy_in(xfer->frbuffers + 0, 0, &(sc->sc_intr_obuf),
+			usbd_copy_in(xfer->frbuffers, 0, &(sc->sc_intr_obuf),
 			    sc->sc_intr_olen);
 
 			xfer->frlengths[0] = sc->sc_intr_olen;
@@ -818,8 +818,8 @@ zyd_bulk_read_callback_sub(struct usbd_xfer *xfer, struct mq *mq,
 		ifp->if_ierrors++;
 		return;
 	}
-	usbd_copy_out(xfer->frbuffers + 0, offset, &plcp, sizeof(plcp));
-	usbd_copy_out(xfer->frbuffers + 0, offset + len - sizeof(stat),
+	usbd_copy_out(xfer->frbuffers, offset, &plcp, sizeof(plcp));
+	usbd_copy_out(xfer->frbuffers, offset + len - sizeof(stat),
 	    &stat, sizeof(stat));
 
 	if (stat.flags & ZYD_RX_ERROR) {
@@ -850,7 +850,7 @@ zyd_bulk_read_callback_sub(struct usbd_xfer *xfer, struct mq *mq,
 	m->m_pkthdr.len = len;
 	m->m_len = len;
 
-	usbd_copy_out(xfer->frbuffers + 0, offset +
+	usbd_copy_out(xfer->frbuffers, offset +
 	    sizeof(plcp), m->m_data, len);
 
 	if (bpf_peers_present(sc->sc_drvbpf)) {
@@ -900,7 +900,7 @@ zyd_bulk_read_callback(struct usbd_xfer *xfer)
 			ifp->if_ierrors++;
 			goto tr_setup;
 		}
-		usbd_copy_out(xfer->frbuffers + 0, xfer->actlen - sizeof(rx_desc),
+		usbd_copy_out(xfer->frbuffers, xfer->actlen - sizeof(rx_desc),
 		    &rx_desc, sizeof(rx_desc));
 
 		if (UGETW(rx_desc.tag) == ZYD_TAG_MULTIFRAME) {
@@ -2706,9 +2706,9 @@ zyd_bulk_write_callback_sub(struct usbd_xfer *xfer, struct mbuf *m,
 
 		bpf_mtap2(sc->sc_drvbpf, tap, sc->sc_txtap_len, m);
 	}
-	usbd_copy_in(xfer->frbuffers + 0, 0, &(tx_desc), sizeof(tx_desc));
+	usbd_copy_in(xfer->frbuffers, 0, &(tx_desc), sizeof(tx_desc));
 
-	usbd_m_copy_in(xfer->frbuffers + 0, sizeof(tx_desc),
+	usbd_m_copy_in(xfer->frbuffers, sizeof(tx_desc),
 	    m, 0, m->m_pkthdr.len);
 
 	/* compute transfer length */

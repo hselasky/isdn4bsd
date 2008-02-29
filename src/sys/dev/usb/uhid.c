@@ -147,7 +147,7 @@ uhid_intr_callback(struct usbd_xfer *xfer)
 		DPRINTF(0, "transferred!\n");
 
 		if (xfer->actlen >= sc->sc_isize) {
-			usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers + 0,
+			usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers,
 			    0, sc->sc_isize, 1);
 		} else {
 			/* ignore it */
@@ -207,12 +207,12 @@ uhid_write_callback(struct usbd_xfer *xfer)
 		/* try to extract the ID byte */
 		if (sc->sc_oid) {
 
-			if (usb_cdev_get_data(&(sc->sc_cdev), xfer->frbuffers + 0,
+			if (usb_cdev_get_data(&(sc->sc_cdev), xfer->frbuffers,
 			    0, 1, &actlen, 0)) {
 				if (actlen != 1) {
 					goto tr_error;
 				}
-				usbd_copy_out(xfer->frbuffers + 0, 0, &id, 1);
+				usbd_copy_out(xfer->frbuffers, 0, &id, 1);
 
 			} else {
 				return;
@@ -233,7 +233,7 @@ uhid_write_callback(struct usbd_xfer *xfer)
 			    (&req, sc->sc_iface_no,
 			    UHID_OUTPUT_REPORT, id, size);
 
-			usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+			usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 
 			xfer->frlengths[0] = sizeof(req);
 			xfer->frlengths[1] = size;
@@ -258,7 +258,7 @@ uhid_read_callback(struct usbd_xfer *xfer)
 
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
-		usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers + 0,
+		usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers,
 		    sizeof(req), sc->sc_isize, 1);
 		return;
 
@@ -270,7 +270,7 @@ uhid_read_callback(struct usbd_xfer *xfer)
 			    (&req, sc->sc_iface_no, UHID_INPUT_REPORT,
 			    sc->sc_iid, sc->sc_isize);
 
-			usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+			usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 
 			xfer->frlengths[0] = sizeof(req);
 			xfer->frlengths[1] = sc->sc_isize;

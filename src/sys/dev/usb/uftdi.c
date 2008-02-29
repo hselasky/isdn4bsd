@@ -545,14 +545,14 @@ uftdi_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0,
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers,
 		    sc->sc_hdrlen, UFTDI_OBUFSIZE - sc->sc_hdrlen,
 		    &actlen)) {
 
 			if (sc->sc_hdrlen > 0) {
 				buf[0] =
 				    FTDI_OUT_TAG(actlen, sc->sc_ucom.sc_portno);
-				usbd_copy_in(xfer->frbuffers + 0, 0, buf, 1);
+				usbd_copy_in(xfer->frbuffers, 0, buf, 1);
 			}
 			xfer->frlengths[0] = actlen + sc->sc_hdrlen;
 			usbd_start_hardware(xfer);
@@ -597,7 +597,7 @@ uftdi_read_callback(struct usbd_xfer *xfer)
 		if (xfer->actlen < 2) {
 			goto tr_setup;
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0, buf, 2);
+		usbd_copy_out(xfer->frbuffers, 0, buf, 2);
 
 		msr = FTDI_GET_MSR(buf);
 		lsr = FTDI_GET_LSR(buf);
@@ -616,7 +616,7 @@ uftdi_read_callback(struct usbd_xfer *xfer)
 		xfer->actlen -= 2;
 
 		if (xfer->actlen > 0) {
-			ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0, 2,
+			ucom_put_data(&(sc->sc_ucom), xfer->frbuffers, 2,
 			    xfer->actlen);
 		}
 	case USBD_ST_SETUP:

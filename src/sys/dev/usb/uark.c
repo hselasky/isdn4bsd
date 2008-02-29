@@ -269,7 +269,7 @@ uark_bulk_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    UARK_BUF_SIZE, &actlen)) {
 			xfer->frlengths[0] = actlen;
 			usbd_start_hardware(xfer);
@@ -307,7 +307,7 @@ uark_bulk_read_callback(struct usbd_xfer *xfer)
 
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
-		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    xfer->actlen);
 
 	case USBD_ST_SETUP:

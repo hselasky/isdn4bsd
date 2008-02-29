@@ -60,7 +60,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/hid.c,v 1.26 2006/03/22 02:04:12 iedowse Exp
 #define	DPRINTFN(n,x)
 #endif
 
-Static void hid_clear_local(struct hid_item *);
+static void hid_clear_local(struct hid_item *);
 
 #define	MAXUSAGE 100
 struct hid_data {
@@ -76,7 +76,10 @@ struct hid_data {
 	int	kindset;
 };
 
-Static void
+/*------------------------------------------------------------------------*
+ *	hid_clear_local
+ *------------------------------------------------------------------------*/
+static void
 hid_clear_local(struct hid_item *c)
 {
 
@@ -92,6 +95,9 @@ hid_clear_local(struct hid_item *c)
 	c->set_delimiter = 0;
 }
 
+/*------------------------------------------------------------------------*
+ *	hid_start_parse
+ *------------------------------------------------------------------------*/
 struct hid_data *
 hid_start_parse(const void *d, int len, int kindset)
 {
@@ -104,6 +110,9 @@ hid_start_parse(const void *d, int len, int kindset)
 	return (s);
 }
 
+/*------------------------------------------------------------------------*
+ *	hid_end_parse
+ *------------------------------------------------------------------------*/
 void
 hid_end_parse(struct hid_data *s)
 {
@@ -117,6 +126,9 @@ hid_end_parse(struct hid_data *s)
 	free(s, M_TEMP);
 }
 
+/*------------------------------------------------------------------------*
+ *	hid_get_item
+ *------------------------------------------------------------------------*/
 int
 hid_get_item(struct hid_data *s, struct hid_item *h)
 {
@@ -367,6 +379,9 @@ top:
 	}
 }
 
+/*------------------------------------------------------------------------*
+ *	hid_report_size
+ *------------------------------------------------------------------------*/
 int
 hid_report_size(const void *buf, int len, enum hid_kind k, uint8_t *idp)
 {
@@ -396,6 +411,9 @@ hid_report_size(const void *buf, int len, enum hid_kind k, uint8_t *idp)
 	return ((size + 7) / 8);
 }
 
+/*------------------------------------------------------------------------*
+ *	hid_locate
+ *------------------------------------------------------------------------*/
 int
 hid_locate(const void *desc, int size, uint32_t u, enum hid_kind k,
     struct hid_location *loc, uint32_t *flags)
@@ -418,6 +436,9 @@ hid_locate(const void *desc, int size, uint32_t u, enum hid_kind k,
 	return (0);
 }
 
+/*------------------------------------------------------------------------*
+ *	hid_get_data
+ *------------------------------------------------------------------------*/
 u_long
 hid_get_data(const u_char *buf, uint32_t len, struct hid_location *loc)
 {
@@ -449,6 +470,9 @@ hid_get_data(const u_char *buf, uint32_t len, struct hid_location *loc)
 	return (data);
 }
 
+/*------------------------------------------------------------------------*
+ *	hid_is_collection
+ *------------------------------------------------------------------------*/
 int
 hid_is_collection(const void *desc, int size, uint32_t usage)
 {
@@ -467,6 +491,16 @@ hid_is_collection(const void *desc, int size, uint32_t usage)
 	return (err);
 }
 
+/*------------------------------------------------------------------------*
+ *	hid_get_descriptor_from_usb
+ *
+ * This function will search for a HID descriptor between two USB
+ * interface descriptors.
+ *
+ * Return values:
+ * NULL: No more HID descriptors.
+ * Else: Pointer to HID descriptor.
+ *------------------------------------------------------------------------*/
 usb_hid_descriptor_t *
 hid_get_descriptor_from_usb(usb_config_descriptor_t *cd,
     usb_interface_descriptor_t *id)
@@ -488,6 +522,16 @@ hid_get_descriptor_from_usb(usb_config_descriptor_t *cd,
 	return (NULL);
 }
 
+/*------------------------------------------------------------------------*
+ *	hid_read_report_desc_from_usb
+ *
+ * This function will read out an USB report descriptor from the USB
+ * device.
+ *
+ * Return values:
+ * NULL: Failure.
+ * Else: Success. The pointer should eventually be passed to free().
+ *------------------------------------------------------------------------*/
 usbd_status_t
 hid_read_report_desc_from_usb(struct usbd_device *udev, struct mtx *mtx,
     void **descp, uint16_t *sizep,

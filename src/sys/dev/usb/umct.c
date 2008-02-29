@@ -416,7 +416,7 @@ umct_intr_callback(struct usbd_xfer *xfer)
 			DPRINTF(sc, 0, "too short message\n");
 			goto tr_setup;
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0, buf, sizeof(buf));
+		usbd_copy_out(xfer->frbuffers, 0, buf, sizeof(buf));
 
 		sc->sc_msr = buf[0];
 		sc->sc_lsr = buf[1];
@@ -634,7 +634,7 @@ umct_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    sc->sc_obufsize, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -673,7 +673,7 @@ umct_read_callback(struct usbd_xfer *xfer)
 
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
-		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0,
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers,
 		    0, xfer->actlen);
 
 	case USBD_ST_SETUP:

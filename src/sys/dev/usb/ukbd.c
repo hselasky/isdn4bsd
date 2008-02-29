@@ -479,7 +479,7 @@ ukbd_intr_callback(struct usbd_xfer *xfer)
 		}
 		if (len) {
 			bzero(&(sc->sc_ndata), sizeof(sc->sc_ndata));
-			usbd_copy_out(xfer->frbuffers + 0, 0, &(sc->sc_ndata), len);
+			usbd_copy_out(xfer->frbuffers, 0, &(sc->sc_ndata), len);
 #ifdef USB_DEBUG
 			if (sc->sc_ndata.modifiers) {
 				DPRINTF(0, "mod: 0x%04x\n", sc->sc_ndata.modifiers);
@@ -539,7 +539,7 @@ ukbd_set_leds_callback(struct usbd_xfer *xfer)
 
 			buf[0] = sc->sc_leds;
 
-			usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+			usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 			usbd_copy_in(xfer->frbuffers + 1, 0, buf, sizeof(buf));
 
 			xfer->frlengths[0] = sizeof(req);

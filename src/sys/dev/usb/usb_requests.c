@@ -62,6 +62,14 @@ SYSCTL_INT(_hw_usb, OID_AUTO, pr_recovery_delay, CTLFLAG_RW,
 
 /*------------------------------------------------------------------------*
  *	usbreq_reset_port
+ *
+ * This function will instruct an USB HUB to perform a reset sequence
+ * on the specified port number.
+ *
+ * Returns:
+ *    0: Success. The USB device should now be at address zero.
+ * Else: Failure. No USB device is present and the USB port should be
+ *       disabled.
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_reset_port(struct usbd_device *udev, struct mtx *mtx, uint8_t port)
@@ -149,6 +157,21 @@ done:
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_desc
+ *
+ * This function can be used to retrieve USB descriptors. It contains
+ * some additional logic like zeroing of missing descriptor bytes and
+ * retrying an USB descriptor in case of failure. The "min_len"
+ * argument specifies the minimum descriptor length. The "max_len"
+ * argument specifies the maximum descriptor length. If the real
+ * descriptor length is less than the minimum length the missing
+ * byte(s) will be zeroed. The length field, first byte, of the USB
+ * descriptor will get overwritten in case it indicates a length that
+ * is too big. Also the type field, second byte, of the USB descriptor
+ * will get forced to the correct type.
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_desc(struct usbd_device *udev, struct mtx *mtx, void *desc,
@@ -228,6 +251,10 @@ done:
  * using the first language ID. The maximum length "len" includes
  * the terminating zero. The "len" argument should be twice as
  * big pluss 2 bytes, compared with the actual maximum string length !
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_string_any(struct usbd_device *udev, struct mtx *mtx, char *buf,
@@ -308,6 +335,10 @@ usbreq_get_string_any(struct usbd_device *udev, struct mtx *mtx, char *buf,
  *
  * If you don't know the language ID, consider using
  * "usbreq_get_string_any()".
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_string_desc(struct usbd_device *udev, struct mtx *mtx, void *sdesc,
@@ -320,6 +351,10 @@ usbreq_get_string_desc(struct usbd_device *udev, struct mtx *mtx, void *sdesc,
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_config_desc
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_config_desc(struct usbd_device *udev, struct mtx *mtx, usb_config_descriptor_t *d,
@@ -343,6 +378,14 @@ done:
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_config_desc_full
+ *
+ * This function gets the complete USB configuration descriptor,
+ * limited by the specified "size" which is usually equal to the
+ * "wTotalLength" field stored in the USB configuration descriptor.
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_config_desc_full(struct usbd_device *udev, struct mtx *mtx, void *d,
@@ -355,6 +398,10 @@ usbreq_get_config_desc_full(struct usbd_device *udev, struct mtx *mtx, void *d,
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_device_desc
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_device_desc(struct usbd_device *udev, struct mtx *mtx,
@@ -367,6 +414,10 @@ usbreq_get_device_desc(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_alt_interface_no
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_alt_interface_no(struct usbd_device *udev, struct mtx *mtx,
@@ -389,6 +440,10 @@ usbreq_get_alt_interface_no(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_set_alt_interface_no
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_set_alt_interface_no(struct usbd_device *udev, struct mtx *mtx,
@@ -412,6 +467,10 @@ usbreq_set_alt_interface_no(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_device_status
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_device_status(struct usbd_device *udev, struct mtx *mtx,
@@ -429,6 +488,10 @@ usbreq_get_device_status(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_hub_descriptor
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_hub_descriptor(struct usbd_device *udev, struct mtx *mtx,
@@ -446,6 +509,10 @@ usbreq_get_hub_descriptor(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_hub_status
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_hub_status(struct usbd_device *udev, struct mtx *mtx,
@@ -463,6 +530,13 @@ usbreq_get_hub_status(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_set_address
+ *
+ * This function is used to set the address for an USB device. After
+ * port reset the USB device will respond at address zero.
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_set_address(struct usbd_device *udev, struct mtx *mtx, uint16_t addr)
@@ -484,6 +558,10 @@ usbreq_set_address(struct usbd_device *udev, struct mtx *mtx, uint16_t addr)
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_port_status
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_port_status(struct usbd_device *udev, struct mtx *mtx,
@@ -502,6 +580,10 @@ usbreq_get_port_status(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_clear_hub_feature
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_clear_hub_feature(struct usbd_device *udev, struct mtx *mtx,
@@ -519,6 +601,10 @@ usbreq_clear_hub_feature(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_set_hub_feature
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_set_hub_feature(struct usbd_device *udev, struct mtx *mtx,
@@ -536,6 +622,10 @@ usbreq_set_hub_feature(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_clear_port_feature
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_clear_port_feature(struct usbd_device *udev, struct mtx *mtx,
@@ -554,6 +644,10 @@ usbreq_clear_port_feature(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_set_port_feature
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_set_port_feature(struct usbd_device *udev, struct mtx *mtx,
@@ -572,6 +666,10 @@ usbreq_set_port_feature(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_set_protocol
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_set_protocol(struct usbd_device *udev, struct mtx *mtx,
@@ -597,6 +695,10 @@ usbreq_set_protocol(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_set_report
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_set_report(struct usbd_device *udev, struct mtx *mtx, void *data, uint16_t len,
@@ -621,6 +723,10 @@ usbreq_set_report(struct usbd_device *udev, struct mtx *mtx, void *data, uint16_
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_report
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_report(struct usbd_device *udev, struct mtx *mtx, void *data,
@@ -645,6 +751,10 @@ usbreq_get_report(struct usbd_device *udev, struct mtx *mtx, void *data,
 
 /*------------------------------------------------------------------------*
  *	usbreq_set_idle
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_set_idle(struct usbd_device *udev, struct mtx *mtx,
@@ -669,6 +779,10 @@ usbreq_set_idle(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_report_descriptor
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_report_descriptor(struct usbd_device *udev, struct mtx *mtx,
@@ -691,6 +805,14 @@ usbreq_get_report_descriptor(struct usbd_device *udev, struct mtx *mtx,
 
 /*------------------------------------------------------------------------*
  *	usbreq_set_config
+ *
+ * This function is used to select the current configuration number in
+ * both USB device side mode and USB host side mode. When setting the
+ * configuration the function of the interfaces can change.
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_set_config(struct usbd_device *udev, struct mtx *mtx, uint8_t conf)
@@ -721,6 +843,10 @@ usbreq_set_config(struct usbd_device *udev, struct mtx *mtx, uint8_t conf)
 
 /*------------------------------------------------------------------------*
  *	usbreq_get_config
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbreq_get_config(struct usbd_device *udev, struct mtx *mtx, uint8_t *pconf)

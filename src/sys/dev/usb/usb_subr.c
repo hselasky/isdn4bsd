@@ -1034,6 +1034,10 @@ usbd_set_config_no(struct usbd_device *udev, uint8_t no, uint8_t msg)
  *
  * This function selects configuration by index, independent of the
  * actual configuration number.
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbd_set_config_index(struct usbd_device *udev, uint8_t index, uint8_t msg)
@@ -1191,6 +1195,10 @@ error:
  * given interface index. The interface should not be in use when this
  * function is called. That means there should be no open USB
  * transfers. Else an error is returned.
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbd_set_alt_interface_index(struct usbd_device *udev,
@@ -1221,6 +1229,10 @@ done:
  * This function dumps information about an USB device to the
  * structure pointed to by the "di" argument. It is used by some
  * IOCTLs.
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 int
 usbd_fill_deviceinfo(struct usbd_device *udev, struct usb_device_info *di)
@@ -1708,6 +1720,10 @@ usbd_suspend_resume_sub(struct usbd_device *udev, device_t dev, uint8_t do_suspe
  *	usbd_suspend_resume_device
  *
  * The following function will suspend or resume the USB device.
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
  *------------------------------------------------------------------------*/
 usbd_status_t
 usbd_suspend_resume(struct usbd_device *udev, uint8_t do_suspend)
@@ -3198,7 +3214,7 @@ usbd_pc_dmamap_destroy(struct usbd_page_cache *pc)
 #endif
 
 /*------------------------------------------------------------------------*
- *  usbd_make_str_desc - convert an ASCII string into a UNICODE string
+ *	usbd_make_str_desc - convert an ASCII string into a UNICODE string
  *------------------------------------------------------------------------*/
 uint8_t
 usbd_make_str_desc(void *ptr, uint16_t max_len, const char *s)
@@ -3236,7 +3252,9 @@ usbd_make_str_desc(void *ptr, uint16_t max_len, const char *s)
 }
 
 /*------------------------------------------------------------------------*
- * mtx_drop_recurse - drop mutex recurse level
+ *	mtx_drop_recurse - drop mutex recurse level
+ *
+ * Returns the recurse level of the mutex.
  *------------------------------------------------------------------------*/
 uint32_t
 mtx_drop_recurse(struct mtx *mtx)

@@ -839,7 +839,7 @@ uplcom_intr_callback(struct usbd_xfer *xfer)
 
 		if (xfer->actlen >= 9) {
 
-			usbd_copy_out(xfer->frbuffers + 0, 0, buf, sizeof(buf));
+			usbd_copy_out(xfer->frbuffers, 0, buf, sizeof(buf));
 
 			DPRINTF(0, "status = 0x%02x\n", buf[8]);
 
@@ -903,7 +903,7 @@ uplcom_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    UPLCOM_BULK_BUF_SIZE, &actlen)) {
 
 			DPRINTF(0, "actlen = %d\n", actlen);
@@ -944,7 +944,7 @@ uplcom_read_callback(struct usbd_xfer *xfer)
 
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
-		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0, xfer->actlen);
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers, 0, xfer->actlen);
 
 	case USBD_ST_SETUP:
 		if (sc->sc_flag & UPLCOM_FLAG_READ_STALL) {

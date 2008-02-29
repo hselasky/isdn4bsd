@@ -673,7 +673,7 @@ umoscom_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer_data[2]);
 			return;
 		}
-		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    UMOSCOM_BUFSIZE, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -714,7 +714,7 @@ umoscom_read_callback(struct usbd_xfer *xfer)
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
 		DPRINTF(sc, 0, "got %d bytes\n", xfer->actlen);
-		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0, xfer->actlen);
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers, 0, xfer->actlen);
 
 	case USBD_ST_SETUP:
 		DPRINTF(sc, 0, "\n");

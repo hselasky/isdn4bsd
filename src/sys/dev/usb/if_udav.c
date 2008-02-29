@@ -925,13 +925,13 @@ udav_bulk_write_callback(struct usbd_xfer *xfer)
 
 		temp_len += 2;
 
-		usbd_copy_in(xfer->frbuffers + 0, 0, buf, 2);
+		usbd_copy_in(xfer->frbuffers, 0, buf, 2);
 
-		usbd_m_copy_in(xfer->frbuffers + 0, 2,
+		usbd_m_copy_in(xfer->frbuffers, 2,
 		    m, 0, m->m_pkthdr.len);
 
 		if (extra_len) {
-			usbd_bzero(xfer->frbuffers + 0, temp_len - extra_len,
+			usbd_bzero(xfer->frbuffers, temp_len - extra_len,
 			    extra_len);
 		}
 		/*
@@ -995,7 +995,7 @@ udav_bulk_read_callback(struct usbd_xfer *xfer)
 		}
 		xfer->actlen -= 1;
 
-		usbd_copy_out(xfer->frbuffers + 0, 0, &status, 1);
+		usbd_copy_out(xfer->frbuffers, 0, &status, 1);
 
 		if (status & UDAV_RSR_LCS) {
 			ifp->if_collisions++;
@@ -1005,7 +1005,7 @@ udav_bulk_read_callback(struct usbd_xfer *xfer)
 			ifp->if_ierrors++;
 			goto tr_setup;
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 1, &total_len, 2);
+		usbd_copy_out(xfer->frbuffers, 1, &total_len, 2);
 
 		total_len = le16toh(total_len);
 
@@ -1027,7 +1027,7 @@ udav_bulk_read_callback(struct usbd_xfer *xfer)
 		}
 		xfer->actlen = min(xfer->actlen, m->m_len);
 
-		usbd_copy_out(xfer->frbuffers + 0, 3, m->m_data, xfer->actlen);
+		usbd_copy_out(xfer->frbuffers, 3, m->m_data, xfer->actlen);
 
 		ifp->if_ipackets++;
 		m->m_pkthdr.rcvif = ifp;

@@ -432,7 +432,7 @@ udbp_bulk_read_callback(struct usbd_xfer *xfer)
 		}
 		m->m_pkthdr.len = m->m_len = xfer->actlen;
 
-		usbd_copy_out(xfer->frbuffers + 0, 0, m->m_data, xfer->actlen);
+		usbd_copy_out(xfer->frbuffers, 0, m->m_data, xfer->actlen);
 
 		sc->sc_bulk_in_buffer = m;
 
@@ -552,7 +552,7 @@ udbp_bulk_write_callback(struct usbd_xfer *xfer)
 			    MCLBYTES);
 			m->m_pkthdr.len = MCLBYTES;
 		}
-		usbd_m_copy_in(xfer->frbuffers + 0, 0, m, 0, m->m_pkthdr.len);
+		usbd_m_copy_in(xfer->frbuffers, 0, m, 0, m->m_pkthdr.len);
 
 		xfer->frlengths[0] = m->m_pkthdr.len;
 

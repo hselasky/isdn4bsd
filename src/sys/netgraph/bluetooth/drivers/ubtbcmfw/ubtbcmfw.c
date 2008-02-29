@@ -299,7 +299,7 @@ ubtbcmfw_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (usb_cdev_get_data(&(sc->sc_cdev), xfer->frbuffers + 0, 0,
+		if (usb_cdev_get_data(&(sc->sc_cdev), xfer->frbuffers, 0,
 		    UBTBCMFW_BSIZE, &actlen, 0)) {
 
 			xfer->frlengths[0] = actlen;
@@ -339,7 +339,7 @@ ubtbcmfw_read_callback(struct usbd_xfer *xfer)
 
 	switch (USBD_GET_STATE(xfer)) {
 	case USBD_ST_TRANSFERRED:
-		usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers + 0,
+		usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers,
 		    0, xfer->actlen, 1);
 
 	case USBD_ST_SETUP:

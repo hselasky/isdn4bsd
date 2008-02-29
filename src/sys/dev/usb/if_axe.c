@@ -1040,7 +1040,7 @@ axe_bulk_read_callback(struct usbd_xfer *xfer)
 					/* too little data */
 					break;
 				}
-				usbd_copy_out(xfer->frbuffers + 0, pos, &hdr, sizeof(hdr));
+				usbd_copy_out(xfer->frbuffers, pos, &hdr, sizeof(hdr));
 
 				if ((hdr.len ^ hdr.ilen) != 0xFFFF) {
 					/* we lost sync */
@@ -1073,7 +1073,7 @@ axe_bulk_read_callback(struct usbd_xfer *xfer)
 			if (m->m_len > len) {
 				m->m_len = len;
 			}
-			usbd_copy_out(xfer->frbuffers + 0, pos, m->m_data, m->m_len);
+			usbd_copy_out(xfer->frbuffers, pos, m->m_data, m->m_len);
 
 			ifp->if_ipackets++;
 			m->m_pkthdr.rcvif = ifp;
@@ -1209,7 +1209,7 @@ axe_bulk_write_callback(struct usbd_xfer *xfer)
 				hdr.len = htole16(m->m_pkthdr.len);
 				hdr.ilen = ~hdr.len;
 
-				usbd_copy_in(xfer->frbuffers + 0, pos, &hdr, sizeof(hdr));
+				usbd_copy_in(xfer->frbuffers, pos, &hdr, sizeof(hdr));
 
 				pos += sizeof(hdr);
 
@@ -1221,7 +1221,7 @@ axe_bulk_write_callback(struct usbd_xfer *xfer)
 				 * USBD_FORCE_SHORT_XFER flag instead.
 				 */
 			}
-			usbd_m_copy_in(xfer->frbuffers + 0, pos,
+			usbd_m_copy_in(xfer->frbuffers, pos,
 			    m, 0, m->m_pkthdr.len);
 
 			pos += m->m_pkthdr.len;

@@ -128,7 +128,7 @@ ulpt_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer[4]);
 			return;
 		}
-		if (usb_cdev_get_data(&(sc->sc_cdev), xfer->frbuffers + 0, 0,
+		if (usb_cdev_get_data(&(sc->sc_cdev), xfer->frbuffers, 0,
 		    xfer->max_data_length, &actlen, 0)) {
 
 			xfer->frlengths[0] = actlen;
@@ -184,7 +184,7 @@ ulpt_read_callback(struct usbd_xfer *xfer)
 			sc->sc_zlps = 0;
 		}
 
-		usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers + 0, 0,
+		usb_cdev_put_data(&(sc->sc_cdev), xfer->frbuffers, 0,
 		    xfer->actlen, 1);
 
 	case USBD_ST_SETUP:
@@ -264,7 +264,7 @@ tr_setup:
 		req.wIndex[1] = 0;
 		USETW(req.wLength, 1);
 
-		usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+		usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 
 		xfer->frlengths[0] = sizeof(req);
 		xfer->frlengths[1] = 1;
@@ -304,7 +304,7 @@ tr_setup_sub:
 		req.wIndex[1] = 0;
 		USETW(req.wLength, 0);
 
-		usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+		usbd_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 
 		xfer->frlengths[0] = sizeof(req);
 		xfer->nframes = 1;
@@ -315,7 +315,7 @@ tr_setup_sub:
 		if (xfer->error == USBD_ERR_CANCELLED) {
 			return;
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0, &req, sizeof(req));
+		usbd_copy_out(xfer->frbuffers, 0, &req, sizeof(req));
 
 		if (req.bmRequestType == UT_WRITE_CLASS_OTHER) {
 			/*

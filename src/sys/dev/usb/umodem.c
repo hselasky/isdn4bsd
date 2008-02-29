@@ -699,7 +699,7 @@ umodem_intr_callback(struct usbd_xfer *xfer)
 			DPRINTF(0, "truncating message\n");
 			xfer->actlen = sizeof(pkt);
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0, &pkt, xfer->actlen);
+		usbd_copy_out(xfer->frbuffers, 0, &pkt, xfer->actlen);
 
 		xfer->actlen -= 8;
 
@@ -797,7 +797,7 @@ umodem_write_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer_data[2]);
 			return;
 		}
-		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    UMODEM_BUF_SIZE, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -839,7 +839,7 @@ umodem_read_callback(struct usbd_xfer *xfer)
 
 		DPRINTF(0, "actlen=%d\n", xfer->actlen);
 
-		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers + 0, 0,
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    xfer->actlen);
 
 	case USBD_ST_SETUP:

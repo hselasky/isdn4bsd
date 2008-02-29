@@ -38,10 +38,15 @@
 #ifndef _USB_SUBR_H_
 #define	_USB_SUBR_H_
 
+/*
+ * The "USBD_STATUS" macro defines all the USB error codes.
+ * "USBD_ERR_NORMAL_COMPLETION" is not an error code. The reason all
+ * the error codes have been put inside a macro is so that the
+ * definition can be reused at various places in the code.
+ */
 #define	USBD_STATUS_DESC(enum,value) #enum
 #define	USBD_STATUS(m)\
-m(USBD_ERR_NORMAL_COMPLETION,=0 /* must be zero*/)\
-/* errors */\
+m(USBD_ERR_NORMAL_COMPLETION,)\
 m(USBD_ERR_PENDING_REQUESTS,)\
 m(USBD_ERR_NOT_STARTED,)\
 m(USBD_ERR_INVAL,)\
@@ -71,14 +76,31 @@ m(USBD_ERR_NO_ROOT_HUB,)\
 m(USBD_ERR_NO_INTR_THREAD,)\
 					/**/
 
+/*
+ * The MAKE_ENUM macro will transform the USBD_STATUS macro into
+ * enums.
+ */
 MAKE_ENUM(USBD_STATUS,
     N_USBD_STATUS);
 
+/*
+ * The following macro will return the current state of an USB
+ * transfer like defined by the "USBD_ST_XXX" enums.
+ */
 #define	USBD_GET_STATE(xfer) ((xfer)->usb_state)
+
+/*
+ * The following macro will tell if an USB transfer is currently
+ * receiving or transferring data.
+ */
 #define	USBD_GET_DATA_ISREAD(xfer) (((xfer)->flags_int.usb_mode == \
 	USB_MODE_DEVICE) ? ((xfer->endpoint & UE_DIR_IN) ? 0 : 1) : \
 	((xfer->endpoint & UE_DIR_IN) ? 1 : 0))
 
+/*
+ * The following macro will return the previous element of a singly
+ * linked list.
+ */
 #undef LIST_PREV
 #define	LIST_PREV(head,elm,field) \
   (((elm) == LIST_FIRST(head)) ? ((__typeof(elm))0) : \
@@ -92,6 +114,8 @@ enum {
 	USBD_ST_TRANSFERRED,
 	USBD_ST_ERROR,
 };
+
+/* prototypes */
 
 struct usbd_xfer;
 struct usbd_pipe;
@@ -140,7 +164,7 @@ enum {
 	USBD_STD_ROOT_TR_PRE_CALLBACK,
 };
 
-/* USB contexts */
+/* Definition of USB contexts */
 
 enum {
 	USBD_CONTEXT_UNDEFINED,
@@ -149,6 +173,10 @@ enum {
 	USBD_CONTEXT_CALLBACK,
 };
 
+/*
+ * The following structure is used when generating USB descriptors
+ * from USB templates.
+ */
 struct usbd_temp_setup {
 	void   *buf;
 	uint32_t size;
@@ -161,6 +189,10 @@ struct usbd_temp_setup {
 	usbd_status_t err;
 };
 
+/*
+ * The following structure is used to define all the USB BUS
+ * callbacks.
+ */
 struct usbd_bus_methods {
 
 	/* USB Device and Host mode - Mandatory */
@@ -186,6 +218,10 @@ struct usbd_bus_methods {
 	void    (*vbus_interrupt) (struct usbd_bus *, uint8_t is_on);
 };
 
+/*
+ * The following structure is used to define all the USB pipe
+ * callbacks.
+ */
 struct usbd_pipe_methods {
 
 	/* USB Device and Host mode: */
@@ -196,6 +232,9 @@ struct usbd_pipe_methods {
 	void    (*start) (struct usbd_xfer *xfer);
 };
 
+/*
+ * The following structure defines an USB port.
+ */
 struct usbd_port {
 	uint8_t	restartcnt;
 #define	USBD_RESTART_MAX 5
@@ -204,12 +243,20 @@ struct usbd_port {
 	uint8_t	unused:7;
 };
 
+/*
+ * The following structure defines how many bytes are
+ * left in an 1ms USB time slot.
+ */
 struct usbd_fs_isoc_schedule {
 	uint16_t total_bytes;
 	uint8_t	frame_bytes;
 	uint8_t	frame_slot;
 };
 
+/*
+ * The following structure is used to keep the state of a standard
+ * root transfer.
+ */
 struct usbd_std_root_transfer {
 	usb_device_request_t req;
 	struct usbd_xfer *xfer;
@@ -219,6 +266,9 @@ struct usbd_std_root_transfer {
 	usbd_status_t err;
 };
 
+/*
+ * The following structure defines an USB HUB.
+ */
 struct usbd_hub {
 	struct usbd_fs_isoc_schedule fs_isoc_schedule[USB_ISOC_TIME_MAX];
 	struct usbd_device *hubudev;	/* the HUB device */
@@ -231,17 +281,30 @@ struct usbd_hub {
 	struct usbd_port ports[0];
 };
 
+/*
+ * The following structure defines physical and non kernel virtual
+ * address of a memory page having size USB_PAGE_SIZE.
+ */
 struct usbd_page {
 	bus_size_t physaddr;
 	void   *buffer;			/* non Kernel Virtual Address */
 };
 
+/*
+ * The following structure is used when needing the kernel virtual
+ * pointer and the physical address belonging to an offset in an USB
+ * page cache.
+ */
 struct usbd_page_search {
 	void   *buffer;
 	bus_size_t physaddr;
 	uint32_t length;
 };
 
+/*
+ * The following structure is used to keep information about a DMA
+ * memory allocation.
+ */
 struct usbd_page_cache {
 
 #ifdef __FreeBSD__
@@ -261,11 +324,16 @@ struct usbd_page_cache {
 #endif
 	uint32_t page_offset_buf;
 	uint32_t page_offset_end;
-	uint8_t	isread:1;
+	uint8_t	isread:1;		/* set if we are currently reading
+					 * from the memory. Else write. */
 	uint8_t	ismultiseg:1;		/* set if we can have multiple
 					 * segments */
 };
 
+/*
+ * The following structure is used when setting up an array of USB
+ * transfers.
+ */
 struct usbd_setup_params {
 	struct usbd_dma_tag *dma_tag_p;
 	struct usbd_page *dma_page_ptr;
@@ -293,6 +361,10 @@ struct usbd_setup_params {
 	usbd_status_t err;
 };
 
+/*
+ * The following structure keeps information about what a hardware USB
+ * endpoint supports.
+ */
 struct usbd_hw_ep_profile {
 	uint16_t max_frame_size;
 	uint8_t	is_simplex:1;
@@ -305,6 +377,10 @@ struct usbd_hw_ep_profile {
 	uint8_t	support_out:1;		/* OUT-token is supported */
 };
 
+/*
+ * The following structure is used when trying to allocate hardware
+ * endpoints for an USB configuration in USB device side mode.
+ */
 struct usbd_sw_ep_scratch {
 	const struct usbd_hw_ep_profile *pf;
 	uint16_t max_frame_size;
@@ -315,6 +391,10 @@ struct usbd_sw_ep_scratch {
 	uint8_t	needs_out:1;
 };
 
+/*
+ * The following structure is used when trying to allocate hardware
+ * endpoints for an USB configuration in USB device side mode.
+ */
 struct usbd_hw_ep_scratch {
 	struct usbd_sw_ep_scratch ep[USB_MAX_ENDPOINTS];
 	struct usbd_sw_ep_scratch *ep_max;
@@ -325,6 +405,9 @@ struct usbd_hw_ep_scratch {
 	uint8_t	bmInAlloc[(USB_MAX_ENDPOINTS + 15) / 16];
 };
 
+/*
+ * The following structure keeps an USB DMA tag.
+ */
 struct usbd_dma_tag {
 #ifdef __NetBSD__
 	bus_dma_segment_t *p_seg;
@@ -344,7 +427,11 @@ struct usbd_dma_tag {
 #define	USB_BUS_EXPLORE_STOP 2
 #define	USB_BUS_EXPLORE_SYNC 3
 
+/**/
+
 #define	USB_BUS_DMA_TAG_MAX 8
+
+/* The following structure defines the explore state of an USB BUS. */
 
 struct usbd_bus_needs {
 	uint8_t	sync:1;			/* Set if explore thread sync is
@@ -358,9 +445,14 @@ struct usbd_bus_needs {
 	uint8_t	unused:3;
 };
 
+/*
+ * The following structure defines an USB BUS. There is one USB BUS
+ * for every Host or Device controller.
+ */
 struct usbd_bus {
 	struct usb_device_stats stats;
-	struct mtx mtx;
+	struct mtx mtx;			/* this mutex protects the USB
+					 * hardware */
 	LIST_HEAD(, usbd_xfer) intr_list_head;	/* driver interrupt list */
 
 	device_t bdev;			/* filled by HC driver */
@@ -387,6 +479,8 @@ struct usbd_bus {
 	uint8_t	usb_clone_count;
 #define	USB_BUS_MAX_CLONES 128
 
+/* Definition of USB revisions */
+
 #define	USBREV_UNKNOWN	0
 #define	USBREV_PRE_1_0	1
 #define	USBREV_1_0	2
@@ -397,12 +491,19 @@ struct usbd_bus {
 	uint8_t	usb_name[32];
 };
 
+/*
+ * The following structure defines an USB interface.
+ */
 struct usbd_interface {
 	usb_interface_descriptor_t *idesc;
 	device_t subdev;
 	uint8_t	alt_index;
 };
 
+/*
+ * The following structure defines an USB pipe which is equal to an
+ * USB endpoint.
+ */
 struct usbd_pipe {
 	LIST_HEAD(, usbd_xfer) list_head;
 
@@ -418,6 +519,9 @@ struct usbd_pipe {
 	uint8_t	iface_index;		/* not used by "default pipe" */
 };
 
+/*
+ * The following structure defines the USB device flags.
+ */
 struct usbd_device_flags {
 	uint8_t	usb_mode:1;		/* USB mode (see USB_MODE_XXX) */
 	uint8_t	self_powered:1;		/* set if USB device is self powered */
@@ -429,6 +533,10 @@ struct usbd_device_flags {
 	uint8_t	unused:2;
 };
 
+/*
+ * The following structure defines an USB device. There exists one of
+ * these structures for every USB device.
+ */
 struct usbd_device {
 	struct sx default_sx[1];
 	struct mtx default_mtx[1];
@@ -444,7 +552,7 @@ struct usbd_device {
 #error "USB_MAX_ENDPOINTS must be increased!"
 #endif
 
-	struct usbd_bus *bus;		/* our controller */
+	struct usbd_bus *bus;		/* our USB BUS */
 	device_t parent_dev;		/* parent device */
 	struct usbd_device *parent_hub;
 	const struct usbd_quirks *quirks;	/* device quirks, always set */
@@ -502,6 +610,9 @@ struct usbd_device {
 	}	scratch[1];
 };
 
+/*
+ * The following structure defines a set of USB transfer flags.
+ */
 struct usbd_xfer_flags {
 	uint8_t	force_short_xfer:1;	/* force a short transmit transfer
 					 * last */
@@ -521,13 +632,18 @@ struct usbd_xfer_flags {
 					 * before starting this transfer! */
 };
 
+/*
+ * The following structure defines a set of internal USB transfer
+ * flags.
+ */
 struct usbd_xfer_flags_int {
 	uint16_t control_rem;		/* remainder in bytes */
 
-	uint8_t	open:1;
-	uint8_t	recursed_1:1;
-	uint8_t	recursed_2:1;
-	uint8_t	transferring:1;
+	uint8_t	open:1;			/* set if USB pipe has been opened */
+	uint8_t	recursed_1:1;		/* see "usbd_callback_wrapper()" */
+	uint8_t	recursed_2:1;		/* see "usbd_callback_wrapper()" */
+	uint8_t	transferring:1;		/* set if an USB transfer is in
+					 * progress */
 	uint8_t	did_dma_delay:1;	/* set if we waited for HW DMA */
 	uint8_t	draining:1;		/* set if we are draining an USB
 					 * transfer */
@@ -551,6 +667,10 @@ struct usbd_xfer_flags_int {
 	uint8_t	curr_dma_set:1;		/* used by USB HC/DC driver */
 };
 
+/*
+ * The following structure defines the symmetric part of an USB config
+ * structure.
+ */
 struct usbd_config_sub {
 	usbd_callback_t *callback;	/* USB transfer callback */
 	uint32_t bufsize;		/* total pipe buffer size in bytes */
@@ -561,6 +681,10 @@ struct usbd_config_sub {
 	struct usbd_xfer_flags flags;	/* transfer flags */
 };
 
+/*
+ * The following structure define an USB configuration, that basically
+ * is used when setting up an USB transfer.
+ */
 struct usbd_config {
 	struct usbd_config_sub mh;	/* parameters for USB_MODE_HOST */
 	struct usbd_config_sub md;	/* parameters for USB_MODE_DEVICE */
@@ -571,6 +695,9 @@ struct usbd_config {
 	uint8_t	if_index;		/* "ifaces" index to use */
 };
 
+/*
+ * The following structure defines an USB transfer.
+ */
 struct usbd_xfer {
 	struct usb_callout timeout_handle;
 	struct usbd_page_cache *buf_fixup;	/* fixup buffer(s) */
@@ -580,7 +707,7 @@ struct usbd_xfer {
 	LIST_ENTRY(usbd_xfer) dma_list;/* used by BUS-DMA */
 
 	struct usbd_page *dma_page_ptr;
-	struct usbd_pipe *pipe;
+	struct usbd_pipe *pipe;		/* our USB pipe */
 	struct usbd_device *udev;
 	struct mtx *priv_mtx;		/* cannot be changed during operation */
 	struct mtx *usb_mtx;		/* used by HC driver */
@@ -590,12 +717,15 @@ struct usbd_xfer {
          * The value of "usb_thread" is used to tell who has reserved
          * the USB transfer for callback:
          *
-         * NULL: - "usbd_transfer_start"
+         * case "NULL":
+	 *       - "usbd_transfer_start"
          *       - "usbd_transfer_stop"
          *       - "{ehci,ohci,uhci}_interrupt"
          *       - "{ehci,ohci,uhci}_timeout"
-         * xfer->usb_root:
+	 *
+         * case "xfer->usb_root":
          *       - "usbd_callback_intr_td"
+	 *
          * Else:
          *       - the given thread in case of polling
          */
@@ -605,8 +735,8 @@ struct usbd_xfer {
 	void   *td_transfer_first;	/* used by HC driver */
 	void   *td_transfer_last;	/* used by HC driver */
 	void   *td_transfer_cache;	/* used by HC driver */
-	void   *priv_sc;
-	void   *priv_fifo;
+	void   *priv_sc;		/* device driver data pointer 1 */
+	void   *priv_fifo;		/* device driver data pointer 2 */
 	void   *local_buffer;
 	uint32_t *frlengths;
 	struct usbd_page_cache *frbuffers;
@@ -630,8 +760,8 @@ struct usbd_xfer {
 	uint16_t isoc_time_complete;	/* in ms */
 	uint16_t interval;		/* milliseconds */
 
-	uint8_t	address;
-	uint8_t	endpoint;
+	uint8_t	address;		/* physical USB address */
+	uint8_t	endpoint;		/* physical USB endpoint */
 	uint8_t	max_packet_count;
 	uint8_t	usb_smask;
 	uint8_t	usb_cmask;
@@ -644,6 +774,11 @@ struct usbd_xfer {
 	struct usbd_xfer_flags_int flags_int;
 };
 
+/*
+ * The following structure is used to keep information about memory
+ * that should be automatically freed at the moment all USB transfers
+ * have been freed.
+ */
 struct usbd_memory_info {
 	LIST_HEAD(, usbd_xfer) dma_head;
 	LIST_HEAD(, usbd_xfer) done_head;
@@ -672,6 +807,10 @@ struct usbd_memory_info {
 	uint8_t	done_sleep;		/* set if done thread is sleeping */
 };
 
+/*
+ * The following structure defines a minimum re-implementation of the
+ * mbuf system in the kernel.
+ */
 struct usbd_mbuf {
 	uint8_t *cur_data_ptr;
 	uint8_t *min_data_ptr;
@@ -683,6 +822,10 @@ struct usbd_mbuf {
 	uint32_t last_packet:1;
 };
 
+/*
+ * The following structure defines a minimum re-implementation of the
+ * ifqueue structure in the kernel.
+ */
 struct usbd_ifqueue {
 	struct usbd_mbuf *ifq_head;
 	struct usbd_mbuf *ifq_tail;
@@ -732,7 +875,7 @@ struct usbd_ifqueue {
   } while (0)
 
 /*------------------------------------------------------------------------*
- * structures used by the usbd config thread system
+ * structures used by the USB config thread system
  *------------------------------------------------------------------------*/
 struct usbd_config_td_softc;
 struct usbd_config_td_cc;
@@ -740,6 +883,9 @@ struct usbd_config_td_cc;
 typedef void (usbd_config_td_command_t)(struct usbd_config_td_softc *sc, struct usbd_config_td_cc *cc, uint16_t reference);
 typedef void (usbd_config_td_end_of_commands_t)(struct usbd_config_td_softc *sc);
 
+/*
+ * The following structure defines an USB config thread.
+ */
 struct usbd_config_td {
 	struct usbd_ifqueue cmd_free;
 	struct usbd_ifqueue cmd_used;
@@ -757,6 +903,10 @@ struct usbd_config_td {
 	uint8_t	flag_config_td_gone;
 };
 
+/*
+ * The following structure defines a command that should be executed
+ * using the USB config thread system.
+ */
 struct usbd_config_td_item {
 	usbd_config_td_command_t *command_func;
 	uint16_t command_ref;
@@ -768,11 +918,17 @@ struct usbd_config_td_item {
 struct usb_devno {
 	uint16_t ud_vendor;
 	uint16_t ud_product;
+
+	/*
+	 * XXX this structure should be extended to also contain some
+	 * flags --hps
+	 */
 } __packed;
 
-#define	usb_lookup(tbl, vendor, product) usb_match_device			\
-	((const struct usb_devno *)(tbl), (sizeof (tbl) / sizeof ((tbl)[0])),	\
-	 sizeof ((tbl)[0]), (vendor), (product))				\
+#define	usb_lookup(tbl, vendor, product)			\
+	usb_match_device((const struct usb_devno *)(tbl),	\
+	  (sizeof(tbl) / sizeof((tbl)[0])), sizeof((tbl)[0]),	\
+	  (vendor), (product))					\
 					/**/
 
 #define	USB_PRODUCT_ANY		0xffff
@@ -813,10 +969,8 @@ struct usb_attach_arg {
 #define	UMATCH_NONE					(ENXIO)
 
 /*------------------------------------------------------------------------*
- * prototypes
+ *	prototypes from "usb_subr.c"
  *------------------------------------------------------------------------*/
-
-/* prototypes from usb_subr.c */
 
 #ifdef __FreeBSD__
 #if (__FreeBSD_version >= 700020)
@@ -828,7 +982,6 @@ struct usb_attach_arg {
 
 typedef void (usbd_bus_mem_sub_cb_t)(struct usbd_bus *bus, struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align);
 typedef void (usbd_bus_mem_cb_t)(struct usbd_bus *bus, usbd_bus_mem_sub_cb_t *scb);
-
 void	usbd_devinfo(struct usbd_device *udev, char *dst_ptr, uint16_t dst_len);
 const char *usbd_errstr(usbd_status_t err);
 void	usb_delay_ms(struct usbd_bus *bus, uint32_t ms);
@@ -895,7 +1048,9 @@ uint8_t	usbd_transfer_setup_sub_malloc(struct usbd_setup_params *parm, struct us
 struct usbd_device *usbd_bus_port_get_device(struct usbd_bus *bus, struct usbd_port *up);
 void	usbd_bus_port_set_device(struct usbd_bus *bus, struct usbd_port *up, struct usbd_device *udev, uint8_t device_index);
 
-/* prototypes from usb.c */
+/*------------------------------------------------------------------------*
+ *	prototypes from "usb.c"
+ *------------------------------------------------------------------------*/
 
 #if 0
 extern struct mtx usb_global_lock;
@@ -908,13 +1063,17 @@ extern struct mtx usb_global_lock;
 void	usb_needs_explore(struct usbd_bus *bus, uint8_t what);
 void	usb_needs_probe_and_attach(void);
 
-/* prototypes from usb_template.c */
+/*------------------------------------------------------------------------*
+ *	prototypes from "usb_template.c"
+ *------------------------------------------------------------------------*/
 
 void	usbd_temp_get_desc(struct usbd_device *udev, usb_device_request_t *req, const void **pPtr, uint16_t *pLen);
 usbd_status_t usbd_temp_setup(struct usbd_device *udev, const struct usb_temp_device_desc *tdd);
 void	usbd_temp_unsetup(struct usbd_device *udev);
 
-/* prototypes from usb_transfer.c */
+/*------------------------------------------------------------------------*
+ *	prototypes from "usb_transfer.c"
+ *------------------------------------------------------------------------*/
 
 #ifdef USB_DEBUG
 void	usbd_dump_iface(struct usbd_interface *iface);
@@ -959,7 +1118,9 @@ void	usbd_set_polling(struct usbd_device *udev, int32_t on);
 const struct usb_devno *usb_match_device(const struct usb_devno *tbl, uint32_t nentries, uint32_t size, uint16_t vendor, uint16_t product);
 int32_t	usbd_driver_load(struct module *mod, int32_t what, void *arg);
 
-/* prototypes from usb_requests.c */
+/*------------------------------------------------------------------------*
+ *	prototypes from "usb_requests.c"
+ *------------------------------------------------------------------------*/
 
 usbd_status_t usbreq_reset_port(struct usbd_device *udev, struct mtx *mtx, uint8_t port);
 usbd_status_t usbreq_get_desc(struct usbd_device *udev, struct mtx *mtx, void *desc, uint16_t min_len, uint16_t max_len, uint16_t id, uint8_t type, uint8_t index, uint8_t retries);
@@ -1007,7 +1168,9 @@ usbd_status_t usbreq_get_config(struct usbd_device *udev, struct mtx *mtx, uint8
 #define	USBD_MS_TO_TICKS(ms) \
   (((uint32_t)((((uint32_t)(ms)) * ((uint32_t)(hz))) + 1023)) / 1024)
 
-/* prototypes from "usb_cdev.c" */
+/*------------------------------------------------------------------------*
+ *	prototypes from "usb_cdev.c"
+ *------------------------------------------------------------------------*/
 
 struct usb_cdev;
 struct cdev;

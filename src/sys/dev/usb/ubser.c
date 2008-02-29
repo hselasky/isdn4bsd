@@ -454,12 +454,12 @@ ubser_write_callback(struct usbd_xfer *xfer)
 		}
 		do {
 			if (ucom_get_data(sc->sc_ucom + sc->sc_curr_tx_unit,
-			    xfer->frbuffers + 0, 1, sc->sc_tx_size - 1,
+			    xfer->frbuffers, 1, sc->sc_tx_size - 1,
 			    &actlen)) {
 
 				buf[0] = sc->sc_curr_tx_unit;
 
-				usbd_copy_in(xfer->frbuffers + 0, 0, buf, 1);
+				usbd_copy_in(xfer->frbuffers, 0, buf, 1);
 
 				xfer->frlengths[0] = actlen + 1;
 				usbd_start_hardware(xfer);
@@ -510,14 +510,14 @@ ubser_read_callback(struct usbd_xfer *xfer)
 			DPRINTF(sc, 0, "invalid actlen=0!\n");
 			goto tr_setup;
 		}
-		usbd_copy_out(xfer->frbuffers + 0, 0, buf, 1);
+		usbd_copy_out(xfer->frbuffers, 0, buf, 1);
 
 		if (buf[0] >= sc->sc_numser) {
 			DPRINTF(sc, 0, "invalid serial number!\n");
 			goto tr_setup;
 		}
 		ucom_put_data(sc->sc_ucom + buf[0],
-		    xfer->frbuffers + 0, 1, xfer->actlen - 1);
+		    xfer->frbuffers, 1, xfer->actlen - 1);
 
 	case USBD_ST_SETUP:
 tr_setup:

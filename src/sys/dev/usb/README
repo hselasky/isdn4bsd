@@ -1,8 +1,8 @@
 DESCRIPTION OF THE NEW USB API
 
-The new USB 2.0 API consists of 4 functions. All transfer types are managed 
-using these functions. There is no longer need for separate functions to setup 
-INTERRUPT- and ISOCHRONOUS- transfers.
+The new USB 2.0 API consists of 5 functions. All transfer types are
+managed using these functions. There is no longer need for separate
+functions to setup INTERRUPT- and ISOCHRONOUS- transfers.
 
 +--------------------------------------------------------------+
 |                                                              |

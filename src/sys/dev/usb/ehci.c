@@ -2528,14 +2528,14 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 			 * only call "usbd_get_page()" when we have a
 			 * non-zero length
 			 */
-			usbd_get_page(xfer->frbuffers + 0, buf_offset, &buf_res);
+			usbd_get_page(xfer->frbuffers, buf_offset, &buf_res);
 			td->sitd_bp[0] = htole32(buf_res.physaddr);
 			buf_offset += *plen;
 			/*
 			 * NOTE: We need to subtract one from the offset so
 			 * that we are on a valid page!
 			 */
-			usbd_get_page(xfer->frbuffers + 0, buf_offset - 1, &buf_res);
+			usbd_get_page(xfer->frbuffers, buf_offset - 1, &buf_res);
 			temp = buf_res.physaddr & ~0xFFF;
 		} else {
 			td->sitd_bp[0] = 0;
@@ -2824,7 +2824,7 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 				itd_offset[td_no] = buf_offset;
 
 				/* get first page offset */
-				usbd_get_page(xfer->frbuffers + 0, itd_offset[0], &buf_res);
+				usbd_get_page(xfer->frbuffers, itd_offset[0], &buf_res);
 				/* get page address */
 				page_addr = buf_res.physaddr & ~0xFFF;
 
@@ -2841,9 +2841,9 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 						 * we don't go off the last
 						 * page!
 						 */
-						usbd_get_page(xfer->frbuffers + 0, buf_offset - 1, &buf_res);
+						usbd_get_page(xfer->frbuffers, buf_offset - 1, &buf_res);
 					} else {
-						usbd_get_page(xfer->frbuffers + 0, itd_offset[x + 1], &buf_res);
+						usbd_get_page(xfer->frbuffers, itd_offset[x + 1], &buf_res);
 					}
 
 					/* check if we need a new page */
