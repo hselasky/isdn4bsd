@@ -1,5 +1,5 @@
-VERSION=1_7_1
-DATE=January 2008
+VERSION=1_7_2
+DATE=March 2008
 
 FILTER= grep -v "/temp"   | \
 	grep -v "~"      | \
@@ -215,6 +215,7 @@ ${N}dev/usb/usb_subr.c        optional usb \
 ${N}dev/usb/usb_transfer.c    optional usb \
 ${N}dev/usb/usb_template.c optional usb \
 ${N}dev/usb/usb_template_cdce.c optional usb \
+${N}dev/usb/usb_template_msc.c optional usb \
 ${N}dev/usb/usb_compat_linux.c optional usb \
 ${N}dev/usb/usb_cdev.c        optional usb \
 ${N}dev/usb/usb_hid.c         optional usb \
@@ -501,6 +502,7 @@ update_config:
 	| grep -v "dev/usb/hid.c" \
 	| grep -v "dev/usb/usb_template.c" \
 	| grep -v "dev/usb/usb_template_cdce.c" \
+	| grep -v "dev/usb/usb_template_msc.c" \
 	| sed -e s/"S\/dev\/usb\/usbdevs -h"/"S\/dev\/usb\/usbdevs"/g \
 	| sed -e s/"S\/dev\/usb\/usbdevs -d"/"S\/dev\/usb\/usbdevs"/g \
 	> ${TEMP}

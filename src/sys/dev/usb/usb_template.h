@@ -89,5 +89,6 @@ struct usb_temp_data {
 /* prototypes */
 
 extern const struct usb_temp_device_desc usb_template_cdce;
+extern const struct usb_temp_device_desc usb_template_msc; /* Mass Storage Class */
 
 #endif					/* _USB_TEMPLATE_H_ */

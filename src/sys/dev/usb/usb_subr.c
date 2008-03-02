@@ -1775,6 +1775,11 @@ static const uint8_t
 	[USB_SPEED_LOW][USB_SPEED_LOW] = 1,
 };
 
+static int usb_template = 0;
+
+SYSCTL_INT(_hw_usb, OID_AUTO, template, CTLFLAG_RW,
+    &usb_template, 0, "Selected USB device side template");
+
 /*------------------------------------------------------------------------*
  *	usbd_alloc_device
  *
@@ -1900,6 +1905,9 @@ usbd_alloc_device(device_t parent_dev, struct usbd_bus *bus,
 	    &udev->default_ep_desc,
 	    &udev->default_pipe);
 
+	/* set device index */
+	udev->device_index = device_index;
+
 	if (udev->flags.usb_mode == USB_MODE_HOST) {
 
 		err = usbreq_set_address(udev, &usb_global_lock, device_index);
@@ -1927,11 +1935,14 @@ usbd_alloc_device(device_t parent_dev, struct usbd_bus *bus,
 		/* We are not self powered */
 		udev->flags.self_powered = 0;
 
-		/*
-	         * TODO: Make some kind of command that lets the user choose
-	         * the USB template.
-	         */
-		err = usbd_temp_setup(udev, &usb_template_cdce);
+		switch (usb_template) {
+		case 0:
+			err = usbd_temp_setup(udev, &usb_template_msc);
+			break;
+		default:
+			err = usbd_temp_setup(udev, &usb_template_cdce);
+			break;
+		}
 		if (err) {
 			PRINTFN(-1, ("setting up USB template failed\n"));
 			goto done;

@@ -3231,7 +3231,7 @@ uhci_pipe_init(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc,
 		/* not supported */
 		return;
 	}
-	if (udev->address == sc->sc_addr) {
+	if (udev->device_index == sc->sc_addr) {
 		switch (edesc->bEndpointAddress) {
 		case USB_CONTROL_ENDPOINT:
 			pipe->methods = &uhci_root_ctrl_methods;

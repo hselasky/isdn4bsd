@@ -397,7 +397,8 @@ repeat:
 	rx_stat = bus_space_read_1(td->io_tag, td->io_hdl,
 	    td->rx_stat_reg);
 
-	DPRINTFN(4, "rx_stat=0x%02x rem=%u\n", rx_stat, td->remainder);
+	DPRINTFN(4, "rx_stat=0x%02x rx_flag=0x%02x rem=%u\n",
+	    rx_stat, rx_flag, td->remainder);
 
 	if (rx_stat & (USS820_RXSTAT_RXSETUP |
 	    USS820_RXSTAT_RXSOVW |
@@ -444,6 +445,8 @@ repeat:
 	count |= (bus_space_read_1(td->io_tag, td->io_hdl,
 	    td->rx_count_high_reg) << 8);
 	count &= 0x3FF;
+
+	DPRINTFN(4, "count=0x%04x\n", count);
 
 	/* verify the packet byte count */
 	if (count != td->max_packet_size) {
@@ -1443,12 +1446,24 @@ uss820_dci_set_config(struct usbd_device *udev,
 		USS820_WRITE_1(sc, USS820_EPINDEX, n);
 
 		if ((ep_dir == UE_DIR_IN) || (ep_type == UE_CONTROL)) {
+
+			if (ep_type != UE_CONTROL) {
+				/* reset data toggle */
+				USS820_WRITE_1(sc, USS820_TXSTAT,
+				    USS820_TXSTAT_TXSOVW);
+			}
 			/* configure endpoint */
 			USS820_WRITE_1(sc, USS820_TXCON, temp |
 			    USS820_TXCON_TXCLR);
 			USS820_WRITE_1(sc, USS820_TXCON, temp);
 		}
 		if ((ep_dir == UE_DIR_OUT) || (ep_type == UE_CONTROL)) {
+
+			if (ep_type != UE_CONTROL) {
+				/* reset data toggle */
+				uss820_dci_update_shared_1(sc, USS820_RXSTAT,
+				    0, USS820_RXSTAT_RXSOVW);
+			}
 			/* configure endpoint */
 			USS820_WRITE_1(sc, USS820_RXCON, temp |
 			    USS820_RXCON_RXCLR);
@@ -2614,7 +2629,7 @@ uss820_dci_pipe_init(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc,
 	    edesc->bEndpointAddress, udev->flags.usb_mode,
 	    sc->sc_rt_addr);
 
-	if (udev->address == sc->sc_rt_addr) {
+	if (udev->device_index == sc->sc_rt_addr) {
 
 		if (udev->flags.usb_mode != USB_MODE_HOST) {
 			/* not supported */

@@ -71,6 +71,7 @@ static void usbd_delayed_transfer_start(void *arg);
 static void usbd_do_request_callback(struct usbd_xfer *xfer);
 static void usbd_handle_request_callback(struct usbd_xfer *xfer);
 static usbd_status_t usbd_handle_set_config(struct usbd_xfer *xfer, uint8_t conf_no);
+static struct usbd_xfer *usbd_get_curr_xfer(struct usbd_pipe *pipe);
 static usbd_status_t usbd_handle_set_stall_sub(struct usbd_device *udev, uint8_t ea_val, uint8_t do_stall);
 static usbd_status_t usbd_handle_set_stall(struct usbd_xfer *xfer, uint8_t ep, uint8_t do_stall);
 static uint8_t usbd_handle_get_stall(struct usbd_device *udev, uint8_t ea_val);
@@ -3092,6 +3093,35 @@ usbd_handle_set_config(struct usbd_xfer *xfer, uint8_t conf_no)
 }
 
 /*------------------------------------------------------------------------*
+ *	usbd_get_curr_xfer - get current transfer on a pipe
+ *
+ * Returns:
+ * NULL: No transfer
+ * Else: Current USB transfer
+ *------------------------------------------------------------------------*/
+static struct usbd_xfer *
+usbd_get_curr_xfer(struct usbd_pipe *pipe)
+{
+	struct usbd_xfer *xfer;
+
+	xfer = LIST_FIRST(&(pipe->list_head));
+	if (xfer) {
+
+		/* search to the end of the LIST */
+		while (LIST_NEXT(xfer, pipe_list)) {
+			xfer = LIST_NEXT(xfer, pipe_list);
+		}
+
+		/*
+		 * If "priv_mtx" is locked the "udev->bus->mtx" mutex
+		 * can get dropped in "usbd_callback_wrapper()" !
+		 */
+		mtx_assert(xfer->priv_mtx, MA_NOTOWNED);
+	}
+	return (xfer);
+}
+
+/*------------------------------------------------------------------------*
  *	usbd_handle_set_stall_sub
  *
  * This function is used to make a BULK or INTERRUPT endpoint
@@ -3108,6 +3138,7 @@ usbd_handle_set_stall_sub(struct usbd_device *udev, uint8_t ea_val,
 	struct usbd_pipe *pipe;
 	struct usbd_xfer *xfer;
 	uint8_t et;
+	uint8_t was_stalled;
 
 	pipe = usbd_get_pipe_by_addr(udev, ea_val);
 	if (pipe == NULL) {
@@ -3134,48 +3165,48 @@ usbd_handle_set_stall_sub(struct usbd_device *udev, uint8_t ea_val,
 	}
 	mtx_lock(&(udev->bus->mtx));
 
-	if (pipe->is_stalled == do_stall) {
+	/* store current stall state */
+	was_stalled = pipe->is_stalled;
+
+	/* check for no change */
+	if (was_stalled && do_stall) {
 		/* if the pipe is already stalled do nothing */
 		mtx_unlock(&(udev->bus->mtx));
 		PRINTFN(0, ("No change\n"));
 		return (0);
 	}
-	/* update stalled state */
-	pipe->is_stalled = do_stall;
+	/* set stalled state */
+	pipe->is_stalled = 1;
 
-	/* lookup the current USB transfer */
-	xfer = LIST_FIRST(&(pipe->list_head));
-	if (xfer) {
-
-		/* search to the end of the LIST */
-		while (LIST_NEXT(xfer, pipe_list)) {
-			xfer = LIST_NEXT(xfer, pipe_list);
+	if (do_stall || (!was_stalled)) {
+		if (!was_stalled) {
+			/* lookup the current USB transfer */
+			xfer = usbd_get_curr_xfer(pipe);
+		} else {
+			xfer = NULL;
 		}
 
-		/*
-		 * If "priv_mtx" is locked the "udev->bus->mtx" mutex
-		 * can get dropped in "usbd_callback_wrapper()" !
-		 */
-		mtx_assert(xfer->priv_mtx, MA_NOTOWNED);
-	}
-	if (do_stall) {
 		/*
 		 * If "xfer" is non-NULL the "set_stall" method will
 		 * complete the USB transfer like in case of a timeout
 		 * setting the error code "USBD_ERR_STALLED".
 		 */
 		(udev->bus->methods->set_stall) (udev, xfer, pipe);
-	} else {
+	}
+	if (!do_stall) {
 		pipe->toggle_next = 0;	/* reset data toggle */
+		pipe->is_stalled = 0;	/* clear stalled state */
 
 		(udev->bus->methods->clear_stall) (udev, pipe);
 
-		/* start up the first transfer, if any */
+		/* lookup the current USB transfer */
+		xfer = usbd_get_curr_xfer(pipe);
+
+		/* start up the current transfer, if any */
 		if (xfer) {
 			usbd_transfer_enqueue(xfer);
 		}
 	}
-
 	mtx_unlock(&(udev->bus->mtx));
 	return (0);
 }

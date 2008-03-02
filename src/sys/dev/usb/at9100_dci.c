@@ -2507,7 +2507,7 @@ at9100_dci_pipe_init(struct usbd_device *udev, usb_endpoint_descriptor_t *edesc,
 	    edesc->bEndpointAddress, udev->flags.usb_mode,
 	    sc->sc_rt_addr);
 
-	if (udev->address == sc->sc_rt_addr) {
+	if (udev->device_index == sc->sc_rt_addr) {
 
 		if (udev->flags.usb_mode != USB_MODE_HOST) {
 			/* not supported */

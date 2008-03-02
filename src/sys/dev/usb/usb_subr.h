@@ -570,6 +570,7 @@ struct usbd_device {
 	uint16_t langid;		/* language for strings */
 
 	uint8_t	address;		/* device addess */
+	uint8_t device_index;		/* device index in "bus->devices" */
 	uint8_t	curr_config_no;		/* current configuration # */
 	uint8_t	depth;			/* distance from root HUB */
 	uint8_t	speed;			/* low/full/high speed */
