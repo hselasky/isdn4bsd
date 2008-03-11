@@ -17,6 +17,7 @@ SRCS=  bus_if.h usb_if.h vnode_if.h   device_if.h  usb_if.c \
 	usb_subr.c usb_subr.h \
 	usb_template.c usb_template.h \
 	usb_template_cdce.c \
+	usb_template_msc.c \
 	usb_transfer.c \
 	usb_compat_linux.c \
 
