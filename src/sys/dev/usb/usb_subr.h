@@ -570,7 +570,7 @@ struct usbd_device {
 	uint16_t langid;		/* language for strings */
 
 	uint8_t	address;		/* device addess */
-	uint8_t device_index;		/* device index in "bus->devices" */
+	uint8_t	device_index;		/* device index in "bus->devices" */
 	uint8_t	curr_config_no;		/* current configuration # */
 	uint8_t	depth;			/* distance from root HUB */
 	uint8_t	speed;			/* low/full/high speed */
@@ -996,7 +996,7 @@ uint16_t usbd_get_no_alts(usb_config_descriptor_t *cd, uint8_t ifaceno);
 uint8_t	usbd_intr_schedule_adjust(struct usbd_device *udev, int16_t len, uint8_t slot);
 void	usbd_fs_isoc_schedule_init_all(struct usbd_fs_isoc_schedule *fss);
 uint16_t usbd_fs_isoc_schedule_isoc_time_expand(struct usbd_device *udev, struct usbd_fs_isoc_schedule **pp_start, struct usbd_fs_isoc_schedule **pp_end, uint16_t isoc_time);
-uint8_t	usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss, uint16_t len);
+uint8_t	usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss, uint8_t *pstart, uint16_t len);
 usbd_status_t usbd_set_config_no(struct usbd_device *udev, uint8_t no, uint8_t msg);
 usbd_status_t usbd_set_config_index(struct usbd_device *udev, uint8_t index, uint8_t msg);
 usbd_status_t usbd_set_alt_interface_index(struct usbd_device *udev, uint8_t iface_index, uint8_t alt_index);

@@ -2424,6 +2424,7 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 #endif
 	uint8_t sa;
 	uint8_t sb;
+	uint8_t error;
 	ehci_sitd_t *td;
 	ehci_sitd_t *td_last = NULL;
 	ehci_sitd_t **pp_last;
@@ -2521,7 +2522,7 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 		 * We currently don't care if the ISOCHRONOUS schedule is
 		 * full!
 		 */
-		sa = usbd_fs_isoc_schedule_alloc(fss, *plen);
+		error = usbd_fs_isoc_schedule_alloc(fss, &sa, *plen);
 
 		if (*plen) {
 			/*
@@ -2586,6 +2587,15 @@ ehci_device_isoc_fs_enter(struct usbd_xfer *xfer)
 			td->sitd_status = htole32
 			    (EHCI_SITD_ACTIVE |
 			    EHCI_SITD_SET_LEN(*plen));
+		}
+		if (error) {
+			/*
+			 * The FULL speed schedule is FULL! Pretend that the
+			 * transaction has been executed. The IOC bit should
+			 * be active even if the ACTIVE bit is zero.
+			 */
+			td->sitd_status &=
+			    ~htole32(EHCI_SITD_ACTIVE);
 		}
 		usbd_pc_cpu_flush(td->page_cache);
 

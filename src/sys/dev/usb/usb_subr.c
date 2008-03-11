@@ -787,14 +787,19 @@ usbd_fs_isoc_schedule_isoc_time_expand(struct usbd_device *udev,
 /*------------------------------------------------------------------------*
  *	usbd_fs_isoc_schedule_alloc
  *
- * This function will allocate bandwidth for the isochronous FULL
- * speed schedule.
+ * This function will allocate bandwidth for an isochronous FULL speed
+ * transaction in the FULL speed schedule. The microframe slot where
+ * the transaction should be started is stored in the byte pointed to
+ * by "pstart". The "len" argument specifies the length of the
+ * transaction in bytes.
  *
  * Returns:
- *   Microframe slot where the transaction will start.
+ *    0: Success
+ * Else: Error
  *------------------------------------------------------------------------*/
 uint8_t
-usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss, uint16_t len)
+usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss,
+    uint8_t *pstart, uint16_t len)
 {
 	uint8_t slot = fss->frame_slot;
 
@@ -806,7 +811,8 @@ usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss, uint16_t len)
 	len /= 6;
 
 	if (len > fss->total_bytes) {
-		len = fss->total_bytes;
+		*pstart = 0;		/* set some dummy value */
+		return (1);		/* error */
 	}
 	if (len > 0) {
 
@@ -820,7 +826,8 @@ usbd_fs_isoc_schedule_alloc(struct usbd_fs_isoc_schedule *fss, uint16_t len)
 
 		fss->frame_bytes -= len;
 	}
-	return (slot);
+	*pstart = slot;
+	return (0);			/* success */
 }
 
 /*------------------------------------------------------------------------*

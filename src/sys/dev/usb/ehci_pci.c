@@ -85,7 +85,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ehci_pci.c,v 1.29 2007/11/15 23:59:36 jfv Ex
 
 #define	PCI_EHCI_BASE_REG	0x10
 
-static void ehci_pci_givecontroller(device_t self);
 static void ehci_pci_takecontroller(device_t self);
 
 static device_probe_t ehci_pci_probe;
@@ -131,7 +130,6 @@ ehci_pci_shutdown(device_t self)
 	if (err)
 		return (err);
 	ehci_shutdown(sc);
-	ehci_pci_givecontroller(self);
 
 	return (0);
 }
@@ -149,6 +147,9 @@ ehci_pci_match(device_t self)
 
 	if (device_id == 0x10227463)
 		return "AMD 8111 USB 2.0 controller";
+
+	if (device_id == 0x20951022)
+		return ("AMD CS5536 (Geode) USB 2.0 controller");
 
 	if (device_id == 0x43451002)
 		return "ATI SB200 USB 2.0 controller";
@@ -235,9 +236,14 @@ ehci_pci_attach(device_t self)
 	case PCI_USBREV_PRE_1_0:
 	case PCI_USBREV_1_0:
 	case PCI_USBREV_1_1:
-		sc->sc_bus.usbrev = USBREV_UNKNOWN;
-		device_printf(self, "pre-2.0 USB rev\n");
-		return (ENXIO);
+		/*
+		 * NOTE: some EHCI USB controllers have the wrong USB
+		 * revision number. It appears those controllers are
+		 * fully compliant so we just ignore this value in
+		 * some common cases.
+		 */
+		device_printf(self, "pre-2.0 USB revision (ignored)\n");
+		/* fallthrough */
 	case PCI_USBREV_2_0:
 		sc->sc_bus.usbrev = USBREV_2_0;
 		break;
@@ -427,8 +433,13 @@ ehci_pci_takecontroller(device_t self)
 			continue;
 		}
 		legsup = eec;
-		pci_write_config(self, eecp, legsup | EHCI_LEGSUP_OSOWNED, 4);
 		if (legsup & EHCI_LEGSUP_BIOSOWNED) {
+			/* 
+			 * Only set the "OSOWNED" bit if the
+			 * "BIOSOWNED" bit is set:
+			 */
+			pci_write_config(self, eecp,
+					 legsup | EHCI_LEGSUP_OSOWNED, 4);
 			device_printf(sc->sc_bus.bdev, "waiting for BIOS "
 			    "to give up control\n");
 
@@ -443,25 +454,6 @@ ehci_pci_takecontroller(device_t self)
 				device_printf(sc->sc_bus.bdev, "timed out waiting for BIOS\n");
 			}
 		}
-	}
-}
-
-static void
-ehci_pci_givecontroller(device_t self)
-{
-	ehci_softc_t *sc = device_get_softc(self);
-	uint32_t cparams, eec, legsup;
-	int eecp;
-
-	cparams = EREAD4(sc, EHCI_HCCPARAMS);
-	for (eecp = EHCI_HCC_EECP(cparams); eecp != 0;
-	    eecp = EHCI_EECP_NEXT(eec)) {
-		eec = pci_read_config(self, eecp, 4);
-		if (EHCI_EECP_ID(eec) != EHCI_EC_LEGSUP) {
-			continue;
-		}
-		legsup = eec;
-		pci_write_config(self, eecp, legsup & ~EHCI_LEGSUP_OSOWNED, 4);
 	}
 }
 

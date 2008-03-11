@@ -397,11 +397,11 @@ usbd_make_device_desc(struct usbd_temp_setup *temp,
 
 		switch (temp->usb_speed) {
 		case USB_SPEED_LOW:
-			USETW(utd->udd.bcdUSB, 0x0101);
+			USETW(utd->udd.bcdUSB, 0x0110);
 			utd->udd.bMaxPacketSize = 8;
 			break;
 		case USB_SPEED_FULL:
-			USETW(utd->udd.bcdUSB, 0x0101);
+			USETW(utd->udd.bcdUSB, 0x0110);
 			utd->udd.bMaxPacketSize = 32;
 			break;
 		case USB_SPEED_HIGH:
