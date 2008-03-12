@@ -241,8 +241,13 @@ devfs_done(void)
 	return;
 }
 
+#if (__NetBSD_Version__ >= 400000000)
+static int
+devfs_start(struct mount *a, int b, struct lwp *l)
+#else
 static int
 devfs_start(struct mount *a, int b, struct proc *c)
+#endif
 {
 	return 0;
 }
@@ -251,6 +256,10 @@ devfs_start(struct mount *a, int b, struct proc *c)
 static int
 devfs_quotactl(struct mount *a, int b, uid_t c, caddr_t d,
 	       struct proc *e)
+#elif (__NetBSD_Version__ >= 400000000)
+static int
+devfs_quotactl(struct mount *a, int b, uid_t c, void *d,
+	       struct lwp *l)
 #else
 static int
 devfs_quotactl(struct mount *a, int b, uid_t c, void *d,
