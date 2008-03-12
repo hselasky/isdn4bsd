@@ -126,8 +126,13 @@ devfs_mount(struct mount *mp, const char *path, void *data,
 
 	fmp->dm_root_vnode = rvp;
 
+#if (__NetBSD_Version__ >= 400000000)
+	error = set_statfs_info
+	  (path, UIO_USERSPACE, "devfs", UIO_SYSSPACE, mp, l);
+#else
 	error = set_statfs_info
 	  (path, UIO_USERSPACE, "devfs", UIO_SYSSPACE, mp, td);
+#endif
 
 	if(error)
 	{
@@ -255,9 +260,15 @@ devfs_quotactl(struct mount *a, int b, uid_t c, void *d,
 	return ENOTSUP;
 }
 
+#if (__NetBSD_Version__ >= 400000000)
+static int
+devfs_sync(struct mount *a, int b, kauth_cred_t kcred,
+	   struct lwp *l)
+#else
 static int
 devfs_sync(struct mount *a, int b, struct ucred * c,
 	   struct proc *d)
+#endif
 {
 	return 0;
 }
@@ -275,18 +286,25 @@ devfs_fhtovp(struct mount *a, struct fid *b,
 	return ENOTSUP;
 } 
 
+#if (__NetBSD_Version__ >= 400000000)
+static int
+devfs_vptofh(struct vnode *a, struct fid *b, size_t *)
+#else
 static int
 devfs_vptofh(struct vnode *a, struct fid *b)
+#endif
 {
 	return ENOTSUP;
 } 
 
+#if (__NetBSD_Version__ < 400000000)
 static int
 devfs_checkexp(struct mount *a, struct mbuf *b, int *c,
 	       struct ucred **d)
 {
 	return ENOTSUP;
 }
+#endif
 
 static const struct vnodeopv_desc * const 
 devfs_vnodeopv_descs[] = 
@@ -316,7 +334,9 @@ static struct vfsops devfs_vfsops =
   .vfs_vget           = &devfs_vget,
   .vfs_fhtovp         = &devfs_fhtovp,
   .vfs_vptofh         = &devfs_vptofh,
+#if (__NetBSD_Version__ < 400000000)
   .vfs_checkexp       = &devfs_checkexp,
+#endif
 };
 
 static void
