@@ -41,6 +41,13 @@ CFLAGS+=-DFREEBSD_NO_ISA
 #
 SRCS=
 
+.if (${OSNAME} == "NetBSD")
+#
+# Workaround for overloaded defines in NetBSD 4
+#
+CFLAGS+= -Ddevice_t=undef0 -Ddevclass_t=undef1 -I/usr/include
+.endif
+
 .if (${OSNAME} != "FreeBSD")
 CFLAGS+=-include ${.CURDIR}/fbsdid.h
 
