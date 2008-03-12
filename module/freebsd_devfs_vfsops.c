@@ -288,7 +288,7 @@ devfs_fhtovp(struct mount *a, struct fid *b,
 
 #if (__NetBSD_Version__ >= 400000000)
 static int
-devfs_vptofh(struct vnode *a, struct fid *b, size_t *)
+devfs_vptofh(struct vnode *a, struct fid *b, size_t *ps)
 #else
 static int
 devfs_vptofh(struct vnode *a, struct fid *b)
