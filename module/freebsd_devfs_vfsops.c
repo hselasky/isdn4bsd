@@ -68,9 +68,15 @@ devfs_root(struct mount *mp, /* int flags, */
 	return error;
 }
 
+#if (__NetBSD_Version__ >= 400000000)
+static int
+devfs_mount(struct mount *mp, const char *path, void *data,
+	    struct nameidata *ndp, struct lwp *l)
+#else
 static int
 devfs_mount(struct mount *mp, const char *path, void *data,
 	    struct nameidata *ndp, struct thread *td)
+#endif
 {
 	struct devfs_mount *fmp;
 	struct vnode *rvp;
@@ -141,9 +147,15 @@ devfs_mount(struct mount *mp, const char *path, void *data,
 	return error;
 }
 
+#if (__NetBSD_Version__ >= 400000000)
+static int
+devfs_unmount(struct mount *mp, int mntflags, 
+	      struct lwp *l)
+#else
 static int
 devfs_unmount(struct mount *mp, int mntflags, 
 	      struct thread *td)
+#endif
 {
 	struct devfs_mount *fmp;
 	int flags = 0;
@@ -183,8 +195,13 @@ devfs_unmount(struct mount *mp, int mntflags,
 	return error;
 }
 
+#if (__NetBSD_Version__ >= 400000000)
+static int
+devfs_statfs(struct mount *mp, struct statfs *sbp, struct lwp *l)
+#else
 static int
 devfs_statfs(struct mount *mp, struct statfs *sbp, struct thread *td)
+#endif
 {
 #if (__NetBSD_Version__ < 300000000)
 	sbp->f_flags = 0;
@@ -202,19 +219,19 @@ devfs_statfs(struct mount *mp, struct statfs *sbp, struct thread *td)
 }
 
 static void
-devfs_init()
+devfs_init(void)
 {
 	return;
 }
 
 static void
-devfs_reinit()
+devfs_reinit(void)
 {
 	return;
 }
 
 static void
-devfs_done()
+devfs_done(void)
 {
 	return;
 }
