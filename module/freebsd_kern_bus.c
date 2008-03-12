@@ -32,7 +32,7 @@
 
 #include <machine/stdarg.h>
 
-#if (__NetBSD_Version__ < 300000000)
+#if ((__NetBSD_Version__ < 300000000) || (__NetBSD_Version__ >= 400000000))
 #define pci_set_powerstate __pci_set_powerstate
 #define pci_get_powerstate __pci_get_powerstate
 #endif
