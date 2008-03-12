@@ -107,6 +107,7 @@ const struct bsd_module_data *dev_module;
     struct __device *dev_parent;
 };
 
+#undef device_t
 typedef struct __device * device_t;
 
 #define DEVCLASS_MAXUNIT 64
@@ -115,6 +116,7 @@ struct __devclass {
     device_t dev_list[DEVCLASS_MAXUNIT];
 };
 
+#undef devclass_t
 typedef struct __devclass *devclass_t;
 
 struct __driver {
