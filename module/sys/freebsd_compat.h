@@ -248,6 +248,7 @@ extern int pci_enumerate_bus
 #  define __FBSDID(args...)
 # endif
 
+#if (__NetBSD_Version__ < 400000000)
 static __inline int
 suser_cred(struct ucred *cred, int flag)
 {
@@ -257,6 +258,22 @@ suser_cred(struct ucred *cred, int flag)
 # ifndef suser
 #  define suser(td) suser((td)->p_ucred, NULL)
 # endif
+#else
+static __inline int
+suser_cred(struct kauth_cred *cred, int flag)
+{
+      return (kauth_authorize_generic(cred,
+	KAUTH_GENERIC_ISSUSER, NULL));
+}
+static __inline int
+suser(struct proc *td)
+{
+      struct lwp *temp_lwp = curlwp;
+      __KASSERT(temp_lwp->l_proc == (td), "Wrong lwp!");
+      return (kauth_authorize_generic(temp_lwp->l_cred,
+	KAUTH_GENERIC_ISSUSER, NULL));
+}
+#endif
 
 #if (__NetBSD_Version__ < 400000000)
 # ifndef time_second
