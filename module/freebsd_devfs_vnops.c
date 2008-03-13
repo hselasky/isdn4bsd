@@ -52,6 +52,16 @@ typedef int (__vnodeop_t)(void *);
 
 static __vnodeop_t **devfs_vnodeop_p;
 
+#if (__NetBSD_Version__ >= 400000000)
+#define a_p a_l->l_proc
+#define cn_proc cn_lwp->l_proc
+#define BSD_VOP_ACCESS(a,b,c,d0,d1) \
+  VOP_ACCESS(a,b,c,d1)
+#else
+#define BSD_VOP_ACCESS(a,b,c,d0,d1) \
+  VOP_ACCESS(a,b,c,d0)
+#endif
+
 /*
  * helper functions
  */
@@ -860,7 +870,7 @@ devfs_setattr(struct vop_setattr_args *ap)
 	   (vap->va_mtime.tv_sec != VNOVAL))
 	{
 	    if(((vap->va_vaflags & VA_UTIMES_NULL) == 0) &&
-	       (error = VOP_ACCESS(vp, VWRITE, ap->a_cred, ap->a_p)))
+	       (error = BSD_VOP_ACCESS(vp, VWRITE, ap->a_cred, ap->a_p, ap->a_l)))
 	    {
 	        goto done;
 	    }
@@ -986,7 +996,7 @@ __devfs_lookup(struct vop_lookup_args *ap)
 	    goto done;
 	}
 
-	error = VOP_ACCESS(dvp, VEXEC, cnp->cn_cred, td);
+	error = BSD_VOP_ACCESS(dvp, VEXEC, cnp->cn_cred, td, cnp->cn_lwp);
 	if(error)
 	{
 	    goto done;
@@ -1113,7 +1123,7 @@ notfound:
 
 	if((cnp->cn_nameiop == DELETE) && (flags & ISLASTCN))
 	{
-		error = VOP_ACCESS(dvp, VWRITE, cnp->cn_cred, td);
+		error = BSD_VOP_ACCESS(dvp, VWRITE, cnp->cn_cred, td, cnp->cn_lwp);
 		if(error)
 		{
 		    goto done;
@@ -1733,6 +1743,7 @@ devfs_strategy(struct vop_strategy_args *ap)
 	return EOPNOTSUPP;
 }
 
+#if (__NetBSD_Version < 400000000)
 static int
 devfs_blkatoff(struct vop_blkatoff_args *ap)
 {
@@ -1777,6 +1788,7 @@ devfs_update(struct vop_update_args *ap)
 #endif
 	return 0;
 }
+#endif
 
 static int
 devfs_bwrite(struct vop_bwrite_args *ap)
@@ -1872,11 +1884,13 @@ devfs_vnodeop_entries[] =
   { &vop_abortop_desc      , (vop_t)&devfs_abortop },
   { &vop_bmap_desc         , (vop_t)&devfs_bmap },
   { &vop_strategy_desc     , (vop_t)&devfs_strategy },
+#if (__NetBSD_Version < 400000000)
   { &vop_blkatoff_desc     , (vop_t)&devfs_blkatoff },
   { &vop_valloc_desc       , (vop_t)&devfs_valloc },
   { &vop_vfree_desc        , (vop_t)&devfs_vfree },
   { &vop_truncate_desc     , (vop_t)&devfs_truncate },
   { &vop_update_desc       , (vop_t)&devfs_update },
+#endif
   { &vop_bwrite_desc       , (vop_t)&devfs_bwrite },
   { &vop_getpages_desc     , (vop_t)&devfs_getpages },
   { &vop_putpages_desc     , (vop_t)&devfs_putpages },
