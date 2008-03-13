@@ -195,6 +195,15 @@ extern int pci_enumerate_bus
 #  include <sys/freebsd_if_var.h>
 #  include <sys/freebsd_sound.h>
 #  include <sys/freebsd_callout.h>
+# if (__NetBSD_Version >= 400000000)
+#  ifndef selrecord
+#   define selrecord(a,b) do { \
+      struct lwp *temp_lwp = curlwp; \
+      __KASSERT(temp_lwp->l_proc == (a), "Wrong lwp!"); \
+      selrecord(temp_lwp,b); \
+    } while (0)
+#  endif
+# endif
 #  ifndef selwakeuppri
 #   define selwakeuppri(sel, pri) selwakeup(sel)
 #  endif
