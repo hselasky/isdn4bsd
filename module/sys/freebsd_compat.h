@@ -273,6 +273,15 @@ suser(struct proc *td)
       return (kauth_authorize_generic(temp_lwp->l_cred,
 	KAUTH_GENERIC_ISSUSER, NULL));
 }
+static __inline int
+groupmember(gid_t _gid, struct kauth_cred *cred)
+{
+	int result;
+	if (kauth_cred_ismember_gid(cred, _gid, &result)) {
+	    result = 0;
+	}
+	return (result);
+}
 #endif
 
 #if (__NetBSD_Version__ < 400000000)
