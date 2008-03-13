@@ -258,6 +258,7 @@ static void
 i4b_clone(void *arg, I4B_UCRED char *name, int namelen, struct cdev **dev)
 {
 	struct i4b_ai_softc *sc;
+	struct thread *td;
 
         if(dev[0] != NULL)
 	{
@@ -269,16 +270,24 @@ i4b_clone(void *arg, I4B_UCRED char *name, int namelen, struct cdev **dev)
 		return;
         }
 
-#if ((__FreeBSD_version >= 700001) || (__FreeBSD_version == 0))
-	if(suser_cred(ucred,0))
+	td = curthread;
+
+#ifdef __FreeBSD__
+	if (td->td_ucred == NULL)
+#else
+	if (td->p_cred == NULL)
+#endif
 	{
+		/* sanity */
 		return;
 	}
-#endif
-	sc = i4b_ai_get_closed_sc();
 
-	if(sc == NULL)
-	{
+	if (suser(td) == 0) {
+		sc = i4b_ai_get_closed_sc();
+		if (sc == NULL) {
+			return;
+		}
+	} else {
 		return;
 	}
 

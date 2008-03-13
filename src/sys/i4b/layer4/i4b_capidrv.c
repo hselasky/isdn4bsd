@@ -294,7 +294,11 @@ capi_ai_get_closed_sc(struct capi_delegate *dg, struct thread *td)
 #ifdef __FreeBSD__
 	    dg = capi_ai_find_delegate_by_uid(td->td_ucred->cr_ruid);
 #else
+#if (__NetBSD_Version < 400000000)
 	    dg = capi_ai_find_delegate_by_uid(td->p_cred->p_ruid);
+#else
+	    dg = capi_ai_find_delegate_by_uid(td->p_cred->cr_uid);
+#endif
 #endif
 	    if ((dg == NULL) || 
 		((dg->mode & 0600) == 0)) {
@@ -303,7 +307,11 @@ capi_ai_get_closed_sc(struct capi_delegate *dg, struct thread *td)
 #ifdef __FreeBSD__
 	        dg = capi_ai_find_delegate_by_gid(td->td_ucred->cr_rgid);
 #else
+#if (__NetBSD_Version < 400000000)
 		dg = capi_ai_find_delegate_by_gid(td->p_cred->p_rgid);
+#else
+		dg = capi_ai_find_delegate_by_gid(td->p_cred->cr_gid);
+#endif
 #endif
 		if ((dg == NULL) || 
 		    ((dg->mode & 0060) == 0)) {
