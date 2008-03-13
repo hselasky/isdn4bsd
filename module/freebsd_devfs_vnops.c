@@ -971,7 +971,9 @@ __devfs_lookup(struct vop_lookup_args *ap)
 	u_int8_t specname[SPECNAMELEN + 1];
 	u_int8_t *pname;
 	u_int16_t name_len;
+#if (__NetBSD_Version__ < 400000000)
 	u_int8_t unlock = (!(flags & ISLASTCN)) || (!(flags & LOCKPARENT));
+#endif
 
 	pname = (u_int8_t *)(cnp->cn_nameptr);
 	dmp = VFSTODEVFS(dvp->v_mount);
@@ -1012,7 +1014,9 @@ __devfs_lookup(struct vop_lookup_args *ap)
 
 	    vpp[0] = dvp;
 	    VREF(dvp);
+#if (__NetBSD_Version__ < 400000000)
 	    unlock = 0;
+#endif
 	    goto done;
 	}
 
@@ -1031,12 +1035,14 @@ __devfs_lookup(struct vop_lookup_args *ap)
 	    de = de->de_dir;
 	    error = devfs_allocv(de, dvp->v_mount, vpp, td);
 
+#if (__NetBSD_Version__ < 400000000)
 	    if((error == 0) && unlock)
 	    {
 	        unlock = 0;
 		cnp->cn_flags |= PDIRUNLOCK;
 		goto done;
 	    }
+#endif
 	    vn_lock(dvp, LK_EXCLUSIVE | LK_RETRY);
 	    goto done;
 	}
@@ -1132,7 +1138,9 @@ notfound:
 		if(vpp[0] == dvp)
 		{
 			VREF(dvp);
+#if (__NetBSD_Version__ < 400000000)
 			unlock = 0;
+#endif
 			goto done;
 		}
 	}
@@ -1140,11 +1148,13 @@ notfound:
 	error = devfs_allocv(de, dvp->v_mount, vpp, td);
 
  done:
+#if (__NetBSD_Version__ < 400000000)
 	if((error == 0) && unlock)
 	{
 	    VOP_UNLOCK(dvp, 0);
 	    cnp->cn_flags |= PDIRUNLOCK;
 	}
+#endif
 	return error;
 }
 
