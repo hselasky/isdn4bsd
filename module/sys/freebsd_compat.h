@@ -199,7 +199,7 @@ extern int pci_enumerate_bus
 #  ifndef selrecord
 #   define selrecord(a,b) do { \
       struct lwp *temp_lwp = curlwp; \
-      __KASSERT(temp_lwp->l_proc == (a), "Wrong lwp!"); \
+      __KASSERT(temp_lwp->l_proc == (a), ("Wrong lwp!")); \
       selrecord(temp_lwp,b); \
     } while (0)
 #  endif
@@ -269,7 +269,7 @@ static __inline int
 suser(struct proc *td)
 {
       struct lwp *temp_lwp = curlwp;
-      __KASSERT(temp_lwp->l_proc == (td), "Wrong lwp!");
+      __KASSERT(temp_lwp->l_proc == (td), ("Wrong lwp!"));
       return (kauth_authorize_generic(temp_lwp->l_cred,
 	KAUTH_GENERIC_ISSUSER, NULL));
 }
