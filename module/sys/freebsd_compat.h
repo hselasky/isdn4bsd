@@ -282,6 +282,8 @@ groupmember(gid_t _gid, struct kauth_cred *cred)
 	}
 	return (result);
 }
+#define crhold(cr) do { panic("crhold is not supported\n"); } while (0) /* XXX */
+#define crfree(cr) do { panic("crfree is not supported\n"); } while (0) /* XXX */
 #endif
 
 #if (__NetBSD_Version__ < 400000000)
