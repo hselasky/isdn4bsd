@@ -16,18 +16,20 @@ SUPPORTED OPERATING SYSTEMS
 ===========================
 
  - FreeBSD-6.2-release
+ - FreeBSD-6.3-release
  - FreeBSD-6-current
  - FreeBSD-7-current
  - FreeBSD-8-current
 
  - NetBSD 2.x.x
  - NetBSD 3.x.x
-
+ - NetBSD 4.x.x
 
 
 FEATURES
 ========
 
+  - support for 512-tap FFT Echo Cancelling
   - support for EuroISDN, DSS1 (point to point and point to multipoint)
   - support for overlap sending and dial in digits
   - support for hold and retrieve in NT-mode
