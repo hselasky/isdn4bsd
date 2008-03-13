@@ -857,7 +857,7 @@ devfs_setattr(struct vop_setattr_args *ap)
 
 	if(vap->va_mode != (mode_t)VNOVAL)
 	{
-	    if((kauth_cred_getuid(p->a_cred) != de->de_uid) &&
+	    if((kauth_cred_getuid(ap->a_cred) != de->de_uid) &&
 	       (error = suser(ap->a_p)))
 	    {
 	        goto done;
@@ -1084,8 +1084,13 @@ __devfs_lookup(struct vop_lookup_args *ap)
 
 	cdev = NULL;
 	name_len = strlen(pname);
+#if (__NetBSD_Version__ < 400000000)
 	EVENTHANDLER_INVOKE(dev_clone, td->p_ucred, pname, 
 			    name_len, &cdev);
+#else
+	EVENTHANDLER_INVOKE(dev_clone, NULL /* XXX not supported */, pname, 
+			    name_len, &cdev);
+#endif
 	if(cdev == NULL)
 	{
 	    goto notfound;
