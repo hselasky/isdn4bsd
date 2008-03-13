@@ -843,7 +843,7 @@ devfs_setattr(struct vop_setattr_args *ap)
 	if((uid != de->de_uid) || 
 	   (gid != de->de_gid))
 	{
-	    if(((ap->a_cred->cr_uid != de->de_uid) || 
+	    if(((kauth_cred_getuid(ap->a_cred) != de->de_uid) || 
 		(uid != de->de_uid) ||
 		((gid != de->de_gid) && !groupmember(gid, ap->a_cred))) &&
 	       (error = suser(ap->a_p)))
@@ -857,7 +857,7 @@ devfs_setattr(struct vop_setattr_args *ap)
 
 	if(vap->va_mode != (mode_t)VNOVAL)
 	{
-	    if((ap->a_cred->cr_uid != de->de_uid) &&
+	    if((kauth_cred_getuid(p->a_cred) != de->de_uid) &&
 	       (error = suser(ap->a_p)))
 	    {
 	        goto done;

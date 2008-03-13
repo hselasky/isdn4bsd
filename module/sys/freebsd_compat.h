@@ -258,6 +258,10 @@ suser_cred(struct ucred *cred, int flag)
 # ifndef suser
 #  define suser(td) suser((td)->p_ucred, NULL)
 # endif
+#define kauth_cred_getuid(cr) (cr)->cr_uid
+#define kauth_cred_getgid(cr) (cr)->cr_gid
+#define kauth_cred_getegid(cr) (cr)->p_rgid
+#define kauth_cred_geteuid(cr) (cr)->p_ruid
 #else
 static __inline int
 suser_cred(struct kauth_cred *cred, int flag)
