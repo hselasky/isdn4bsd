@@ -1114,9 +1114,17 @@ __devfs_lookup(struct vop_lookup_args *ap)
 notfound:
 
 	if(((nameiop == CREATE) || (nameiop == RENAME)) &&
+#if (__NetBSD_Version__ < 400000000)
 	   (flags & (LOCKPARENT | WANTPARENT)) && 
+#endif
 	   (flags & ISLASTCN))
 	{
+	    error = BSD_VOP_ACCESS(dvp, VWRITE, 
+	        cnp->cn_cred, td, cnp->cn_lwp);
+	    if (error) {
+		goto done;
+	    }
+
 	    cnp->cn_flags |= SAVENAME;
 	    error = EJUSTRETURN;
 	    goto done;
