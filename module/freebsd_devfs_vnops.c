@@ -1743,7 +1743,7 @@ devfs_strategy(struct vop_strategy_args *ap)
 	return EOPNOTSUPP;
 }
 
-#if (__NetBSD_Version < 400000000)
+#if (__NetBSD_Version__ < 400000000)
 static int
 devfs_blkatoff(struct vop_blkatoff_args *ap)
 {
@@ -1884,7 +1884,7 @@ devfs_vnodeop_entries[] =
   { &vop_abortop_desc      , (vop_t)&devfs_abortop },
   { &vop_bmap_desc         , (vop_t)&devfs_bmap },
   { &vop_strategy_desc     , (vop_t)&devfs_strategy },
-#if (__NetBSD_Version < 400000000)
+#if (__NetBSD_Version__ < 400000000)
   { &vop_blkatoff_desc     , (vop_t)&devfs_blkatoff },
   { &vop_valloc_desc       , (vop_t)&devfs_valloc },
   { &vop_vfree_desc        , (vop_t)&devfs_vfree },
