@@ -81,7 +81,7 @@ struct buffer {
 
 struct ie {
   u_int8_t         code;  /* information element identifier code */
-  const u_int8_t * name;  /* IE name */
+  const char *     name;  /* IE name */
   void           (*func)(struct buffer *, struct buffer *);
 };
 
@@ -105,6 +105,6 @@ extern void bsprintline(struct buffer *dst, struct buffer *src,
 			u_int16_t oct_count, u_int8_t oct_mask, const void *fmt, ...);
 
 extern void q932_facility(struct buffer *dst, struct buffer *src);
-extern void dump_raw(struct buffer *dst, struct buffer *src, const u_int8_t *desc);
+extern void dump_raw(struct buffer *dst, struct buffer *src, const char *desc);
 
 #endif /* _DECODE_H_ */

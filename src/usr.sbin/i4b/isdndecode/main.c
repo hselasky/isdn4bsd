@@ -1025,7 +1025,7 @@ bsprintline(struct buffer *dst, struct buffer *src,
  *	dump data in hex and ascii to text buffer
  *---------------------------------------------------------------------------*/
 void
-dump_raw(struct buffer *dst, struct buffer *src, const u_int8_t *desc)
+dump_raw(struct buffer *dst, struct buffer *src, const char *desc)
 {
 	u_int16_t i;
 	u_int8_t j;

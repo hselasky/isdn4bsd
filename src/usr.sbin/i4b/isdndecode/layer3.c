@@ -299,7 +299,7 @@ layer3_dss1(struct buffer *dst, struct buffer *src)
 static const char *
 itr6_get_cause(u_int8_t code)
 {
-	static const u_int8_t * const
+	static const char * const
 	  MAKE_TABLE(ITR6_CAUSES,DESC,[]);
 	const u_int8_t *temp;
 
