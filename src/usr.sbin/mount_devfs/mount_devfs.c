@@ -27,6 +27,7 @@
 #include <sys/mount.h>
 #include <errno.h>
 #include <err.h>
+#include <stdlib.h>
 
 static void
 usage()
