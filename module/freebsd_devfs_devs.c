@@ -167,14 +167,12 @@ devfs_newdirent(char *name, int namelen)
 {
 	int i;
 	struct devfs_dirent *de;
-	struct dirent d;
 
-	d.d_namlen = namelen;
-	i = sizeof (*de) + GENERIC_DIRSIZ(&d);
+	i = sizeof (*de) + _DIRENT_RECLEN(de, namelen);
 	MALLOC(de, struct devfs_dirent *, i, M_DEVFS, M_WAITOK | M_ZERO);
 	de->de_dirent = (struct dirent *)(de + 1);
 	de->de_dirent->d_namlen = namelen;
-	de->de_dirent->d_reclen = GENERIC_DIRSIZ(&d);
+	de->de_dirent->d_reclen = _DIRENT_RECLEN(de, namelen);
 	bcopy(name, de->de_dirent->d_name, namelen);
 	de->de_dirent->d_name[namelen] = '\0';
 	devfs_timestamp(&de->de_ctime);

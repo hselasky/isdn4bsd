@@ -223,11 +223,6 @@ extern int pci_enumerate_bus
 # define O_NONBLOCK IO_NDELAY
 # define O_FSYNC IO_SYNC
 
-# ifdef _KERNEL
-#  define GENERIC_DIRSIZ(dp) \
-    ((sizeof (struct dirent) - (MAXNAMLEN+1)) + (((dp)->d_namlen+1 + 3) &~ 3))
-# endif
-
 # ifndef lockdestroy
 #  define lockdestroy(args...) 
 # endif
