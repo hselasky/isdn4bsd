@@ -168,6 +168,10 @@ devfs_newdirent(char *name, int namelen)
 	int i;
 	struct devfs_dirent *de;
 
+#if (__NetBSD_Version < 400000000)
+#define _DIRENT_RECLEN(pde, namlen) \
+	(sizeof(*(pde)) - sizeof((pde)->d_name) + (((namlen) + 1 + 3) &~ 3))
+#endif
 	i = sizeof (*de) + _DIRENT_RECLEN(de->de_dirent, namelen);
 	MALLOC(de, struct devfs_dirent *, i, M_DEVFS, M_WAITOK | M_ZERO);
 	de->de_dirent = (struct dirent *)(de + 1);
