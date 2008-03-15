@@ -55,15 +55,15 @@ static u_int8_t  npoll = 0;
 
 static u_int32_t enable_trace = TRACE_D_RX | TRACE_D_TX;
 
-static u_int8_t *outfile = DECODE_FILE_NAME;
-static u_int8_t *binfile = BIN_FILE_NAME;
+static char *outfile = DECODE_FILE_NAME;
+static char *binfile = BIN_FILE_NAME;
 
 static int f_Rx;
 static int f_Tx;
 
-static u_int8_t  outfilename[MAXPATHLEN];
-static u_int8_t  BPfilename[MAXPATHLEN];
-static u_int8_t  tempbuffer[BSIZE];
+static char outfilename[MAXPATHLEN];
+static char BPfilename[MAXPATHLEN];
+static char tempbuffer[BSIZE];
 
 static void dumpbuf(i4b_trace_hdr_t *hdr, void *pframe, u_int16_t len);
 static int  switch_driver(int value);
