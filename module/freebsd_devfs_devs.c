@@ -168,7 +168,7 @@ devfs_newdirent(char *name, int namelen)
 	int i;
 	struct devfs_dirent *de;
 
-#if (__NetBSD_Version < 400000000)
+#if (__NetBSD_Version__ < 400000000)
 #define _DIRENT_RECLEN(pde, namlen) \
 	(sizeof(*(pde)) - sizeof((pde)->d_name) + (((namlen) + 1 + 3) &~ 3))
 #endif
