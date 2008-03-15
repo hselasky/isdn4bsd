@@ -128,7 +128,7 @@ devfs_itode(struct devfs_mount *dm, int inode)
 		return (&dm->dm_dirent[inode]);
 	if (devfs_overflow == NULL)
 		return (NULL);
-	if (inode < NDEVFSINO + devfs_noverflow)
+	if (inode < (NDEVFSINO + devfs_noverflow))
 		return (&dm->dm_overflow[inode - NDEVFSINO]);
 	return (NULL);
 }
