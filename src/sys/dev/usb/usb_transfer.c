@@ -3872,6 +3872,10 @@ SYSCTL_INT(_hw_usb, OID_AUTO, ss_delay, CTLFLAG_RW,
  * than 30 seconds is treated like a 30 second timeout. This USB stack
  * does not allow control requests without a timeout.
  *
+ * NOTE: This function is thread safe. All calls to
+ * "usbd_do_request_flags" will be serialised by the use of an
+ * internal "sx_lock".
+ *
  * Returns:
  *    0: Success
  * Else: Failure
