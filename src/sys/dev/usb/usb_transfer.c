@@ -3827,6 +3827,48 @@ SYSCTL_INT(_hw_usb, OID_AUTO, ss_delay, CTLFLAG_RW,
 /*------------------------------------------------------------------------*
  *	usbd_do_request_flags and usbd_do_request
  *
+ * Description of arguments passed to these functions:
+ *
+ * "udev" - this is the "usb_device" structure pointer on which the
+ * request should be performed. It is possible to call this function
+ * in both Host Side mode and Device Side mode.
+ *
+ * "mtx" - if this argument is non-NULL the mutex pointed to by it
+ * will get dropped and picked up during the execution of this
+ * function, hence this function sometimes needs to sleep. If this
+ * argument is NULL it has no effect.
+ *
+ * "req" - this argument must always be non-NULL and points to an
+ * 8-byte structure holding the USB request to be done. The USB
+ * request structure has a bit telling the direction of the USB
+ * request, if it is a read or a write.
+ *
+ * "data" - if the "wLength" part of the structure pointed to by "req"
+ * is non-zero this argument must point to a valid kernel buffer which
+ * can hold at least "wLength" bytes. If "wLength" is zero "data" can
+ * be NULL.
+ *
+ * "flags" - here is a list of valid flags:
+ *
+ *  o USBD_SHORT_XFER_OK: allows the data transfer to be shorter than
+ *  specified
+ *
+ *  o USBD_USE_POLLING: forces the transfer to complete from the
+ *  current context by polling the interrupt handler. This flag can be
+ *  used to perform USB transfers after that the kernel has crashed.
+ *
+ *  o USBD_DELAY_STATUS_STAGE: allows the status stage to be performed
+ *  at a later point in time. This is tunable by the "hw.usb.ss_delay"
+ *  sysctl. This flag is mostly useful for debugging.
+ *
+ * "actlen" - if non-NULL the actual transfer length will be stored in
+ * the 16-bit unsigned integer pointed to by "actlen". This
+ * information is mostly useful when the "USBD_SHORT_XFER_OK" flag is
+ * used.
+ *
+ * "timeout" - gives the timeout for the control transfer in
+ * milliseconds.
+ *
  * Returns:
  *    0: Success
  * Else: Failure

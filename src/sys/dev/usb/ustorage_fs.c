@@ -128,7 +128,6 @@ struct ustorage_fs_lun {
 
 	uint8_t	read_only:1;
 	uint8_t	prevent_medium_removal:1;
-	uint8_t	registered:1;
 	uint8_t	info_valid:1;
 	uint8_t	removable:1;
 };

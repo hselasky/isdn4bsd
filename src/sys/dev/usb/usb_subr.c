@@ -1516,8 +1516,8 @@ usbd_probe_and_attach_sub(struct usbd_device *udev,
 /*------------------------------------------------------------------------*
  *	usbd_probe_and_attach
  *
- * This function is called from "uhub_explore_sub()" and
- * "usbd_serve_request_callback_sub()"
+ * This function is called from "uhub_explore_sub()",
+ * "usbd_handle_set_config()" and "usbd_handle_request()".
  *
  * Returns:
  *    0: Success
