@@ -3867,7 +3867,10 @@ SYSCTL_INT(_hw_usb, OID_AUTO, ss_delay, CTLFLAG_RW,
  * used.
  *
  * "timeout" - gives the timeout for the control transfer in
- * milliseconds.
+ * milliseconds. A "timeout" value less than 50 milliseconds is
+ * treated like a 50 millisecond timeout. A "timeout" value greater
+ * than 30 seconds is treated like a 30 second timeout. This USB stack
+ * does not allow control requests without a timeout.
  *
  * Returns:
  *    0: Success
@@ -3891,6 +3894,10 @@ usbd_do_request_flags(struct usbd_device *udev, struct mtx *mtx,
 	if (timeout < 50) {
 		/* timeout is too small */
 		timeout = 50;
+	}
+	if (timeout > 30000) {
+		/* timeout is too big */
+		timeout = 30000;
 	}
 	length = UGETW(req->wLength);
 
