@@ -61,6 +61,7 @@
 #include <sys/module.h>
 #include <sys/mutex.h>
 #include <sys/sx.h>
+#include <sys/condvar.h>
 #include <sys/rman.h>
 #include <sys/selinfo.h>
 #include <sys/sysctl.h>			/* SYSCTL_XXX() */

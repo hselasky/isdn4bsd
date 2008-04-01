@@ -63,6 +63,7 @@ static uint8_t usbd_start_hardware_sub(struct usbd_xfer *xfer);
 static void usbd_premature_callback(struct usbd_xfer *xfer, usbd_status_t error);
 static void usbd_pipe_enter_wrapper(struct usbd_xfer *xfer);
 static void usbd_bdma_work_loop(struct usbd_memory_info *info);
+static void usbd_bdma_done_event(struct usbd_dma_parent_tag *udpt);
 static void usbd_callback_intr_sched(struct usbd_memory_info *info);
 static void usbd_callback_intr_td_sub(struct usbd_xfer **xfer, uint8_t dropcount);
 static void usbd_callback_intr_td(void *arg);
@@ -814,7 +815,8 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 
 	if (parm->buf) {
 		for (x = 0; x != n_frbuffers; x++) {
-			xfer->frbuffers[x].xfer = xfer;
+			xfer->frbuffers[x].tag_parent =
+			    &(xfer->usb_root->dma_parent_tag);
 
 			if (xfer->flags_int.bdma_enable &&
 			    (parm->bufsize_max > 0)) {
@@ -943,8 +945,11 @@ usbd_transfer_setup(struct usbd_device *udev,
 
 			info->usb_mtx = &(udev->bus->mtx);
 			info->priv_mtx = priv_mtx;
-			info->dma_tag_p = parm.dma_tag_p;
-			info->dma_tag_max = parm.dma_tag_max;
+
+			usbd_dma_tag_setup(&(info->dma_parent_tag),
+			    parm.dma_tag_p, udev->bus->dma_parent_tag[0].tag,
+			    priv_mtx, &usbd_bdma_done_event, info, 32, parm.dma_tag_max);
+
 			info->bus = udev->bus;
 
 			LIST_INIT(&(info->done_head));
@@ -1231,8 +1236,7 @@ usbd_transfer_unsetup_sub(struct usbd_memory_info *info, uint8_t needs_delay)
 	}
 
 	/* free all DMA tags */
-	usbd_dma_tag_unsetup(info->dma_tag_p,
-	    info->dma_tag_max);
+	usbd_dma_tag_unsetup(&(info->dma_parent_tag));
 
 	/*
 	 * free the "memory_base" last, hence the "info" structure is
@@ -1801,7 +1805,7 @@ usbd_start_hardware(struct usbd_xfer *xfer)
 		info = xfer->usb_root;
 
 		/*
-	         * Only call the BUS-DMA work loop when it is not busy
+	         * Only call the BUS-DMA work loop when it is not busy:
 	         */
 		if (info->dma_refcount == 0) {
 			usbd_bdma_work_loop(info);
@@ -1841,9 +1845,31 @@ usbd_pipe_enter_wrapper(struct usbd_xfer *xfer)
 }
 
 /*------------------------------------------------------------------------*
+ *	usbd_bdma_get_next_xfer
+ *
+ * This function will advance the "dma_curr_xfer" pointer to the next
+ * USB transfer in the queue.
+ *------------------------------------------------------------------------*/
+static void
+usbd_bdma_get_next_xfer(struct usbd_memory_info *info)
+{
+	struct usbd_xfer *xfer;
+
+	xfer = info->dma_curr_xfer;
+
+	/* prepare next USB transfer to load, if any */
+	info->dma_curr_xfer =
+	    LIST_PREV(&(info->dma_head), xfer, dma_list);
+	LIST_REMOVE(xfer, dma_list);
+	xfer->dma_list.le_prev = NULL;
+	return;
+}
+
+/*------------------------------------------------------------------------*
  *	usbd_bdma_work_loop
  *
- * This function handles loading of virtual buffers into DMA.
+ * This function handles loading of virtual buffers into DMA and is
+ * only called when "dma_refcount" is zero.
  *------------------------------------------------------------------------*/
 static void
 usbd_bdma_work_loop(struct usbd_memory_info *info)
@@ -1860,44 +1886,69 @@ load_complete:
 
 	xfer = info->dma_curr_xfer;
 	if (xfer) {
-		/* prepare next USB transfer to load, if any */
-		info->dma_curr_xfer =
-		    LIST_PREV(&(info->dma_head), xfer, dma_list);
-		LIST_REMOVE(xfer, dma_list);
-		xfer->dma_list.le_prev = NULL;
 
-		/* check for DMA error */
+		/* prevent recursion by increasing the DMA refcount */
+
+		info->dma_refcount = 2;
+
+		/* check for errors */
 
 		if (!xfer->flags_int.open) {
 
-			/* we got cancelled */
+			/* get next xfer */
+			usbd_bdma_get_next_xfer(info);
 
-			info->dma_refcount++;
+			/* we got cancelled */
 			usbd_premature_callback(xfer,
 			    USBD_ERR_CANCELLED);
-			info->dma_refcount--;
 
 		} else if (info->dma_error) {
 
-			/* prevent recursion by increasing refcount */
-
-			info->dma_refcount++;
+			/* get next xfer */
+			usbd_bdma_get_next_xfer(info);
 
 			/* report error */
-
 			usbd_premature_callback(xfer,
 			    USBD_ERR_DMA_LOAD_FAILED);
 
-			info->dma_refcount--;
+		} else if (info->dma_currframe != info->dma_nframes) {
 
+			if (info->dma_currframe == 0) {
+				/* special case */
+				usbd_pc_load_mem(xfer->frbuffers,
+				    info->dma_frlength_0);
+			} else {
+				/* default case */
+				nframes = info->dma_currframe;
+				usbd_pc_load_mem(xfer->frbuffers + nframes,
+				    xfer->frlengths[nframes]);
+			}
+
+			/* advance frame index */
+			info->dma_currframe++;
+
+			/* check if callback has decremented refcount */
+			if (--(info->dma_refcount) == 0) {
+				/* we are complete */
+				goto load_complete;
+			} else {
+				/* wait for callback */
+				return;
+			}
 		} else {
+
+			/* get next xfer */
+			usbd_bdma_get_next_xfer(info);
+
 			/* go ahead */
 			usbd_bdma_pre_sync(xfer);
 
 			/* finally start the hardware */
 			usbd_pipe_enter_wrapper(xfer);
-
 		}
+
+		info->dma_refcount = 0;
+
 	} else {
 		/* get first USB transfer */
 		info->dma_curr_xfer =
@@ -1915,7 +1966,6 @@ load_complete:
 	}
 	/* reset BUS-DMA load state */
 
-	info->dma_refcount = 1;
 	info->dma_error = 0;
 
 	if (xfer->flags_int.isochronous_xfr) {
@@ -1949,44 +1999,53 @@ load_complete:
 		xfer->frbuffers[0].isread = isread;
 	}
 
+	/*
+	 * Setup the "page_start" pointer which points to an array of
+	 * USB pages where information about the physical address of a
+	 * page will be stored. Also initialise the "isread" field of
+	 * the USB page caches.
+	 */
 	xfer->frbuffers[0].page_start = pg;
 
-	usbd_pc_load_mem(xfer->frbuffers, frlength_0);
+	info->dma_nframes = nframes;
+	info->dma_currframe = 0;
+	info->dma_frlength_0 = frlength_0;
 
 	pg += (frlength_0 / USB_PAGE_SIZE);
 	pg += 2;
 
 	while (--nframes > 0) {
 		xfer->frbuffers[nframes].isread = isread;
-
 		xfer->frbuffers[nframes].page_start = pg;
-
-		usbd_pc_load_mem(xfer->frbuffers + nframes,
-		    xfer->frlengths[nframes]);
 
 		pg += (xfer->frlengths[nframes] / USB_PAGE_SIZE);
 		pg += 2;
 	}
 
-	if (--(info->dma_refcount) == 0) {
-		/* we are complete */
-		goto load_complete;
-	}
-	return;
+	goto load_complete;
 }
 
 /*------------------------------------------------------------------------*
  *	usbd_bdma_done_event
  *
  * This function is called when the BUS-DMA has loaded virtual memory
- * into DMA, if any
+ * into DMA, if any.
  *------------------------------------------------------------------------*/
-void
-usbd_bdma_done_event(struct usbd_memory_info *info)
+static void
+usbd_bdma_done_event(struct usbd_dma_parent_tag *udpt)
 {
+	struct usbd_memory_info *info;
+
+	info = udpt->info;
+
 	mtx_assert(info->priv_mtx, MA_OWNED);
 
+	/* copy error */
+	info->dma_error = udpt->dma_error;
+
+	/* check refcount */
 	if (--(info->dma_refcount) == 0) {
+		/* call work loop */
 		usbd_bdma_work_loop(info);
 	}
 	return;

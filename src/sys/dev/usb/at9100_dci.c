@@ -65,6 +65,9 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/at9100_dci.c $");
    ((struct at9100_dci_softc *)(((uint8_t *)(bus)) - \
    POINTER_TO_UNSIGNED(&(((struct at9100_dci_softc *)0)->sc_bus))))
 
+#define	AT9100_DCI_PC2SC(pc) \
+   AT9100_DCI_BUS2SC((pc)->tag_parent->info->bus)
+
 #ifdef USB_DEBUG
 #define	DPRINTFN(n,fmt,...) do {			\
   if (at9100_dcidebug > (n)) {				\
@@ -367,7 +370,7 @@ at9100_dci_setup_rx(struct at9100_dci_td *td)
 	td->remainder = 0;
 
 	/* get pointer to softc */
-	sc = td->pc->xfer->usb_sc;
+	sc = AT9100_DCI_PC2SC(td->pc);
 
 	/* sneak peek the set address */
 	if ((req.bmRequestType == UT_WRITE_DEVICE) &&
@@ -649,7 +652,7 @@ repeat:
 	if (!(csr & AT91_UDP_CSR_TXCOMP)) {
 		goto not_complete;
 	}
-	sc = td->pc->xfer->usb_sc;
+	sc = AT9100_DCI_PC2SC(td->pc);
 	if (sc->sc_dv_addr != 0xFF) {
 		/*
 		 * The AT91 has a special requirement with regard to

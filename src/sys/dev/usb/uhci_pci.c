@@ -224,13 +224,10 @@ uhci_pci_attach(device_t self)
 		device_printf(self, "Could not allocate sc\n");
 		return (ENXIO);
 	}
-	/* store parent DMA tag */
-
-	sc->sc_bus.dma_tag_parent = device_get_dma_tag(self);
-
 	/* get all DMA memory */
 
-	if (usbd_bus_mem_alloc_all(&(sc->sc_bus), &uhci_iterate_hw_softc)) {
+	if (usbd_bus_mem_alloc_all(&(sc->sc_bus), device_get_dma_tag(self),
+	    &uhci_iterate_hw_softc)) {
 		return ENOMEM;
 	}
 	sc->sc_dev = self;

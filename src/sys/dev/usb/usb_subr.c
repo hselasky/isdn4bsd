@@ -88,12 +88,15 @@ static uint8_t usbd_probe_and_attach_sub(struct usbd_device *udev, struct usb_at
 static void usbd_suspend_resume_sub(struct usbd_device *udev, device_t dev, uint8_t do_suspend);
 
 #ifdef __FreeBSD__
+static void usbd_dma_lock_cb(void *arg, bus_dma_lock_op_t op);
 static int32_t usbd_m_copy_in_cb(void *arg, void *src, uint32_t count);
 static void usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs, int nseg, int error);
+static void usbd_pc_load_mem_cb(void *arg, bus_dma_segment_t *segs, int nseg, int error);
+static void usbd_pc_common_mem_cb(void *arg, bus_dma_segment_t *segs, int nseg, int error, uint8_t isload);
 
 #else
 static int32_t usbd_m_copy_in_cb(void *arg, caddr_t src, uint32_t count);
-static void usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs, int nseg, int error);
+static void usbd_pc_common_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs, int nseg, int error, uint8_t isload);
 
 #endif
 static void usbd_config_td_thread(void *arg);;
@@ -2519,22 +2522,32 @@ usbd_bzero(struct usbd_page_cache *cache, uint32_t offset, uint32_t len)
 #ifdef __FreeBSD__
 
 /*------------------------------------------------------------------------*
+ *	usbd_dma_lock_cb - dummy callback
+ *------------------------------------------------------------------------*/
+static void
+usbd_dma_lock_cb(void *arg, bus_dma_lock_op_t op)
+{
+	/* we use "mtx_owned()" instead of this function */
+	return;
+}
+
+/*------------------------------------------------------------------------*
  *	usbd_dma_tag_create - allocate a DMA tag
  *
  * NOTE: If the "align" parameter has a value of 1 the DMA-tag will
  * allow multi-segment mappings. Else all mappings are single-segment.
  *------------------------------------------------------------------------*/
 void
-usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
+usbd_dma_tag_create(struct usbd_dma_tag *udt,
     uint32_t size, uint32_t align)
 {
 	bus_dma_tag_t tag;
 
 	if (bus_dma_tag_create
-	    ( /* parent    */ tag_parent,
+	    ( /* parent    */ udt->tag_parent->tag,
 	     /* alignment */ align,
 	     /* boundary  */ 0,
-	     /* lowaddr   */ BUS_SPACE_MAXADDR_32BIT,
+	     /* lowaddr   */ (2ULL << (udt->tag_parent->dma_bits - 1)) - 1,
 	     /* highaddr  */ BUS_SPACE_MAXADDR,
 	     /* filter    */ NULL,
 	     /* filterarg */ NULL,
@@ -2544,8 +2557,8 @@ usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
 	     /* maxsegsz  */ (align == 1) ?
 	    USB_PAGE_SIZE : size,
 	     /* flags     */ 0,
-	     /* lock      */ NULL,
-	     /* */ NULL,
+	     /* lockfn    */ &usbd_dma_lock_cb,
+	     /* lockarg   */ NULL,
 	    &tag)) {
 		tag = NULL;
 	}
@@ -2570,7 +2583,29 @@ static void
 usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
     int nseg, int error)
 {
-	struct usbd_xfer *xfer;
+	usbd_pc_common_mem_cb(arg, segs, nseg, error, 0);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_load_mem_cb - BUS-DMA callback function
+ *------------------------------------------------------------------------*/
+static void
+usbd_pc_load_mem_cb(void *arg, bus_dma_segment_t *segs,
+    int nseg, int error)
+{
+	usbd_pc_common_mem_cb(arg, segs, nseg, error, 1);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_common_mem_cb - BUS-DMA callback function
+ *------------------------------------------------------------------------*/
+static void
+usbd_pc_common_mem_cb(void *arg, bus_dma_segment_t *segs,
+    int nseg, int error, uint8_t isload)
+{
+	struct usbd_dma_parent_tag *uptag;
 	struct usbd_page_cache *pc;
 	struct usbd_page *pg;
 	uint32_t rem;
@@ -2578,7 +2613,7 @@ usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
 	uint8_t ext_seg;		/* extend last segment */
 
 	pc = arg;
-	xfer = pc->xfer;
+	uptag = pc->tag_parent;
 
 	/*
 	 * XXX There is sometimes recursive locking here.
@@ -2588,16 +2623,7 @@ usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
 	 */
 
 	if (error) {
-		if (xfer) {
-			owned = mtx_owned(xfer->priv_mtx);
-			if (!owned)
-				mtx_lock(xfer->priv_mtx);
-			xfer->usb_root->dma_error = 1;
-			usbd_bdma_done_event(xfer->usb_root);
-			if (!owned)
-				mtx_unlock(xfer->priv_mtx);
-		}
-		return;
+		goto done;
 	}
 	pg = pc->page_start;
 	pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
@@ -2627,14 +2653,19 @@ usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
 	if (ext_seg && pc->ismultiseg) {
 		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
 	}
-	if (xfer) {
-		owned = mtx_owned(xfer->priv_mtx);
-		if (!owned)
-			mtx_lock(xfer->priv_mtx);
-		usbd_bdma_done_event(xfer->usb_root);
-		if (!owned)
-			mtx_unlock(xfer->priv_mtx);
+done:
+	owned = mtx_owned(uptag->mtx);
+	if (!owned)
+		mtx_lock(uptag->mtx);
+
+	uptag->dma_error = (error ? 1 : 0);
+	if (isload) {
+		(uptag->func) (uptag);
+	} else {
+		cv_broadcast(uptag->cv);
 	}
+	if (!owned)
+		mtx_unlock(uptag->mtx);
 	return;
 }
 
@@ -2646,13 +2677,16 @@ usbd_pc_alloc_mem_cb(void *arg, bus_dma_segment_t *segs,
  * Else: Failure
  *------------------------------------------------------------------------*/
 uint8_t
-usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
-    struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size,
-    uint32_t align, uint8_t utag_max)
+usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
+    uint32_t size, uint32_t align)
 {
-	bus_dma_tag_t tag;
+	struct usbd_dma_parent_tag *uptag;
+	struct usbd_dma_tag *utag;
 	bus_dmamap_t map;
 	void *ptr;
+	int err;
+
+	uptag = pc->tag_parent;
 
 	if (align != 1) {
 		/*
@@ -2689,16 +2723,13 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 #endif
 	}
 	/* get the correct DMA tag */
-	utag = usbd_dma_tag_setup(parent_tag, utag, size, align, utag_max);
+	utag = usbd_dma_tag_find(uptag, size, align);
 	if (utag == NULL) {
 		goto error;
 	}
-	/* get the DMA tag */
-	tag = utag->tag;
-
 	/* allocate memory */
-	if (bus_dmamem_alloc
-	    (tag, &ptr, (BUS_DMA_WAITOK | BUS_DMA_COHERENT), &map)) {
+	if (bus_dmamem_alloc(
+	    utag->tag, &ptr, (BUS_DMA_WAITOK | BUS_DMA_COHERENT), &map)) {
 		goto error;
 	}
 	/* setup page cache */
@@ -2707,14 +2738,24 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 	pc->page_offset_buf = 0;
 	pc->page_offset_end = size;
 	pc->map = map;
-	pc->tag = tag;
+	pc->tag = utag->tag;
 	pc->ismultiseg = (align == 1);
 
+	mtx_lock(uptag->mtx);
+
 	/* load memory into DMA */
-	if (bus_dmamap_load
-	    (tag, map, ptr, size, &usbd_pc_alloc_mem_cb,
-	    pc, (BUS_DMA_WAITOK | BUS_DMA_COHERENT))) {
-		bus_dmamem_free(tag, ptr, map);
+	err = bus_dmamap_load(
+	    utag->tag, map, ptr, size, &usbd_pc_alloc_mem_cb,
+	    pc, (BUS_DMA_WAITOK | BUS_DMA_COHERENT));
+
+	if (err == EINPROGRESS) {
+		cv_wait(uptag->cv, uptag->mtx);
+		err = 0;
+	}
+	mtx_unlock(uptag->mtx);
+
+	if (err || uptag->dma_error) {
+		bus_dmamem_free(utag->tag, ptr, map);
 		goto error;
 	}
 	bzero(ptr, size);
@@ -2759,25 +2800,31 @@ usbd_pc_free_mem(struct usbd_page_cache *pc)
 void
 usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size)
 {
-	/* sanity check */
-	if (pc->xfer == NULL) {
-		panic("This page cache is not loadable!\n");
-		return;
-	}
 	/* setup page cache */
 	pc->page_offset_buf = 0;
 	pc->page_offset_end = size;
 	pc->ismultiseg = 1;
 
+	mtx_assert(pc->tag_parent->mtx, MA_OWNED);
+
 	if (size > 0) {
 
-		pc->xfer->usb_root->dma_refcount++;
-
-		/* try to load memory into DMA */
+		/*
+		 * Try to load memory into DMA and wait for the callback to
+		 * be called in all cases:
+		 */
 		if (bus_dmamap_load(
 		    pc->tag, pc->map, pc->buffer, size,
-		    &usbd_pc_alloc_mem_cb, pc, 0)) {
+		    &usbd_pc_load_mem_cb, pc, BUS_DMA_WAITOK)) {
 		}
+	} else {
+
+		/*
+		 * Call callback so that refcount is decremented
+		 * properly:
+		 */
+		pc->tag_parent->dma_error = 0;
+		(pc->tag_parent->func) (pc->tag_parent);
 	}
 	return;
 }
@@ -2816,28 +2863,23 @@ usbd_pc_dmamap_create(struct usbd_page_cache *pc, uint32_t size)
 {
 	struct usbd_memory_info *info;
 	struct usbd_dma_tag *utag;
-	bus_dma_tag_t tag;
+
+	/* get info */
+	info = pc->tag_parent->info;
 
 	/* sanity check */
-	if (pc->xfer == NULL) {
+	if (info == NULL) {
 		goto error;
 	}
-	info = pc->xfer->usb_root;
-	tag = pc->xfer->udev->bus->dma_tag_parent;
-
-	utag = usbd_dma_tag_setup(tag, info->dma_tag_p,
-	    size, 1, info->dma_tag_max);
+	utag = usbd_dma_tag_find(pc->tag_parent, size, 1);
 	if (utag == NULL) {
 		goto error;
 	}
-	/* get the DMA tag */
-	tag = utag->tag;
-
 	/* create DMA map */
-	if (bus_dmamap_create(tag, 0, &(pc->map))) {
+	if (bus_dmamap_create(utag->tag, 0, &(pc->map))) {
 		goto error;
 	}
-	pc->tag = tag;
+	pc->tag = utag->tag;
 	return 0;			/* success */
 
 error:
@@ -2873,7 +2915,7 @@ usbd_pc_dmamap_destroy(struct usbd_page_cache *pc)
  * allow multi-segment mappings. Else all mappings are single-segment.
  *------------------------------------------------------------------------*/
 void
-usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
+usbd_dma_tag_create(struct usbd_dma_tag *udt,
     uint32_t size, uint32_t align)
 {
 	uint32_t nseg;
@@ -2890,7 +2932,7 @@ usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
 	if (udt->p_seg == NULL) {
 		return;
 	}
-	udt->tag = tag_parent;
+	udt->tag = udt->tag_parent->tag;
 	udt->n_seg = nseg;
 	return;
 }
@@ -2906,19 +2948,20 @@ usbd_dma_tag_destroy(struct usbd_dma_tag *udt)
 }
 
 /*------------------------------------------------------------------------*
- *	usbd_pc_alloc_mem_cb - BUS-DMA callback function
+ *	usbd_pc_common_mem_cb - BUS-DMA callback function
  *------------------------------------------------------------------------*/
 static void
-usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
-    int nseg, int error)
+usbd_pc_common_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
+    int nseg, int error, uint8_t isload)
 {
+	struct usbd_dma_parent_tag *uptag;
 	struct usbd_xfer *xfer;
 	struct usbd_page *pg;
 	uint32_t rem;
 	uint8_t owned;
 	uint8_t ext_seg;		/* extend last segment */
 
-	xfer = pc->xfer;
+	uptag = pc->tag_parent;
 
 	/*
 	 * XXX There is sometimes recursive locking here.
@@ -2928,16 +2971,7 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 	 */
 
 	if (error) {
-		if (xfer) {
-			owned = mtx_owned(xfer->priv_mtx);
-			if (!owned)
-				mtx_lock(xfer->priv_mtx);
-			xfer->usb_root->dma_error = 1;
-			usbd_bdma_done_event(xfer->usb_root);
-			if (!owned)
-				mtx_unlock(xfer->priv_mtx);
-		}
-		return;
+		goto done;
 	}
 	pg = pc->page_start;
 	pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
@@ -2967,14 +3001,19 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 	if (ext_seg && pc->ismultiseg) {
 		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
 	}
-	if (xfer) {
-		owned = mtx_owned(xfer->priv_mtx);
-		if (!owned)
-			mtx_lock(xfer->priv_mtx);
-		usbd_bdma_done_event(xfer->usb_root);
-		if (!owned)
-			mtx_unlock(xfer->priv_mtx);
+done:
+	owned = mtx_owned(uptag->mtx);
+	if (!owned)
+		mtx_lock(uptag->mtx);
+
+	uptag->dma_error = (error ? 1 : 0);
+	if (isload) {
+		(uptag->func) (uptag);
+	} else {
+		cv_broadcast(uptag->cv);
 	}
+	if (!owned)
+		mtx_unlock(uptag->mtx);
 	return;
 }
 
@@ -2986,14 +3025,15 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
  * Else: Failure
  *------------------------------------------------------------------------*/
 uint8_t
-usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
-    struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size,
-    uint32_t align, uint8_t utag_max)
+usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
+    uint32_t size, uint32_t align)
 {
+	struct usbd_dma_parent_tag *uptag;
 	caddr_t ptr = NULL;
-	bus_dma_tag_t tag;
 	bus_dmamap_t map;
 	int seg_count;
+
+	uptag = pc->tag_parent;
 
 	if (align != 1) {
 		/*
@@ -3009,26 +3049,23 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 		}
 	}
 	/* get the correct DMA tag */
-	utag = usbd_dma_tag_setup(parent_tag, utag, size, align, utag_max);
+	utag = usbd_dma_tag_find(pc->tag_parent, size, align);
 	if (utag == NULL) {
 		goto done_5;
 	}
-	/* get the DMA tag */
-	tag = utag->tag;
-
-	if (bus_dmamem_alloc(tag, size, align, 0, utag->p_seg,
+	if (bus_dmamem_alloc(utag->tag, size, align, 0, utag->p_seg,
 	    utag->n_seg, &seg_count, BUS_DMA_WAITOK)) {
 		goto done_4;
 	}
-	if (bus_dmamem_map(tag, utag->p_seg, seg_count, size,
+	if (bus_dmamem_map(utag->tag, utag->p_seg, seg_count, size,
 	    &ptr, BUS_DMA_WAITOK | BUS_DMA_COHERENT)) {
 		goto done_3;
 	}
-	if (bus_dmamap_create(tag, size, utag->n_seg, (align == 1) ?
+	if (bus_dmamap_create(utag->tag, size, utag->n_seg, (align == 1) ?
 	    USB_PAGE_SIZE : size, 0, BUS_DMA_WAITOK, &map)) {
 		goto done_2;
 	}
-	if (bus_dmamap_load(tag, map, ptr, size, NULL,
+	if (bus_dmamap_load(utag->tag, map, ptr, size, NULL,
 	    BUS_DMA_WAITOK)) {
 		goto done_1;
 	}
@@ -3050,10 +3087,10 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 	pc->page_offset_buf = 0;
 	pc->page_offset_end = size;
 	pc->map = map;
-	pc->tag = tag;
+	pc->tag = utag->tag;
 	pc->ismultiseg = (align == 1);
 
-	usbd_pc_alloc_mem_cb(pc, utag->p_seg, seg_count, 0);
+	usbd_pc_common_mem_cb(pc, utag->p_seg, seg_count, 0, 0);
 
 	bzero(ptr, size);
 
@@ -3112,11 +3149,6 @@ usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size)
 {
 	int error;
 
-	/* sanity check */
-	if (pc->xfer == NULL) {
-		panic("This page cache is not loadable!\n");
-		return;
-	}
 	/* setup page cache */
 	pc->page_offset_buf = 0;
 	pc->page_offset_end = size;
@@ -3124,9 +3156,7 @@ usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size)
 
 	if (size > 0) {
 
-		pc->xfer->usb_root->dma_refcount++;
-
-		/* try to load memory into DMA */
+		/* try to load memory into DMA using using no wait option */
 		if (bus_dmamap_load(pc->tag, pc->map, pc->buffer,
 		    size, NULL, BUS_DMA_NOWAIT)) {
 			error = ENOMEM;
@@ -3134,8 +3164,15 @@ usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size)
 			error = 0;
 		}
 
-		usbd_pc_alloc_mem_cb(pc, pc->map->dm_segs,
-		    pc->map->dm_nsegs, error);
+		usbd_pc_common_mem_cb(pc, pc->map->dm_segs,
+		    pc->map->dm_nsegs, error, 1);
+	} else {
+		/*
+		 * Call callback so that refcount is decremented
+		 * properly:
+		 */
+		pc->tag_parent->dma_error = 0;
+		(pc->tag_parent->func) (pc->tag_parent);
 	}
 	return;
 }
@@ -3182,17 +3219,15 @@ usbd_pc_dmamap_create(struct usbd_page_cache *pc, uint32_t size)
 {
 	struct usbd_memory_info *info;
 	struct usbd_dma_tag *utag;
-	bus_dma_tag_t tag;
+
+	/* get info */
+	info = pc->tag_parent->info;
 
 	/* sanity check */
-	if (pc->xfer == NULL) {
+	if (info == NULL) {
 		goto error;
 	}
-	info = pc->xfer->usb_root;
-	tag = pc->xfer->udev->bus->dma_tag_parent;
-
-	utag = usbd_dma_tag_setup(tag, info->dma_tag_p,
-	    size, 1, info->dma_tag_max);
+	utag = usbd_dma_tag_find(pc->tag_parent, size, 1);
 	if (utag == NULL) {
 		goto error;
 	}
@@ -3759,19 +3794,25 @@ usbd_isoc_time_expand(struct usbd_bus *bus, uint16_t isoc_time_curr)
 }
 
 /*------------------------------------------------------------------------*
- *	usbd_bus_tag_setup - factored out code
+ *	usbd_dma_tag_find - factored out code
  *------------------------------------------------------------------------*/
 struct usbd_dma_tag *
-usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
-    uint32_t size, uint32_t align, uint8_t nudt)
+usbd_dma_tag_find(struct usbd_dma_parent_tag *udpt,
+    uint32_t size, uint32_t align)
 {
+	struct usbd_dma_tag *udt;
+	uint8_t nudt;
+
 	__KASSERT(align > 0, ("Invalid parameter align = 0!\n"));
 	__KASSERT(size > 0, ("Invalid parameter size = 0!\n"));
+
+	udt = udpt->utag_first;
+	nudt = udpt->utag_max;
 
 	while (nudt--) {
 
 		if (udt->align == 0) {
-			usbd_dma_tag_create(tag_parent, udt, size, align);
+			usbd_dma_tag_create(udt, size, align);
 			if (udt->tag == NULL) {
 				return (NULL);
 			}
@@ -3788,18 +3829,69 @@ usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
 }
 
 /*------------------------------------------------------------------------*
+ *	usbd_dma_tag_setup - initialise USB DMA tags
+ *------------------------------------------------------------------------*/
+void
+usbd_dma_tag_setup(struct usbd_dma_parent_tag *udpt,
+    struct usbd_dma_tag *udt, bus_dma_tag_t dmat,
+    struct mtx *mtx, usbd_dma_callback_t *func,
+    struct usbd_memory_info *info, uint8_t ndmabits,
+    uint8_t nudt)
+{
+	bzero(udpt, sizeof(*udpt));
+
+	/* sanity checking */
+	if ((nudt == 0) ||
+	    (ndmabits == 0) ||
+	    (mtx == NULL)) {
+		/* something is corrupt */
+		return;
+	}
+	/* initialise condition variable */
+	cv_init(udpt->cv, "USB DMA CV");
+
+	/* store some information */
+	udpt->mtx = mtx;
+	udpt->info = info;
+	udpt->func = func;
+	udpt->tag = dmat;
+	udpt->utag_first = udt;
+	udpt->utag_max = nudt;
+	udpt->dma_bits = ndmabits;
+
+	while (nudt--) {
+		bzero(udt, sizeof(*udt));
+		udt->tag_parent = udpt;
+		udt++;
+	}
+	return;
+}
+
+/*------------------------------------------------------------------------*
  *	usbd_bus_tag_unsetup - factored out code
  *------------------------------------------------------------------------*/
 void
-usbd_dma_tag_unsetup(struct usbd_dma_tag *udt, uint8_t nudt)
+usbd_dma_tag_unsetup(struct usbd_dma_parent_tag *udpt)
 {
+	struct usbd_dma_tag *udt;
+	uint8_t nudt;
+
+	udt = udpt->utag_first;
+	nudt = udpt->utag_max;
+
 	while (nudt--) {
 
 		if (udt->align) {
+			/* destroy the USB DMA tag */
 			usbd_dma_tag_destroy(udt);
 			udt->align = 0;
 		}
 		udt++;
+	}
+
+	if (udpt->utag_max) {
+		/* destroy the condition variable */
+		cv_destroy(udpt->cv);
 	}
 	return;
 }
@@ -3834,9 +3926,10 @@ static void
 usbd_bus_mem_alloc_all_cb(struct usbd_bus *bus, struct usbd_page_cache *pc,
     struct usbd_page *pg, uint32_t size, uint32_t align)
 {
-	if (usbd_pc_alloc_mem(bus->dma_tag_parent,
-	    bus->dma_tags, pc, pg, size, align,
-	    USB_BUS_DMA_TAG_MAX)) {
+	/* need to initialize the page cache */
+	pc->tag_parent = bus->dma_parent_tag;
+
+	if (usbd_pc_alloc_mem(pc, pg, size, align)) {
 		bus->alloc_failed = 1;
 	}
 	return;
@@ -3850,7 +3943,8 @@ usbd_bus_mem_alloc_all_cb(struct usbd_bus *bus, struct usbd_page_cache *pc,
  * Else: Failure
  *------------------------------------------------------------------------*/
 uint8_t
-usbd_bus_mem_alloc_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb)
+usbd_bus_mem_alloc_all(struct usbd_bus *bus, bus_dma_tag_t dmat,
+    usbd_bus_mem_cb_t *cb)
 {
 	bus->alloc_failed = 0;
 
@@ -3858,6 +3952,9 @@ usbd_bus_mem_alloc_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb)
 	    NULL, MTX_DEF | MTX_RECURSE);
 
 	LIST_INIT(&(bus->intr_list_head));
+
+	usbd_dma_tag_setup(bus->dma_parent_tag, bus->dma_tags,
+	    dmat, &(bus->mtx), NULL, NULL, 32, USB_BUS_DMA_TAG_MAX);
 
 	if (cb) {
 		cb(bus, &usbd_bus_mem_alloc_all_cb);
@@ -3888,7 +3985,7 @@ usbd_bus_mem_free_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb)
 	if (cb) {
 		cb(bus, &usbd_bus_mem_free_all_cb);
 	}
-	usbd_dma_tag_unsetup(bus->dma_tags, USB_BUS_DMA_TAG_MAX);
+	usbd_dma_tag_unsetup(bus->dma_parent_tag);
 
 	mtx_destroy(&(bus->mtx));
 
@@ -3921,10 +4018,12 @@ usbd_transfer_setup_sub_malloc(struct usbd_setup_params *parm,
 		parm->dma_page_cache_ptr++;
 		return (0);
 	}
-	if (usbd_pc_alloc_mem(parm->udev->bus->dma_tag_parent,
-	    parm->dma_tag_p, parm->dma_page_cache_ptr,
-	    parm->dma_page_ptr, size, align,
-	    parm->dma_tag_max)) {
+	/* need to initialize the page cache */
+	parm->dma_page_cache_ptr->tag_parent =
+	    &(parm->curr_xfer->usb_root->dma_parent_tag);
+
+	if (usbd_pc_alloc_mem(parm->dma_page_cache_ptr,
+	    parm->dma_page_ptr, size, align)) {
 		return (1);		/* failure */
 	}
 	if (info) {

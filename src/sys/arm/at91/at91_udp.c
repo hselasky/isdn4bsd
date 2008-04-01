@@ -141,7 +141,6 @@ at91_udp_attach(device_t dev)
 	}
 	/* setup AT9100 USB device controller interface softc */
 
-	sc->sc_dci.sc_bus.dma_tag_parent = device_get_dma_tag(dev);
 	sc->sc_dci.sc_clocks_on = &at91_udp_clocks_on;
 	sc->sc_dci.sc_clocks_off = &at91_udp_clocks_off;
 	sc->sc_dci.sc_clocks_arg = sc;
@@ -151,7 +150,8 @@ at91_udp_attach(device_t dev)
 
 	/* get all DMA memory */
 
-	if (usbd_bus_mem_alloc_all(&(sc->sc_dci.sc_bus), NULL)) {
+	if (usbd_bus_mem_alloc_all(&(sc->sc_dci.sc_bus),
+	    device_get_dma_tag(dev), NULL)) {
 		return (ENOMEM);
 	}
 	/*

@@ -51,6 +51,9 @@
    ((struct uss820_dci_softc *)(((uint8_t *)(bus)) - \
    POINTER_TO_UNSIGNED(&(((struct uss820_dci_softc *)0)->sc_bus))))
 
+#define	USS820_DCI_PC2SC(pc) \
+   USS820_DCI_BUS2SC((pc)->tag_parent->info->bus)
+
 #ifdef USB_DEBUG
 #define	DPRINTFN(n,fmt,...) do {			\
   if (uss820_dcidebug > (n)) {				\
@@ -271,7 +274,7 @@ uss820_dci_setup_rx(struct uss820_dci_td *td)
 	    td->rx_stat_reg);
 
 	/* get pointer to softc */
-	sc = td->pc->xfer->usb_sc;
+	sc = USS820_DCI_PC2SC(td->pc);
 
 	DPRINTFN(4, "rx_stat=0x%02x rem=%u\n", rx_stat, td->remainder);
 
@@ -432,7 +435,7 @@ repeat:
 		/* read out EPCON register */
 		/* enable RX input */
 		if (!td->did_stall) {
-			uss820_dci_update_shared_1(td->pc->xfer->usb_sc,
+			uss820_dci_update_shared_1(USS820_DCI_PC2SC(td->pc),
 			    USS820_EPCON, 0xFF, USS820_EPCON_RXIE);
 			td->did_stall = 1;
 		}
@@ -595,7 +598,7 @@ repeat:
 	 * data into the FIFO. This is undocumented.
 	 */
 	if (!td->did_stall) {
-		uss820_dci_update_shared_1(td->pc->xfer->usb_sc,
+		uss820_dci_update_shared_1(USS820_DCI_PC2SC(td->pc),
 		    USS820_EPCON, 0xFF, USS820_EPCON_TXOE);
 		td->did_stall = 1;
 	}
@@ -652,7 +655,7 @@ uss820_dci_data_tx_sync(struct uss820_dci_td *td)
 	    USS820_TXFLG_TXFIF1)) {
 		return (1);		/* not complete */
 	}
-	sc = td->pc->xfer->usb_sc;
+	sc = USS820_DCI_PC2SC(td->pc);
 	if (sc->sc_dv_addr != 0xFF) {
 		/* write function address */
 		uss820_dci_set_address(sc, sc->sc_dv_addr);

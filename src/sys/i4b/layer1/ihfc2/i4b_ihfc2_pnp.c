@@ -554,6 +554,16 @@ const   struct resource_tab *ptr;
 	}
 
 	/*
+	 * Initialise the DMA tags
+	 */
+	usbd_dma_tag_setup(&(sc->sc_hw_dma_parent_tag),
+	   &(sc->sc_hw_dma_tag), device_get_dma_tag(dev),
+	   sc->sc_mtx_p, NULL, NULL, 32, 1);
+
+	sc->sc_hw_page_cache.tag_parent = 
+	  &(sc->sc_hw_dma_parent_tag);
+
+	/*
 	 * MWBA(Memory Window Base Address in PC-host memory)
 	 *
 	 * NOTE: This MWBA must be aligned to (1<<15) bytes.
@@ -565,9 +575,8 @@ const   struct resource_tab *ptr;
 		{
 		    sc->sc_resources.mwba_size [0] = (1<<15);
 
-		    if (usbd_pc_alloc_mem(device_get_dma_tag(dev),
-			  &(sc->sc_hw_dma_tag), &(sc->sc_hw_page_cache), 
-			  &(sc->sc_hw_page), (1<<15), (1<<15), 1))
+		    if (usbd_pc_alloc_mem(&(sc->sc_hw_page_cache),
+			  &(sc->sc_hw_page), (1<<15), (1<<15)))
 		    {
 			IHFC_ADD_ERR(error,
 				     "Could not allocate memory(32Kbyte) "
@@ -594,9 +603,8 @@ const   struct resource_tab *ptr;
 		{
 		    sc->sc_resources.mwba_size [0] = (1<<14);
 
-		    if (usbd_pc_alloc_mem(device_get_dma_tag(dev),
-			  &(sc->sc_hw_dma_tag), &(sc->sc_hw_page_cache), 
-			  &(sc->sc_hw_page), (1<<14), (1<<14), 1))
+		    if (usbd_pc_alloc_mem(&(sc->sc_hw_page_cache),
+			  &(sc->sc_hw_page), (1<<14), (1<<14)))
 		    {
 			IHFC_ADD_ERR(error,
 				     "Could not allocate memory(16Kbyte) "
@@ -793,9 +801,9 @@ ihfc_unsetup_resource(device_t dev)
 	if(sc->sc_resources.mwba_start[0])
         {
 		usbd_pc_free_mem(&(sc->sc_hw_page_cache));
-
-		usbd_dma_tag_unsetup(&(sc->sc_hw_dma_tag), 1);
 	}
+
+	usbd_dma_tag_unsetup(&(sc->sc_hw_dma_parent_tag));
 
 	bzero(&sc->sc_resources,sizeof(sc->sc_resources));
 	return;

@@ -2535,6 +2535,7 @@ struct ihfc_sc {
 	struct mtx *		sc_mtx_p;	/* pointer to driver mutex */
 	struct usbd_page	sc_hw_page;
 	struct usbd_page_cache	sc_hw_page_cache;
+	struct usbd_dma_parent_tag	sc_hw_dma_parent_tag;
 	struct usbd_dma_tag	sc_hw_dma_tag;
 
 	struct sc_resources	sc_resources;

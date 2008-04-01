@@ -219,13 +219,10 @@ ehci_pci_attach(device_t self)
 		device_printf(self, "Could not allocate sc\n");
 		return (ENXIO);
 	}
-	/* store parent DMA tag */
-
-	sc->sc_bus.dma_tag_parent = device_get_dma_tag(self);
-
 	/* get all DMA memory */
 
-	if (usbd_bus_mem_alloc_all(&(sc->sc_bus), &ehci_iterate_hw_softc)) {
+	if (usbd_bus_mem_alloc_all(&(sc->sc_bus),
+	    device_get_dma_tag(self), &ehci_iterate_hw_softc)) {
 		return ENOMEM;
 	}
 	sc->sc_dev = self;
@@ -434,12 +431,12 @@ ehci_pci_takecontroller(device_t self)
 		}
 		legsup = eec;
 		if (legsup & EHCI_LEGSUP_BIOSOWNED) {
-			/* 
-			 * Only set the "OSOWNED" bit if the
-			 * "BIOSOWNED" bit is set:
+			/*
+			 * Only set the "OSOWNED" bit if the "BIOSOWNED" bit
+			 * is set:
 			 */
 			pci_write_config(self, eecp,
-					 legsup | EHCI_LEGSUP_OSOWNED, 4);
+			    legsup | EHCI_LEGSUP_OSOWNED, 4);
 			device_printf(sc->sc_bus.bdev, "waiting for BIOS "
 			    "to give up control\n");
 

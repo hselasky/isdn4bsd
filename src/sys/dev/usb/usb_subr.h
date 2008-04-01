@@ -122,6 +122,8 @@ struct usbd_pipe;
 struct usbd_bus;
 struct usbd_clone;
 struct usbd_config;
+struct usbd_dma_tag;
+struct usbd_dma_parent_tag;
 struct usbd_device;
 struct usbd_hw_ep_profile;
 struct usbd_interface;
@@ -317,7 +319,7 @@ struct usbd_page_cache {
 	bus_dma_segment_t *p_seg;
 #endif
 	struct usbd_page *page_start;
-	struct usbd_xfer *xfer;		/* if set, backpointer to USB transfer */
+	struct usbd_dma_parent_tag *tag_parent;	/* always set */
 	void   *buffer;			/* virtual buffer pointer */
 #ifdef __NetBSD__
 	int	n_seg;
@@ -406,13 +408,39 @@ struct usbd_hw_ep_scratch {
 };
 
 /*
- * The following structure keeps an USB DMA tag.
+ * The following typedef defines the USB DMA load done callback.
+ */
+
+typedef void (usbd_dma_callback_t)(struct usbd_dma_parent_tag *udpt);
+
+/*
+ * The following structure describes the parent USB DMA tag.
+ */
+struct usbd_dma_parent_tag {
+	struct cv cv[1];		/* internal condition variable */
+
+	bus_dma_tag_t tag;		/* always set */
+
+	struct mtx *mtx;		/* private mutex, always set */
+	struct usbd_memory_info *info;	/* used by the callback function */
+	usbd_dma_callback_t *func;	/* load complete callback function */
+	struct usbd_dma_tag *utag_first;/* pointer to first USB DMA tag */
+
+	uint8_t	dma_error;		/* set if DMA load operation failed */
+	uint8_t	dma_bits;		/* number of DMA address lines */
+	uint8_t	utag_max;		/* number of USB DMA tags */
+};
+
+/*
+ * The following structure describes an USB DMA tag.
  */
 struct usbd_dma_tag {
 #ifdef __NetBSD__
 	bus_dma_segment_t *p_seg;
 #endif
+	struct usbd_dma_parent_tag *tag_parent;
 	bus_dma_tag_t tag;
+
 	uint32_t align;
 	uint32_t size;
 #ifdef __NetBSD__
@@ -457,8 +485,8 @@ struct usbd_bus {
 
 	device_t bdev;			/* filled by HC driver */
 
+	struct usbd_dma_parent_tag dma_parent_tag[1];
 	struct usbd_dma_tag dma_tags[USB_BUS_DMA_TAG_MAX];
-	bus_dma_tag_t dma_tag_parent;
 
 	eventhandler_tag usb_clone_tag;
 	struct usbd_bus_methods *methods;	/* filled by HC driver */
@@ -783,6 +811,7 @@ struct usbd_xfer {
 struct usbd_memory_info {
 	LIST_HEAD(, usbd_xfer) dma_head;
 	LIST_HEAD(, usbd_xfer) done_head;
+	struct usbd_dma_parent_tag dma_parent_tag;
 
 	struct proc *done_thread;
 	void   *memory_base;
@@ -793,18 +822,21 @@ struct usbd_memory_info {
 	struct usbd_page_cache *xfer_page_cache_start;
 	struct usbd_page_cache *xfer_page_cache_end;
 	struct usbd_xfer *dma_curr_xfer;
-	struct usbd_dma_tag *dma_tag_p;
 	struct usbd_bus *bus;
 
 	uint32_t memory_size;
 	uint32_t memory_refcount;
 	uint32_t setup_refcount;
 	uint32_t page_size;
-	uint32_t dma_refcount;
+	uint32_t dma_nframes;		/* number of page caches to load */
+	uint32_t dma_currframe;		/* currect page cache number */
+	uint32_t dma_frlength_0;	/* length of page cache zero */
 
 	uint8_t	dma_error;		/* set if virtual memory could not be
 					 * loaded */
-	uint8_t	dma_tag_max;
+	uint8_t	dma_refcount;		/* set if we are waiting for a
+					 * callback */
+
 	uint8_t	done_sleep;		/* set if done thread is sleeping */
 };
 
@@ -1019,9 +1051,9 @@ void	usbd_m_copy_in(struct usbd_page_cache *cache, uint32_t dst_offset, struct m
 int	usbd_uiomove(struct usbd_page_cache *pc, struct uio *uio, uint32_t pc_offset, uint32_t len);
 void	usbd_copy_out(struct usbd_page_cache *cache, uint32_t offset, void *ptr, uint32_t len);
 void	usbd_bzero(struct usbd_page_cache *cache, uint32_t offset, uint32_t len);
-void	usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt, uint32_t size, uint32_t align);
+void	usbd_dma_tag_create(struct usbd_dma_tag *udt, uint32_t size, uint32_t align);
 void	usbd_dma_tag_destroy(struct usbd_dma_tag *udt);
-uint8_t	usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag, struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align, uint8_t utag_max);
+uint8_t	usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align);
 void	usbd_pc_free_mem(struct usbd_page_cache *pc);
 void	usbd_pc_load_mem(struct usbd_page_cache *pc, uint32_t size);
 void	usbd_pc_cpu_invalidate(struct usbd_page_cache *pc);
@@ -1040,10 +1072,11 @@ uint8_t	usbd_config_td_sleep(struct usbd_config_td *ctd, uint32_t timeout);
 struct mbuf *usbd_ether_get_mbuf(void);
 int32_t	device_delete_all_children(device_t dev);
 uint16_t usbd_isoc_time_expand(struct usbd_bus *bus, uint16_t isoc_time_curr);
-struct usbd_dma_tag *usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt, uint32_t size, uint32_t align, uint8_t nudt);
-void	usbd_dma_tag_unsetup(struct usbd_dma_tag *udt, uint8_t nudt);
+void	usbd_dma_tag_setup(struct usbd_dma_parent_tag *udpt, struct usbd_dma_tag *udt, bus_dma_tag_t dmat, struct mtx *mtx, usbd_dma_callback_t *func, struct usbd_memory_info *info, uint8_t ndmabits, uint8_t nudt);
+struct usbd_dma_tag *usbd_dma_tag_find(struct usbd_dma_parent_tag *updt, uint32_t size, uint32_t align);
+void	usbd_dma_tag_unsetup(struct usbd_dma_parent_tag *udpt);
 void	usbd_bus_mem_flush_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb);
-uint8_t	usbd_bus_mem_alloc_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb);
+uint8_t	usbd_bus_mem_alloc_all(struct usbd_bus *bus, bus_dma_tag_t dmat, usbd_bus_mem_cb_t *cb);
 void	usbd_bus_mem_free_all(struct usbd_bus *bus, usbd_bus_mem_cb_t *cb);
 uint8_t	usbd_transfer_setup_sub_malloc(struct usbd_setup_params *parm, struct usbd_page_search *info, struct usbd_page_cache **ppc, uint32_t size, uint32_t align);
 struct usbd_device *usbd_bus_port_get_device(struct usbd_bus *bus, struct usbd_port *up);
@@ -1094,7 +1127,6 @@ usbd_status_t usbd_transfer_setup(struct usbd_device *udev, const uint8_t *iface
 void	usbd_transfer_unsetup(struct usbd_xfer **pxfer, uint16_t n_setup);
 void	usbd_std_root_transfer(struct usbd_std_root_transfer *std, usbd_std_root_transfer_func_t *func);
 void	usbd_start_hardware(struct usbd_xfer *xfer);
-void	usbd_bdma_done_event(struct usbd_memory_info *info);
 void	usbd_bdma_pre_sync(struct usbd_xfer *xfer);
 void	usbd_bdma_post_sync(struct usbd_xfer *xfer);
 void	usbd_transfer_start(struct usbd_xfer *xfer);

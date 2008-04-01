@@ -154,11 +154,10 @@ uss820_pccard_attach(device_t dev)
 	if (sc == NULL) {
 		return (ENXIO);
 	}
-	sc->sc_bus.dma_tag_parent = device_get_dma_tag(dev);
-
 	/* get all DMA memory */
 
-	if (usbd_bus_mem_alloc_all(&(sc->sc_bus), NULL)) {
+	if (usbd_bus_mem_alloc_all(&(sc->sc_bus),
+	    device_get_dma_tag(dev), NULL)) {
 		return (ENOMEM);
 	}
 	rid = 0;
