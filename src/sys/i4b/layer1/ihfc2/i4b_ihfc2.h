@@ -977,6 +977,12 @@ struct sc_default {
 
   const struct fsm_table *    d_fsm_table;
 
+#ifdef __NetBSD__
+#define IHFC_LEN_T size_t
+#else
+#define IHFC_LEN_T u_int16_t
+#endif
+
 # define CHIP_IDENTIFY_T(dev)			\
 	(device_t dev)
 
@@ -1005,17 +1011,17 @@ struct sc_default {
 
 # define CHIP_READ_T(sc,reg,ptr,len)       	\
 	(struct ihfc_sc         *sc,		\
-	 register u_int16_t     reg,		\
+	 register IHFC_LEN_T    reg,		\
 	 register u_int8_t     *ptr, /* dst */	\
-	 register u_int16_t     len)
+	 register IHFC_LEN_T    len)
 
   void (*c_chip_read) CHIP_READ_T(,,, ) ;
 
 # define CHIP_WRITE_T(sc,reg,ptr,len)		\
 	(struct ihfc_sc         *sc,		\
-	 register u_int16_t     reg,		\
+	 register IHFC_LEN_T    reg,		\
 	 register const u_int8_t*ptr, /* src */	\
-	 register u_int16_t     len)
+	 register IHFC_LEN_T    len)
 
   void (*c_chip_write) CHIP_WRITE_T(,,, ) ;
 
@@ -1053,7 +1059,7 @@ ihfc_fifo_program_t *
 	(struct ihfc_sc		*sc,		\
 	 struct sc_fifo		 *f, /* rxf */	\
 	 register u_int8_t     *ptr, /* dst */	\
-	 register u_int16_t     len)
+	 register IHFC_LEN_T    len)
 
   void (*c_fifo_read) FIFO_READ_T(,,, ) ;
 
@@ -1061,7 +1067,7 @@ ihfc_fifo_program_t *
 	(struct ihfc_sc         *sc,		\
 	 struct sc_fifo          *f, /* txf */	\
 	 register const u_int8_t*ptr,/* src */	\
-	 register u_int16_t     len)
+	 register IHFC_LEN_T     len)
 
   void (*c_fifo_write) FIFO_WRITE_T(,,, ) ;
 
