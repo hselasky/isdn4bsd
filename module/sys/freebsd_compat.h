@@ -375,6 +375,8 @@ struct usbd_page_cache {
 	bus_dma_segment_t *p_seg;
 #endif
 	struct usbd_page *page_start;
+	struct usbd_dma_parent_tag *tag_parent;	/* always set */
+
 	void   *buffer;			/* virtual buffer pointer */
 #ifdef __NetBSD__
 	int	n_seg;

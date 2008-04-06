@@ -1506,10 +1506,6 @@ usbd_dma_tag_setup(struct usbd_dma_parent_tag *udpt,
 		/* something is corrupt */
 		return;
 	}
-#if 0
-	/* initialise condition variable */
-	cv_init(udpt->cv, "USB DMA CV");
-#endif
 
 	/* store some information */
 	udpt->mtx = mtx;
@@ -1548,13 +1544,6 @@ usbd_dma_tag_unsetup(struct usbd_dma_parent_tag *udpt)
 			udt->align = 0;
 		}
 		udt++;
-	}
-
-	if (udpt->utag_max) {
-#if 0
-		/* destroy the condition variable */
-		cv_destroy(udpt->cv);
-#endif
 	}
 	return;
 }
@@ -1614,20 +1603,12 @@ usbd_pc_common_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
 	}
 done:
-	owned = mtx_owned(uptag->mtx);
-	if (!owned)
-		mtx_lock(uptag->mtx);
-
+	mtx_lock(uptag->mtx);
 	uptag->dma_error = (error ? 1 : 0);
 	if (isload) {
 		(uptag->func) (uptag);
-	} else {
-#if 0
-		cv_broadcast(uptag->cv);
-#endif
 	}
-	if (!owned)
-		mtx_unlock(uptag->mtx);
+	mtx_unlock(uptag->mtx);
 	return;
 }
 
