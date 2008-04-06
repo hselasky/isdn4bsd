@@ -1556,7 +1556,7 @@ usbd_pc_common_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
     int nseg, int error, uint8_t isload)
 {
 	struct usbd_dma_parent_tag *uptag;
-	struct usbd_xfer *xfer;
+	struct usbd_dma_tag *utag;
 	struct usbd_page *pg;
 	uint32_t rem;
 	uint8_t owned;
