@@ -1693,13 +1693,13 @@ usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
 	return (0);
 
 done_0:
-	bus_dmamap_unload(tag, map);
+	bus_dmamap_unload(utag->tag, map);
 done_1:
-	bus_dmamap_destroy(tag, map);
+	bus_dmamap_destroy(utag->tag, map);
 done_2:
-	bus_dmamem_unmap(tag, ptr, size);
+	bus_dmamem_unmap(utag->tag, ptr, size);
 done_3:
-	bus_dmamem_free(tag, utag->p_seg, seg_count);
+	bus_dmamem_free(utag->tag, utag->p_seg, seg_count);
 done_4:
 	/* utag is destroyed later */
 done_5:
