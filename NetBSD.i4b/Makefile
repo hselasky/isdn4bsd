@@ -22,9 +22,9 @@ install:
 	cd ${S}/lib/libcapi20 ; make
 	cd ${S}/lib/libcapi20 ; make install
 
-	cd ${S}../ ; make depend
-	cd ${S}../ ; make
-	cd ${S}../ ; make install
+	cd ${S}/../ ; make depend
+	cd ${S}/../ ; make
+	cd ${S}/../ ; make install
 
 #
 # By default USB support is not compiled. Be sure
