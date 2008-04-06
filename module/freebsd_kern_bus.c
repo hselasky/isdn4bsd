@@ -1622,6 +1622,7 @@ usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
     uint32_t size, uint32_t align)
 {
 	struct usbd_dma_parent_tag *uptag;
+	struct usbd_dma_tag *utag;
 	caddr_t ptr = NULL;
 	bus_dmamap_t map;
 	int seg_count;
