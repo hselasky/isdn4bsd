@@ -311,6 +311,8 @@ static __inline time_t time_second() { return time.tv_sec; }
 #define	USBD_ADD_BYTES(ptr,size) \
   ((void *)(POINTER_TO_UNSIGNED(ptr) + (size)))
 
+struct usbd_dma_parent_tag;
+
 /*
  * The following typedef defines the USB DMA load done callback.
  */
