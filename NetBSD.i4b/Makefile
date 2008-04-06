@@ -2,7 +2,7 @@
 # Makefile for automatic installation on NetBSD
 #
 
-S=${.CURDIR}/src
+S=${.CURDIR}/../src
 
 install:
 
