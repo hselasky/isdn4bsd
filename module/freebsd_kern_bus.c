@@ -1445,7 +1445,7 @@ usbd_dma_tag_create(struct usbd_dma_tag *udt,
 /*------------------------------------------------------------------------*
  *	usbd_dma_tag_free - free a DMA tag
  *------------------------------------------------------------------------*/
-void
+static void
 usbd_dma_tag_destroy(struct usbd_dma_tag *udt)
 {
 	free(udt->p_seg, M_DEVBUF);
@@ -1506,8 +1506,10 @@ usbd_dma_tag_setup(struct usbd_dma_parent_tag *udpt,
 		/* something is corrupt */
 		return;
 	}
+#if 0
 	/* initialise condition variable */
 	cv_init(udpt->cv, "USB DMA CV");
+#endif
 
 	/* store some information */
 	udpt->mtx = mtx;
@@ -1549,8 +1551,10 @@ usbd_dma_tag_unsetup(struct usbd_dma_parent_tag *udpt)
 	}
 
 	if (udpt->utag_max) {
+#if 0
 		/* destroy the condition variable */
 		cv_destroy(udpt->cv);
+#endif
 	}
 	return;
 }
@@ -1618,7 +1622,9 @@ done:
 	if (isload) {
 		(uptag->func) (uptag);
 	} else {
+#if 0
 		cv_broadcast(uptag->cv);
+#endif
 	}
 	if (!owned)
 		mtx_unlock(uptag->mtx);
