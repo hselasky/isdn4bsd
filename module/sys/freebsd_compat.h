@@ -311,11 +311,38 @@ static __inline time_t time_second() { return time.tv_sec; }
 #define	USBD_ADD_BYTES(ptr,size) \
   ((void *)(POINTER_TO_UNSIGNED(ptr) + (size)))
 
+/*
+ * The following typedef defines the USB DMA load done callback.
+ */
+
+typedef void (usbd_dma_callback_t)(struct usbd_dma_parent_tag *udpt);
+
+/*
+ * The following structure describes the parent USB DMA tag.
+ */
+struct usbd_dma_parent_tag {
+	bus_dma_tag_t tag;		/* always set */
+
+	struct mtx *mtx;		/* private mutex, always set */
+	struct usbd_memory_info *info;	/* used by the callback function */
+	usbd_dma_callback_t *func;	/* load complete callback function */
+	struct usbd_dma_tag *utag_first;/* pointer to first USB DMA tag */
+
+	uint8_t	dma_error;		/* set if DMA load operation failed */
+	uint8_t	dma_bits;		/* number of DMA address lines */
+	uint8_t	utag_max;		/* number of USB DMA tags */
+};
+
+/*
+ * The following structure describes an USB DMA tag.
+ */
 struct usbd_dma_tag {
 #ifdef __NetBSD__
 	bus_dma_segment_t *p_seg;
 #endif
+	struct usbd_dma_parent_tag *tag_parent;
 	bus_dma_tag_t tag;
+
 	uint32_t align;
 	uint32_t size;
 #ifdef __NetBSD__
