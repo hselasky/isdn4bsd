@@ -1420,7 +1420,7 @@ devclass_find(const char *classname)
  * allow multi-segment mappings. Else all mappings are single-segment.
  *------------------------------------------------------------------------*/
 static void
-usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
+usbd_dma_tag_create(struct usbd_dma_tag *udt,
     uint32_t size, uint32_t align)
 {
 	uint32_t nseg;
@@ -1437,7 +1437,7 @@ usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
 	if (udt->p_seg == NULL) {
 		return;
 	}
-	udt->tag = tag_parent;
+	udt->tag = udt->tag_parent->tag;
 	udt->n_seg = nseg;
 	return;
 }
@@ -1445,7 +1445,7 @@ usbd_dma_tag_create(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
 /*------------------------------------------------------------------------*
  *	usbd_dma_tag_free - free a DMA tag
  *------------------------------------------------------------------------*/
-static void
+void
 usbd_dma_tag_destroy(struct usbd_dma_tag *udt)
 {
 	free(udt->p_seg, M_DEVBUF);
@@ -1453,19 +1453,25 @@ usbd_dma_tag_destroy(struct usbd_dma_tag *udt)
 }
 
 /*------------------------------------------------------------------------*
- *	usbd_bus_tag_setup - factored out code
+ *	usbd_dma_tag_find - factored out code
  *------------------------------------------------------------------------*/
 struct usbd_dma_tag *
-usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
-    uint32_t size, uint32_t align, uint8_t nudt)
+usbd_dma_tag_find(struct usbd_dma_parent_tag *udpt,
+    uint32_t size, uint32_t align)
 {
+	struct usbd_dma_tag *udt;
+	uint8_t nudt;
+
 	__KASSERT(align > 0, ("Invalid parameter align = 0!\n"));
 	__KASSERT(size > 0, ("Invalid parameter size = 0!\n"));
+
+	udt = udpt->utag_first;
+	nudt = udpt->utag_max;
 
 	while (nudt--) {
 
 		if (udt->align == 0) {
-			usbd_dma_tag_create(tag_parent, udt, size, align);
+			usbd_dma_tag_create(udt, size, align);
 			if (udt->tag == NULL) {
 				return (NULL);
 			}
@@ -1482,35 +1488,98 @@ usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt,
 }
 
 /*------------------------------------------------------------------------*
- *	usbd_bus_tag_unsetup - factored out code
+ *	usbd_dma_tag_setup - initialise USB DMA tags
  *------------------------------------------------------------------------*/
 void
-usbd_dma_tag_unsetup(struct usbd_dma_tag *udt, uint8_t nudt)
+usbd_dma_tag_setup(struct usbd_dma_parent_tag *udpt,
+    struct usbd_dma_tag *udt, bus_dma_tag_t dmat,
+    struct mtx *mtx, usbd_dma_callback_t *func,
+    struct usbd_memory_info *info, uint8_t ndmabits,
+    uint8_t nudt)
 {
-	while (nudt--) {
+	bzero(udpt, sizeof(*udpt));
 
-		if (udt->align) {
-			usbd_dma_tag_destroy(udt);
-			udt->align = 0;
-		}
+	/* sanity checking */
+	if ((nudt == 0) ||
+	    (ndmabits == 0) ||
+	    (mtx == NULL)) {
+		/* something is corrupt */
+		return;
+	}
+	/* initialise condition variable */
+	cv_init(udpt->cv, "USB DMA CV");
+
+	/* store some information */
+	udpt->mtx = mtx;
+	udpt->info = info;
+	udpt->func = func;
+	udpt->tag = dmat;
+	udpt->utag_first = udt;
+	udpt->utag_max = nudt;
+	udpt->dma_bits = ndmabits;
+
+	while (nudt--) {
+		bzero(udt, sizeof(*udt));
+		udt->tag_parent = udpt;
 		udt++;
 	}
 	return;
 }
 
 /*------------------------------------------------------------------------*
- *	usbd_pc_alloc_mem_cb
+ *	usbd_dma_tag_unsetup - factored out code
+ *------------------------------------------------------------------------*/
+void
+usbd_dma_tag_unsetup(struct usbd_dma_parent_tag *udpt)
+{
+	struct usbd_dma_tag *udt;
+	uint8_t nudt;
+
+	udt = udpt->utag_first;
+	nudt = udpt->utag_max;
+
+	while (nudt--) {
+
+		if (udt->align) {
+			/* destroy the USB DMA tag */
+			usbd_dma_tag_destroy(udt);
+			udt->align = 0;
+		}
+		udt++;
+	}
+
+	if (udpt->utag_max) {
+		/* destroy the condition variable */
+		cv_destroy(udpt->cv);
+	}
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usbd_pc_common_mem_cb - BUS-DMA callback function
  *------------------------------------------------------------------------*/
 static void
-usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
-    int nseg, int error)
+usbd_pc_common_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
+    int nseg, int error, uint8_t isload)
 {
+	struct usbd_dma_parent_tag *uptag;
+	struct usbd_xfer *xfer;
 	struct usbd_page *pg;
 	uint32_t rem;
+	uint8_t owned;
 	uint8_t ext_seg;		/* extend last segment */
 
+	uptag = pc->tag_parent;
+
+	/*
+	 * XXX There is sometimes recursive locking here.
+	 * XXX We should try to find a better solution.
+	 * XXX Until further the "owned" variable does
+	 * XXX the trick.
+	 */
+
 	if (error) {
-		return;
+		goto done;
 	}
 	pg = pc->page_start;
 	pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
@@ -1540,6 +1609,19 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 	if (ext_seg && pc->ismultiseg) {
 		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
 	}
+done:
+	owned = mtx_owned(uptag->mtx);
+	if (!owned)
+		mtx_lock(uptag->mtx);
+
+	uptag->dma_error = (error ? 1 : 0);
+	if (isload) {
+		(uptag->func) (uptag);
+	} else {
+		cv_broadcast(uptag->cv);
+	}
+	if (!owned)
+		mtx_unlock(uptag->mtx);
 	return;
 }
 
@@ -1551,14 +1633,15 @@ usbd_pc_alloc_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
  * Else: Failure
  *------------------------------------------------------------------------*/
 uint8_t
-usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
-    struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size,
-    uint32_t align, uint8_t utag_max)
+usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
+    uint32_t size, uint32_t align)
 {
+	struct usbd_dma_parent_tag *uptag;
 	caddr_t ptr = NULL;
-	bus_dma_tag_t tag;
 	bus_dmamap_t map;
 	int seg_count;
+
+	uptag = pc->tag_parent;
 
 	if (align != 1) {
 		/*
@@ -1574,26 +1657,23 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 		}
 	}
 	/* get the correct DMA tag */
-	utag = usbd_dma_tag_setup(parent_tag, utag, size, align, utag_max);
+	utag = usbd_dma_tag_find(pc->tag_parent, size, align);
 	if (utag == NULL) {
 		goto done_5;
 	}
-	/* get the DMA tag */
-	tag = utag->tag;
-
-	if (bus_dmamem_alloc(tag, size, align, 0, utag->p_seg,
+	if (bus_dmamem_alloc(utag->tag, size, align, 0, utag->p_seg,
 	    utag->n_seg, &seg_count, BUS_DMA_WAITOK)) {
 		goto done_4;
 	}
-	if (bus_dmamem_map(tag, utag->p_seg, seg_count, size,
+	if (bus_dmamem_map(utag->tag, utag->p_seg, seg_count, size,
 	    &ptr, BUS_DMA_WAITOK | BUS_DMA_COHERENT)) {
 		goto done_3;
 	}
-	if (bus_dmamap_create(tag, size, utag->n_seg, (align == 1) ?
+	if (bus_dmamap_create(utag->tag, size, utag->n_seg, (align == 1) ?
 	    USB_PAGE_SIZE : size, 0, BUS_DMA_WAITOK, &map)) {
 		goto done_2;
 	}
-	if (bus_dmamap_load(tag, map, ptr, size, NULL,
+	if (bus_dmamap_load(utag->tag, map, ptr, size, NULL,
 	    BUS_DMA_WAITOK)) {
 		goto done_1;
 	}
@@ -1615,10 +1695,10 @@ usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag,
 	pc->page_offset_buf = 0;
 	pc->page_offset_end = size;
 	pc->map = map;
-	pc->tag = tag;
+	pc->tag = utag->tag;
 	pc->ismultiseg = (align == 1);
 
-	usbd_pc_alloc_mem_cb(pc, utag->p_seg, seg_count, 0);
+	usbd_pc_common_mem_cb(pc, utag->p_seg, seg_count, 0, 0);
 
 	bzero(ptr, size);
 
@@ -1637,7 +1717,6 @@ done_3:
 done_4:
 	/* utag is destroyed later */
 done_5:
-
 	/* reset most of the page cache */
 	pc->buffer = NULL;
 	pc->page_start = NULL;
