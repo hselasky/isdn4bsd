@@ -385,12 +385,13 @@ struct usbd_page_cache {
 	uint8_t ismultiseg:1;
 };
 
-struct usbd_dma_tag * usbd_dma_tag_setup(bus_dma_tag_t tag_parent, struct usbd_dma_tag *udt, uint32_t size, uint32_t align, uint8_t nudt);
-void usbd_dma_tag_unsetup(struct usbd_dma_tag *udt, uint8_t nudt);
-uint8_t usbd_pc_alloc_mem(bus_dma_tag_t parent_tag, struct usbd_dma_tag *utag, struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align, uint8_t utag_max);
-void usbd_pc_free_mem(struct usbd_page_cache *pc);
-void usbd_pc_cpu_invalidate(struct usbd_page_cache *pc);
-void usbd_pc_cpu_flush(struct usbd_page_cache *pc);
+void	usbd_dma_tag_setup(struct usbd_dma_parent_tag *udpt, struct usbd_dma_tag *udt, bus_dma_tag_t dmat, struct mtx *mtx, usbd_dma_callback_t *func, struct usbd_memory_info *info, uint8_t ndmabits, uint8_t nudt);
+struct usbd_dma_tag *usbd_dma_tag_find(struct usbd_dma_parent_tag *updt, uint32_t size, uint32_t align);
+void	usbd_dma_tag_unsetup(struct usbd_dma_parent_tag *udpt);
+uint8_t	usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg, uint32_t size, uint32_t align);
+void	usbd_pc_free_mem(struct usbd_page_cache *pc);
+void	usbd_pc_cpu_invalidate(struct usbd_page_cache *pc);
+void	usbd_pc_cpu_flush(struct usbd_page_cache *pc);
 void usbd_get_page(struct usbd_page_cache *pc, uint32_t offset, struct usbd_page_search *res);
 
 #endif
