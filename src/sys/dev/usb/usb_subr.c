@@ -2952,23 +2952,14 @@ usbd_dma_tag_destroy(struct usbd_dma_tag *udt)
  *------------------------------------------------------------------------*/
 static void
 usbd_pc_common_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
-    int nseg, int error, uint8_t isload)
+    int nseg, int error, uint8_t isload, uint8_t dolock)
 {
 	struct usbd_dma_parent_tag *uptag;
-	struct usbd_xfer *xfer;
 	struct usbd_page *pg;
 	uint32_t rem;
-	uint8_t owned;
 	uint8_t ext_seg;		/* extend last segment */
 
 	uptag = pc->tag_parent;
-
-	/*
-	 * XXX There is sometimes recursive locking here.
-	 * XXX We should try to find a better solution.
-	 * XXX Until further the "owned" variable does
-	 * XXX the trick.
-	 */
 
 	if (error) {
 		goto done;
@@ -3002,17 +2993,14 @@ usbd_pc_common_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
 	}
 done:
-	owned = mtx_owned(uptag->mtx);
-	if (!owned)
+	if (dolock)
 		mtx_lock(uptag->mtx);
 
 	uptag->dma_error = (error ? 1 : 0);
 	if (isload) {
 		(uptag->func) (uptag);
-	} else {
-		cv_broadcast(uptag->cv);
 	}
-	if (!owned)
+	if (dolock)
 		mtx_unlock(uptag->mtx);
 	return;
 }
@@ -3029,6 +3017,7 @@ usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
     uint32_t size, uint32_t align)
 {
 	struct usbd_dma_parent_tag *uptag;
+	struct usbd_dma_tag *utag;
 	caddr_t ptr = NULL;
 	bus_dmamap_t map;
 	int seg_count;
@@ -3090,7 +3079,7 @@ usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
 	pc->tag = utag->tag;
 	pc->ismultiseg = (align == 1);
 
-	usbd_pc_common_mem_cb(pc, utag->p_seg, seg_count, 0, 0);
+	usbd_pc_common_mem_cb(pc, utag->p_seg, seg_count, 0, 0, 1);
 
 	bzero(ptr, size);
 
@@ -3099,13 +3088,13 @@ usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
 	return (0);
 
 done_0:
-	bus_dmamap_unload(tag, map);
+	bus_dmamap_unload(utag->tag, map);
 done_1:
-	bus_dmamap_destroy(tag, map);
+	bus_dmamap_destroy(utag->tag, map);
 done_2:
-	bus_dmamem_unmap(tag, ptr, size);
+	bus_dmamem_unmap(utag->tag, ptr, size);
 done_3:
-	bus_dmamem_free(tag, utag->p_seg, seg_count);
+	bus_dmamem_free(utag->tag, utag->p_seg, seg_count);
 done_4:
 	/* utag is destroyed later */
 done_5:
@@ -3847,8 +3836,10 @@ usbd_dma_tag_setup(struct usbd_dma_parent_tag *udpt,
 		/* something is corrupt */
 		return;
 	}
+#ifdef __FreeBSD__
 	/* initialise condition variable */
 	cv_init(udpt->cv, "USB DMA CV");
+#endif
 
 	/* store some information */
 	udpt->mtx = mtx;
@@ -3890,8 +3881,10 @@ usbd_dma_tag_unsetup(struct usbd_dma_parent_tag *udpt)
 	}
 
 	if (udpt->utag_max) {
+#ifdef __FreeBSD__
 		/* destroy the condition variable */
 		cv_destroy(udpt->cv);
+#endif
 	}
 	return;
 }

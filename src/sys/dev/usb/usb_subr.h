@@ -417,7 +417,9 @@ typedef void (usbd_dma_callback_t)(struct usbd_dma_parent_tag *udpt);
  * The following structure describes the parent USB DMA tag.
  */
 struct usbd_dma_parent_tag {
+#ifdef __FreeBSD__
 	struct cv cv[1];		/* internal condition variable */
+#endif
 
 	bus_dma_tag_t tag;		/* always set */
 
