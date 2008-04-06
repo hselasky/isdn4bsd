@@ -81,75 +81,9 @@ make install
 HOW TO INSTALL AS ROOT ON NETBSD
 ================================
 
-#
-# install header files
-#
-
-rm -r "/usr/include/i4b"
-mkdir "/usr/include/i4b"
-cp -r "src/sys/i4b/include" "/usr/include/i4b"
-
-#
-# compile and install kernel module, libraries and ISDN utilities
-#
-
-cd src/lib/libcapi20
-make depend
-make
+cd NetBSD.i4b
 make install
-
-cd ../../../
-make depend
-make
-make install
-
-#
-# By default USB support is not compiled. Be sure
-# to disable all USB devices in the kernel first.
-# You might have to build a new kernel. Then compile
-# the I4B module like this:
-#
-# cd module
-# make -DWITH_USB clean
-# make -DWITH_USB depend
-# make -DWITH_USB all
-# make -DWITH_USB install
-# cd ..
-#
-
-#
-# load the driver
-#
-
-modload -o i4b.t /usr/lkm/i4b.o
-
-#
-# mount new /dev
-#
-
-rehash
-sync
-
-rm /dev/i4b*
-rm /dev/ihfc*
-rm /dev/capi20
-
-#
-# TODO: mirror /dev/dev/* in /dev/
-#
-
-ln -s /dev/dev/i4b /dev/i4b
-ln -s /dev/dev/i4bctl /dev/i4bctl
-ln -s /dev/dev/capi20 /dev/capi20
-ln -s /dev/dev/i4btrc0 /dev/i4btrc0
-ln -s /dev/dev/i4btrc1 /dev/i4btrc1
-ln -s /dev/dev/i4btrc7 /dev/i4btrc7
-
-rm -r "/dev/dev"
-mkdir "/dev/dev"
-mount_devfs "/dev/dev"
-
-
+make load
 
 HOW TO SET NT-MODE
 ==================
