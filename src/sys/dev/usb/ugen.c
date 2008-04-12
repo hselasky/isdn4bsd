@@ -146,23 +146,12 @@ static usbd_callback_t ugen_default_write_callback;
 static usbd_callback_t ugenisoc_read_callback;
 static usbd_callback_t ugenisoc_write_callback;
 
-static void
-	ugen_make_devnodes(struct ugen_softc *sc);
-
-static void
-	ugen_destroy_devnodes(struct ugen_softc *sc, int skip_first);
-
-static int
-	ugen_set_config(struct ugen_softc *sc, int configno);
-
-static int
-	ugen_set_interface(struct ugen_softc *sc, int ifaceidx, int altno);
-
-static usb_config_descriptor_t *
-	ugen_get_cdesc(struct usbd_device *udev, int index, int *lenp);
-
-static int
-	ugen_get_alt_index(struct usbd_device *udev, int ifaceidx);
+static void ugen_make_devnodes(struct ugen_softc *sc);
+static void ugen_destroy_devnodes(struct ugen_softc *sc, int skip_first);
+static int ugen_set_config(struct ugen_softc *sc, int configno);
+static int ugen_set_interface(struct ugen_softc *sc, int ifaceidx, int altno);
+static usb_config_descriptor_t *ugen_get_cdesc(struct usbd_device *udev, int index, int *lenp);
+static int ugen_get_alt_index(struct usbd_device *udev, int ifaceidx);
 
 #define	UGENMINOR(unit, endpoint) (((unit) << 4) | (endpoint))
 
@@ -1719,7 +1708,9 @@ ugenioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *p
 			error = EPERM;
 			break;
 		}
+		mtx_lock(&usb_global_lock);
 		error = ugen_set_config(sc, *(int *)addr);
+		mtx_unlock(&usb_global_lock);
 		if (error) {
 			break;
 		}
@@ -1740,7 +1731,9 @@ ugenioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *p
 			error = EPERM;
 			break;
 		}
+		mtx_lock(&usb_global_lock);
 		error = ugen_set_interface(sc, ai->uai_interface_index, ai->uai_alt_no);
+		mtx_unlock(&usb_global_lock);
 		if (error) {
 			break;
 		}
