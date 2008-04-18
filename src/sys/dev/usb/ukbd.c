@@ -1,5 +1,6 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.75 2007/11/05 19:51:12 kan Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.76 2007/12/29 21:55:24 wkoszek Exp $");
+
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.
@@ -38,6 +39,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.75 2007/11/05 19:51:12 kan Exp $"
  * POSSIBILITY OF SUCH DAMAGE.
  *
  */
+
 
 /*
  * HID spec: http://www.usb.org/developers/devclass_docs/HID1_11.pdf

@@ -38,7 +38,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb_quirks.c,v 1.64 2007/11/11 20:57:08 brix Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb_quirks.c,v 1.65 2008/03/14 15:59:30 jkim Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -59,6 +59,7 @@ struct usbd_quirk_entry {
 };
 
 static const struct usbd_quirk_entry usb_quirks[] = {
+	{USB_VENDOR_ASUS, USB_PRODUCT_ASUS_LCM, ANY, {UQ_HID_IGNORE}},
 	{USB_VENDOR_INSIDEOUT, USB_PRODUCT_INSIDEOUT_EDGEPORT4,
 	0x094, {UQ_SWAP_UNICODE}},
 	{USB_VENDOR_DALLAS, USB_PRODUCT_DALLAS_J6502, 0x0a2, {UQ_BAD_ADC}},

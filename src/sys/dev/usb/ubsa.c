@@ -25,8 +25,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.32 2007/06/22 05:56:05 imp Exp $");
-
+__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.35 2008/04/09 22:20:28 flz Exp $");
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -268,6 +267,8 @@ struct ubsa_product {
 static const struct ubsa_product ubsa_products[] = {
 	/* AnyData ADU-E100A/H */
 	{USB_VENDOR_ANYDATA, USB_PRODUCT_ANYDATA_ADU_E100X},
+	/* Axesstel MV100H */
+	{USB_VENDOR_AXESSTEL, USB_PRODUCT_AXESSTEL_DATAMODEM},
 	/* BELKIN F5U103 */
 	{USB_VENDOR_BELKIN, USB_PRODUCT_BELKIN_F5U103},
 	/* BELKIN F5U120 */
@@ -280,6 +281,8 @@ static const struct ubsa_product ubsa_products[] = {
 	{USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_SERIAL1},
 	/* Novatel Wireless Merlin cards */
 	{USB_VENDOR_NOVATEL, USB_PRODUCT_NOVATEL_U740},
+	/* Novatel Wireless Merlin v740 */
+	{USB_VENDOR_NOVATEL, USB_PRODUCT_NOVATEL_V740},
 	/* Option Vodafone MC3G */
 	{USB_VENDOR_OPTION, USB_PRODUCT_OPTION_VODAFONEMC3G},
 	/* Option GlobeTrotter 3G */
@@ -290,6 +293,8 @@ static const struct ubsa_product ubsa_products[] = {
 	{USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GQUAD},
 	/* Huawei Mobile */
 	{USB_VENDOR_HUAWEI, USB_PRODUCT_HUAWEI_MOBILE},
+	/* Qualcomm, Inc. ZTE CDMA */
+	{USB_VENDOR_QUALCOMMINC, USB_PRODUCT_QUALCOMMINC_CDMA_MSM},
 	{0, 0}
 };
 

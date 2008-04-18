@@ -49,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.8 2007/10/22 08:28:24 mav Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.9 2008/04/16 21:15:10 stas Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -471,7 +471,6 @@ uipaq_read_callback(struct usbd_xfer *xfer)
 			usbd_transfer_start(sc->sc_xfer_data[3]);
 		}
 		return;
-
 	}
 }
 

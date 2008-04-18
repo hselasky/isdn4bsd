@@ -122,6 +122,7 @@ ${S}/sys/modules/ural/Makefile \
 ${S}/sys/modules/urio/Makefile \
 ${S}/sys/modules/usb/Makefile  \
 ${S}/sys/modules/uscanner/Makefile \
+${S}/sys/modules/uslcom/Makefile  \
 ${S}/sys/modules/uss820_dci/Makefile  \
 ${S}/sys/modules/uvisor/Makefile \
 ${S}/sys/modules/uvscom/Makefile \
@@ -399,6 +400,7 @@ backup:
 	mkdir ${S}/sys/modules/urio    || echo -n
 	mkdir ${S}/sys/modules/usb     || echo -n
 	mkdir ${S}/sys/modules/uscanner || echo -n
+	mkdir ${S}/sys/modules/uslcom || echo -n
 	mkdir ${S}/sys/modules/uss820_dci || echo -n
 	mkdir ${S}/sys/modules/uvisor  || echo -n
 	mkdir ${S}/sys/modules/uvscom  || echo -n

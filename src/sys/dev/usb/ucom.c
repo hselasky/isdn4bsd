@@ -1,7 +1,8 @@
 /*	$NetBSD: ucom.c,v 1.40 2001/11/13 06:24:54 lukem Exp $	*/
 
 /*-
- * Copyright (c) 2001-2003, 2005 Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.
+ * Copyright (c) 2001-2003, 2005, 2008
+ *	Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,7 +28,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ucom.c,v 1.64 2007/06/25 06:40:20 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ucom.c,v 1.66 2008/03/25 23:46:24 sam Exp $");
 
 /*-
  * Copyright (c) 1998, 2000 The NetBSD Foundation, Inc.
@@ -121,6 +122,7 @@ static usbd_config_td_command_t ucom_cfg_rts;
 static usbd_config_td_command_t ucom_cfg_status_change;
 static usbd_config_td_command_t ucom_cfg_param;
 
+static int ucom_modevent(module_t mod, int type, void *data);
 static uint8_t ucom_units_alloc(uint32_t sub_units, uint32_t *p_root_unit);
 static void ucom_units_free(uint32_t root_unit, uint32_t sub_units);
 static int ucom_attach_sub(struct ucom_softc *sc);
@@ -141,13 +143,29 @@ static void ucom_stop_write(struct tty *tp, int fflags);
 
 static moduledata_t ucom_mod = {
 	"ucom",
-	NULL,
+	ucom_modevent,
 	NULL
 };
 
 DECLARE_MODULE(ucom, ucom_mod, SI_SUB_DRIVERS, SI_ORDER_MIDDLE);
 MODULE_DEPEND(ucom, usb, 1, 1, 1);
 MODULE_VERSION(ucom, UCOM_MODVER);
+
+static int
+ucom_modevent(module_t mod, int type, void *data)
+{
+	;				/* style fix */
+	switch (type) {
+	case MOD_LOAD:
+		break;
+	case MOD_UNLOAD:
+		break;
+	default:
+		return (EOPNOTSUPP);
+		break;
+	}
+	return (0);
+}
 
 #define	UCOM_UNIT_MAX 0x1000		/* exclusive */
 #define	UCOM_SUB_UNIT_MAX 0x100		/* exclusive */

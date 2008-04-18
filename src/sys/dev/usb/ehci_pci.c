@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ehci_pci.c,v 1.29 2007/11/15 23:59:36 jfv Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ehci_pci.c,v 1.32 2008/04/11 05:50:53 benno Exp $");
 
 /*
  * USB Enhanced Host Controller Driver, a.k.a. USB 2.0 controller.
@@ -166,6 +166,15 @@ ehci_pci_match(device_t self)
 		return "Intel 82801FB (ICH6) USB 2.0 controller";
 	if (device_id == 0x27cc8086)
 		return "Intel 82801GB/R (ICH7) USB 2.0 controller";
+
+	if (device_id == 0x28368086)
+		return "Intel 82801H (ICH8) USB 2.0 controller USB2-A";
+	if (device_id == 0x283a8086)
+		return "Intel 82801H (ICH8) USB 2.0 controller USB2-B";
+	if (device_id == 0x293a8086)
+		return "Intel 82801I (ICH9) USB 2.0 controller";
+	if (device_id == 0x293c8086)
+		return "Intel 82801I (ICH9) USB 2.0 controller";
 
 	if (device_id == 0x00e01033) {
 		return ("NEC uPD 720100 USB 2.0 controller");
@@ -465,7 +474,6 @@ static driver_t ehci_driver =
 		DEVMETHOD(device_suspend, ehci_pci_suspend),
 		DEVMETHOD(device_resume, ehci_pci_resume),
 		DEVMETHOD(device_shutdown, ehci_pci_shutdown),
-
 		/* bus interface */
 		DEVMETHOD(bus_print_child, bus_generic_print_child),
 

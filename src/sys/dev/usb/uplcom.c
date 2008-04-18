@@ -1,7 +1,7 @@
 /*	$NetBSD: uplcom.c,v 1.21 2001/11/13 06:24:56 lukem Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uplcom.c,v 1.50 2007/06/20 05:10:53 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uplcom.c,v 1.51 2007/12/16 12:39:50 stas Exp $");
 
 /*-
  * Copyright (c) 2001-2003, 2005 Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.
@@ -289,6 +289,8 @@ static const struct uplcom_product uplcom_products[] = {
 	{USB_VENDOR_PROLIFIC, USB_PRODUCT_PROLIFIC_RSAQ3, 0xFFFF, TYPE_PL2303X},
 	/* PLANEX USB-RS232 URS-03 */
 	{USB_VENDOR_ATEN, USB_PRODUCT_ATEN_UC232A, 0xFFFF, TYPE_PL2303},
+	/* TrendNet TU-S9 */
+	{USB_VENDOR_PROLIFIC, USB_PRODUCT_PROLIFIC_PL2303, 0x0400, TYPE_PL2303X},
 	/* ST Lab USB-SERIAL-4 */
 	{USB_VENDOR_PROLIFIC, USB_PRODUCT_PROLIFIC_PL2303, 0x0300, TYPE_PL2303X},
 	/* IOGEAR/ATEN UC-232A (also ST Lab USB-SERIAL-1) */

@@ -1,5 +1,5 @@
 /*	$NetBSD: ucomvar.h,v 1.9 2001/01/23 21:56:17 augustss Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb/ucomvar.h,v 1.9 2007/06/12 17:30:54 imp Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb/ucomvar.h,v 1.10 2008/03/25 23:46:24 sam Exp $	*/
 
 /*-
  * Copyright (c) 2001-2002, Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.

@@ -5,7 +5,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uscanner.c,v 1.89 2007/10/05 07:26:39 luigi Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uscanner.c,v 1.90 2008/02/26 18:19:39 remko Exp $");
 
 /*-
  * Copyright (c) 2000 The NetBSD Foundation, Inc.
@@ -250,6 +250,8 @@ static const struct uscanner_info uscanner_devs[] = {
 	{{USB_VENDOR_EPSON, USB_PRODUCT_EPSON_RX425}, 0},
 	{{USB_VENDOR_EPSON, USB_PRODUCT_EPSON_3200}, USCANNER_FLAG_KEEP_OPEN},
 	{{USB_VENDOR_EPSON, USB_PRODUCT_EPSON_GT9700F}, USCANNER_FLAG_KEEP_OPEN},
+	{{USB_VENDOR_EPSON, USB_PRODUCT_EPSON_CX5400}, 0},
+
 	{{USB_VENDOR_EPSON, USB_PRODUCT_EPSON_GT9300UF}, 0},
 	{{USB_VENDOR_EPSON, USB_PRODUCT_EPSON_2480}, 0},
 	{{USB_VENDOR_EPSON, USB_PRODUCT_EPSON_3500}, USCANNER_FLAG_KEEP_OPEN},

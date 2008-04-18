@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uhci_pci.c,v 1.62 2007/11/15 23:59:36 jfv Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uhci_pci.c,v 1.64 2008/04/11 05:50:53 benno Exp $");
 
 /* Universal Host Controller Interface
  *
@@ -183,6 +183,29 @@ uhci_pci_match(device_t self)
 	if (device_id == 0x265b8086) {
 		return ("Intel 82801FB/FR/FW/FRW (ICH6) USB controller USB-D");
 	}
+	if (device_id == 0x28308086)
+		return ("Intel 82801H (ICH8) USB controller USB-A");
+	if (device_id == 0x28318086)
+		return ("Intel 82801H (ICH8) USB controller USB-B");
+	if (device_id == 0x28328086)
+		return ("Intel 82801H (ICH8) USB controller USB-C");
+	if (device_id == 0x28348086)
+		return ("Intel 82801H (ICH8) USB controller USB-D");
+	if (device_id == 0x28358086)
+		return ("Intel 82801H (ICH8) USB controller USB-E");
+	if (device_id == 0x29348086)
+		return ("Intel 82801I (ICH9) USB controller");
+	if (device_id == 0x29358086)
+		return ("Intel 82801I (ICH9) USB controller");
+	if (device_id == 0x29368086)
+		return ("Intel 82801I (ICH9) USB controller");
+	if (device_id == 0x29378086)
+		return ("Intel 82801I (ICH9) USB controller");
+	if (device_id == 0x29388086)
+		return ("Intel 82801I (ICH9) USB controller");
+	if (device_id == 0x29398086)
+		return ("Intel 82801I (ICH9) USB controller");
+
 	if (device_id == 0x719a8086) {
 		return ("Intel 82443MX USB controller");
 	}

@@ -37,7 +37,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uftdi.c,v 1.37 2007/06/22 05:53:05 imp Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uftdi.c,v 1.38 2008/01/25 02:41:44 emaste Exp $");
 
 /*
  * NOTE: all function names beginning like "uftdi_cfg_" can only
@@ -148,6 +148,7 @@ static void uftdi_start_read(struct ucom_softc *ucom);
 static void uftdi_stop_read(struct ucom_softc *ucom);
 static void uftdi_start_write(struct ucom_softc *ucom);
 static void uftdi_stop_write(struct ucom_softc *ucom);
+static uint8_t uftdi_8u232am_getrate(uint32_t speed, uint16_t *rate);
 
 static const struct usbd_config uftdi_config[UFTDI_ENDPT_MAX] = {
 
@@ -761,53 +762,7 @@ uftdi_set_parm_soft(struct termios *t,
 		break;
 
 	case UFTDI_TYPE_8U232AM:
-		switch (t->c_ospeed) {
-		case 300:
-			cfg->rate = ftdi_8u232am_b300;
-			break;
-		case 600:
-			cfg->rate = ftdi_8u232am_b600;
-			break;
-		case 1200:
-			cfg->rate = ftdi_8u232am_b1200;
-			break;
-		case 2400:
-			cfg->rate = ftdi_8u232am_b2400;
-			break;
-		case 4800:
-			cfg->rate = ftdi_8u232am_b4800;
-			break;
-		case 9600:
-			cfg->rate = ftdi_8u232am_b9600;
-			break;
-		case 19200:
-			cfg->rate = ftdi_8u232am_b19200;
-			break;
-		case 38400:
-			cfg->rate = ftdi_8u232am_b38400;
-			break;
-		case 57600:
-			cfg->rate = ftdi_8u232am_b57600;
-			break;
-		case 115200:
-			cfg->rate = ftdi_8u232am_b115200;
-			break;
-		case 230400:
-			cfg->rate = ftdi_8u232am_b230400;
-			break;
-		case 460800:
-			cfg->rate = ftdi_8u232am_b460800;
-			break;
-		case 921600:
-			cfg->rate = ftdi_8u232am_b921600;
-			break;
-		case 2000000:
-			cfg->rate = ftdi_8u232am_b2000000;
-			break;
-		case 3000000:
-			cfg->rate = ftdi_8u232am_b3000000;
-			break;
-		default:
+		if (uftdi_8u232am_getrate(t->c_ospeed, &(cfg->rate))) {
 			return (EINVAL);
 		}
 		break;
@@ -959,4 +914,73 @@ uftdi_stop_write(struct ucom_softc *ucom)
 	usbd_transfer_stop(sc->sc_xfer[2]);
 	usbd_transfer_stop(sc->sc_xfer[0]);
 	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	uftdi_8u232am_getrate
+ *
+ * Return values:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+static uint8_t
+uftdi_8u232am_getrate(uint32_t speed, uint16_t *rate)
+{
+	/* Table of the nearest even powers-of-2 for values 0..15. */
+	static const uint8_t roundoff[16] = {
+		0, 2, 2, 4, 4, 4, 8, 8,
+		8, 8, 8, 8, 16, 16, 16, 16,
+	};
+	uint32_t d;
+	uint32_t freq;
+	uint16_t result;
+
+	if ((speed < 178) || (speed > ((3000000 * 100) / 97)))
+		return (1);		/* prevent numerical overflow */
+
+	/* Special cases for 2M and 3M. */
+	if ((speed >= ((3000000 * 100) / 103)) &&
+	    (speed <= ((3000000 * 100) / 97))) {
+		result = 0;
+		goto done;
+	}
+	if ((speed >= ((2000000 * 100) / 103)) &&
+	    (speed <= ((2000000 * 100) / 97))) {
+		result = 1;
+		goto done;
+	}
+	d = (FTDI_8U232AM_FREQ << 4) / speed;
+	d = (d & ~15) + roundoff[d & 15];
+
+	if (d < FTDI_8U232AM_MIN_DIV)
+		d = FTDI_8U232AM_MIN_DIV;
+	else if (d > FTDI_8U232AM_MAX_DIV)
+		d = FTDI_8U232AM_MAX_DIV;
+
+	/*
+	 * Calculate the frequency needed for "d" to exactly divide down to
+	 * our target "speed", and check that the actual frequency is within
+	 * 3% of this.
+	 */
+	freq = (speed * d);
+	if ((freq < ((FTDI_8U232AM_FREQ * 1600ULL) / 103)) ||
+	    (freq > ((FTDI_8U232AM_FREQ * 1600ULL) / 97)))
+		return (1);
+
+	/*
+	 * Pack the divisor into the resultant value.  The lower 14-bits
+	 * hold the integral part, while the upper 2 bits encode the
+	 * fractional component: either 0, 0.5, 0.25, or 0.125.
+	 */
+	result = (d >> 4);
+	if (d & 8)
+		result |= 0x4000;
+	else if (d & 4)
+		result |= 0x8000;
+	else if (d & 2)
+		result |= 0xc000;
+
+done:
+	*rate = result;
+	return (0);
 }

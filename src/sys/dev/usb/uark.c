@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $FreeBSD: src/sys/dev/usb/uark.c,v 1.7 2007/06/30 02:42:36 imp Exp $
+ * $FreeBSD: src/sys/dev/usb/uark.c,v 1.8 2008/01/26 04:30:48 emaste Exp $
  */
 
 /*
@@ -384,22 +384,8 @@ uark_stop_write(struct ucom_softc *ucom)
 static int
 uark_pre_param(struct ucom_softc *ucom, struct termios *t)
 {
-	switch (t->c_ospeed) {
-		case 300:
-		case 600:
-		case 1200:
-		case 1800:
-		case 2400:
-		case 4800:
-		case 9600:
-		case 19200:
-		case 38400:
-		case 57600:
-		case 115200:
-		break;
-	default:
+	if ((t->c_ospeed < 300) || (t->c_ospeed > 115200))
 		return (EINVAL);
-	}
 	return (0);
 }
 
@@ -407,29 +393,19 @@ static void
 uark_cfg_param(struct ucom_softc *ucom, struct termios *t)
 {
 	struct uark_softc *sc = ucom->sc_parent;
+	uint32_t speed = t->c_ospeed;
 	uint16_t data;
 
-	switch (t->c_ospeed) {
-	case 300:
-	case 600:
-	case 1200:
-	case 1800:
-	case 2400:
-	case 4800:
-	case 9600:
-	case 19200:
-	case 38400:
-	case 57600:
-	case 115200:
-		data = (UARK_BAUD_REF / t->c_ospeed);
-		uark_cfg_write(sc, 3, 0x83);
-		uark_cfg_write(sc, 0, data & 0xFF);
-		uark_cfg_write(sc, 1, data >> 8);
-		uark_cfg_write(sc, 3, 0x03);
-		break;
-	default:
-		return;
-	}
+	/*
+	 * NOTE: When reverse computing the baud rate from the "data" all
+	 * allowed baud rates are within 3% of the initial baud rate.
+	 */
+	data = (UARK_BAUD_REF + (speed / 2)) / speed;
+
+	uark_cfg_write(sc, 3, 0x83);
+	uark_cfg_write(sc, 0, data & 0xFF);
+	uark_cfg_write(sc, 1, data >> 8);
+	uark_cfg_write(sc, 3, 0x03);
 
 	if (t->c_cflag & CSTOPB)
 		data = UARK_STOP_BITS_2;
