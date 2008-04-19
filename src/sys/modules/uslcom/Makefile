@@ -4,7 +4,7 @@ S=	${.CURDIR}/../..
 .PATH: $S/dev/usb
 
 KMOD=	uslcom
-SRCS=	uslcom.c opt_usb.h \
+SRCS=	uslcom.c opt_usb.h usb_if.h \
 	vnode_if.h device_if.h bus_if.h usbdevs.h
 
 .include <bsd.kmod.mk>

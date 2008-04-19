@@ -1,4 +1,3 @@
-#if 0
 /*	$FreeBSD: src/sys/dev/usb/uslcom.c,v 1.2 2008/03/05 14:18:29 rink Exp $ */
 /*	$OpenBSD: uslcom.c,v 1.17 2007/11/24 10:52:12 jsg Exp $	*/
 
@@ -21,35 +20,37 @@
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
-#include <sys/module.h>
-#include <sys/conf.h>
-#include <sys/bus.h>
-#include <sys/tty.h>
+#include <sys/termios.h>
+#include <sys/serial.h>
 
+#include <dev/usb/usb_port.h>
 #include <dev/usb/usb.h>
-#include <dev/usb/usbcdc.h>
+#include <dev/usb/usb_subr.h>
 
-#include <dev/usb/usb.h>
-#include <dev/usb/usbdi.h>
-#include <dev/usb/usbdi_util.h>
-
-#include "usbdevs.h"
 #include <dev/usb/ucomvar.h>
 
-#ifdef USLCOM_DEBUG
-#define	DPRINTFN(n, x)  do { if (uslcomdebug > (n)) printf x; } while (0)
-int	uslcomdebug = 1;
+#include "usbdevs.h"
 
+#ifdef USB_DEBUG
+#define	DPRINTF(n,fmt,...)						\
+  do { if (uslcom_debug > (n)) {						\
+      printf("%s: " fmt, __FUNCTION__,## __VA_ARGS__); } } while (0)
+
+static int uslcom_debug = 0;
+
+SYSCTL_NODE(_hw_usb, OID_AUTO, uslcom, CTLFLAG_RW, 0, "USB uslcom");
+SYSCTL_INT(_hw_usb_uslcom, OID_AUTO, debug, CTLFLAG_RW,
+    &uslcom_debug, 0, "uslcom debug level");
 #else
-#define	DPRINTFN(n, x)
+#define	DPRINTF(...) do { } while (0)
 #endif
-#define	DPRINTF(x) DPRINTFN(0, x)
 
-#define	USLCOMBUFSZ		256
-#define	USLCOM_CONFIG_NO	0
-#define	USLCOM_IFACE_NO		0
+#define	USLCOM_BUF_SIZE 1024
+#define	USLCOM_N_DATA_TRANSFER 4
+#define	USLCOM_CONFIG_INDEX	0
+#define	USLCOM_IFACE_INDEX	0
 
-#define	USLCOM_SET_DATA_BITS(x)	(x << 8)
+#define	USLCOM_SET_DATA_BITS(x)	((x) << 8)
 
 #define	USLCOM_WRITE		0x41
 #define	USLCOM_READ		0xc1
@@ -71,7 +72,6 @@ int	uslcomdebug = 1;
 #define	USLCOM_CTRL_DSR		0x0020
 #define	USLCOM_CTRL_DCD		0x0080
 
-
 #define	USLCOM_BAUD_REF		0x384000
 
 #define	USLCOM_STOP_BITS_1	0x00
@@ -84,34 +84,100 @@ int	uslcomdebug = 1;
 #define	USLCOM_BREAK_OFF	0x00
 #define	USLCOM_BREAK_ON		0x01
 
-
 struct uslcom_softc {
+	struct ucom_super_softc sc_super_ucom;
 	struct ucom_softc sc_ucom;
-	device_t sc_dev;
-	usbd_device_handle sc_udev;
 
-	u_char	sc_msr;
-	u_char	sc_lsr;
+	struct usbd_xfer *sc_xfer_data[USLCOM_N_DATA_TRANSFER];
+	struct usbd_device *sc_udev;
 
-	u_char	sc_dying;
+	uint8_t	sc_msr;
+	uint8_t	sc_lsr;
+
+	uint8_t	sc_flag;
+#define	USLCOM_FLAG_READ_STALL  0x01
+#define	USLCOM_FLAG_WRITE_STALL 0x02
+#define	USLCOM_FLAG_INTR_STALL  0x04
 };
 
-void	uslcom_get_status(void *, int portno, u_char *lsr, u_char *msr);
-void	uslcom_set(void *, int, int, int);
-int	uslcom_param(void *, int, struct termios *);
-int	uslcom_open(void *sc, int portno);
-void	uslcom_close(void *, int);
-void	uslcom_break(void *sc, int portno, int onoff);
+static device_probe_t uslcom_probe;
+static device_attach_t uslcom_attach;
+static device_detach_t uslcom_detach;
 
-struct ucom_callback uslcom_callback = {
-	uslcom_get_status,
-	uslcom_set,
-	uslcom_param,
-	NULL,
-	uslcom_open,
-	uslcom_close,
-	NULL,
-	NULL,
+static usbd_callback_t uslcom_write_callback;
+static usbd_callback_t uslcom_read_callback;
+static usbd_callback_t uslcom_write_clear_stall_callback;
+static usbd_callback_t uslcom_read_clear_stall_callback;
+
+static void uslcom_start_read(struct ucom_softc *ucom);
+static void uslcom_stop_read(struct ucom_softc *ucom);
+static void uslcom_start_write(struct ucom_softc *ucom);
+static void uslcom_stop_write(struct ucom_softc *ucom);
+
+static void uslcom_cfg_open(struct ucom_softc *ucom);
+static void uslcom_cfg_close(struct ucom_softc *ucom);
+static int uslcom_pre_param(struct ucom_softc *ucom, struct termios *t);
+static void uslcom_cfg_param(struct ucom_softc *ucom, struct termios *t);
+static void uslcom_cfg_set_dtr(struct ucom_softc *ucom, uint8_t onoff);
+static void uslcom_cfg_set_rts(struct ucom_softc *ucom, uint8_t onoff);
+static void uslcom_cfg_set_break(struct ucom_softc *ucom, uint8_t onoff);
+static void uslcom_cfg_get_status(struct ucom_softc *ucom, uint8_t *lsr, uint8_t *msr);
+static void uslcom_cfg_do_request(struct uslcom_softc *sc, usb_device_request_t *req, void *data);
+
+static const struct usbd_config uslcom_config_data[USLCOM_N_DATA_TRANSFER] = {
+
+	[0] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_OUT,
+		.mh.bufsize = USLCOM_BUF_SIZE,
+		.mh.flags = {.pipe_bof = 1,.force_short_xfer = 1,},
+		.mh.callback = &uslcom_write_callback,
+	},
+
+	[1] = {
+		.type = UE_BULK,
+		.endpoint = UE_ADDR_ANY,
+		.direction = UE_DIR_IN,
+		.mh.bufsize = USLCOM_BUF_SIZE,
+		.mh.flags = {.pipe_bof = 1,.short_xfer_ok = 1,},
+		.mh.callback = &uslcom_read_callback,
+	},
+
+	[2] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.mh.bufsize = sizeof(usb_device_request_t),
+		.mh.callback = &uslcom_write_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.mh.interval = 50,	/* 50ms */
+	},
+
+	[3] = {
+		.type = UE_CONTROL,
+		.endpoint = 0x00,	/* Control pipe */
+		.direction = UE_DIR_ANY,
+		.mh.bufsize = sizeof(usb_device_request_t),
+		.mh.callback = &uslcom_read_clear_stall_callback,
+		.mh.timeout = 1000,	/* 1 second */
+		.mh.interval = 50,	/* 50ms */
+	},
+};
+
+static const struct ucom_callback uslcom_callback = {
+	.ucom_cfg_open = &uslcom_cfg_open,
+	.ucom_cfg_close = &uslcom_cfg_close,
+	.ucom_cfg_get_status = &uslcom_cfg_get_status,
+	.ucom_cfg_set_dtr = &uslcom_cfg_set_dtr,
+	.ucom_cfg_set_rts = &uslcom_cfg_set_rts,
+	.ucom_cfg_set_break = &uslcom_cfg_set_break,
+	.ucom_cfg_param = &uslcom_cfg_param,
+	.ucom_pre_param = &uslcom_pre_param,
+	.ucom_start_read = &uslcom_start_read,
+	.ucom_stop_read = &uslcom_stop_read,
+	.ucom_start_write = &uslcom_start_write,
+	.ucom_stop_write = &uslcom_stop_write,
 };
 
 static const struct usb_devno uslcom_devs[] = {
@@ -135,224 +201,283 @@ static const struct usb_devno uslcom_devs[] = {
 	{USB_VENDOR_USI, USB_PRODUCT_USI_MC60}
 };
 
-static device_probe_t uslcom_match;
-static device_attach_t uslcom_attach;
-static device_detach_t uslcom_detach;
-
 static device_method_t uslcom_methods[] = {
 	/* Device interface */
-	DEVMETHOD(device_probe, uslcom_match),
+	DEVMETHOD(device_probe, uslcom_probe),
 	DEVMETHOD(device_attach, uslcom_attach),
 	DEVMETHOD(device_detach, uslcom_detach),
 	{0, 0}
 };
 
+static devclass_t uslcom_devclass;
+
 static driver_t uslcom_driver = {
-	"ucom",
-	uslcom_methods,
-	sizeof(struct uslcom_softc)
+	.name = "uslcom",
+	.methods = uslcom_methods,
+	.size = sizeof(struct uslcom_softc),
 };
 
-DRIVER_MODULE(uslcom, uhub, uslcom_driver, ucom_devclass, usbd_driver_load, 0);
+DRIVER_MODULE(uslcom, uhub, uslcom_driver, uslcom_devclass, usbd_driver_load, 0);
 MODULE_DEPEND(uslcom, usb, 1, 1, 1);
 MODULE_DEPEND(uslcom, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 MODULE_VERSION(uslcom, 1);
 
 static int
-uslcom_match(device_t self)
+uslcom_probe(device_t dev)
 {
-	struct usb_attach_arg *uaa = device_get_ivars(self);
+	struct usb_attach_arg *uaa = device_get_ivars(dev);
+
+	if (uaa->usb_mode != USB_MODE_HOST)
+		return (UMATCH_NONE);
 
 	if (uaa->iface != NULL)
-		return UMATCH_NONE;
+		return (UMATCH_NONE);
 
 	return (usb_lookup(uslcom_devs, uaa->vendor, uaa->product) != NULL) ?
 	    UMATCH_VENDOR_PRODUCT : UMATCH_NONE;
 }
 
 static int
-uslcom_attach(device_t self)
+uslcom_attach(device_t dev)
 {
-	struct uslcom_softc *sc = device_get_softc(self);
-	struct usb_attach_arg *uaa = device_get_ivars(self);
-	usbd_device_handle dev = uaa->device;
-	struct ucom_softc *ucom;
-	usb_interface_descriptor_t *id;
-	usb_endpoint_descriptor_t *ed;
-	usbd_status error;
-	int i;
+	struct usb_attach_arg *uaa = device_get_ivars(dev);
+	struct uslcom_softc *sc = device_get_softc(dev);
+	uint8_t ifaces[1];
+	int error;
 
-	ucom = &sc->sc_ucom;
-	ucom->sc_dev = self;
-	ucom->sc_udev = dev;
-	ucom->sc_iface = uaa->iface;
+	if (sc == NULL) {
+		return (ENOMEM);
+	}
+	usbd_set_device_desc(dev);
 
-	sc->sc_dev = self;
 	sc->sc_udev = uaa->device;
 
-	if (usbd_set_config_index(sc->sc_udev, USLCOM_CONFIG_NO, 1) != 0) {
-		device_printf(self, "could not set configuration no\n");
-		sc->sc_dying = 1;
-		return ENXIO;
+	if (usbd_set_config_index(uaa->device, USLCOM_CONFIG_INDEX, 1) != 0) {
+		device_printf(dev, "Could not set configuration 0.\n");
+		return (ENXIO);
 	}
-	/* get the first interface handle */
-	error = usbd_device2interface_handle(sc->sc_udev, USLCOM_IFACE_NO,
-	    &ucom->sc_iface);
-	if (error != 0) {
-		device_printf(self, "could not get interface handle\n");
-		sc->sc_dying = 1;
-		return ENXIO;
+	ifaces[0] = USLCOM_IFACE_INDEX;
+
+	error = usbd_transfer_setup(uaa->device,
+	    ifaces, sc->sc_xfer_data,
+	    uslcom_config_data, USLCOM_N_DATA_TRANSFER,
+	    sc, &Giant);
+	if (error) {
+		goto detach;
 	}
-	id = usbd_get_interface_descriptor(ucom->sc_iface);
+	/* clear stall at first run */
+	sc->sc_flag |= (USLCOM_FLAG_READ_STALL |
+	    USLCOM_FLAG_WRITE_STALL);
 
-	ucom->sc_bulkin_no = ucom->sc_bulkout_no = -1;
-	for (i = 0; i < id->bNumEndpoints; i++) {
-		ed = usbd_interface2endpoint_descriptor(ucom->sc_iface, i);
-		if (ed == NULL) {
-			device_printf(self, "no endpoint descriptor found for %d\n",
-			    i);
-			sc->sc_dying = 1;
-			return ENXIO;
-		}
-		if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_IN &&
-		    UE_GET_XFERTYPE(ed->bmAttributes) == UE_BULK)
-			ucom->sc_bulkin_no = ed->bEndpointAddress;
-		else if (UE_GET_DIR(ed->bEndpointAddress) == UE_DIR_OUT &&
-		    UE_GET_XFERTYPE(ed->bmAttributes) == UE_BULK)
-			ucom->sc_bulkout_no = ed->bEndpointAddress;
+	error = ucom_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	    &uslcom_callback, &Giant);
+	if (error) {
+		goto detach;
 	}
+	return (0);
 
-	if (ucom->sc_bulkin_no == -1 || ucom->sc_bulkout_no == -1) {
-		device_printf(self, "missing endpoint\n");
-		sc->sc_dying = 1;
-		return ENXIO;
-	}
-	ucom->sc_parent = sc;
-	ucom->sc_portno = UCOM_UNK_PORTNO;
-	/* bulkin, bulkout set above */
-	ucom->sc_ibufsize = USLCOMBUFSZ;
-	ucom->sc_obufsize = USLCOMBUFSZ;
-	ucom->sc_ibufsizepad = USLCOMBUFSZ;
-	ucom->sc_opkthdrlen = 0;
-	ucom->sc_callback = &uslcom_callback;
-
-	DPRINTF(("uslcom: in = 0x%x, out = 0x%x\n",
-	    ucom->sc_bulkin_no, ucom->sc_bulkout_no));
-
-	ucom_attach(&sc->sc_ucom);
-	return 0;
+detach:
+	uslcom_detach(dev);
+	return (ENXIO);
 }
 
 static int
-uslcom_detach(device_t self)
+uslcom_detach(device_t dev)
 {
-	struct uslcom_softc *sc = device_get_softc(self);
+	struct uslcom_softc *sc = device_get_softc(dev);
 
-	sc->sc_dying = 1;
-	return ucom_detach(&sc->sc_ucom);
-}
+	DPRINTF(0, "sc=%p\n", sc);
 
-int
-uslcom_open(void *vsc, int portno)
-{
-	struct uslcom_softc *sc = vsc;
-	usb_device_request_t req;
-	usbd_status err;
+	ucom_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
 
-	if (sc->sc_dying)
-		return (EIO);
-
-	req.bmRequestType = USLCOM_WRITE;
-	req.bRequest = USLCOM_UART;
-	USETW(req.wValue, USLCOM_UART_ENABLE);
-	USETW(req.wIndex, portno);
-	USETW(req.wLength, 0);
-	err = usbd_do_request(sc->sc_udev, &req, NULL);
-	if (err)
-		return (EIO);
+	usbd_transfer_unsetup(sc->sc_xfer_data, USLCOM_N_DATA_TRANSFER);
 
 	return (0);
 }
 
-void
-uslcom_close(void *vsc, int portno)
+static void
+uslcom_start_read(struct ucom_softc *ucom)
 {
-	struct uslcom_softc *sc = vsc;
+	struct uslcom_softc *sc = ucom->sc_parent;
+
+	/* start read endpoint */
+	usbd_transfer_start(sc->sc_xfer_data[1]);
+	return;
+}
+
+static void
+uslcom_stop_read(struct ucom_softc *ucom)
+{
+	struct uslcom_softc *sc = ucom->sc_parent;
+
+	/* stop read endpoint */
+	usbd_transfer_stop(sc->sc_xfer_data[3]);
+	usbd_transfer_stop(sc->sc_xfer_data[1]);
+	return;
+}
+
+static void
+uslcom_start_write(struct ucom_softc *ucom)
+{
+	struct uslcom_softc *sc = ucom->sc_parent;
+
+	usbd_transfer_start(sc->sc_xfer_data[0]);
+	return;
+}
+
+static void
+uslcom_stop_write(struct ucom_softc *ucom)
+{
+	struct uslcom_softc *sc = ucom->sc_parent;
+
+	usbd_transfer_stop(sc->sc_xfer_data[2]);
+	usbd_transfer_stop(sc->sc_xfer_data[0]);
+	return;
+}
+
+static void
+uslcom_cfg_open(struct ucom_softc *ucom)
+{
+	struct uslcom_softc *sc = ucom->sc_parent;
 	usb_device_request_t req;
 
-	if (sc->sc_dying)
-		return;
+	req.bmRequestType = USLCOM_WRITE;
+	req.bRequest = USLCOM_UART;
+	USETW(req.wValue, USLCOM_UART_ENABLE);
+	USETW(req.wIndex, 0);
+	USETW(req.wLength, 0);
+	uslcom_cfg_do_request(sc, &req, NULL);
+	return;
+}
+
+void
+uslcom_cfg_close(struct ucom_softc *ucom)
+{
+	struct uslcom_softc *sc = ucom->sc_parent;
+	usb_device_request_t req;
 
 	req.bmRequestType = USLCOM_WRITE;
 	req.bRequest = USLCOM_UART;
 	USETW(req.wValue, USLCOM_UART_DISABLE);
-	USETW(req.wIndex, portno);
+	USETW(req.wIndex, 0);
 	USETW(req.wLength, 0);
-	usbd_do_request(sc->sc_udev, &req, NULL);
+	uslcom_cfg_do_request(sc, &req, NULL);
+	return;
 }
 
-void
-uslcom_set(void *vsc, int portno, int reg, int onoff)
+static void
+uslcom_cfg_set_dtr(struct ucom_softc *ucom, uint8_t onoff)
 {
-	struct uslcom_softc *sc = vsc;
+	struct uslcom_softc *sc = ucom->sc_parent;
 	usb_device_request_t req;
-	int ctl;
+	uint16_t ctl;
 
-	switch (reg) {
-	case UCOM_SET_DTR:
-		ctl = onoff ? USLCOM_CTRL_DTR_ON : 0;
-		ctl |= USLCOM_CTRL_DTR_SET;
-		break;
-	case UCOM_SET_RTS:
-		ctl = onoff ? USLCOM_CTRL_RTS_ON : 0;
-		ctl |= USLCOM_CTRL_RTS_SET;
-		break;
-	case UCOM_SET_BREAK:
-		uslcom_break(sc, portno, onoff);
-		return;
-	default:
-		return;
-	}
+	DPRINTF(0, "onoff=%d\n", onoff);
+
+	if (onoff)
+		ctl = USLCOM_CTRL_DTR_ON;
+	else
+		ctl = 0;
+
+	ctl |= USLCOM_CTRL_DTR_SET;
+
 	req.bmRequestType = USLCOM_WRITE;
 	req.bRequest = USLCOM_CTRL;
 	USETW(req.wValue, ctl);
-	USETW(req.wIndex, portno);
+	USETW(req.wIndex, 0);
 	USETW(req.wLength, 0);
-	usbd_do_request(sc->sc_udev, &req, NULL);
+	uslcom_cfg_do_request(sc, &req, NULL);
+	return;
 }
 
-int
-uslcom_param(void *vsc, int portno, struct termios *t)
+static void
+uslcom_cfg_set_rts(struct ucom_softc *ucom, uint8_t onoff)
 {
-	struct uslcom_softc *sc = (struct uslcom_softc *)vsc;
-	usbd_status err;
+	struct uslcom_softc *sc = ucom->sc_parent;
 	usb_device_request_t req;
-	int data;
+	uint16_t ctl;
 
-	if (t->c_ospeed <= 0 || t->c_ospeed > 921600)
+	DPRINTF(0, "onoff=%d\n", onoff);
+
+	if (onoff)
+		ctl = USLCOM_CTRL_RTS_ON;
+	else
+		ctl = 0;
+
+	ctl |= USLCOM_CTRL_RTS_SET;
+
+	req.bmRequestType = USLCOM_WRITE;
+	req.bRequest = USLCOM_CTRL;
+	USETW(req.wValue, ctl);
+	USETW(req.wIndex, 0);
+	USETW(req.wLength, 0);
+	uslcom_cfg_do_request(sc, &req, NULL);
+	return;
+}
+
+static void
+uslcom_cfg_set_break(struct ucom_softc *ucom, uint8_t onoff)
+{
+	struct uslcom_softc *sc = ucom->sc_parent;
+	usb_device_request_t req;
+	uint16_t brk;
+
+	DPRINTF(0, "onoff=%d\n", onoff);
+
+	if (onoff)
+		brk = USLCOM_BREAK_ON;
+	else
+		brk = USLCOM_BREAK_OFF;
+
+	req.bmRequestType = USLCOM_WRITE;
+	req.bRequest = USLCOM_BREAK;
+	USETW(req.wValue, brk);
+	USETW(req.wIndex, 0);
+	USETW(req.wLength, 0);
+	uslcom_cfg_do_request(sc, &req, NULL);
+	return;
+}
+
+static int
+uslcom_pre_param(struct ucom_softc *ucom, struct termios *t)
+{
+	if ((t->c_ospeed < 1) || (t->c_ospeed > 921600))
 		return (EINVAL);
+	else
+		return (0);
+}
+
+static void
+uslcom_cfg_param(struct ucom_softc *ucom, struct termios *t)
+{
+	struct uslcom_softc *sc = ucom->sc_parent;
+	usb_device_request_t req;
+	uint16_t data;
+
+	DPRINTF(0, "sc=%p\n", sc);
+
+	data = USLCOM_BAUD_REF / t->c_ospeed;
 
 	req.bmRequestType = USLCOM_WRITE;
 	req.bRequest = USLCOM_BAUD_RATE;
-	USETW(req.wValue, USLCOM_BAUD_REF / t->c_ospeed);
-	USETW(req.wIndex, portno);
+	USETW(req.wValue, data);
+	USETW(req.wIndex, 0);
 	USETW(req.wLength, 0);
-	err = usbd_do_request(sc->sc_udev, &req, NULL);
-	if (err)
-		return (EIO);
+	uslcom_cfg_do_request(sc, &req, NULL);
 
-	if (ISSET(t->c_cflag, CSTOPB))
+	if (t->c_cflag & CSTOPB)
 		data = USLCOM_STOP_BITS_2;
 	else
 		data = USLCOM_STOP_BITS_1;
-	if (ISSET(t->c_cflag, PARENB)) {
-		if (ISSET(t->c_cflag, PARODD))
+	if (t->c_cflag & PARENB) {
+		if (t->c_cflag & PARODD)
 			data |= USLCOM_PARITY_ODD;
 		else
 			data |= USLCOM_PARITY_EVEN;
 	} else
 		data |= USLCOM_PARITY_NONE;
-	switch (ISSET(t->c_cflag, CSIZE)) {
+
+	switch (t->c_cflag & CSIZE) {
 	case CS5:
 		data |= USLCOM_SET_DATA_BITS(5);
 		break;
@@ -370,50 +495,139 @@ uslcom_param(void *vsc, int portno, struct termios *t)
 	req.bmRequestType = USLCOM_WRITE;
 	req.bRequest = USLCOM_DATA;
 	USETW(req.wValue, data);
-	USETW(req.wIndex, portno);
+	USETW(req.wIndex, 0);
 	USETW(req.wLength, 0);
-	err = usbd_do_request(sc->sc_udev, &req, NULL);
-	if (err)
-		return (EIO);
+	uslcom_cfg_do_request(sc, &req, NULL);
+	return;
+}
 
-#if 0
-	/* XXX flow control */
-	if (ISSET(t->c_cflag, CRTSCTS)) {
-		/* rts/cts flow ctl */
-	} else if (ISSET(t->c_iflag, IXON | IXOFF)) {
-		/* xon/xoff flow ctl */
-	} else {
-		/* disable flow ctl */
+static void
+uslcom_cfg_get_status(struct ucom_softc *ucom, uint8_t *lsr, uint8_t *msr)
+{
+	struct uslcom_softc *sc = ucom->sc_parent;
+
+	DPRINTF(0, "\n");
+
+	*lsr = sc->sc_lsr;
+	*msr = sc->sc_msr;
+	return;
+}
+
+static void
+uslcom_cfg_do_request(struct uslcom_softc *sc, usb_device_request_t *req,
+    void *data)
+{
+	uint16_t length;
+	usbd_status_t err;
+
+	if (ucom_cfg_is_gone(&(sc->sc_ucom))) {
+		goto error;
 	}
-#endif
+	err = usbd_do_request_flags(sc->sc_udev, &Giant, req,
+	    data, 0, NULL, 1000);
 
-	return (0);
+	if (err) {
+
+		DPRINTF(-1, "device request failed, err=%s "
+		    "(ignored)\n", usbd_errstr(err));
+
+error:
+		length = UGETW(req->wLength);
+
+		if ((req->bmRequestType & UT_READ) && length) {
+			bzero(data, length);
+		}
+	}
+	return;
 }
 
-void
-uslcom_get_status(void *vsc, int portno, u_char *lsr, u_char *msr)
+static void
+uslcom_write_callback(struct usbd_xfer *xfer)
 {
-	struct uslcom_softc *sc = vsc;
+	struct uslcom_softc *sc = xfer->priv_sc;
+	uint32_t actlen;
 
-	if (msr != NULL)
-		*msr = sc->sc_msr;
-	if (lsr != NULL)
-		*lsr = sc->sc_lsr;
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_SETUP:
+	case USBD_ST_TRANSFERRED:
+		if (sc->sc_flag & USLCOM_FLAG_WRITE_STALL) {
+			usbd_transfer_start(sc->sc_xfer_data[2]);
+			return;
+		}
+		if (ucom_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		    USLCOM_BUF_SIZE, &actlen)) {
+
+			xfer->frlengths[0] = actlen;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_ERR_CANCELLED) {
+			sc->sc_flag |= USLCOM_FLAG_WRITE_STALL;
+			usbd_transfer_start(sc->sc_xfer_data[2]);
+		}
+		return;
+
+	}
 }
 
-void
-uslcom_break(void *vsc, int portno, int onoff)
+static void
+uslcom_write_clear_stall_callback(struct usbd_xfer *xfer)
 {
-	struct uslcom_softc *sc = vsc;
-	usb_device_request_t req;
-	int brk = onoff ? USLCOM_BREAK_ON : USLCOM_BREAK_OFF;
+	struct uslcom_softc *sc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_xfer_data[0];
 
-	req.bmRequestType = USLCOM_WRITE;
-	req.bRequest = USLCOM_BREAK;
-	USETW(req.wValue, brk);
-	USETW(req.wIndex, portno);
-	USETW(req.wLength, 0);
-	usbd_do_request(sc->sc_udev, &req, NULL);
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+		DPRINTF(0, "stall cleared\n");
+		sc->sc_flag &= ~USLCOM_FLAG_WRITE_STALL;
+		usbd_transfer_start(xfer_other);
+	}
+	return;
 }
 
-#endif
+static void
+uslcom_read_callback(struct usbd_xfer *xfer)
+{
+	struct uslcom_softc *sc = xfer->priv_sc;
+
+	switch (USBD_GET_STATE(xfer)) {
+	case USBD_ST_TRANSFERRED:
+
+		DPRINTF(0, "actlen=%d\n", xfer->actlen);
+
+		ucom_put_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		    xfer->actlen);
+
+	case USBD_ST_SETUP:
+		if (sc->sc_flag & USLCOM_FLAG_READ_STALL) {
+			usbd_transfer_start(sc->sc_xfer_data[3]);
+		} else {
+			xfer->frlengths[0] = xfer->max_data_length;
+			usbd_start_hardware(xfer);
+		}
+		return;
+
+	default:			/* Error */
+		if (xfer->error != USBD_ERR_CANCELLED) {
+			sc->sc_flag |= USLCOM_FLAG_READ_STALL;
+			usbd_transfer_start(sc->sc_xfer_data[3]);
+		}
+		return;
+
+	}
+}
+
+static void
+uslcom_read_clear_stall_callback(struct usbd_xfer *xfer)
+{
+	struct uslcom_softc *sc = xfer->priv_sc;
+	struct usbd_xfer *xfer_other = sc->sc_xfer_data[1];
+
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
+		DPRINTF(0, "stall cleared\n");
+		sc->sc_flag &= ~USLCOM_FLAG_READ_STALL;
+		usbd_transfer_start(xfer_other);
+	}
+	return;
+}

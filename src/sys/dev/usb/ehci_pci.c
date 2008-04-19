@@ -139,63 +139,68 @@ ehci_pci_match(device_t self)
 {
 	uint32_t device_id = pci_get_devid(self);
 
-	if (device_id == 0x268c8086)
+	switch (device_id) {
+	case 0x268c8086:
 		return ("Intel 63XXESB USB 2.0 controller");
 
-	if (device_id == 0x523910b9)
+	case 0x523910b9:
 		return "ALi M5239 USB 2.0 controller";
 
-	if (device_id == 0x10227463)
+	case 0x10227463:
 		return "AMD 8111 USB 2.0 controller";
 
-	if (device_id == 0x20951022)
+	case 0x20951022:
 		return ("AMD CS5536 (Geode) USB 2.0 controller");
 
-	if (device_id == 0x43451002)
+	case 0x43451002:
 		return "ATI SB200 USB 2.0 controller";
-	if (device_id == 0x43731002)
+	case 0x43731002:
 		return "ATI SB400 USB 2.0 controller";
 
-	if (device_id == 0x25ad8086)
+	case 0x25ad8086:
 		return "Intel 6300ESB USB 2.0 controller";
-	if (device_id == 0x24cd8086)
+	case 0x24cd8086:
 		return "Intel 82801DB/L/M (ICH4) USB 2.0 controller";
-	if (device_id == 0x24dd8086)
+	case 0x24dd8086:
 		return "Intel 82801EB/R (ICH5) USB 2.0 controller";
-	if (device_id == 0x265c8086)
+	case 0x265c8086:
 		return "Intel 82801FB (ICH6) USB 2.0 controller";
-	if (device_id == 0x27cc8086)
+	case 0x27cc8086:
 		return "Intel 82801GB/R (ICH7) USB 2.0 controller";
 
-	if (device_id == 0x28368086)
+	case 0x28368086:
 		return "Intel 82801H (ICH8) USB 2.0 controller USB2-A";
-	if (device_id == 0x283a8086)
+	case 0x283a8086:
 		return "Intel 82801H (ICH8) USB 2.0 controller USB2-B";
-	if (device_id == 0x293a8086)
+	case 0x293a8086:
 		return "Intel 82801I (ICH9) USB 2.0 controller";
-	if (device_id == 0x293c8086)
+	case 0x293c8086:
 		return "Intel 82801I (ICH9) USB 2.0 controller";
 
-	if (device_id == 0x00e01033) {
+	case 0x00e01033:
 		return ("NEC uPD 720100 USB 2.0 controller");
-	}
-	if (device_id == 0x006810de)
+
+	case 0x006810de:
 		return "NVIDIA nForce2 USB 2.0 controller";
-	if (device_id == 0x008810de)
+	case 0x008810de:
 		return "NVIDIA nForce2 Ultra 400 USB 2.0 controller";
-	if (device_id == 0x00d810de)
+	case 0x00d810de:
 		return "NVIDIA nForce3 USB 2.0 controller";
-	if (device_id == 0x00e810de)
+	case 0x00e810de:
 		return "NVIDIA nForce3 250 USB 2.0 controller";
-	if (device_id == 0x005b10de)
+	case 0x005b10de:
 		return "NVIDIA nForce4 USB 2.0 controller";
 
-	if (device_id == 0x15621131)
+	case 0x15621131:
 		return "Philips ISP156x USB 2.0 controller";
 
-	if (device_id == 0x31041106) {
+	case 0x31041106:
 		return ("VIA VT6202 USB 2.0 controller");
+
+	default:
+		break;
 	}
+
 	if ((pci_get_class(self) == PCIC_SERIALBUS)
 	    && (pci_get_subclass(self) == PCIS_SERIALBUS_USB)
 	    && (pci_get_progif(self) == PCI_INTERFACE_EHCI)) {

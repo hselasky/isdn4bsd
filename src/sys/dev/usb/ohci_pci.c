@@ -126,43 +126,47 @@ ohci_pci_match(device_t self)
 {
 	uint32_t device_id = pci_get_devid(self);
 
-	if (device_id == 0x523710b9) {
+	switch (device_id) {
+	case 0x523710b9:
 		return ("AcerLabs M5237 (Aladdin-V) USB controller");
-	}
-	if (device_id == 0x740c1022) {
+
+	case 0x740c1022:
 		return ("AMD-756 USB Controller");
-	}
-	if (device_id == 0x74141022) {
+
+	case 0x74141022:
 		return ("AMD-766 USB Controller");
-	}
-	if (device_id == 0x43741002)
+
+	case 0x43741002:
 		return "ATI SB400 USB Controller";
-	if (device_id == 0x43751002)
+	case 0x43751002:
 		return "ATI SB400 USB Controller";
 
-	if (device_id == 0x06701095) {
+	case 0x06701095:
 		return ("CMD Tech 670 (USB0670) USB controller");
-	}
-	if (device_id == 0x06731095) {
+
+	case 0x06731095:
 		return ("CMD Tech 673 (USB0673) USB controller");
-	}
-	if (device_id == 0xc8611045) {
+
+	case 0xc8611045:
 		return ("OPTi 82C861 (FireLink) USB controller");
-	}
-	if (device_id == 0x00351033) {
+
+	case 0x00351033:
 		return ("NEC uPD 9210 USB controller");
-	}
-	if (device_id == 0x00d710de) {
+
+	case 0x00d710de:
 		return ("nVidia nForce3 USB Controller");
-	}
-	if (device_id == 0x70011039) {
+
+	case 0x70011039:
 		return ("SiS 5571 USB controller");
-	}
-	if (device_id == 0x1103108e)
+
+	case 0x1103108e:
 		return "Sun PCIO-2 USB controller";
 
-	if (device_id == 0x0019106b) {
+	case 0x0019106b:
 		return ("Apple KeyLargo USB controller");
+
+	default:
+		break;
 	}
 	if ((pci_get_class(self) == PCIC_SERIALBUS) &&
 	    (pci_get_subclass(self) == PCIS_SERIALBUS_USB) &&

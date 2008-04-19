@@ -111,110 +111,115 @@ uhci_pci_match(device_t self)
 {
 	uint32_t device_id = pci_get_devid(self);
 
-	if (device_id == 0x26888086)
+	switch (device_id) {
+	case 0x26888086:
 		return ("Intel 631XESB/632XESB/3100 USB controller USB-1");
 
-	if (device_id == 0x26898086)
+	case 0x26898086:
 		return ("Intel 631XESB/632XESB/3100 USB controller USB-2");
 
-	if (device_id == 0x268a8086)
+	case 0x268a8086:
 		return ("Intel 631XESB/632XESB/3100 USB controller USB-3");
 
-	if (device_id == 0x268b8086)
+	case 0x268b8086:
 		return ("Intel 631XESB/632XESB/3100 USB controller USB-4");
 
-	if (device_id == 0x70208086) {
+	case 0x70208086:
 		return ("Intel 82371SB (PIIX3) USB controller");
-	}
-	if (device_id == 0x71128086) {
+
+	case 0x71128086:
 		return ("Intel 82371AB/EB (PIIX4) USB controller");
-	}
-	if (device_id == 0x24128086) {
+
+	case 0x24128086:
 		return ("Intel 82801AA (ICH) USB controller");
-	}
-	if (device_id == 0x24228086) {
+
+	case 0x24228086:
 		return ("Intel 82801AB (ICH0) USB controller");
-	}
-	if (device_id == 0x24428086) {
+
+	case 0x24428086:
 		return ("Intel 82801BA/BAM (ICH2) USB controller USB-A");
-	}
-	if (device_id == 0x24448086) {
+
+	case 0x24448086:
 		return ("Intel 82801BA/BAM (ICH2) USB controller USB-B");
-	}
-	if (device_id == 0x24828086) {
+
+	case 0x24828086:
 		return ("Intel 82801CA/CAM (ICH3) USB controller USB-A");
-	}
-	if (device_id == 0x24848086) {
+
+	case 0x24848086:
 		return ("Intel 82801CA/CAM (ICH3) USB controller USB-B");
-	}
-	if (device_id == 0x24878086) {
+
+	case 0x24878086:
 		return ("Intel 82801CA/CAM (ICH3) USB controller USB-C");
-	}
-	if (device_id == 0x24c28086) {
+
+	case 0x24c28086:
 		return ("Intel 82801DB (ICH4) USB controller USB-A");
-	}
-	if (device_id == 0x24c48086) {
+
+	case 0x24c48086:
 		return ("Intel 82801DB (ICH4) USB controller USB-B");
-	}
-	if (device_id == 0x24c78086) {
+
+	case 0x24c78086:
 		return ("Intel 82801DB (ICH4) USB controller USB-C");
-	}
-	if (device_id == 0x24d28086) {
+
+	case 0x24d28086:
 		return ("Intel 82801EB (ICH5) USB controller USB-A");
-	}
-	if (device_id == 0x24d48086) {
+
+	case 0x24d48086:
 		return ("Intel 82801EB (ICH5) USB controller USB-B");
-	}
-	if (device_id == 0x24d78086) {
+
+	case 0x24d78086:
 		return ("Intel 82801EB (ICH5) USB controller USB-C");
-	}
-	if (device_id == 0x24de8086) {
+
+	case 0x24de8086:
 		return ("Intel 82801EB (ICH5) USB controller USB-D");
-	}
-	if (device_id == 0x26588086) {
+
+	case 0x26588086:
 		return ("Intel 82801FB/FR/FW/FRW (ICH6) USB controller USB-A");
-	}
-	if (device_id == 0x26598086) {
+
+	case 0x26598086:
 		return ("Intel 82801FB/FR/FW/FRW (ICH6) USB controller USB-B");
-	}
-	if (device_id == 0x265a8086) {
+
+	case 0x265a8086:
 		return ("Intel 82801FB/FR/FW/FRW (ICH6) USB controller USB-C");
-	}
-	if (device_id == 0x265b8086) {
+
+	case 0x265b8086:
 		return ("Intel 82801FB/FR/FW/FRW (ICH6) USB controller USB-D");
-	}
-	if (device_id == 0x28308086)
+
+	case 0x28308086:
 		return ("Intel 82801H (ICH8) USB controller USB-A");
-	if (device_id == 0x28318086)
+	case 0x28318086:
 		return ("Intel 82801H (ICH8) USB controller USB-B");
-	if (device_id == 0x28328086)
+	case 0x28328086:
 		return ("Intel 82801H (ICH8) USB controller USB-C");
-	if (device_id == 0x28348086)
+	case 0x28348086:
 		return ("Intel 82801H (ICH8) USB controller USB-D");
-	if (device_id == 0x28358086)
+	case 0x28358086:
 		return ("Intel 82801H (ICH8) USB controller USB-E");
-	if (device_id == 0x29348086)
+	case 0x29348086:
 		return ("Intel 82801I (ICH9) USB controller");
-	if (device_id == 0x29358086)
+	case 0x29358086:
 		return ("Intel 82801I (ICH9) USB controller");
-	if (device_id == 0x29368086)
+	case 0x29368086:
 		return ("Intel 82801I (ICH9) USB controller");
-	if (device_id == 0x29378086)
+	case 0x29378086:
 		return ("Intel 82801I (ICH9) USB controller");
-	if (device_id == 0x29388086)
+	case 0x29388086:
 		return ("Intel 82801I (ICH9) USB controller");
-	if (device_id == 0x29398086)
+	case 0x29398086:
 		return ("Intel 82801I (ICH9) USB controller");
 
-	if (device_id == 0x719a8086) {
+	case 0x719a8086:
 		return ("Intel 82443MX USB controller");
-	}
-	if (device_id == 0x76028086) {
+
+	case 0x76028086:
 		return ("Intel 82372FB/82468GX USB controller");
-	}
-	if (device_id == 0x30381106) {
+
+	case 0x30381106:
 		return ("VIA 83C572 USB controller");
+
+	default:
+		break;
 	}
+
 	if ((pci_get_class(self) == PCIC_SERIALBUS) &&
 	    (pci_get_subclass(self) == PCIS_SERIALBUS_USB) &&
 	    (pci_get_progif(self) == PCI_INTERFACE_UHCI)) {
