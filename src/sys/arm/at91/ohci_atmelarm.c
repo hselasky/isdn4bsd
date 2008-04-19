@@ -71,14 +71,10 @@ ohci_atmelarm_attach(device_t dev)
 	if (sc == NULL) {
 		return (ENXIO);
 	}
-	/* store parent DMA tag */
-
-	sc->sc_ohci.sc_bus.dma_tag_parent = device_get_dma_tag(dev);
-
 	/* get all DMA memory */
 
 	if (usbd_bus_mem_alloc_all(&(sc->sc_ohci.sc_bus),
-	    &ohci_iterate_hw_softc)) {
+	    device_get_dma_tag(dev), &ohci_iterate_hw_softc)) {
 		return ENOMEM;
 	}
 	sc->iclk = at91_pmc_clock_ref("ohci_clk");
