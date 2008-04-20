@@ -29,7 +29,6 @@
 
 struct mtx {
   u_int32_t mtx_recurse;
-  u_int32_t s;
   u_int8_t init;
   u_int8_t waiting;
   const char * name;
@@ -62,9 +61,9 @@ extern void
 extern void
   _mtx_unlock(struct mtx *m);
 
-#define mtx_unlock(mtx) {	\
+#define mtx_unlock(mtx) do { \
     mtx_assert(mtx, MA_OWNED);	\
-   _mtx_unlock(mtx); }
+    _mtx_unlock(mtx); } while (0)
 
 extern u_int8_t
   mtx_trylock(struct mtx *m);
@@ -84,8 +83,10 @@ extern void
 extern int
   atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src);
 
+extern void atomic_lock();
+extern void atomic_unlock();
+
 extern struct mtx Giant;
-extern struct mtx Atomic; /* internal use only */
 
 struct mtx_args {
   struct mtx *mtx;
@@ -122,14 +123,14 @@ struct mtx_args {
 static __inline register_t
 intr_disable(void)
 {
-    mtx_lock(&Atomic);
+    atomic_lock();
     return 0;
 }
 
 static __inline void
 intr_restore(register_t restore)
 {
-    mtx_unlock(&Atomic);
+    atomic_unlock();
     return;
 }
 
