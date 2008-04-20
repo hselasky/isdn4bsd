@@ -62,7 +62,7 @@ SYSCTL_INT(_hw_usb_ustorage_fs, OID_AUTO, debug, CTLFLAG_RW,
 #define	USTORAGE_FS_BULK_SIZE (1 << 17)
 #define	USTORAGE_FS_MAX_LUN 8
 #define	USTORAGE_FS_RELEASE 0x0101
-#define	USTORAGE_FS_RAM_SECT (1 << 14)
+#define	USTORAGE_FS_RAM_SECT (1 << 13)
 
 static uint8_t ustorage_fs_ramdisk[USTORAGE_FS_RAM_SECT << 9];
 

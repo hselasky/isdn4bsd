@@ -205,8 +205,6 @@ ucom_units_alloc(uint32_t sub_units, uint32_t *p_root_unit)
 			ucom_bitmap[x / 8] |= (1 << (x % 8));
 		}
 
-		*p_root_unit = n;
-
 		error = 0;
 
 		break;
@@ -215,6 +213,12 @@ skip:		;
 	}
 
 	mtx_unlock(&Giant);
+
+	/*
+	 * Always set the variable pointed to by "p_root_unit" so that
+	 * the compiler does not think that it is used uninitialised:
+	 */
+	*p_root_unit = n;
 
 	return (error);
 }
