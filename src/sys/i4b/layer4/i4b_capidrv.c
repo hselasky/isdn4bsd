@@ -364,8 +364,8 @@ capi_ai_get_closed_sc(struct capi_delegate *dg, struct thread *td)
 
 	/* setup softc */
 
-#define IFQ_LIMIT_LOW (MAX_CONTROLLERS * MAX_CHANNELS * 16)
-#define IFQ_LIMIT_HIGH (MAX_CONTROLLERS * MAX_CHANNELS * 20)
+#define IFQ_LIMIT_LOW (0xC0)
+#define IFQ_LIMIT_HIGH (0x100)
 
 	sc->sc_rdqueue.ifq_maxlen = IFQ_LIMIT_HIGH; /* XXX dynamic ? */
 
