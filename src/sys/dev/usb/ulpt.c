@@ -636,7 +636,9 @@ found:
 	}
 	/* start reading of status */
 
+	mtx_lock(&(sc->sc_mtx));
 	usbd_transfer_start(sc->sc_xfer[2]);
+	mtx_unlock(&(sc->sc_mtx));
 
 	return (0);
 
