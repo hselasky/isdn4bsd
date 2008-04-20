@@ -704,15 +704,17 @@ ukbd_attach(device_t dev)
 	if (bootverbose) {
 		genkbd_diag(kbd, bootverbose);
 	}
+	/* lock keyboard mutex */
+
+	mtx_lock(&Giant);
+
 	/* start the keyboard */
 
 	usbd_transfer_start(sc->sc_xfer[0]);
 
 	/* start the timer */
 
-	mtx_lock(&Giant);
-
-	ukbd_timeout(sc);
+	ukbd_timeout(sc);		/* will unlock mutex */
 
 	return (0);			/* success */
 
