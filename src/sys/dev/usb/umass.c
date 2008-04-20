@@ -979,94 +979,36 @@ static usbd_callback_t umass_t_cbi_data_wr_cs_callback;
 static usbd_callback_t umass_t_cbi_status_callback;
 
 static void umass_cancel_ccb(struct umass_softc *sc);
+static void umass_init_shuttle(struct umass_softc *sc);
+static void umass_reset(struct umass_softc *sc);
+static void umass_t_bbb_data_clear_stall_callback(struct usbd_xfer *xfer, uint8_t next_xfer, uint8_t stall_xfer);
+static void umass_command_start(struct umass_softc *sc, uint8_t dir, void *data_ptr, uint32_t data_len, uint32_t data_timeout, umass_callback_t *callback, union ccb *ccb);
+static uint8_t umass_bbb_get_max_lun(struct umass_softc *sc);
+static void umass_cbi_start_status(struct umass_softc *sc);
+static void umass_t_cbi_data_clear_stall_callback(struct usbd_xfer *xfer, uint8_t next_xfer, uint8_t stall_xfer);
+static int umass_cam_attach_sim(struct umass_softc *sc);
+static void umass_cam_rescan_callback(struct cam_periph *periph, union ccb *ccb);
+static void umass_cam_rescan(struct umass_softc *sc);
+static void umass_cam_attach(struct umass_softc *sc);
+static void umass_cam_detach_sim(struct umass_softc *sc);
+static void umass_cam_action(struct cam_sim *sim, union ccb *ccb);
+static void umass_cam_poll(struct cam_sim *sim);
+static void umass_cam_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue, uint8_t status);
+static void umass_cam_sense_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue, uint8_t status);
+static void umass_cam_quirk_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue, uint8_t status);
+static uint8_t umass_scsi_transform(struct umass_softc *sc, uint8_t *cmd_ptr, uint8_t cmd_len);
+static uint8_t umass_rbc_transform(struct umass_softc *sc, uint8_t *cmd_ptr, uint8_t cmd_len);
 
-static void
-	umass_init_shuttle(struct umass_softc *sc);
-
-static void
-	umass_reset(struct umass_softc *sc);
-
-static void
-umass_t_bbb_data_clear_stall_callback(struct usbd_xfer *xfer,
-    uint8_t next_xfer,
-    uint8_t stall_xfer);
-static void
-umass_command_start(struct umass_softc *sc, uint8_t dir,
-    void *data_ptr, uint32_t data_len,
-    uint32_t data_timeout, umass_callback_t *callback,
-    union ccb *ccb);
-static uint8_t
-	umass_bbb_get_max_lun(struct umass_softc *sc);
-
-static void
-	umass_cbi_start_status(struct umass_softc *sc);
-
-static void
-umass_t_cbi_data_clear_stall_callback(struct usbd_xfer *xfer,
-    uint8_t next_xfer,
-    uint8_t stall_xfer);
-static int
-	umass_cam_attach_sim(struct umass_softc *sc);
-
-static void
-	umass_cam_rescan_callback(struct cam_periph *periph, union ccb *ccb);
-
-static void
-	umass_cam_rescan(struct umass_softc *sc);
-
-static void
-	umass_cam_attach(struct umass_softc *sc);
-
-static void
-	umass_cam_detach_sim(struct umass_softc *sc);
-
-static void
-	umass_cam_action(struct cam_sim *sim, union ccb *ccb);
-
-static void
-	umass_cam_poll(struct cam_sim *sim);
-
-static void
-umass_cam_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue,
-    uint8_t status);
-static void
-umass_cam_sense_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue,
-    uint8_t status);
-static void
-umass_cam_quirk_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue,
-    uint8_t status);
-static uint8_t
-umass_scsi_transform(struct umass_softc *sc, uint8_t *cmd_ptr,
-    uint8_t cmd_len);
-static uint8_t
-	umass_rbc_transform(struct umass_softc *sc, uint8_t *cmd_ptr, uint8_t cmd_len);
-
-static uint8_t
-umass_ufi_transform(struct umass_softc *sc, uint8_t *cmd_ptr,
-    uint8_t cmd_len);
-static uint8_t
-umass_atapi_transform(struct umass_softc *sc, uint8_t *cmd_ptr,
-    uint8_t cmd_len);
-static uint8_t
-umass_no_transform(struct umass_softc *sc, uint8_t *cmd,
-    uint8_t cmdlen);
-static uint8_t
-umass_std_transform(struct umass_softc *sc, union ccb *ccb,
-    uint8_t *cmd, uint8_t cmdlen);
+static uint8_t umass_ufi_transform(struct umass_softc *sc, uint8_t *cmd_ptr, uint8_t cmd_len);
+static uint8_t umass_atapi_transform(struct umass_softc *sc, uint8_t *cmd_ptr, uint8_t cmd_len);
+static uint8_t umass_no_transform(struct umass_softc *sc, uint8_t *cmd, uint8_t cmdlen);
+static uint8_t umass_std_transform(struct umass_softc *sc, union ccb *ccb, uint8_t *cmd, uint8_t cmdlen);
 
 #ifdef USB_DEBUG
-static void
-	umass_bbb_dump_cbw(struct umass_softc *sc, umass_bbb_cbw_t *cbw);
-
-static void
-	umass_bbb_dump_csw(struct umass_softc *sc, umass_bbb_csw_t *csw);
-
-static void
-	umass_cbi_dump_cmd(struct umass_softc *sc, void *cmd, uint8_t cmdlen);
-
-static void
-umass_dump_buffer(struct umass_softc *sc, uint8_t *buffer, uint32_t buflen,
-    uint32_t printlen);
+static void umass_bbb_dump_cbw(struct umass_softc *sc, umass_bbb_cbw_t *cbw);
+static void umass_bbb_dump_csw(struct umass_softc *sc, umass_bbb_csw_t *csw);
+static void umass_cbi_dump_cmd(struct umass_softc *sc, void *cmd, uint8_t cmdlen);
+static void umass_dump_buffer(struct umass_softc *sc, uint8_t *buffer, uint32_t buflen, uint32_t printlen);
 
 #endif
 

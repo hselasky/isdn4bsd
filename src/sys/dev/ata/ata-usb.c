@@ -140,19 +140,10 @@ static usbd_callback_t atausb_t_bbb_status_callback;
 static usbd_callback_t atausb_tr_error;
 
 static void atausb_cancel_request(struct atausb_softc *sc);
-
-static void
-	atausb_transfer_start(struct atausb_softc *sc, uint8_t xfer_no);
-
-static void
-atausb_t_bbb_data_clear_stall_callback(struct usbd_xfer *xfer,
-    uint8_t next_xfer,
-    uint8_t stall_xfer);
-static int
-	ata_usbchannel_begin_transaction(struct ata_request *request);
-
-static int
-	ata_usbchannel_end_transaction(struct ata_request *request);
+static void atausb_transfer_start(struct atausb_softc *sc, uint8_t xfer_no);
+static void atausb_t_bbb_data_clear_stall_callback(struct usbd_xfer *xfer, uint8_t next_xfer, uint8_t stall_xfer);
+static int ata_usbchannel_begin_transaction(struct ata_request *request);
+static int ata_usbchannel_end_transaction(struct ata_request *request);
 
 static device_probe_t ata_usbchannel_probe;
 static device_attach_t ata_usbchannel_attach;
