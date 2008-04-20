@@ -179,9 +179,7 @@ static usbd_callback_t axe_bulk_read_callback;
 static usbd_callback_t axe_bulk_write_clear_stall_callback;
 static usbd_callback_t axe_bulk_write_callback;
 
-static void
-axe_cfg_cmd(struct axe_softc *sc, uint16_t cmd, uint16_t index,
-    uint16_t val, void *buf);
+static void axe_cfg_cmd(struct axe_softc *sc, uint16_t cmd, uint16_t index, uint16_t val, void *buf);
 
 static miibus_readreg_t axe_cfg_miibus_readreg;
 static miibus_writereg_t axe_cfg_miibus_writereg;
@@ -198,35 +196,16 @@ static usbd_config_td_command_t axe_cfg_promisc_upd;
 static usbd_config_td_command_t axe_cfg_pre_stop;
 static usbd_config_td_command_t axe_cfg_stop;
 
-static int
-	axe_ifmedia_upd_cb(struct ifnet *ifp);
-
-static void
-	axe_ifmedia_sts_cb(struct ifnet *ifp, struct ifmediareq *ifmr);
-
-static void
-	axe_cfg_reset(struct axe_softc *sc);
-
-static void
-	axe_start_cb(struct ifnet *ifp);
-
-static void
-	axe_start_transfers(struct axe_softc *sc);
-
-static void
-	axe_init_cb(void *arg);
-
-static int
-	axe_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
-
-static void
-	axe_watchdog(void *arg);
-
-static void
-	axe_cfg_ax88178_init(struct axe_softc *);
-
-static void
-	axe_cfg_ax88772_init(struct axe_softc *);
+static int axe_ifmedia_upd_cb(struct ifnet *ifp);
+static void axe_ifmedia_sts_cb(struct ifnet *ifp, struct ifmediareq *ifmr);
+static void axe_cfg_reset(struct axe_softc *sc);
+static void axe_start_cb(struct ifnet *ifp);
+static void axe_start_transfers(struct axe_softc *sc);
+static void axe_init_cb(void *arg);
+static int axe_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
+static void axe_watchdog(void *arg);
+static void axe_cfg_ax88178_init(struct axe_softc *);
+static void axe_cfg_ax88772_init(struct axe_softc *);
 
 static const struct usbd_config axe_config[AXE_ENDPT_MAX] = {
 

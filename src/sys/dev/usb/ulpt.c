@@ -87,6 +87,7 @@ SYSCTL_INT(_hw_usb_ulpt, OID_AUTO, debug, CTLFLAG_RW,
 struct ulpt_softc {
 	struct usb_cdev sc_cdev;
 	struct mtx sc_mtx;
+	struct usb_callout sc_watchdog;
 
 	device_t sc_dev;
 	struct usbd_xfer *sc_xfer[ULPT_N_TRANSFER];
@@ -114,6 +115,7 @@ static usbd_callback_t ulpt_read_callback;
 static usbd_callback_t ulpt_read_clear_stall_callback;
 static usbd_callback_t ulpt_status_callback;
 static usbd_callback_t ulpt_reset_callback;
+static void ulpt_watchdog(void *arg);
 
 static void
 ulpt_write_callback(struct usbd_xfer *xfer)
@@ -254,9 +256,9 @@ ulpt_status_callback(struct usbd_xfer *xfer)
 		else if (new_status & LPS_NERR)
 			log(LOG_NOTICE, "%s: output error\n",
 			    device_get_nameunit(sc->sc_dev));
+		break;
 
 	case USBD_ST_SETUP:
-tr_setup:
 		req.bmRequestType = UT_READ_CLASS_INTERFACE;
 		req.bRequest = UR_GET_PORT_STATUS;
 		USETW(req.wValue, 0);
@@ -270,16 +272,16 @@ tr_setup:
 		xfer->frlengths[1] = 1;
 		xfer->nframes = 2;
 		usbd_start_hardware(xfer);
-
-		return;
+		break;
 
 	default:			/* Error */
 		DPRINTF(0, "error=%s\n", usbd_errstr(xfer->error));
 		if (xfer->error != USBD_ERR_CANCELLED) {
-			goto tr_setup;
+			/* wait for next watchdog timeout */
 		}
-		return;
+		break;
 	}
+	return;
 }
 
 static void
@@ -359,7 +361,6 @@ static const struct usbd_config ulpt_config[ULPT_N_TRANSFER] = {
 		.mh.bufsize = sizeof(usb_device_request_t) + 1,
 		.mh.callback = &ulpt_status_callback,
 		.mh.timeout = 1000,	/* 1 second */
-		.mh.interval = 1000,	/* 1 second */
 	},
 
 	[3] = {
@@ -525,6 +526,9 @@ ulpt_attach(device_t dev)
 
 	mtx_init(&(sc->sc_mtx), "ulpt lock", NULL, MTX_DEF | MTX_RECURSE);
 
+	usb_callout_init_mtx(&(sc->sc_watchdog),
+	    &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
+
 	/* search through all the descriptors looking for bidir mode */
 
 	while (iface_alt_index < 32) {
@@ -637,8 +641,8 @@ found:
 	/* start reading of status */
 
 	mtx_lock(&(sc->sc_mtx));
-	usbd_transfer_start(sc->sc_xfer[2]);
-	mtx_unlock(&(sc->sc_mtx));
+
+	ulpt_watchdog(sc);		/* will unlock mutex */
 
 	return (0);
 
@@ -656,7 +660,13 @@ ulpt_detach(device_t dev)
 
 	usb_cdev_detach(&(sc->sc_cdev));
 
+	mtx_lock(&(sc->sc_mtx));
+	usb_callout_stop(&(sc->sc_watchdog));
+	mtx_unlock(&(sc->sc_mtx));
+
 	usbd_transfer_unsetup(sc->sc_xfer, ULPT_N_TRANSFER);
+
+	usb_callout_drain(&(sc->sc_watchdog));
 
 	mtx_destroy(&(sc->sc_mtx));
 
@@ -709,6 +719,22 @@ ieee1284_print_id(char *str)
 }
 
 #endif
+
+static void
+ulpt_watchdog(void *arg)
+{
+	struct ulpt_softc *sc = arg;
+
+	mtx_assert(&(sc->sc_mtx), MA_OWNED);
+
+	usbd_transfer_start(sc->sc_xfer[2]);
+
+	usb_callout_reset(&(sc->sc_watchdog),
+	    hz, &ulpt_watchdog, sc);
+
+	mtx_unlock(&(sc->sc_mtx));
+	return;
+}
 
 static devclass_t ulpt_devclass;
 

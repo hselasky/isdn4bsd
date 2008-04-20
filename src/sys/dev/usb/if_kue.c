@@ -163,37 +163,18 @@ static usbd_config_td_command_t kue_cfg_tick;
 static usbd_config_td_command_t kue_cfg_pre_stop;
 static usbd_config_td_command_t kue_cfg_stop;
 
-static void
-kue_cfg_do_request(struct kue_softc *sc, usb_device_request_t *req,
-    void *data);
-static void
-	kue_cfg_setword(struct kue_softc *sc, uint8_t breq, uint16_t word);
+static void kue_cfg_do_request(struct kue_softc *sc, usb_device_request_t *req, void *data);
+static void kue_cfg_setword(struct kue_softc *sc, uint8_t breq, uint16_t word);
+static void kue_cfg_ctl(struct kue_softc *sc, uint8_t rw, uint8_t breq, uint16_t val, void *data, uint16_t len);
+static void kue_cfg_load_fw(struct kue_softc *sc);
+static void kue_cfg_reset(struct kue_softc *sc);
+static void kue_start_cb(struct ifnet *ifp);
+static void kue_start_transfers(struct kue_softc *sc);
+static void kue_init_cb(void *arg);
+static int kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
+static void kue_watchdog(void *arg);
 
-static void
-kue_cfg_ctl(struct kue_softc *sc, uint8_t rw, uint8_t breq,
-    uint16_t val, void *data, uint16_t len);
-static void
-	kue_cfg_load_fw(struct kue_softc *sc);
-
-static void
-	kue_cfg_reset(struct kue_softc *sc);
-
-static void
-	kue_start_cb(struct ifnet *ifp);
-
-static void
-	kue_start_transfers(struct kue_softc *sc);
-
-static void
-	kue_init_cb(void *arg);
-
-static int
-	kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
-
-static void
-	kue_watchdog(void *arg);
-
-#define	DPRINTF(...)
+#define	DPRINTF(...) do { } while (0)
 
 static const struct usbd_config kue_config[KUE_ENDPT_MAX] = {
 

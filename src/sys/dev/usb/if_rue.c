@@ -156,57 +156,27 @@ static usbd_config_td_command_t rue_cfg_ifmedia_upd;
 static usbd_config_td_command_t rue_cfg_pre_stop;
 static usbd_config_td_command_t rue_cfg_stop;
 
-static void
-rue_cfg_do_request(struct rue_softc *sc, usb_device_request_t *req,
-    void *data);
-static void
-rue_cfg_read_mem(struct rue_softc *sc, uint16_t addr, void *buf,
-    uint16_t len);
-static void
-rue_cfg_write_mem(struct rue_softc *sc, uint16_t addr, void *buf,
-    uint16_t len);
-static uint8_t
-	rue_cfg_csr_read_1(struct rue_softc *sc, uint16_t reg);
-
-static uint16_t
-	rue_cfg_csr_read_2(struct rue_softc *sc, uint16_t reg);
-
-static void
-	rue_cfg_csr_write_1(struct rue_softc *sc, uint16_t reg, uint8_t val);
-
-static void
-	rue_cfg_csr_write_2(struct rue_softc *sc, uint16_t reg, uint16_t val);
-
-static void
-	rue_cfg_csr_write_4(struct rue_softc *sc, int reg, uint32_t val);
+static void rue_cfg_do_request(struct rue_softc *sc, usb_device_request_t *req, void *data);
+static void rue_cfg_read_mem(struct rue_softc *sc, uint16_t addr, void *buf, uint16_t len);
+static void rue_cfg_write_mem(struct rue_softc *sc, uint16_t addr, void *buf, uint16_t len);
+static uint8_t rue_cfg_csr_read_1(struct rue_softc *sc, uint16_t reg);
+static uint16_t rue_cfg_csr_read_2(struct rue_softc *sc, uint16_t reg);
+static void rue_cfg_csr_write_1(struct rue_softc *sc, uint16_t reg, uint8_t val);
+static void rue_cfg_csr_write_2(struct rue_softc *sc, uint16_t reg, uint16_t val);
+static void rue_cfg_csr_write_4(struct rue_softc *sc, int reg, uint32_t val);
 
 static miibus_readreg_t rue_cfg_miibus_readreg;
 static miibus_writereg_t rue_cfg_miibus_writereg;
 static miibus_statchg_t rue_cfg_miibus_statchg;
 
-static void
-	rue_cfg_reset(struct rue_softc *sc);
-
-static void
-	rue_start_cb(struct ifnet *ifp);
-
-static void
-	rue_start_transfers(struct rue_softc *sc);
-
-static void
-	rue_init_cb(void *arg);
-
-static int
-	rue_ifmedia_upd_cb(struct ifnet *ifp);
-
-static void
-	rue_ifmedia_sts_cb(struct ifnet *ifp, struct ifmediareq *ifmr);
-
-static int
-	rue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
-
-static void
-	rue_watchdog(void *arg);
+static void rue_cfg_reset(struct rue_softc *sc);
+static void rue_start_cb(struct ifnet *ifp);
+static void rue_start_transfers(struct rue_softc *sc);
+static void rue_init_cb(void *arg);
+static int rue_ifmedia_upd_cb(struct ifnet *ifp);
+static void rue_ifmedia_sts_cb(struct ifnet *ifp, struct ifmediareq *ifmr);
+static int rue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
+static void rue_watchdog(void *arg);
 
 static const struct usbd_config rue_config[RUE_ENDPT_MAX] = {
 

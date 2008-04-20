@@ -1343,7 +1343,7 @@ usbd_transfer_unsetup(struct usbd_xfer **pxfer, uint16_t n_setup)
 /*------------------------------------------------------------------------*
  *	usbd_std_root_transfer - factored out code
  *
- * This function is basically used for the Virtual Root HUB, end can
+ * This function is basically used for the Virtual Root HUB, and can
  * emulate control, bulk and interrupt endpoints. Data is exchanged
  * using the "std->ptr" and "std->len" fields, that allows kernel
  * virtual memory to be transferred. All state is kept in the
