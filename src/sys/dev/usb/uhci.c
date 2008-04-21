@@ -1011,11 +1011,11 @@ _uhci_remove_qh(uhci_qh_t *sqh, uhci_qh_t *last)
 		 */
 		sqh->qh_e_next = htole32(UHCI_PTR_T);
 
-		usbd_pc_cpu_flush(sqh->page_cache);
-
 		last = ((last == sqh) ? sqh->h_prev : last);
 
 		sqh->h_prev = 0;
+
+		usbd_pc_cpu_flush(sqh->page_cache);
 	}
 	return (last);
 }

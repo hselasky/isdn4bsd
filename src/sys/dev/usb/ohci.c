@@ -755,11 +755,11 @@ _ohci_remove_qh(ohci_ed_t *sed, ohci_ed_t *last)
 		sed->ed_flags |= htole32(OHCI_ED_SKIP);
 		sed->ed_headp = sed->ed_tailp;
 
-		usbd_pc_cpu_flush(sed->page_cache);
-
 		last = ((last == sed) ? sed->prev : last);
 
 		sed->prev = 0;
+
+		usbd_pc_cpu_flush(sed->page_cache);
 	}
 	return (last);
 }
@@ -882,7 +882,7 @@ ohci_non_isoc_done_sub(struct usbd_xfer *xfer)
 
 			if (temp > td->len) {
 				/* guard against corruption */
-				td_flags = OHCI_TD_SET_CC(OHCI_CC_STALL);
+				cc = OHCI_CC_STALL;
 			} else if (xfer->aframes != xfer->nframes) {
 				/*
 				 * subtract remaining length from

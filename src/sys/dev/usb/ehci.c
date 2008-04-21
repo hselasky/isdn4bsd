@@ -1113,11 +1113,11 @@ _ehci_remove_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 
 		sqh->qh_qtd.qtd_next = htole32(EHCI_LINK_TERMINATE);
 
-		usbd_pc_cpu_flush(sqh->page_cache);
-
 		last = ((last == sqh) ? sqh->prev : last);
 
 		sqh->prev = 0;
+
+		usbd_pc_cpu_flush(sqh->page_cache);
 	}
 	return (last);
 }
