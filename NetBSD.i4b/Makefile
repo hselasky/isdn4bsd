@@ -4,6 +4,9 @@
 
 S=${.CURDIR}/../src
 
+all:
+	@echo "Done."
+
 install:
 
 #
@@ -46,3 +49,6 @@ install:
 
 load:
 	${S}/../examples/isdnstart.sh
+
+package: all
+
