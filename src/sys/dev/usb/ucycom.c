@@ -167,8 +167,8 @@ static driver_t ucycom_driver = {
 };
 
 DRIVER_MODULE(ucycom, uhub, ucycom_driver, ucycom_devclass, usbd_driver_load, 0);
-MODULE_VERSION(ucycom, 1);
 MODULE_DEPEND(ucycom, usb, 1, 1, 1);
+MODULE_DEPEND(ucycom, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 
 /*
  * Supported devices
