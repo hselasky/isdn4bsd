@@ -118,7 +118,7 @@ kern_conf:
 	@echo "Also don't forget to copy the files under ${.CURDIR}/sys into /usr/src/sys/sys"
 .endif
 .for F in ${SRCS}
-	@echo ${.CURDIR}/${F}
+	@echo ${.CURDIR}/${F} optional i4b_files
 .endfor
 
 .if ((${OSNAME} == "OpenBSD") || (${OSNAME} == "MirBSD"))
