@@ -1663,11 +1663,11 @@ ugenioctl(struct cdev *dev, u_long cmd, caddr_t addr, int flag, struct thread *p
 			sce->io_buffer_size = *(int *)addr;
 		else
 			sce->io_buffer_size = 256 * 1024;
-		break;
+		goto done;
 
 	case USB_GET_BUFFER_SIZE:
 		*(int *)addr = sce->io_buffer_size;
-		break;
+		goto done;
 
 	default:
 		break;
