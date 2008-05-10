@@ -482,6 +482,8 @@ enum
  *      Z_chip2 = f->Z_chip;
  *
  */
+#define INC_COUNTER_CHECK_Xz_min
+#define INC_COUNTER_CHECK_Yz_max
 #define INC_COUNTER_CHECK_Xmin
 #define INC_COUNTER_CHECK_Ymax
 #define INC_COUNTER_CHECK_Z_chip2
