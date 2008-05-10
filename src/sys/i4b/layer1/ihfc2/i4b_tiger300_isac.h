@@ -399,11 +399,11 @@ tiger300_amd_chip_unselect CHIP_UNSELECT_T(sc)
 
 /* ISAC driver */
 
-#define IPAC_LATCH_REG(reg)				\
-{  u_int8_t tmp = sc->sc_config.t_aux_data;		\
-	    tmp |= ((reg) >> 4) & 3;			\
-   bus_space_write_1(t,h,0x03,tmp); /* AUX WRITE */	\
-}							\
+#define IPAC_LATCH_REG(reg) do {				\
+   u_int8_t latch_tmp = sc->sc_config.t_aux_data;		\
+	    latch_tmp |= ((reg) >> 4) & 3;			\
+   bus_space_write_1(t,h,0x03,latch_tmp); /* AUX WRITE */	\
+} while (0)							\
 /**/
 
 #define IPAC_BUS_VAR AMD_BUS_VAR

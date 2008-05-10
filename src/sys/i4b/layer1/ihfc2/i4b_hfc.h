@@ -114,7 +114,7 @@ hfcs_fifo_frame_check FIFO_FRAME_CHECK_T(sc,f,m)
 
 	register u_int16_t  crc = 0xffff;
 	register u_int16_t  len = m->m_len;
-	register u_int8_t * ptr = m->m_data;
+	register const u_int8_t * ptr = m->m_data;
 
 	/* check length */
 	if(len < 3)

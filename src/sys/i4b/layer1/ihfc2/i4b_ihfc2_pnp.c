@@ -813,7 +813,7 @@ ihfc_unsetup_resource(device_t dev)
  * : unsetup/shutdown card
  *---------------------------------------------------------------------------*/
 static int
-ihfc_unsetup(device_t dev, u_int8_t *error, u_int8_t level)
+ihfc_unsetup(device_t dev, const u_int8_t *error, u_int8_t level)
 {
 	ihfc_sc_t *sc = device_get_softc(dev);
 	u_int8_t n;
