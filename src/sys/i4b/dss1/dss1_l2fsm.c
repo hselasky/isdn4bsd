@@ -1273,12 +1273,10 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 
 		while(len--)
 	        {
-		  struct mbuf *m;
-
 		  /* remove one frame from I-queue */
 		  _IF_DEQUEUE(pipe,m);
 		  m_freem(m);
-		  m = NULL;
+		  m = NULL; /* set a valid value */
 		}
 
 		if(!L2_STATE_IS_TEI_ASSIGNED(pipe->state))
@@ -1309,8 +1307,6 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 		     (pipe->tx_nr == 0x00) ||
 		     (pipe->state <= ST_L2_SINGLE_FRAME))
 		  {
-		    struct mbuf *m;
-
 		    nr_length_max = 2;
 
 		    /* A zero-length-I-frame is used to guess the remote
@@ -1343,6 +1339,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 		      if(m && (m->m_len <= I_HEADER_LEN))
 		      {
 			/* done */
+			m = NULL; /* set a valid value */
 		      }
 		      else
 		      {
@@ -1493,7 +1490,8 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 
     if(m)
     {
-        break;
+	/* We got an I- or U- frame */
+	break;
     }
     else
     {
@@ -1509,9 +1507,9 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
       }
     }
 
-    /* clear current length so that
-     * other pipes does not send
-     * out the frames [if any]
+    /* 
+     * Clear current length so that other pipes do not send out the
+     * frames, if any:
      */
     sc->sc_current_length = 0;
 
