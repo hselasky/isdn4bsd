@@ -283,7 +283,7 @@ ihfc_fifo_program(ihfc_sc_t *sc)
 	ihfc_fifo_t *f;
 
 	u_int8_t status;
-	u_int8_t max;
+	u_int8_t fifo_max;
 
 	/*
 	 * overview:
@@ -335,7 +335,7 @@ ihfc_fifo_program(ihfc_sc_t *sc)
 		 * In the worst case 32*125us = 4ms
 		 * is used per FIFO
 		 */
-		max = 32; /* XXX */
+		fifo_max = 32; /* XXX */
 
 	loop:
 
@@ -350,7 +350,7 @@ ihfc_fifo_program(ihfc_sc_t *sc)
 		    /*
 		     * check number of loops
 		     */
-		    if(!max--)
+		    if(!fifo_max--)
 		    {
 		        IHFC_ERR("(#%d) FIFO quota "
 				 "exceeded!\n", FIFO_NO(f));
@@ -678,8 +678,8 @@ i4b_ipac_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 static void
 ihfc_fifo_fz_read(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
-	u_int16_t max;
-	u_int16_t min;
+	u_int16_t z_max;
+	u_int16_t z_min;
 
 	/* read fz counters */
 	FIFO_FZ_READ(sc,f);
@@ -705,11 +705,11 @@ ihfc_fifo_fz_read(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	 * NOTE: Z_chip is only valid when F1 == F2
 	 */
 
-	max =  (f->fm.h.Zend); /* excluding */
-	min = ((f->fm.h.Zend) - (f->fm.h.Zsize)); /* including */
+	z_max =  (f->fm.h.Zend); /* excluding */
+	z_min = ((f->fm.h.Zend) - (f->fm.h.Zsize)); /* including */
 
-	INC_COUNTER_RANGE_CHECK(f->Z_chip,min,max);
-	INC_COUNTER_RANGE_CHECK(f->Z_drvr,min,max);
+	INC_COUNTER_RANGE_CHECK(f->Z_chip,z_min,z_max);
+	INC_COUNTER_RANGE_CHECK(f->Z_drvr,z_min,z_max);
 
 	/*
 	 * FIFO calculation overview:
