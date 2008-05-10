@@ -1400,11 +1400,11 @@ i4b_l3_information_req(struct call_desc *cd, u_int8_t *ptr, u_int16_t len)
 	u_int8_t *dst = &(cd->dst_telno[0]);
 	u_int8_t *dst_end = &(cd->dst_telno[TELNO_MAX-1]);
 
-	enum { max = sizeof(cd->dst_telno_part)-1 };
+	enum { max_telno = sizeof(cd->dst_telno_part)-1 };
 
-	if(len > max)
+	if(len > max_telno)
 	{
-	    len = max;
+	    len = max_telno;
 	}
 
 	bcopy(ptr, &(cd->dst_telno_part[0]), len);
