@@ -113,13 +113,18 @@ SRCS+=  freebsd_section_end.c
 .endif
 
 kern_conf:
-	@echo "The following should be added to your /usr/src/sys/conf/files:"
-.if (${OSNAME} != "FreeBSD")
-	@echo "Also don't forget to copy the files under ${.CURDIR}/sys into /usr/src/sys/sys"
-.endif
+	@echo ""
+	@echo "# The following should be added to your /usr/src/sys/conf/files:"
+.if (${OSNAME} == "NetBSD")
+	@echo "# Also don't forget to copy the files under ${.CURDIR}/sys into /usr/src/sys/sys"
+.for F in ${SRCS}
+	@echo file ${.CURDIR}/${F} i4b_files
+.endfor
+.elif (${OSNAME} == "FreeBSD")
 .for F in ${SRCS}
 	@echo ${.CURDIR}/${F} optional i4b_files
 .endfor
+.endif
 
 .if ((${OSNAME} == "OpenBSD") || (${OSNAME} == "MirBSD"))
 .include <bsd.lkm.mk>
