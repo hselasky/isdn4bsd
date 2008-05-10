@@ -283,11 +283,9 @@ device_get_parent(device_t dev)
     return dev ? dev->dev_parent : NULL;
 }
 
-extern const char *
-device_get_name(device_t dev);
-
-extern const char *
-device_get_nameunit(device_t dev);
+extern void * device_get_method(device_t dev, const char *what);
+extern const char * device_get_name(device_t dev);
+extern const char * device_get_nameunit(device_t dev);
 
 #define device_printf __device_printf
 
