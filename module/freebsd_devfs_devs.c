@@ -188,6 +188,7 @@ devfs_newdirent(char *name, int namelen)
 	return (de);
 }
 
+#undef DECONST
 #define DECONST(arg) ((void *)(((const char *)arg) - ((const char *)0)))
 
 struct devfs_dirent *
@@ -222,8 +223,6 @@ devfs_vmkdir(char *name, int namelen, struct devfs_dirent *dotdot)
 
 	return (dd);
 }
-
-#undef DECONST
 
 static void
 devfs_delete(struct devfs_dirent *dd, struct devfs_dirent *de)

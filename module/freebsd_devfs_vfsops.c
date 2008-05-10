@@ -68,6 +68,9 @@ devfs_root(struct mount *mp, /* int flags, */
 	return error;
 }
 
+#undef DECONST
+#define DECONST(arg) ((void *)(((const char *)arg) - ((const char *)0)))
+
 #if (__NetBSD_Version__ >= 400000000)
 static int
 devfs_mount(struct mount *mp, const char *path, void *data,
@@ -108,7 +111,7 @@ devfs_mount(struct mount *mp, const char *path, void *data,
 
 	fmp->dm_inode = DEVFSINOMOUNT;
 
-	fmp->dm_rootdir = devfs_vmkdir("(root)", 6, NULL);
+	fmp->dm_rootdir = devfs_vmkdir(DECONST("(root)"), 6, NULL);
 	fmp->dm_rootdir->de_inode = 2;
 	fmp->dm_basedir = fmp->dm_rootdir;
 
