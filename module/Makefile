@@ -122,7 +122,12 @@ kern_conf:
 	@echo ""
 	@echo "# The following should be added to your /usr/src/sys/conf/files:"
 .if (${OSNAME} == "NetBSD")
-	@echo "# Also don't forget to copy the files under ${.CURDIR}/sys into /usr/src/sys/sys"
+	@echo "# cp -i ${.CURDIR}/sys/*h         /usr/src/sys/sys"
+	@echo "# ln -s ${.CURDIR}/../src/sys/i4b /usr/src/sys/i4b
+	@echo "# touch /usr/xxx_compile_dir/opt_i4b.h
+	@echo "# echo #define device_t nbsd_device_t >> /usr/src/sys/sys/device.h"
+	@echo "# echo #define devclass_t nbsd_devclass_t >> /usr/src/sys/sys/device.h"
+
 .for F in ${SRCS}
 	@echo file `find ${.CURDIR}/.. -name "${F}"`
 .endfor

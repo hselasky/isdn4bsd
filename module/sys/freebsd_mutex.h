@@ -74,17 +74,11 @@ extern int
   msleep(void *ident, struct mtx *mtx, int priority,
 	 const char *wmesg, int timeout);
 
-extern void
-  atomic_add_int(u_int *p, u_int v);
-
-extern void
-  atomic_sub_int(u_int *p, u_int v);
-
-extern int
-  atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src);
-
-extern void atomic_lock();
-extern void atomic_unlock();
+extern void  atomic_add_int(u_int *p, u_int v);
+extern void atomic_sub_int(u_int *p, u_int v);
+extern int  atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src);
+extern void atomic_lock(void);
+extern void atomic_unlock(void);
 
 extern struct mtx Giant;
 
