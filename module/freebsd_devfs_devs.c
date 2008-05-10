@@ -188,6 +188,8 @@ devfs_newdirent(char *name, int namelen)
 	return (de);
 }
 
+#define DECONST(arg) ((void *)(((const char *)arg) - ((const char *)0)))
+
 struct devfs_dirent *
 devfs_vmkdir(char *name, int namelen, struct devfs_dirent *dotdot)
 {
@@ -203,13 +205,13 @@ devfs_vmkdir(char *name, int namelen, struct devfs_dirent *dotdot)
 	dd->de_links = 2;
 	dd->de_dir = dd;
 
-	de = devfs_newdirent(".", 1);
+	de = devfs_newdirent(DECONST("."), 1);
 	de->de_dirent->d_type = DT_DIR;
 	de->de_dir = dd;
 	de->de_flags |= DE_DOT;
 	TAILQ_INSERT_TAIL(&dd->de_dlist, de, de_list);
 
-	de = devfs_newdirent("..", 2);
+	de = devfs_newdirent(DECONST(".."), 2);
 	de->de_dirent->d_type = DT_DIR;
 	if (dotdot == NULL)
 		de->de_dir = dd;
@@ -220,6 +222,8 @@ devfs_vmkdir(char *name, int namelen, struct devfs_dirent *dotdot)
 
 	return (dd);
 }
+
+#undef DECONST
 
 static void
 devfs_delete(struct devfs_dirent *dd, struct devfs_dirent *de)
