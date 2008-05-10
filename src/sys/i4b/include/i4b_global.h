@@ -515,7 +515,7 @@ typedef struct call_desc {
 	cdid_t li_cdid_last; /* cdid of peer */
 	struct i4b_line_interconnect *li_data_ptr;
 
-	u_int8_t *tone_gen_ptr;
+	const u_int8_t *tone_gen_ptr;
 	u_int8_t  tone_gen_state; /* current state of tone generator */
 	u_int16_t tone_gen_pos;   /* current sine table position */
 
