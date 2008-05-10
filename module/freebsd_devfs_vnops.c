@@ -950,6 +950,9 @@ devfs_fqpn(char *buf, int len, struct vnode *dvp, struct componentname *cnp)
 	return (buf + len);
 }
 
+#undef DECONST
+#define DECONST(arg) ((void *)(((const char *)arg) - ((const char *)0)))
+
 static int
 __devfs_lookup(struct vop_lookup_args *ap)
 {
@@ -975,7 +978,7 @@ __devfs_lookup(struct vop_lookup_args *ap)
 	u_int8_t unlock = (!(flags & ISLASTCN)) || (!(flags & LOCKPARENT));
 #endif
 
-	pname = (u_int8_t *)(cnp->cn_nameptr);
+	pname = DECONST(cnp->cn_nameptr);
 	dmp = VFSTODEVFS(dvp->v_mount);
 	dd = dvp->v_data;
 	vpp[0] = NULLVP;
@@ -1537,7 +1540,7 @@ devfs_symlink(struct vop_symlink_args *ap)
 	}
 	dmp = VFSTODEVFS(ap->a_dvp->v_mount);
 	dd = ap->a_dvp->v_data;
-	de = devfs_newdirent((u_int8_t *)ap->a_cnp->cn_nameptr, 
+	de = devfs_newdirent(DECONST(ap->a_cnp->cn_nameptr), 
 			     ap->a_cnp->cn_namelen);
 	de->de_uid = 0;
 	de->de_gid = 0;
