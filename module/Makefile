@@ -127,6 +127,7 @@ kern_conf:
 	@echo "# touch /usr/xxx_compile_dir/opt_i4b.h
 	@echo "# echo #define device_t nbsd_device_t >> /usr/src/sys/sys/device.h"
 	@echo "# echo #define devclass_t nbsd_devclass_t >> /usr/src/sys/sys/device.h"
+	@echo "# echo i4b_load(); >> /usr/src/sys/kern/init_main.c"
 
 .for F in ${SRCS}
 	@echo file `find ${.CURDIR}/.. -name "${F}"`

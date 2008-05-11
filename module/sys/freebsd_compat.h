@@ -147,6 +147,8 @@ extern int pci_enumerate_bus
 #   define statfs statvfs
 #  endif
 
+extern void i4b_load(void);
+
 # endif
 
 # ifndef __used
