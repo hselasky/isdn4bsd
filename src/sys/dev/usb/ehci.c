@@ -2837,6 +2837,9 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 				usbd_get_page(xfer->frbuffers, itd_offset[0], &buf_res);
 				/* get page address */
 				page_addr = buf_res.physaddr & ~0xFFF;
+				/* update page address */
+				td->itd_bp[0] &= htole32(0xFFF);
+				td->itd_bp[0] |= htole32(page_addr);
 
 				for (x = 0; x != td_no; x++) {
 					/* set page number and page offset */
