@@ -2071,8 +2071,14 @@ ehci_isoc_hs_done(ehci_softc_t *sc, struct usbd_xfer *xfer)
 		len = EHCI_ITD_GET_LEN(status);
 
 		if (*plen >= len) {
-			len = *plen - len;
+			/*
+			 * The length is valid. NOTE: The complete
+			 * length is written back into the status
+			 * field, and not the remainder like with
+			 * other transfer descriptor types.
+			 */
 		} else {
+			/* Invalid length - truncate */
 			len = 0;
 		}
 
