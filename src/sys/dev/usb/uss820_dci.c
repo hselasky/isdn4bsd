@@ -1354,8 +1354,8 @@ uss820_dci_clear_stall(struct usbd_device *udev, struct usbd_pipe *pipe)
 
 	uss820_dci_clear_stall_sub(sc,
 	    (ed->bEndpointAddress & UE_ADDR),
-	    (ed->bEndpointAddress & (UE_DIR_IN | UE_DIR_OUT)),
-	    (ed->bmAttributes & UE_XFERTYPE));
+	    (ed->bmAttributes & UE_XFERTYPE),
+	    (ed->bEndpointAddress & (UE_DIR_IN | UE_DIR_OUT)));
 
 	return;
 }

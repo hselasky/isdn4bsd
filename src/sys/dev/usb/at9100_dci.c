@@ -1320,6 +1320,16 @@ at9100_dci_clear_stall_sub(struct at9100_dci_softc *sc, uint8_t ep_no,
 		/* clearing stall is not needed */
 		return;
 	}
+	/* compute CSR register offset */
+	csr_reg = AT91_UDP_CSR(ep_no);
+
+	/* compute default CSR value */
+	csr_val = 0;
+	AT91_CSR_ACK(csr_val, 0);
+
+	/* disable endpoint */
+	AT91_UDP_WRITE_4(sc, csr_reg, csr_val);
+
 	/* get endpoint profile */
 	at9100_dci_get_hw_ep_profile(NULL, &pf, ep_no);
 
@@ -1332,7 +1342,6 @@ at9100_dci_clear_stall_sub(struct at9100_dci_softc *sc, uint8_t ep_no,
 	 * FIFO banks aswell, but it doesn't! We have to do this
 	 * manually!
 	 */
-	csr_reg = AT91_UDP_CSR(ep_no);
 
 	/* release FIFO banks, if any */
 	for (to = 0; to != 2; to++) {
@@ -1366,6 +1375,8 @@ at9100_dci_clear_stall_sub(struct at9100_dci_softc *sc, uint8_t ep_no,
 		AT91_UDP_WRITE_4(sc, csr_reg, csr_val);
 	}
 
+	/* compute default CSR value */
+	csr_val = 0;
 	AT91_CSR_ACK(csr_val, 0);
 
 	/* enable endpoint */
@@ -1412,8 +1423,8 @@ at9100_dci_clear_stall(struct usbd_device *udev, struct usbd_pipe *pipe)
 	/* reset endpoint */
 	at9100_dci_clear_stall_sub(sc,
 	    (ed->bEndpointAddress & UE_ADDR),
-	    (ed->bEndpointAddress & (UE_DIR_IN | UE_DIR_OUT)),
-	    (ed->bmAttributes & UE_XFERTYPE));
+	    (ed->bmAttributes & UE_XFERTYPE),
+	    (ed->bEndpointAddress & (UE_DIR_IN | UE_DIR_OUT)));
 	return;
 }
 
