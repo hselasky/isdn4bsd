@@ -1287,27 +1287,13 @@ uss820_dci_set_stall(struct usbd_device *udev, struct usbd_xfer *xfer,
 }
 
 static void
-uss820_dci_clear_stall(struct usbd_device *udev, struct usbd_pipe *pipe)
+uss820_dci_clear_stall_sub(struct uss820_dci_softc *sc,
+    uint8_t ep_no, uint8_t ep_type, uint8_t ep_dir)
 {
-	struct uss820_dci_softc *sc;
-	uint8_t ep_no;
-	uint8_t ep_type;
-	uint8_t ep_dir;
 	uint8_t temp;
 
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
-
-	DPRINTFN(4, "pipe=%p\n", pipe);
-
-	/* reset pipe state */
-
-	sc = USS820_DCI_BUS2SC(udev->bus);
-	ep_no = (pipe->edesc->bEndpointAddress & UE_ADDR);
-	ep_dir = (pipe->edesc->bEndpointAddress & (UE_DIR_IN | UE_DIR_OUT));
-	ep_type = (pipe->edesc->bmAttributes & UE_XFERTYPE);
-
 	if (ep_type == UE_CONTROL) {
-		/* should not happen */
+		/* clearing stall is not needed */
 		return;
 	}
 	/* select endpoint index */
@@ -1351,149 +1337,33 @@ uss820_dci_clear_stall(struct usbd_device *udev, struct usbd_pipe *pipe)
 	return;
 }
 
-/*------------------------------------------------------------------------*
- *	uss820_dci_set_config
- *
- * NOTE: Calling this function builds on the assumtion that
- * you have a configuration that is valid !
- *------------------------------------------------------------------------*/
 static void
-uss820_dci_set_config(struct usbd_device *udev,
-    usb_config_descriptor_t *cd)
+uss820_dci_clear_stall(struct usbd_device *udev, struct usbd_pipe *pipe)
 {
-	const struct usbd_hw_ep_profile *pf;
 	struct uss820_dci_softc *sc;
 	usb_endpoint_descriptor_t *ed;
-	uint8_t n;
-	uint8_t ep_type;
-	uint8_t ep_dir;
-	uint8_t temp;
 
 	mtx_assert(&(udev->bus->mtx), MA_OWNED);
 
-	if (udev->flags.usb_mode == USB_MODE_HOST) {
-		/* this is the Root HUB */
-		return;
-	}
+	DPRINTFN(4, "pipe=%p\n", pipe);
+
+	/* reset pipe state */
+
 	sc = USS820_DCI_BUS2SC(udev->bus);
+	ed = pipe->edesc;
 
-	/* disable everything, but the control 0 endpoint */
+	uss820_dci_clear_stall_sub(sc,
+	    (ed->bEndpointAddress & UE_ADDR),
+	    (ed->bEndpointAddress & (UE_DIR_IN | UE_DIR_OUT)),
+	    (ed->bmAttributes & UE_XFERTYPE));
 
-	for (n = 1; n != USS820_EP_MAX; n++) {
-
-		/* select endpoint */
-		USS820_WRITE_1(sc, USS820_EPINDEX, n);
-
-		/* disable endpoint - both directions */
-		uss820_dci_update_shared_1(sc, USS820_EPCON, 0, 0);
-	}
-
-	if (cd == NULL) {
-		/* nothing more to do */
-		return;
-	}
-	ed = NULL;
-
-	/* enable all endpoints in the configuration */
-
-	while ((ed = (void *)usbd_desc_foreach(cd, (void *)ed))) {
-
-		if ((ed->bDescriptorType != UDESC_ENDPOINT) ||
-		    (ed->bLength < sizeof(*ed))) {
-			continue;
-		}
-		n = (ed->bEndpointAddress & UE_ADDR);
-		ep_type = (ed->bmAttributes & UE_XFERTYPE);
-		ep_dir = (ed->bEndpointAddress & (UE_DIR_IN | UE_DIR_OUT));
-
-		uss820_dci_get_hw_ep_profile(udev, &pf, n);
-
-		/* configure endpoint */
-
-		if (ep_type == UE_ISOCHRONOUS) {
-			if (pf->max_frame_size <= 64) {
-				temp = (USS820_TXCON_FFSZ_16_64 |
-				    USS820_TXCON_TXISO |
-				    USS820_TXCON_ATM);
-			} else if (pf->max_frame_size <= 256) {
-				temp = (USS820_TXCON_FFSZ_64_256 |
-				    USS820_TXCON_TXISO |
-				    USS820_TXCON_ATM);
-			} else if (pf->max_frame_size <= 512) {
-				temp = (USS820_TXCON_FFSZ_8_512 |
-				    USS820_TXCON_TXISO |
-				    USS820_TXCON_ATM);
-			} else {	/* 1024 bytes */
-				temp = (USS820_TXCON_FFSZ_32_1024 |
-				    USS820_TXCON_TXISO |
-				    USS820_TXCON_ATM);
-			}
-		} else {
-			if ((pf->max_frame_size <= 8) &&
-			    (sc->sc_flags.mcsr_feat)) {
-				temp = (USS820_TXCON_FFSZ_8_512 |
-				    USS820_TXCON_ATM);
-			} else if (pf->max_frame_size <= 16) {
-				temp = (USS820_TXCON_FFSZ_16_64 |
-				    USS820_TXCON_ATM);
-			} else if ((pf->max_frame_size <= 32) &&
-			    (sc->sc_flags.mcsr_feat)) {
-				temp = (USS820_TXCON_FFSZ_32_1024 |
-				    USS820_TXCON_ATM);
-			} else {	/* 64 bytes */
-				temp = (USS820_TXCON_FFSZ_64_256 |
-				    USS820_TXCON_ATM);
-			}
-		}
-
-		USS820_WRITE_1(sc, USS820_EPINDEX, n);
-
-		if ((ep_dir == UE_DIR_IN) || (ep_type == UE_CONTROL)) {
-
-			if (ep_type != UE_CONTROL) {
-				/* reset data toggle */
-				USS820_WRITE_1(sc, USS820_TXSTAT,
-				    USS820_TXSTAT_TXSOVW);
-			}
-			/* configure endpoint */
-			USS820_WRITE_1(sc, USS820_TXCON, temp |
-			    USS820_TXCON_TXCLR);
-			USS820_WRITE_1(sc, USS820_TXCON, temp);
-		}
-		if ((ep_dir == UE_DIR_OUT) || (ep_type == UE_CONTROL)) {
-
-			if (ep_type != UE_CONTROL) {
-				/* reset data toggle */
-				uss820_dci_update_shared_1(sc, USS820_RXSTAT,
-				    0, USS820_RXSTAT_RXSOVW);
-			}
-			/* configure endpoint */
-			USS820_WRITE_1(sc, USS820_RXCON, temp |
-			    USS820_RXCON_RXCLR);
-			USS820_WRITE_1(sc, USS820_RXCON, temp);
-		}
-		/* enable endpoint */
-		if (ep_type == UE_CONTROL) {
-			temp = (USS820_EPCON_CTLEP |
-			    USS820_EPCON_RXSPM |
-			    USS820_EPCON_RXEPEN |
-			    USS820_EPCON_TXEPEN);
-		} else {
-			if (ep_dir == UE_DIR_IN) {
-				temp = USS820_EPCON_TXEPEN;
-			} else {
-				temp = USS820_EPCON_RXEPEN;
-			}
-		}
-
-		uss820_dci_update_shared_1(sc, USS820_EPCON, 0xFF, temp);
-	}
 	return;
 }
 
 usbd_status_t
 uss820_dci_init(struct uss820_dci_softc *sc)
 {
+	const struct usbd_hw_ep_profile *pf;
 	uint8_t n;
 	uint8_t temp;
 
@@ -1575,6 +1445,70 @@ uss820_dci_init(struct uss820_dci_softc *sc)
 
 		/* disable endpoint */
 		uss820_dci_update_shared_1(sc, USS820_EPCON, 0, 0);
+	}
+
+	/*
+	 * Initialise default values for some registers that cannot be
+	 * changed during operation!
+	 */
+	for (n = 0; n != USS820_EP_MAX; n++) {
+
+		uss820_dci_get_hw_ep_profile(NULL, &pf, n);
+
+		if (pf->support_isochronous) {
+			if (pf->max_frame_size <= 64) {
+				temp = (USS820_TXCON_FFSZ_16_64 |
+				    USS820_TXCON_TXISO |
+				    USS820_TXCON_ATM);
+			} else if (pf->max_frame_size <= 256) {
+				temp = (USS820_TXCON_FFSZ_64_256 |
+				    USS820_TXCON_TXISO |
+				    USS820_TXCON_ATM);
+			} else if (pf->max_frame_size <= 512) {
+				temp = (USS820_TXCON_FFSZ_8_512 |
+				    USS820_TXCON_TXISO |
+				    USS820_TXCON_ATM);
+			} else {	/* 1024 bytes */
+				temp = (USS820_TXCON_FFSZ_32_1024 |
+				    USS820_TXCON_TXISO |
+				    USS820_TXCON_ATM);
+			}
+		} else {
+			if ((pf->max_frame_size <= 8) &&
+			    (sc->sc_flags.mcsr_feat)) {
+				temp = (USS820_TXCON_FFSZ_8_512 |
+				    USS820_TXCON_ATM);
+			} else if (pf->max_frame_size <= 16) {
+				temp = (USS820_TXCON_FFSZ_16_64 |
+				    USS820_TXCON_ATM);
+			} else if ((pf->max_frame_size <= 32) &&
+			    (sc->sc_flags.mcsr_feat)) {
+				temp = (USS820_TXCON_FFSZ_32_1024 |
+				    USS820_TXCON_ATM);
+			} else {	/* 64 bytes */
+				temp = (USS820_TXCON_FFSZ_64_256 |
+				    USS820_TXCON_ATM);
+			}
+		}
+
+		/* need to configure the chip early */
+
+		USS820_WRITE_1(sc, USS820_EPINDEX, n);
+		USS820_WRITE_1(sc, USS820_TXCON, temp);
+		USS820_WRITE_1(sc, USS820_RXCON, temp);
+
+		if (pf->support_control) {
+			temp = USS820_EPCON_CTLEP |
+			    USS820_EPCON_RXSPM |
+			    USS820_EPCON_RXIE |
+			    USS820_EPCON_RXEPEN |
+			    USS820_EPCON_TXOE |
+			    USS820_EPCON_TXEPEN;
+		} else {
+			temp = USS820_EPCON_RXEPEN | USS820_EPCON_TXEPEN;
+		}
+
+		uss820_dci_update_shared_1(sc, USS820_EPCON, 0xFF, temp);
 	}
 
 	mtx_unlock(&(sc->sc_bus.mtx));
@@ -2352,56 +2286,6 @@ tr_handle_get_port_status:
 
 	if (sc->sc_flags.change_connect) {
 		value |= UPS_C_CONNECT_STATUS;
-
-		if (sc->sc_flags.status_vbus &&
-		    sc->sc_flags.status_bus_reset) {
-
-			const struct usbd_hw_ep_profile *pf;
-			uint8_t temp;
-
-			uss820_dci_get_hw_ep_profile(xfer->udev, &pf, 0);
-
-			/* select endpoint */
-			USS820_WRITE_1(sc, USS820_EPINDEX, 0);
-
-			if ((pf->max_frame_size <= 8) &&
-			    (sc->sc_flags.mcsr_feat)) {
-				temp = (USS820_TXCON_FFSZ_8_512 |
-				    USS820_TXCON_ATM);
-			} else if (pf->max_frame_size <= 16) {
-				temp = (USS820_TXCON_FFSZ_16_64 |
-				    USS820_TXCON_ATM);
-			} else if ((pf->max_frame_size <= 32) &&
-			    (sc->sc_flags.mcsr_feat)) {
-				temp = (USS820_TXCON_FFSZ_32_1024 |
-				    USS820_TXCON_ATM);
-			} else {	/* 64 bytes */
-				temp = (USS820_TXCON_FFSZ_64_256 |
-				    USS820_TXCON_ATM);
-			}
-
-			/* configure endpoint */
-			USS820_WRITE_1(sc, USS820_TXCON, temp |
-			    USS820_TXCON_TXCLR);
-			USS820_WRITE_1(sc, USS820_TXCON, temp);
-
-			/* configure endpoint */
-			USS820_WRITE_1(sc, USS820_RXCON, temp |
-			    USS820_RXCON_RXCLR);
-			USS820_WRITE_1(sc, USS820_RXCON, temp);
-
-			/* enable control endpoint */
-			uss820_dci_update_shared_1(sc, USS820_EPCON, 0,
-			    (USS820_EPCON_CTLEP |
-			    USS820_EPCON_RXSPM |
-			    USS820_EPCON_RXIE |
-			    USS820_EPCON_RXEPEN |
-			    USS820_EPCON_TXOE |
-			    USS820_EPCON_TXEPEN));
-
-			/* disable all other endpoints */
-			uss820_dci_set_config(xfer->udev, NULL);
-		}
 	}
 	if (sc->sc_flags.change_suspend) {
 		value |= UPS_C_SUSPEND;
@@ -2686,7 +2570,6 @@ struct usbd_bus_methods uss820_dci_bus_methods =
 	.xfer_setup = &uss820_dci_xfer_setup,
 	.xfer_unsetup = &uss820_dci_xfer_unsetup,
 	.do_poll = &uss820_dci_do_poll,
-	.set_config = &uss820_dci_set_config,
 	.get_hw_ep_profile = &uss820_dci_get_hw_ep_profile,
 	.set_stall = &uss820_dci_set_stall,
 	.clear_stall = &uss820_dci_clear_stall,

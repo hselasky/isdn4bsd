@@ -816,6 +816,8 @@ at9100_dci_interrupt(struct at9100_dci_softc *sc)
 		DPRINTFN(4, "real bus interrupt 0x%08x\n", status);
 
 		if (status & AT91_UDP_INT_END_BR) {
+
+			/* set correct state */
 			sc->sc_flags.status_bus_reset = 1;
 			sc->sc_flags.status_suspend = 0;
 			sc->sc_flags.change_suspend = 0;
@@ -1305,20 +1307,21 @@ at9100_dci_set_stall(struct usbd_device *udev, struct usbd_xfer *xfer,
 }
 
 static void
-at9100_dci_reset_ep(struct usbd_device *udev, uint8_t ep_no)
+at9100_dci_clear_stall_sub(struct at9100_dci_softc *sc, uint8_t ep_no,
+    uint8_t ep_type, uint8_t ep_dir)
 {
-	struct at9100_dci_softc *sc;
 	const struct usbd_hw_ep_profile *pf;
 	uint32_t csr_val;
 	uint32_t temp;
 	uint8_t csr_reg;
 	uint8_t to;
 
-	/* get softc */
-	sc = AT9100_DCI_BUS2SC(udev->bus);
-
+	if (ep_type == UE_CONTROL) {
+		/* clearing stall is not needed */
+		return;
+	}
 	/* get endpoint profile */
-	at9100_dci_get_hw_ep_profile(udev, &pf, ep_no);
+	at9100_dci_get_hw_ep_profile(NULL, &pf, ep_no);
 
 	/* reset FIFO */
 	AT91_UDP_WRITE_4(sc, AT91_UDP_RST, AT91_UDP_RST_EP(ep_no));
@@ -1362,100 +1365,55 @@ at9100_dci_reset_ep(struct usbd_device *udev, uint8_t ep_no)
 		AT91_CSR_ACK(csr_val, temp);
 		AT91_UDP_WRITE_4(sc, csr_reg, csr_val);
 	}
+
+	AT91_CSR_ACK(csr_val, 0);
+
+	/* enable endpoint */
+	csr_val &= ~AT91_UDP_CSR_ET_MASK;
+	csr_val |= AT91_UDP_CSR_EPEDS;
+
+	if (ep_type == UE_CONTROL) {
+		csr_val |= AT91_UDP_CSR_ET_CTRL;
+	} else {
+		if (ep_type == UE_BULK) {
+			csr_val |= AT91_UDP_CSR_ET_BULK;
+		} else if (ep_type == UE_INTERRUPT) {
+			csr_val |= AT91_UDP_CSR_ET_INT;
+		} else {
+			csr_val |= AT91_UDP_CSR_ET_ISO;
+		}
+		if (ep_dir & UE_DIR_IN) {
+			csr_val |= AT91_UDP_CSR_ET_DIR_IN;
+		}
+	}
+
+	/* enable endpoint */
+	AT91_UDP_WRITE_4(sc, AT91_UDP_CSR(ep_no), csr_val);
+
 	return;
 }
 
 static void
 at9100_dci_clear_stall(struct usbd_device *udev, struct usbd_pipe *pipe)
 {
+	struct at9100_dci_softc *sc;
+	usb_endpoint_descriptor_t *ed;
+
 	DPRINTFN(4, "pipe=%p\n", pipe);
 
 	mtx_assert(&(udev->bus->mtx), MA_OWNED);
 
-	/* reset endpoint */
-	at9100_dci_reset_ep(udev,
-	    (pipe->edesc->bEndpointAddress & UE_ADDR));
-
-	return;
-}
-
-/*------------------------------------------------------------------------*
- *	at9100_dci_set_config
- *
- * NOTE: Calling this function builds on the assumtion that
- * you have a configuration that is valid !
- *------------------------------------------------------------------------*/
-static void
-at9100_dci_set_config(struct usbd_device *udev,
-    usb_config_descriptor_t *cd)
-{
-	struct at9100_dci_softc *sc;
-	usb_endpoint_descriptor_t *ed;
-	uint32_t csr_val = 0;
-	uint8_t n;
-	uint8_t ep_type;
-	uint8_t ep_dir;
-
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
-
-	if (udev->flags.usb_mode == USB_MODE_HOST) {
-		/* this is the Root HUB */
-		return;
-	}
+	/* get softc */
 	sc = AT9100_DCI_BUS2SC(udev->bus);
-	AT91_CSR_ACK(csr_val, 0);
 
-	/* disable everything, but the control 0 endpoint */
+	/* get endpoint descriptor */
+	ed = pipe->edesc;
 
-	for (n = 1; n != AT91_UDP_EP_MAX; n++) {
-
-		/* disable endpoint */
-		AT91_UDP_WRITE_4(sc, AT91_UDP_CSR(n), csr_val);
-
-		/* reset endpoint */
-		at9100_dci_reset_ep(udev, n);
-	}
-
-	if (cd == NULL) {
-		/* nothing more to do */
-		return;
-	}
-	ed = NULL;
-
-	/* enable all endpoints in the configuration */
-
-	while ((ed = (void *)usbd_desc_foreach(cd, (void *)ed))) {
-
-		if ((ed->bDescriptorType != UDESC_ENDPOINT) ||
-		    (ed->bLength < sizeof(*ed))) {
-			continue;
-		}
-		/* enable endpoint */
-		csr_val &= ~AT91_UDP_CSR_ET_MASK;
-		csr_val |= AT91_UDP_CSR_EPEDS;
-
-		n = (ed->bEndpointAddress & UE_ADDR);
-		ep_type = (ed->bmAttributes & UE_XFERTYPE);
-		ep_dir = (ed->bEndpointAddress & (UE_DIR_IN | UE_DIR_OUT));
-
-		if (ep_type == UE_CONTROL) {
-			csr_val |= AT91_UDP_CSR_ET_CTRL;
-		} else {
-			if (ep_type == UE_BULK) {
-				csr_val |= AT91_UDP_CSR_ET_BULK;
-			} else if (ep_type == UE_INTERRUPT) {
-				csr_val |= AT91_UDP_CSR_ET_INT;
-			} else {
-				csr_val |= AT91_UDP_CSR_ET_ISO;
-			}
-			if (ep_dir & UE_DIR_IN) {
-				csr_val |= AT91_UDP_CSR_ET_DIR_IN;
-			}
-		}
-
-		/* enable endpoint */
-		AT91_UDP_WRITE_4(sc, AT91_UDP_CSR(n), csr_val);
-	}
+	/* reset endpoint */
+	at9100_dci_clear_stall_sub(sc,
+	    (ed->bEndpointAddress & UE_ADDR),
+	    (ed->bEndpointAddress & (UE_DIR_IN | UE_DIR_OUT)),
+	    (ed->bmAttributes & UE_XFERTYPE));
 	return;
 }
 
@@ -1482,19 +1440,31 @@ at9100_dci_init(struct at9100_dci_softc *sc)
 	DELAY(1000);
 
 	/* disable and clear all interrupts */
+
 	AT91_UDP_WRITE_4(sc, AT91_UDP_IDR, 0xFFFFFFFF);
 	AT91_UDP_WRITE_4(sc, AT91_UDP_ICR, 0xFFFFFFFF);
+
+	/* compute default CSR value */
 
 	csr_val = 0;
 	AT91_CSR_ACK(csr_val, 0);
 
-	/* disable and reset all endpoints */
+	/* disable all endpoints */
 
 	for (n = 0; n != AT91_UDP_EP_MAX; n++) {
 
 		/* disable endpoint */
 		AT91_UDP_WRITE_4(sc, AT91_UDP_CSR(n), csr_val);
 	}
+
+	/* enable the control endpoint */
+
+	AT91_CSR_ACK(csr_val, AT91_UDP_CSR_ET_CTRL |
+	    AT91_UDP_CSR_EPEDS);
+
+	/* write to FIFO control register */
+
+	AT91_UDP_WRITE_4(sc, AT91_UDP_CSR(0), csr_val);
 
 	/* enable the interrupts we want */
 
@@ -2283,14 +2253,6 @@ tr_handle_get_port_status:
 
 		if (sc->sc_flags.status_vbus &&
 		    sc->sc_flags.status_bus_reset) {
-			uint32_t csr = 0;
-
-			/* enable the control endpoint */
-			AT91_CSR_ACK(csr, AT91_UDP_CSR_ET_CTRL |
-			    AT91_UDP_CSR_EPEDS);
-			/* write to FIFO control register */
-			AT91_UDP_WRITE_4(sc, AT91_UDP_CSR(0), csr);
-
 			/* reset endpoint flags */
 			bzero(sc->sc_ep_flags, sizeof(sc->sc_ep_flags));
 		}
@@ -2564,7 +2526,6 @@ struct usbd_bus_methods at9100_dci_bus_methods =
 	.xfer_setup = &at9100_dci_xfer_setup,
 	.xfer_unsetup = &at9100_dci_xfer_unsetup,
 	.do_poll = &at9100_dci_do_poll,
-	.set_config = &at9100_dci_set_config,
 	.get_hw_ep_profile = &at9100_dci_get_hw_ep_profile,
 	.set_stall = &at9100_dci_set_stall,
 	.clear_stall = &at9100_dci_clear_stall,

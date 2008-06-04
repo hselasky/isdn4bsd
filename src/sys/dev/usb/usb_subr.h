@@ -205,10 +205,6 @@ struct usbd_bus_methods {
 	void    (*xfer_unsetup) (struct usbd_xfer *xfer);
 	void    (*get_dma_delay) (struct usbd_bus *, uint32_t *pdelay);
 
-	/* USB Device and Host mode - Optional */
-
-	void    (*set_config) (struct usbd_device *udev, usb_config_descriptor_t *cd);
-
 	/* USB Device mode only - Mandatory */
 
 	void    (*get_hw_ep_profile) (struct usbd_device *udev, const struct usbd_hw_ep_profile **ppf, uint8_t ep_addr);
@@ -217,6 +213,7 @@ struct usbd_bus_methods {
 	void    (*rem_wakeup_set) (struct usbd_device *udev, uint8_t is_on);
 
 	/* USB Device mode only - Optional */
+
 	void    (*vbus_interrupt) (struct usbd_bus *, uint8_t is_on);
 };
 

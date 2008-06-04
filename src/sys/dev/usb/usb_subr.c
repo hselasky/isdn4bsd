@@ -580,9 +580,17 @@ usbd_fill_pipe_data(struct usbd_device *udev, uint8_t iface_index,
 		/* the pipe is invalid: just return */
 		return;
 	}
+	/* initialise USB pipe structure */
 	pipe->edesc = edesc;
 	pipe->iface_index = iface_index;
 	LIST_INIT(&pipe->list_head);
+
+	/* clear stall, if any */
+	if (udev->bus->methods->clear_stall) {
+		mtx_lock(&(udev->bus->mtx));
+		(udev->bus->methods->clear_stall) (udev, pipe);
+		mtx_unlock(&(udev->bus->mtx));
+	}
 	return;
 }
 

@@ -3380,6 +3380,7 @@ usbd_handle_request(struct usbd_xfer *xfer)
 	uint16_t wValue;
 	uint16_t wIndex;
 	uint8_t state;
+	uint8_t iface_index;
 	union {
 		uWord	wStatus;
 		uint8_t	buf[2];
@@ -3528,13 +3529,15 @@ usbd_handle_request(struct usbd_xfer *xfer)
 		}
 		break;
 	default:
-		if ((req.bmRequestType & 0x1F) == UT_INTERFACE) {
-			if (state == ST_DATA) {
-				goto tr_bad_context;
-			}
-			goto tr_handle_iface_request;
+		if (state == ST_DATA) {
+			goto tr_bad_context;
 		}
-		goto tr_stalled;
+		if ((req.bmRequestType & 0x1F) == UT_INTERFACE) {
+			iface_index = req.wIndex[0];	/* unicast */
+		} else {
+			iface_index = 0;/* broadcast */
+		}
+		goto tr_handle_iface_request;
 	}
 	goto tr_valid;
 
@@ -3641,7 +3644,7 @@ tr_handle_get_ep_status:
 	goto tr_valid;
 
 tr_handle_iface_request:
-	iface = usbd_get_iface(udev, req.wIndex[0]);
+	iface = usbd_get_iface(udev, iface_index);
 	if (iface == NULL) {
 		goto tr_stalled;
 	}
@@ -3672,6 +3675,10 @@ tr_handle_iface_request:
 	goto tr_handle_iface_request_builtin;
 
 tr_handle_iface_request_builtin:
+	if ((req.bmRequestType & 0x1F) != UT_INTERFACE) {
+		iface_index++;		/* iterate */
+		goto tr_handle_iface_request;
+	}
 	switch (req.bmRequestType) {
 	case UT_WRITE_INTERFACE:
 		switch (req.bRequest) {
@@ -3722,6 +3729,8 @@ tr_handle_iface_request_builtin:
 			goto tr_stalled;
 		}
 		break;
+	default:
+		goto tr_stalled;
 	}
 	goto tr_valid;
 

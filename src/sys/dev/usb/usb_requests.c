@@ -821,15 +821,6 @@ usbreq_set_config(struct usbd_device *udev, struct mtx *mtx, uint8_t conf)
 
 	PRINTF(("setting config %d\n", conf));
 
-	/* call "set_config" method, if any */
-
-	if (udev->bus->methods->set_config) {
-		mtx_lock(&(udev->bus->mtx));
-		(udev->bus->methods->set_config)
-		    (udev, (conf == USB_UNCONFIG_NO) ?
-		    NULL : udev->cdesc);
-		mtx_unlock(&(udev->bus->mtx));
-	}
 	/* do "set configuration" request */
 
 	req.bmRequestType = UT_WRITE_DEVICE;
