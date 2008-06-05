@@ -1347,11 +1347,18 @@ uss820_dci_clear_stall(struct usbd_device *udev, struct usbd_pipe *pipe)
 
 	DPRINTFN(4, "pipe=%p\n", pipe);
 
-	/* reset pipe state */
-
+	/* check mode */
+	if (udev->flags.usb_mode != USB_MODE_DEVICE) {
+		/* not supported */
+		return;
+	}
+	/* get softc */
 	sc = USS820_DCI_BUS2SC(udev->bus);
+
+	/* get endpoint descriptor */
 	ed = pipe->edesc;
 
+	/* reset endpoint */
 	uss820_dci_clear_stall_sub(sc,
 	    (ed->bEndpointAddress & UE_ADDR),
 	    (ed->bmAttributes & UE_XFERTYPE),

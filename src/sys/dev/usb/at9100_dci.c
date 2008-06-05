@@ -1414,6 +1414,11 @@ at9100_dci_clear_stall(struct usbd_device *udev, struct usbd_pipe *pipe)
 
 	mtx_assert(&(udev->bus->mtx), MA_OWNED);
 
+	/* check mode */
+	if (udev->flags.usb_mode != USB_MODE_DEVICE) {
+		/* not supported */
+		return;
+	}
 	/* get softc */
 	sc = AT9100_DCI_BUS2SC(udev->bus);
 
