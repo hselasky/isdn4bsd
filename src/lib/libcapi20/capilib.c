@@ -63,7 +63,7 @@
 static struct app_softc *app_sc_root;
 
 static struct app_softc *
-capilib_find_app_by_id(u_int32_t app_id)
+capilib_find_app_by_id(uint32_t app_id)
 {
 	struct app_softc *sc;
 
@@ -159,7 +159,7 @@ capilib_free_app(struct app_softc *sc)
 }
 
 static void
-capilib_free_data_buffer_by_cid(struct app_softc *sc, u_int32_t dwCid)
+capilib_free_data_buffer_by_cid(struct app_softc *sc, uint32_t dwCid)
 {
 	struct data_buffer *mp;
 
@@ -180,7 +180,7 @@ capilib_free_data_buffer_by_cid(struct app_softc *sc, u_int32_t dwCid)
 }
 
 static __inline struct data_buffer *
-capilib_find_data_buffer_by_handle(struct app_softc *sc, u_int16_t wHandle)
+capilib_find_data_buffer_by_handle(struct app_softc *sc, uint16_t wHandle)
 {
 	struct data_buffer *mp =
 	  ADD_BYTES(sc->sc_msg_start_ptr, 
@@ -197,15 +197,15 @@ capilib_find_data_buffer_by_handle(struct app_softc *sc, u_int16_t wHandle)
 	return NULL;
 }
 
-static __inline u_int16_t
+static __inline uint16_t
 capilib_find_handle_by_data_buffer(struct app_softc *sc, 
     struct data_buffer *mp)
 {
 	if((((void *)mp) >= sc->sc_msg_start_ptr) &&
 	   (((void *)mp) < sc->sc_msg_end_ptr))
 	{
-	    return ((((u_int8_t *)mp) - 
-		     ((u_int8_t *)sc->sc_msg_start_ptr))
+	    return ((((uint8_t *)mp) - 
+		     ((uint8_t *)sc->sc_msg_start_ptr))
 		    / sc->sc_msg_size);
 	}
 	return -1;
@@ -224,8 +224,8 @@ capilib_do_ioctl_sub(struct app_softc *sc, uint32_t cmd, void *data)
 	}
 }
 
-static u_int16_t
-capilib_do_ioctl(struct capi20_backend *cbe, u_int32_t cmd, void *data)
+static uint16_t
+capilib_do_ioctl(struct capi20_backend *cbe, uint32_t cmd, void *data)
 {
 	struct app_softc *sc;
 
@@ -360,19 +360,19 @@ capilib_alloc_app(struct capi20_backend *cbe)
  *
  * @retval Else                    An error happened.
  *---------------------------------------------------------------------------*/
-u_int16_t
+uint16_t
 capi20_register(struct capi20_backend *cbe,
-		u_int32_t max_logical_connections,
-		u_int32_t max_b_data_blocks,
-		u_int32_t max_b_data_len,
-		u_int32_t stack_version,
-		u_int32_t *app_id_ptr)
+		uint32_t max_logical_connections,
+		uint32_t max_b_data_blocks,
+		uint32_t max_b_data_len,
+		uint32_t stack_version,
+		uint32_t *app_id_ptr)
 {
 	struct app_softc *sc;
 	struct data_buffer *mp;
 	struct capi_register_req req = { /* zero */ };
-	u_int32_t size;
-	u_int32_t max_msg_data_size;
+	uint32_t size;
+	uint32_t max_msg_data_size;
 	int32_t temp = 1;
 
 	if (app_id_ptr == NULL) {
@@ -504,8 +504,8 @@ capi20_register(struct capi20_backend *cbe,
  * @retval Else                An error happened.
  *
  *---------------------------------------------------------------------------*/
-u_int16_t
-capi20_release(u_int32_t app_id)
+uint16_t
+capi20_release(uint32_t app_id)
 {
     struct app_softc *sc;
 
@@ -537,16 +537,16 @@ capi20_release(u_int32_t app_id)
  * @retval Else                An error happened. The message was
  *                             not accepted.
  *---------------------------------------------------------------------------*/
-u_int16_t
-capi20_put_message(u_int32_t app_id, void *buf_ptr)
+uint16_t
+capi20_put_message(uint32_t app_id, void *buf_ptr)
 {
 	struct app_softc * sc;
 	struct data_buffer *mp = NULL;
 	struct capi_message_encoded *pmsg = buf_ptr;
 	struct iovec iov[3];
-	u_int16_t error = 0;
-	u_int16_t cmd;
-	u_int16_t app_id_old;
+	uint16_t error = 0;
+	uint16_t cmd;
+	uint16_t app_id_old;
 
 	sc = capilib_find_app_by_id(app_id);
 	if (sc == NULL) {
@@ -564,7 +564,7 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 
 	    if(sizeof(void *) <= 4)
 	    {
-	        u_int32_t temp;
+	        uint32_t temp;
 
 		if(iov[1].iov_len < (30-8))
 		{
@@ -580,7 +580,7 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 	    }
 	    else if(sizeof(void *) <= 8)
 	    {
-	        u_int64_t temp;
+	        uint64_t temp;
 
 		if(iov[1].iov_len < 30)
 		{
@@ -771,15 +771,15 @@ capilib_get_message_sub(struct app_softc *sc, void *buf, uint16_t msg_len)
  * @retval Else                An error happened and the pointer pointed to
  *                             by "buf_pp" is set to zero.
  *---------------------------------------------------------------------------*/
-u_int16_t 
-capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
+uint16_t 
+capi20_get_message(uint32_t app_id, uint8_t **buf_pp)
 {
 	struct app_softc *sc;
 	struct data_buffer *mp;
 	uint8_t *data_ptr;
-	u_int16_t cmd;
-	u_int16_t msg_len;
-	u_int16_t retval;
+	uint16_t cmd;
+	uint16_t msg_len;
+	uint16_t retval;
 	int len;
 
 	if(buf_pp == NULL)
@@ -880,7 +880,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 
 	    if(sizeof(void *) <= 4)
 	    {
-	        u_int32_t temp;
+	        uint32_t temp;
 
 		if(msg_len < (30-8))
 		{
@@ -895,7 +895,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	    }
 	    else if(sizeof(void *) <= 8)
 	    {
-	        u_int64_t temp;
+	        uint64_t temp;
 
 		if(msg_len < 30)
 		{
@@ -966,7 +966,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	HEADER_APP(&(mp->msg)) = htole16(sc->sc_app_id);
 
 	/* store pointer to the message */
-	buf_pp[0] = (u_int8_t *)&(mp->msg);
+	buf_pp[0] = (uint8_t *)&(mp->msg);
 	return 0;
 
  error:
@@ -990,8 +990,8 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
  *
  * @retval Else                 An error has happened.
  *---------------------------------------------------------------------------*/
-u_int16_t
-capi20_wait_for_message(u_int32_t app_id, struct timeval *timeval_ptr)
+uint16_t
+capi20_wait_for_message(uint32_t app_id, struct timeval *timeval_ptr)
 {
 	struct pollfd  pollfd = { /* zero */ };
 	struct timeval tvEnd;
@@ -1106,12 +1106,12 @@ capi20_wait_for_message(u_int32_t app_id, struct timeval *timeval_ptr)
  *
  * @retval Else                 An error happened.
  *---------------------------------------------------------------------------*/
-u_int16_t
-capi20_get_manufacturer(struct capi20_backend *cbe, u_int32_t controller,
-    char *buf_ptr, u_int16_t buf_len)
+uint16_t
+capi20_get_manufacturer(struct capi20_backend *cbe, uint32_t controller,
+    char *buf_ptr, uint16_t buf_len)
 {
 	struct capi_get_manufacturer_req req = { /* zero */ };
-	u_int16_t error;
+	uint16_t error;
 
 	if (buf_len == 0) {
 	    /* nothing to do */
@@ -1154,12 +1154,12 @@ capi20_get_manufacturer(struct capi20_backend *cbe, u_int32_t controller,
  *
  * @retval Else                 An error happened.
  *---------------------------------------------------------------------------*/
-u_int16_t
-capi20_get_version(struct capi20_backend *cbe, u_int32_t controller,
-    char *buf_ptr, u_int16_t buf_len)
+uint16_t
+capi20_get_version(struct capi20_backend *cbe, uint32_t controller,
+    char *buf_ptr, uint16_t buf_len)
 {
 	struct capi_get_version_req req = { /* zero */ };
-	u_int16_t error;
+	uint16_t error;
 
 	if (buf_len == 0) {
 	    /* nothing to do */
@@ -1214,12 +1214,12 @@ capi20_get_version(struct capi20_backend *cbe, u_int32_t controller,
  *
  * @retval Else                 An error happened.
  *---------------------------------------------------------------------------*/
-u_int16_t
-capi20_get_serial_number(struct capi20_backend *cbe, u_int32_t controller,
-   char *buf_ptr, u_int16_t buf_len)
+uint16_t
+capi20_get_serial_number(struct capi20_backend *cbe, uint32_t controller,
+   char *buf_ptr, uint16_t buf_len)
 {
 	struct capi_get_serial_req req = { /* zero */ };
-	u_int16_t error;
+	uint16_t error;
 
 	if (buf_len == 0) {
 	    /* nothing to do */
@@ -1274,12 +1274,12 @@ capi20_get_serial_number(struct capi20_backend *cbe, u_int32_t controller,
  *
  * @retval Else                 An error happened.
  *---------------------------------------------------------------------------*/
-u_int16_t 
-capi20_get_profile(struct capi20_backend *cbe, u_int32_t controller, 
-    void *buf_ptr, u_int16_t buf_len)
+uint16_t 
+capi20_get_profile(struct capi20_backend *cbe, uint32_t controller, 
+    void *buf_ptr, uint16_t buf_len)
 {
 	struct capi_get_profile_req req = { /* zero */ };
-	u_int16_t error;
+	uint16_t error;
 
 	if (buf_len == 0) {
 	    /* nothing to do */
@@ -1322,7 +1322,7 @@ capi20_get_profile(struct capi20_backend *cbe, u_int32_t controller,
  * @retval CAPI_ERROR_CAPI_NOT_INSTALLED  CAPI is not installed.
  * @retval Else                           An error happened.
  *---------------------------------------------------------------------------*/
-u_int16_t
+uint16_t
 capi20_is_installed(struct capi20_backend *cbe)
 {
 	/* CAPI is installed even if there are no
@@ -1345,7 +1345,7 @@ capi20_is_installed(struct capi20_backend *cbe)
  *                             is returned.
  *---------------------------------------------------------------------------*/
 int
-capi20_fileno(u_int32_t app_id)
+capi20_fileno(uint32_t app_id)
 {
 	struct app_softc *sc;
 
@@ -1389,9 +1389,9 @@ capi20_fileno(u_int32_t app_id)
  *
  * @retval Else                 An error happened.
  *---------------------------------------------------------------------------*/
-u_int16_t
-capi_firmware_download(struct capi20_backend *cbe, u_int32_t controller, 
-  struct isdn_dr_prot *protocols_ptr, u_int16_t protocols_len)
+uint16_t
+capi_firmware_download(struct capi20_backend *cbe, uint32_t controller, 
+  struct isdn_dr_prot *protocols_ptr, uint16_t protocols_len)
 {
 	struct isdn_download_request req = { /* zero */ };
 
@@ -1415,12 +1415,12 @@ capi_firmware_download(struct capi20_backend *cbe, u_int32_t controller,
  *
  * @retval Any                 Packed command.
  *---------------------------------------------------------------------------*/
-static u_int16_t
+static uint16_t
 capilib_setup_message_decoded(struct capi_message_decoded *mp)
 {
-	u_int8_t B_PROTOCOL_INIT = 0;
-	u_int8_t ADDITIONAL_INFO_INIT = 0;
-	u_int16_t cmd;
+	uint8_t B_PROTOCOL_INIT = 0;
+	uint8_t ADDITIONAL_INFO_INIT = 0;
+	uint16_t cmd;
 
 	cmd = mp->head.wCmd;
 
@@ -1437,7 +1437,7 @@ capilib_setup_message_decoded(struct capi_message_decoded *mp)
 	    CAPI_COMMANDS(CAPI_MAKE_CASES, mp);
 
 	default:
-	    ((u_int8_t *)&(mp->data))[0] = IE_END;
+	    ((uint8_t *)&(mp->data))[0] = IE_END;
 	    break;
 	}
 
@@ -1470,7 +1470,7 @@ void
 capi_translate_to_message_decoded(struct capi_message_decoded *mp, 
 				  void *buf_ptr)
 {
-	u_int16_t buf_len;
+	uint16_t buf_len;
 
 	/* set default value */
 	bzero(mp, sizeof(*mp));
@@ -1517,11 +1517,11 @@ capi_translate_to_message_decoded(struct capi_message_decoded *mp,
  *
  * @retval Else                An error happened. No message available.
  *---------------------------------------------------------------------------*/
-u_int16_t
-capi_get_message_decoded(struct capi_message_decoded *mp, u_int32_t app_id)
+uint16_t
+capi_get_message_decoded(struct capi_message_decoded *mp, uint32_t app_id)
 {
-	u_int8_t *buf_ptr;
-	u_int16_t error;
+	uint8_t *buf_ptr;
+	uint16_t error;
 
 	if(mp == NULL)
 	{
@@ -1553,9 +1553,9 @@ capi_get_message_decoded(struct capi_message_decoded *mp, u_int32_t app_id)
  *---------------------------------------------------------------------------*/
 void
 capi_translate_from_message_decoded(struct capi_message_decoded *mp, 
-				    void *buf_ptr, u_int16_t buf_len)
+				    void *buf_ptr, uint16_t buf_len)
 {
-  	u_int16_t len;
+  	uint16_t len;
 
 	/* setup decode tags */
 	CAPI_INIT(CAPI_HEADER, &(mp->head));
@@ -1585,7 +1585,7 @@ capi_translate_from_message_decoded(struct capi_message_decoded *mp,
  * @retval Else                An error happened. The message was
  *                             not accepted.
  *---------------------------------------------------------------------------*/
-u_int16_t
+uint16_t
 capi_put_message_decoded(struct capi_message_decoded *mp)
 {
 	struct capi_message_encoded msg;
@@ -1603,11 +1603,11 @@ capi_put_message_decoded(struct capi_message_decoded *mp)
  * @retval Any                 Pointer to a zero terminated string.
  *---------------------------------------------------------------------------*/
 const char *
-capi20_get_errstr(u_int16_t wError)
+capi20_get_errstr(uint16_t wError)
 {
 	struct error
 	{
-	    u_int16_t wError;
+	    uint16_t wError;
 	    const char * desc;
 	};
 
@@ -1658,14 +1658,14 @@ capi20_get_errstr(u_int16_t wError)
 	return ("unknown CAPI error");
 }
 
-static u_int16_t
-capilib_print_byte_array(char *dst, u_int16_t len, 
-		      u_int8_t *buf_ptr, u_int16_t buf_len)
+static uint16_t
+capilib_print_byte_array(char *dst, uint16_t len, 
+		      uint8_t *buf_ptr, uint16_t buf_len)
 {
-        u_int16_t len_old = len;
-	u_int16_t temp;
-	u_int8_t c;
-	u_int8_t e = 1;
+        uint16_t len_old = len;
+	uint16_t temp;
+	uint8_t c;
+	uint8_t e = 1;
 
 	while(buf_len--)
 	{
@@ -1703,12 +1703,12 @@ capilib_print_byte_array(char *dst, u_int16_t len,
 	return (len_old - len);
 }
 
-static u_int16_t
-capilib_print_struct(char *dst, u_int16_t len, u_int8_t *buf_ptr)
+static uint16_t
+capilib_print_struct(char *dst, uint16_t len, uint8_t *buf_ptr)
 {
-	u_int16_t len_old = len;
-	u_int16_t buf_len;
-	u_int16_t temp;
+	uint16_t len_old = len;
+	uint16_t buf_len;
+	uint16_t temp;
 
 	/* get STRUCT length */
 
@@ -1767,14 +1767,14 @@ static const struct debug debug[] = {
  * @retval Any                 Length of string excluding terminating
  *                             zero.
  *---------------------------------------------------------------------------*/
-u_int16_t
-capi_message_decoded_to_string(char *dst, u_int16_t len, 
+uint16_t
+capi_message_decoded_to_string(char *dst, uint16_t len, 
 			       const struct capi_message_decoded *mp)
 {
     const struct debug *ptr = &debug[0];
 
-    u_int16_t len_old = len;
-    u_int16_t temp;
+    uint16_t len_old = len;
+    uint16_t temp;
     void *var;
 
     /* lookup command */
@@ -1841,7 +1841,7 @@ capi_message_decoded_to_string(char *dst, u_int16_t len,
 
       case IE_BYTE:
 	temp = snprintf(dst, len, "  BYTE       %-20s= 0x%02x\n",
-			ptr->field, ((u_int8_t *)(var))[0]);
+			ptr->field, ((uint8_t *)(var))[0]);
 	break;
 
       case IE_WORD:
@@ -1857,8 +1857,8 @@ capi_message_decoded_to_string(char *dst, u_int16_t len,
       case IE_QWORD:
 	temp = snprintf(dst, len, "  QWORD      %-20s= 0x%08x%08x\n",
 			ptr->field, 
-			(u_int32_t)(((u_int64_p_t *)(var))->data >> 32),
-			(u_int32_t)(((u_int64_p_t *)(var))->data >> 0));
+			(uint32_t)(((u_int64_p_t *)(var))->data >> 32),
+			(uint32_t)(((u_int64_p_t *)(var))->data >> 0));
 	break;
 
       case IE_STRUCT:
@@ -1916,7 +1916,7 @@ capi_message_decoded_to_string(char *dst, u_int16_t len,
  * @retval Any                 Pointer to zero terminated string.
  *---------------------------------------------------------------------------*/
 const char *
-capi_get_command_string(u_int16_t wCmd)
+capi_get_command_string(uint16_t wCmd)
 {
 	const struct debug *ptr = &debug[0];
 
@@ -1945,14 +1945,14 @@ capi_get_command_string(u_int16_t wCmd)
  * @retval Any                 Actual encoded length that was decoded.
  *---------------------------------------------------------------------------*/
 uint16_t
-capi20_decode(void *ptr, u_int16_t len, void *ie)
+capi20_decode(void *ptr, uint16_t len, void *ie)
 {
-	u_int16_t len_old = len;
-	u_int8_t what;
+	uint16_t len_old = len;
+	uint8_t what;
 
 	while(1)
 	{
-	  what = ((u_int8_t *)(ie))[0];
+	  what = ((uint8_t *)(ie))[0];
 	  ie = ADD_BYTES(ie, 1);
 
 	  switch(what) {
@@ -1962,14 +1962,14 @@ capi20_decode(void *ptr, u_int16_t len, void *ie)
 	  case IE_BYTE:
 	    if(len >= 1)
 	    {
-	      ((u_int8_t *)(ie))[0] =
-		((u_int8_t *)(ptr))[0];
+	      ((uint8_t *)(ie))[0] =
+		((uint8_t *)(ptr))[0];
 	      ie = ADD_BYTES(ie, 1);
 	      ptr = ADD_BYTES(ptr, 1);
 	      len -= 1;
 	      break;
 	    }
-	    ((u_int8_t *)(ie))[0] = 0;
+	    ((uint8_t *)(ie))[0] = 0;
 	    ie = ADD_BYTES(ie, 1);
 	    goto ie_error;
 
@@ -2032,19 +2032,19 @@ capi20_decode(void *ptr, u_int16_t len, void *ie)
 	  case IE_STRUCT_DECODED_EMPTY:
 	  case IE_STRUCT: /* default */
 	    {
-	      register u_int16_t temp;
+	      register uint16_t temp;
 
 	      if(len >= 1)
 	      {
-		  if(((u_int8_t *)(ptr))[0] == 0xFF)
+		  if(((uint8_t *)(ptr))[0] == 0xFF)
 		  {
 		      /* length is escaped */
 
 		      if(len >= 3)
 		      {
-			  temp = ((u_int8_t *)(ptr))[2];
+			  temp = ((uint8_t *)(ptr))[2];
 			  temp <<= 8;
-			  temp |= ((u_int8_t *)(ptr))[1];
+			  temp |= ((uint8_t *)(ptr))[1];
 
 			  ptr = ADD_BYTES(ptr, 3);
 			  len -= 3;
@@ -2056,7 +2056,7 @@ capi20_decode(void *ptr, u_int16_t len, void *ie)
 		  }
 		  else
 		  {
-		      temp = ((u_int8_t *)(ptr))[0];
+		      temp = ((uint8_t *)(ptr))[0];
 
 		      ptr = ADD_BYTES(ptr, 1);
 		      len -= 1;
@@ -2106,7 +2106,7 @@ capi20_decode(void *ptr, u_int16_t len, void *ie)
 		   * hence the application might want to 
 		   * check this field !
 		   */
-		  (((u_int8_t *)(ie)) - 3)[0] = (temp) ?
+		  (((uint8_t *)(ie)) - 3)[0] = (temp) ?
 		    IE_STRUCT_DECODED : IE_STRUCT_DECODED_EMPTY;
 
 		  capi20_decode(ptr, temp, ((void_p_t *)(ie))->data);
@@ -2123,7 +2123,7 @@ capi20_decode(void *ptr, u_int16_t len, void *ie)
 		       * software is looking up fields before
 		       * checking the length!
 		       */
-		      static const u_int8_t empty_struct[8] = { /* zero */ };
+		      static const uint8_t empty_struct[8] = { /* zero */ };
 
 		      /* structure is empty or non-existing */
 		      ((void_p_t *)(ie))->data = (void *)&empty_struct;
@@ -2137,7 +2137,7 @@ capi20_decode(void *ptr, u_int16_t len, void *ie)
 
 	  case IE_BYTE_ARRAY:
 	    {
-	      register u_int16_t temp;
+	      register uint16_t temp;
 
 	      temp = ((u_int16_p_t *)(ie))->data;
 
@@ -2176,15 +2176,15 @@ capi20_decode(void *ptr, u_int16_t len, void *ie)
  *
  * @retval Any                 Actual encoded length.
  *---------------------------------------------------------------------------*/
-u_int16_t
-capi20_encode(void *ptr, u_int16_t len, void *ie)
+uint16_t
+capi20_encode(void *ptr, uint16_t len, void *ie)
 {
-	u_int16_t len_old = len;
-	u_int8_t what;
+	uint16_t len_old = len;
+	uint8_t what;
 
 	while(1)
 	{
-	  what = ((u_int8_t *)(ie))[0];
+	  what = ((uint8_t *)(ie))[0];
 	  ie = ADD_BYTES(ie, 1);
 
 	  switch(what) {
@@ -2194,8 +2194,8 @@ capi20_encode(void *ptr, u_int16_t len, void *ie)
 	  case IE_BYTE:
 	    if(len < 1) goto error; /* overflow */
 
-	    ((u_int8_t *)(ptr))[0] = 
-	      ((u_int8_t *)(ie))[0];
+	    ((uint8_t *)(ptr))[0] = 
+	      ((uint8_t *)(ie))[0];
 	    ie = ADD_BYTES(ie, 1);
 	    ptr = ADD_BYTES(ptr, 1);
 	    len -= 1;
@@ -2234,7 +2234,7 @@ capi20_encode(void *ptr, u_int16_t len, void *ie)
 	  case IE_STRUCT_DECODED_EMPTY:
 	    if(len < 1) goto error; /* overflow */
 
-	    ((u_int8_t *)(ptr))[0] = 0;
+	    ((uint8_t *)(ptr))[0] = 0;
 	    ie = ADD_BYTES(ie, sizeof(void *)+2);
 	    ptr = ADD_BYTES(ptr, 1);
 	    len -= 1;
@@ -2244,7 +2244,7 @@ capi20_encode(void *ptr, u_int16_t len, void *ie)
 	  case IE_STRUCT_CAPI:
 	  case IE_STRUCT:
 	    {
-	      register u_int16_t temp;
+	      register uint16_t temp;
 	      register void *var;
 
 	      temp = ((u_int16_p_t *)(ie))->data;
@@ -2262,15 +2262,15 @@ capi20_encode(void *ptr, u_int16_t len, void *ie)
 		  {
 		    /* get length field from CAPI structure */
 
-		    if(((u_int8_t *)(var))[0] == 0xFF)
+		    if(((uint8_t *)(var))[0] == 0xFF)
 		    {
-		      temp = ((((u_int8_t *)(var))[1]) |
-			      (((u_int8_t *)(var))[2] << 8));
+		      temp = ((((uint8_t *)(var))[1]) |
+			      (((uint8_t *)(var))[2] << 8));
 		      var = ADD_BYTES(var, 3);
 		    }
 		    else
 		    {
-		      temp = ((u_int8_t *)(var))[0];
+		      temp = ((uint8_t *)(var))[0];
 		      var = ADD_BYTES(var, 1);
 		    }
 		  }
@@ -2284,15 +2284,15 @@ capi20_encode(void *ptr, u_int16_t len, void *ie)
 
 		  if(temp >= 0x00FF)
 		  {
-		      register u_int16_t temp2 = temp;
+		      register uint16_t temp2 = temp;
 
 		      if((len-temp2) < 3) goto error; /* overflow */
 
 		      /* move all data up two bytes */
 		      while(temp2--)
 		      {
-			  *(((u_int8_t *)(ptr)) + 3 + temp2) =
-			    *(((u_int8_t *)(ptr)) + 1 + temp2);
+			  *(((uint8_t *)(ptr)) + 3 + temp2) =
+			    *(((uint8_t *)(ptr)) + 1 + temp2);
 		      }
 		  }
 	      }
@@ -2304,9 +2304,9 @@ capi20_encode(void *ptr, u_int16_t len, void *ie)
 		    goto error; /* overflow */
 		}
 
-		((u_int8_t *)(ptr))[0] = 0xFF;
-		((u_int8_t *)(ptr))[1] = temp;
-		((u_int8_t *)(ptr))[2] = temp >> 8;
+		((uint8_t *)(ptr))[0] = 0xFF;
+		((uint8_t *)(ptr))[1] = temp;
+		((uint8_t *)(ptr))[2] = temp >> 8;
 		ptr = ADD_BYTES(ptr, 3);
 		len -= 3;
 	      }
@@ -2317,7 +2317,7 @@ capi20_encode(void *ptr, u_int16_t len, void *ie)
 		    goto error; /* overflow */
 		}
 
-		((u_int8_t *)(ptr))[0] = temp;
+		((uint8_t *)(ptr))[0] = temp;
 		ptr = ADD_BYTES(ptr, 1);
 		len -= 1;
 	      }
@@ -2333,7 +2333,7 @@ capi20_encode(void *ptr, u_int16_t len, void *ie)
 
 	  case IE_BYTE_ARRAY:
 	    {
-	      register u_int16_t temp;
+	      register uint16_t temp;
 
 	      temp = ((u_int16_p_t *)(ie))->data;
 
