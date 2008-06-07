@@ -28,12 +28,15 @@
 .\" $Id: capi20.3,v 1.4.4.1 2005/05/27 16:29:15 thomas Exp $
 .\" Creation date       04.01.2003
 .\"
-.Dd August 5, 2005
+.Dd June 6, 2008
 .Dt CAPI20 3
 .Os
 .Sh NAME
 .
 .
+.Nm capi20_be_alloc_bintec,
+.Nm capi20_be_alloc_i4b,
+.Nm capi20_be_free,
 .Nm capi20_register ,
 .Nm capi20_release ,
 .Nm capi20_put_message ,
@@ -44,7 +47,10 @@
 .Nm capi20_get_serial_number ,
 .Nm capi20_get_profile ,
 .Nm capi20_is_installed ,
-.Nm capi20_fileno
+.Nm capi20_fileno ,
+.Nm capi20_encode ,
+.Nm capi20_decode ,
+.Nm capi20_get_errstr
 .Nd "CAPI 2.0 access library"
 .
 .
@@ -60,85 +66,133 @@ CAPI 2.0 Access Library (libcapi20, -lcapi20)
 .
 .In i4b/include/capi20.h
 .
+.Ft "uint16_t"
+.Fo "capi20_be_alloc_bintec"
+.Fa "const char *hostname"
+.Fa "const char *servname"
+.Fa "const char *username"
+.Fa "const char *password"
+.Fa "struct capi20_backend **cbe_pp"
+.Fc
 .
-.Ft "u_int16_t"
+.
+.Ft "uint16_t"
+.Fo "capi20_be_alloc_i4b"
+.Fa "struct capi20_backend **cbe_pp"
+.Fc
+.
+.
+.Ft "void"
+.Fo "capi20_be_free"
+.Fa "struct capi20_backend *cbe"
+.Fc
+.
+.
+.Ft "uint16_t"
 .Fo "capi20_register"
-.Fa "u_int32_t max_logical_connections"
-.Fa "u_int32_t max_b_data_blocks"
-.Fa "u_int32_t max_b_data_len"
-.Fa "u_int32_t *app_id_ptr"
-.Fa "u_int32_t capi_stack_version"
+.Fa "struct capi20_backend *cbe"
+.Fa "uint32_t max_logical_connections"
+.Fa "uint32_t max_b_data_blocks"
+.Fa "uint32_t max_b_data_len"
+.Fa "uint32_t capi_stack_version"
+.Fa "uint32_t *app_id_ptr"
 .Fc
 .
 .
-.Ft "u_int16_t"
+.Ft "uint16_t"
 .Fo "capi20_release"
-.Fa "u_int32_t app_id"
+.Fa "uint32_t app_id"
 .Fc
 .
 .
-.Ft "u_int16_t"
+.Ft "uint16_t"
 .Fo "capi20_put_message"
-.Fa "u_int32_t app_id"
+.Fa "uint32_t app_id"
 .Fa "void *buf_ptr"
 .Fc
 .
 .
-.Ft "u_int16_t "
+.Ft "uint16_t "
 .Fo "capi20_get_message"
-.Fa "u_int32_t app_id"
-.Fa "u_int8_t **buf_pp"
+.Fa "uint32_t app_id"
+.Fa "uint8_t **buf_pp"
 .Fc
 .
 .
-.Ft "u_int16_t"
+.Ft "uint16_t"
 .Fo "capi20_wait_for_message"
-.Fa "u_int32_t app_id"
+.Fa "uint32_t app_id"
 .Fa "struct timeval *timeval_ptr"
 .Fc
 .
 .
-.Ft "u_int16_t"
+.Ft "uint16_t"
 .Fo "capi20_get_manufacturer"
-.Fa "u_int32_t controller"
-.Fa "u_int8_t *buf_ptr"
-.Fa "u_int16_t buf_len"
+.Fa "struct capi20_backend *cbe"
+.Fa "uint32_t controller"
+.Fa "char *buf_ptr"
+.Fa "uint16_t buf_len"
 .Fc
 .
 .
-.Ft "u_int16_t"
+.Ft "uint16_t"
 .Fo "capi20_get_version"
-.Fa "u_int32_t controller"
-.Fa "u_int8_t *buf_ptr"
-.Fa "u_int16_t buf_len"
+.Fa "struct capi20_backend *cbe"
+.Fa "uint32_t controller"
+.Fa "char *buf_ptr"
+.Fa "uint16_t buf_len"
 .Fc
 .
 .
-.Ft "u_int16_t"
+.Ft "uint16_t"
 .Fo "capi20_get_serial_number"
-.Fa "u_int32_t controller"
-.Fa "u_int8_t *buf_ptr"
-.Fa "u_int16_t buf_len"
+.Fa "struct capi20_backend *cbe"
+.Fa "uint32_t controller"
+.Fa "char *buf_ptr"
+.Fa "uint16_t buf_len"
 .Fc
 .
 .
-.Ft "u_int16_t "
+.Ft "uint16_t "
 .Fo "capi20_get_profile"
-.Fa "u_int32_t controller"
+.Fa "struct capi20_backend *cbe"
+.Fa "uint32_t controller"
 .Fa "void *buf_ptr"
-.Fa "u_int16_t buf_len"
+.Fa "uint16_t buf_len"
 .Fc
 .
 .
-.Ft "u_int16_t"
+.Ft "uint16_t"
 .Fo "capi20_is_installed"
-.Fa "void"
+.Fa "struct capi20_backend *cbe"
 .Fc
 .
 .
 .Ft "int"
 .Fo "capi20_fileno"
-.Fa "u_int32_t app_id"
+.Fa "uint32_t app_id"
+.Fc
+.
+.
+.Ft "uint16_t"
+.Fo "capi20_encode"
+.Fa "void *ptr"
+.Fa "uint16_t len"
+.Fa "void *ie"
+.Fc
+.
+.
+.Ft "uint16_t"
+.Fo "capi20_decode"
+.Fa "void *ptr"
+.Fa "uint16_t len"
+.Fa "void *ie"
+.Fc
+.
+.
+.Ft "const char *"
+.Fo "capi20_get_errstr"
+.Fa "uint16_t wError"
 .Fc
 .
 .
@@ -156,13 +210,58 @@ other operating systems. There are only minor differences.
 .
 .Pp
 .
+.Fn capi20_be_alloc_bintec
+will create a new CAPI backend that can be used with a BinTec remote
+CAPI router. It returns zero on success. The pointer to the new
+backend is stored at the address pointed to by the
+.Fa cbe_pp
+parameter. The
+.Fa hostname ,
+and 
+.Fa servname 
+parameters are forwarded to 
+.Xr getaddrinfo 3 .
+.Fa username
+and
+.Fa password
+parameters give the username and password that should be used when
+authenticating towards the BinTec router.  The string length
+limitations are 64, 16, 64 and 64 characters respectivly including the
+termination zero for the arguments.
+.
+.
+.
+.Pp
+.
+.Fn capi20_be_alloc_i4b
+will create a new CAPI backend that can be used with the I4B kernel
+CAPI. It returns zero on success. The pointer to the new backend is
+stored at the address pointed to by the
+.Fa cbe_pp
+parameter.
+.
+.
+.Pp
+.
+.Fn capi20_be_free
+will free a CAPI backend. When a CAPI backend is not passed like an
+argument to any function, then it can be freed by a call to this
+function.
+.
+.
+.
+.Pp
+.
 .Fn capi20_register
-will create a new CAPI application ID. It returns zero on success. The
+will register a CAPI application. It returns zero on success.  The
 application ID is stored in the 32-bit unusigned integer pointed to by
-.Fa app_id_ptr .
-The parameter
+the
+.Fa app_id_ptr
+parameter. The
 .Fa capi_stack_version
-should be equal to the macro 'CAPI_STACK_VERSION' defined in 
+parameter should be equal to the macro
+.Fa CAPI_STACK_VERSION
+defined in
 .Pa capi20.h .
 It's purpose is to detect CAPI 2.0 API changes, which require software
 re-compile.
@@ -170,7 +269,9 @@ re-compile.
 will compare the stack version with its internal compiled value and
 then against the kernel. If not all are equal,
 .Fn capi20_register
-will return an 'unsupported version' error.
+will return an
+.Fa CAPI_ERROR_UNSUPPORTED_VERSION
+error.
 .
 .
 .
@@ -201,7 +302,9 @@ returns non-zero, the application should release its ID and restart.
 will receive a message for the CAPI application identified by
 .Fa app_id .
 It returns zero on success. If there are no messages and non-blocking
-operation is selected, 0x1104 will be returned. Else there is a critical
+operation is selected,
+.Fa CAPI_ERROR_GET_QUEUE_EMPTY
+will be returned. Else there is a critical
 error and the application should release its ID and restart.
 .Fa buf_pp
 is a pointer to a pointer that should be pointed to the start of the
@@ -240,9 +343,9 @@ Default length is 64 bytes. Zero is returned on success.
 .Pp
 .
 .Fn capi20_get_version
-will store the CAPI version as a series of bytes, for the CAPI
-application identified by
-.Fa app_id,
+will store the CAPI version like a series of bytes, for the CAPI
+backend identified by
+.Fa cbe,
 in the buffer pointed to by
 .Fa buf_ptr
 which has length
@@ -255,8 +358,8 @@ Zero is returned on success.
 .
 .Fn capi20_get_serial_number
 will store the CAPI serial number as a zero terminated string, for
-the application identified by
-.Fa app_id, 
+the CAPI backend identified by
+.Fa cbe, 
 in the buffer pointed to by
 .Fa buf_ptr
 which has length
@@ -268,9 +371,9 @@ Default length is 4 bytes. Zero is returned on success.
 .Pp
 .
 .Fn capi20_get_profile
-will store the CAPI profile structure, for the application identified
+will store the CAPI profile structure, for the CAPI backend identified
 by
-.Fa app_id, 
+.Fa cbe, 
 in the buffer pointed to by
 .Fa buf_ptr
 which has length
@@ -286,7 +389,11 @@ in
 .Pp
 .
 .Fn capi20_is_installed
-will return zero if CAPI is installed. Else 0x1009 is returned.
+will return zero if CAPI is installed for the backend given by
+.Fa cbe .
+Else
+.Fa CAPI_ERROR_CAPI_NOT_INSTALLED
+is returned.
 .
 .
 .
@@ -298,6 +405,47 @@ will return the file number for the CAPI application identified by
 The file number returned can be used for polling. It is also possible
 to use the ioctl "FIONBIO" to set or clear non-blocking behaviour. An
 integer greater than zero is returned on success.
+.
+.
+.
+.Pp
+.
+.Fn capi20_encode
+will encode the *DECODED CAPI message structure pointed to by
+.Fa ie
+into the buffer pointed to by
+.Fa ptr
+and
+.Fa len .
+The function returns the amount of actual buffer space used which
+is always less than or equal to the given
+.Fa len
+argument.
+.
+.
+.
+.Pp
+.
+.Fn capi20_decode
+will decode the buffer pointed to by
+.Fa ptr
+and
+.Fa len
+into the *DECODED CAPI message structure pointed to by
+.Fa ie .
+The function returns the actual amount of data decoded which is always
+less than or equal to the given
+.Fa len
+argument.
+.
+.
+.
+.Pp
+.
+.Fn capi20_get_errstr
+will return a pointer to a static constant zero terminated ASCII
+string describing the numerical 16-bit error code
+.Fa wError .
 .
 .
 .
@@ -326,7 +474,7 @@ structures use little endian byte order.
 .
 Nearly all functions return a 16-bit unsigned integer value as a
 direct function result.
-.Fn capi_get_error_string()
+.Fn capi20_get_errstr()
 will return a zero terminated string that describes the return
 value. In general a return value of zero means no error.
 .Pp
@@ -374,7 +522,7 @@ No CAPI message is available.
 /dev/capi20
 .Sh SEE ALSO
 .Xr i4b 4 ,
-.Xr isdnd 8 ,
+.Xr isdnd 8
 .Rs
 .%Q "CAPI Association e.V."
 .%B "Common ISDN API v2.0 4th Edition"

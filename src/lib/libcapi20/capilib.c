@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2000-2003 Thomas Wintergerst. All rights reserved.
  *
- * Copyright (c) 2005-2006 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2005-2008 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -53,67 +53,17 @@
 #include <err.h>
 
 #define CAPI_MAKE_IOCTL
-#define CAPI_MAKE_TRANSLATOR
-#define panic(args...) err(1, args)
 
 #include <i4b/include/capi20.h>
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_cause.h>
 
-/* this structure is used to cache incoming 
- * B-channel data!
- */
-struct data_buffer
-{
-  struct data_buffer * next; /* pointer to next data buffer on free list */
-
-  u_int8_t state;
-# define   ST_FREE 0 /* default */
-# define   ST_USED 1
-
-  u_int8_t unused; /* for sake of alignment */
-
-  u_int16_t wHandle; /* copy of wHandle from data-b3-indication */
-
-  struct capi_message_encoded msg;
-
-  u_int8_t data[0]; /* B-channel data follows */
-
-} __packed;
-
-/* this structure stores information about
- * a registered application
- */
-struct app_softc
-{
-  u_int32_t            sc_app_id; /* applet number (internal) */
-  u_int16_t            sc_app_id_real; /* applet number (external) */
-
-  int                  sc_fd; /* CAPI device filenumber */
-
-  void *               sc_msg_start_ptr; /* pointer to start of 
-					  * messages (inclusive) 
-					  */
-  void *               sc_msg_end_ptr;   /* pointer to end of 
-					  * messages (exclusive) 
-					  */
-  u_int32_t            sc_msg_size; /* size of a message in bytes */
-
-  u_int32_t            sc_msg_data_size; /* size of data part
-					  * of a message in bytes
-					  */
-
-  struct data_buffer * sc_msg_free_list; /* pointer to first free message */
-
-  u_int32_t            sc_max_connections;
-
-  struct app_softc *   sc_next;
-};
+#include "capilib.h"
 
 static struct app_softc *app_sc_root;
 
 static struct app_softc *
-find_app_by_id(u_int32_t app_id)
+capilib_find_app_by_id(u_int32_t app_id)
 {
 	struct app_softc *sc;
 
@@ -130,20 +80,21 @@ find_app_by_id(u_int32_t app_id)
 	return sc;
 }
 
-static struct app_softc *
-alloc_app()
+struct app_softc *
+capilib_alloc_app_sub(struct capi20_backend *cbe)
 {
 	struct app_softc *sc;
-	u_int32_t app_id = 0;
+	static uint32_t app_id = 0;
 
 	/* find an unused ID first */
 
  again:
-	sc = find_app_by_id(app_id);
+	sc = capilib_find_app_by_id(app_id);
 
 	if(sc)
 	{
 	    app_id++;
+	    app_id &= 0xFFFF; /* limit APP ID range */
 	    goto again;
 	}
 
@@ -159,6 +110,7 @@ alloc_app()
 	bzero(sc, sizeof(*sc));
 
 	sc->sc_app_id = app_id;
+	sc->sc_backend = cbe->bBackendType;
 
 	/* insert "sc" into list */
 
@@ -168,8 +120,8 @@ alloc_app()
 	return sc;
 }
 
-static void
-free_app(struct app_softc *sc)
+void
+capilib_free_app(struct app_softc *sc)
 {
 	struct app_softc **sc_pp = &app_sc_root;
 	struct app_softc  *sc_p = app_sc_root;
@@ -206,16 +158,8 @@ free_app(struct app_softc *sc)
 	return;
 }
 
-static int
-open_capi(struct app_softc *sc)
-{
-	sc->sc_fd = open(CAPI_DEVICE_NAME, O_RDWR | O_NONBLOCK);
-
-	return sc->sc_fd;
-}
-
 static void
-free_data_buffer_by_cid(struct app_softc *sc, u_int32_t dwCid)
+capilib_free_data_buffer_by_cid(struct app_softc *sc, u_int32_t dwCid)
 {
 	struct data_buffer *mp;
 
@@ -236,7 +180,7 @@ free_data_buffer_by_cid(struct app_softc *sc, u_int32_t dwCid)
 }
 
 static __inline struct data_buffer *
-find_data_buffer_by_handle(struct app_softc *sc, u_int16_t wHandle)
+capilib_find_data_buffer_by_handle(struct app_softc *sc, u_int16_t wHandle)
 {
 	struct data_buffer *mp =
 	  ADD_BYTES(sc->sc_msg_start_ptr, 
@@ -254,7 +198,8 @@ find_data_buffer_by_handle(struct app_softc *sc, u_int16_t wHandle)
 }
 
 static __inline u_int16_t
-find_handle_by_data_buffer(struct app_softc *sc, struct data_buffer *mp)
+capilib_find_handle_by_data_buffer(struct app_softc *sc, 
+    struct data_buffer *mp)
 {
 	if((((void *)mp) >= sc->sc_msg_start_ptr) &&
 	   (((void *)mp) < sc->sc_msg_end_ptr))
@@ -266,40 +211,143 @@ find_handle_by_data_buffer(struct app_softc *sc, struct data_buffer *mp)
 	return -1;
 }
 
+static int
+capilib_do_ioctl_sub(struct app_softc *sc, uint32_t cmd, void *data)
+{
+	switch (sc->sc_backend) {
+	case CAPI_BACKEND_TYPE_I4B:
+	    return (ioctl(sc->sc_fd, cmd, data));
+	case CAPI_BACKEND_TYPE_BINTEC:
+	    return (capilib_bintec_do_ioctl(sc, cmd, data));
+	default:
+	    return (-1);
+	}
+}
+
 static u_int16_t
-capi_do_ioctl(u_int32_t cmd, void *data)
+capilib_do_ioctl(struct capi20_backend *cbe, u_int32_t cmd, void *data)
 {
 	struct app_softc *sc;
 
-	sc = alloc_app();
-
-	if(sc == NULL)
-	{
+	sc = capilib_alloc_app(cbe);
+    	if (sc == NULL) {
 	    return CAPI_ERROR_OS_RESOURCE_ERROR;
 	}
 
-	if(open_capi(sc) < 0)
-	{
-	    free_app(sc);
-	    return CAPI_ERROR_CAPI_NOT_INSTALLED;
-	}
-
-	if(ioctl(sc->sc_fd, cmd, data) < 0)
-	{
-	    free_app(sc);
+	/* do IOCTL */
+	if (capilib_do_ioctl_sub(sc, cmd, data) < 0) {
+	    capilib_free_app(sc);
 	    return CAPI_ERROR_OS_RESOURCE_ERROR;
 	}
 
-	free_app(sc);
-	return 0;
+	capilib_free_app(sc);
+	return (0);
+}
+
+/*---------------------------------------------------------------------------*
+ *	capi20_be_alloc_i4b - Allocate a I4B CAPI backend
+ *
+ * @param cbe_pp	 Pointer to pointer that should be pointed to backend.
+ *
+ * @retval 0             Backend allocation was successful.
+ *
+ * @retval Else          An error happened.
+ *---------------------------------------------------------------------------*/
+uint16_t
+capi20_be_alloc_i4b(struct capi20_backend **cbe_pp)
+{
+	struct capi20_backend *cbe;
+
+	if (cbe_pp == NULL) {
+		return (CAPI_ERROR_INVALID_PARAM);
+	}
+
+	cbe = malloc(sizeof(*cbe));
+	if(cbe == NULL) {
+		return (CAPI_ERROR_OS_RESOURCE_ERROR);
+	}
+
+	*cbe_pp = cbe;
+
+	bzero(cbe, sizeof(*cbe));
+
+	cbe->bBackendType = CAPI_BACKEND_TYPE_I4B;
+
+	return (0);
+}
+
+/*---------------------------------------------------------------------------*
+ *	capi_be_free - Free a CAPI backend
+ *
+ * @param be             Pointer to backend.
+ *---------------------------------------------------------------------------*/
+void
+capi20_be_free(struct capi20_backend *cbe)
+{
+	if (cbe) {
+	    /* clear any username and password */
+	    bzero(cbe, sizeof(*cbe));
+	    /* free memory */
+	    free(cbe);
+	}
+	return;
+}
+
+/*---------------------------------------------------------------------------*
+ *	capilib_alloc_app_i4b - Allocate an I4B CAPI application
+ *
+ * @param cbe                      Pointer to CAPI backend.
+ *
+ * @retval 0                       Application allocation failed.
+ *
+ * @retval Else                    Pointer to CAPI Application.
+ *---------------------------------------------------------------------------*/
+static struct app_softc *
+capilib_alloc_app_i4b(struct capi20_backend *cbe)
+{
+	struct app_softc *sc;
+
+	sc = capilib_alloc_app_sub(cbe);
+	if (sc == NULL) {
+	    return NULL;
+	}
+
+	sc->sc_fd = open(CAPI_DEVICE_NAME, O_RDWR | O_NONBLOCK);
+
+	if (sc->sc_fd < 0) {
+	    capilib_free_app(sc);
+	    return NULL;
+	}
+
+	return (sc);
+}
+
+struct app_softc *
+capilib_alloc_app(struct capi20_backend *cbe)
+{
+	struct app_softc *sc;
+	switch (cbe->bBackendType) {
+	case CAPI_BACKEND_TYPE_I4B:
+		sc = capilib_alloc_app_i4b(cbe);
+		break;
+	case CAPI_BACKEND_TYPE_BINTEC:
+		sc = capilib_alloc_app_bintec(cbe);
+		break;
+	default:
+		sc = NULL;
+		break;
+	}
+	return (sc);
 }
 
 /*---------------------------------------------------------------------------*
  *	capi20_register - CAPI application registration
  *
+ * @param cbe                      Pointer to CAPI backend.
+ *
  * @param max_logical_connections  Maximum number of active B-channel 
  *                                 connections.
-
+ *
  * @param max_b_data_blocks        Maximum number of unacknowledged incoming
  *                                 data blocks per B-channel connection.
  *
@@ -313,87 +361,67 @@ capi_do_ioctl(u_int32_t cmd, void *data)
  * @retval Else                    An error happened.
  *---------------------------------------------------------------------------*/
 u_int16_t
-capi20_register(u_int32_t max_logical_connections,
+capi20_register(struct capi20_backend *cbe,
+		u_int32_t max_logical_connections,
 		u_int32_t max_b_data_blocks,
 		u_int32_t max_b_data_len,
-		u_int32_t *app_id_ptr,
-		u_int32_t stack_version)
+		u_int32_t stack_version,
+		u_int32_t *app_id_ptr)
 {
 	struct app_softc *sc;
 	struct data_buffer *mp;
 	struct capi_register_req req = { /* zero */ };
 	u_int32_t size;
+	u_int32_t max_msg_data_size;
 	int32_t temp = 1;
 
-	if(app_id_ptr == NULL)
-	{
+	if (app_id_ptr == NULL) {
 	    return CAPI_ERROR_INVALID_PARAM;
 	}
 
-	if(stack_version != CAPI_STACK_VERSION)
-	{
-	   return CAPI_ERROR_UNSUPPORTED_VERSION;
-	}
-
-	sc = alloc_app();
-
-	if(sc == NULL)
-	{
-	    app_id_ptr[0] = -1;
-	    return CAPI_ERROR_OS_RESOURCE_ERROR;
-	}
-
-	if(open_capi(sc) < 0)
-	{
-	    free_app(sc);
-	    app_id_ptr[0] = -1;
-	    return CAPI_ERROR_CAPI_NOT_INSTALLED;
-	}
-
-	/* set stack version first */
-	if(ioctl(sc->sc_fd, CAPI_SET_STACK_VERSION_REQ, &stack_version) < 0)
-	{
-	   /* an error here typically means that the
-	    * header files and this library must be 
-	    * re-compiled and re-installed
-	    */
-	    free_app(sc);
-	    app_id_ptr[0] = -1;
+	app_id_ptr[0] = 0-1;
+	if (stack_version != CAPI_STACK_VERSION) {
 	    return CAPI_ERROR_UNSUPPORTED_VERSION;
 	}
 
-	/* set non-blocking operation */
-	if(ioctl(sc->sc_fd, FIONBIO, &temp) < 0)
-	{
-	    free_app(sc);
-	    app_id_ptr[0] = -1;
-	    return CAPI_ERROR_CAPI_NOT_INSTALLED;
+	sc = capilib_alloc_app(cbe);
+	if (sc == NULL) {
+	    return CAPI_ERROR_OS_RESOURCE_ERROR;
 	}
+
+	/* set stack version first */
+	if (capilib_do_ioctl_sub(sc, CAPI_SET_STACK_VERSION_REQ, 
+	    &stack_version) < 0) {
+	    capilib_free_app(sc);
+	    return CAPI_ERROR_UNSUPPORTED_VERSION;
+	}
+
+	/* compute the maximum message size that we can receive */
+	max_msg_data_size =
+         sizeof(mp->msg) + max_b_data_len;
 
 	/* register this application */
 	req.max_logical_connections = max_logical_connections;
 	req.max_b_data_blocks       = max_b_data_blocks;
 	req.max_b_data_len          = max_b_data_len;
+	req.max_msg_data_size       = max_msg_data_size;
+	req.pUserName               = cbe->sUserName;
+	req.pPassWord               = cbe->sPassWord;
 
-	if(ioctl(sc->sc_fd, CAPI_REGISTER_REQ, &req) < 0)
-	{
-	    free_app(sc);
-	    app_id_ptr[0] = -1;
+	if (capilib_do_ioctl_sub(sc, CAPI_REGISTER_REQ, &req) < 0) {
+	    capilib_free_app(sc);
 	    return CAPI_ERROR_CAPI_NOT_INSTALLED;
 	}
 
-	if(req.max_b_data_len != max_b_data_len)
-	{
-	    free_app(sc);
-	    app_id_ptr[0] = -1;
+	if ((req.max_b_data_len != max_b_data_len) ||
+	    (req.max_msg_data_size != max_msg_data_size)) {
+	    capilib_free_app(sc);
 	    return CAPI_ERROR_INVALID_BUFFER_SIZE;
 	}
 
+	sc->sc_msg_data_size = max_msg_data_size;
 	sc->sc_app_id_real = req.app_id;
 	sc->sc_max_connections = req.max_logical_connections;
-
-	sc->sc_msg_data_size = 
-	  sizeof(mp->msg) + req.max_b_data_len;
 
 	sc->sc_msg_size = 
 	  sizeof(*mp) + req.max_b_data_len;
@@ -402,16 +430,14 @@ capi20_register(u_int32_t max_logical_connections,
 		req.max_b_data_blocks) + 1;
 
 	if((size < 1) ||
-	   (size > 65536) || 
+	   (size > 65535) || 
 	   (sc->sc_msg_data_size < sizeof(mp->msg)) ||
-	   (sc->sc_msg_data_size > 65536) ||
+	   (sc->sc_msg_data_size > 65535) ||
 	   (sc->sc_msg_size < sizeof(*mp)) ||
-	   (sc->sc_msg_size > 65536))
+	   (sc->sc_msg_size > 65535))
 	{
 	    /* invalid parameters */
-
-	    free_app(sc);
-	    app_id_ptr[0] = -1;
+	    capilib_free_app(sc);
 	    return CAPI_ERROR_INVALID_PARAM;
 	}
 
@@ -423,10 +449,8 @@ capi20_register(u_int32_t max_logical_connections,
 
 	sc->sc_msg_end_ptr = ADD_BYTES(sc->sc_msg_start_ptr, size);
 
-	if(sc->sc_msg_start_ptr == NULL)
-	{
-	    free_app(sc);
-	    app_id_ptr[0] = -1;
+	if (sc->sc_msg_start_ptr == NULL) {
+	    capilib_free_app(sc);
 	    return CAPI_ERROR_OS_RESOURCE_ERROR;
 	}
 
@@ -452,16 +476,21 @@ capi20_register(u_int32_t max_logical_connections,
 
 	sc->sc_msg_free_list = sc->sc_msg_start_ptr;
    
-	app_id_ptr[0] = sc->sc_app_id;
-
 	/* start D-channel driver */
 
-	if(ioctl(sc->sc_fd, CAPI_START_D_CHANNEL_REQ, NULL) < 0)
-	{
-	    free_app(sc);
-	    app_id_ptr[0] = -1;
+	if (capilib_do_ioctl_sub(sc, CAPI_START_D_CHANNEL_REQ, NULL) < 0) {
+	    capilib_free_app(sc);
 	    return CAPI_ERROR_CAPI_NOT_INSTALLED;
 	}
+
+	/* set non-blocking operation last ! */
+	if (capilib_do_ioctl_sub(sc, FIONBIO, &temp) < 0) {
+	    capilib_free_app(sc);
+	    return CAPI_ERROR_CAPI_NOT_INSTALLED;
+	}
+
+	app_id_ptr[0] = sc->sc_app_id;
+
 	return 0;
 }
 
@@ -480,7 +509,7 @@ capi20_release(u_int32_t app_id)
 {
     struct app_softc *sc;
 
-    sc = find_app_by_id(app_id);
+    sc = capilib_find_app_by_id(app_id);
     
     if(sc == NULL)
     {
@@ -491,7 +520,7 @@ capi20_release(u_int32_t app_id)
     /* free this application 
      * (and close file descriptor)
      */
-    free_app(sc);
+    capilib_free_app(sc);
 
     return 0;
 }
@@ -514,15 +543,13 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 	struct app_softc * sc;
 	struct data_buffer *mp = NULL;
 	struct capi_message_encoded *pmsg = buf_ptr;
-	struct iovec iov[2];
+	struct iovec iov[3];
 	u_int16_t error = 0;
 	u_int16_t cmd;
 	u_int16_t app_id_old;
 
-	sc = find_app_by_id(app_id);
-    
-	if(sc == NULL)
-	{
+	sc = capilib_find_app_by_id(app_id);
+	if (sc == NULL) {
 	    /* application ID does not exist */
 	    return CAPI_ERROR_INVALID_APPLICATION_ID;
 	}
@@ -532,50 +559,56 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 	if((cmd == htole16(CAPI_REQ(DATA_B3))) ||
 	   (cmd == htole16(CAPI_P_REQ(DATA_B3))))
 	{
-	    iov[0].iov_base = (void *) pmsg;
-	    iov[0].iov_len = le16toh(HEADER_LEN(pmsg));
+	    iov[1].iov_base = (void *) pmsg;
+	    iov[1].iov_len = le16toh(HEADER_LEN(pmsg));
 
 	    if(sizeof(void *) <= 4)
 	    {
 	        u_int32_t temp;
 
-		if(iov[0].iov_len < (30-8))
+		if(iov[1].iov_len < (30-8))
 		{
+		    /* fatal error */
+		    capilib_free_app(sc);
 		    return CAPI_ERROR_ILLEGAL_MSG_PARAMETER;
 		}
 
 		temp = le32toh(pmsg->data.DATA_B3_REQ.dwPtr_1);
 
-		iov[1].iov_base = temp + ((uint8_t *)0);
-		iov[1].iov_len = le16toh(pmsg->data.DATA_B3_REQ.wLen);
+		iov[2].iov_base = temp + ((uint8_t *)0);
+		iov[2].iov_len = le16toh(pmsg->data.DATA_B3_REQ.wLen);
 	    }
 	    else if(sizeof(void *) <= 8)
 	    {
 	        u_int64_t temp;
 
-		if(iov[0].iov_len < 30)
+		if(iov[1].iov_len < 30)
 		{
+		    /* fatal error */
+		    capilib_free_app(sc);
 		    return CAPI_ERROR_ILLEGAL_MSG_PARAMETER;
 		}
 
 		temp = le64toh(pmsg->data.DATA_B3_REQ.qwPtr_2);
 
-		iov[1].iov_base = temp + ((uint8_t *)0);
-		iov[1].iov_len = le16toh(pmsg->data.DATA_B3_REQ.wLen);
+		iov[2].iov_base = temp + ((uint8_t *)0);
+		iov[2].iov_len = le16toh(pmsg->data.DATA_B3_REQ.wLen);
 	    }
 	    else
 	    {
+	        /* fatal error */
+	        capilib_free_app(sc);
 	        return CAPI_ERROR_ILLEGAL_MSG_PARAMETER;
 	    }
 
 	    /* extra checks */
 
-	    if((iov[1].iov_len == 0) || 
-	       (iov[1].iov_base == NULL))
+	    if((iov[2].iov_len == 0) || 
+	       (iov[2].iov_base == NULL))
 	    {
 	        /* set length to zero */
-	        iov[1].iov_len = 0;
-		iov[1].iov_base = NULL;
+	        iov[2].iov_len = 0;
+		iov[2].iov_base = NULL;
 
 		/* update length */
 		pmsg->data.DATA_B3_REQ.wLen = 0;
@@ -590,7 +623,8 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 	    if((cmd == htole16(CAPI_RESP(DATA_B3))) ||
 	       (cmd == htole16(CAPI_P_RESP(DATA_B3))))
 	    {
-		mp = find_data_buffer_by_handle(sc, pmsg->data.DATA_B3_RESP.wHandle);
+		mp = capilib_find_data_buffer_by_handle(
+		    sc, pmsg->data.DATA_B3_RESP.wHandle);
 
 		if(mp == NULL)
 		{
@@ -603,25 +637,56 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 		  mp->wHandle;
 	    }
 
-	    iov[0].iov_base = (void *) pmsg;
-	    iov[0].iov_len = le16toh(HEADER_LEN(pmsg));
+	    iov[1].iov_base = (void *) pmsg;
+	    iov[1].iov_len = le16toh(HEADER_LEN(pmsg));
 
-	    iov[1].iov_base = NULL;
-	    iov[1].iov_len = 0;
+	    iov[2].iov_base = NULL;
+	    iov[2].iov_len = 0;
 	}
 
 	/* update application ID */
 	app_id_old = HEADER_APP(pmsg);
 	HEADER_APP(pmsg) = sc->sc_app_id_real;
 
-	if(writev(sc->sc_fd, &iov[0], 2) < 0)
+	if (sc->sc_backend == CAPI_BACKEND_TYPE_BINTEC) {
+		uint32_t temp;
+	  
+		temp = (iov[1].iov_len + 
+			iov[2].iov_len) + 2;
+
+		if (temp > 65535) {
+		    /* fatal error */
+		    error = CAPI_ERROR_ILLEGAL_MSG_PARAMETER;
+		    goto done;
+		}
+
+		/* big endian length field preceedes CAPI message */
+
+		sc->sc_temp[0] = (temp >> 8);
+		sc->sc_temp[1] = (temp & 0xFF);
+
+		iov[0].iov_base = (void *)(sc->sc_temp);
+		iov[0].iov_len = 2; /* bytes */
+	} else {
+		iov[0].iov_base = NULL;
+		iov[0].iov_len = 0;
+	}
+
+	while (writev(sc->sc_fd, iov, 3) < 0)
 	{
+	    if (errno == EINTR) {
+	        continue;
+	    }
+
 	    error = 
 	      (errno == ENXIO) ? CAPI_ERROR_CAPI_NOT_INSTALLED :
 	      (errno == EINVAL) ? CAPI_ERROR_ILLEGAL_MSG_PARAMETER :
 	      CAPI_ERROR_OS_RESOURCE_ERROR;
+
+	    break;
 	}
 
+ done:
 	/* restore application ID in case the 
 	 * application is reusing this message
 	 */
@@ -637,14 +702,54 @@ capi20_put_message(u_int32_t app_id, void *buf_ptr)
 	    sc->sc_msg_free_list = mp;
 	}
 
-	if(error)
-	{
-	    /* this usually means that operation
-	     * cannot be continued
-	     */
-	    free_app(sc);
+	if (error) {
+	    /* fatal error */
+ 	    capilib_free_app(sc);
 	}
 	return error;
+}
+
+int
+capilib_get_message_sub(struct app_softc *sc, void *buf, uint16_t msg_len)
+{
+	uint16_t temp;
+	int len;
+
+	if (sc->sc_backend == CAPI_BACKEND_TYPE_BINTEC) {
+
+	    /* need to get the length bytes first */
+	    while ((len = read(sc->sc_fd, sc->sc_temp, 2)) < 0) {
+	        if (errno == EINTR) {
+		    continue;
+		}
+		return (-1);
+	    }
+
+	    if (len != 2) {
+	        /* An invalid length is an irrecoverable error */
+	        errno = ENODEV;
+	        return (-1);
+	    }
+
+	    temp = ((sc->sc_temp[0] << 8) |
+	      (sc->sc_temp[1])) - 2;
+
+	    if (temp > msg_len) {
+		/* An invalid length is an irrecoverable error */
+	        errno = ENODEV;
+		return (-1);
+	    } else {
+	        msg_len = temp;
+	    }
+	}
+
+	while ((len = read(sc->sc_fd, buf, msg_len)) < 0) {
+	    if (errno == EINTR) {
+	        continue;
+	    }
+	    break;
+	}
+	return (len);
 }
 
 /*---------------------------------------------------------------------------*
@@ -687,7 +792,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	    return CAPI_ERROR_INVALID_PARAM;
 	}
 
-	sc = find_app_by_id(app_id);
+	sc = capilib_find_app_by_id(app_id);
     
 	if(sc == NULL)
 	{
@@ -708,10 +813,10 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	}
 
  again:
-	len = read(sc->sc_fd, &mp->msg, sc->sc_msg_data_size);
+	len = capilib_get_message_sub(sc, &mp->msg, sc->sc_msg_data_size);
 
-	if(len < 0)
-	{
+	if (len < 0) {
+
 	    /* read error */
 
 	    if((errno == EBUSY) ||
@@ -722,11 +827,12 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	       * got to free this application
 	       * and close its file descriptor !
 	       */
-	      free_app(sc);
+	      capilib_free_app(sc);
 	    }
 
 	    retval = 
-	      ((errno == EWOULDBLOCK) ? CAPI_ERROR_GET_QUEUE_EMPTY :
+	      ((errno == EAGAIN) ? CAPI_ERROR_GET_QUEUE_EMPTY :
+	       (errno == EWOULDBLOCK) ? CAPI_ERROR_GET_QUEUE_EMPTY :
 	       (errno == ENXIO) ? CAPI_ERROR_CAPI_NOT_INSTALLED :
 	       (errno == EINVAL) ? CAPI_ERROR_ILLEGAL_MSG_PARAMETER :
 	       CAPI_ERROR_OS_RESOURCE_ERROR);
@@ -762,7 +868,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 
 	    /* update wHandle */
 	    mp->msg.data.DATA_B3_IND.wHandle =
-	      find_handle_by_data_buffer(sc, mp);
+	      capilib_find_handle_by_data_buffer(sc, mp);
 
 	    /* update wLen */
 	    mp->msg.data.DATA_B3_IND.wLen = 
@@ -826,16 +932,8 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 		resp.head.wLen = htole16(sizeof(resp));
 		resp.data.wHandle = mp->wHandle;
 
-		if(write(sc->sc_fd, &resp, sizeof(resp)) < 0)
-		{
-		    /* this error is unrecoverable and
-		     * all active calls must be
-		     * disconnected including the 
-		     * call that caused the failure !
-		     */
-		    free_app(sc);
-
-		    retval = CAPI_ERROR_OS_RESOURCE_ERROR;
+		retval = capi20_put_message(app_id, &resp);
+		if (retval) {
 		    goto error;
 		}
 
@@ -860,7 +958,7 @@ capi20_get_message(u_int32_t app_id, u_int8_t **buf_pp)
 	    /* free all data buffers associated with
 	     * this B-channel connection
 	     */
-	    free_data_buffer_by_cid(sc, HEADER_CID(&(mp->msg)));
+	    capilib_free_data_buffer_by_cid(sc, HEADER_CID(&(mp->msg)));
 	}
 
 	/* update application id */
@@ -995,6 +1093,7 @@ capi20_wait_for_message(u_int32_t app_id, struct timeval *timeval_ptr)
 /*---------------------------------------------------------------------------*
  *	capi20_get_manufacturer - get manufacturer name of a controller
  *
+ * @param cbe                    Pointer to CAPI backend.
  *
  * @param controller            Controller number.
  *
@@ -1008,34 +1107,38 @@ capi20_wait_for_message(u_int32_t app_id, struct timeval *timeval_ptr)
  * @retval Else                 An error happened.
  *---------------------------------------------------------------------------*/
 u_int16_t
-capi20_get_manufacturer(u_int32_t controller, u_int8_t *buf_ptr, 
-			u_int16_t buf_len)
+capi20_get_manufacturer(struct capi20_backend *cbe, u_int32_t controller,
+    char *buf_ptr, u_int16_t buf_len)
 {
 	struct capi_get_manufacturer_req req = { /* zero */ };
 	u_int16_t error;
 
-	if((buf_ptr == NULL) ||
-	   (buf_len == 0))
-	{
+	if (buf_len == 0) {
 	    /* nothing to do */
 	    return 0;
 	}
 
+	if (buf_ptr == NULL) {
+	    return (CAPI_ERROR_INVALID_PARAM);
+	}
+
 	req.controller = controller;
 
-	error = capi_do_ioctl(CAPI_GET_MANUFACTURER_REQ, &req);
+	error = capilib_do_ioctl(cbe, CAPI_GET_MANUFACTURER_REQ, &req);
 
 	if(error)
 	{
 	    return error;
 	}
 
-        snprintf((void *)buf_ptr, buf_len, "%s", &req.name[0]);
+        snprintf(buf_ptr, buf_len, "%s", &req.name[0]);
 	return 0;
 }
 
 /*---------------------------------------------------------------------------*
  *	capi20_get_version - get version of CAPI implementation
+ *
+ * @param cbe                    Pointer to CAPI backend.
  *
  * @param controller            Controller number.
  *
@@ -1052,22 +1155,24 @@ capi20_get_manufacturer(u_int32_t controller, u_int8_t *buf_ptr,
  * @retval Else                 An error happened.
  *---------------------------------------------------------------------------*/
 u_int16_t
-capi20_get_version(u_int32_t controller, u_int8_t *buf_ptr, u_int16_t buf_len)
+capi20_get_version(struct capi20_backend *cbe, u_int32_t controller,
+    char *buf_ptr, u_int16_t buf_len)
 {
+	struct capi_get_version_req req = { /* zero */ };
 	u_int16_t error;
 
-	struct capi_get_version_req req = { /* zero */ };
-
-	if((buf_ptr == NULL) ||
-	   (buf_len == 0))
-	{
+	if (buf_len == 0) {
 	    /* nothing to do */
 	    return 0;
 	}
 
+	if (buf_ptr == NULL) {
+	    return (CAPI_ERROR_INVALID_PARAM);
+	}
+
 	req.controller = controller;
 
-	error = capi_do_ioctl(CAPI_GET_VERSION_REQ, &req);
+	error = capilib_do_ioctl(cbe, CAPI_GET_VERSION_REQ, &req);
 
 	if(error)
 	{
@@ -1096,6 +1201,8 @@ capi20_get_version(u_int32_t controller, u_int8_t *buf_ptr, u_int16_t buf_len)
 /*---------------------------------------------------------------------------*
  *	capi20_get_serial_number - get serial number of a controller
  *
+ * @param cbe                    Pointer to CAPI backend.
+ *
  * @param controller            Controller number.
  *
  * @param buf_ptr               Pointer to where the string should be stored.
@@ -1108,23 +1215,24 @@ capi20_get_version(u_int32_t controller, u_int8_t *buf_ptr, u_int16_t buf_len)
  * @retval Else                 An error happened.
  *---------------------------------------------------------------------------*/
 u_int16_t
-capi20_get_serial_number(u_int32_t controller, u_int8_t *buf_ptr,
-			 u_int16_t buf_len)
+capi20_get_serial_number(struct capi20_backend *cbe, u_int32_t controller,
+   char *buf_ptr, u_int16_t buf_len)
 {
+	struct capi_get_serial_req req = { /* zero */ };
 	u_int16_t error;
 
-	struct capi_get_serial_req req = { /* zero */ };
-
-	if((buf_ptr == NULL) ||
-	   (buf_len == 0))
-	{
+	if (buf_len == 0) {
 	    /* nothing to do */
 	    return 0;
 	}
 
+	if (buf_ptr == NULL) {
+	    return (CAPI_ERROR_INVALID_PARAM);
+	}
+
 	req.controller = controller;
 
-	error = capi_do_ioctl(CAPI_GET_SERIAL_REQ, &req);
+	error = capilib_do_ioctl(cbe, CAPI_GET_SERIAL_REQ, &req);
 
 	if(error)
 	{
@@ -1151,6 +1259,8 @@ capi20_get_serial_number(u_int32_t controller, u_int8_t *buf_ptr,
 /*---------------------------------------------------------------------------*
  *	capi20_get_profile - get the profile of a controller
  *
+ * @param cbe                    Pointer to CAPI backend.
+ *
  * @param controller            Controller number.
  *
  * @param buf_ptr               Pointer to where the profile should be stored.
@@ -1165,22 +1275,24 @@ capi20_get_serial_number(u_int32_t controller, u_int8_t *buf_ptr,
  * @retval Else                 An error happened.
  *---------------------------------------------------------------------------*/
 u_int16_t 
-capi20_get_profile(u_int32_t controller, void *buf_ptr, u_int16_t buf_len)
+capi20_get_profile(struct capi20_backend *cbe, u_int32_t controller, 
+    void *buf_ptr, u_int16_t buf_len)
 {
+	struct capi_get_profile_req req = { /* zero */ };
 	u_int16_t error;
 
-	struct capi_get_profile_req req = { /* zero */ };
-
-	if((buf_ptr == NULL) ||
-	   (buf_len == 0))
-	{
+	if (buf_len == 0) {
 	    /* nothing to do */
 	    return 0;
 	}
 
+	if (buf_ptr == NULL) {
+	    return (CAPI_ERROR_INVALID_PARAM);
+	}
+
 	req.controller = controller;
 
-	error = capi_do_ioctl(CAPI_GET_PROFILE_REQ, &req);
+	error = capilib_do_ioctl(cbe, CAPI_GET_PROFILE_REQ, &req);
 
 	if(error)
 	{
@@ -1204,18 +1316,20 @@ capi20_get_profile(u_int32_t controller, void *buf_ptr, u_int16_t buf_len)
 /*---------------------------------------------------------------------------*
  *	capi20_is_installed - test if CAPI is installed
  *
+ * @param cbe                    Pointer to CAPI backend.
+ *
  * @retval 0                              CAPI is installed.
  * @retval CAPI_ERROR_CAPI_NOT_INSTALLED  CAPI is not installed.
  * @retval Else                           An error happened.
  *---------------------------------------------------------------------------*/
 u_int16_t
-capi20_is_installed(void)
+capi20_is_installed(struct capi20_backend *cbe)
 {
 	/* CAPI is installed even if there are no
 	 * controllers, because some controllers
 	 * are pluggable !
 	 */
-	return capi_do_ioctl(CAPI_IOCTL_TEST_REQ, NULL);
+	return (capilib_do_ioctl(cbe, CAPI_IOCTL_TEST_REQ, NULL));
 }
 
 /*---------------------------------------------------------------------------*
@@ -1235,7 +1349,7 @@ capi20_fileno(u_int32_t app_id)
 {
 	struct app_softc *sc;
 
-	sc = find_app_by_id(app_id);
+	sc = capilib_find_app_by_id(app_id);
 
 	if(sc == NULL)
 	{
@@ -1262,6 +1376,8 @@ capi20_fileno(u_int32_t app_id)
  * @note This call is only allowed if the calling process' user id is 0 or the
  *       user is member of the group with id 0.
  *
+ * @param cbe                    Pointer to CAPI backend.
+ *
  * @param controller            Controller number.
  *
  * @param protocols_ptr         Pointer to array of "struct isdn_dr_prot".
@@ -1274,8 +1390,8 @@ capi20_fileno(u_int32_t app_id)
  * @retval Else                 An error happened.
  *---------------------------------------------------------------------------*/
 u_int16_t
-capi_firmware_download(u_int32_t controller, struct isdn_dr_prot *protocols_ptr,
-		       u_int16_t protocols_len)
+capi_firmware_download(struct capi20_backend *cbe, u_int32_t controller, 
+  struct isdn_dr_prot *protocols_ptr, u_int16_t protocols_len)
 {
 	struct isdn_download_request req = { /* zero */ };
 
@@ -1289,18 +1405,18 @@ capi_firmware_download(u_int32_t controller, struct isdn_dr_prot *protocols_ptr,
 	req.numprotos = protocols_len;
 	req.protocols = protocols_ptr;
 
-	return capi_do_ioctl(I4B_CTRL_DOWNLOAD, &req);
+	return (capilib_do_ioctl(cbe, I4B_CTRL_DOWNLOAD, &req));
 }
 
 /*---------------------------------------------------------------------------*
- *	capi_setup_message_decoded - setup CAPI translation tags
+ *	capilib_setup_message_decoded - setup CAPI translation tags
  *
  * @param mp                   Pointer to decoded CAPI message.
  *
  * @retval Any                 Packed command.
  *---------------------------------------------------------------------------*/
 static u_int16_t
-capi_setup_message_decoded(struct capi_message_decoded *mp)
+capilib_setup_message_decoded(struct capi_message_decoded *mp)
 {
 	u_int8_t B_PROTOCOL_INIT = 0;
 	u_int8_t ADDITIONAL_INFO_INIT = 0;
@@ -1363,7 +1479,7 @@ capi_translate_to_message_decoded(struct capi_message_decoded *mp,
 	CAPI_INIT(CAPI_HEADER, &(mp->head));
 
 	/* decode header */
-	capi_decode(buf_ptr, sizeof(struct CAPI_HEADER_ENCODED), &(mp->head));
+	capi20_decode(buf_ptr, sizeof(struct CAPI_HEADER_ENCODED), &(mp->head));
 
 #if !defined(CAPI_NO_COMPAT_CODE)
 	/* be nice with Linux applications, 
@@ -1382,10 +1498,10 @@ capi_translate_to_message_decoded(struct capi_message_decoded *mp,
 
 	/* setup decode tags and pack command */
 	mp->head.wCmd = 
-	  capi_setup_message_decoded(mp);
+	  capilib_setup_message_decoded(mp);
 
 	/* decode rest of message */
-	capi_decode(buf_ptr, buf_len, &(mp->data));
+	capi20_decode(buf_ptr, buf_len, &(mp->data));
 	return;
 }
 
@@ -1446,11 +1562,11 @@ capi_translate_from_message_decoded(struct capi_message_decoded *mp,
 
 	/* setup decode tags and pack command */
 	mp->head.wCmd = 
-	  capi_setup_message_decoded(mp);
+	  capilib_setup_message_decoded(mp);
 
-	len = capi_encode(buf_ptr, buf_len, &(mp->head));
+	len = capi20_encode(buf_ptr, buf_len, &(mp->head));
 
-	len += capi_encode(ADD_BYTES(buf_ptr, len), 
+	len += capi20_encode(ADD_BYTES(buf_ptr, len), 
 			   buf_len - len, &(mp->data));
 
 	/* update length */
@@ -1480,14 +1596,14 @@ capi_put_message_decoded(struct capi_message_decoded *mp)
 }
 
 /*---------------------------------------------------------------------------*
- *	capi_get_error_string - get error description
+ *	capi20_get_errstr - get error description
  *
  * @param wError               Error number to lookup description for.
  *
  * @retval Any                 Pointer to a zero terminated string.
  *---------------------------------------------------------------------------*/
-const u_int8_t *
-capi_get_error_string(u_int16_t wError)
+const char *
+capi20_get_errstr(u_int16_t wError)
 {
 	struct error
 	{
@@ -1508,19 +1624,17 @@ capi_get_error_string(u_int16_t wError)
 
 	if(wError == 0)
 	{
-	    return ((const void *)("no error"));
+	    return ("no error");
 	}
 
 	if((wError & 0xFF00) == 0x3600)
 	{
-	    return ((const void *)
-		    ("0x36XX: unknown supplementary service error"));
+	    return ("0x36XX: unknown supplementary service error");
 	}
 
 	if((wError & 0xFF00) == 0x3700)
 	{
-	    return ((const void *)
-		    ("0x37XX: unknown supplementary service context error"));
+	    return ("0x37XX: unknown supplementary service context error");
 	}
 
 	if((wError & 0xFF00) == 0x3400)
@@ -1528,27 +1642,24 @@ capi_get_error_string(u_int16_t wError)
 	    wError &= 0x7F;
 
 	    if(Q850_CAUSES_DESC[wError])
-	      return ((const void *)
-		      (Q850_CAUSES_DESC[wError]));
+	      return (Q850_CAUSES_DESC[wError]);
 	    else
-	      return ((const void *)
-		      ("0x34XX: unknown Q.850 cause"));
+	      return ("0x34XX: unknown Q.850 cause");
 	}
 
 	while(ptr->desc)
 	{
 	    if(ptr->wError == wError)
 	    {
-		return ((const void *)(ptr->desc));
+		return (ptr->desc);
 	    }
 	    ptr++;
 	}
-	return ((const void *)
-		("unknown CAPI error"));
+	return ("unknown CAPI error");
 }
 
 static u_int16_t
-capi_print_byte_array(u_int8_t *dst, u_int16_t len, 
+capilib_print_byte_array(char *dst, u_int16_t len, 
 		      u_int8_t *buf_ptr, u_int16_t buf_len)
 {
         u_int16_t len_old = len;
@@ -1565,7 +1676,7 @@ capi_print_byte_array(u_int8_t *dst, u_int16_t len,
 	     */
 	    if((c < 0x20) || (c > 0x7e)) c = '?';
 
-	    temp = snprintf((void *)dst, len, "0x%02x '%c'%s%s",
+	    temp = snprintf(dst, len, "0x%02x '%c'%s%s",
 			    buf_ptr[0], c, buf_len ? ", " : ".",
 			    ((!(e & 3)) && (buf_len)) ? 
 			    "\n                     "
@@ -1579,8 +1690,9 @@ capi_print_byte_array(u_int8_t *dst, u_int16_t len,
 
 	    buf_ptr++;
 
-	};
-	temp = snprintf((void *)dst, len, "\n");
+	}
+
+	temp = snprintf(dst, len, "\n");
 
 	if(temp > len) temp = len;
 
@@ -1592,7 +1704,7 @@ capi_print_byte_array(u_int8_t *dst, u_int16_t len,
 }
 
 static u_int16_t
-capi_print_struct(u_int8_t *dst, u_int16_t len, u_int8_t *buf_ptr)
+capilib_print_struct(char *dst, u_int16_t len, u_int8_t *buf_ptr)
 {
 	u_int16_t len_old = len;
 	u_int16_t buf_len;
@@ -1621,11 +1733,11 @@ capi_print_struct(u_int8_t *dst, u_int16_t len, u_int8_t *buf_ptr)
 
 	if(buf_len)
 	{
-	    temp = capi_print_byte_array(dst, len, buf_ptr, buf_len);
+	    temp = capilib_print_byte_array(dst, len, buf_ptr, buf_len);
 	}
 	else
 	{
-	    temp = snprintf((void *)dst, len, "(empty)\n");
+	    temp = snprintf(dst, len, "(empty)\n");
 	}
 
 	if(temp > len) temp = len;
@@ -1636,13 +1748,6 @@ capi_print_struct(u_int8_t *dst, u_int16_t len, u_int8_t *buf_ptr)
 	/* return number of bytes used */
 	return (len_old - len);
 }
-
- struct debug {
-   u_int8_t what;
-   u_int16_t size;
-   u_int16_t offset;
-   const char *field;
-} __packed;
 
 static const struct debug debug[] = {
   CAPI_COMMANDS(CAPI_MAKE_DEBUG_1,)
@@ -1663,7 +1768,7 @@ static const struct debug debug[] = {
  *                             zero.
  *---------------------------------------------------------------------------*/
 u_int16_t
-capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len, 
+capi_message_decoded_to_string(char *dst, u_int16_t len, 
 			       const struct capi_message_decoded *mp)
 {
     const struct debug *ptr = &debug[0];
@@ -1689,12 +1794,12 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
 
     if(ptr->field)
     {
-        temp = snprintf((void *)dst, len, "%s {\n", ptr->field);
+        temp = snprintf(dst, len, "%s {\n", ptr->field);
 	ptr++;
     }
     else
     {
-        temp = snprintf((void *)dst, len, "UNKNOWN {\n");
+        temp = snprintf(dst, len, "UNKNOWN {\n");
     }
 
     if(temp > len) temp = len;
@@ -1703,7 +1808,7 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
     len -= temp;
 
     temp = snprintf
-      ((void *)dst, len,
+      (dst, len,
        " header {\n"
        "  WORD       %-20s= 0x%04x\n"
        "  WORD       %-20s= 0x%04x\n"
@@ -1735,47 +1840,47 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
 	goto done;
 
       case IE_BYTE:
-	temp = snprintf((void *)dst, len, "  BYTE       %-20s= 0x%02x\n",
+	temp = snprintf(dst, len, "  BYTE       %-20s= 0x%02x\n",
 			ptr->field, ((u_int8_t *)(var))[0]);
 	break;
 
       case IE_WORD:
-	temp = snprintf((void *)dst, len, "  WORD       %-20s= 0x%04x\n",
+	temp = snprintf(dst, len, "  WORD       %-20s= 0x%04x\n",
 			ptr->field, ((u_int16_p_t *)(var))->data);
 	break;
 
       case IE_DWORD:
-	temp = snprintf((void *)dst, len, "  DWORD      %-20s= 0x%08x\n",
+	temp = snprintf(dst, len, "  DWORD      %-20s= 0x%08x\n",
 			ptr->field, ((u_int32_p_t *)(var))->data);
 	break;
 
       case IE_QWORD:
-	temp = snprintf((void *)dst, len, "  QWORD      %-20s= 0x%08x%08x\n",
+	temp = snprintf(dst, len, "  QWORD      %-20s= 0x%08x%08x\n",
 			ptr->field, 
 			(u_int32_t)(((u_int64_p_t *)(var))->data >> 32),
 			(u_int32_t)(((u_int64_p_t *)(var))->data >> 0));
 	break;
 
       case IE_STRUCT:
-	temp = snprintf((void *)dst, len, "  STRUCT     %-20s= ", ptr->field);
+	temp = snprintf(dst, len, "  STRUCT     %-20s= ", ptr->field);
 
 	if(temp > len) temp = len;
 
 	dst += temp;
 	len -= temp;
 
-	temp = capi_print_struct(dst, len, ((void_p_t *)(var))->data);
+	temp = capilib_print_struct(dst, len, ((void_p_t *)(var))->data);
 	break;
 
       case IE_BYTE_ARRAY:
-	temp = snprintf((void *)dst, len, "  BYTE_ARRAY %-20s= ", ptr->field);
+	temp = snprintf(dst, len, "  BYTE_ARRAY %-20s= ", ptr->field);
 
 	if(temp > len) temp = len;
 
 	dst += temp;
 	len -= temp;
 
-	temp = capi_print_byte_array(dst, len, var, ptr->size);
+	temp = capilib_print_byte_array(dst, len, var, ptr->size);
 	break;
       }
 
@@ -1788,7 +1893,7 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
 
  done:
 
-      temp = snprintf((void *)dst, len, " }\n" "}\n");
+      temp = snprintf(dst, len, " }\n" "}\n");
 
       if(temp > len) temp = len;
 
@@ -1810,7 +1915,7 @@ capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len,
  *
  * @retval Any                 Pointer to zero terminated string.
  *---------------------------------------------------------------------------*/
-const u_int8_t *
+const char *
 capi_get_command_string(u_int16_t wCmd)
 {
 	const struct debug *ptr = &debug[0];
@@ -1823,9 +1928,432 @@ capi_get_command_string(u_int16_t wCmd)
 	       ((ptr->size == wCmd) ||
 		(ptr->offset == wCmd)))
 	    {
-	        return ((const void *)(ptr->field));
+	        return (ptr->field);
 	    }
 	    ptr++;
 	}
-	return ((const void *)("UNKNOWN"));
+	return ("UNKNOWN");
+}
+
+/*---------------------------------------------------------------------------*
+ *	capi20_decode
+ *
+ * @param ptr                  Encoded message pointer.
+ * @param len                  Encoded message length.
+ * @param ie                   Decoded message pointer.
+ *
+ * @retval Any                 Actual encoded length that was decoded.
+ *---------------------------------------------------------------------------*/
+uint16_t
+capi20_decode(void *ptr, u_int16_t len, void *ie)
+{
+	u_int16_t len_old = len;
+	u_int8_t what;
+
+	while(1)
+	{
+	  what = ((u_int8_t *)(ie))[0];
+	  ie = ADD_BYTES(ie, 1);
+
+	  switch(what) {
+	  case IE_END:
+	    goto done;
+
+	  case IE_BYTE:
+	    if(len >= 1)
+	    {
+	      ((u_int8_t *)(ie))[0] =
+		((u_int8_t *)(ptr))[0];
+	      ie = ADD_BYTES(ie, 1);
+	      ptr = ADD_BYTES(ptr, 1);
+	      len -= 1;
+	      break;
+	    }
+	    ((u_int8_t *)(ie))[0] = 0;
+	    ie = ADD_BYTES(ie, 1);
+	    goto ie_error;
+
+	  case IE_WORD:
+	    if(len >= 2)
+	    {
+	      ((u_int16_p_t *)(ie))->data =
+		le16toh(((u_int16_p_t *)(ptr))->data);
+
+	      ie = ADD_BYTES(ie, 2);
+	      ptr = ADD_BYTES(ptr, 2);
+	      len -= 2;
+	      break;
+	    }
+	    ((u_int16_p_t *)(ie))->data = 0;
+	    ie = ADD_BYTES(ie, 2);
+	    goto ie_error;
+
+	  case IE_DWORD:
+	    if(len >= 4)
+	    {
+	      ((u_int32_p_t *)(ie))->data =
+		le32toh(((u_int32_p_t *)(ptr))->data);
+
+	      ie = ADD_BYTES(ie, 4);
+	      ptr = ADD_BYTES(ptr, 4);
+	      len -= 4;
+	      break;
+	    }
+	    ((u_int32_p_t *)(ie))->data = 0;
+	    ie = ADD_BYTES(ie, 4);
+	    goto ie_error;
+
+	  case IE_QWORD:
+	    if(len >= 8)
+	    {
+	      ((u_int64_p_t *)(ie))->data = 
+		le64toh(((u_int64_p_t *)(ptr))->data);
+
+	      ie = ADD_BYTES(ie, 8);
+	      ptr = ADD_BYTES(ptr, 8);
+	      len -= 8;
+	      break;
+	    }
+	    ((u_int64_p_t *)(ie))->data = 0;
+	    ie = ADD_BYTES(ie, 8);
+	    goto ie_error;
+
+	  ie_error:
+	    /* skip remaining data */
+	    ptr = ADD_BYTES(ptr, len);
+	    len = 0;
+	    break;
+
+	  case IE_STRUCT_CAPI:
+	    /* pre-store pointer to CAPI structure */
+	    ((void_p_t *)(ADD_BYTES(ie,2)))->data = ptr;
+
+	  case IE_STRUCT_DECODED:
+	  case IE_STRUCT_DECODED_EMPTY:
+	  case IE_STRUCT: /* default */
+	    {
+	      register u_int16_t temp;
+
+	      if(len >= 1)
+	      {
+		  if(((u_int8_t *)(ptr))[0] == 0xFF)
+		  {
+		      /* length is escaped */
+
+		      if(len >= 3)
+		      {
+			  temp = ((u_int8_t *)(ptr))[2];
+			  temp <<= 8;
+			  temp |= ((u_int8_t *)(ptr))[1];
+
+			  ptr = ADD_BYTES(ptr, 3);
+			  len -= 3;
+		      }
+		      else
+		      {
+			  temp = 255; /* dummy */
+		      }
+		  }
+		  else
+		  {
+		      temp = ((u_int8_t *)(ptr))[0];
+
+		      ptr = ADD_BYTES(ptr, 1);
+		      len -= 1;
+		  }
+	      }
+	      else
+	      {
+		  temp = 255; /* dummy */
+	      }
+
+	      /* check structure length */
+
+	      if(temp > len)
+	      {
+		  /* skip remaining data and
+		   * set lengths to zero
+		   */
+		  ptr = ADD_BYTES(ptr, len);
+		  len = 0;
+		  temp = 0;
+	      }
+
+	      /* store length */
+	      if(what == IE_STRUCT)
+	      {
+		  ((u_int16_p_t *)(ie))->data = temp;
+		  ie = ADD_BYTES(ie, 2);
+
+		  /* store pointer to data structure */
+		  ((void_p_t *)(ie))->data = ptr;
+	      }
+	      else
+	      {
+		  /* this field should not be used */
+		  ((u_int16_p_t *)(ie))->data = 0;
+		  ie = ADD_BYTES(ie, 2);
+
+		  /* ((void_p_t *)(ie))->data should already have
+		   * been set !
+		   */
+	      }
+
+	      if((what == IE_STRUCT_DECODED) || 
+		 (what == IE_STRUCT_DECODED_EMPTY))
+	      {
+		  /* need to update the structure type, 
+		   * hence the application might want to 
+		   * check this field !
+		   */
+		  (((u_int8_t *)(ie)) - 3)[0] = (temp) ?
+		    IE_STRUCT_DECODED : IE_STRUCT_DECODED_EMPTY;
+
+		  capi20_decode(ptr, temp, ((void_p_t *)(ie))->data);
+	      }
+	      else
+	      {
+		  if(temp == 0)
+		  {
+		      /* In case this is a CAPI structure, one
+		       * needs to set the pointer to a valid 
+		       * structure, hence the real structure
+		       * might have an invalid length field !
+		       * Else try to catch the cases where the
+		       * software is looking up fields before
+		       * checking the length!
+		       */
+		      static const u_int8_t empty_struct[8] = { /* zero */ };
+
+		      /* structure is empty or non-existing */
+		      ((void_p_t *)(ie))->data = (void *)&empty_struct;
+		  }
+	      }
+	      ie = ADD_BYTES(ie, sizeof(void *));
+	      ptr = ADD_BYTES(ptr, temp);
+	      len -= temp;
+	    }
+	    break;
+
+	  case IE_BYTE_ARRAY:
+	    {
+	      register u_int16_t temp;
+
+	      temp = ((u_int16_p_t *)(ie))->data;
+
+	      ie = ADD_BYTES(ie, 2);
+
+	      if(temp > len)
+	      {
+		  /* part of array is zero ! */
+		  bzero(ADD_BYTES(ie,len), temp-len);
+		  temp = len;
+	      }
+
+	      bcopy(ptr, ie, temp);
+
+	      ie = ADD_BYTES(ie, temp);
+	      ptr = ADD_BYTES(ptr, temp);
+	      len -= temp;
+	    }
+	    break;
+
+	  default:
+	    /* invalid information element - should not happen */
+	    goto done;
+	  }
+	}
+ done:
+	return (len_old - len);
+}
+
+/*---------------------------------------------------------------------------*
+ *	capi20_encode
+ *
+ * @param ptr                  Encoded message pointer.
+ * @param len                  Encoded message length.
+ * @param ie                   Decoded message pointer.
+ *
+ * @retval Any                 Actual encoded length.
+ *---------------------------------------------------------------------------*/
+u_int16_t
+capi20_encode(void *ptr, u_int16_t len, void *ie)
+{
+	u_int16_t len_old = len;
+	u_int8_t what;
+
+	while(1)
+	{
+	  what = ((u_int8_t *)(ie))[0];
+	  ie = ADD_BYTES(ie, 1);
+
+	  switch(what) {
+	  case IE_END:
+	    goto done;
+
+	  case IE_BYTE:
+	    if(len < 1) goto error; /* overflow */
+
+	    ((u_int8_t *)(ptr))[0] = 
+	      ((u_int8_t *)(ie))[0];
+	    ie = ADD_BYTES(ie, 1);
+	    ptr = ADD_BYTES(ptr, 1);
+	    len -= 1;
+	    break;
+
+	  case IE_WORD:
+	    if(len < 2) goto error; /* overflow */
+
+	    ((u_int16_p_t *)(ptr))->data =
+	      htole16(((u_int16_p_t *)(ie))->data);
+	    ie = ADD_BYTES(ie, 2);
+	    ptr = ADD_BYTES(ptr, 2);
+	    len -= 2;
+	    break;
+
+	  case IE_DWORD:
+	    if(len < 4) goto error; /* overflow */
+
+	    ((u_int32_p_t *)(ptr))->data =
+	      htole32(((u_int32_p_t *)(ie))->data);
+	    ie = ADD_BYTES(ie, 4);
+	    ptr = ADD_BYTES(ptr, 4);
+	    len -= 4;
+	    break;
+
+	  case IE_QWORD:
+	    if(len < 8) goto error; /* overflow */
+
+	    ((u_int64_p_t *)(ptr))->data =
+	      htole64(((u_int64_p_t *)(ie))->data);
+	    ie = ADD_BYTES(ie, 8);
+	    ptr = ADD_BYTES(ptr, 8);
+	    len -= 8;
+	    break;
+
+	  case IE_STRUCT_DECODED_EMPTY:
+	    if(len < 1) goto error; /* overflow */
+
+	    ((u_int8_t *)(ptr))[0] = 0;
+	    ie = ADD_BYTES(ie, sizeof(void *)+2);
+	    ptr = ADD_BYTES(ptr, 1);
+	    len -= 1;
+	    break;
+
+	  case IE_STRUCT_DECODED:
+	  case IE_STRUCT_CAPI:
+	  case IE_STRUCT:
+	    {
+	      register u_int16_t temp;
+	      register void *var;
+
+	      temp = ((u_int16_p_t *)(ie))->data;
+	      ie = ADD_BYTES(ie, 2);
+	      var = ((void_p_t *)(ie))->data;
+	      ie = ADD_BYTES(ie, sizeof(void *));
+
+	      if(what == IE_STRUCT_CAPI)
+	      {
+		  if(var == NULL)
+		  {
+		      temp = 0;
+		  }
+		  else
+		  {
+		    /* get length field from CAPI structure */
+
+		    if(((u_int8_t *)(var))[0] == 0xFF)
+		    {
+		      temp = ((((u_int8_t *)(var))[1]) |
+			      (((u_int8_t *)(var))[2] << 8));
+		      var = ADD_BYTES(var, 3);
+		    }
+		    else
+		    {
+		      temp = ((u_int8_t *)(var))[0];
+		      var = ADD_BYTES(var, 1);
+		    }
+		  }
+	      }
+
+	      if(what == IE_STRUCT_DECODED)
+	      {
+		  if(len < 1) goto error; /* overflow */
+
+		  temp = capi20_encode(ADD_BYTES(ptr,1),len-1,var);
+
+		  if(temp >= 0x00FF)
+		  {
+		      register u_int16_t temp2 = temp;
+
+		      if((len-temp2) < 3) goto error; /* overflow */
+
+		      /* move all data up two bytes */
+		      while(temp2--)
+		      {
+			  *(((u_int8_t *)(ptr)) + 3 + temp2) =
+			    *(((u_int8_t *)(ptr)) + 1 + temp2);
+		      }
+		  }
+	      }
+
+	      if(temp >= 0x00FF)
+	      {
+		if((len < 3) || (temp > (len - 3)))
+		{
+		    goto error; /* overflow */
+		}
+
+		((u_int8_t *)(ptr))[0] = 0xFF;
+		((u_int8_t *)(ptr))[1] = temp;
+		((u_int8_t *)(ptr))[2] = temp >> 8;
+		ptr = ADD_BYTES(ptr, 3);
+		len -= 3;
+	      }
+	      else
+	      {
+		if((len < 1) || (temp > (len - 1)))
+		{
+		    goto error; /* overflow */
+		}
+
+		((u_int8_t *)(ptr))[0] = temp;
+		ptr = ADD_BYTES(ptr, 1);
+		len -= 1;
+	      }
+
+	      if(what != IE_STRUCT_DECODED)
+	      {
+		  bcopy(var, ptr, temp);
+	      }
+	      ptr = ADD_BYTES(ptr, temp);
+	      len -= temp;
+	    }
+	    break;
+
+	  case IE_BYTE_ARRAY:
+	    {
+	      register u_int16_t temp;
+
+	      temp = ((u_int16_p_t *)(ie))->data;
+
+	      if(len < temp) goto error; /* overflow */
+
+	      ie = ADD_BYTES(ie, 2);
+
+	      bcopy(ie, ptr, temp);
+	      ie = ADD_BYTES(ie, temp);
+	      ptr = ADD_BYTES(ptr, temp);
+	      len -= temp;
+	    }
+	    break;
+
+	  default:
+	    /* invalid information element - should not happen */
+	    goto error;
+	  }
+	}
+ error:
+ done:
+	return (len_old - len);
 }

@@ -95,7 +95,7 @@ typedef struct u_int64_p u_int64_p_t;
 
 /* global defines */
 
-#define CAPI_STACK_VERSION     210
+#define CAPI_STACK_VERSION     211
 #define CAPI_APPLICATION_MAX   0x80 /* units */
 #define CAPI_DEVICE_NAME       "/dev/capi20"
 #define CAPI_SHLIB_BASENAME    "libcapi20.so"
@@ -1822,6 +1822,9 @@ struct capi_register_req {
   u_int32_t max_logical_connections;
   u_int32_t max_b_data_blocks;
   u_int32_t max_b_data_len;
+  u_int32_t max_msg_data_size;
+  const char *pUserName; /* zero terminated string */
+  const char *pPassWord; /* zero terminated string */
 
   /* result parameters */
   u_int32_t app_id;
@@ -1890,13 +1893,24 @@ struct capi_get_profile_req {
 
 struct isdn_dr_prot;
 struct timeval;
+struct capi20_backend;
+
+extern uint16_t
+capi20_be_alloc_bintec(const char *hostname, const char *servname, const char *username, const char *password, struct capi20_backend **be_ptr);
+
+extern uint16_t
+capi20_be_alloc_i4b(struct capi20_backend **be_ptr);
+
+extern void
+capi20_be_free(struct capi20_backend *cbe);
 
 extern u_int16_t
-capi20_register(u_int32_t max_logical_connections,
+capi20_register(struct capi20_backend *cbe,
+		u_int32_t max_logical_connections,
 		u_int32_t max_b_data_blocks,
 		u_int32_t max_b_data_len,
-		u_int32_t *app_id_ptr,
-		u_int32_t stack_version);
+		u_int32_t stack_version,
+		uint32_t *app_id_ptr);
 
 extern u_int16_t
 capi20_release(u_int32_t app_id);
@@ -1911,30 +1925,38 @@ extern u_int16_t
 capi20_wait_for_message(u_int32_t app_id, struct timeval *timeval_ptr);
 
 extern u_int16_t
-capi20_get_manufacturer(u_int32_t controller, u_int8_t *buf_ptr, 
+capi20_get_manufacturer(struct capi20_backend *cbe, u_int32_t controller, char *buf_ptr, 
 			u_int16_t buf_len);
 
 extern u_int16_t
-capi20_get_version(u_int32_t controller, u_int8_t *buf_ptr, u_int16_t buf_len);
+capi20_get_version(struct capi20_backend *cbe, u_int32_t controller, char *buf_ptr, u_int16_t buf_len);
 
 extern u_int16_t
-capi20_get_serial_number(u_int32_t controller, u_int8_t *buf_ptr,
+capi20_get_serial_number(struct capi20_backend *cbe, u_int32_t controller, char *buf_ptr,
 			 u_int16_t buf_len);
 
 extern u_int16_t 
-capi20_get_profile(u_int32_t controller, void *buf_ptr, u_int16_t buf_len);
+capi20_get_profile(struct capi20_backend *cbe, u_int32_t controller, void *buf_ptr, u_int16_t buf_len);
 
 extern u_int16_t
-capi20_is_installed(void);
+capi20_is_installed(struct capi20_backend *cbe);
 
 extern int
 capi20_fileno(u_int32_t app_id);
 
+extern uint16_t
+capi20_encode(void *ptr, uint16_t len, void *ie);
+
+extern uint16_t
+capi20_decode(void *ptr, uint16_t len, void *ie);
+
+extern const char *
+capi20_get_errstr(uint16_t wError);
 
 /* extensions */
 
 extern u_int16_t
-capi_firmware_download(u_int32_t controller, struct isdn_dr_prot *protocols_ptr,
+capi_firmware_download(struct capi20_backend *cbe, u_int32_t controller, struct isdn_dr_prot *protocols_ptr,
 		       u_int16_t protocols_len);
 
 extern void
@@ -1951,14 +1973,11 @@ capi_translate_from_message_decoded(struct capi_message_decoded *mp,
 extern u_int16_t
 capi_put_message_decoded(struct capi_message_decoded *mp);
 
-extern const u_int8_t *
-capi_get_error_string(u_int16_t wError);
-
 extern u_int16_t
-capi_message_decoded_to_string(u_int8_t *dst, u_int16_t len, 
+capi_message_decoded_to_string(char *dst, u_int16_t len, 
 			       const struct capi_message_decoded *mp);
 
-extern const u_int8_t *
+extern const char *
 capi_get_command_string(u_int16_t wCmd);
 
 /* aliases */
@@ -1980,8 +1999,8 @@ capi_get_command_string(u_int16_t wCmd);
 #define capi20_put_cmsg         capi_put_message_decoded
 #define capi_put_cmsg           capi_put_message_decoded
 
-#define capi20_info2str         capi_get_error_string
-#define capi_info2str           capi_get_error_string
+#define capi20_info2str         capi20_get_errstr
+#define capi_info2str           capi20_get_errstr
 
 #define capi20_cmd2str(a,b)     capi_get_command_string(((b) << 8)|(a))
 #define capi_cmd2str(a,b)       capi_get_command_string(((b) << 8)|(a))
@@ -2029,19 +2048,19 @@ capi_message_decoded_header(struct capi_message_decoded *mp, u_int16_t wApp,
 
 #define capi20_cmsg2str capi_cmsg2str
 
-static __inline u_int8_t *
+static __inline char *
 capi_cmsg2str(struct capi_message_decoded *mp)
 {
-	static u_int8_t buffer[1024];
+	static char buffer[1024];
 
-	capi_message_decoded_to_string(&buffer[0], sizeof(buffer), mp);
+	capi_message_decoded_to_string(buffer, sizeof(buffer), mp);
 
-	return &buffer[0];
+	return buffer;
 }
 
 #define capi20_message2str capi_message2str
 
-static __inline u_int8_t *
+static __inline char *
 capi_message2str(u_int8_t *buf)
 {
 	struct capi_message_decoded msg;

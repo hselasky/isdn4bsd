@@ -75,6 +75,7 @@ static u_int8_t write_data_to_stdout = 0;
 static u_int8_t cip_value = 16; /* default: telephony */
 static u_int16_t num_calls_curr = 0;
 static u_int16_t num_calls_max = 1;
+static struct capi20_backend *cbe_p;
 
 /*---------------------------------------------------------------------------*
  *      A-law to u-law conversion
@@ -350,7 +351,7 @@ cd_event(struct call_desc *cd, u_int8_t event)
     switch(event) {
     case EV_DISCONNECT:
       fprintf(stderr, "%s: %s: disconnected: %s\n",
-	      __FILE__, __FUNCTION__, capi_get_error_string(cd->wReason));
+	      __FILE__, __FUNCTION__, capi20_get_errstr(cd->wReason));
 
       if(cd->no_disconnect_req == 0)
       {	
@@ -440,7 +441,7 @@ __capi_put_message_decoded(struct capi_message_decoded *mp, const char *where)
     {
 	fprintf(stderr, "%s: ERROR: %s, wCmd=%s\n",
 		where,
-		capi_get_error_string(error),
+		capi20_get_errstr(error),
 		capi_get_command_string(mp->head.wCmd));
     }
     return error;
@@ -1013,12 +1014,12 @@ capi_init_all_controllers(u_int8_t listen)
 
    /* get number of installed controllers */
 
-   error = capi20_get_profile(0, &profile, sizeof(profile));
+   error = capi20_get_profile(cbe_p, 0, &profile, sizeof(profile));
    if(error)
    {
        fprintf(stderr, "%s: %s: get profile returned error: %s\n",
 	       __FILE__, __FUNCTION__, 
-	       capi_get_error_string(error));
+	       capi20_get_errstr(error));
 
        return error;
    }
@@ -1033,7 +1034,7 @@ capi_init_all_controllers(u_int8_t listen)
 
    while(unit--)
    {
-       error = capi20_get_profile(unit+1, &profile, sizeof(profile));
+       error = capi20_get_profile(cbe_p, unit+1, &profile, sizeof(profile));
        if(error == 0)
        {
 	 if(verbose_level > 1)
@@ -1059,7 +1060,7 @@ capi_init_all_controllers(u_int8_t listen)
        if(error)
 	 fprintf(stderr,
 		 "%s: %s: capi send listen request failed, controller=0x%02x, error=%s\n",
-		 __FILE__, __FUNCTION__, unit+1, capi_get_error_string(error));
+		 __FILE__, __FUNCTION__, unit+1, capi20_get_errstr(error));
    }
    return 0;
 }
@@ -1070,6 +1071,13 @@ main(int argc, char **argv)
     u_int32_t temp;
     u_int16_t error;
     int c;
+
+    error = capi20_be_alloc_i4b(&cbe_p);
+    if (error) {
+            fprintf(stderr, "%s: %s: could not allocate I4B CAPI backend, error=%s\n",
+		__FILE__, __FUNCTION__, capi20_get_errstr(error));
+	    return -1;
+    }
 
     while ((c = getopt(argc, argv, "c:u:d:i:o:p:sn:")) != -1)
     {
@@ -1112,7 +1120,7 @@ main(int argc, char **argv)
 
     if((dst_telno[0] == 0) && (src_telno[0] == 0)) usage();
 
-    error = capi20_is_installed();
+    error = capi20_is_installed(cbe_p);
     if(error)
     {
         fprintf(stderr, "CAPI 2.0 not installed! "
@@ -1121,11 +1129,11 @@ main(int argc, char **argv)
     }
 
     /* register at CAPI, only two connections will be established */
-    error = capi20_register (2, 7, MAX_BDATA_LEN, &temp, CAPI_STACK_VERSION);
+    error = capi20_register(cbe_p, 2, 7, MAX_BDATA_LEN, CAPI_STACK_VERSION, &temp);
     if(error)
     {
         fprintf(stderr, "%s: %s: could not register by CAPI, error=%s\n",
-		__FILE__, __FUNCTION__, capi_get_error_string(error));
+		__FILE__, __FUNCTION__, capi20_get_errstr(error));
 	return -1;
     }
 
@@ -1141,11 +1149,11 @@ main(int argc, char **argv)
     loop();
 
     /* release CAPI application */
-    error = capi20_release (app_id);
+    error = capi20_release(app_id);
     if(error)
     {
         fprintf(stderr, "%s: %s: could not release CAPI application! error=%s\n",
-		__FILE__, __FUNCTION__,  capi_get_error_string(error));
+		__FILE__, __FUNCTION__,  capi20_get_errstr(error));
 	return -1;
     }
     return 0;
