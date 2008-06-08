@@ -1,4 +1,4 @@
-$FreeBSD: src/sys/dev/usb/usbdevs,v 1.346 2008/04/09 22:20:28 flz Exp $
+$FreeBSD: src/sys/dev/usb/usbdevs,v 1.359 2008/06/05 16:56:56 attilio Exp $
 /* $NetBSD: usbdevs,v 1.392 2004/12/29 08:38:44 imp Exp $ */
 
 /*-
@@ -831,6 +831,7 @@ product ANCHOR EZLINK		0x2720	EZLINK
 
 /* AnyData products */
 product ANYDATA ADU_E100X	0x6501	CDMA 2000 1xRTT/EV-DO USB Modem
+product ANYDATA ADU_500A	0x6502	CDMA 2000 EV-DO USB Modem
 
 /* AOX, Inc. products */
 product AOX USB101		0x0008	Ethernet
@@ -854,6 +855,7 @@ product APPLE IPOD_07		0x1207	iPod '07'
 product APPLE IPOD_08		0x1208	iPod '08'
 product APPLE IPODVIDEO		0x1209	iPod Video
 product APPLE IPODNANO		0x120a	iPod Nano
+product APPLE ETHERNET		0x1402	Ethernet A1277
 
 /* Arkmicro Technologies */
 product ARKMICRO ARK3116	0x0232	ARK3116 Serial
@@ -965,6 +967,7 @@ product CANON LIDE25		0x2220	CanoScan LIDE 25
 product CANON S10		0x3041	PowerShot S10
 product CANON S100		0x3045	PowerShot S100
 product CANON S200		0x3065	PowerShot S200
+product CANON REBELXT		0x30ef	Digital Rebel XT
 
 /* CATC products */
 product CATC NETMATE		0x000a	Netmate Ethernet
@@ -974,6 +977,7 @@ product CATC ANDROMEDA		0x1237	Andromeda hub
 
 /* CASIO products */
 product CASIO QV_DIGICAM	0x1001	QV DigiCam
+product CASIO EXS880		0x1105	Exilim EX-S880
 product CASIO BE300		0x2002	BE-300 PDA
 product CASIO NAMELAND		0x4001	CASIO Nameland EZ-USB
 
@@ -1092,6 +1096,7 @@ product DELL PORT		0x0058	Port Replicator
 product DELL AIO926		0x5115	Photo AIO Printer 926
 product DELL BC02		0x8000	BC02 Bluetooth USB Adapter
 product DELL TM350		0x8103	TrueMobile 350 Bluetooth USB Adapter
+product DELL U740		0x8135	Dell U740 CDMA
 
 /* Delorme Paublishing products */
 product DELORME EARTHMATE	0x0100	Earthmate GPS
@@ -1215,9 +1220,11 @@ product EPSON STYLUS_895	0x0602	Stylus Photo 895 Card Reader
 product EPSON CX5400		0x0808	CX5400 scanner
 product EPSON 3500		0x080e	CX-3500/3600/3650 MFP
 product EPSON RX425		0x080f	Stylus Photo RX425 scanner
+product EPSON 4800		0x0819	CX4800 MP scanner
 product EPSON 4200		0x0820	CX4200 MP scanner
 product EPSON 5000		0x082b  DX-50x0 MFP scanner
 product EPSON 6000		0x082e  DX-60x0 MFP scanner
+product EPSON DX8400		0x0839	DX8400 scanner
 
 /* e-TEK Labs products */
 product ETEK 1COM		0x8007	Serial
@@ -1398,6 +1405,8 @@ product HP HN210E		0x811c	Ethernet HN210E
 product HP2 C500		0x6002	PhotoSmart C500
 
 /* HTC products */
+product HTC WINMOBILE		0x00ce	HTC USB Sync
+product HTC PPC6700MODEM	0x00cf	PPC6700 Modem
 product HTC SMARTPHONE		0x0a51	SmartPhone USB Sync
 
 /* HUAWEI products */
@@ -1664,6 +1673,7 @@ product MICROSOFT MN110		0x007a	10/100 USB NIC
 product MICROSOFT WLINTELLIMOUSE 0x008c	Wireless Optical IntelliMouse
 product MICROSOFT WLNOTEBOOK	0x00b9	Wireless Optical Mouse (Model 1023)
 product MICROSOFT WLNOTEBOOK2	0x00e1	Wireless Optical Mouse 3000 (Model 1056)
+product MICROSOFT WLNOTEBOOK3	0x00d2	Wireless Optical Mouse 3000 (Model 1049)
 product MICROSOFT WLUSBMOUSE	0x00b9	Wireless USB Mouse
 product MICROSOFT XBOX360	0x0292	XBOX 360 WLAN
 
@@ -1780,6 +1790,7 @@ product NETGEAR3 WPN111_NF	0x5f01	WPN111 (no firmware)
 /* Nikon products */
 product NIKON E990		0x0102	Digital Camera E990
 product NIKON LS40		0x4000	CoolScan LS40 ED
+product NIKON D300		0x041a  Digital Camera D300
 
 /* NovaTech Products */
 product NOVATECH NV902		0x9020	NovaTech NV-902W
@@ -1822,6 +1833,7 @@ product OPTION VODAFONEMC3G	0x5000	Vodafone Mobile Connect 3G datacard
 product OPTION GT3G		0x6000	GlobeTrotter 3G datacard
 product OPTION GT3GQUAD		0x6300	GlobeTrotter 3G QUAD datacard
 product OPTION GT3GPLUS		0x6600	GlobeTrotter 3G+ datacard
+product OPTION GTMAX36		0x6701	GlobeTrotter Max 3.6 Modem
 
 /* OQO */
 product OQO WIFI01		0x0002	model 01 WiFi interface
@@ -1970,6 +1982,14 @@ product RALINK RT2573_2		0x9021	RT2501USB Wireless Adapter
 /* Green House and CompUSA OEM this part */
 product REALTEK USBKR100	0x8150	USBKR100 USB Ethernet
 
+/* Ricoh products */
+product RICOH VGPVCC2		0x1830	VGP-VCC2 Camera
+product RICOH VGPVCC3		0x1832	VGP-VCC3 Camera
+product RICOH VGPVCC2_2		0x1833	VGP-VCC2 Camera
+product RICOH VGPVCC2_3		0x1834	VGP-VCC2 Camera
+product RICOH VGPVCC7		0x183a	VGP-VCC7 Camera
+product RICOH VGPVCC8		0x183b	VGP-VCC8 Camera
+
 /* Roland products */
 product ROLAND UM1		0x0009	UM-1 MIDI I/F
 product ROLAND UM880N		0x0014	EDIROL UM-880 MIDI I/F (native)
@@ -2017,6 +2037,7 @@ product SENAO NUB8301		0x2000	NUB-8301
 
 /* ShanTou products */
 product SHANTOU ST268		0x0268	ST268
+product SHANTOU DM9601		0x9601	DM 9601
 
 /* Shark products */
 product SHARK PA		0x0400	Pocket Adapter

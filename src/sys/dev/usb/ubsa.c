@@ -25,7 +25,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.35 2008/04/09 22:20:28 flz Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ubsa.c,v 1.38 2008/06/05 16:56:56 attilio Exp $");
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -265,6 +265,8 @@ struct ubsa_product {
 };
 
 static const struct ubsa_product ubsa_products[] = {
+	/* AnyData ADU-500A */
+	{USB_VENDOR_ANYDATA, USB_PRODUCT_ANYDATA_ADU_500A},
 	/* AnyData ADU-E100A/H */
 	{USB_VENDOR_ANYDATA, USB_PRODUCT_ANYDATA_ADU_E100X},
 	/* Axesstel MV100H */
@@ -281,6 +283,8 @@ static const struct ubsa_product ubsa_products[] = {
 	{USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_SERIAL1},
 	/* Novatel Wireless Merlin cards */
 	{USB_VENDOR_NOVATEL, USB_PRODUCT_NOVATEL_U740},
+	/* Dell version of the above */
+	{USB_VENDOR_DELL, USB_PRODUCT_DELL_U740},
 	/* Novatel Wireless Merlin v740 */
 	{USB_VENDOR_NOVATEL, USB_PRODUCT_NOVATEL_V740},
 	/* Option Vodafone MC3G */
@@ -289,6 +293,8 @@ static const struct ubsa_product ubsa_products[] = {
 	{USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3G},
 	/* Option GlobeTrotter 3G+ */
 	{USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GPLUS},
+	/* Option GlobeTrotter Max 3.6 */
+	{USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GTMAX36},
 	/* Option GlobeTrotter 3G QUAD */
 	{USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GQUAD},
 	/* Huawei Mobile */

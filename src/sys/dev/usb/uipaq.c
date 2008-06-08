@@ -49,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.9 2008/04/16 21:15:10 stas Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.11 2008/05/08 21:22:27 delphij Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -164,6 +164,8 @@ static const struct usb_devno uipaq_devs[] = {
 	{USB_VENDOR_HTC, USB_PRODUCT_HTC_SMARTPHONE},
 	{USB_VENDOR_HP, USB_PRODUCT_HP_2215},
 	{USB_VENDOR_HP, USB_PRODUCT_HP_568J},
+	{USB_VENDOR_HTC, USB_PRODUCT_HTC_WINMOBILE},
+	{USB_VENDOR_HTC, USB_PRODUCT_HTC_PPC6700MODEM},
 	{USB_VENDOR_COMPAQ, USB_PRODUCT_COMPAQ_IPAQPOCKETPC},
 	{USB_VENDOR_CASIO, USB_PRODUCT_CASIO_BE300},
 	{USB_VENDOR_SHARP, USB_PRODUCT_SHARP_WZERO3ES},

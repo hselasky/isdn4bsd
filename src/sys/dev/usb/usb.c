@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb.c,v 1.121 2007/10/20 23:23:18 julian Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/usb.c,v 1.122 2008/05/20 12:34:30 pjd Exp $");
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.

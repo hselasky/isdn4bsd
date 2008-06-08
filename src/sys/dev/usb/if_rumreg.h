@@ -183,6 +183,7 @@ struct rum_tx_desc {
 
 	uint16_t xflags;
 #define	RT2573_TX_HWSEQ		(1 << 12)
+#define	RT2573_TX_BEACON        (1 << 15)	/* Internal flag only! */
 
 	uint8_t	plcp_signal;
 	uint8_t	plcp_service;

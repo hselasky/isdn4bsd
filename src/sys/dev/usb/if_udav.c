@@ -1,6 +1,6 @@
 /*	$NetBSD: if_udav.c,v 1.2 2003/09/04 15:17:38 tsutsui Exp $	*/
 /*	$nabe: if_udav.c,v 1.3 2003/08/21 16:57:19 nabe Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.35 2008/01/24 12:34:25 attilio Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.36 2008/04/26 05:46:28 imp Exp $	*/
 /*-
  * Copyright (c) 2003
  *     Shingo WATANABE <nabe@nabechan.org>.  All rights reserved.
@@ -49,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.35 2008/01/24 12:34:25 attilio Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_udav.c,v 1.36 2008/04/26 05:46:28 imp Exp $");
 
 #include "opt_inet.h"
 
@@ -255,16 +255,14 @@ struct udav_type {
 };
 
 static const struct udav_type udav_devs[] = {
+	/* ShanTou DM9601 USB NIC */
+	{{USB_VENDOR_SHANTOU, USB_PRODUCT_SHANTOU_DM9601}, 0},
+
 	/* ShanTou ST268 USB NIC */
 	{{USB_VENDOR_SHANTOU, USB_PRODUCT_SHANTOU_ST268}, 0},
 
 	/* Corega USB-TXC */
 	{{USB_VENDOR_COREGA, USB_PRODUCT_COREGA_FETHER_USB_TXC}, 0},
-#if 0
-	/* DAVICOM DM9601 Generic? */
-	/* XXX: The following ids was obtained from the data sheet. */
-	{{0x0a46, 0x9601}, 0},
-#endif
 };
 
 #define	udav_lookup(v, p) ((const struct udav_type *)usb_lookup(udav_devs, v, p))

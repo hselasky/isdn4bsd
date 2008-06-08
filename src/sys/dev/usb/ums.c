@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ums.c,v 1.98 2008/03/12 20:20:36 jhb Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ums.c,v 1.99 2008/04/30 19:37:54 kaiw Exp $");
 
 /*
  * HID spec: http://www.usb.org/developers/devclass_docs/HID1_11.pdf
@@ -535,6 +535,27 @@ ums_attach(device_t dev)
 		sc->sc_loc_btn[0].pos = 8;
 		sc->sc_loc_btn[1].pos = 9;
 		sc->sc_loc_btn[2].pos = 10;
+	}
+	/*
+	 * The Microsoft Wireless Notebook Optical Mouse 3000 Model 1049 has
+	 * five Report IDs: 19 23 24 17 18 (in the order they appear in report
+	 * descriptor), it seems that report id 17 contains the necessary
+	 * mouse information(3-buttons,X,Y,wheel) so we specify it manually.
+	 */
+	if ((uaa->vendor == USB_VENDOR_MICROSOFT) &&
+	    (uaa->product == USB_PRODUCT_MICROSOFT_WLNOTEBOOK3)) {
+		sc->sc_flags = (UMS_FLAG_X_AXIS |
+		    UMS_FLAG_Y_AXIS |
+		    UMS_FLAG_Z_AXIS);
+		sc->sc_buttons = 3;
+		isize = 5;
+		sc->sc_iid = 17;
+		sc->sc_loc_x.pos = 8;
+		sc->sc_loc_y.pos = 16;
+		sc->sc_loc_z.pos = 24;
+		sc->sc_loc_btn[0].pos = 0;
+		sc->sc_loc_btn[1].pos = 1;
+		sc->sc_loc_btn[2].pos = 2;
 	}
 	if (quirks.uq_flags & UQ_MS_REVZ) {
 		/* Some wheels need the Z axis reversed. */

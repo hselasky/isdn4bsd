@@ -1,4 +1,4 @@
-/*	$FreeBSD$	*/
+/*	$FreeBSD: src/sys/dev/usb/if_rumvar.h,v 1.3 2008/04/20 20:35:38 sam Exp $ 	*/
 
 /*-
  * Copyright (c) 2005, 2006 Damien Bergamini <damien.bergamini@free.fr>
@@ -19,26 +19,47 @@
 
 #define	RUM_N_TRANSFER 4
 
+struct rum_node {
+	struct ieee80211_node ni;
+	struct ieee80211_amrr_node amn;
+};
+
+#define	RUM_NODE(ni)   ((struct rum_node *)(ni))
+
+struct rum_vap {
+	struct ieee80211vap vap;
+	struct ieee80211_beacon_offsets bo;
+	struct ieee80211_amrr amrr;
+
+	int     (*newstate) (struct ieee80211vap *,
+	    	enum	ieee80211_state, int);
+};
+
+#define	RUM_VAP(vap)   ((struct rum_vap *)(vap))
+
+struct rum_config_copy_chan {
+	uint32_t chan_to_ieee;
+	enum ieee80211_phymode chan_to_mode;
+	uint8_t	chan_is_5ghz:1;
+	uint8_t	chan_is_2ghz:1;
+	uint8_t	chan_is_b:1;
+	uint8_t	chan_is_a:1;
+	uint8_t	chan_is_g:1;
+	uint8_t	unused:3;
+};
+
+struct rum_config_copy_bss {
+	uint16_t ni_intval;
+	uint8_t	ni_bssid[IEEE80211_ADDR_LEN];
+	uint8_t	fixed_rate_none;
+};
+
 struct rum_config_copy {
-	struct {
-		uint32_t chan_to_ieee;
-		uint8_t	chan_is_2ghz;
-		uint8_t	chan_is_5ghz;
-		uint8_t	chan_is_b;
-		uint8_t	chan_is_a;
-	}	ic_curchan;
-
-	struct {
-		struct {
-			uint8_t	chan_is_5ghz;
-		}	ni_chan;
-
-		uint16_t ni_intval;
-		uint8_t	ni_bssid[IEEE80211_ADDR_LEN];
-	}	ic_bss;
+	struct rum_config_copy_chan ic_curchan;
+	struct rum_config_copy_chan ic_bsschan;
+	struct rum_config_copy_bss iv_bss;
 
 	enum ieee80211_opmode ic_opmode;
-	enum ieee80211_state ic_state;
 	uint32_t ic_flags;
 	uint32_t if_flags;
 
@@ -81,47 +102,42 @@ struct rum_tx_radiotap_header {
 	 (1 << IEEE80211_RADIOTAP_CHANNEL) |				\
 	 (1 << IEEE80211_RADIOTAP_ANTENNA))
 
-union rum_rxtap {
-	struct rum_rx_radiotap_header h;
-	uint8_t	pad[64];
-};
-
-union rum_txtap {
-	struct rum_tx_radiotap_header h;
-	uint8_t	pad[64];
-};
-
 struct rum_bbp_prom {
 	uint8_t	val;
 	uint8_t	reg;
 } __packed;
 
+struct rum_ifq {
+	struct mbuf *ifq_head;
+	struct mbuf *ifq_tail;
+	uint16_t ifq_len;
+};
+
 struct rum_softc {
 	void   *sc_evilhack;		/* XXX this pointer must be first */
 
+	struct rum_ifq sc_tx_queue;
 	struct usbd_config_td sc_config_td;
 	struct rum_tx_desc sc_tx_desc;
 	struct rum_rx_desc sc_rx_desc;
-	struct ieee80211com sc_ic;
-	struct ieee80211_amrr sc_amrr;
-	struct ieee80211_amrr_node sc_amn;
-	struct ieee80211_beacon_offsets sc_bo;
 	struct mtx sc_mtx;
 	struct usb_callout sc_watchdog;
 	struct rum_bbp_prom sc_bbp_prom[16];
-	union rum_rxtap sc_rxtap;
-	union rum_txtap sc_txtap;
+	struct rum_rx_radiotap_header sc_rxtap;
+	struct rum_tx_radiotap_header sc_txtap;
 
 	struct usbd_xfer *sc_xfer[RUM_N_TRANSFER];
 	struct ifnet *sc_ifp;
-	struct bpf_if *sc_drvbpf;
 	struct usbd_device *sc_udev;
+	const struct ieee80211_rate_table *sc_rates;
 
 	int     (*sc_newstate)
 	        (struct ieee80211com *, enum ieee80211_state, int);
 
+	enum ieee80211_state sc_ns_state;
 	uint32_t sc_sta[6];
 	uint32_t sc_unit;
+	int	sc_ns_arg;
 
 	uint16_t sc_flags;
 #define	RUM_FLAG_READ_STALL		0x0001
@@ -147,6 +163,7 @@ struct rum_softc {
 	uint8_t	sc_hw_radio;
 	uint8_t	sc_amrr_timer;
 	uint8_t	sc_name[32];
+	uint8_t	sc_beacon_buf[0x800];
 
 	int8_t	sc_rssi_2ghz_corr;
 	int8_t	sc_rssi_5ghz_corr;

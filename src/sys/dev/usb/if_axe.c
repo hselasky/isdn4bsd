@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_axe.c,v 1.57 2008/03/07 16:55:24 marcel Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_axe.c,v 1.58 2008/05/13 14:00:09 cognet Exp $");
 
 /*
  * ASIX Electronics AX88172/AX88178/AX88778 USB 2.0 ethernet driver. Used in the
@@ -142,6 +142,7 @@ SYSCTL_INT(_hw_usb_axe, OID_AUTO, debug, CTLFLAG_RW, &axe_debug, 0,
 static struct axe_type axe_devs[] = {
 	{USB_VENDOR_ABOCOM, USB_PRODUCT_ABOCOM_UF200, 0},
 	{USB_VENDOR_ACERCM, USB_PRODUCT_ACERCM_EP1427X2, 0},
+	{USB_VENDOR_APPLE, USB_PRODUCT_APPLE_ETHERNET, AXE_FLAG_772},
 	{USB_VENDOR_ASIX, USB_PRODUCT_ASIX_AX88172, 0},
 	{USB_VENDOR_ASIX, USB_PRODUCT_ASIX_AX88178, AXE_FLAG_178},
 	{USB_VENDOR_ASIX, USB_PRODUCT_ASIX_AX88772, AXE_FLAG_772},
@@ -374,7 +375,7 @@ axe_cfg_miibus_readreg(device_t dev, int phy, int reg)
 
 	val = le16toh(val);
 
-	if (val) {
+	if (val && (val != 0xffff)) {
 		sc->sc_phyaddrs[0] = phy;
 	}
 done:

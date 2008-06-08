@@ -52,7 +52,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ehci.c,v 1.62 2008/03/20 16:19:25 sam Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/ehci.c,v 1.63 2008/05/13 20:58:08 marius Exp $");
 
 #include <sys/param.h>
 #include <sys/systm.h>

@@ -1,4 +1,4 @@
-/*	$FreeBSD: src/sys/dev/usb/if_uralvar.h,v 1.9 2007/06/11 03:36:52 sam Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb/if_uralvar.h,v 1.10 2008/04/20 20:35:38 sam Exp $	*/
 
 /*-
  * Copyright (c) 2005
@@ -19,25 +19,47 @@
 
 #define	URAL_N_TRANSFER 4
 
+struct ural_node {
+	struct ieee80211_node ni;
+	struct ieee80211_amrr_node amn;
+};
+
+#define	URAL_NODE(ni)   ((struct ural_node *)(ni))
+
+struct ural_vap {
+	struct ieee80211vap vap;
+	struct ieee80211_beacon_offsets bo;
+	struct ieee80211_amrr amrr;
+
+	int     (*newstate) (struct ieee80211vap *,
+	    	enum	ieee80211_state, int);
+};
+
+#define	URAL_VAP(vap)   ((struct ural_vap *)(vap))
+
+struct ural_config_copy_chan {
+	uint32_t chan_to_ieee;
+	enum ieee80211_phymode chan_to_mode;
+	uint8_t	chan_is_5ghz:1;
+	uint8_t	chan_is_2ghz:1;
+	uint8_t	chan_is_b:1;
+	uint8_t	chan_is_a:1;
+	uint8_t	chan_is_g:1;
+	uint8_t	unused:3;
+};
+
+struct ural_config_copy_bss {
+	uint16_t ni_intval;
+	uint8_t	ni_bssid[IEEE80211_ADDR_LEN];
+	uint8_t	fixed_rate_none;
+};
+
 struct ural_config_copy {
-	struct {
-		uint32_t chan_to_ieee;
-		uint8_t	chan_is_2ghz;
-		uint8_t	chan_is_b;
-		uint8_t	chan_is_a;
-	}	ic_curchan;
-
-	struct {
-		struct {
-			uint8_t	chan_is_5ghz;
-		}	ni_chan;
-
-		uint16_t ni_intval;
-		uint8_t	ni_bssid[IEEE80211_ADDR_LEN];
-	}	ic_bss;
+	struct ural_config_copy_chan ic_curchan;
+	struct ural_config_copy_chan ic_bsschan;
+	struct ural_config_copy_bss iv_bss;
 
 	enum ieee80211_opmode ic_opmode;
-	enum ieee80211_state ic_state;
 	uint32_t ic_flags;
 	uint32_t if_flags;
 
@@ -80,63 +102,50 @@ struct ural_tx_radiotap_header {
 	     (1 << IEEE80211_RADIOTAP_CHANNEL) |			\
 	     (1 << IEEE80211_RADIOTAP_ANTENNA))
 
-union ural_rxtap {
-	struct ural_rx_radiotap_header h;
-	uint8_t	pad[64];
-};
-
-union ural_txtap {
-	struct ural_tx_radiotap_header h;
-	uint8_t	pad[64];
-};
-
 struct ural_bbp_prom {
 	uint8_t	val;
 	uint8_t	reg;
 } __packed;
 
+struct ural_ifq {
+	struct mbuf *ifq_head;
+	struct mbuf *ifq_tail;
+	uint16_t ifq_len;
+};
+
 struct ural_softc {
 	void   *sc_evilhack;		/* XXX this pointer must be first */
 
+	struct ural_ifq sc_tx_queue;
 	struct usbd_config_td sc_config_td;
 	struct ural_tx_desc sc_tx_desc;
 	struct ural_rx_desc sc_rx_desc;
-	struct ieee80211com sc_ic;
-	struct ieee80211_amrr sc_amrr;
-	struct ieee80211_amrr_node sc_amn;
-	struct ieee80211_beacon_offsets sc_bo;
 	struct mtx sc_mtx;
 	struct usb_callout sc_watchdog;
 	struct ural_bbp_prom sc_bbp_prom[16];
-	union ural_rxtap sc_rxtap;
-	union ural_txtap sc_txtap;
+	struct ural_rx_radiotap_header sc_rxtap;
+	struct ural_tx_radiotap_header sc_txtap;
 
 	struct usbd_xfer *sc_xfer[URAL_N_TRANSFER];
-	struct mbuf *sc_bcn_mbuf;
 	struct ifnet *sc_ifp;
-	struct bpf_if *sc_drvbpf;
 	struct usbd_device *sc_udev;
+	const struct ieee80211_rate_table *sc_rates;
 
-	int     (*sc_newstate)
-	        (struct ieee80211com *, enum ieee80211_state, int);
-
-	uint32_t sc_bcn_flags;
+	enum ieee80211_state sc_ns_state;
 	uint32_t sc_unit;
 	uint32_t sc_asic_rev;
 	uint32_t sc_rf_regs[4];
+	int	sc_ns_arg;
 
 	uint16_t sc_flags;
 #define	URAL_FLAG_READ_STALL		0x0001
 #define	URAL_FLAG_WRITE_STALL		0x0002
-#define	URAL_FLAG_SEND_BYTE_FRAME	0x0004
-#define	URAL_FLAG_SEND_BCN_FRAME	0x0008
-#define	URAL_FLAG_LL_READY		0x0010
-#define	URAL_FLAG_HL_READY		0x0020
-#define	URAL_FLAG_WAIT_COMMAND		0x0040
+#define	URAL_FLAG_LL_READY		0x0004
+#define	URAL_FLAG_HL_READY		0x0008
+#define	URAL_FLAG_WAIT_COMMAND		0x0010
 	uint16_t sc_txtap_len;
 	uint16_t sc_rxtap_len;
 	uint16_t sc_sta[11];
-	uint16_t sc_bcn_rate;
 
 	uint8_t	sc_rf_rev;
 	uint8_t	sc_txpow[14];

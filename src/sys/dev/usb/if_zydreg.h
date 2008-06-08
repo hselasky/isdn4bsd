@@ -1101,11 +1101,6 @@ struct zyd_mac_pair {
 	uint32_t val;
 };
 
-struct zyd_node {
-	struct ieee80211_node ni;	/* must be the first */
-	struct ieee80211_amrr_node amn;
-};
-
 struct zyd_rx_radiotap_header {
 	struct ieee80211_radiotap_header wr_ihdr;
 	uint8_t	wr_flags;
@@ -1158,6 +1153,68 @@ enum {
 	ZYD_N_TRANSFER,
 };
 
+struct zyd_ifq {
+	struct mbuf *ifq_head;
+	struct mbuf *ifq_tail;
+	uint16_t ifq_len;
+};
+
+struct zyd_node {
+	struct ieee80211_node ni;
+	struct ieee80211_amrr_node amn;
+};
+
+#define	ZYD_NODE(ni)   ((struct zyd_node *)(ni))
+
+struct zyd_vap {
+	struct ieee80211vap vap;
+	struct ieee80211_beacon_offsets bo;
+	struct ieee80211_amrr amrr;
+
+	int     (*newstate) (struct ieee80211vap *,
+	    	enum	ieee80211_state, int);
+};
+
+#define	ZYD_VAP(vap)   ((struct zyd_vap *)(vap))
+
+struct zyd_config_copy_chan {
+	uint32_t chan_to_ieee;
+	enum ieee80211_phymode chan_to_mode;
+	uint16_t ic_freq;
+	uint8_t	chan_is_5ghz:1;
+	uint8_t	chan_is_2ghz:1;
+	uint8_t	chan_is_b:1;
+	uint8_t	chan_is_a:1;
+	uint8_t	chan_is_g:1;
+	uint8_t	unused:3;
+};
+
+struct zyd_config_copy_bss {
+	uint16_t ni_intval;
+	uint8_t	ni_bssid[IEEE80211_ADDR_LEN];
+	uint8_t	fixed_rate_none;
+};
+
+struct zyd_config_copy {
+	struct zyd_config_copy_chan ic_curchan;
+	struct zyd_config_copy_chan ic_bsschan;
+	struct zyd_config_copy_bss iv_bss;
+
+	enum ieee80211_opmode ic_opmode;
+
+	uint32_t ic_flags;
+	uint32_t if_flags;
+
+	uint32_t zyd_multi_low;
+	uint32_t zyd_multi_high;
+
+	uint16_t ic_txpowlimit;
+	uint16_t ic_curmode;
+
+	uint8_t	ic_myaddr[IEEE80211_ADDR_LEN];
+	uint8_t	if_broadcastaddr[IEEE80211_ADDR_LEN];
+};
+
 struct zyd_softc {
 	void   *sc_evilhack;		/* XXX this pointer must be first */
 
@@ -1172,6 +1229,8 @@ struct zyd_softc {
 	struct zyd_tx_radiotap_header sc_txtap;
 	struct zyd_cmd sc_intr_ibuf;
 	struct zyd_cmd sc_intr_obuf;
+	struct zyd_tx_desc sc_tx_desc;
+	struct zyd_ifq sc_tx_queue;
 
 	struct ifnet *sc_ifp;
 	int     (*sc_newstate) (struct ieee80211com *,
@@ -1179,10 +1238,13 @@ struct zyd_softc {
 	struct usbd_device *sc_udev;
 	struct usbd_xfer *sc_xfer[ZYD_N_TRANSFER];
 	struct bpf_if *sc_drvbpf;
+	const struct ieee80211_rate_table *sc_rates;
 
+	enum ieee80211_state sc_ns_state;
 	uint32_t sc_rxtap_len;
 	uint32_t sc_txtap_len;
 	uint32_t sc_unit;
+	int	sc_ns_arg;
 
 	uint16_t sc_firmware_base;
 	uint16_t sc_fw_ver;
@@ -1218,35 +1280,4 @@ struct zyd_softc {
 	uint8_t	sc_amrr_timer;
 
 	uint8_t	sc_name[16];
-};
-
-struct zyd_config_copy {
-	struct {
-		uint32_t chan_to_ieee;
-		uint16_t ic_freq;
-		uint8_t	chan_is_2ghz;
-	}	ic_curchan;
-
-	struct {
-		struct {
-			uint8_t	chan_is_5ghz;
-		}	ni_chan;
-
-		uint16_t ni_intval;
-		uint8_t	ni_bssid[IEEE80211_ADDR_LEN];
-	}	ic_bss;
-
-	enum ieee80211_opmode ic_opmode;
-	enum ieee80211_state ic_state;
-	uint32_t ic_flags;
-	uint32_t if_flags;
-
-	uint32_t zyd_multi_low;
-	uint32_t zyd_multi_high;
-
-	uint16_t ic_txpowlimit;
-	uint16_t ic_curmode;
-
-	uint8_t	ic_myaddr[IEEE80211_ADDR_LEN];
-	uint8_t	if_broadcastaddr[IEEE80211_ADDR_LEN];
 };
