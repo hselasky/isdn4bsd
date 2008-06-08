@@ -1,3 +1,5 @@
+/*	$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.74 2008/06/07 18:38:02 sam Exp $	*/
+
 /*-
  * Copyright (c) 2005, 2006
  *	Damien Bergamini <damien.bergamini@free.fr>
@@ -26,7 +28,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.73 2008/05/12 00:32:52 sam Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb/if_ural.c,v 1.74 2008/06/07 18:38:02 sam Exp $");
 
 /*-
  * Ralink Technology RT2500USB chipset driver
@@ -151,7 +153,7 @@ static uint8_t ural_cfg_bbp_init(struct ural_softc *sc);
 static void ural_cfg_amrr_start(struct ural_softc *sc);
 static struct ieee80211vap *ural_vap_create(struct ieee80211com *ic, const char name[IFNAMSIZ], int unit, int opmode, int flags, const uint8_t bssid[IEEE80211_ADDR_LEN], const uint8_t mac[IEEE80211_ADDR_LEN]);
 static void ural_vap_delete(struct ieee80211vap *);
-static struct ieee80211_node *ural_node_alloc(struct ieee80211_node_table *);
+static struct ieee80211_node *ural_node_alloc(struct ieee80211vap *vap, const uint8_t mac[IEEE80211_ADDR_LEN]);
 static void ural_newassoc(struct ieee80211_node *, int);
 static void ural_cfg_disable_tsf_sync(struct ural_softc *sc);
 static void ural_cfg_set_run(struct ural_softc *sc, struct ural_config_copy *cc);
@@ -2304,8 +2306,6 @@ ural_cfg_amrr_start(struct ural_softc *sc)
 	/* init AMRR */
 
 	ieee80211_amrr_node_init(&URAL_VAP(vap)->amrr, &URAL_NODE(ni)->amn, ni);
-	XXX;
-
 	/* enable AMRR timer */
 
 	sc->sc_amrr_timer = 1;
@@ -2402,8 +2402,10 @@ ural_vap_delete(struct ieee80211vap *vap)
 	return;
 }
 
+/* ARGUSED */
 static struct ieee80211_node *
-ural_node_alloc(struct ieee80211_node_table *nt)
+ural_node_alloc(struct ieee80211vap *vap __unused,
+    const uint8_t mac[IEEE80211_ADDR_LEN] __unused)
 {
 	struct ural_node *un;
 

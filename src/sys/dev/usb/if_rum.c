@@ -147,7 +147,7 @@ static void rum_watchdog(void *arg);
 static uint8_t rum_get_rssi(struct rum_softc *sc, uint8_t raw);
 static struct ieee80211vap *rum_vap_create(struct ieee80211com *ic, const char name[IFNAMSIZ], int unit, int opmode, int flags, const uint8_t bssid[IEEE80211_ADDR_LEN], const uint8_t mac[IEEE80211_ADDR_LEN]);
 static void rum_vap_delete(struct ieee80211vap *);
-static struct ieee80211_node *rum_node_alloc(struct ieee80211_node_table *);
+static struct ieee80211_node *rum_node_alloc(struct ieee80211vap *vap, const uint8_t mac[IEEE80211_ADDR_LEN]);
 static void rum_newassoc(struct ieee80211_node *, int);
 static void rum_cfg_disable_tsf_sync(struct rum_softc *sc);
 static void rum_cfg_set_run(struct rum_softc *sc, struct rum_config_copy *cc);
@@ -2395,7 +2395,6 @@ rum_cfg_amrr_start(struct rum_softc *sc)
 	/* init AMRR */
 
 	ieee80211_amrr_node_init(&RUM_VAP(vap)->amrr, &RUM_NODE(ni)->amn, ni);
-	XXX;
 
 	/* enable AMRR timer */
 
@@ -2614,8 +2613,10 @@ rum_vap_delete(struct ieee80211vap *vap)
 	return;
 }
 
+/* ARGUSED */
 static struct ieee80211_node *
-rum_node_alloc(struct ieee80211_node_table *nt)
+rum_node_alloc(struct ieee80211vap *vap __unused,
+    const uint8_t mac[IEEE80211_ADDR_LEN] __unused)
 {
 	struct rum_node *rn;
 

@@ -149,7 +149,7 @@ static void zyd_set_channel_cb(struct ieee80211com *ic);
 static void zyd_cfg_set_led(struct zyd_softc *sc, uint32_t which, uint8_t on);
 static struct ieee80211vap *zyd_vap_create(struct ieee80211com *ic, const char name[IFNAMSIZ], int unit, int opmode, int flags, const uint8_t bssid[IEEE80211_ADDR_LEN], const uint8_t mac[IEEE80211_ADDR_LEN]);
 static void zyd_vap_delete(struct ieee80211vap *);
-static struct ieee80211_node *zyd_node_alloc_cb(struct ieee80211_node_table *);
+static struct ieee80211_node *zyd_node_alloc_cb(struct ieee80211vap *vap, const uint8_t mac[IEEE80211_ADDR_LEN]);
 static void zyd_cfg_set_run(struct zyd_softc *sc, struct zyd_config_copy *cc);
 static void zyd_fill_write_queue(struct zyd_softc *sc);
 static void zyd_tx_clean_queue(struct zyd_softc *sc);
@@ -3045,8 +3045,10 @@ zyd_vap_delete(struct ieee80211vap *vap)
 	free(zvp, M_80211_VAP);
 }
 
+/* ARGUSED */
 static struct ieee80211_node *
-zyd_node_alloc_cb(struct ieee80211_node_table *nt)
+zyd_node_alloc_cb(struct ieee80211vap *vap __unused,
+    const uint8_t mac[IEEE80211_ADDR_LEN] __unused)
 {
 	struct zyd_node *zn;
 
