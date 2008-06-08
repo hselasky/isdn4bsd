@@ -168,6 +168,8 @@ static void ural_tx_prot(struct ural_softc *sc, const struct mbuf *m, struct iee
 static void ural_tx_raw(struct ural_softc *sc, struct mbuf *m, struct ieee80211_node *ni, const struct ieee80211_bpf_params *params);
 static int ural_raw_xmit_cb(struct ieee80211_node *ni, struct mbuf *m, const struct ieee80211_bpf_params *params);
 static void ural_setup_desc_and_tx(struct ural_softc *sc, struct mbuf *m, uint32_t flags, uint16_t rate);
+static void ural_update_mcast_cb(struct ifnet *ifp);
+static void ural_update_promisc_cb(struct ifnet *ifp);
 
 /* various supported device vendors/products */
 static const struct usb_devno ural_devs[] = {
@@ -835,6 +837,8 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	ifp->if_snd.ifq_drv_maxlen = IFQ_MAXLEN;
 	IFQ_SET_READY(&ifp->if_snd);
 
+	bcopy(sc->sc_myaddr, ic->ic_myaddr, sizeof(ic->ic_myaddr));
+
 	ic->ic_ifp = ifp;
 	ic->ic_phytype = IEEE80211_T_OFDM;	/* not only, but not used */
 	ic->ic_opmode = IEEE80211_M_STA;
@@ -870,7 +874,8 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	ic->ic_newassoc = &ural_newassoc;
 	ic->ic_raw_xmit = &ural_raw_xmit_cb;
 	ic->ic_node_alloc = &ural_node_alloc;
-
+	ic->ic_update_mcast = &ural_update_mcast_cb;
+	ic->ic_update_promisc = &ural_update_promisc_cb;
 	ic->ic_scan_start = &ural_scan_start_cb;
 	ic->ic_scan_end = &ural_scan_end_cb;
 	ic->ic_set_channel = &ural_set_channel_cb;
@@ -1208,6 +1213,8 @@ ural_setup_desc_and_tx(struct ural_softc *sc, struct mbuf *m,
 	uint16_t len;
 	uint8_t remainder;
 
+	DPRINTF(sc, 0, "in\n");
+
 	if (sc->sc_tx_queue.ifq_len >= IFQ_MAXLEN) {
 		/* free packet */
 		ural_tx_freem(m);
@@ -1297,6 +1304,8 @@ ural_setup_desc_and_tx(struct ural_softc *sc, struct mbuf *m,
 		ural_tx_freem(m);
 		return;
 	}
+	DPRINTF(sc, 0, " %u %u (out)\n", sizeof(sc->sc_tx_desc), m->m_pkthdr.len);
+
 	bcopy(&(sc->sc_tx_desc), mm->m_data, sizeof(sc->sc_tx_desc));
 	mm->m_len = sizeof(sc->sc_tx_desc);
 
@@ -1451,17 +1460,13 @@ ural_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 {
 	struct ural_softc *sc = ifp->if_softc;
 	struct ieee80211com *ic = ifp->if_l2com;
-	int error = 0;
+	int error;
 
 	switch (cmd) {
 	case SIOCSIFFLAGS:
 		mtx_lock(&(sc->sc_mtx));
 		if (ifp->if_flags & IFF_UP) {
-			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
-				usbd_config_td_queue_command
-				    (&(sc->sc_config_td), &ural_config_copy,
-				    &ural_cfg_update_promisc, 0, 0);
-			} else {
+			if (!(ifp->if_drv_flags & IFF_DRV_RUNNING)) {
 				usbd_config_td_queue_command
 				    (&(sc->sc_config_td), &ural_cfg_pre_init,
 				    &ural_cfg_init, 0, 0);
@@ -1474,6 +1479,7 @@ ural_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 			}
 		}
 		mtx_unlock(&(sc->sc_mtx));
+		error = 0;
 		break;
 
 	case SIOCGIFMEDIA:
@@ -1484,8 +1490,6 @@ ural_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 	default:
 		error = ether_ioctl(ifp, cmd, data);
 	}
-	if (!error)
-		ieee80211_start_all(ic);
 	return (error);
 }
 
@@ -2028,8 +2032,6 @@ ural_cfg_set_rxantenna(struct ural_softc *sc, uint8_t antenna)
 static void
 ural_cfg_read_eeprom(struct ural_softc *sc)
 {
-	struct ifnet *ifp = sc->sc_ifp;
-	struct ieee80211com *ic = ifp->if_l2com;
 	uint16_t val;
 
 	ural_cfg_eeprom_read(sc, RAL_EEPROM_CONFIG0, &val, 2);
@@ -2046,8 +2048,8 @@ ural_cfg_read_eeprom(struct ural_softc *sc)
 	DPRINTF(sc, 0, "val = 0x%04x\n", val);
 
 	/* read MAC address */
-	ural_cfg_eeprom_read(sc, RAL_EEPROM_ADDRESS, ic->ic_myaddr,
-	    sizeof(ic->ic_myaddr));
+	ural_cfg_eeprom_read(sc, RAL_EEPROM_ADDRESS, sc->sc_myaddr,
+	    sizeof(sc->sc_myaddr));
 
 	/* read default values for BBP registers */
 	ural_cfg_eeprom_read(sc, RAL_EEPROM_BBP_BASE, sc->sc_bbp_prom,
@@ -2199,12 +2201,21 @@ ural_cfg_init(struct ural_softc *sc,
 
 	if ((sc->sc_flags & URAL_FLAG_LL_READY) &&
 	    (sc->sc_flags & URAL_FLAG_HL_READY)) {
+		struct ifnet *ifp = sc->sc_ifp;
+		struct ieee80211com *ic = ifp->if_l2com;
 
 		/*
 		 * start the USB transfers, if not already started:
 		 */
 		usbd_transfer_start(sc->sc_xfer[1]);
 		usbd_transfer_start(sc->sc_xfer[0]);
+
+		/*
+		 * start IEEE802.11 layer
+		 */
+		mtx_unlock(&(sc->sc_mtx));
+		ieee80211_start_all(ic);
+		mtx_lock(&(sc->sc_mtx));
 	}
 	/*
 	 * start Rx
@@ -2750,4 +2761,24 @@ ural_raw_xmit_cb(struct ieee80211_node *ni, struct mbuf *m,
 	}
 	mtx_unlock(&(sc->sc_mtx));
 	return (0);
+}
+
+static void
+ural_update_mcast_cb(struct ifnet *ifp)
+{
+	/* not supported */
+	return;
+}
+
+static void
+ural_update_promisc_cb(struct ifnet *ifp)
+{
+	struct ural_softc *sc = ifp->if_softc;
+
+	mtx_lock(&(sc->sc_mtx));
+	usbd_config_td_queue_command
+	    (&(sc->sc_config_td), &ural_config_copy,
+	    &ural_cfg_update_promisc, 0, 0);
+	mtx_unlock(&(sc->sc_mtx));
+	return;
 }

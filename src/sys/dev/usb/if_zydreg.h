@@ -1218,13 +1218,10 @@ struct zyd_config_copy {
 struct zyd_softc {
 	void   *sc_evilhack;		/* XXX this pointer must be first */
 
-	struct ieee80211_amrr sc_amrr;
-	struct ieee80211com sc_ic;
 	struct zyd_rf sc_rf;
 	struct usb_callout sc_watchdog;
 	struct mtx sc_mtx;
 	struct usbd_config_td sc_config_td;
-	struct ieee80211_beacon_offsets sc_bo;
 	struct zyd_rx_radiotap_header sc_rxtap;
 	struct zyd_tx_radiotap_header sc_txtap;
 	struct zyd_cmd sc_intr_ibuf;
@@ -1233,11 +1230,8 @@ struct zyd_softc {
 	struct zyd_ifq sc_tx_queue;
 
 	struct ifnet *sc_ifp;
-	int     (*sc_newstate) (struct ieee80211com *,
-	    	enum	ieee80211_state, int);
 	struct usbd_device *sc_udev;
 	struct usbd_xfer *sc_xfer[ZYD_N_TRANSFER];
-	struct bpf_if *sc_drvbpf;
 	const struct ieee80211_rate_table *sc_rates;
 
 	enum ieee80211_state sc_ns_state;
@@ -1280,4 +1274,5 @@ struct zyd_softc {
 	uint8_t	sc_amrr_timer;
 
 	uint8_t	sc_name[16];
+	uint8_t	sc_myaddr[IEEE80211_ADDR_LEN];
 };

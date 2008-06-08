@@ -136,7 +136,6 @@ static uint8_t zyd_cfg_hw_init(struct zyd_softc *sc, struct ieee80211com *ic);
 static void zyd_cfg_set_mac_addr(struct zyd_softc *sc, const uint8_t *addr);
 static void zyd_cfg_switch_radio(struct zyd_softc *sc, uint8_t onoff);
 static void zyd_cfg_set_bssid(struct zyd_softc *sc, uint8_t *addr);
-static void zyd_start_transfers(struct zyd_softc *sc);
 static void zyd_start_cb(struct ifnet *ifp);
 static void zyd_init_cb(void *arg);
 static int zyd_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
@@ -161,7 +160,8 @@ static int zyd_raw_xmit_cb(struct ieee80211_node *ni, struct mbuf *m, const stru
 static void zyd_setup_desc_and_tx(struct zyd_softc *sc, struct mbuf *m, uint16_t rate);
 static int zyd_newstate_cb(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg);
 static void zyd_cfg_amrr_start(struct zyd_softc *sc);
-static void zyd_update_mcast(struct ifnet *ifp);
+static void zyd_update_mcast_cb(struct ifnet *ifp);
+static void zyd_update_promisc_cb(struct ifnet *ifp);
 
 static const struct zyd_phy_pair zyd_def_phy[] = ZYD_DEF_PHY;
 static const struct zyd_phy_pair zyd_def_phyB[] = ZYD_DEF_PHYB;
@@ -1815,13 +1815,13 @@ zyd_cfg_read_eeprom(struct zyd_softc *sc)
 
 	/* read MAC address */
 	zyd_cfg_read32(sc, ZYD_EEPROM_MAC_ADDR_P1, &tmp);
-	sc->sc_ic.ic_myaddr[0] = tmp & 0xff;
-	sc->sc_ic.ic_myaddr[1] = tmp >> 8;
-	sc->sc_ic.ic_myaddr[2] = tmp >> 16;
-	sc->sc_ic.ic_myaddr[3] = tmp >> 24;
+	sc->sc_myaddr[0] = tmp & 0xff;
+	sc->sc_myaddr[1] = tmp >> 8;
+	sc->sc_myaddr[2] = tmp >> 16;
+	sc->sc_myaddr[3] = tmp >> 24;
 	zyd_cfg_read32(sc, ZYD_EEPROM_MAC_ADDR_P2, &tmp);
-	sc->sc_ic.ic_myaddr[4] = tmp & 0xff;
-	sc->sc_ic.ic_myaddr[5] = tmp >> 8;
+	sc->sc_myaddr[4] = tmp & 0xff;
+	sc->sc_myaddr[5] = tmp >> 8;
 
 	zyd_cfg_read32(sc, ZYD_EEPROM_POD, &tmp);
 	sc->sc_rf_rev = tmp & 0x0f;
@@ -1960,10 +1960,10 @@ zyd_cfg_first_time_setup(struct zyd_softc *sc,
 	printf("%s: HMAC ZD1211%s, FW %02x.%02x, RF %s, PA %x, address %02x:%02x:%02x:%02x:%02x:%02x\n",
 	    sc->sc_name, (sc->sc_mac_rev == ZYD_ZD1211) ? "" : "B",
 	    sc->sc_fw_rev >> 8, sc->sc_fw_rev & 0xff, zyd_rf_name(sc->sc_rf_rev),
-	    sc->sc_pa_rev, sc->sc_ic.ic_myaddr[0],
-	    sc->sc_ic.ic_myaddr[1], sc->sc_ic.ic_myaddr[2],
-	    sc->sc_ic.ic_myaddr[3], sc->sc_ic.ic_myaddr[4],
-	    sc->sc_ic.ic_myaddr[5]);
+	    sc->sc_pa_rev, sc->sc_myaddr[0],
+	    sc->sc_myaddr[1], sc->sc_myaddr[2],
+	    sc->sc_myaddr[3], sc->sc_myaddr[4],
+	    sc->sc_myaddr[5]);
 
 	mtx_unlock(&(sc->sc_mtx));
 
@@ -1991,7 +1991,8 @@ zyd_cfg_first_time_setup(struct zyd_softc *sc,
 	ifp->if_snd.ifq_drv_maxlen = IFQ_MAXLEN;
 	IFQ_SET_READY(&ifp->if_snd);
 
-	/* Network interface setup */
+	bcopy(sc->sc_myaddr, ic->ic_myaddr, sizeof(ic->ic_myaddr));
+
 	ic->ic_ifp = ifp;
 	ic->ic_phytype = IEEE80211_T_OFDM;
 	ic->ic_opmode = IEEE80211_M_STA;
@@ -2026,7 +2027,8 @@ zyd_cfg_first_time_setup(struct zyd_softc *sc,
 	ic->ic_set_channel = &zyd_set_channel_cb;
 	ic->ic_vap_create = &zyd_vap_create;
 	ic->ic_vap_delete = &zyd_vap_delete;
-	ic->ic_update_mcast = zyd_update_mcast;
+	ic->ic_update_mcast = &zyd_update_mcast_cb;
+	ic->ic_update_promisc = &zyd_update_promisc_cb;
 
 	sc->sc_rates = ieee80211_get_ratetable(ic->ic_curchan);
 
@@ -2436,6 +2438,24 @@ zyd_cfg_init(struct zyd_softc *sc,
 	    ZYD_FLAG_BULK_WRITE_STALL |
 	    ZYD_FLAG_LL_READY);
 
+	if ((sc->sc_flags & ZYD_FLAG_LL_READY) &&
+	    (sc->sc_flags & ZYD_FLAG_HL_READY)) {
+		struct ifnet *ifp = sc->sc_ifp;
+		struct ieee80211com *ic = ifp->if_l2com;
+
+		/*
+		 * start the USB transfers, if not already started:
+		 */
+		usbd_transfer_start(sc->sc_xfer[1]);
+		usbd_transfer_start(sc->sc_xfer[0]);
+
+		/*
+		 * start IEEE802.11 layer
+		 */
+		mtx_unlock(&(sc->sc_mtx));
+		ieee80211_start_all(ic);
+		mtx_lock(&(sc->sc_mtx));
+	}
 	return;
 }
 
@@ -2490,16 +2510,27 @@ zyd_cfg_stop(struct zyd_softc *sc,
 }
 
 static void
-zyd_update_mcast(struct ifnet *ifp)
+zyd_update_mcast_cb(struct ifnet *ifp)
 {
 	struct zyd_softc *sc = ifp->if_softc;
 
 	mtx_lock(&(sc->sc_mtx));
-	if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
-		usbd_config_td_queue_command
-		    (&(sc->sc_config_td), &zyd_config_copy,
-		    &zyd_cfg_update_promisc, 0, 0);
-	}
+	usbd_config_td_queue_command
+	    (&(sc->sc_config_td), &zyd_config_copy,
+	    &zyd_cfg_update_promisc, 0, 0);
+	mtx_unlock(&(sc->sc_mtx));
+	return;
+}
+
+static void
+zyd_update_promisc_cb(struct ifnet *ifp)
+{
+	struct zyd_softc *sc = ifp->if_softc;
+
+	mtx_lock(&(sc->sc_mtx));
+	usbd_config_td_queue_command
+	    (&(sc->sc_config_td), &zyd_config_copy,
+	    &zyd_cfg_update_promisc, 0, 0);
 	mtx_unlock(&(sc->sc_mtx));
 	return;
 }
@@ -2545,21 +2576,6 @@ zyd_cfg_set_led(struct zyd_softc *sc, uint32_t which, uint8_t on)
 }
 
 static void
-zyd_start_transfers(struct zyd_softc *sc)
-{
-	if ((sc->sc_flags & ZYD_FLAG_LL_READY) &&
-	    (sc->sc_flags & ZYD_FLAG_HL_READY)) {
-
-		/*
-		 * start the USB transfers, if not already started:
-		 */
-		usbd_transfer_start(sc->sc_xfer[ZYD_TR_BULK_DT_WR]);
-		usbd_transfer_start(sc->sc_xfer[ZYD_TR_BULK_DT_RD]);
-	}
-	return;
-}
-
-static void
 zyd_start_cb(struct ifnet *ifp)
 {
 	struct zyd_softc *sc = ifp->if_softc;
@@ -2567,7 +2583,6 @@ zyd_start_cb(struct ifnet *ifp)
 	mtx_lock(&(sc->sc_mtx));
 	usbd_transfer_start(sc->sc_xfer[ZYD_TR_BULK_DT_WR]);
 	mtx_unlock(&(sc->sc_mtx));
-
 	return;
 }
 
@@ -2775,18 +2790,13 @@ zyd_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 {
 	struct zyd_softc *sc = ifp->if_softc;
 	struct ieee80211com *ic = ifp->if_l2com;
-	int error = 0;
+	int error;
 
 	switch (cmd) {
 	case SIOCSIFFLAGS:
-
 		mtx_lock(&(sc->sc_mtx));
 		if (ifp->if_flags & IFF_UP) {
-			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
-				usbd_config_td_queue_command
-				    (&(sc->sc_config_td), &zyd_config_copy,
-				    &zyd_cfg_update_promisc, 0, 0);
-			} else {
+			if (!(ifp->if_drv_flags & IFF_DRV_RUNNING)) {
 				usbd_config_td_queue_command
 				    (&(sc->sc_config_td), &zyd_cfg_pre_init,
 				    &zyd_cfg_init, 0, 0);
@@ -2799,6 +2809,7 @@ zyd_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 			}
 		}
 		mtx_unlock(&(sc->sc_mtx));
+		error = 0;
 		break;
 
 	case SIOCGIFMEDIA:
@@ -2811,8 +2822,6 @@ zyd_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 		error = ether_ioctl(ifp, cmd, data);
 		break;
 	}
-	if (!error)
-		ieee80211_start_all(ic);
 	return (error);
 }
 
@@ -2934,7 +2943,8 @@ zyd_end_of_commands(struct zyd_softc *sc)
 {
 	sc->sc_flags &= ~ZYD_FLAG_WAIT_COMMAND;
 
-	zyd_start_transfers(sc);
+	/* start write transfer, if not started */
+	usbd_transfer_start(sc->sc_xfer[0]);
 	return;
 }
 

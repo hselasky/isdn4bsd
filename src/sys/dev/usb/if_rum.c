@@ -162,6 +162,8 @@ static void rum_tx_raw(struct rum_softc *sc, struct mbuf *m, struct ieee80211_no
 static int rum_raw_xmit_cb(struct ieee80211_node *ni, struct mbuf *m, const struct ieee80211_bpf_params *params);
 static void rum_setup_desc_and_tx(struct rum_softc *sc, struct mbuf *m, uint32_t flags, uint16_t xflags, uint16_t rate);
 static int rum_newstate_cb(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg);
+static void rum_update_mcast_cb(struct ifnet *ifp);
+static void rum_update_promisc_cb(struct ifnet *ifp);
 
 /* various supported device vendors/products */
 static const struct usb_devno rum_devs[] = {
@@ -823,6 +825,8 @@ rum_cfg_first_time_setup(struct rum_softc *sc,
 	ifp->if_snd.ifq_drv_maxlen = IFQ_MAXLEN;
 	IFQ_SET_READY(&ifp->if_snd);
 
+	bcopy(sc->sc_myaddr, ic->ic_myaddr, sizeof(ic->ic_myaddr));
+
 	ic->ic_ifp = ifp;
 	ic->ic_phytype = IEEE80211_T_OFDM;	/* not only, but not used */
 	ic->ic_opmode = IEEE80211_M_STA;
@@ -885,7 +889,8 @@ rum_cfg_first_time_setup(struct rum_softc *sc,
 	ic->ic_newassoc = &rum_newassoc;
 	ic->ic_raw_xmit = &rum_raw_xmit_cb;
 	ic->ic_node_alloc = &rum_node_alloc;
-
+	ic->ic_update_mcast = &rum_update_mcast_cb;
+	ic->ic_update_promisc = &rum_update_promisc_cb;
 	ic->ic_scan_start = &rum_scan_start_cb;
 	ic->ic_scan_end = &rum_scan_end_cb;
 	ic->ic_set_channel = &rum_set_channel_cb;
@@ -1113,14 +1118,15 @@ tr_setup:
 				if (ieee80211_input(ni, m, rssi, RT2573_NOISE_FLOOR, 0)) {
 					/* ignore */
 				}
+				/* node is no longer needed */
 				ieee80211_free_node(ni);
 			} else {
 				if (ieee80211_input_all(ic, m, rssi, RT2573_NOISE_FLOOR, 0)) {
 					/* ignore */
 				}
 			}
-			/* node is no longer needed */
-			ieee80211_free_node(ni);
+
+			mtx_lock(&(sc->sc_mtx));
 		}
 		return;
 
@@ -1461,18 +1467,13 @@ rum_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 {
 	struct rum_softc *sc = ifp->if_softc;
 	struct ieee80211com *ic = ifp->if_l2com;
-	int error = 0;
+	int error;
 
 	switch (cmd) {
 	case SIOCSIFFLAGS:
-
 		mtx_lock(&(sc->sc_mtx));
 		if (ifp->if_flags & IFF_UP) {
-			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
-				usbd_config_td_queue_command
-				    (&(sc->sc_config_td), &rum_config_copy,
-				    &rum_cfg_update_promisc, 0, 0);
-			} else {
+			if (!(ifp->if_drv_flags & IFF_DRV_RUNNING)) {
 				usbd_config_td_queue_command
 				    (&(sc->sc_config_td), &rum_cfg_pre_init,
 				    &rum_cfg_init, 0, 0);
@@ -1485,6 +1486,7 @@ rum_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 			}
 		}
 		mtx_unlock(&(sc->sc_mtx));
+		error = 0;
 		break;
 
 	case SIOCGIFMEDIA:
@@ -1495,9 +1497,6 @@ rum_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 	default:
 		error = ether_ioctl(ifp, cmd, data);
 	}
-
-	if (!error)
-		ieee80211_start_all(ic);
 	return (error);
 }
 
@@ -2078,12 +2077,10 @@ rum_cfg_select_antenna(struct rum_softc *sc,
 static void
 rum_cfg_read_eeprom(struct rum_softc *sc)
 {
-	struct ifnet *ifp = sc->sc_ifp;
-	struct ieee80211com *ic = ifp->if_l2com;
 	uint16_t val;
 
 	/* read MAC address */
-	rum_cfg_eeprom_read(sc, RT2573_EEPROM_ADDRESS, ic->ic_myaddr, 6);
+	rum_cfg_eeprom_read(sc, RT2573_EEPROM_ADDRESS, sc->sc_myaddr, 6);
 
 	val = rum_cfg_eeprom_read_2(sc, RT2573_EEPROM_ANTENNA);
 	sc->sc_rf_rev = (val >> 11) & 0x1f;
@@ -2269,7 +2266,6 @@ rum_cfg_init(struct rum_softc *sc,
 
 	/* clear STA registers */
 	rum_cfg_read_multi(sc, RT2573_STA_CSR0, sc->sc_sta, sizeof(sc->sc_sta));
-
 	/* set MAC address */
 	rum_cfg_set_macaddr(sc, cc->ic_myaddr);
 
@@ -2286,12 +2282,21 @@ rum_cfg_init(struct rum_softc *sc,
 
 	if ((sc->sc_flags & RUM_FLAG_LL_READY) &&
 	    (sc->sc_flags & RUM_FLAG_HL_READY)) {
+		struct ifnet *ifp = sc->sc_ifp;
+		struct ieee80211com *ic = ifp->if_l2com;
 
 		/*
 		 * start the USB transfers, if not already started:
 		 */
 		usbd_transfer_start(sc->sc_xfer[1]);
 		usbd_transfer_start(sc->sc_xfer[0]);
+
+		/*
+		 * start IEEE802.11 layer
+		 */
+		mtx_unlock(&(sc->sc_mtx));
+		ieee80211_start_all(ic);
+		mtx_lock(&(sc->sc_mtx));
 	}
 	/* update Rx filter */
 	tmp = rum_cfg_read(sc, RT2573_TXRX_CSR0) & 0xffff;
@@ -2924,4 +2929,24 @@ rum_raw_xmit_cb(struct ieee80211_node *ni, struct mbuf *m,
 	}
 	mtx_unlock(&(sc->sc_mtx));
 	return (0);
+}
+
+static void
+rum_update_mcast_cb(struct ifnet *ifp)
+{
+	/* not supported */
+	return;
+}
+
+static void
+rum_update_promisc_cb(struct ifnet *ifp)
+{
+	struct rum_softc *sc = ifp->if_softc;
+
+	mtx_lock(&(sc->sc_mtx));
+	usbd_config_td_queue_command
+	    (&(sc->sc_config_td), &rum_config_copy,
+	    &rum_cfg_update_promisc, 0, 0);
+	mtx_unlock(&(sc->sc_mtx));
+	return;
 }

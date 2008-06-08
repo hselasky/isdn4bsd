@@ -156,4 +156,5 @@ struct ural_softc {
 	uint8_t	sc_nb_ant;
 	uint8_t	sc_amrr_timer;
 	uint8_t	sc_name[32];
+	uint8_t	sc_myaddr[IEEE80211_ADDR_LEN];
 };
