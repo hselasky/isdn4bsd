@@ -59,6 +59,8 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ums.c,v 1.99 2008/04/30 19:37:54 kaiw Exp $"
 #include <dev/usb/usb_quirks.h>
 #include <dev/usb/usb_hid.h>
 
+#include "usbdevs.h"
+
 #ifdef USB_DEBUG
 #define	DPRINTF(n,fmt,...)						\
   do { if (ums_debug > (n)) {						\
