@@ -1990,9 +1990,11 @@ load_complete:
 	    xfer->flags_int.control_hdr) {
 		/* special case */
 		if (xfer->flags_int.usb_mode == USB_MODE_DEVICE) {
-			xfer->frbuffers[0].isread = 0;
-		} else {
+			/* The device controller writes to memory */
 			xfer->frbuffers[0].isread = 1;
+		} else {
+			/* The host controller reads from memory */
+			xfer->frbuffers[0].isread = 0;
 		}
 	} else {
 		/* default case */
