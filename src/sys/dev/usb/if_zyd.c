@@ -132,7 +132,7 @@ static void zyd_cfg_rf_al2230_init(struct zyd_softc *sc, struct zyd_rf *rf);
 static void zyd_cfg_rf_al2230_init_b(struct zyd_softc *sc, struct zyd_rf *rf);
 static void zyd_cfg_rf_al2230_set_channel(struct zyd_softc *sc, struct zyd_rf *rf, uint8_t channel);
 static uint8_t zyd_cfg_rf_init_hw(struct zyd_softc *sc, struct zyd_rf *rf);
-static uint8_t zyd_cfg_hw_init(struct zyd_softc *sc, struct ieee80211com *ic);
+static uint8_t zyd_cfg_hw_init(struct zyd_softc *sc);
 static void zyd_cfg_set_mac_addr(struct zyd_softc *sc, const uint8_t *addr);
 static void zyd_cfg_switch_radio(struct zyd_softc *sc, uint8_t onoff);
 static void zyd_cfg_set_bssid(struct zyd_softc *sc, uint8_t *addr);
@@ -1730,7 +1730,7 @@ zyd_cfg_rf_init_hw(struct zyd_softc *sc, struct zyd_rf *rf)
  * Init the hardware
  */
 static uint8_t
-zyd_cfg_hw_init(struct zyd_softc *sc, struct ieee80211com *ic)
+zyd_cfg_hw_init(struct zyd_softc *sc)
 {
 	const struct zyd_phy_pair *phyp;
 	uint32_t tmp;
@@ -1948,7 +1948,7 @@ zyd_cfg_first_time_setup(struct zyd_softc *sc,
 	zyd_cfg_read_eeprom(sc);
 
 	/* Init hardware */
-	if (zyd_cfg_hw_init(sc, ic)) {
+	if (zyd_cfg_hw_init(sc)) {
 		printf("%s: HW init failed!\n", sc->sc_name);
 		return;
 	}
