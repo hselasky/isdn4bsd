@@ -1543,6 +1543,7 @@ usbd_probe_and_attach(struct usbd_device *udev, uint8_t iface_index)
 	uint8_t nconfig;
 	uint8_t config;
 	uint8_t i;
+	uint8_t j;
 
 	if (udev == NULL) {
 		PRINTF(("udev == NULL\n"));
@@ -1619,15 +1620,15 @@ usbd_probe_and_attach(struct usbd_device *udev, uint8_t iface_index)
 
 			if (iface_index != USB_IFACE_INDEX_ANY) {
 				i = iface_index;
-				iface_index = i + 1;
+				j = i + 1;
 			} else {
 				i = 0;
-				iface_index = USB_MAX_INTERFACES;
+				j = USB_MAX_INTERFACES;
 			}
 
 			/* do the probe and attach */
 
-			for (; i != iface_index; i++) {
+			for (; i != j; i++) {
 
 				iface = usbd_get_iface(udev, i);
 				if (iface == NULL) {
