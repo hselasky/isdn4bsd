@@ -4,13 +4,17 @@
 # Makefile for shared CAPI access library
 #
 
+OSNAME!= uname
+
 LIB=		capi20
 SHLIB_MAJOR=	2
 SHLIB_MINOR=	0
 CFLAGS+=	-Wall 
 
+.if (${OSNAME} == FreeBSD)
 DPADD+=         ${LIBMD}
 LDADD+=         -lmd
+.endif
 
 SRCS=		capilib.c bintec.c
 
