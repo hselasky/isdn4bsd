@@ -312,6 +312,20 @@ load(struct lkm_table *p, int cmd)
     return error;
 }
 
+/* 
+ * The following function is used when we have I4B loaded
+ * into the NetBSD kernel to load the I4B module.
+ */
+extern void i4b_load(void);
+
+void
+i4b_load(void)
+{
+	if (load(NULL, 0)) {
+		/* ignore any errors */
+	}
+}
+
 static int
 unload(struct lkm_table *p, int cmd)
 {
