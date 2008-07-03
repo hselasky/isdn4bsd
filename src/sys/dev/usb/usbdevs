@@ -1,4 +1,4 @@
-$FreeBSD: src/sys/dev/usb/usbdevs,v 1.359 2008/06/05 16:56:56 attilio Exp $
+$FreeBSD: src/sys/dev/usb/usbdevs,v 1.361 2008/06/27 10:30:08 luigi Exp $
 /* $NetBSD: usbdevs,v 1.392 2004/12/29 08:38:44 imp Exp $ */
 
 /*-
@@ -1141,6 +1141,7 @@ product DLINK DSB650TX2		0x4102	10/100 Ethernet
 product DLINK DSB650		0xabc1	10/100 Ethernet
 product DLINK2 DWLG122C1	0x3c03	DWL-G122 c1
 product DLINK2 WUA1340		0x3c04	WUA-1340
+product DLINK2 DWA111		0x3c06	DWA-111
 
 /* DMI products */
 product DMI CFSM_RW		0xa109	CF/SM Reader/Writer
@@ -1224,6 +1225,7 @@ product EPSON 4800		0x0819	CX4800 MP scanner
 product EPSON 4200		0x0820	CX4200 MP scanner
 product EPSON 5000		0x082b  DX-50x0 MFP scanner
 product EPSON 6000		0x082e  DX-60x0 MFP scanner
+product EPSON DX7400		0x0838	DX7400/CX7300 scanner
 product EPSON DX8400		0x0839	DX8400 scanner
 
 /* e-TEK Labs products */
