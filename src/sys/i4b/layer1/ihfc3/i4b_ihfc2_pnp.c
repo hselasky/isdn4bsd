@@ -207,8 +207,8 @@ struct drvr_id
 #define _I4B_PSB3186_H_
 
 extern struct drvr_id
-  ihfc_usb2_id_start[0],
-  ihfc_usb2_id_end[0],
+  ihfc_usb_id_start[0],
+  ihfc_usb_id_end[0],
   ihfc_pci_id_start[0],
   ihfc_pci_id_end[0],
   ihfc_pnp_id_start[0],
