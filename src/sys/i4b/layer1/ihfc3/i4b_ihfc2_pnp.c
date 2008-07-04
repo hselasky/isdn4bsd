@@ -102,7 +102,7 @@ DRIVER_MODULE(ihfcpnp, ushub, ihfc_pnp_driver, ihfc_devclass, 0, 0);
 MODULE_DEPEND(ihfcpnp, isa, 1,1,1);
 MODULE_DEPEND(ihfcpnp, pci, 1,1,1);
 #ifdef IHFC_USB_ENABLED
-MODULE_DEPEND(ihfcpnp, usbus, 1,1,1);
+MODULE_DEPEND(ihfcpnp, usb2_core, 1,1,1);
 #endif
 MODULE_VERSION(ihfcpnp, 1);
 
