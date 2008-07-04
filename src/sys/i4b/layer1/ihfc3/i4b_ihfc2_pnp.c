@@ -1188,8 +1188,8 @@ ihfc_pnp_probe(device_t dev)
 		struct usb2_attach_arg *uaa;
 
 		/* Probe USB */
-		id       = &ihfc_usb2_id_start[0];
-		id_end   = &ihfc_usb2_id_end[0];
+		id       = &ihfc_usb_id_start[0];
+		id_end   = &ihfc_usb_id_end[0];
 
 		uaa = device_get_ivars(dev);
 		if (uaa->usb2_mode != USB_MODE_HOST) {
