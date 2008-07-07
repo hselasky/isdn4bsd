@@ -197,6 +197,23 @@ static const struct usb2_config bbb_config[ST_MAX] = {
 static void
 bbb_done(struct bbb_transfer *sc, uint8_t error)
 {
+	struct usb2_xfer *xfer;
+
+	xfer = sc->xfer[sc->state];
+
+	/* verify the error code */
+
+	if (error) {
+		switch (USB_GET_STATE(xfer)) {
+		case USB_ST_SETUP:
+		case USB_ST_TRANSFERRED:
+			error = 1;
+			break;
+		default:
+			error = 2;
+			break;
+		}
+	}
 	sc->error = error;
 	sc->state = ST_COMMAND;
 	sc->status_try = 1;
@@ -448,53 +465,6 @@ bbb_command_start(struct bbb_transfer *sc, uint8_t dir, uint8_t lun,
 	return (sc->error);
 }
 
-usb2_error_t
-usb2_reset_device(struct usb2_device *udev, struct mtx *mtx)
-{
-	struct usb2_device *parent_hub;
-	usb2_error_t err;
-	uint8_t old_addr;
-
-	old_addr = udev->address;
-	parent_hub = udev->parent_hub;
-	if (parent_hub == NULL) {
-		err = USB_ERR_INVAL;
-		goto done;
-	}
-	err = usb2_req_reset_port(parent_hub, mtx, udev->port_no);
-	if (err) {
-		goto done;
-	}
-	/*
-	 * After that the port has been reset our device should be at
-	 * address zero:
-	 */
-	udev->address = USB_START_ADDR;
-
-	/*
-	 * Restore device address:
-	 */
-	err = usb2_req_set_address(udev, mtx, old_addr);
-	if (err) {
-		/* XXX ignore any errors! */
-		err = 0;
-	}
-	/* allow device time to set new address */
-	usb2_pause_mtx(mtx, USB_SET_ADDRESS_SETTLE);
-
-done:
-	/* restore address */
-	udev->address = old_addr;
-
-	if (err == 0) {
-		/* restore configuration */
-		err = usb2_req_set_config(udev, mtx, udev->curr_config_no);
-		/* wait a little bit, just in case */
-		usb2_pause_mtx(mtx, 10);
-	}
-	return (err);
-}
-
 /*------------------------------------------------------------------------*
  *	usb2_test_autoinstall
  *
@@ -586,9 +556,6 @@ repeat_inquiry:
 	goto done;
 
 done:
-	if (mtx_owned(&(sc->mtx))) {
-		usb2_reset_device(udev, &(sc->mtx));
-	}
 	mtx_unlock(&(sc->mtx));
 	usb2_transfer_unsetup(sc->xfer, ST_MAX);
 	mtx_destroy(&(sc->mtx));

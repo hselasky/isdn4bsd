@@ -102,6 +102,75 @@ struct usb2_device_enumerate {
 	uint8_t	ude_addr;		/* not used */
 };
 
+struct usb2_fs_start {
+	uint8_t	ep_index;
+};
+
+struct usb2_fs_stop {
+	uint8_t	ep_index;
+};
+
+struct usb2_fs_complete {
+	uint8_t	ep_index;
+};
+
+/* This structure is used for all endpoint types */
+struct usb2_fs_endpoint {
+	void   *priv_sc0;		/* private client data */
+	void   *priv_sc1;		/* private client data */
+	/*
+	 * NOTE: isochronous USB transfer only use one buffer, but can have
+	 * multiple frame lengths !
+	 */
+	void  **ppBuffer;		/* pointer to userland buffers */
+	uint32_t *pLength;		/* pointer to frame lengths, updated
+					 * to actual length */
+	uint32_t nFrames;		/* number of frames */
+	uint32_t aFrames;		/* actual number of frames */
+	uint16_t flags;
+	/* a single short frame will terminate */
+#define	USB2_FS_FLAG_SINGLE_SHORT_OK 0x0001
+	/* multiple short frames are allowed */
+#define	USB2_FS_FLAG_MULTI_SHORT_OK 0x0002
+	/* all frame(s) transmitted are short terminated */
+#define	USB2_FS_FLAG_FORCE_SHORT 0x0004
+	/* will do a clear-stall before xfer */
+#define	USB2_FS_FLAG_CLEAR_STALL 0x0008
+	uint16_t timeout;		/* in milliseconds */
+	/* timeout value for no timeout */
+#define	USB2_FS_TIMEOUT_NONE 0
+	uint8_t	status;			/* see USB_ERR_XXX */
+};
+
+struct usb2_fs_init {
+	/* userland pointer to endpoints structure */
+	struct usb2_fs_endpoint *pEndpoints;
+	/* maximum number of endpoints */
+	uint8_t	ep_index_max;
+};
+
+struct usb2_fs_uninit {
+	uint8_t	dummy;			/* zero */
+};
+
+struct usb2_fs_open {
+#define	USB_FS_MAX_BUFSIZE (1 << 18)
+	uint32_t max_bufsize;
+#define	USB_FS_MAX_FRAMES (1 << 12)
+	uint32_t max_frames;
+	uint8_t	dev_index;		/* currently unused */
+	uint8_t	ep_index;
+	uint8_t	ep_no;			/* bEndpointNumber */
+};
+
+struct usb2_fs_close {
+	uint8_t	ep_index;
+};
+
+struct usb2_fs_clear_stall_sync {
+	uint8_t	ep_index;
+};
+
 /* USB controller */
 #define	USB_REQUEST		_IOWR('U', 1, struct usb2_ctl_request)
 #define	USB_SETDEBUG		_IOW ('U', 2, int)
@@ -135,9 +204,21 @@ struct usb2_device_enumerate {
 #define	USB_GET_FRAME_SIZE	_IOR ('U', 115, uint32_t)
 #define	USB_GET_BUFFER_SIZE	_IOR ('U', 117, uint32_t)
 #define	USB_SET_BUFFER_SIZE	_IOW ('U', 118, uint32_t)
+#define	USB_SET_RX_STALL_FLAG	_IOW ('U', 119, int)
+#define	USB_SET_TX_STALL_FLAG	_IOW ('U', 120, int)
 
 /* Modem device */
 #define	USB_GET_CM_OVER_DATA	_IOR ('U', 130, int)
 #define	USB_SET_CM_OVER_DATA	_IOW ('U', 131, int)
+
+/* USB file system interface */
+#define	USB_FS_START		_IOW ('U', 192, struct usb2_fs_start)
+#define	USB_FS_STOP		_IOW ('U', 193, struct usb2_fs_stop)
+#define	USB_FS_COMPLETE		_IOR ('U', 194, struct usb2_fs_complete)
+#define	USB_FS_INIT		_IOW ('U', 195, struct usb2_fs_init)
+#define	USB_FS_UNINIT		_IOW ('U', 196, struct usb2_fs_uninit)
+#define	USB_FS_OPEN		_IOWR('U', 197, struct usb2_fs_open)
+#define	USB_FS_CLOSE		_IOW ('U', 198, struct usb2_fs_close)
+#define	USB_FS_CLEAR_STALL_SYNC _IOW ('U', 199, struct usb2_fs_clear_stall_sync)
 
 #endif					/* _USB2_IOCTL_H_ */

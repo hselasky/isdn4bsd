@@ -74,8 +74,10 @@ struct usb2_fifo {
 	struct usb2_fifo_methods *methods;
 	struct cdev *symlink[2];	/* our symlinks */
 	struct proc *async_p;		/* process that wants SIGIO */
+	struct usb2_fs_endpoint *fs_ep_ptr;
 	struct usb2_device *udev;
 	struct usb2_xfer *xfer[2];
+	struct usb2_xfer **fs_xfer;
 	struct mtx *priv_mtx;		/* client data */
 	struct file *curr_file;		/* set if FIFO is opened by a FILE */
 	void   *priv_sc0;		/* client data */
@@ -83,9 +85,11 @@ struct usb2_fifo {
 	void   *queue_data;
 	uint32_t timeout;		/* timeout in milliseconds */
 	uint32_t bufsize;		/* BULK and INTERRUPT buffer size */
-	uint16_t unit;
 	uint16_t nframes;		/* for isochronous mode */
+	uint16_t dev_ep_index;		/* our device endpoint index */
+	uint8_t	flag_no_uref;		/* set if FIFO is not control endpoint */
 	uint8_t	flag_sleeping;		/* set if FIFO is sleeping */
+	uint8_t	flag_iscomplete;	/* set if a USB transfer is complete */
 	uint8_t	flag_iserror;		/* set if FIFO error happened */
 	uint8_t	flag_isselect;		/* set if FIFO is selected */
 	uint8_t	flag_flushing;		/* set if FIFO is flushing data */
@@ -95,6 +99,7 @@ struct usb2_fifo {
 	uint8_t	iface_index;		/* set to the interface we belong to */
 	uint8_t	fifo_index;		/* set to the FIFO index in "struct
 					 * usb2_device" */
+	uint8_t	fs_ep_max;
 	uint8_t	fifo_zlp;		/* zero length packet count */
 	uint8_t	refcount;
 #define	USB_FIFO_REF_MAX 0xFF
@@ -120,5 +125,7 @@ void	usb2_fifo_get_data_error(struct usb2_fifo *fifo);
 uint8_t	usb2_fifo_opened(struct usb2_fifo *fifo);
 void	usb2_fifo_free(struct usb2_fifo *f);
 void	usb2_fifo_reset(struct usb2_fifo *f);
+int	usb2_check_thread_perm(struct usb2_device *udev, struct thread *td, int fflags, uint8_t iface_index, uint8_t ep_index);
+void	usb2_fifo_wakeup(struct usb2_fifo *f);
 
 #endif					/* _USB2_DEV_H_ */

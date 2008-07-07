@@ -305,6 +305,7 @@ static driver_t zyd_driver = {
 DRIVER_MODULE(zyd, ushub, zyd_driver, zyd_devclass, NULL, 0);
 MODULE_DEPEND(zyd, usb2_core, 1, 1, 1);
 MODULE_DEPEND(zyd, wlan, 1, 1, 1);
+MODULE_DEPEND(zyd, wlan_amrr, 1, 1, 1);
 
 static uint8_t
 zyd_plcp2ieee(uint8_t signal, uint8_t isofdm)

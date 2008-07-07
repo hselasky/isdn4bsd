@@ -585,6 +585,10 @@ usb2_transfer_setup_sub(struct usb2_setup_params *parm)
 		parm->err = USB_ERR_INVAL;
 		goto done;
 	}
+	/* initialize max frame count */
+
+	xfer->max_frame_count = xfer->nframes;
+
 	/* initialize frame buffers */
 
 	if (parm->buf) {
@@ -614,6 +618,7 @@ done:
 		xfer->max_packet_size = 1;
 		xfer->max_data_length = 0;
 		xfer->nframes = 0;
+		xfer->max_frame_count = 0;
 	}
 	return;
 }

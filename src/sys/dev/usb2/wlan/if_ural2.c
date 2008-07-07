@@ -408,6 +408,7 @@ static driver_t ural_driver = {
 DRIVER_MODULE(ural, ushub, ural_driver, ural_devclass, NULL, 0);
 MODULE_DEPEND(ural, usb2_core, 1, 1, 1);
 MODULE_DEPEND(ural, wlan, 1, 1, 1);
+MODULE_DEPEND(ural, wlan_amrr, 1, 1, 1);
 
 static int
 ural_probe(device_t dev)

@@ -295,6 +295,8 @@ struct usb2_xfer {
 #define	USB_NO_TIMEOUT 0
 #define	USB_DEFAULT_TIMEOUT 5000	/* 5000 ms = 5 seconds */
 
+	uint32_t max_frame_count;	/* initial value of "nframes" after
+					 * setup */
 	uint32_t nframes;		/* number of USB frames to transfer */
 	uint32_t aframes;		/* actual number of USB frames
 					 * transferred */

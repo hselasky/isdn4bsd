@@ -1264,3 +1264,68 @@ usb2_req_get_config(struct usb2_device *udev, struct mtx *mtx, uint8_t *pconf)
 	USETW(req.wLength, 1);
 	return (usb2_do_request(udev, mtx, &req, pconf));
 }
+
+/*------------------------------------------------------------------------*
+ *	usb2_req_re_enumerate
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+usb2_error_t
+usb2_req_re_enumerate(struct usb2_device *udev, struct mtx *mtx)
+{
+	struct usb2_device_descriptor ddesc;
+	struct usb2_device *parent_hub;
+	usb2_error_t err;
+	uint8_t old_addr;
+
+	old_addr = udev->address;
+	parent_hub = udev->parent_hub;
+	if (parent_hub == NULL) {
+		err = USB_ERR_INVAL;
+		goto done;
+	}
+	err = usb2_req_reset_port(parent_hub, mtx, udev->port_no);
+	if (err) {
+		DPRINTF(-1, "addr=%d, port reset failed\n", old_addr);
+		goto done;
+	}
+	/*
+	 * After that the port has been reset our device should be at
+	 * address zero:
+	 */
+	udev->address = USB_START_ADDR;
+
+	/*
+	 * Restore device address:
+	 */
+	err = usb2_req_set_address(udev, mtx, old_addr);
+	if (err) {
+		/* XXX ignore any errors! */
+		DPRINTF(-1, "addr=%d, set address failed\n",
+		    old_addr);
+		err = 0;
+	}
+	/* allow device time to set new address */
+	usb2_pause_mtx(mtx, USB_SET_ADDRESS_SETTLE);
+
+	/* get the device descriptor */
+	err = usb2_req_get_device_desc(udev, mtx, &ddesc);
+	if (err) {
+		DPRINTF(-1, "addr=%d, getting device "
+		    "descriptor failed!\n", old_addr);
+		goto done;
+	}
+done:
+	/* restore address */
+	udev->address = old_addr;
+
+	if (err == 0) {
+		/* restore configuration */
+		err = usb2_req_set_config(udev, mtx, udev->curr_config_no);
+		/* wait a little bit, just in case */
+		usb2_pause_mtx(mtx, 10);
+	}
+	return (err);
+}
