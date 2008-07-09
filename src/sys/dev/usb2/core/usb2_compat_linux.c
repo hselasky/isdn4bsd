@@ -28,7 +28,6 @@
 #include <dev/usb2/include/usb2_mfunc.h>
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_error.h>
-#include <dev/usb2/include/usb2_revision.h>
 
 #include <dev/usb2/core/usb2_core.h>
 #include <dev/usb2/core/usb2_compat_linux.h>

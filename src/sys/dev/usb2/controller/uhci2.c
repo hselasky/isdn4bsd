@@ -40,7 +40,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/uhci.c,v 1.175 2007/06/14 16:23:31 imp Exp $
 
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_mfunc.h>
-#include <dev/usb2/include/usb2_revision.h>
 #include <dev/usb2/include/usb2_error.h>
 #include <dev/usb2/include/usb2_defs.h>
 

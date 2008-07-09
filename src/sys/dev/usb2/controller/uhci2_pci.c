@@ -49,7 +49,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/uhci_pci.c,v 1.64 2008/04/11 05:50:53 benno 
  */
 
 #include <dev/usb2/include/usb2_mfunc.h>
-#include <dev/usb2/include/usb2_revision.h>
 #include <dev/usb2/include/usb2_defs.h>
 #include <dev/usb2/include/usb2_standard.h>
 

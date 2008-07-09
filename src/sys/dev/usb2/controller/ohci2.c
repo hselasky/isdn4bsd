@@ -37,7 +37,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ohci.c,v 1.172 2008/05/13 20:58:08 marius Ex
 
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_mfunc.h>
-#include <dev/usb2/include/usb2_revision.h>
 #include <dev/usb2/include/usb2_error.h>
 #include <dev/usb2/include/usb2_defs.h>
 

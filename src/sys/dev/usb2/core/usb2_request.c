@@ -790,6 +790,10 @@ usb2_req_get_config_desc_full(struct usb2_device *udev, struct mtx *mtx,
 	}
 	/* get full descriptor */
 	len = UGETW(cd.wTotalLength);
+	if (len < sizeof(*cdesc)) {
+		/* corrupt descriptor */
+		return (USB_ERR_INVAL);
+	}
 	cdesc = malloc(len, mtype, M_WAITOK);
 	if (cdesc == NULL) {
 		return (USB_ERR_NOMEM);

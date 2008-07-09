@@ -61,7 +61,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/udbp.c,v 1.41 2007/07/05 15:25:32 imp Exp $"
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_mfunc.h>
 #include <dev/usb2/include/usb2_error.h>
-#include <dev/usb2/include/usb2_revision.h>
 
 #define	USB_DEBUG_VAR udbp_debug
 

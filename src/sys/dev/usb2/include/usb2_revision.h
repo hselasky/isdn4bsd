@@ -1,4 +1,4 @@
-/*
+/*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,5 +52,14 @@ m(n, USB_REV_2_5)\
 m(n, USB_REV_3_0)\
 
 USB_MAKE_ENUM(USB_REV);
+
+/*
+ * The "USB_MODE" macro defines all the supported USB modes.
+ */
+#define USB_MODE(m,n)\
+m(n, USB_MODE_HOST)\
+m(n, USB_MODE_DEVICE)\
+
+USB_MAKE_ENUM(USB_MODE);
 
 #endif					/* _USB2_REVISION_H_ */

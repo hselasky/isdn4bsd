@@ -34,7 +34,6 @@ __FBSDID("$FreeBSD: src/sys/dev/ata/ata-usb.c,v 1.8 2008/04/10 13:05:05 sos Exp 
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_mfunc.h>
 #include <dev/usb2/include/usb2_error.h>
-#include <dev/usb2/include/usb2_revision.h>
 
 #include <dev/usb2/core/usb2_core.h>
 #include <dev/usb2/core/usb2_util.h>

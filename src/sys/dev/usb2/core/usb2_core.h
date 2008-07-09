@@ -51,6 +51,9 @@
 #include <sys/malloc.h>
 #include <sys/priv.h>
 
+#include <dev/usb2/include/usb2_mfunc.h>
+#include <dev/usb2/include/usb2_revision.h>
+
 #include "usb2_if.h"
 
 #include "opt_usb.h"
@@ -80,12 +83,6 @@
 #define	USB_DEBUG
 
 #define	USB_HUB_MAX_DEPTH 5
-
-/* USB modes */
-
-#define	USB_MODE_HOST    0		/* default */
-#define	USB_MODE_DEVICE  1
-#define	USB_MODE_MAX     2
 
 /* USB transfer states */
 

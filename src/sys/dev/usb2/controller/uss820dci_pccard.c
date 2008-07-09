@@ -28,7 +28,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/uss820dci_pccard.c $");
  */
 
 #include <dev/usb2/include/usb2_mfunc.h>
-#include <dev/usb2/include/usb2_revision.h>
 #include <dev/usb2/include/usb2_defs.h>
 #include <dev/usb2/include/usb2_standard.h>
 

@@ -35,7 +35,6 @@
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_mfunc.h>
 #include <dev/usb2/include/usb2_error.h>
-#include <dev/usb2/include/usb2_revision.h>
 #include <dev/usb2/include/usb2_ioctl.h>
 
 #define	USB_DEBUG_VAR usb2_debug

@@ -63,8 +63,12 @@ struct usb2_gen_descriptor {
 	uint8_t	reserved[8];
 };
 
-#define	USB_MAX_DEVNAMES 4
-#define	USB_MAX_DEVNAMELEN 16
+struct usb2_device_names {
+	char   *udn_devnames_ptr;	/* userland pointer to comma separated
+					 * list of device names */
+	uint16_t udn_devnames_len;	/* maximum string length including
+					 * terminating zero */
+};
 
 struct usb2_device_info {
 	uint16_t udi_productNo;
@@ -74,32 +78,32 @@ struct usb2_device_info {
 					 * selfpowered */
 	uint8_t	udi_bus;
 	uint8_t	udi_addr;		/* device address */
+	uint8_t	udi_index;		/* device index */
 	uint8_t	udi_class;
 	uint8_t	udi_subclass;
 	uint8_t	udi_protocol;
-	uint8_t	udi_config;
-	uint8_t	udi_speed;
+	uint8_t	udi_config_no;		/* current config number */
+	uint8_t	udi_config_index;	/* current config index */
+	uint8_t	udi_speed;		/* see "USB_SPEED_XXX" */
+	uint8_t	udi_mode;		/* see "USB_MODE_XXX" */
 	uint8_t	udi_nports;
-	uint8_t	udi_ports[16];		/* HUB only: addresses of devices on
-					 * ports */
-#define	USB_PORT_ENABLED 0xff
-#define	USB_PORT_SUSPENDED 0xfe
-#define	USB_PORT_POWERED 0xfd
-#define	USB_PORT_DISABLED 0xfc
-
+	uint8_t	udi_hubaddr;		/* parent HUB address */
+	uint8_t	udi_hubindex;		/* parent HUB device index */
+	uint8_t	udi_hubport;		/* parent HUB port */
+	uint8_t	udi_devstate;
+#define	USB_DEVSTATE_ENABLED 0x0
+#define	USB_DEVSTATE_SUSPENDED 0x1
+#define	USB_DEVSTATE_POWERED 0x2
+#define	USB_DEVSTATE_DISABLED 0x3
 	char	udi_product[128];
 	char	udi_vendor[128];
+	char	udi_serial[64];
 	char	udi_release[8];
-	char	udi_devnames[USB_MAX_DEVNAMES][USB_MAX_DEVNAMELEN];
 };
 
 struct usb2_device_stats {
 	uint32_t uds_requests_ok[4];	/* Indexed by transfer type UE_XXX */
 	uint32_t uds_requests_fail[4];	/* Indexed by transfer type UE_XXX */
-};
-
-struct usb2_device_enumerate {
-	uint8_t	ude_addr;		/* not used */
 };
 
 struct usb2_fs_start {
@@ -116,8 +120,6 @@ struct usb2_fs_complete {
 
 /* This structure is used for all endpoint types */
 struct usb2_fs_endpoint {
-	void   *priv_sc0;		/* private client data */
-	void   *priv_sc1;		/* private client data */
 	/*
 	 * NOTE: isochronous USB transfer only use one buffer, but can have
 	 * multiple frame lengths !
@@ -129,16 +131,16 @@ struct usb2_fs_endpoint {
 	uint32_t aFrames;		/* actual number of frames */
 	uint16_t flags;
 	/* a single short frame will terminate */
-#define	USB2_FS_FLAG_SINGLE_SHORT_OK 0x0001
+#define	USB_FS_FLAG_SINGLE_SHORT_OK 0x0001
 	/* multiple short frames are allowed */
-#define	USB2_FS_FLAG_MULTI_SHORT_OK 0x0002
+#define	USB_FS_FLAG_MULTI_SHORT_OK 0x0002
 	/* all frame(s) transmitted are short terminated */
-#define	USB2_FS_FLAG_FORCE_SHORT 0x0004
+#define	USB_FS_FLAG_FORCE_SHORT 0x0004
 	/* will do a clear-stall before xfer */
-#define	USB2_FS_FLAG_CLEAR_STALL 0x0008
+#define	USB_FS_FLAG_CLEAR_STALL 0x0008
 	uint16_t timeout;		/* in milliseconds */
 	/* timeout value for no timeout */
-#define	USB2_FS_TIMEOUT_NONE 0
+#define	USB_FS_TIMEOUT_NONE 0
 	uint8_t	status;			/* see USB_ERR_XXX */
 };
 
@@ -158,6 +160,7 @@ struct usb2_fs_open {
 	uint32_t max_bufsize;
 #define	USB_FS_MAX_FRAMES (1 << 12)
 	uint32_t max_frames;
+	uint16_t max_packet_length;	/* read only */
 	uint8_t	dev_index;		/* currently unused */
 	uint8_t	ep_index;
 	uint8_t	ep_no;			/* bEndpointNumber */
@@ -177,7 +180,7 @@ struct usb2_fs_clear_stall_sync {
 #define	USB_DISCOVER		_IO  ('U', 3)
 #define	USB_DEVICEINFO		_IOWR('U', 4, struct usb2_device_info)
 #define	USB_DEVICESTATS		_IOR ('U', 5, struct usb2_device_stats)
-#define	USB_DEVICEENUMERATE	_IOW ('U', 6, struct usb2_device_enumerate)
+#define	USB_DEVICEENUMERATE	_IOW ('U', 6, int)
 
 /* Generic HID device */
 #define	USB_GET_REPORT_DESC	_IOR ('U', 21, struct usb2_gen_descriptor)
@@ -206,6 +209,11 @@ struct usb2_fs_clear_stall_sync {
 #define	USB_SET_BUFFER_SIZE	_IOW ('U', 118, uint32_t)
 #define	USB_SET_RX_STALL_FLAG	_IOW ('U', 119, int)
 #define	USB_SET_TX_STALL_FLAG	_IOW ('U', 120, int)
+#define	USB_GET_DEVICENAMES	_IOW ('U', 121, struct usb2_device_names)
+#define	USB_CLAIM_INTERFACE	_IOW ('U', 122, int)
+#define	USB_RELEASE_INTERFACE	_IOW ('U', 123, int)
+#define	USB_IFACE_DRIVER_ACTIVE	_IOW ('U', 124, int)
+#define	USB_IFACE_DRIVER_DETACH	_IOW ('U', 125, int)
 
 /* Modem device */
 #define	USB_GET_CM_OVER_DATA	_IOR ('U', 130, int)

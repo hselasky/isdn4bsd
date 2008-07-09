@@ -106,7 +106,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/umass.c,v 1.162 2008/02/21 19:07:08 remko Ex
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_mfunc.h>
 #include <dev/usb2/include/usb2_error.h>
-#include <dev/usb2/include/usb2_revision.h>
 
 #include <dev/usb2/core/usb2_core.h>
 #include <dev/usb2/core/usb2_util.h>
