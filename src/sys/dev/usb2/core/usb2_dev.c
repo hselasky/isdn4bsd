@@ -283,18 +283,21 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 	struct usb2_fifo **ppf;
 	struct usb2_fifo *f;
 	int fflags;
+	uint8_t need_uref;
 
 	if (fp) {
-		/*
-		 * Get the device location which should be valid and
-		 * correct:
-		 */
+		/* check if we need uref hint */
+		need_uref = devloc ? 0 : 1;
+		/* get devloc - already verified */
 		devloc = USB_P2U(fp->f_data);
+		/* get file flags */
 		fflags = fp->f_flag;
 		/* only ref FIFO */
 		ploc->is_uref = 0;
 		/* devloc should be valid */
 	} else {
+		/* we need uref */
+		need_uref = 1;
 		/* only ref device */
 		fflags = 0;
 		/* search for FIFO */
@@ -405,8 +408,13 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 		}
 	}
 	if (ploc->is_uref) {
-		DPRINTF(1, "ref udev\n");
-		ploc->udev->refcount++;
+		if (need_uref) {
+			DPRINTF(1, "ref udev - needed\n");
+			ploc->udev->refcount++;
+		} else {
+			DPRINTF(1, "ref udev - not needed\n");
+			ploc->is_uref = 0;
+		}
 	}
 	mtx_unlock(&usb2_ref_lock);
 
@@ -780,6 +788,9 @@ usb2_fifo_open(struct usb2_fifo *f, struct file *fp, struct thread *td,
 
 	/* reset error flag */
 	f->flag_iserror = 0;
+
+	/* reset complete flag */
+	f->flag_iscomplete = 0;
 
 	/* reset select flag */
 	f->flag_isselect = 0;
@@ -1308,19 +1319,37 @@ usb2_kqfilter_f(struct file *fp, struct knote *kn)
 
 /* ARGSUSED */
 static int
-usb2_poll_f(struct file *fp, int events, struct ucred *cred, struct thread *td)
+usb2_poll_f(struct file *fp, int events,
+    struct ucred *cred, struct thread *td)
 {
 	struct usb2_location loc;
 	struct usb2_fifo *f;
 	struct usb2_mbuf *m;
 	int fflags;
 	int revents;
+	uint8_t usbfs_active = 0;
 
-	revents = usb2_ref_device(fp, &loc, 0);;
+	revents = usb2_ref_device(fp, &loc, 1 /* no uref */ );;
 	if (revents) {
 		return (POLLHUP);
 	}
 	fflags = fp->f_flag;
+
+	/* figure out if the USB File System is active */
+
+	if (fflags & FWRITE) {
+		f = loc.txfifo;
+		if (f->fs_ep_max != 0) {
+			usbfs_active = 1;
+		}
+	}
+	if (fflags & FREAD) {
+		f = loc.rxfifo;
+		if (f->fs_ep_max != 0) {
+			usbfs_active = 1;
+		}
+	}
+	/* Figure out who needs service */
 
 	if ((events & (POLLOUT | POLLWRNORM)) &&
 	    (fflags & FWRITE)) {
@@ -1329,10 +1358,23 @@ usb2_poll_f(struct file *fp, int events, struct ucred *cred, struct thread *td)
 
 		mtx_lock(f->priv_mtx);
 
-		/* check if any packets are available */
-		USB_IF_POLL(&(f->free_q), m);
+		if (!usbfs_active) {
+			if (f->flag_iserror) {
+				/* we got an error */
+				m = (void *)1;
+			} else {
+				/* check if any packets are available */
+				USB_IF_POLL(&(f->free_q), m);
+			}
+		} else {
+			if (f->flag_iscomplete) {
+				m = (void *)1;
+			} else {
+				m = NULL;
+			}
+		}
 
-		if (f->flag_iserror || f->flag_iscomplete || m) {
+		if (m) {
 			revents |= events & (POLLOUT | POLLWRNORM);
 		} else {
 			f->flag_isselect = 1;
@@ -1348,10 +1390,23 @@ usb2_poll_f(struct file *fp, int events, struct ucred *cred, struct thread *td)
 
 		mtx_lock(f->priv_mtx);
 
-		/* check if any packets are available */
-		USB_IF_POLL(&(f->used_q), m);
+		if (!usbfs_active) {
+			if (f->flag_iserror) {
+				/* we have and error */
+				m = (void *)1;
+			} else {
+				/* check if any packets are available */
+				USB_IF_POLL(&(f->used_q), m);
+			}
+		} else {
+			if (f->flag_iscomplete) {
+				m = (void *)1;
+			} else {
+				m = NULL;
+			}
+		}
 
-		if (f->flag_iserror || f->flag_iscomplete || m) {
+		if (m) {
 			revents |= events & (POLLIN | POLLRDNORM);
 		} else {
 			f->flag_isselect = 1;
@@ -1369,7 +1424,8 @@ usb2_poll_f(struct file *fp, int events, struct ucred *cred, struct thread *td)
 
 /* ARGSUSED */
 static int
-usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred, int flags, struct thread *td)
+usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred,
+    int flags, struct thread *td)
 {
 	struct usb2_location loc;
 	struct usb2_fifo *f;
@@ -1386,7 +1442,7 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred, int flags, str
 	if (fflags & O_DIRECT)
 		fflags |= IO_DIRECT;
 
-	err = usb2_ref_device(fp, &loc, 0);
+	err = usb2_ref_device(fp, &loc, 1 /* no uref */ );
 	if (err) {
 		return (ENXIO);
 	}
@@ -1408,7 +1464,16 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred, int flags, str
 	}
 	while (uio->uio_resid > 0) {
 
-		USB_IF_DEQUEUE(&(f->used_q), m);
+		if (f->fs_ep_max == 0) {
+			USB_IF_DEQUEUE(&(f->used_q), m);
+		} else {
+			/*
+			 * The queue is used for events that should be
+			 * retrieved using the "USB_FS_COMPLETE"
+			 * ioctl.
+			 */
+			m = NULL;
+		}
 
 		if (m == NULL) {
 
@@ -1424,6 +1489,8 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred, int flags, str
 				err = EWOULDBLOCK;
 				break;
 			}
+			DPRINTF(0, "sleeping\n");
+
 			err = usb2_fifo_wait(f);
 			if (err) {
 				break;
@@ -1489,7 +1556,8 @@ usb2_truncate_f(struct file *fp, off_t length, struct ucred *cred, struct thread
 
 /* ARGSUSED */
 static int
-usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred, int flags, struct thread *td)
+usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
+    int flags, struct thread *td)
 {
 	struct usb2_location loc;
 	struct usb2_fifo *f;
@@ -1507,7 +1575,7 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred, int flags, st
 	if (fflags & O_DIRECT)
 		fflags |= IO_DIRECT;
 
-	err = usb2_ref_device(fp, &loc, 0);
+	err = usb2_ref_device(fp, &loc, 1 /* no uref */ );
 	if (err) {
 		return (ENXIO);
 	}
@@ -1530,7 +1598,16 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred, int flags, st
 	}
 	while (uio->uio_resid > 0) {
 
-		USB_IF_DEQUEUE(&(f->free_q), m);
+		if (f->fs_ep_max == 0) {
+			USB_IF_DEQUEUE(&(f->free_q), m);
+		} else {
+			/*
+			 * The queue is used for events that should be
+			 * retrieved using the "USB_FS_COMPLETE"
+			 * ioctl.
+			 */
+			m = NULL;
+		}
 
 		if (m == NULL) {
 
@@ -1542,6 +1619,8 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred, int flags, st
 				err = EWOULDBLOCK;
 				break;
 			}
+			DPRINTF(0, "sleeping\n");
+
 			err = usb2_fifo_wait(f);
 			if (err) {
 				break;

@@ -261,7 +261,6 @@ ugen_open_pipe_write(struct usb2_fifo *f)
 			return (EIO);
 		}
 		break;
-
 	default:
 		return (EINVAL);
 	}
@@ -995,6 +994,7 @@ ugen_fs_uninit(struct usb2_fifo *f)
 	f->fs_ep_max = 0;
 	f->fs_ep_ptr = NULL;
 	f->flag_iscomplete = 0;
+	f->flag_no_uref = 0;		/* restore operation */
 	usb2_fifo_free_buffer(f);
 	return (0);
 }
@@ -1025,6 +1025,11 @@ ugen_fs_set_complete(struct usb2_fifo *f, uint8_t index)
 
 	USB_IF_DEQUEUE(&(f->free_q), m);
 
+	if (m == NULL) {
+		/* can happen during close */
+		DPRINTF(0, "out of buffers\n");
+		return;
+	}
 	USB_MBUF_RESET(m);
 
 	*((uint8_t *)(m->cur_data_ptr)) = index;
@@ -1044,7 +1049,8 @@ ugen_fs_copy_in(struct usb2_fifo *f, uint8_t ep_index)
 	struct usb2_device_request *req;
 	struct usb2_xfer *xfer;
 	struct usb2_fs_endpoint fs_ep;
-	void *uaddr;
+	void *uaddr;			/* userland pointer */
+	void *kaddr;
 	uint32_t offset;
 	uint32_t length;
 	uint32_t n;
@@ -1066,6 +1072,11 @@ ugen_fs_copy_in(struct usb2_fifo *f, uint8_t ep_index)
 	}
 	mtx_unlock(f->priv_mtx);
 
+	error = copyin(f->fs_ep_ptr +
+	    ep_index, &fs_ep, sizeof(fs_ep));
+	if (error) {
+		return (error);
+	}
 	/* security checks */
 
 	if (fs_ep.nFrames > xfer->max_frame_count) {
@@ -1075,11 +1086,6 @@ ugen_fs_copy_in(struct usb2_fifo *f, uint8_t ep_index)
 	if (fs_ep.nFrames == 0) {
 		xfer->error = USB_ERR_INVAL;
 		goto complete;
-	}
-	error = copyin(f->fs_ep_ptr +
-	    ep_index, &fs_ep, sizeof(fs_ep));
-	if (error) {
-		return (error);
 	}
 	error = copyin(fs_ep.ppBuffer,
 	    &uaddr, sizeof(uaddr));
@@ -1102,7 +1108,7 @@ ugen_fs_copy_in(struct usb2_fifo *f, uint8_t ep_index)
 			xfer->error = USB_ERR_INVAL;
 			goto complete;
 		}
-		if (length) {
+		if (length != 0) {
 			error = copyin(uaddr, req, length);
 			if (error) {
 				return (error);
@@ -1185,24 +1191,21 @@ ugen_fs_copy_in(struct usb2_fifo *f, uint8_t ep_index)
 				break;
 			}
 			if (xfer->flags_int.isochronous_xfr) {
-
-				/* move data */
-				error = copyin(uaddr, USB_ADD_BYTES(
-				    xfer->frbuffers[0].buffer,
-				    offset), length);
-				if (error) {
-					break;
-				}
+				/* get kernel buffer address */
+				kaddr = xfer->frbuffers[0].buffer;
+				kaddr = USB_ADD_BYTES(kaddr, offset);
 			} else {
 				/* set current frame offset */
 				usb2_set_frame_offset(xfer, offset, n);
 
-				/* move data */
-				error = copyin(uaddr, xfer->frbuffers[n].buffer,
-				    length);
-				if (error) {
-					break;
-				}
+				/* get kernel buffer address */
+				kaddr = xfer->frbuffers[n].buffer;
+			}
+
+			/* move data */
+			error = copyin(uaddr, kaddr, length);
+			if (error) {
+				break;
 			}
 		}
 		offset += length;
@@ -1222,13 +1225,16 @@ ugen_fs_copy_out(struct usb2_fifo *f, uint8_t ep_index)
 	struct usb2_device_request *req;
 	struct usb2_xfer *xfer;
 	struct usb2_fs_endpoint fs_ep;
-	void *uaddr;
+	struct usb2_fs_endpoint *fs_ep_uptr;	/* userland ptr */
+	void *uaddr;			/* userland ptr */
+	void *kaddr;
 	uint32_t offset;
 	uint32_t length;
 	uint32_t temp;
 	uint32_t n;
 	uint32_t rem;
 	int error;
+	uint8_t isread;
 
 	if (ep_index >= f->fs_ep_max) {
 		return (EINVAL);
@@ -1244,8 +1250,8 @@ ugen_fs_copy_out(struct usb2_fifo *f, uint8_t ep_index)
 	}
 	mtx_unlock(f->priv_mtx);
 
-	error = copyin(f->fs_ep_ptr +
-	    ep_index, &fs_ep, sizeof(fs_ep));
+	fs_ep_uptr = f->fs_ep_ptr + ep_index;
+	error = copyin(fs_ep_uptr, &fs_ep, sizeof(fs_ep));
 	if (error) {
 		return (error);
 	}
@@ -1258,66 +1264,84 @@ ugen_fs_copy_out(struct usb2_fifo *f, uint8_t ep_index)
 		req = xfer->frbuffers[0].buffer;
 
 		/* Host mode only ! */
-		if ((req->bmRequestType & (UT_READ | UT_WRITE)) == UT_WRITE) {
-			goto complete;
+		if ((req->bmRequestType & (UT_READ | UT_WRITE)) == UT_READ) {
+			isread = 1;
+		} else {
+			isread = 0;
 		}
-		n = 1;
+		if (xfer->nframes == 0)
+			n = 0;		/* should never happen */
+		else
+			n = 1;
 	} else {
 		/* Device and Host mode */
-		if (!USB_GET_DATA_ISREAD(xfer)) {
-			goto complete;
+		if (USB_GET_DATA_ISREAD(xfer)) {
+			isread = 1;
+		} else {
+			isread = 0;
 		}
 		n = 0;
 	}
 
+	/* Update lengths and copy out data */
+
 	rem = xfer->max_data_length;
+	offset = 0;
 
 	for (; n != xfer->nframes; n++) {
 
-		/* we need to know the destination buffer */
-		error = copyin(fs_ep.ppBuffer + n,
-		    &uaddr, sizeof(uaddr));
+		/* get initial length into "temp" */
+		error = copyin(fs_ep.pLength + n,
+		    &temp, sizeof(temp));
 		if (error) {
 			return (error);
 		}
-		if (xfer->flags_int.isochronous_xfr) {
+		if (temp > rem) {
+			/* the userland length has been corrupted */
+			DPRINTF(0, "corrupt userland length "
+			    "%u > %u\n", temp, rem);
+			fs_ep.status = USB_ERR_INVAL;
+			goto complete;
+		}
+		rem -= temp;
 
-			/* we need to know the initial length */
-			error = copyin(fs_ep.pLength + n,
-			    &length, sizeof(length));
+		/* get actual transfer length */
+		length = xfer->frlengths[n];
+		if (length > temp) {
+			/* data overflow */
+			fs_ep.status = USB_ERR_INVAL;
+			DPRINTF(0, "data overflow %u > %u\n",
+			    length, temp);
+			goto complete;
+		}
+		if (isread) {
+
+			/* we need to know the destination buffer */
+			error = copyin(fs_ep.ppBuffer + n,
+			    &uaddr, sizeof(uaddr));
 			if (error) {
 				return (error);
 			}
-			/* range check */
-			if (length > rem) {
-				fs_ep.status = USB_ERR_INVAL;
-				goto complete;
+			if (xfer->flags_int.isochronous_xfr) {
+				/* only one frame buffer */
+				kaddr = USB_ADD_BYTES(
+				    xfer->frbuffers[0].buffer, offset);
+			} else {
+				/* multiple frame buffers */
+				kaddr = xfer->frbuffers[n].buffer;
 			}
-			rem -= length;
-			temp = offset + length;
-
-			/* limit */
-			if (length > xfer->frlengths[n]) {
-				length = xfer->frlengths[n];
-			}
-			/* move data */
-			error = copyout(USB_ADD_BYTES(xfer->frbuffers[0].buffer,
-			    offset), uaddr, length);
-			if (error) {
-				return (error);
-			}
-			offset = temp;
-		} else {
-
-			length = xfer->frlengths[n];
 
 			/* move data */
-			error = copyout(xfer->frbuffers[n].buffer,
-			    uaddr, length);
+			error = copyout(kaddr, uaddr, length);
 			if (error) {
 				return (error);
 			}
 		}
+		/*
+		 * Update offset according to initial length, which is
+		 * needed by isochronous transfers!
+		 */
+		offset += temp;
 
 		/* update length */
 		error = copyout(&length,
@@ -1329,14 +1353,14 @@ ugen_fs_copy_out(struct usb2_fifo *f, uint8_t ep_index)
 
 complete:
 	/* update "aFrames" */
-	error = copyout(&fs_ep.aFrames, &(f->fs_ep_ptr +
-	    ep_index)->aFrames, sizeof(fs_ep.aFrames));
+	error = copyout(&fs_ep.aFrames, &(fs_ep_uptr->aFrames),
+	    sizeof(fs_ep.aFrames));
 	if (error) {
 		return (error);
 	}
 	/* update "status" */
-	error = copyout(&fs_ep.status, &(f->fs_ep_ptr +
-	    ep_index)->status, sizeof(fs_ep.status));
+	error = copyout(&fs_ep.status, &(fs_ep_uptr->status),
+	    sizeof(fs_ep.status));
 	return (error);
 }
 
@@ -1392,7 +1416,7 @@ ugen_fs_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 			}
 			mtx_lock(f->priv_mtx);
 			usb2_transfer_start(f->fs_xfer[pd->ep_index]);
-			mtx_lock(f->priv_mtx);
+			mtx_unlock(f->priv_mtx);
 			break;
 		}
 	case USB_FS_STOP:{
@@ -1427,6 +1451,10 @@ ugen_fs_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 				error = EBUSY;
 				break;
 			}
+			if (f->flag_no_uref) {
+				error = EINVAL;
+				break;
+			}
 			if (f->dev_ep_index != 0) {
 				error = EINVAL;
 				break;
@@ -1459,9 +1487,6 @@ ugen_fs_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 				break;
 			}
 			error = ugen_fs_uninit(f);
-			if (error == 0) {
-				f->flag_no_uref = 0;	/* restore operation */
-			}
 			break;
 		}
 
