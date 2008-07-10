@@ -220,7 +220,6 @@ struct uaudio_softc {
 
 	struct usb2_device *sc_udev;
 	struct usb2_xfer *sc_mixer_xfer[1];
-	struct mtx *sc_mixer_lock;
 	struct uaudio_mixer_node *sc_mixer_root;
 	struct uaudio_mixer_node *sc_mixer_curr;
 
@@ -3091,12 +3090,11 @@ uaudio_mixer_init_sub(struct uaudio_softc *sc, struct snd_mixer *m)
 {
 	DPRINTF(0, "\n");
 
-	sc->sc_mixer_lock = mixer_get_lock(m);
-
 	if (usb2_transfer_setup(sc->sc_udev, &(sc->sc_mixer_iface_index),
 	    sc->sc_mixer_xfer, uaudio_mixer_config, 1, sc,
-	    sc->sc_mixer_lock)) {
-		DPRINTF(0, "could not allocate USB transfer for audio mixer!\n");
+	    mixer_get_lock(m))) {
+		DPRINTF(-1, "could not allocate USB "
+		    "transfer for audio mixer!\n");
 		return (ENOMEM);
 	}
 	if (!(sc->sc_mix_info & SOUND_MASK_VOLUME)) {
