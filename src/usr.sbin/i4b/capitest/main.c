@@ -57,6 +57,10 @@ usage(void)
        "\n" "       -p <value>    set CIP value (2:HDLC,16:telephony)"
        "\n" "       -n <value>    number of dialouts"
        "\n" "       -s            write received data to stdout"
+       "\n" "       -h <host>     IP host (will select bintec backend)"
+       "\n" "       -H <port>     IP port"
+       "\n" "       -q <port>     username"
+       "\n" "       -Q <port>     password"
        "\n"
        "\n"
 
@@ -67,8 +71,12 @@ usage(void)
 
 #define TELNO_MAX 128 /* including terminating zero */
 
-static u_int8_t src_telno[TELNO_MAX];
-static u_int8_t dst_telno[TELNO_MAX];
+static char hostname[64];
+static char servname[64];
+static char username[64];
+static char password[64];
+static char src_telno[TELNO_MAX];
+static char dst_telno[TELNO_MAX];
 static u_int8_t controller = 0;
 static u_int8_t verbose_level = 0;
 static u_int8_t write_data_to_stdout = 0;
@@ -1072,14 +1080,7 @@ main(int argc, char **argv)
     u_int16_t error;
     int c;
 
-    error = capi20_be_alloc_i4b(&cbe_p);
-    if (error) {
-            fprintf(stderr, "%s: %s: could not allocate I4B CAPI backend, error=%s\n",
-		__FILE__, __FUNCTION__, capi20_get_errstr(error));
-	    return -1;
-    }
-
-    while ((c = getopt(argc, argv, "c:u:d:i:o:p:sn:")) != -1)
+    while ((c = getopt(argc, argv, "h:H:q:Q:c:u:d:i:o:p:sn:")) != -1)
     {
 	switch(c) {
 	case 'c':
@@ -1111,11 +1112,40 @@ main(int argc, char **argv)
 		num_calls_max = atoi(optarg);
 		break;
 
+	case 'h':
+		strlcpy(hostname, optarg, sizeof(hostname));
+		break;
+
+	case 'H':
+		strlcpy(servname, optarg, sizeof(servname));
+		break;
+
+	case 'q':
+		strlcpy(username, optarg, sizeof(username));
+		break;
+
+	case 'Q':
+		strlcpy(password, optarg, sizeof(password));
+		break;
+
 	case '?':
 	default:
 		usage();
 		break;
 	}
+    }
+
+    if (hostname[0] != 0) {
+	error = capi20_be_alloc_bintec(hostname,
+	       servname, username, password, &cbe_p);
+    } else {
+	error = capi20_be_alloc_i4b(&cbe_p);
+    }
+
+    if (error) {
+            fprintf(stderr, "%s: %s: could not allocate I4B CAPI backend, error=%s\n",
+		__FILE__, __FUNCTION__, capi20_get_errstr(error));
+	    return -1;
     }
 
     if((dst_telno[0] == 0) && (src_telno[0] == 0)) usage();

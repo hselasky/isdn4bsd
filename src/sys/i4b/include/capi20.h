@@ -1950,6 +1950,12 @@ capi20_encode(void *ptr, uint16_t len, void *ie);
 extern uint16_t
 capi20_decode(void *ptr, uint16_t len, void *ie);
 
+extern uint16_t
+capi20_command_unpack(uint16_t wCmd);
+
+extern uint16_t
+capi20_command_pack(uint16_t wCmd);
+
 extern const char *
 capi20_get_errstr(uint16_t wError);
 

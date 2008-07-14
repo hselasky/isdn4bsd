@@ -41,5 +41,7 @@ MLINKS+=	capi20.3 capi20_fileno.3
 MLINKS+=	capi20.3 capi20_encode.3
 MLINKS+=	capi20.3 capi20_decode.3
 MLINKS+=	capi20.3 capi20_get_errstr.3
+MLINKS+=	capi20.3 capi20_command_pack.3
+MLINKS+=	capi20.3 capi20_command_unpack.3
 
 .include <bsd.lib.mk>

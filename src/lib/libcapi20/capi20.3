@@ -28,7 +28,7 @@
 .\" $Id: capi20.3,v 1.4.4.1 2005/05/27 16:29:15 thomas Exp $
 .\" Creation date       04.01.2003
 .\"
-.Dd June 6, 2008
+.Dd July 14, 2008
 .Dt CAPI20 3
 .Os
 .Sh NAME
@@ -50,7 +50,9 @@
 .Nm capi20_fileno ,
 .Nm capi20_encode ,
 .Nm capi20_decode ,
-.Nm capi20_get_errstr
+.Nm capi20_get_errstr ,
+.Nm capi20_command_pack ,
+.Nm capi20_command_unpack
 .Nd "CAPI 2.0 access library"
 .
 .
@@ -195,6 +197,15 @@ CAPI 2.0 Access Library (libcapi20, -lcapi20)
 .Fa "uint16_t wError"
 .Fc
 .
+.Ft "uint16_t"
+.Fo "capi20_command_pack"
+.Fa "uint16_t wCmd"
+.Fc
+.
+.Ft "uint16_t"
+.Fo "capi20_command_unpack"
+.Fa "uint16_t wCmd"
+.Fc
 .
 .Sh DESCRIPTION
 .
@@ -448,6 +459,14 @@ string describing the numerical 16-bit error code
 .Fa wError .
 .
 .
+.Pp
+.Fn capi20_command_pack
+will pack the given CAPI command. See CAPI_P_XXX() macros.
+.
+.
+.Pp
+.Fn capi20_command_unpack
+will unpack the given CAPI command. See CAPI_XXX() macros.
 .
 .
 .

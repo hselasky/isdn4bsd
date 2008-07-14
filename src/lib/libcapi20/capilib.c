@@ -660,6 +660,12 @@ capi20_put_message(uint32_t app_id, void *buf_ptr)
 		    goto done;
 		}
 
+		/* need to rewrite the command value */
+
+		cmd = le16toh(HEADER_CMD(pmsg));
+		cmd = capi20_command_unpack(cmd);
+		HEADER_CMD(pmsg) = htole16(cmd);
+
 		/* big endian length field preceedes CAPI message */
 
 		sc->sc_temp[0] = (temp >> 8);
@@ -2357,3 +2363,52 @@ capi20_encode(void *ptr, uint16_t len, void *ie)
  done:
 	return (len_old - len);
 }
+
+/*------------------------------------------------------------------------*
+ *	capi20_command_unpack
+ *
+ * @param cmd                  Any CAPI command
+ *
+ * @retval Any                 Unpacked version of CAPI command
+ *------------------------------------------------------------------------*/
+uint16_t
+capi20_command_unpack(uint16_t wCmd)
+{
+#define	CAPI_COMMAND_UNPACK_SUB(n, ENUM, value)			\
+  case CAPI_P_REQ(ENUM): wCmd = CAPI_REQ(ENUM); break;		\
+  case CAPI_P_IND(ENUM): wCmd = CAPI_IND(ENUM); break;		\
+  case CAPI_P_CONF(ENUM): wCmd = CAPI_CONF(ENUM); break;	\
+  case CAPI_P_RESP(ENUM): wCmd = CAPI_RESP(ENUM); break;
+
+  switch (wCmd) {
+    CAPI_COMMANDS(CAPI_COMMAND_UNPACK_SUB, )
+    default:
+      break;
+  }
+  return (wCmd);
+}
+
+/*------------------------------------------------------------------------*
+ *	capi20_command_pack
+ *
+ * @param cmd                  Any CAPI command
+ *
+ * @retval Any                 Packed version of CAPI command
+ *------------------------------------------------------------------------*/
+uint16_t
+capi20_command_pack(uint16_t wCmd)
+{
+#define	CAPI_COMMAND_PACK_SUB(n, ENUM, value)			\
+  case CAPI_REQ(ENUM): wCmd = CAPI_P_REQ(ENUM); break;		\
+  case CAPI_IND(ENUM): wCmd = CAPI_P_IND(ENUM); break;		\
+  case CAPI_CONF(ENUM): wCmd = CAPI_P_CONF(ENUM); break;	\
+  case CAPI_RESP(ENUM): wCmd = CAPI_P_RESP(ENUM); break;
+
+  switch (wCmd) {
+    CAPI_COMMANDS(CAPI_COMMAND_PACK_SUB, )
+    default:
+      break;
+  }
+  return (wCmd);
+}
+

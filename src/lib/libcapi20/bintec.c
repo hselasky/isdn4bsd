@@ -107,6 +107,16 @@ enum {
   CTRL_SETUSER = 0x1a,
 };
 
+
+#define CAPI_BINTEC_HEADER(m,n) \
+  m(n, WORD  , wLen,)\
+  m(n, WORD  , wApp,)\
+  m(n, WORD  , wCmd,)\
+  m(n, WORD  , wNum,)\
+  END
+
+CAPI_MAKE_STRUCT(CAPI_BINTEC_HEADER);
+
 /* -------- */
 
 #define CAPI_BINTEC_MAKE_STRUCT(ENUM)	\
@@ -228,26 +238,28 @@ enum {
 #define CAPI_BINTEC_CONTROL_REQ(m,n) \
   m(n, WORD  , wContrl, )\
   m(n, WORD  , wType, )\
-  m(n, STRUCT, sData, )\
+  m(n, STRUCT, sData1, )\
+  m(n, STRUCT, sData2, )\
   END
 
 #define CAPI_BINTEC_CONTROL_CONF(m,n) \
   m(n, WORD  , wContrl, )\
   m(n, WORD  , wType, )\
   m(n, WORD  , wInfo, )\
-  m(n, STRUCT, sData, )\
+  m(n, STRUCT, sData1, )\
+  m(n, STRUCT, sData2, )\
   END
 
 #define CAPI_BINTEC_CONTROL_IND(m,n) \
   m(n, WORD  , wContrl, )\
   m(n, WORD  , wType, )\
-  m(n, STRUCT, sData, )\
+  m(n, STRUCT, sData1, )\
   END
 
 #define CAPI_BINTEC_CONTROL_RESP(m,n) \
   m(n, WORD  , wContrl, )\
   m(n, WORD  , wType, )\
-  m(n, STRUCT, sData, )\
+  m(n, STRUCT, sData1, )\
   END
 
 CAPI_BINTEC_MAKE_STRUCT(BINTEC_REGISTER)
@@ -287,7 +299,7 @@ capi20_be_alloc_bintec(const char *hostname, const char *servname,
 	}
 
 	/* set default TCP port, if any */
-	if (servname == NULL) {
+	if ((servname == NULL) || (servname[0] == 0)) {
 	    servname = "2662";
 	}
 
@@ -403,24 +415,23 @@ capilib_bintec_do_cmd(struct app_softc *sc, uint16_t wReqCmd,
     uint16_t wConfCmd, void *pReq, void *pConf)
 {
 	struct timeval tv;
-	struct CAPI_HEADER_DECODED head;
+	struct CAPI_BINTEC_HEADER_DECODED head;
 	uint8_t buffer[256];
 	int len;
 	uint16_t error;
 	uint16_t off;
 
 	/* setup decode tags */
-	CAPI_INIT(CAPI_HEADER, &head);
+	CAPI_INIT(CAPI_BINTEC_HEADER, &head);
 
 	/* encode all data */
 	len = capi20_encode(buffer, sizeof(buffer), &head);
 	len += capi20_encode(buffer + len, sizeof(buffer) - len, pReq);
 
 	head.wLen = len;
-	head.wApp = 0;
+	head.wApp = 1;
 	head.wCmd = wReqCmd;
 	head.wNum = 0;
-	head.dwCid = 0;
 
 	/* re-encode header */
 	len = capi20_encode(buffer, sizeof(buffer), &head);
@@ -520,7 +531,7 @@ capilib_bintec_do_ioctl(struct app_softc *sc, uint32_t cmd, void *data)
 	        break;
 	    }
 
-	    if ((conf.ctrl.sData.len == 0) ||
+	    if ((conf.ctrl.sData1.len == 0) ||
 		(conf.ctrl.wType != CTRL_GETCHALLENGE)) {
 	        error = CAPI_ERROR_ILLEGAL_MSG_PARAMETER;
 		break;
@@ -533,10 +544,12 @@ capilib_bintec_do_ioctl(struct app_softc *sc, uint32_t cmd, void *data)
 	        len = strlen(ptr->pUserName);
 
 		req.ctrl.wType = CTRL_SETUSER;
-		req.ctrl.sData.ptr = sc->sc_temp;
-		req.ctrl.sData.len = len + MD5_DIGEST_LENGTH;
+		req.ctrl.sData1.ptr = sc->sc_temp;
+		req.ctrl.sData1.len = len;
+		req.ctrl.sData2.ptr = sc->sc_temp + len;
+		req.ctrl.sData2.len = MD5_DIGEST_LENGTH;
 
-		if (req.ctrl.sData.len > sizeof(sc->sc_temp)) {
+		if ((len + MD5_DIGEST_LENGTH) > sizeof(sc->sc_temp)) {
 		    error = CAPI_ERROR_INVALID_BUFFER_SIZE;
 		    break;
 		}
@@ -547,8 +560,8 @@ capilib_bintec_do_ioctl(struct app_softc *sc, uint32_t cmd, void *data)
 
 	        MD5Init(md5Context);
 		MD5Update(md5Context, (void *)(ptr->pUserName), len);
-		MD5Update(md5Context, conf.ctrl.sData.ptr,
-		 conf.ctrl.sData.len);
+		MD5Update(md5Context, conf.ctrl.sData1.ptr,
+		 conf.ctrl.sData1.len);
 		MD5Update(md5Context, (void *)(ptr->pPassWord), 
 		 strlen(ptr->pPassWord));
 		MD5Final(sc->sc_temp + len, md5Context);
