@@ -1890,6 +1890,13 @@ ugen_ctrl_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 		error = ugen_re_enumerate(f);
 		break;
 
+	case USB_GET_PLUGTIME:{
+			uint32_t *ptime = addr;
+
+			*ptime = f->udev->plugtime;
+			break;
+		}
+
 		/* ... more IOCTL's to come ! ... --hps */
 
 	default:

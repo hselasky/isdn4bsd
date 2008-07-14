@@ -32,6 +32,12 @@
 
 #define	USB_DEVICE_NAME "usb"
 
+struct usb2_read_dir {
+	void   *urd_data;
+	uint32_t urd_startentry;
+	uint32_t urd_maxlen;
+};
+
 struct usb2_ctl_request {
 	void   *ucr_data;
 	uint16_t ucr_flags;
@@ -214,6 +220,8 @@ struct usb2_fs_clear_stall_sync {
 #define	USB_RELEASE_INTERFACE	_IOW ('U', 123, int)
 #define	USB_IFACE_DRIVER_ACTIVE	_IOW ('U', 124, int)
 #define	USB_IFACE_DRIVER_DETACH	_IOW ('U', 125, int)
+#define	USB_GET_PLUGTIME	_IOR ('U', 126, uint32_t)
+#define	USB_READ_DIR		_IOW ('U', 127, struct usb2_read_dir)
 
 /* Modem device */
 #define	USB_GET_CM_OVER_DATA	_IOR ('U', 130, int)

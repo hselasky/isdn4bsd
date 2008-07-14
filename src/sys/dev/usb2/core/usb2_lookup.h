@@ -79,10 +79,10 @@ struct usb2_device_id {
 #define	USB_VPI(vend,prod,info)			\
   USB_VENDOR(vend), USB_PRODUCT(prod), USB_DRIVER_INFO(info)
 
-#define	USB_DEV_BCD_LTEQ(lo)	/* less than or equal */ \
+#define	USB_DEV_BCD_GTEQ(lo)	/* greater than or equal */ \
   .match_flag_dev_lo = 1, .bcdDevice_lo = (lo)
 
-#define	USB_DEV_BCD_GTEQ(hi)	/* greater than or equal */ \
+#define	USB_DEV_BCD_LTEQ(hi)	/* less than or equal */ \
   .match_flag_dev_hi = 1, .bcdDevice_hi = (hi)
 
 #define	USB_DEV_CLASS(dc)			\

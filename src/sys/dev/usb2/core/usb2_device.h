@@ -26,6 +26,8 @@
 #ifndef _USB2_DEVICE_H_
 #define	_USB2_DEVICE_H_
 
+struct usb2_symlink;
+
 #define	USB_DEFAULT_XFER_MAX 2
 
 struct usb2_clear_stall_msg {
@@ -108,7 +110,9 @@ struct usb2_device {
 	struct usb2_temp_data *usb2_template_ptr;
 	struct usb2_pipe *pipe_curr;	/* current clear stall pipe */
 	struct usb2_fifo *fifo[USB_FIFO_MAX];
-	struct cdev *ugen_symlink;	/* our generic symlink */
+	struct usb2_symlink *ugen_symlink;	/* our generic symlink */
+
+	uint32_t plugtime;		/* copy of "ticks" */
 
 	uint16_t refcount;
 #define	USB_DEV_REF_MAX 0xffff

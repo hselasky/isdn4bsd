@@ -475,7 +475,7 @@ handle_notif_iord:
 
 	if (sc->sc_intr_iwakeup) {
 		sc->sc_intr_iwakeup = 0;
-		wakeup(&(sc->sc_intr_iwakeup));
+		usb2_cv_signal(&(sc->sc_intr_cv));
 	} else {
 		sc->sc_intr_iwakeup = 1;
 	}
@@ -517,8 +517,8 @@ repeat:
 
 		usb2_transfer_start(sc->sc_xfer[ZYD_TR_INTR_DT_RD]);
 
-		if (mtx_sleep(&(sc->sc_intr_iwakeup), &(sc->sc_mtx), 0,
-		    "zyd-ird", hz / 2)) {
+		if (usb2_cv_timedwait(&(sc->sc_intr_cv),
+		    &(sc->sc_mtx), hz / 2)) {
 			/* should not happen */
 		}
 		if (usb2_config_td_is_gone(&(sc->sc_config_td))) {
@@ -617,7 +617,7 @@ zyd_intr_write_callback(struct usb2_xfer *xfer)
 wakeup:
 	if (sc->sc_intr_owakeup) {
 		sc->sc_intr_owakeup = 0;
-		wakeup(&(sc->sc_intr_owakeup));
+		usb2_cv_signal(&(sc->sc_intr_cv));
 	}
 	return;
 }
@@ -625,7 +625,7 @@ wakeup:
 /*
  * Interrupt transfer, write.
  *
- * Not always an "interrupt transfer", as if operating in
+ * Not always an "interrupt transfer". If operating in
  * full speed mode, EP4 is bulk out, not interrupt out.
  */
 static void
@@ -648,8 +648,9 @@ zyd_cfg_usb2_intr_write(struct zyd_softc *sc, const void *data,
 	usb2_transfer_start(sc->sc_xfer[ZYD_TR_INTR_DT_WR]);
 
 	while (sc->sc_intr_owakeup) {
-		if (mtx_sleep(&(sc->sc_intr_owakeup), &(sc->sc_mtx), 0,
-		    "zyd-iwr", hz / 2)) {
+		if (usb2_cv_timedwait(&(sc->sc_intr_cv),
+		    &(sc->sc_mtx), hz / 2)) {
+			/* should not happen */
 		}
 		if (usb2_config_td_is_gone(&(sc->sc_config_td))) {
 			sc->sc_intr_owakeup = 0;
@@ -1075,6 +1076,8 @@ zyd_attach(device_t dev)
 
 	mtx_init(&sc->sc_mtx, "zyd lock", MTX_NETWORK_LOCK,
 	    MTX_DEF | MTX_RECURSE);
+
+	usb2_cv_init(&(sc->sc_intr_cv), "IWAIT");
 
 	usb2_callout_init_mtx(&(sc->sc_watchdog),
 	    &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
@@ -2056,6 +2059,8 @@ zyd_detach(device_t dev)
 	usb2_config_td_unsetup(&(sc->sc_config_td));
 
 	usb2_callout_drain(&(sc->sc_watchdog));
+
+	usb2_cv_destroy(&(sc->sc_intr_cv));
 
 	mtx_destroy(&sc->sc_mtx);
 

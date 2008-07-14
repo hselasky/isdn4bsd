@@ -77,7 +77,7 @@ usb2_do_request_callback(struct usb2_xfer *xfer)
 		usb2_start_hardware(xfer);
 		break;
 	default:
-		cv_signal(xfer->udev->default_cv);
+		usb2_cv_signal(xfer->udev->default_cv);
 		break;
 	}
 	return;
@@ -371,7 +371,7 @@ usb2_do_request_flags(struct usb2_device *udev, struct mtx *mtx,
 			if ((flags & USB_USE_POLLING) || cold) {
 				usb2_do_poll(udev->default_xfer, USB_DEFAULT_XFER_MAX);
 			} else {
-				cv_wait(xfer->udev->default_cv, xfer->priv_mtx);
+				usb2_cv_wait(xfer->udev->default_cv, xfer->priv_mtx);
 			}
 		}
 

@@ -44,6 +44,16 @@ typedef void (usb2_fifo_close_t)(struct usb2_fifo *fifo, int fflags, struct thre
 typedef int (usb2_fifo_ioctl_t)(struct usb2_fifo *fifo, u_long cmd, void *addr, int fflags, struct thread *td);
 typedef void (usb2_fifo_cmd_t)(struct usb2_fifo *fifo);
 
+struct usb2_symlink {
+	TAILQ_ENTRY(usb2_symlink) sym_entry;
+	char	src_path[32];		/* Source path - including terminating
+					 * zero */
+	char	dst_path[32];		/* Destination path - including
+					 * terminating zero */
+	uint8_t	src_len;		/* String length */
+	uint8_t	dst_len;		/* String length */
+};
+
 /*
  * Locking note for the following functions.  All the
  * "usb2_fifo_cmd_t" functions are called locked. The others are
@@ -72,7 +82,7 @@ struct usb2_fifo {
 	struct cv cv_io;
 	struct cv cv_drain;
 	struct usb2_fifo_methods *methods;
-	struct cdev *symlink[2];	/* our symlinks */
+	struct usb2_symlink *symlink[2];/* our symlinks */
 	struct proc *async_p;		/* process that wants SIGIO */
 	struct usb2_fs_endpoint *fs_ep_ptr;
 	struct usb2_device *udev;
@@ -127,5 +137,9 @@ void	usb2_fifo_free(struct usb2_fifo *f);
 void	usb2_fifo_reset(struct usb2_fifo *f);
 int	usb2_check_thread_perm(struct usb2_device *udev, struct thread *td, int fflags, uint8_t iface_index, uint8_t ep_index);
 void	usb2_fifo_wakeup(struct usb2_fifo *f);
+struct usb2_symlink *usb2_alloc_symlink(const char *target, const char *fmt,...);
+void	usb2_free_symlink(struct usb2_symlink *ps);
+uint32_t usb2_lookup_symlink(const char *src_ptr, uint8_t src_len);
+int	usb2_read_symlink(uint8_t *user_ptr, uint32_t startentry, uint32_t user_len);
 
 #endif					/* _USB2_DEV_H_ */

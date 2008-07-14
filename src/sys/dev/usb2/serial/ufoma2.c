@@ -148,6 +148,7 @@ typedef struct ufoma_mobile_acm_descriptor {
 struct ufoma_softc {
 	struct usb2_com_super_softc sc_super_ucom;
 	struct usb2_com_softc sc_ucom;
+	struct cv sc_cv;
 
 	struct usb2_xfer *sc_ctrl_xfer[UFOMA_CTRL_ENDPT_MAX];
 	struct usb2_xfer *sc_bulk_xfer[UFOMA_BULK_ENDPT_MAX];
@@ -385,6 +386,8 @@ ufoma_attach(device_t dev)
 	sc->sc_dev = dev;
 	sc->sc_unit = device_get_unit(dev);
 
+	usb2_cv_init(&(sc->sc_cv), "CWAIT");
+
 	device_set_usb2_desc(dev);
 
 	snprintf(sc->sc_name, sizeof(sc->sc_name),
@@ -472,6 +475,8 @@ ufoma_detach(device_t dev)
 	if (sc->sc_modetable) {
 		free(sc->sc_modetable, M_USBDEV);
 	}
+	usb2_cv_destroy(&(sc->sc_cv));
+
 	return (0);
 }
 
@@ -536,7 +541,7 @@ ufoma_cfg_link_state(struct ufoma_softc *sc)
 
 	ufoma_cfg_do_request(sc, &req, sc->sc_modetable);
 
-	error = mtx_sleep(&(sc->sc_currentmode), &Giant, 0, "ufoma_link", hz);
+	error = usb2_cv_timedwait(&(sc->sc_cv), &Giant, hz);
 
 	if (error) {
 		DPRINTF(0, "NO response\n");
@@ -558,8 +563,8 @@ ufoma_cfg_activate_state(struct ufoma_softc *sc, uint16_t state)
 
 	ufoma_cfg_do_request(sc, &req, NULL);
 
-	error = mtx_sleep(&(sc->sc_currentmode), &Giant, 0,
-	    "fmaact", (UFOMA_MAX_TIMEOUT * hz));
+	error = usb2_cv_timedwait(&(sc->sc_cv), &Giant,
+	    (UFOMA_MAX_TIMEOUT * hz));
 	if (error) {
 		DPRINTF(0, "No response\n");
 	}
@@ -709,7 +714,7 @@ ufoma_intr_callback(struct usb2_xfer *xfer)
 			if (!(temp & 0xff)) {
 				DPRINTF(0, "Mode change failed!\n");
 			}
-			wakeup(&(sc->sc_currentmode));
+			usb2_cv_signal(&(sc->sc_cv));
 		}
 		if (pkt.bmRequestType != UCDC_NOTIFICATION) {
 			goto tr_setup;

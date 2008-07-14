@@ -44,6 +44,7 @@ struct usb2_xfer_root {
 	struct usb2_xfer_queue dma_q;
 	struct usb2_xfer_queue done_q;
 	struct usb2_done_msg done_m[2];
+	struct cv cv_drain;
 
 	struct usb2_dma_parent_tag dma_parent_tag;
 

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2006 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2006-2008 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,6 +43,7 @@
 #include <dev/usb2/core/usb2_busdma.h>
 #include <dev/usb2/core/usb2_generic.h>
 #include <dev/usb2/core/usb2_dynamic.h>
+#include <dev/usb2/core/usb2_util.h>
 
 #include <dev/usb2/controller/usb2_controller.h>
 #include <dev/usb2/controller/usb2_bus.h>
@@ -50,6 +51,8 @@
 #include <sys/filio.h>
 #include <sys/ttycom.h>
 #include <sys/syscallsubr.h>
+
+#include <machine/stdarg.h>
 
 #ifdef USB_DEBUG
 static int usb2_fifo_debug = 0;
@@ -84,6 +87,7 @@ static struct usb2_pipe *usb2_dev_get_pipe(struct usb2_device *udev, uint8_t ifa
 
 static d_fdopen_t usb2_fdopen;
 static d_close_t usb2_close;
+static d_ioctl_t usb2_ioctl;
 
 static fo_rdwr_t usb2_read_f;
 static fo_rdwr_t usb2_write_f;
@@ -110,6 +114,7 @@ static struct cdevsw usb2_devsw = {
 	.d_version = D_VERSION,
 	.d_fdopen = usb2_fdopen,
 	.d_close = usb2_close,
+	.d_ioctl = usb2_ioctl,
 	.d_name = "usb",
 	.d_flags = D_TRACKCLOSE,
 };
@@ -132,6 +137,8 @@ static uint32_t usb2_last_devloc = 0 - 1;
 static eventhandler_tag usb2_clone_tag;
 static void *usb2_old_f_data;
 static struct fileops *usb2_old_f_ops;
+static TAILQ_HEAD(, usb2_symlink) usb2_sym_head;
+static struct sx usb2_sym_lock;
 
 struct mtx usb2_ref_lock;
 
@@ -450,17 +457,17 @@ usb2_unref_device(struct usb2_location *ploc)
 	mtx_lock(&usb2_ref_lock);
 	if (ploc->is_read) {
 		if (--(ploc->rxfifo->refcount) == 0) {
-			cv_signal(&(ploc->rxfifo->cv_drain));
+			usb2_cv_signal(&(ploc->rxfifo->cv_drain));
 		}
 	}
 	if (ploc->is_write) {
 		if (--(ploc->txfifo->refcount) == 0) {
-			cv_signal(&(ploc->txfifo->cv_drain));
+			usb2_cv_signal(&(ploc->txfifo->cv_drain));
 		}
 	}
 	if (ploc->is_uref) {
 		if (--(ploc->udev->refcount) == 0) {
-			cv_signal(ploc->udev->default_cv + 1);
+			usb2_cv_signal(ploc->udev->default_cv + 1);
 		}
 	}
 	mtx_unlock(&usb2_ref_lock);
@@ -474,8 +481,8 @@ usb2_fifo_alloc(void)
 
 	f = malloc(sizeof(*f), M_USBDEV, M_WAITOK | M_ZERO);
 	if (f) {
-		cv_init(&f->cv_io, "FIFO-IO");
-		cv_init(&f->cv_drain, "FIFO-DRAIN");
+		usb2_cv_init(&f->cv_io, "FIFO-IO");
+		usb2_cv_init(&f->cv_drain, "FIFO-DRAIN");
 		f->refcount = 1;
 	}
 	return (f);
@@ -652,7 +659,7 @@ usb2_fifo_free(struct usb2_fifo *f)
 	/* destroy symlink devices, if any */
 	for (n = 0; n != 2; n++) {
 		if (f->symlink[n]) {
-			destroy_dev(f->symlink[n]);
+			usb2_free_symlink(f->symlink[n]);
 			f->symlink[n] = NULL;
 		}
 	}
@@ -677,20 +684,20 @@ usb2_fifo_free(struct usb2_fifo *f)
 		/* get I/O thread out of any sleep state */
 		if (f->flag_sleeping) {
 			f->flag_sleeping = 0;
-			cv_broadcast(&f->cv_io);
+			usb2_cv_broadcast(&f->cv_io);
 		}
 		mtx_unlock(f->priv_mtx);
 
 		/* wait for sync */
-		cv_wait(&f->cv_drain, &usb2_ref_lock);
+		usb2_cv_wait(&f->cv_drain, &usb2_ref_lock);
 	}
 	mtx_unlock(&usb2_ref_lock);
 
 	/* take care of closing the device here, if any */
 	usb2_fifo_close(f, curthread, 0);
 
-	cv_destroy(&f->cv_io);
-	cv_destroy(&f->cv_drain);
+	usb2_cv_destroy(&f->cv_io);
+	usb2_cv_destroy(&f->cv_drain);
 
 	free(f, M_USBDEV);
 	return;
@@ -885,7 +892,7 @@ usb2_fifo_close(struct usb2_fifo *f, struct thread *td, int fflags)
 			    (!f->flag_iserror)) {
 				/* wait until all data has been written */
 				f->flag_sleeping = 1;
-				err = cv_wait_sig(&(f->cv_io), f->priv_mtx);
+				err = usb2_cv_wait_sig(&(f->cv_io), f->priv_mtx);
 				if (err) {
 					DPRINTF(0, "signal received\n");
 					break;
@@ -979,7 +986,8 @@ usb2_check_thread_perm(struct usb2_device *udev, struct thread *td,
  *	usb2_fdopen - cdev callback
  *------------------------------------------------------------------------*/
 static int
-usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td, struct file *fp)
+usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td,
+    struct file *fp)
 {
 	struct usb2_location loc;
 	uint32_t devloc;
@@ -989,7 +997,7 @@ usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td, struct file *fp
 	DPRINTF(1, "oflags=0x%08x\n", xxx_oflags);
 
 	devloc = usb2_last_devloc;
-	usb2_last_devloc = (0 - 1);	/* reset "usb2_devloc" */
+	usb2_last_devloc = (0 - 1);	/* reset "usb2_last_devloc" */
 
 	if (fp == NULL) {
 		DPRINTF(1, "fp == NULL\n");
@@ -1016,8 +1024,11 @@ usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td, struct file *fp
 		/* should not happen */
 		return (EPERM);
 	}
-	if (devloc == (uint32_t)(0 - 1)) {
-		/* tried to open /dev/usb */
+	if (devloc == (uint32_t)(0 - 2)) {
+		/* tried to open "/dev/usb" */
+		return (0);
+	} else if (devloc == (uint32_t)(0 - 1)) {
+		/* tried to open "/dev/usb " */
 		DPRINTF(1, "no devloc\n");
 		return (ENXIO);
 	}
@@ -1085,6 +1096,30 @@ usb2_close(struct cdev *dev, int flag, int mode, struct thread *p)
 }
 
 /*------------------------------------------------------------------------*
+ *	usb2_close - cdev callback
+ *------------------------------------------------------------------------*/
+static int
+usb2_ioctl(struct cdev *dev, u_long cmd, caddr_t data,
+    int fflag, struct thread *td)
+{
+	int err;
+
+	switch (cmd) {
+	case USB_READ_DIR:{
+			struct usb2_read_dir *urd = (void *)data;
+
+			err = usb2_read_symlink(urd->urd_data,
+			    urd->urd_startentry, urd->urd_maxlen);
+			break;
+		}
+	default:
+		err = ENOTTY;
+		break;
+	}
+	return (err);
+}
+
+/*------------------------------------------------------------------------*
  *      usb2_clone - cdev callback
  *
  * This function is the kernel clone callback for "/dev/usbX.Y".
@@ -1092,12 +1127,12 @@ usb2_close(struct cdev *dev, int flag, int mode, struct thread *p)
 static void
 usb2_clone(void *arg, USB_UCRED char *name, int namelen, struct cdev **dev)
 {
+	enum {
+		USB_DNAME_LEN = sizeof(USB_DEVICE_NAME) - 1,
+	};
+
 	if (*dev) {
 		/* someone else has created a device */
-		return;
-	}
-	if (strncmp(name, USB_DEVICE_NAME,
-	    sizeof(USB_DEVICE_NAME) - 1)) {
 		return;
 	}
 	if (usb2_last_devloc != (uint32_t)(0 - 1)) {
@@ -1107,8 +1142,17 @@ usb2_clone(void *arg, USB_UCRED char *name, int namelen, struct cdev **dev)
 		 */
 		DPRINTF(1, "Clone race!\n");
 	}
-	usb2_last_devloc = usb2_path_convert(name +
-	    sizeof(USB_DEVICE_NAME) - 1);
+	if (strcmp(name, USB_DEVICE_NAME)) {
+		usb2_last_devloc =
+		    usb2_lookup_symlink(name, namelen);
+	} else {
+		if (namelen == USB_DNAME_LEN) {
+			usb2_last_devloc = (uint32_t)(0 - 2);
+		} else {
+			usb2_last_devloc =
+			    usb2_path_convert(name + USB_DNAME_LEN);
+		}
+	}
 
 	if (usb2_last_devloc == (uint32_t)(0 - 1)) {
 		/* invalid location */
@@ -1123,6 +1167,9 @@ static void
 usb2_dev_init(void *arg)
 {
 	mtx_init(&usb2_ref_lock, "USB ref mutex", NULL, MTX_DEF);
+	sx_init(&usb2_sym_lock, "USB sym mutex");
+	TAILQ_INIT(&usb2_sym_head);
+
 	/* check the UGEN methods */
 	usb2_fifo_check_methods(&usb2_ugen_methods);
 	return;
@@ -1133,7 +1180,11 @@ SYSINIT(usb2_dev_init, SI_SUB_KLD, SI_ORDER_FIRST, usb2_dev_init, NULL);
 static void
 usb2_dev_init_post(void *arg)
 {
-	/* create a dummy device so that we are visible */
+	/*
+	 * Create a dummy device so that we are visible. This device
+	 * should never be opened. Therefore a space character is
+	 * appended after the USB device name.
+	 */
 	usb2_dev = make_dev(&usb2_devsw, 0, UID_ROOT, GID_OPERATOR,
 	    0000, USB_DEVICE_NAME " ");
 	if (usb2_dev == NULL) {
@@ -1160,6 +1211,7 @@ usb2_dev_uninit(void *arg)
 		usb2_dev = NULL;
 	}
 	mtx_destroy(&usb2_ref_lock);
+	sx_destroy(&usb2_sym_lock);
 	return;
 }
 
@@ -1694,7 +1746,7 @@ usb2_fifo_wait(struct usb2_fifo *f)
 	}
 	f->flag_sleeping = 1;
 
-	err = cv_wait_sig(&(f->cv_io), f->priv_mtx);
+	err = usb2_cv_wait_sig(&(f->cv_io), f->priv_mtx);
 
 	if (f->flag_iserror) {
 		/* we are gone */
@@ -1708,7 +1760,7 @@ usb2_fifo_signal(struct usb2_fifo *f)
 {
 	if (f->flag_sleeping) {
 		f->flag_sleeping = 0;
-		cv_broadcast(&(f->cv_io));
+		usb2_cv_broadcast(&(f->cv_io));
 	}
 	return;
 }
@@ -1938,10 +1990,10 @@ usb2_fifo_attach(struct usb2_device *udev, void *priv_sc,
 		 */
 		if (n & 1) {
 			f_rx->symlink[n / 2] =
-			    make_dev_symlink(src, "%s", buf);
+			    usb2_alloc_symlink(src, "%s", buf);
 		} else {
 			f_tx->symlink[n / 2] =
-			    make_dev_symlink(src, "%s", buf);
+			    usb2_alloc_symlink(src, "%s", buf);
 		}
 		DPRINTF(0, "Symlink: %s -> %s\n", buf, src);
 	}
@@ -2257,4 +2309,188 @@ usb2_fifo_get_data_error(struct usb2_fifo *f)
 	f->flag_iserror = 1;
 	usb2_fifo_wakeup(f);
 	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_alloc_symlink
+ *
+ * Return values:
+ * NULL: Failure
+ * Else: Pointer to symlink entry
+ *------------------------------------------------------------------------*/
+struct usb2_symlink *
+usb2_alloc_symlink(const char *target, const char *fmt,...)
+{
+	struct usb2_symlink *ps;
+	va_list ap;
+
+	ps = malloc(sizeof(*ps), M_USBDEV, M_WAITOK);
+	if (ps == NULL) {
+		return (ps);
+	}
+	strlcpy(ps->dst_path, target, sizeof(ps->dst_path));
+	ps->dst_len = strlen(ps->dst_path);
+
+	va_start(ap, fmt);
+	vsnrprintf(ps->src_path,
+	    sizeof(ps->src_path), 32, fmt, ap);
+	va_end(ap);
+	ps->src_len = strlen(ps->src_path);
+
+	sx_xlock(&usb2_sym_lock);
+	TAILQ_INSERT_TAIL(&usb2_sym_head, ps, sym_entry);
+	sx_unlock(&usb2_sym_lock);
+	return (ps);
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_free_symlink
+ *------------------------------------------------------------------------*/
+void
+usb2_free_symlink(struct usb2_symlink *ps)
+{
+	if (ps == NULL) {
+		return;
+	}
+	sx_xlock(&usb2_sym_lock);
+	TAILQ_REMOVE(&usb2_sym_head, ps, sym_entry);
+	sx_unlock(&usb2_sym_lock);
+
+	free(ps, M_USBDEV);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_lookup_symlink
+ *
+ * Return value:
+ * Numerical device location
+ *------------------------------------------------------------------------*/
+uint32_t
+usb2_lookup_symlink(const char *src_ptr, uint8_t src_len)
+{
+	enum {
+		USB_DNAME_LEN = sizeof(USB_DEVICE_NAME) - 1,
+	};
+	struct usb2_symlink *ps;
+	uint32_t temp;
+
+	sx_xlock(&usb2_sym_lock);
+
+	TAILQ_FOREACH(ps, &usb2_sym_head, sym_entry) {
+
+		if (src_len != ps->src_len)
+			continue;
+
+		if (memcmp(ps->src_path, src_ptr, src_len))
+			continue;
+
+		if (USB_DNAME_LEN > ps->dst_len)
+			continue;
+
+		if (memcmp(ps->dst_path, USB_DEVICE_NAME, USB_DNAME_LEN))
+			continue;
+
+		temp = usb2_path_convert(ps->dst_path + USB_DNAME_LEN);
+		sx_unlock(&usb2_sym_lock);
+
+		return (temp);
+	}
+	sx_unlock(&usb2_sym_lock);
+	return (0 - 1);
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_read_symlink
+ *
+ * Return value:
+ * 0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+int
+usb2_read_symlink(uint8_t *user_ptr, uint32_t startentry, uint32_t user_len)
+{
+	struct usb2_symlink *ps;
+	uint32_t curoff = 0;
+	uint32_t temp;
+	uint32_t delta = 0;
+	uint8_t len;
+	int error = 0;
+
+	sx_xlock(&usb2_sym_lock);
+
+	TAILQ_FOREACH(ps, &usb2_sym_head, sym_entry) {
+
+		temp = ps->src_len + ps->dst_len + 3;
+
+		if (temp > 255) {
+			continue;
+		}
+		if (startentry != 0) {
+			startentry--;
+			curoff += temp;
+			continue;
+		}
+		if (temp > user_len) {
+			/* out of buffer space */
+			break;
+		}
+		len = temp;
+
+		/* copy out total length */
+
+		error = copyout(&len,
+		    USB_ADD_BYTES(user_ptr, delta), 1);
+		if (error) {
+			break;
+		}
+		delta += 1;
+
+		/* copy out source string */
+
+		error = copyout(ps->src_path,
+		    USB_ADD_BYTES(user_ptr, delta), ps->src_len);
+		if (error) {
+			break;
+		}
+		len = 0;
+		delta += ps->src_len;
+		error = copyout(&len,
+		    USB_ADD_BYTES(user_ptr, delta), 1);
+		if (error) {
+			break;
+		}
+		delta += 1;
+
+		/* copy out destination string */
+
+		error = copyout(ps->dst_path,
+		    USB_ADD_BYTES(user_ptr, delta), ps->dst_len);
+		if (error) {
+			break;
+		}
+		len = 0;
+		delta += ps->dst_len;
+		error = copyout(&len,
+		    USB_ADD_BYTES(user_ptr, delta), 1);
+		if (error) {
+			break;
+		}
+		delta += 1;
+
+		curoff += temp;
+		user_len -= temp;
+	}
+
+	/* a zero length entry indicates the end */
+
+	if ((user_len != 0) && (error == 0)) {
+
+		len = 0;
+
+		error = copyout(&len,
+		    USB_ADD_BYTES(user_ptr, delta), 1);
+	}
+	sx_unlock(&usb2_sym_lock);
+	return (error);
 }

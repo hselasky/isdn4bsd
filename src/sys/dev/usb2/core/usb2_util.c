@@ -38,6 +38,9 @@
 #include <dev/usb2/controller/usb2_controller.h>
 #include <dev/usb2/controller/usb2_bus.h>
 
+/* function prototypes */
+static int usb2_msleep(void *chan, struct mtx *mtx, int priority, const char *wmesg, int timo);
+
 /*------------------------------------------------------------------------*
  * device_delete_all_children - delete all children of a device
  *------------------------------------------------------------------------*/
@@ -233,4 +236,103 @@ usb2_make_str_desc(void *ptr, uint16_t max_len, const char *s)
 		USETW2(p->bString[max_len], 0, s[max_len]);
 	}
 	return (totlen);
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_cv_init - wrapper function
+ *------------------------------------------------------------------------*/
+void
+usb2_cv_init(struct cv *cv, const char *desc)
+{
+	cv_init(cv, desc);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_cv_destroy - wrapper function
+ *------------------------------------------------------------------------*/
+void
+usb2_cv_destroy(struct cv *cv)
+{
+	cv_destroy(cv);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_cv_wait - wrapper function
+ *------------------------------------------------------------------------*/
+void
+usb2_cv_wait(struct cv *cv, struct mtx *mtx)
+{
+	int err;
+
+	err = usb2_msleep(cv, mtx, 0, cv_wmesg(cv), 0);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_cv_wait_sig - wrapper function
+ *------------------------------------------------------------------------*/
+int
+usb2_cv_wait_sig(struct cv *cv, struct mtx *mtx)
+{
+	int err;
+
+	err = usb2_msleep(cv, mtx, PCATCH, cv_wmesg(cv), 0);
+	return (err);
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_cv_timedwait - wrapper function
+ *------------------------------------------------------------------------*/
+int
+usb2_cv_timedwait(struct cv *cv, struct mtx *mtx, int timo)
+{
+	int err;
+
+	if (timo == 0)
+		timo = 1;		/* zero means no timeout */
+	err = usb2_msleep(cv, mtx, 0, cv_wmesg(cv), timo);
+	return (err);
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_cv_signal - wrapper function
+ *------------------------------------------------------------------------*/
+void
+usb2_cv_signal(struct cv *cv)
+{
+	wakeup_one(cv);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_cv_broadcast - wrapper function
+ *------------------------------------------------------------------------*/
+void
+usb2_cv_broadcast(struct cv *cv)
+{
+	wakeup(cv);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_msleep - wrapper function
+ *------------------------------------------------------------------------*/
+static int
+usb2_msleep(void *chan, struct mtx *mtx, int priority, const char *wmesg,
+    int timo)
+{
+	int err;
+
+	if (mtx == &Giant) {
+		err = tsleep(chan, priority, wmesg, timo);
+	} else {
+#ifdef mtx_sleep
+		err = mtx_sleep(chan, mtx, priority, wmesg, timo);
+#else
+		err = msleep(chan, mtx, priority, wmesg, timo);
+#endif
+	}
+	return (err);
 }

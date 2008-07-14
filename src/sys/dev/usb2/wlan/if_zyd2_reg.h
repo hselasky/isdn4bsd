@@ -1228,6 +1228,7 @@ struct zyd_softc {
 	struct zyd_cmd sc_intr_obuf;
 	struct zyd_tx_desc sc_tx_desc;
 	struct zyd_ifq sc_tx_queue;
+	struct cv sc_intr_cv;
 
 	struct ifnet *sc_ifp;
 	struct usb2_device *sc_udev;

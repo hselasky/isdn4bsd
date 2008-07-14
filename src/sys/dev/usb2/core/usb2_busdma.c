@@ -27,6 +27,7 @@
 #include <dev/usb2/core/usb2_busdma.h>
 #include <dev/usb2/core/usb2_process.h>
 #include <dev/usb2/core/usb2_transfer.h>
+#include <dev/usb2/core/usb2_util.h>
 
 #include <dev/usb2/include/usb2_mfunc.h>
 #include <dev/usb2/include/usb2_error.h>
@@ -389,7 +390,7 @@ done:
 	if (isload) {
 		(uptag->func) (uptag);
 	} else {
-		cv_broadcast(uptag->cv);
+		usb2_cv_broadcast(uptag->cv);
 	}
 	if (!owned)
 		mtx_unlock(uptag->mtx);
@@ -476,7 +477,7 @@ usb2_pc_alloc_mem(struct usb2_page_cache *pc, struct usb2_page *pg,
 	    pc, (BUS_DMA_WAITOK | BUS_DMA_COHERENT));
 
 	if (err == EINPROGRESS) {
-		cv_wait(uptag->cv, uptag->mtx);
+		usb2_cv_wait(uptag->cv, uptag->mtx);
 		err = 0;
 	}
 	mtx_unlock(uptag->mtx);
@@ -553,7 +554,7 @@ usb2_pc_load_mem(struct usb2_page_cache *pc, uint32_t size, uint8_t sync)
 			    pc->tag, pc->map, pc->buffer, size,
 			    &usb2_pc_alloc_mem_cb, pc, BUS_DMA_WAITOK);
 			if (err == EINPROGRESS) {
-				cv_wait(uptag->cv, uptag->mtx);
+				usb2_cv_wait(uptag->cv, uptag->mtx);
 				err = 0;
 			}
 			mtx_unlock(uptag->mtx);
@@ -1077,7 +1078,7 @@ usb2_dma_tag_setup(struct usb2_dma_parent_tag *udpt,
 	}
 #ifdef __FreeBSD__
 	/* initialise condition variable */
-	cv_init(udpt->cv, "USB DMA CV");
+	usb2_cv_init(udpt->cv, "USB DMA CV");
 #endif
 
 	/* store some information */
@@ -1122,7 +1123,7 @@ usb2_dma_tag_unsetup(struct usb2_dma_parent_tag *udpt)
 	if (udpt->utag_max) {
 #ifdef __FreeBSD__
 		/* destroy the condition variable */
-		cv_destroy(udpt->cv);
+		usb2_cv_destroy(udpt->cv);
 #endif
 	}
 	return;

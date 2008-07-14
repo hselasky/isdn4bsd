@@ -394,6 +394,7 @@ struct usb_iso_packet_descriptor {
  */
 struct urb {
 	TAILQ_ENTRY(urb) bsd_urb_list;
+	struct cv cv_wait;
 
 	struct usb_device *dev;		/* (in) pointer to associated device */
 	struct usb_host_endpoint *pipe;	/* (in) pipe pointer */

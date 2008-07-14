@@ -1307,8 +1307,8 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	/* initialise our SX-lock */
 	sx_init(udev->default_sx + 1, "USB config SX lock");
 
-	cv_init(udev->default_cv, "WCTRL");
-	cv_init(udev->default_cv + 1, "UGONE");
+	usb2_cv_init(udev->default_cv, "WCTRL");
+	usb2_cv_init(udev->default_cv + 1, "UGONE");
 
 	/* initialise our mutex */
 	mtx_init(udev->default_mtx, "USB device mutex", NULL, MTX_DEF);
@@ -1327,6 +1327,7 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	udev->depth = depth;
 	udev->bus = bus;
 	udev->address = USB_START_ADDR;	/* default value */
+	udev->plugtime = (uint32_t)ticks;
 
 	/* we are not ready yet */
 	udev->refcount = 1;
@@ -1614,7 +1615,7 @@ repeat_set_config:
 		/* ignore */
 	}
 	udev->ugen_symlink =
-	    make_dev_symlink(scratch_ptr, "ugen%u.%u",
+	    usb2_alloc_symlink(scratch_ptr, "ugen%u.%u",
 	    device_get_unit(udev->bus->bdev),
 	    udev->device_index);
 
@@ -1653,7 +1654,7 @@ usb2_free_device(struct usb2_device *udev)
 	 * Destroy UGEN symlink, if any
 	 */
 	if (udev->ugen_symlink) {
-		destroy_dev(udev->ugen_symlink);
+		usb2_free_symlink(udev->ugen_symlink);
 		udev->ugen_symlink = NULL;
 	}
 	/*
@@ -1669,7 +1670,7 @@ usb2_free_device(struct usb2_device *udev)
 	mtx_lock(&usb2_ref_lock);
 	udev->refcount--;
 	while (udev->refcount != 0) {
-		cv_wait(udev->default_cv + 1, &usb2_ref_lock);
+		usb2_cv_wait(udev->default_cv + 1, &usb2_ref_lock);
 	}
 	mtx_unlock(&usb2_ref_lock);
 
@@ -1692,8 +1693,8 @@ usb2_free_device(struct usb2_device *udev)
 	sx_destroy(udev->default_sx);
 	sx_destroy(udev->default_sx + 1);
 
-	cv_destroy(udev->default_cv);
-	cv_destroy(udev->default_cv + 1);
+	usb2_cv_destroy(udev->default_cv);
+	usb2_cv_destroy(udev->default_cv + 1);
 
 	mtx_destroy(udev->default_mtx);
 
