@@ -1682,7 +1682,6 @@ uaudio_mixer_add_selector(struct uaudio_softc *sc,
 {
 	const struct usb2_audio_selector_unit *d = iot[id].u.su;
 	struct uaudio_mixer_node mix;
-	struct uaudio_mixer_node dummy;
 	uint16_t i;
 
 	DPRINTF(2, "bUnitId=%d bNrInPins=%d\n",
@@ -1699,7 +1698,7 @@ uaudio_mixer_add_selector(struct uaudio_softc *sc,
 	mix.nchan = 1;
 	mix.type = MIX_SELECTOR;
 
-	mix.ctl = SOUND_MIXER_NRDEVICES;/* XXXXX */
+	mix.ctl = SOUND_MIXER_NRDEVICES;
 	mix.minval = 1;
 	mix.maxval = d->bNrInPins;
 
@@ -1713,8 +1712,10 @@ uaudio_mixer_add_selector(struct uaudio_softc *sc,
 
 	for (i = 0; i < mix.maxval; i++) {
 		mix.slctrtype[i] = uaudio_mixer_feature_name
-		    (&iot[d->baSourceId[i]], &dummy);
+		    (&iot[d->baSourceId[i]], &mix);
 	}
+
+	mix.class = 0;			/* not used */
 
 	uaudio_mixer_add_ctl(sc, &mix);
 	return;
@@ -3071,8 +3072,7 @@ uaudio_mixer_init(struct uaudio_softc *sc)
 			sc->sc_mix_info |= (1 << mc->ctl);
 		}
 		if ((mc->ctl == SOUND_MIXER_NRDEVICES) &&
-		    (mc->type == MIX_SELECTOR) &&
-		    (mc->class == UAC_RECORD)) {
+		    (mc->type == MIX_SELECTOR)) {
 
 			for (i = mc->minval; (i > 0) && (i <= mc->maxval); i++) {
 				if (mc->slctrtype[i - 1] == SOUND_MIXER_NRDEVICES) {
@@ -3141,20 +3141,40 @@ uint32_t
 uaudio_mixer_setrecsrc(struct uaudio_softc *sc, uint32_t src)
 {
 	struct uaudio_mixer_node *mc;
+	uint32_t mask;
+	uint32_t temp;
 	int32_t i;
 
 	for (mc = sc->sc_mixer_root; mc;
 	    mc = mc->next) {
 
 		if ((mc->ctl == SOUND_MIXER_NRDEVICES) &&
-		    (mc->type == MIX_SELECTOR) &&
-		    (mc->class == UAC_RECORD)) {
+		    (mc->type == MIX_SELECTOR)) {
+
+			/* compute selector mask */
+
+			mask = 0;
 			for (i = mc->minval; (i > 0) && (i <= mc->maxval); i++) {
-				if (src != (1 << mc->slctrtype[i - 1])) {
+				mask |= (1 << mc->slctrtype[i - 1]);
+			}
+
+			temp = mask & src;
+			if (temp == 0) {
+				continue;
+			}
+			/* find the first set bit */
+			temp = (-temp) & temp;
+
+			/* update "src" */
+			src &= ~mask;
+			src |= temp;
+
+			for (i = mc->minval; (i > 0) && (i <= mc->maxval); i++) {
+				if (temp != (1 << mc->slctrtype[i - 1])) {
 					continue;
 				}
 				uaudio_mixer_ctl_set(sc, mc, 0, i);
-				src = (1 << mc->slctrtype[i - 1]);
+				break;
 			}
 		}
 	}

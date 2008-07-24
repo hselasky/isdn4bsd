@@ -857,7 +857,6 @@ uss820dci_setup_standard_chain(struct usb2_xfer *xfer)
 	struct uss820dci_softc *sc;
 	struct uss820dci_td *td;
 	uint32_t x;
-	uint8_t need_sync;
 	uint8_t ep_no;
 
 	DPRINTF(8, "addr=%d endpt=%d sumlen=%d speed=%d\n",
@@ -900,18 +899,13 @@ uss820dci_setup_standard_chain(struct usb2_xfer *xfer)
 	if (x != xfer->nframes) {
 		if (xfer->endpoint & UE_DIR_IN) {
 			temp.func = &uss820dci_data_tx;
-			need_sync = 1;
 		} else {
 			temp.func = &uss820dci_data_rx;
-			need_sync = 0;
 		}
 
 		/* setup "pc" pointer */
 		temp.pc = xfer->frbuffers + x;
-	} else {
-		need_sync = 0;
 	}
-
 	while (x != xfer->nframes) {
 
 		/* DATA0 / DATA1 message */
@@ -949,20 +943,11 @@ uss820dci_setup_standard_chain(struct usb2_xfer *xfer)
 	/* always setup a valid "pc" pointer for status and sync */
 	temp.pc = xfer->frbuffers + 0;
 
-	/* check if we need to sync */
-	if (need_sync && !xfer->flags_int.isochronous_xfr) {
-
-		/* we need a SYNC point after TX */
-		temp.func = &uss820dci_data_tx_sync;
-		temp.len = 0;
-		temp.short_pkt = 0;
-
-		uss820dci_setup_standard_chain_sub(&temp);
-	}
 	/* check if we should append a status stage */
 
 	if (xfer->flags_int.control_xfr &&
 	    !xfer->flags_int.control_act) {
+		uint8_t need_sync;
 
 		/*
 		 * Send a DATA1 message and invert the current

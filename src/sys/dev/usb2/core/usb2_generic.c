@@ -948,7 +948,7 @@ ugen_do_request(struct usb2_fifo *f, struct usb2_ctl_request *ur)
 	}
 done:
 	if (data) {
-		free(M_USBDEV, data);
+		free(data, M_USBDEV);
 	}
 	return (error);
 }

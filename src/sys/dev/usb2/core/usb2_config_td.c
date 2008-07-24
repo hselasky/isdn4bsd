@@ -87,7 +87,7 @@ usb2_config_td_setup(struct usb2_config_td *ctd, void *priv_sc,
 		return (1);
 	}
 	if (usb2_proc_setup(&(ctd->usb2_proc), priv_mtx, USB_PRI_MED)) {
-		free(M_USBDEV, ctd->p_msgs);
+		free(ctd->p_msgs, M_USBDEV);
 		ctd->p_msgs = NULL;
 		return (1);
 	}

@@ -371,8 +371,9 @@ usb2_proc_drain(struct usb2_process *up)
 		/* not initialised */
 		return;
 	}
-	mtx_assert(up->up_mtx, MA_NOTOWNED);
-
+	if (up->up_mtx != &Giant) {
+		mtx_assert(up->up_mtx, MA_NOTOWNED);
+	}
 	mtx_lock(up->up_mtx);
 
 	/* Set the gone flag */
