@@ -95,13 +95,13 @@ struct usb2_device_id {
   .match_flag_dev_protocol = 1, .bDeviceProtocol = (dp)
 
 #define	USB_IFACE_CLASS(ic)			\
-  .match_flag_dev_class = 1, .bDeviceClass = (ic)
+  .match_flag_int_class = 1, .bInterfaceClass = (ic)
 
 #define	USB_IFACE_SUBCLASS(isc)			\
-  .match_flag_dev_subclass = 1, .bDeviceSubClass = (isc)
+  .match_flag_int_subclass = 1, .bInterfaceSubClass = (isc)
 
 #define	USB_IFACE_PROTOCOL(ip)			\
-  .match_flag_dev_protocol = 1, .bDeviceProtocol = (ip)
+  .match_flag_int_protocol = 1, .bInterfaceProtocol = (ip)
 
 #define	USB_IF_CSI(class,subclass,info)			\
   USB_IFACE_CLASS(class), USB_IFACE_SUBCLASS(subclass), USB_DRIVER_INFO(info)
