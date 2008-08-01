@@ -17,12 +17,12 @@ scan()
 
 	grep -E "^[	 ]*DEVMETHOD[(]" "$F" | sed -e "s/^[	 ]*DEVMETHOD[(]//g" | sed -e "s/[	 ]//g" | sed -e "s/[,].*//g" >> temp1
 
-	grep -E "^DRIVER_MODULE[(]" "$F" | sed -e "s/[)][,;]/)/g" >> module_driver.h
-	grep -E "^MODULE_DEPEND[(]" "$F" | sed -e "s/[)][,;]/)/g" >> module_depend.h
-	grep -E "^MODULE_VERSION[(]" "$F" | sed -e "s/[)][,;]/)/g" >> module_version.h
-	grep -E "^SYSINIT[(]" "$F" | sed -e "s/[)][,;]/)/g" >> module_sysinit.h
-	grep -E "^SYSUNINIT[(]" "$F" | sed -e "s/[)][,;]/)/g" >> module_sysuninit.h
-	grep -E "^SYSCTL_[:alpha:_]*[(]" "$F" | sed -e "s/[)][,;]/)/g" >> module_sysctl.h
+	grep -E "^DRIVER_MODULE[(]" "$F" | sed -e "s/[)][,;]/)/g" >> bsd_module_driver.h
+	grep -E "^MODULE_DEPEND[(]" "$F" | sed -e "s/[)][,;]/)/g" >> bsd_module_depend.h
+	grep -E "^MODULE_VERSION[(]" "$F" | sed -e "s/[)][,;]/)/g" >> bsd_module_version.h
+	grep -E "^SYSINIT[(]" "$F" | sed -e "s/[)][,;]/)/g" >> bsd_module_sysinit.h
+	grep -E "^SYSUNINIT[(]" "$F" | sed -e "s/[)][,;]/)/g" >> bsd_module_sysuninit.h
+	grep -E "^SYSCTL_[:alpha:_]*[(]" "$F" | sed -e "s/[)][,;]/)/g" >> bsd_module_sysctl.h
 
 	echo -n "."
     done
@@ -67,18 +67,22 @@ mkrename()
 
 rm -f temp0 temp1
 
-mkautogen > module_driver.h
-mkautogen > module_depend.h
-mkautogen > module_version.h
-mkautogen > module_devmethod.h
-mkautogen > module_rename.h
-mkautogen > module_sysctl.h
-mkautogen > module_sysinit.h
-mkautogen > module_sysuninit.h
+mkautogen > bsd_module_driver.h
+mkautogen > bsd_module_depend.h
+mkautogen > bsd_module_version.h
+mkautogen > bsd_module_devmethod.h
+mkautogen > bsd_module_rename.h
+mkautogen > bsd_module_sysctl.h
+mkautogen > bsd_module_sysinit.h
+mkautogen > bsd_module_sysuninit.h
 
 echo -n "Scanning "
 
-find ../src/sys/dev/usb2 ./kern \( -name "*.c" -or -name "*.h" \) -and -type f \
+find \
+    ../src/sys/dev/usb2/core \
+    ../src/sys/dev/usb2/controller \
+    ./kern \
+    \( -name "*.c" -or -name "*.h" \) -and -type f \
     | scan
 
 echo " done"
@@ -89,10 +93,10 @@ sort temp0 | uniq \
     | mkempty
 
 sort temp1 | uniq \
-    | mkdevmethod >> module_devmethod.h
+    | mkdevmethod >> bsd_module_devmethod.h
 
 sort module_rename_list | uniq \
-    | mkrename >> module_rename.h
+    | mkrename >> bsd_module_rename.h
 
 rm -f temp0 temp1
 

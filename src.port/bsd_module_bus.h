@@ -23,39 +23,6 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _BSD_MODULE_ALL_H_
-#define	_BSD_MODULE_ALL_H_
-
-#include <module_rename.h>
-#include <module_devmethod.h>
-#include <module_queue.h>
-#include <module_errno.h>
-
-#define	__FreeBSD_version 800000
-#define	__FreeBSD__
-#define	_KERNEL
-#define	__printflike(...)
-
-#define	NULL ((void *)0)
-
-typedef unsigned long size_t;
-typedef unsigned long bus_addr_t;
-typedef unsigned long bus_size_t;
-
-typedef unsigned long long int uint64_t;
-typedef signed long long int int64_t;
-
-typedef unsigned int uint32_t;
-typedef signed int int32_t;
-
-typedef unsigned short uint16_t;
-typedef signed short int16_t;
-
-typedef unsigned char uint8_t;
-typedef signed char int8_t;
-
-typedef char *va_list;
-
 struct module_version;
 struct module_depend;
 struct driver;
@@ -146,8 +113,8 @@ struct device {
 	uint8_t	dev_fixed_class:1;
 	uint8_t	dev_unit_manual:1;
 
-	uint8_t	dev_nameunit[64];
-	uint8_t	dev_desc[64];
+	char	dev_nameunit[64];
+	char	dev_desc[64];
 };
 
 #define	DEVCLASS_MAXUNIT 64
@@ -280,23 +247,3 @@ enum {
 	SYS_RES_IOPORT = 4		/* I/O ports */
 };
 
-void   *malloc(int size, int type, int flags);
-void	free(void *addr, int type);
-
-/* definition of malloc flags */
-
-enum {
-	M_WAITOK = 0,
-	M_NOWAIT = 1,
-	M_ZERO = 2
-};
-
-/* definition of malloc types */
-
-enum {
-	M_DEVBUF,
-	M_TEMP,
-	M_MAX
-};
-
-#endif					/* _BSD_MODULE_ALL_H_ */

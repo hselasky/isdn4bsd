@@ -23,7 +23,7 @@
  * SUCH DAMAGE.
  */
 
-#include <module_all.h>
+#include <bsd_module_all.h>
 
 #undef DRIVER_MODULE
 #undef MODULE_DEPEND
@@ -38,9 +38,9 @@
 #define	MODULE_VERSION(name, ver)					\
   extern const struct module_version bsd_##name##_##busname##_version;
 
-#include <module_driver.h>
-#include <module_depend.h>
-#include <module_version.h>
+#include <bsd_module_driver.h>
+#include <bsd_module_depend.h>
+#include <bsd_module_version.h>
 
 #undef DRIVER_MODULE
 #undef MODULE_DEPEND
@@ -56,19 +56,22 @@
   &bsd_##name##_##busname##_version,
 
 static const struct module_data *module_data[] = {
-#include <module_driver.h>
-	NULL
+#include <bsd_module_driver.h>
 };
 
+#if 0
 static const struct module_depend *module_depend[] = {
-#include <module_depend.h>
-	NULL
+#include <bsd_module_depend.h>
 };
 
+#endif
+
+#if 0
 static const struct module_version *module_version[] = {
-#include <module_version.h>
-	NULL
+#include <bsd_module_version.h>
 };
+
+#endif
 
 static const char unknown_string[] = {"unknown"};
 
@@ -234,8 +237,6 @@ bus_alloc_resource(device_t dev, int type, int *rid, uint32_t start,
     uint32_t end, uint32_t count, uint32_t flags)
 {
 	struct resource *res = NULL;
-	bus_addr_t base;
-	bus_size_t size;
 	int err = 0;
 
 	if (rid == NULL)
@@ -419,8 +420,10 @@ device_printf(device_t dev, const char *fmt,...)
 	vprintf(fmt, ap);
 	va_end(ap);
 
-	return (0);			/* XXX should return number of
-					 * characters printed */
+	/*
+	 * XXX should return number of characters printed
+	 */
+	return (0);
 }
 
 static uint8_t
@@ -517,7 +520,8 @@ devclass_delete_device(const struct module_data *mod, device_t dev)
 	    mod->devclass_pp[0] : NULL, dev->dev_unit) == dev) {
 		mod->devclass_pp[0]->dev_list[dev->dev_unit] = NULL;
 	} else {
-		device_printf(dev, "WARNING: device is not present in devclass!\n");
+		device_printf(dev, "WARNING: device is not "
+		    "present in devclass!\n");
 	}
 	dev->dev_module = NULL;
 	return;
@@ -757,9 +761,10 @@ int
 device_probe_and_attach(device_t dev)
 {
 	const struct module_data *mod;
-	const uint8_t *bus_name_parent =
-	device_get_name(device_get_parent(dev));
+	const char *bus_name_parent;
 	uint16_t x;
+
+	bus_name_parent = device_get_name(device_get_parent(dev));
 
 	if (dev->dev_attached) {
 		return (0);
@@ -793,11 +798,13 @@ device_probe_and_attach(device_t dev)
 		    mod->driver->name &&
 		    (strcasecmp(mod->bus_name, bus_name_parent) == 0)) {
 			if (devclass_create(mod->devclass_pp)) {
-				device_printf(dev, "devclass_create_() failed!\n");
+				device_printf(dev, "devclass_create_() "
+				    "failed!\n");
 				continue;
 			}
 			if (devclass_add_device(mod, dev)) {
-				device_printf(dev, "devclass_add_device() failed!\n");
+				device_printf(dev, "devclass_add_device() "
+				    "failed!\n");
 				continue;
 			}
 			if (DEVICE_PROBE(dev) <= 0) {
@@ -824,7 +831,8 @@ device_detach(device_t dev)
 	int error;
 
 	if (mod == NULL) {
-		device_printf(dev, "invalid device: dev->dev_module == NULL!\n");
+		device_printf(dev, "invalid device: "
+		    "dev->dev_module == NULL!\n");
 		return (0);
 	}
 	if (dev->dev_attached) {
@@ -952,3 +960,64 @@ devclass_find(const char *classname)
 	}
 	return (NULL);
 }
+
+static void
+device_kld_event(int what)
+{
+	const struct module_data *mod;
+	uint16_t x;
+	uint16_t y;
+	device_t dev;
+
+	for (x = 0; x != (sizeof(module_data) / sizeof(module_data[0])); x++) {
+		mod = module_data[x];
+
+		if ((what == MOD_UNLOAD) &&
+		    (mod->devclass_pp != NULL)) {
+
+			/* detach any active devices */
+
+			for (y = 0; y != DEVCLASS_MAXUNIT; y++) {
+
+				dev = devclass_get_device(mod->devclass_pp[0], y);
+
+				if (dev) {
+					mtx_lock(&Giant);
+					if (device_is_attached(dev)) {
+						if (device_detach(dev)) {
+							/* ignore any errors */
+						}
+					}
+					mtx_unlock(&Giant);
+					dev->dev_module = NULL;
+				}
+			}
+		}
+		if (mod->callback) {
+			if ((mod->callback) (NULL, what, mod->arg)) {
+				/* ignore any errors */
+				printf("WARNING: Module %s did not "
+				    "accept event %d\n", mod->mod_name, what);
+			}
+		}
+	}
+	return;
+}
+
+static void
+device_kld_load(void *arg)
+{
+	device_kld_event(MOD_LOAD);
+	return;
+}
+
+SYSINIT(module_load, SI_SUB_KLD, SI_ORDER_FIRST, &device_kld_load, NULL);
+
+static void
+device_kld_unload(void *arg)
+{
+	device_kld_event(MOD_UNLOAD);
+	return;
+}
+
+SYSINIT(module_unload, SI_SUB_KLD, SI_ORDER_FIRST, &device_kld_unload, NULL);

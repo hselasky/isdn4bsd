@@ -1,12 +1,8 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Thu Jul 24 18:38:01 CEST 2008
+ * Date: Fri Aug  1 15:46:56 CEST 2008
  */
-#define ATA_LOCKING(dev, ...) \
-  (((ata_locking_t *)(device_get_method(dev, "ata_locking")))(dev,## __VA_ARGS__))
-#define ATA_SETMODE(dev, ...) \
-  (((ata_setmode_t *)(device_get_method(dev, "ata_setmode")))(dev,## __VA_ARGS__))
 #define BUS_ALLOC_RESOURCE(dev, ...) \
   (((bus_alloc_resource_t *)(device_get_method(dev, "bus_alloc_resource")))(dev,## __VA_ARGS__))
 #define BUS_CHILD_LOCATION_STR(dev, ...) \
@@ -17,8 +13,6 @@
   (((bus_driver_added_t *)(device_get_method(dev, "bus_driver_added")))(dev,## __VA_ARGS__))
 #define BUS_FREE_RESOURCE(dev, ...) \
   (((bus_free_resource_t *)(device_get_method(dev, "bus_free_resource")))(dev,## __VA_ARGS__))
-#define BUS_GET_RESOURCE_LIST(dev, ...) \
-  (((bus_get_resource_list_t *)(device_get_method(dev, "bus_get_resource_list")))(dev,## __VA_ARGS__))
 #define BUS_PRINT_CHILD(dev, ...) \
   (((bus_print_child_t *)(device_get_method(dev, "bus_print_child")))(dev,## __VA_ARGS__))
 #define BUS_SETUP_INTERRUPT(dev, ...) \
@@ -37,11 +31,3 @@
   (((device_shutdown_t *)(device_get_method(dev, "device_shutdown")))(dev,## __VA_ARGS__))
 #define DEVICE_SUSPEND(dev, ...) \
   (((device_suspend_t *)(device_get_method(dev, "device_suspend")))(dev,## __VA_ARGS__))
-#define MIIBUS_READREG(dev, ...) \
-  (((miibus_readreg_t *)(device_get_method(dev, "miibus_readreg")))(dev,## __VA_ARGS__))
-#define MIIBUS_STATCHG(dev, ...) \
-  (((miibus_statchg_t *)(device_get_method(dev, "miibus_statchg")))(dev,## __VA_ARGS__))
-#define MIIBUS_WRITEREG(dev, ...) \
-  (((miibus_writereg_t *)(device_get_method(dev, "miibus_writereg")))(dev,## __VA_ARGS__))
-#define USB2_HANDLE_REQUEST(dev, ...) \
-  (((usb2_handle_request_t *)(device_get_method(dev, "usb2_handle_request")))(dev,## __VA_ARGS__))

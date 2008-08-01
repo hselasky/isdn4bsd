@@ -1,10 +1,12 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Thu Jul 24 18:38:01 CEST 2008
+ * Date: Fri Aug  1 15:46:56 CEST 2008
  */
 #define DELAY fbsd_DELAY
 #define Giant fbsd_Giant
+#define _mtx_assert fbsd__mtx_assert
+#define _sx_assert fbsd__sx_assert
 #define atomic_add_int fbsd_atomic_add_int
 #define bcmp fbsd_bcmp
 #define bcopy fbsd_bcopy
@@ -35,14 +37,24 @@
 #define bus_setup_intr fbsd_bus_setup_intr
 #define bus_teardown_intr fbsd_bus_teardown_intr
 #define bzero fbsd_bzero
-#define callout_init_lock fbsd_callout_init_lock
+#define callout_drain fbsd_callout_drain
+#define callout_init_mtx fbsd_callout_init_mtx
+#define callout_module_tick fbsd_callout_module_tick
 #define callout_reset fbsd_callout_reset
 #define callout_stop fbsd_callout_stop
 #define cold fbsd_cold
 #define copyin fbsd_copyin
 #define copyout fbsd_copyout
+#define curthread_sub fbsd_curthread_sub
+#define cv_broadcast fbsd_cv_broadcast
 #define cv_destroy fbsd_cv_destroy
 #define cv_init fbsd_cv_init
+#define cv_signal fbsd_cv_signal
+#define cv_timedwait fbsd_cv_timedwait
+#define cv_timedwait_sig fbsd_cv_timedwait_sig
+#define cv_wait fbsd_cv_wait
+#define cv_wait_sig fbsd_cv_wait_sig
+#define cv_wmesg fbsd_cv_wmesg
 #define destroy_dev fbsd_destroy_dev
 #define dev_ref fbsd_dev_ref
 #define devclass_find fbsd_devclass_find
@@ -88,15 +100,19 @@
 #define hz fbsd_hz
 #define kproc_create fbsd_kproc_create
 #define kproc_exit fbsd_kproc_exit
+#define kproc_start fbsd_kproc_start
 #define kproc_suspend fbsd_kproc_suspend
 #define m_apply fbsd_m_apply
 #define make_dev fbsd_make_dev
 #define malloc fbsd_malloc
 #define memcpy fbsd_memcpy
+#define memset fbsd_memset
 #define mtx_destroy fbsd_mtx_destroy
 #define mtx_init fbsd_mtx_init
+#define mtx_initialized fbsd_mtx_initialized
 #define mtx_lock fbsd_mtx_lock
-#define mtx_sleep fbsd_mtx_sleep
+#define mtx_owned fbsd_mtx_owned
+#define mtx_trylock fbsd_mtx_trylock
 #define mtx_unlock fbsd_mtx_unlock
 #define panic fbsd_panic
 #define pause fbsd_pause
@@ -118,19 +134,28 @@
 #define selwakeup fbsd_selwakeup
 #define snprintf fbsd_snprintf
 #define sprintf fbsd_sprintf
+#define strcasecmp fbsd_strcasecmp
 #define strcmp fbsd_strcmp
 #define strlcat fbsd_strlcat
 #define strlcpy fbsd_strlcpy
 #define strlen fbsd_strlen
+#define strncasecmp fbsd_strncasecmp
+#define strncmp fbsd_strncmp
+#define strstr fbsd_strstr
 #define suser fbsd_suser
 #define sx_destroy fbsd_sx_destroy
-#define sx_init_flags fbsd_sx_init_flags
+#define sx_init fbsd_sx_init
+#define sx_slock fbsd_sx_slock
 #define sx_sunlock fbsd_sx_sunlock
+#define sx_unlock fbsd_sx_unlock
 #define sx_xlock fbsd_sx_xlock
+#define sx_xlocked fbsd_sx_xlocked
 #define sx_xunlock fbsd_sx_xunlock
 #define ticks fbsd_ticks
 #define uiomove fbsd_uiomove
 #define vnops fbsd_vnops
+#define vprintf fbsd_vprintf
+#define vsnprintf fbsd_vsnprintf
 #define vsnrprintf fbsd_vsnrprintf
 #define wakeup fbsd_wakeup
 #define wakeup_one fbsd_wakeup_one
