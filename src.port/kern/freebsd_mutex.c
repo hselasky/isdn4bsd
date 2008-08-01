@@ -45,22 +45,23 @@ static uint32_t atomic_recurse = 0;
 static void
 atomic_lock(void)
 {
-  disable_intr();
+	disable_intr();
 
-  if (++atomic_recurse == 0xFFFFFFFF) {
-    panic("freebsd_mutex: Atomic lock overflow!\n");
-  }
-  return;
+	if (++atomic_recurse == 0xFFFFFFFF) {
+		panic("freebsd_mutex: Atomic lock overflow!\n");
+	}
+	return;
 }
 
 static void
 atomic_unlock(void)
 {
-  if (--atomic_recurse == 0) {
-    enable_intr();
-  }
-  return;
+	if (--atomic_recurse == 0) {
+		enable_intr();
+	}
+	return;
 }
+
 #endif
 
 void

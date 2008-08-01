@@ -30,24 +30,24 @@
 static void
 kproc_start(void)
 {
-  void (*func)(void *arg);
-  void *arg;
-  func = get_env(current_process(), "bsd_func_ptr");
-  arg = get_env(current_process(), "bsd_func_arg");
-  (func)(arg);
-  return;
+	void (*func) (void *arg);
+	void *arg;
+
+	func = get_env(current_process(), "bsd_func_ptr");
+	arg = get_env(current_process(), "bsd_func_arg");
+	(func) (arg);
+	return;
 }
 
 int
-kproc_create(void (*func)(void *), void *arg, struct proc proc**,          
-	     int flags, int pages, const char *fmt, ...)
-{
+	kproc_create(void (*func) (void *), void *arg, struct proc proc **,
+    	int	flags, int pages, const char *fmt,...){
 	PROCESS p;
 
 	p = create_process(OS_PRI_PROC,
-	     "USBPROC", &kproc_start, 4096, 15, (OSTIME)0,
-	     (PROCESS)0, (struct OS_redir_entry *) NULL, 
-	     (OSVECTOR) 0, (OSUSER)0);
+	    "USBPROC", &kproc_start, 4096, 15, (OSTIME) 0,
+	    (PROCESS) 0, (struct OS_redir_entry *)NULL,
+	    (OSVECTOR) 0, (OSUSER) 0);
 
 	*proc = (void *)p;
 
@@ -82,6 +82,6 @@ curthread_sub(void)
 void
 sched_prio(struct thread *td, uint8_t prio)
 {
-  /* not implemented */
-  return;
+	/* not implemented */
+	return;
 }

@@ -28,11 +28,12 @@
 void   *
 malloc(int size, int type, int flags)
 {
-  void *temp = alloc(size, 'U' | ('S' << 8) | ('B' << 16));
-  if (temp == NIL) {
-    temp = NULL;
-  }
-  return (temp);
+	void *temp = alloc(size, 'U' | ('S' << 8) | ('B' << 16));
+
+	if (temp == NIL) {
+		temp = NULL;
+	}
+	return (temp);
 }
 
 void
