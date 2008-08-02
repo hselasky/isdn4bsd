@@ -2751,7 +2751,7 @@ ehci_device_isoc_hs_enter(struct usbd_xfer *xfer)
 	    (EHCI_VIRTUAL_FRAMELIST_COUNT - 1);
 
 	if ((LIST_FIRST(&(xfer->pipe->list_head)) == NULL) ||
-	    (buf_offset < xfer->nframes)) {
+	    (buf_offset < ((xfer->nframes + 7) / 8))) {
 		/*
 		 * If there is data underflow or the pipe queue is empty we
 		 * schedule the transfer a few frames ahead of the current
