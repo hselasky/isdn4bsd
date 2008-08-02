@@ -966,7 +966,15 @@ usb2_com_start_write(struct tty *tp)
 
 	DPRINTF(0, "sc = %p\n", sc);
 
+	if (tp->t_outq.c_cc == 0) {
+		/*
+		 * The TTY layer does not expect TS_BUSY to be set
+		 * when there are no characters to output.
+		 */
+		return;
+	}
 	if (!(sc->sc_flag & UCOM_FLAG_HL_READY)) {
+		/* The higher layer is not ready */
 		return;
 	}
 	tp->t_state |= TS_BUSY;
