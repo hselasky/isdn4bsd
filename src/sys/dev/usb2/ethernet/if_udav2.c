@@ -446,7 +446,7 @@ udav_cfg_do_request(struct udav_softc *sc, struct usb2_device_request *req,
 
 	if (err) {
 
-		DPRINTF(0, "device request failed, err=%s "
+		DPRINTF("device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 
 error:
@@ -788,7 +788,7 @@ udav_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UDAV_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -807,7 +807,7 @@ udav_bulk_write_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(10, "transfer complete\n");
+		DPRINTFN(11, "transfer complete\n");
 
 		ifp->if_opackets++;
 
@@ -872,7 +872,7 @@ done:
 		return;
 
 	default:			/* Error */
-		DPRINTF(10, "transfer error, %s\n",
+		DPRINTFN(11, "transfer error, %s\n",
 		    usb2_errstr(xfer->error));
 
 		if (xfer->error != USB_ERR_CANCELLED) {
@@ -893,7 +893,7 @@ udav_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UDAV_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -984,7 +984,7 @@ tr_setup:
 			sc->sc_flags |= UDAV_FLAG_READ_STALL;
 			usb2_transfer_start(sc->sc_xfer[3]);
 		}
-		DPRINTF(0, "bulk read error, %s\n",
+		DPRINTF("bulk read error, %s\n",
 		    usb2_errstr(xfer->error));
 		return;
 
@@ -998,7 +998,7 @@ udav_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[4];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UDAV_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1284,7 +1284,7 @@ udav_cfg_miibus_readreg(device_t dev, int phy, int reg)
 	}
 	data16 = (val[0] | (val[1] << 8));
 
-	DPRINTF(10, "phy=%d reg=0x%04x => 0x%04x\n",
+	DPRINTFN(11, "phy=%d reg=0x%04x => 0x%04x\n",
 	    phy, reg, data16);
 
 	return (data16);

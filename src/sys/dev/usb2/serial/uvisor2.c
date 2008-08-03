@@ -311,7 +311,7 @@ uvisor_attach(device_t dev)
 	struct usb2_config uvisor_config_copy[UVISOR_N_TRANSFER];
 	int error;
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 	bcopy(uvisor_config, uvisor_config_copy,
 	    sizeof(uvisor_config_copy));
 	if (sc == NULL) {
@@ -330,7 +330,7 @@ uvisor_attach(device_t dev)
 	error = uvisor_init(sc, uaa->device, uvisor_config_copy);
 
 	if (error) {
-		DPRINTF(0, "init failed, error=%s\n",
+		DPRINTF("init failed, error=%s\n",
 		    usb2_errstr(error));
 		goto detach;
 	}
@@ -338,7 +338,7 @@ uvisor_attach(device_t dev)
 	    sc->sc_xfer, uvisor_config_copy, UVISOR_N_TRANSFER,
 	    sc, &Giant);
 	if (error) {
-		DPRINTF(0, "could not allocate all pipes\n");
+		DPRINTF("could not allocate all pipes\n");
 		goto detach;
 	}
 	/* clear stall at first run */
@@ -348,7 +348,7 @@ uvisor_attach(device_t dev)
 	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
 	    &uvisor_callback, &Giant);
 	if (error) {
-		DPRINTF(0, "usb2_com_attach failed\n");
+		DPRINTF("usb2_com_attach failed\n");
 		goto detach;
 	}
 	return (0);
@@ -363,7 +363,7 @@ uvisor_detach(device_t dev)
 {
 	struct uvisor_softc *sc = device_get_softc(dev);
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 
 	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
 
@@ -384,7 +384,7 @@ uvisor_init(struct uvisor_softc *sc, struct usb2_device *udev, struct usb2_confi
 	uint8_t buffer[256];
 
 	if (sc->sc_flag & UVISOR_FLAG_VISOR) {
-		DPRINTF(0, "getting connection info\n");
+		DPRINTF("getting connection info\n");
 		req.bmRequestType = UT_READ_VENDOR_ENDPOINT;
 		req.bRequest = UVISOR_GET_CONNECTION_INFORMATION;
 		USETW(req.wValue, 0);
@@ -407,7 +407,7 @@ uvisor_init(struct uvisor_softc *sc, struct usb2_device *udev, struct usb2_confi
 		if (np > UVISOR_MAX_CONN) {
 			np = UVISOR_MAX_CONN;
 		}
-		DPRINTF(0, "Number of ports: %d\n", np);
+		DPRINTF("Number of ports: %d\n", np);
 
 		for (i = 0; i < np; ++i) {
 			switch (coninfo.connections[i].port_function_id) {
@@ -427,7 +427,7 @@ uvisor_init(struct uvisor_softc *sc, struct usb2_device *udev, struct usb2_confi
 				desc = "unknown";
 				break;
 			}
-			DPRINTF(0, "Port %d is for %s\n",
+			DPRINTF("Port %d is for %s\n",
 			    coninfo.connections[i].port, desc);
 		}
 	}
@@ -451,7 +451,7 @@ uvisor_init(struct uvisor_softc *sc, struct usb2_device *udev, struct usb2_confi
 			goto done;
 		}
 		if (actlen < 12) {
-			DPRINTF(0, "too little data\n");
+			DPRINTF("too little data\n");
 			err = USB_ERR_INVAL;
 			goto done;
 		}
@@ -478,7 +478,7 @@ uvisor_init(struct uvisor_softc *sc, struct usb2_device *udev, struct usb2_confi
 	}
 	if (sc->sc_flag & UVISOR_FLAG_PALM35) {
 		/* get the config number */
-		DPRINTF(0, "getting config info\n");
+		DPRINTF("getting config info\n");
 		req.bmRequestType = UT_READ;
 		req.bRequest = UR_GET_CONFIG;
 		USETW(req.wValue, 0);
@@ -490,7 +490,7 @@ uvisor_init(struct uvisor_softc *sc, struct usb2_device *udev, struct usb2_confi
 			goto done;
 		}
 		/* get the interface number */
-		DPRINTF(0, "get the interface number\n");
+		DPRINTF("get the interface number\n");
 		req.bmRequestType = UT_READ_DEVICE;
 		req.bRequest = UR_GET_INTERFACE;
 		USETW(req.wValue, 0);
@@ -501,7 +501,7 @@ uvisor_init(struct uvisor_softc *sc, struct usb2_device *udev, struct usb2_confi
 			goto done;
 		}
 	}
-	DPRINTF(0, "getting available bytes\n");
+	DPRINTF("getting available bytes\n");
 	req.bmRequestType = UT_READ_VENDOR_ENDPOINT;
 	req.bRequest = UVISOR_REQUEST_BYTES_AVAILABLE;
 	USETW(req.wValue, 0);
@@ -511,9 +511,9 @@ uvisor_init(struct uvisor_softc *sc, struct usb2_device *udev, struct usb2_confi
 	if (err) {
 		goto done;
 	}
-	DPRINTF(0, "avail=%d\n", UGETW(wAvail));
+	DPRINTF("avail=%d\n", UGETW(wAvail));
 
-	DPRINTF(0, "done\n");
+	DPRINTF("done\n");
 done:
 	return (err);
 }
@@ -542,7 +542,7 @@ uvisor_cfg_close(struct usb2_com_softc *ucom)
 	    (sc->sc_udev, &Giant, &req, &buffer, 0, NULL, 1000);
 
 	if (err) {
-		DPRINTF(-1, "close notification failed, error=%s\n",
+		DPRINTFN(0, "close notification failed, error=%s\n",
 		    usb2_errstr(err));
 	}
 	return;
@@ -624,7 +624,7 @@ uvisor_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UVISOR_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -666,7 +666,7 @@ uvisor_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UVISOR_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}

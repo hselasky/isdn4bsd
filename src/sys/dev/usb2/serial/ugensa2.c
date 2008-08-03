@@ -261,7 +261,7 @@ ugensa_attach(device_t dev)
 	error = usb2_com_attach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_niface, sc,
 	    &ugensa_callback, &Giant);
 	if (error) {
-		DPRINTF(0, "attach failed\n");
+		DPRINTF("attach failed\n");
 		goto detach;
 	}
 	return (0);			/* success */
@@ -323,7 +323,7 @@ ugensa_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = ssc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		ssc->sc_flags &= ~UGENSA_FLAG_BULK_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -366,7 +366,7 @@ ugensa_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = ssc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		ssc->sc_flags &= ~UGENSA_FLAG_BULK_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}

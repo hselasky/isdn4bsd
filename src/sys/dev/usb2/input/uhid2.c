@@ -153,7 +153,7 @@ uhid_intr_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(0, "transferred!\n");
+		DPRINTF("transferred!\n");
 
 		if (xfer->actlen >= sc->sc_isize) {
 			usb2_fifo_put_data(
@@ -162,7 +162,7 @@ uhid_intr_callback(struct usb2_xfer *xfer)
 			    0, sc->sc_isize, 1);
 		} else {
 			/* ignore it */
-			DPRINTF(0, "ignored short transfer, "
+			DPRINTF("ignored short transfer, "
 			    "%d bytes\n", xfer->actlen);
 		}
 
@@ -195,7 +195,7 @@ uhid_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UHID_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -626,7 +626,7 @@ uhid_probe(device_t dev)
 {
 	struct usb2_attach_arg *uaa = device_get_ivars(dev);
 
-	DPRINTF(10, "\n");
+	DPRINTFN(11, "\n");
 
 	if (uaa->usb2_mode != USB_MODE_HOST) {
 		return (ENXIO);
@@ -659,7 +659,7 @@ uhid_attach(device_t dev)
 	int unit = device_get_unit(dev);
 	int error = 0;
 
-	DPRINTF(10, "sc=%p\n", sc);
+	DPRINTFN(10, "sc=%p\n", sc);
 
 	if (sc == NULL) {
 		return (ENOMEM);
@@ -678,7 +678,7 @@ uhid_attach(device_t dev)
 	    UHID_N_TRANSFER, sc, &(sc->sc_mtx));
 
 	if (error) {
-		DPRINTF(0, "error=%s\n", usb2_errstr(error));
+		DPRINTF("error=%s\n", usb2_errstr(error));
 		goto detach;
 	}
 	if (uaa->info.idVendor == USB_VENDOR_WACOM) {
@@ -705,7 +705,7 @@ uhid_attach(device_t dev)
 			    uaa->info.bIfaceIndex, UHID_FEATURE_REPORT, 2);
 
 			if (error) {
-				DPRINTF(0, "set report failed, error=%s (ignored)\n",
+				DPRINTF("set report failed, error=%s (ignored)\n",
 				    usb2_errstr(error));
 			}
 			sc->sc_repdesc_size = sizeof(uhid_graphire3_4x5_report_descr);
@@ -736,7 +736,7 @@ uhid_attach(device_t dev)
 	    uaa->info.bIfaceIndex, 0, 0);
 
 	if (error) {
-		DPRINTF(0, "set idle failed, error=%s (ignored)\n",
+		DPRINTF("set idle failed, error=%s (ignored)\n",
 		    usb2_errstr(error));
 	}
 	sc->sc_isize = hid_report_size
@@ -749,19 +749,19 @@ uhid_attach(device_t dev)
 	    (sc->sc_repdesc_ptr, sc->sc_repdesc_size, hid_feature, &sc->sc_fid);
 
 	if (sc->sc_isize > UHID_BSIZE) {
-		DPRINTF(0, "input size is too large, "
+		DPRINTF("input size is too large, "
 		    "%d bytes (truncating)\n",
 		    sc->sc_isize);
 		sc->sc_isize = UHID_BSIZE;
 	}
 	if (sc->sc_osize > UHID_BSIZE) {
-		DPRINTF(0, "output size is too large, "
+		DPRINTF("output size is too large, "
 		    "%d bytes (truncating)\n",
 		    sc->sc_osize);
 		sc->sc_osize = UHID_BSIZE;
 	}
 	if (sc->sc_fsize > UHID_BSIZE) {
-		DPRINTF(0, "feature size is too large, "
+		DPRINTF("feature size is too large, "
 		    "%d bytes (truncating)\n",
 		    sc->sc_fsize);
 		sc->sc_fsize = UHID_BSIZE;

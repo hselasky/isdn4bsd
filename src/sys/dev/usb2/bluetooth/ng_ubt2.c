@@ -812,7 +812,7 @@ ubt_intr_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_if_0[2];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UBT_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -966,7 +966,7 @@ ubt_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_if_0[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UBT_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1115,7 +1115,7 @@ ubt_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_if_0[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UBT_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}

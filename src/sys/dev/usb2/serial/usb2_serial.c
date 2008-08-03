@@ -321,7 +321,7 @@ usb2_com_attach_sub(struct usb2_com_softc *sc)
 	tp->t_modem = usb2_com_modem;
 	tp->t_ioctl = usb2_com_ioctl;
 
-	DPRINTF(0, "tp = %p, unit = %d\n", tp, sc->sc_unit);
+	DPRINTF("tp = %p, unit = %d\n", tp, sc->sc_unit);
 
 #if !(defined(TS_CALLOUT) || (__FreeBSD_version >= 700022))
 #define	TS_CALLOUT NULL, sc->sc_unit, MINOR_CALLOUT	/* compile fix for
@@ -334,7 +334,7 @@ usb2_com_attach_sub(struct usb2_com_softc *sc)
 	}
 	sc->sc_tty = tp;
 
-	DPRINTF(0, "ttycreate: ttyU%d\n", sc->sc_unit);
+	DPRINTF("ttycreate: ttyU%d\n", sc->sc_unit);
 
 done:
 	return (error);
@@ -345,7 +345,7 @@ usb2_com_detach_sub(struct usb2_com_softc *sc)
 {
 	struct tty *tp = sc->sc_tty;
 
-	DPRINTF(0, "sc = %p, tp = %p\n", sc, sc->sc_tty);
+	DPRINTF("sc = %p, tp = %p\n", sc, sc->sc_tty);
 
 	/* the config thread is stopped when we get here */
 
@@ -405,7 +405,7 @@ usb2_com_shutdown(struct usb2_com_softc *sc)
 
 	mtx_assert(sc->sc_parent_mtx, MA_OWNED);
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	/*
 	 * Hang up if necessary:
@@ -494,7 +494,7 @@ usb2_com_cfg_open(struct usb2_com_softc *sc, struct usb2_com_config_copy *cc,
 {
 	sc = cc->cc_softc;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	if (sc->sc_flag & UCOM_FLAG_LL_READY) {
 
@@ -529,7 +529,7 @@ usb2_com_open(struct tty *tp, struct cdev *dev)
 		/* already opened */
 		return (0);
 	}
-	DPRINTF(0, "tp = %p\n", tp);
+	DPRINTF("tp = %p\n", tp);
 
 	if (sc->sc_callback->usb2_com_pre_open) {
 		/*
@@ -569,7 +569,7 @@ usb2_com_cfg_close(struct usb2_com_softc *sc, struct usb2_com_config_copy *cc,
 {
 	sc = cc->cc_softc;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	if (sc->sc_flag & UCOM_FLAG_LL_READY) {
 
@@ -592,7 +592,7 @@ usb2_com_close(struct tty *tp)
 
 	mtx_assert(sc->sc_parent_mtx, MA_OWNED);
 
-	DPRINTF(0, "tp=%p\n", tp);
+	DPRINTF("tp=%p\n", tp);
 
 	tp->t_state &= ~TS_BUSY;
 
@@ -625,7 +625,7 @@ usb2_com_ioctl(struct tty *tp, u_long cmd, void *data,
 	if (!(sc->sc_flag & UCOM_FLAG_HL_READY)) {
 		return (EIO);
 	}
-	DPRINTF(0, "cmd = 0x%08lx\n", cmd);
+	DPRINTF("cmd = 0x%08lx\n", cmd);
 
 	error = ENOTTY;
 	if (sc->sc_callback->usb2_com_ioctl) {
@@ -697,7 +697,7 @@ usb2_com_cfg_break(struct usb2_com_softc *sc, struct usb2_com_config_copy *cc,
 	if (!(sc->sc_flag & UCOM_FLAG_LL_READY)) {
 		return;
 	}
-	DPRINTF(0, "onoff=%d\n", cc->cc_flag0);
+	DPRINTF("onoff=%d\n", cc->cc_flag0);
 
 	if (sc->sc_callback->usb2_com_cfg_set_break) {
 		(sc->sc_callback->usb2_com_cfg_set_break) (sc, cc->cc_flag0);
@@ -715,7 +715,7 @@ usb2_com_break(struct tty *tp, int onoff)
 	if (!(sc->sc_flag & UCOM_FLAG_HL_READY)) {
 		return;
 	}
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	usb2_com_queue_command(sc, &usb2_com_cfg_break, onoff);
 	return;
@@ -730,7 +730,7 @@ usb2_com_cfg_dtr(struct usb2_com_softc *sc, struct usb2_com_config_copy *cc,
 	if (!(sc->sc_flag & UCOM_FLAG_LL_READY)) {
 		return;
 	}
-	DPRINTF(0, "onoff=%d\n", cc->cc_flag0);
+	DPRINTF("onoff=%d\n", cc->cc_flag0);
 
 	if (sc->sc_callback->usb2_com_cfg_set_dtr) {
 		(sc->sc_callback->usb2_com_cfg_set_dtr) (sc, cc->cc_flag0);
@@ -746,7 +746,7 @@ usb2_com_dtr(struct usb2_com_softc *sc, uint8_t onoff)
 	if (!(sc->sc_flag & UCOM_FLAG_HL_READY)) {
 		return;
 	}
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	usb2_com_queue_command(sc, &usb2_com_cfg_dtr, onoff);
 	return;
@@ -758,7 +758,7 @@ usb2_com_cfg_rts(struct usb2_com_softc *sc, struct usb2_com_config_copy *cc,
 {
 	sc = cc->cc_softc;
 
-	DPRINTF(0, "onoff=%d\n", cc->cc_flag0);
+	DPRINTF("onoff=%d\n", cc->cc_flag0);
 
 	if (!(sc->sc_flag & UCOM_FLAG_LL_READY)) {
 		return;
@@ -777,7 +777,7 @@ usb2_com_rts(struct usb2_com_softc *sc, uint8_t onoff)
 	if (!(sc->sc_flag & UCOM_FLAG_HL_READY)) {
 		return;
 	}
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	usb2_com_queue_command(sc, &usb2_com_cfg_rts, onoff);
 
@@ -823,7 +823,7 @@ usb2_com_cfg_status_change(struct usb2_com_softc *sc, struct usb2_com_config_cop
 
 		onoff = (sc->sc_msr & SER_DCD) ? 1 : 0;
 
-		DPRINTF(0, "DCD changed to %d\n", onoff);
+		DPRINTF("DCD changed to %d\n", onoff);
 
 		ttyld_modem(tp, onoff);
 	}
@@ -838,7 +838,7 @@ usb2_com_status_change(struct usb2_com_softc *sc)
 	if (!(sc->sc_flag & UCOM_FLAG_HL_READY)) {
 		return;
 	}
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	usb2_com_queue_command(sc, &usb2_com_cfg_status_change, 0);
 	return;
@@ -890,16 +890,16 @@ usb2_com_param(struct tty *tp, struct termios *t)
 		}
 		opened = 1;
 	}
-	DPRINTF(0, "sc = %p\n", sc);
+	DPRINTF("sc = %p\n", sc);
 
 	/* Check requested parameters. */
 	if (t->c_ospeed < 0) {
-		DPRINTF(0, "negative ospeed\n");
+		DPRINTF("negative ospeed\n");
 		error = EINVAL;
 		goto done;
 	}
 	if (t->c_ispeed && (t->c_ispeed != t->c_ospeed)) {
-		DPRINTF(0, "mismatch ispeed and ospeed\n");
+		DPRINTF("mismatch ispeed and ospeed\n");
 		error = EINVAL;
 		goto done;
 	}
@@ -922,7 +922,7 @@ usb2_com_param(struct tty *tp, struct termios *t)
 		/* Let the lower layer verify the parameters */
 		error = (sc->sc_callback->usb2_com_pre_param) (sc, t);
 		if (error) {
-			DPRINTF(0, "callback error = %d\n", error);
+			DPRINTF("callback error = %d\n", error);
 			goto done;
 		}
 	}
@@ -964,7 +964,7 @@ usb2_com_start_write(struct tty *tp)
 
 	mtx_assert(sc->sc_parent_mtx, MA_OWNED);
 
-	DPRINTF(0, "sc = %p\n", sc);
+	DPRINTF("sc = %p\n", sc);
 
 	if (tp->t_outq.c_cc == 0) {
 		/*
@@ -996,10 +996,10 @@ usb2_com_stop_write(struct tty *tp, int fflags)
 	if (!(sc->sc_flag & UCOM_FLAG_HL_READY)) {
 		return;
 	}
-	DPRINTF(0, "fflags=%d\n", fflags);
+	DPRINTF("fflags=%d\n", fflags);
 
 	if (fflags & FWRITE) {
-		DPRINTF(0, "write\n");
+		DPRINTF("write\n");
 		if (tp->t_state & TS_BUSY) {
 			/* XXX do what? */
 			if (!(tp->t_state & TS_TTSTOP)) {
@@ -1010,7 +1010,7 @@ usb2_com_stop_write(struct tty *tp, int fflags)
 	/* Flush out any leftover data */
 	usb2_com_start_write(tp);
 
-	DPRINTF(0, "done\n");
+	DPRINTF("done\n");
 
 	return;
 }
@@ -1041,20 +1041,20 @@ usb2_com_get_data(struct usb2_com_softc *sc, struct usb2_page_cache *pc,
 	if (tp->t_state & TS_TBLOCK) {
 		if ((sc->sc_mcr & SER_RTS) &&
 		    (sc->sc_flag & UCOM_FLAG_RTS_IFLOW)) {
-			DPRINTF(0, "clear RTS\n");
+			DPRINTF("clear RTS\n");
 			usb2_com_modem(tp, 0, SER_RTS);
 		}
 	} else {
 		if (!(sc->sc_mcr & SER_RTS) &&
 		    (tp->t_rawq.c_cc <= tp->t_ilowat) &&
 		    (sc->sc_flag & UCOM_FLAG_RTS_IFLOW)) {
-			DPRINTF(0, "set RTS\n");
+			DPRINTF("set RTS\n");
 			usb2_com_modem(tp, SER_RTS, 0);
 		}
 	}
 
 	if (tp->t_state & (TS_TIMEOUT | TS_TTSTOP)) {
-		DPRINTF(0, "stopped\n");
+		DPRINTF("stopped\n");
 		goto done;
 	}
 	offset_orig = offset;
@@ -1079,7 +1079,7 @@ usb2_com_get_data(struct usb2_com_softc *sc, struct usb2_page_cache *pc,
 
 	actlen[0] = offset - offset_orig;
 
-	DPRINTF(0, "cnt=%d\n", actlen[0]);
+	DPRINTF("cnt=%d\n", actlen[0]);
 
 	if (actlen[0] == 0) {
 		goto done;
@@ -1144,7 +1144,7 @@ usb2_com_put_data(struct usb2_com_softc *sc, struct usb2_page_cache *pc,
 				usb2_com_start_write(tp);
 			}
 			if (cnt > 0) {
-				DPRINTF(0, "tp=%p, lost %d "
+				DPRINTF("tp=%p, lost %d "
 				    "chars\n", tp, cnt);
 			}
 		} else {
@@ -1161,7 +1161,7 @@ usb2_com_put_data(struct usb2_com_softc *sc, struct usb2_page_cache *pc,
 
 					/* XXX what should we do? */
 
-					DPRINTF(0, "tp=%p, lost %d "
+					DPRINTF("tp=%p, lost %d "
 					    "chars\n", tp, res.length - cnt);
 					break;
 				}

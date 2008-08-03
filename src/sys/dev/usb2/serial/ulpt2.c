@@ -163,7 +163,7 @@ ulpt_reset(struct ulpt_softc *sc)
 {
 	struct usb2_device_request req;
 
-	DPRINTF(1, "\n");
+	DPRINTFN(2, "\n");
 
 	req.bRequest = UR_SOFT_RESET;
 	USETW(req.wValue, 0);
@@ -241,7 +241,7 @@ ulpt_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~ULPT_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -307,7 +307,7 @@ ulpt_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~ULPT_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -359,7 +359,7 @@ ulpt_status_callback(struct usb2_xfer *xfer)
 		break;
 
 	default:			/* Error */
-		DPRINTF(0, "error=%s\n", usb2_errstr(xfer->error));
+		DPRINTF("error=%s\n", usb2_errstr(xfer->error));
 		if (xfer->error != USB_ERR_CANCELLED) {
 			/* wait for next watchdog timeout */
 		}
@@ -527,7 +527,7 @@ ulpt_probe(device_t dev)
 {
 	struct usb2_attach_arg *uaa = device_get_ivars(dev);
 
-	DPRINTF(10, "\n");
+	DPRINTFN(11, "\n");
 
 	if (uaa->usb2_mode != USB_MODE_HOST) {
 		return (ENXIO);
@@ -553,7 +553,7 @@ ulpt_attach(device_t dev)
 	uint8_t iface_index = uaa->info.bIfaceIndex;
 	uint8_t alt_index;
 
-	DPRINTF(10, "sc=%p\n", sc);
+	DPRINTFN(11, "sc=%p\n", sc);
 
 	sc->sc_dev = dev;
 	sc->sc_udev = uaa->device;
@@ -593,7 +593,7 @@ ulpt_attach(device_t dev)
 
 found:
 
-	DPRINTF(0, "setting alternate "
+	DPRINTF("setting alternate "
 	    "config number: %d\n", alt_index);
 
 	if (alt_index) {
@@ -602,7 +602,7 @@ found:
 		    (uaa->device, iface_index, alt_index);
 
 		if (error) {
-			DPRINTF(0, "could not set alternate "
+			DPRINTF("could not set alternate "
 			    "config, error=%s\n", usb2_errstr(error));
 			goto detach;
 		}
@@ -613,7 +613,7 @@ found:
 	    sc->sc_xfer, ulpt_config, ULPT_N_TRANSFER,
 	    sc, &(sc->sc_mtx));
 	if (error) {
-		DPRINTF(0, "error=%s\n", usb2_errstr(error));
+		DPRINTF("error=%s\n", usb2_errstr(error));
 		goto detach;
 	}
 	device_printf(sc->sc_dev, "using bi-directional mode\n");
@@ -688,7 +688,7 @@ ulpt_detach(device_t dev)
 {
 	struct ulpt_softc *sc = device_get_softc(dev);
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 
 	usb2_fifo_detach(&(sc->sc_fifo));
 	usb2_fifo_detach(&(sc->sc_fifo_noreset));

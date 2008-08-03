@@ -22,6 +22,7 @@ SRCS+= ohci2_atmelarm.c
 SRCS+= at91dci.c
 SRCS+= ehci2.c
 SRCS+= ehci2_pci.c
+SRCS+= musb2_otg.c
 SRCS+= ohci2.c
 SRCS+= ohci2_pci.c
 SRCS+= uhci2.c

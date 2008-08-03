@@ -296,7 +296,7 @@ ubser_attach(device_t dev)
 	sc->sc_tx_size = sc->sc_xfer[UBSER_TR_DT_WRITE]->max_data_length;
 
 	if (sc->sc_tx_size == 0) {
-		DPRINTF(-1, "invalid tx_size!\n");
+		DPRINTFN(0, "invalid tx_size!\n");
 		goto detach;
 	}
 	/* initialize port numbers */
@@ -332,7 +332,7 @@ ubser_detach(device_t dev)
 	struct ubser_softc *sc = device_get_softc(dev);
 	uint8_t n;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	usb2_com_detach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_numser);
 
@@ -354,7 +354,7 @@ ubser_detach(device_t dev)
 static int
 ubser_pre_param(struct usb2_com_softc *ucom, struct termios *t)
 {
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	/*
 	 * The firmware on our devices can only do 8n1@9600bps
@@ -417,7 +417,7 @@ ubser_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[UBSER_TR_DT_WRITE];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UBSER_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -478,7 +478,7 @@ ubser_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[UBSER_TR_DT_READ];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UBSER_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -494,13 +494,13 @@ ubser_read_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 		if (xfer->actlen < 1) {
-			DPRINTF(0, "invalid actlen=0!\n");
+			DPRINTF("invalid actlen=0!\n");
 			goto tr_setup;
 		}
 		usb2_copy_out(xfer->frbuffers, 0, buf, 1);
 
 		if (buf[0] >= sc->sc_numser) {
-			DPRINTF(0, "invalid serial number!\n");
+			DPRINTF("invalid serial number!\n");
 			goto tr_setup;
 		}
 		usb2_com_put_data(sc->sc_ucom + buf[0],
@@ -548,7 +548,7 @@ ubser_cfg_set_break(struct usb2_com_softc *ucom, uint8_t onoff)
 		    (sc->sc_udev, &Giant, &req, NULL, 0, NULL, 1000);
 
 		if (err) {
-			DPRINTF(-1, "send break failed, error=%s\n",
+			DPRINTFN(0, "send break failed, error=%s\n",
 			    usb2_errstr(err));
 		}
 	}

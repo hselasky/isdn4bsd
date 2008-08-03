@@ -476,7 +476,7 @@ ustorage_fs_t_bbb_command_callback(struct usb2_xfer *xfer)
 	uint32_t tag;
 	uint8_t error = 0;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
@@ -485,7 +485,7 @@ ustorage_fs_t_bbb_command_callback(struct usb2_xfer *xfer)
 
 		if (tag != CBWSIGNATURE) {
 			/* do nothing */
-			DPRINTF(0, "invalid signature 0x%08x\n", tag);
+			DPRINTF("invalid signature 0x%08x\n", tag);
 			break;
 		}
 		tag = UGETDW(sc->sc_cbw.dCBWTag);
@@ -521,7 +521,7 @@ ustorage_fs_t_bbb_command_callback(struct usb2_xfer *xfer)
 		if ((sc->sc_transfer.cmd_len > sizeof(sc->sc_cbw.CBWCDB)) ||
 		    (sc->sc_transfer.cmd_len == 0)) {
 			/* just halt - this is invalid */
-			DPRINTF(0, "invalid command length %d bytes\n",
+			DPRINTF("invalid command length %d bytes\n",
 			    sc->sc_transfer.cmd_len);
 			break;
 		}
@@ -534,14 +534,14 @@ ustorage_fs_t_bbb_command_callback(struct usb2_xfer *xfer)
 		error = ustorage_fs_do_cmd(sc);
 		if (error) {
 			/* got an error */
-			DPRINTF(0, "command failed\n");
+			DPRINTF("command failed\n");
 			break;
 		}
 		if ((sc->sc_transfer.data_rem > 0) &&
 		    (sc->sc_transfer.cbw_dir != sc->sc_transfer.cmd_dir)) {
 			/* contradicting data transfer direction */
 			error = 1;
-			DPRINTF(0, "data direction mismatch\n");
+			DPRINTF("data direction mismatch\n");
 			break;
 		}
 		switch (sc->sc_transfer.cbw_dir) {
@@ -563,7 +563,7 @@ tr_setup:
 		if (sc->sc_transfer.data_error) {
 			sc->sc_transfer.data_error = 0;
 			xfer->flags.stall_pipe = 1;
-			DPRINTF(0, "stall pipe\n");
+			DPRINTF("stall pipe\n");
 		} else {
 			xfer->flags.stall_pipe = 0;
 		}
@@ -574,7 +574,7 @@ tr_setup:
 		break;
 
 	default:			/* Error */
-		DPRINTF(0, "error\n");
+		DPRINTF("error\n");
 		if (xfer->error == USB_ERR_CANCELLED) {
 			break;
 		}
@@ -611,7 +611,7 @@ ustorage_fs_t_bbb_data_dump_callback(struct usb2_xfer *xfer)
 	struct ustorage_fs_softc *sc = xfer->priv_sc;
 	uint32_t max_bulk = xfer->max_data_length;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
@@ -664,7 +664,7 @@ ustorage_fs_t_bbb_data_read_callback(struct usb2_xfer *xfer)
 	struct ustorage_fs_softc *sc = xfer->priv_sc;
 	uint32_t max_bulk = xfer->max_data_length;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
@@ -718,7 +718,7 @@ ustorage_fs_t_bbb_data_write_callback(struct usb2_xfer *xfer)
 	struct ustorage_fs_softc *sc = xfer->priv_sc;
 	uint32_t max_bulk = xfer->max_data_length;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
@@ -780,7 +780,7 @@ ustorage_fs_t_bbb_status_callback(struct usb2_xfer *xfer)
 {
 	struct ustorage_fs_softc *sc = xfer->priv_sc;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
@@ -1487,7 +1487,7 @@ ustorage_fs_check_cmd(struct ustorage_fs_softc *sc, uint8_t min_cmd_size,
 
 	/* Verify the length of the command itself */
 	if (min_cmd_size > sc->sc_transfer.cmd_len) {
-		DPRINTF(0, "%u > %u\n",
+		DPRINTF("%u > %u\n",
 		    min_cmd_size, sc->sc_transfer.cmd_len);
 		sc->sc_csw.bCSWStatus = CSWSTATUS_PHASE;
 		return (1);
@@ -1573,7 +1573,7 @@ ustorage_fs_do_cmd(struct ustorage_fs_softc *sc)
 	/* set default data transfer pointer */
 	sc->sc_transfer.data_ptr = sc->sc_qdata;
 
-	DPRINTF(0, "cmd_data[0]=0x%02x, data_rem=0x%08x\n",
+	DPRINTF("cmd_data[0]=0x%02x, data_rem=0x%08x\n",
 	    sc->sc_transfer.cmd_data[0], sc->sc_transfer.data_rem);
 
 	switch (sc->sc_transfer.cmd_data[0]) {

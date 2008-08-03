@@ -261,7 +261,7 @@ kue_cfg_do_request(struct kue_softc *sc, struct usb2_device_request *req,
 	    (sc->sc_udev, &(sc->sc_mtx), req, data, 0, NULL, 60000);
 
 	if (err) {
-		DPRINTF(0, "device request failed, err=%s "
+		DPRINTF("device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 
 error:
@@ -424,7 +424,7 @@ kue_cfg_reset(struct kue_softc *sc)
 	err = usb2_req_set_config(sc->sc_udev, &(sc->sc_mtx),
 	    cd->bConfigurationValue);
 	if (err) {
-		DPRINTF(0, "reset failed (ignored)\n");
+		DPRINTF("reset failed (ignored)\n");
 	}
 	/*
 	 * wait a little while for the chip to get its brains in order:
@@ -620,7 +620,7 @@ kue_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~KUE_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -692,7 +692,7 @@ tr_setup:
 			sc->sc_flags |= KUE_FLAG_READ_STALL;
 			usb2_transfer_start(sc->sc_xfer[3]);
 		}
-		DPRINTF(0, "bulk read error, %s\n",
+		DPRINTF("bulk read error, %s\n",
 		    usb2_errstr(xfer->error));
 		return;
 
@@ -706,7 +706,7 @@ kue_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~KUE_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -725,7 +725,7 @@ kue_bulk_write_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(10, "transfer complete\n");
+		DPRINTFN(11, "transfer complete\n");
 
 		ifp->if_opackets++;
 
@@ -775,7 +775,7 @@ done:
 		return;
 
 	default:			/* Error */
-		DPRINTF(10, "transfer error, %s\n",
+		DPRINTFN(11, "transfer error, %s\n",
 		    usb2_errstr(xfer->error));
 
 		if (xfer->error != USB_ERR_CANCELLED) {

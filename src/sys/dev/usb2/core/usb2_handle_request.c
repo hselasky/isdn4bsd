@@ -144,12 +144,12 @@ usb2_handle_set_config(struct usb2_xfer *xfer, uint8_t conf_no)
 	}
 
 	if (usb2_set_config_index(xfer->udev, conf_no)) {
-		DPRINTF(0, "set config %d failed\n", conf_no);
+		DPRINTF("set config %d failed\n", conf_no);
 		err = USB_ERR_STALLED;
 		goto done;
 	}
 	if (usb2_probe_and_attach(xfer->udev, USB_IFACE_INDEX_ANY)) {
-		DPRINTF(0, "probe and attach failed\n");
+		DPRINTF("probe and attach failed\n");
 		err = USB_ERR_STALLED;
 		goto done;
 	}
@@ -264,7 +264,7 @@ tr_repeat:
 				error = usb2_reset_iface_endpoints(udev,
 				    iface_index);
 				if (error) {
-					DPRINTF(0, "alt setting failed %s\n",
+					DPRINTF("alt setting failed %s\n",
 					    usb2_errstr(error));
 					goto tr_stalled;
 				}
@@ -273,14 +273,14 @@ tr_repeat:
 			error = usb2_set_alt_interface_index(udev,
 			    iface_index, req.wValue[0]);
 			if (error) {
-				DPRINTF(0, "alt setting failed %s\n",
+				DPRINTF("alt setting failed %s\n",
 				    usb2_errstr(error));
 				goto tr_stalled;
 			}
 			error = usb2_probe_and_attach(udev,
 			    iface_index);
 			if (error) {
-				DPRINTF(0, "alt setting probe failed\n");
+				DPRINTF("alt setting probe failed\n");
 				goto tr_stalled;
 			}
 			break;
@@ -477,7 +477,7 @@ usb2_handle_request(struct usb2_xfer *xfer)
 	wValue = UGETW(req.wValue);
 	wIndex = UGETW(req.wIndex);
 
-	DPRINTF(0, "req 0x%02x 0x%02x 0x%04x 0x%04x "
+	DPRINTF("req 0x%02x 0x%02x 0x%04x 0x%04x "
 	    "off=0x%x rem=0x%x, state=%d\n", req.bmRequestType,
 	    req.bRequest, wValue, wIndex, off, rem, state);
 
@@ -717,15 +717,15 @@ tr_valid:
 		xfer->flags.manual_status = 0;
 		xfer->frlengths[1] = 0;
 	}
-	DPRINTF(0, "success\n");
+	DPRINTF("success\n");
 	return (0);			/* success */
 
 tr_stalled:
-	DPRINTF(0, "%s\n", (state == ST_POST_STATUS) ?
+	DPRINTF("%s\n", (state == ST_POST_STATUS) ?
 	    "complete" : "stalled");
 	return (USB_ERR_STALLED);
 
 tr_bad_context:
-	DPRINTF(0, "bad context\n");
+	DPRINTF("bad context\n");
 	return (USB_ERR_BAD_CONTEXT);
 }

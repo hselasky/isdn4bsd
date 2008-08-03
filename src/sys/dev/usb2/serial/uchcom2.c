@@ -312,7 +312,7 @@ uchcom_probe(device_t dev)
 {
 	struct usb2_attach_arg *uaa = device_get_ivars(dev);
 
-	DPRINTF(10, "\n");
+	DPRINTFN(11, "\n");
 
 	if (uaa->usb2_mode != USB_MODE_HOST) {
 		return (ENXIO);
@@ -334,7 +334,7 @@ uchcom_attach(device_t dev)
 	int error;
 	uint8_t iface_index;
 
-	DPRINTF(10, "\n");
+	DPRINTFN(11, "\n");
 
 	if (sc == NULL) {
 		return (ENOMEM);
@@ -358,7 +358,7 @@ uchcom_attach(device_t dev)
 	    UCHCOM_N_TRANSFER, sc, &Giant);
 
 	if (error) {
-		DPRINTF(0, "one or more missing USB endpoints, "
+		DPRINTF("one or more missing USB endpoints, "
 		    "error=%s\n", usb2_errstr(error));
 		goto detach;
 	}
@@ -395,7 +395,7 @@ uchcom_detach(device_t dev)
 {
 	struct uchcom_softc *sc = device_get_softc(dev);
 
-	DPRINTF(10, "\n");
+	DPRINTFN(11, "\n");
 
 	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
 
@@ -426,7 +426,7 @@ uchcom_do_request(struct uchcom_softc *sc,
 	    data, USB_SHORT_XFER_OK, &actlen, 1000);
 
 	if (err) {
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 	}
 done:
@@ -474,7 +474,7 @@ static void
 uchcom_write_reg(struct uchcom_softc *sc,
     uint8_t reg1, uint8_t val1, uint8_t reg2, uint8_t val2)
 {
-	DPRINTF(0, "0x%02X<-0x%02X, 0x%02X<-0x%02X\n",
+	DPRINTF("0x%02X<-0x%02X, 0x%02X<-0x%02X\n",
 	    (unsigned)reg1, (unsigned)val1,
 	    (unsigned)reg2, (unsigned)val2);
 	uchcom_ctrl_write(
@@ -493,7 +493,7 @@ uchcom_read_reg(struct uchcom_softc *sc,
 	    sc, UCHCOM_REQ_READ_REG,
 	    reg1 | ((uint16_t)reg2 << 8), 0, buf, sizeof(buf));
 
-	DPRINTF(0, "0x%02X->0x%02X, 0x%02X->0x%02X\n",
+	DPRINTF("0x%02X->0x%02X, 0x%02X->0x%02X\n",
 	    (unsigned)reg1, (unsigned)buf[0],
 	    (unsigned)reg2, (unsigned)buf[1]);
 
@@ -706,7 +706,7 @@ uchcom_set_line_control(struct uchcom_softc *sc, tcflag_t cflag)
 static void
 uchcom_clear_chip(struct uchcom_softc *sc)
 {
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 	uchcom_ctrl_write(sc, UCHCOM_REQ_RESET, 0, 0);
 	return;
 }
@@ -739,7 +739,7 @@ uchcom_reset_chip(struct uchcom_softc *sc)
 	idx |= mod & 0xF8;
 	val |= 0x10;
 
-	DPRINTF(0, "reset v=0x%04X, i=0x%04X\n", val, idx);
+	DPRINTF("reset v=0x%04X, i=0x%04X\n", val, idx);
 
 	uchcom_ctrl_write(sc, UCHCOM_REQ_RESET, val, idx);
 
@@ -754,7 +754,7 @@ uchcom_cfg_get_status(struct usb2_com_softc *ucom, uint8_t *lsr, uint8_t *msr)
 {
 	struct uchcom_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	*lsr = sc->sc_lsr;
 	*msr = sc->sc_msr;
@@ -773,7 +773,7 @@ uchcom_cfg_set_dtr(struct usb2_com_softc *ucom, uint8_t onoff)
 {
 	struct uchcom_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	sc->sc_dtr = onoff;
 	uchcom_set_dtrrts(sc);
@@ -785,7 +785,7 @@ uchcom_cfg_set_rts(struct usb2_com_softc *ucom, uint8_t onoff)
 {
 	struct uchcom_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	sc->sc_rts = onoff;
 	uchcom_set_dtrrts(sc);
@@ -880,13 +880,13 @@ uchcom_intr_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
-		DPRINTF(0, "actlen = %u\n", xfer->actlen);
+		DPRINTF("actlen = %u\n", xfer->actlen);
 
 		if (xfer->actlen >= UCHCOM_INTR_LEAST) {
 			usb2_copy_out(xfer->frbuffers, 0, buf,
 			    UCHCOM_INTR_LEAST);
 
-			DPRINTF(0, "data = 0x%02X 0x%02X 0x%02X 0x%02X\n",
+			DPRINTF("data = 0x%02X 0x%02X 0x%02X 0x%02X\n",
 			    (unsigned)buf[0], (unsigned)buf[1],
 			    (unsigned)buf[2], (unsigned)buf[3]);
 
@@ -919,7 +919,7 @@ uchcom_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[4];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UCHCOM_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -942,7 +942,7 @@ uchcom_write_callback(struct usb2_xfer *xfer)
 		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    UCHCOM_BULK_BUF_SIZE, &actlen)) {
 
-			DPRINTF(0, "actlen = %d\n", actlen);
+			DPRINTF("actlen = %d\n", actlen);
 
 			xfer->frlengths[0] = actlen;
 			usb2_start_hardware(xfer);
@@ -966,7 +966,7 @@ uchcom_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UCHCOM_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1008,7 +1008,7 @@ uchcom_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UCHCOM_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}

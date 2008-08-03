@@ -221,7 +221,7 @@ ucycom_attach(device_t dev)
 	snprintf(sc->sc_name, sizeof(sc->sc_name),
 	    "%s", device_get_nameunit(dev));
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	/* get chip model */
 	sc->sc_model = USB_GET_DRIVER_INFO(uaa);
@@ -409,7 +409,7 @@ tr_transferred:
 		if (xfer->error == USB_ERR_CANCELLED) {
 			return;
 		}
-		DPRINTF(0, "error=%s\n",
+		DPRINTF("error=%s\n",
 		    usb2_errstr(xfer->error));
 		goto tr_transferred;
 	}
@@ -448,7 +448,7 @@ ucycom_cfg_write(struct ucycom_softc *sc, uint32_t baud, uint8_t cfg)
 	    (sc->sc_udev, &Giant, &req, sc->sc_temp_cfg, 0, NULL, 1000);
 
 	if (err) {
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 	}
 	return;
@@ -488,7 +488,7 @@ ucycom_cfg_param(struct usb2_com_softc *ucom, struct termios *t)
 	struct ucycom_softc *sc = ucom->sc_parent;
 	uint8_t cfg;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	if (t->c_cflag & CIGNORE) {
 		cfg = sc->sc_cfg;
@@ -525,7 +525,7 @@ ucycom_intr_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UCYCOM_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -574,7 +574,7 @@ ucycom_intr_read_callback(struct usb2_xfer *xfer)
 			break;
 
 		default:
-			DPRINTF(-1, "unsupported model number!\n");
+			DPRINTFN(0, "unsupported model number!\n");
 			goto tr_setup;
 		}
 

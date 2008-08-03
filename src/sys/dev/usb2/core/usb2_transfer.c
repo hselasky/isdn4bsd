@@ -662,15 +662,15 @@ usb2_transfer_setup(struct usb2_device *udev,
 	/* do some checking first */
 
 	if (n_setup == 0) {
-		DPRINTF(5, "setup array has zero length!\n");
+		DPRINTFN(6, "setup array has zero length!\n");
 		return (USB_ERR_INVAL);
 	}
 	if (ifaces == 0) {
-		DPRINTF(5, "ifaces array is NULL!\n");
+		DPRINTFN(6, "ifaces array is NULL!\n");
 		return (USB_ERR_INVAL);
 	}
 	if (priv_mtx == NULL) {
-		DPRINTF(5, "using global lock\n");
+		DPRINTFN(6, "using global lock\n");
 		priv_mtx = &Giant;
 	}
 	/* sanity checks */
@@ -679,12 +679,12 @@ usb2_transfer_setup(struct usb2_device *udev,
 		if ((setup->mh.bufsize == 0xffffffff) ||
 		    (setup->md.bufsize == 0xffffffff)) {
 			parm.err = USB_ERR_BAD_BUFSIZE;
-			DPRINTF(0, "invalid bufsize\n");
+			DPRINTF("invalid bufsize\n");
 		}
 		if ((setup->mh.callback == NULL) &&
 		    (setup->md.callback == NULL)) {
 			parm.err = USB_ERR_NO_CALLBACK;
-			DPRINTF(0, "no callback\n");
+			DPRINTF("no callback\n");
 		}
 		ppxfer[n] = NULL;
 	}
@@ -922,7 +922,7 @@ usb2_transfer_setup(struct usb2_device *udev,
 
 		if (buf == NULL) {
 			parm.err = USB_ERR_NOMEM;
-			DPRINTF(-1, "cannot allocate memory block for "
+			DPRINTFN(0, "cannot allocate memory block for "
 			    "configuration (%d bytes)\n",
 			    parm.size[0]);
 			goto done;
@@ -1173,7 +1173,7 @@ usb2_start_hardware_sub(struct usb2_xfer *xfer)
 		/* the size of the SETUP structure is hardcoded ! */
 
 		if (xfer->frlengths[0] != sizeof(struct usb2_device_request)) {
-			DPRINTF(-1, "Wrong framelength %u != %zu\n",
+			DPRINTFN(0, "Wrong framelength %u != %zu\n",
 			    xfer->frlengths[0], sizeof(struct
 			    usb2_device_request));
 			goto error;
@@ -1188,7 +1188,7 @@ usb2_start_hardware_sub(struct usb2_xfer *xfer)
 			         * message first so that we know the
 			         * data direction!
 			         */
-				DPRINTF(0, "Misconfigured transfer\n");
+				DPRINTF("Misconfigured transfer\n");
 				goto error;
 			}
 			/*
@@ -1216,7 +1216,7 @@ usb2_start_hardware_sub(struct usb2_xfer *xfer)
 	/* check if there is a length mismatch */
 
 	if (len > xfer->flags_int.control_rem) {
-		DPRINTF(-1, "Length greater than remaining length!\n");
+		DPRINTFN(0, "Length greater than remaining length!\n");
 		goto error;
 	}
 	/* check if we are doing a short transfer */
@@ -1227,7 +1227,7 @@ usb2_start_hardware_sub(struct usb2_xfer *xfer)
 		if ((len != xfer->max_data_length) &&
 		    (len != xfer->flags_int.control_rem) &&
 		    (xfer->nframes != 1)) {
-			DPRINTF(-1, "Short control transfer without "
+			DPRINTFN(0, "Short control transfer without "
 			    "force_short_xfer set!\n");
 			goto error;
 		}
@@ -1247,7 +1247,7 @@ usb2_start_hardware_sub(struct usb2_xfer *xfer)
 			/*
 		         * This is not a valid operation!
 		         */
-			DPRINTF(-1, "Invalid parameter "
+			DPRINTFN(0, "Invalid parameter "
 			    "combination\n");
 			goto error;
 		}
@@ -1271,7 +1271,7 @@ usb2_start_hardware(struct usb2_xfer *xfer)
 {
 	uint32_t x;
 
-	DPRINTF(0, "xfer=%p, pipe=%p, nframes=%d, dir=%s\n",
+	DPRINTF("xfer=%p, pipe=%p, nframes=%d, dir=%s\n",
 	    xfer, xfer->pipe, xfer->nframes, USB_GET_DATA_ISREAD(xfer) ?
 	    "read" : "write");
 
@@ -1292,7 +1292,7 @@ usb2_start_hardware(struct usb2_xfer *xfer)
 	if (!xfer->flags_int.open) {
 		xfer->flags_int.open = 1;
 
-		DPRINTF(0, "open\n");
+		DPRINTF("open\n");
 
 		mtx_lock(xfer->usb2_mtx);
 		(xfer->pipe->methods->open) (xfer);
@@ -1429,7 +1429,7 @@ usb2_pipe_enter(struct usb2_xfer *xfer)
 
 	pipe = xfer->pipe;
 
-	DPRINTF(0, "enter\n");
+	DPRINTF("enter\n");
 
 	/* enter the transfer */
 	(pipe->methods->enter) (xfer);
@@ -1528,7 +1528,7 @@ usb2_transfer_stop(struct usb2_xfer *xfer)
 	if (xfer->flags_int.transferring) {
 		if (xfer->flags_int.can_cancel_immed &&
 		    (!xfer->flags_int.did_close)) {
-			DPRINTF(0, "close\n");
+			DPRINTF("close\n");
 			(xfer->pipe->methods->close) (xfer);
 			/* only close once */
 			xfer->flags_int.did_close = 1;
@@ -1536,7 +1536,7 @@ usb2_transfer_stop(struct usb2_xfer *xfer)
 			/* need to wait for the next done callback */
 		}
 	} else {
-		DPRINTF(0, "close\n");
+		DPRINTF("close\n");
 
 		/* close here and now */
 		(xfer->pipe->methods->close) (xfer);
@@ -1753,7 +1753,7 @@ usb2_callback_wrapper(struct usb2_xfer_queue *pq)
 		 *
 		 * 5) HW interrupt done callback or other source.
 		 */
-		DPRINTF(2, "case 5\n");
+		DPRINTFN(3, "case 5\n");
 
 		/*
 	         * We have to postpone the callback due to the fact we
@@ -1774,7 +1774,7 @@ usb2_callback_wrapper(struct usb2_xfer_queue *pq)
 	 * 3) We are stopping a transfer
 	 * 4) We are doing an ordinary callback
 	 */
-	DPRINTF(2, "case 1-4\n");
+	DPRINTFN(3, "case 1-4\n");
 	/* get next USB transfer in the queue */
 	info->done_q.curr = NULL;
 
@@ -1857,7 +1857,7 @@ usb2_dma_delay_done_cb(void *arg)
 
 	mtx_assert(xfer->usb2_mtx, MA_OWNED);
 
-	DPRINTF(2, "Completed %p\n", xfer);
+	DPRINTFN(3, "Completed %p\n", xfer);
 
 	/* queue callback for execution, again */
 	usb2_transfer_done(xfer, 0);
@@ -1928,14 +1928,14 @@ usb2_transfer_done(struct usb2_xfer *xfer, usb2_error_t error)
 
 	mtx_assert(xfer->usb2_mtx, MA_OWNED);
 
-	DPRINTF(0, "err=%s\n", usb2_errstr(error));
+	DPRINTF("err=%s\n", usb2_errstr(error));
 
 	/*
 	 * If we are not transferring then just return.
 	 * This can happen during transfer cancel.
 	 */
 	if (!xfer->flags_int.transferring) {
-		DPRINTF(0, "not transferring\n");
+		DPRINTF("not transferring\n");
 		return;
 	}
 	/* only set transfer error if not already set */
@@ -2013,7 +2013,7 @@ usb2_transfer_start_cb(void *arg)
 
 	mtx_assert(xfer->usb2_mtx, MA_OWNED);
 
-	DPRINTF(0, "start\n");
+	DPRINTF("start\n");
 
 	/* start the transfer */
 	(pipe->methods->start) (xfer);
@@ -2158,7 +2158,7 @@ usb2_pipe_start(struct usb2_xfer_queue *pq)
 			return;
 		}
 	}
-	DPRINTF(0, "start\n");
+	DPRINTF("start\n");
 
 	/* start USB transfer */
 	(pipe->methods->start) (xfer);
@@ -2220,7 +2220,7 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 
 	if ((!xfer->flags_int.open) &&
 	    (!xfer->flags_int.did_close)) {
-		DPRINTF(0, "close\n");
+		DPRINTF("close\n");
 		mtx_lock(xfer->usb2_mtx);
 		(xfer->pipe->methods->close) (xfer);
 		mtx_unlock(xfer->usb2_mtx);
@@ -2246,7 +2246,7 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 
 		temp = usb2_get_dma_delay(xfer->udev->bus);
 
-		DPRINTF(2, "DMA delay, %u ms, "
+		DPRINTFN(3, "DMA delay, %u ms, "
 		    "on %p\n", temp, xfer);
 
 		usb2_transfer_timeout_ms(xfer,
@@ -2291,7 +2291,7 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 			xfer->actlen = xfer->sumlen;
 		}
 	}
-	DPRINTF(5, "xfer=%p pipe=%p sts=%d alen=%d, slen=%d, afrm=%d, nfrm=%d\n",
+	DPRINTFN(6, "xfer=%p pipe=%p sts=%d alen=%d, slen=%d, afrm=%d, nfrm=%d\n",
 	    xfer, xfer->pipe, xfer->error, xfer->actlen, xfer->sumlen,
 	    xfer->aframes, xfer->nframes);
 
@@ -2302,7 +2302,7 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 		/* check if we should block the execution queue */
 		if ((xfer->error != USB_ERR_CANCELLED) &&
 		    (xfer->flags.pipe_bof)) {
-			DPRINTF(1, "xfer=%p: Block On Failure "
+			DPRINTFN(2, "xfer=%p: Block On Failure "
 			    "on pipe=%p\n", xfer, xfer->pipe);
 			goto done;
 		}
@@ -2316,7 +2316,7 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 			if (!xfer->flags_int.short_xfer_ok) {
 				xfer->error = USB_ERR_SHORT_XFER;
 				if (xfer->flags.pipe_bof) {
-					DPRINTF(1, "xfer=%p: Block On Failure on "
+					DPRINTFN(2, "xfer=%p: Block On Failure on "
 					    "Short Transfer on pipe %p.\n",
 					    xfer, xfer->pipe);
 					goto done;
@@ -2328,7 +2328,7 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 			 * control transfer:
 			 */
 			if (xfer->flags_int.control_act) {
-				DPRINTF(4, "xfer=%p: Control transfer "
+				DPRINTFN(5, "xfer=%p: Control transfer "
 				    "active on pipe=%p\n", xfer, xfer->pipe);
 				goto done;
 			}
@@ -2362,7 +2362,7 @@ usb2_command_wrapper(struct usb2_xfer_queue *pq, struct usb2_xfer *xfer)
 			usb2_transfer_enqueue(pq, xfer);
 			if (pq->curr != NULL) {
 				/* something is already processing */
-				DPRINTF(5, "busy %p\n", pq->curr);
+				DPRINTFN(6, "busy %p\n", pq->curr);
 				return;
 			}
 		}
@@ -2390,9 +2390,9 @@ usb2_command_wrapper(struct usb2_xfer_queue *pq, struct usb2_xfer *xfer)
 					break;
 				}
 			}
-			DPRINTF(5, "cb %p (enter)\n", pq->curr);
+			DPRINTFN(6, "cb %p (enter)\n", pq->curr);
 			(pq->command) (pq);
-			DPRINTF(5, "cb %p (leave)\n", pq->curr);
+			DPRINTFN(6, "cb %p (leave)\n", pq->curr);
 
 		} while (!pq->recurse_2);
 
@@ -2469,7 +2469,7 @@ repeat:
 	if (usb2_transfer_setup(udev, &iface_index,
 	    udev->default_xfer, usb2_control_ep_cfg, USB_DEFAULT_XFER_MAX, NULL,
 	    udev->default_mtx)) {
-		DPRINTF(-1, "could not setup default "
+		DPRINTFN(0, "could not setup default "
 		    "USB transfer!\n");
 	} else {
 		goto repeat;
@@ -2486,7 +2486,7 @@ repeat:
 void
 usb2_clear_data_toggle(struct usb2_device *udev, struct usb2_pipe *pipe)
 {
-	DPRINTF(4, "udev=%p pipe=%p\n", udev, pipe);
+	DPRINTFN(5, "udev=%p pipe=%p\n", udev, pipe);
 
 	mtx_lock(&(udev->bus->mtx));
 	pipe->toggle_next = 0;
@@ -2531,7 +2531,7 @@ usb2_clear_stall_callback(struct usb2_xfer *xfer1,
 
 	if (xfer2 == NULL) {
 		/* looks like we are tearing down */
-		DPRINTF(0, "NULL input parameter\n");
+		DPRINTF("NULL input parameter\n");
 		return (0);
 	}
 	mtx_assert(xfer1->priv_mtx, MA_OWNED);

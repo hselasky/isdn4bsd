@@ -393,7 +393,7 @@ ufoma_attach(device_t dev)
 	snprintf(sc->sc_name, sizeof(sc->sc_name),
 	    "%s", device_get_nameunit(dev));
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	/* setup control transfers */
 
@@ -451,7 +451,7 @@ ufoma_attach(device_t dev)
 	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
 	    &ufoma_callback, &Giant);
 	if (error) {
-		DPRINTF(0, "usb2_com_attach failed\n");
+		DPRINTF("usb2_com_attach failed\n");
 		goto detach;
 	}
 	return (0);			/* success */
@@ -495,7 +495,7 @@ ufoma_cfg_do_request(struct ufoma_softc *sc, struct usb2_device_request *req,
 
 	if (err) {
 
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 
 error:
@@ -544,7 +544,7 @@ ufoma_cfg_link_state(struct ufoma_softc *sc)
 	error = usb2_cv_timedwait(&(sc->sc_cv), &Giant, hz);
 
 	if (error) {
-		DPRINTF(0, "NO response\n");
+		DPRINTF("NO response\n");
 	}
 	return;
 }
@@ -566,7 +566,7 @@ ufoma_cfg_activate_state(struct ufoma_softc *sc, uint16_t state)
 	error = usb2_cv_timedwait(&(sc->sc_cv), &Giant,
 	    (UFOMA_MAX_TIMEOUT * hz));
 	if (error) {
-		DPRINTF(0, "No response\n");
+		DPRINTF("No response\n");
 	}
 	return;
 }
@@ -608,7 +608,7 @@ tr_setup:
 		return;
 
 	default:			/* Error */
-		DPRINTF(0, "error = %s\n",
+		DPRINTF("error = %s\n",
 		    usb2_errstr(xfer->error));
 
 		if (xfer->error == USB_ERR_CANCELLED) {
@@ -653,7 +653,7 @@ tr_setup:
 		return;
 
 	default:			/* Error */
-		DPRINTF(0, "error = %s\n",
+		DPRINTF("error = %s\n",
 		    usb2_errstr(xfer->error));
 
 		if (xfer->error == USB_ERR_CANCELLED) {
@@ -673,7 +673,7 @@ ufoma_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_ctrl_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UFOMA_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -692,11 +692,11 @@ ufoma_intr_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 		if (xfer->actlen < 8) {
-			DPRINTF(0, "too short message\n");
+			DPRINTF("too short message\n");
 			goto tr_setup;
 		}
 		if (xfer->actlen > sizeof(pkt)) {
-			DPRINTF(0, "truncating message\n");
+			DPRINTF("truncating message\n");
 			xfer->actlen = sizeof(pkt);
 		}
 		usb2_copy_out(xfer->frbuffers, 0, &pkt, xfer->actlen);
@@ -712,7 +712,7 @@ ufoma_intr_callback(struct usb2_xfer *xfer)
 			temp = UGETW(pkt.wValue);
 			sc->sc_currentmode = (temp >> 8);
 			if (!(temp & 0xff)) {
-				DPRINTF(0, "Mode change failed!\n");
+				DPRINTF("Mode change failed!\n");
 			}
 			usb2_cv_signal(&(sc->sc_cv));
 		}
@@ -722,7 +722,7 @@ ufoma_intr_callback(struct usb2_xfer *xfer)
 		switch (pkt.bNotification) {
 		case UCDC_N_RESPONSE_AVAILABLE:
 			if (!(sc->sc_is_pseudo)) {
-				DPRINTF(0, "Wrong serial state!\n");
+				DPRINTF("Wrong serial state!\n");
 				break;
 			}
 			if (sc->sc_num_msg != 0xFF) {
@@ -733,7 +733,7 @@ ufoma_intr_callback(struct usb2_xfer *xfer)
 
 		case UCDC_N_SERIAL_STATE:
 			if (sc->sc_is_pseudo) {
-				DPRINTF(0, "Wrong serial state!\n");
+				DPRINTF("Wrong serial state!\n");
 				break;
 			}
 			/*
@@ -741,11 +741,11 @@ ufoma_intr_callback(struct usb2_xfer *xfer)
 		         * the bits from the notify message
 		         */
 			if (xfer->actlen < 2) {
-				DPRINTF(0, "invalid notification "
+				DPRINTF("invalid notification "
 				    "length, %d bytes!\n", xfer->actlen);
 				break;
 			}
-			DPRINTF(0, "notify bytes = 0x%02x, 0x%02x\n",
+			DPRINTF("notify bytes = 0x%02x, 0x%02x\n",
 			    pkt.data[0], pkt.data[1]);
 
 			/* currently, lsr is always zero. */
@@ -828,7 +828,7 @@ ufoma_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_bulk_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UFOMA_FLAG_BULK_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -871,7 +871,7 @@ ufoma_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_bulk_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UFOMA_FLAG_BULK_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1008,7 +1008,7 @@ ufoma_cfg_param(struct usb2_com_softc *ucom, struct termios *t)
 	if (sc->sc_is_pseudo) {
 		return;
 	}
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	bzero(&ls, sizeof(ls));
 

@@ -338,7 +338,7 @@ ubsa_attach(device_t dev)
 	struct ubsa_softc *sc = device_get_softc(dev);
 	int error;
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 
 	if (sc == NULL) {
 		return (ENOMEM);
@@ -353,7 +353,7 @@ ubsa_attach(device_t dev)
 	    sc->sc_xfer, ubsa_config, UBSA_N_TRANSFER, sc, &Giant);
 
 	if (error) {
-		DPRINTF(0, "could not allocate all pipes\n");
+		DPRINTF("could not allocate all pipes\n");
 		goto detach;
 	}
 	/* clear stall at first run */
@@ -363,7 +363,7 @@ ubsa_attach(device_t dev)
 	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
 	    &ubsa_callback, &Giant);
 	if (error) {
-		DPRINTF(0, "usb2_com_attach failed\n");
+		DPRINTF("usb2_com_attach failed\n");
 		goto detach;
 	}
 	return (0);
@@ -378,7 +378,7 @@ ubsa_detach(device_t dev)
 {
 	struct ubsa_softc *sc = device_get_softc(dev);
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 
 	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
 
@@ -407,7 +407,7 @@ ubsa_cfg_request(struct ubsa_softc *sc, uint8_t index, uint16_t value)
 	    (sc->sc_udev, &Giant, &req, NULL, 0, NULL, 1000);
 
 	if (err) {
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 	}
 	return;
@@ -418,7 +418,7 @@ ubsa_cfg_set_dtr(struct usb2_com_softc *ucom, uint8_t onoff)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	ubsa_cfg_request(sc, UBSA_REG_DTR, onoff ? 1 : 0);
 	return;
@@ -429,7 +429,7 @@ ubsa_cfg_set_rts(struct usb2_com_softc *ucom, uint8_t onoff)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	ubsa_cfg_request(sc, UBSA_REG_RTS, onoff ? 1 : 0);
 	return;
@@ -440,7 +440,7 @@ ubsa_cfg_set_break(struct usb2_com_softc *ucom, uint8_t onoff)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	ubsa_cfg_request(sc, UBSA_REG_BREAK, onoff ? 1 : 0);
 	return;
@@ -451,7 +451,7 @@ ubsa_pre_param(struct usb2_com_softc *ucom, struct termios *t)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "sc = %p\n", sc);
+	DPRINTF("sc = %p\n", sc);
 
 	switch (t->c_ospeed) {
 	case B0:
@@ -479,7 +479,7 @@ ubsa_cfg_param(struct usb2_com_softc *ucom, struct termios *t)
 	struct ubsa_softc *sc = ucom->sc_parent;
 	uint16_t value = 0;
 
-	DPRINTF(0, "sc = %p\n", sc);
+	DPRINTF("sc = %p\n", sc);
 
 	switch (t->c_ospeed) {
 	case B0:
@@ -597,7 +597,7 @@ ubsa_cfg_get_status(struct usb2_com_softc *ucom, uint8_t *lsr, uint8_t *msr)
 {
 	struct ubsa_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	*lsr = sc->sc_lsr;
 	*msr = sc->sc_msr;
@@ -642,7 +642,7 @@ ubsa_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UBSA_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -684,7 +684,7 @@ ubsa_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UBSA_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -711,12 +711,12 @@ ubsa_intr_callback(struct usb2_xfer *xfer)
 			sc->sc_lsr = buf[2];
 			sc->sc_msr = buf[3];
 
-			DPRINTF(0, "lsr = 0x%02x, msr = 0x%02x\n",
+			DPRINTF("lsr = 0x%02x, msr = 0x%02x\n",
 			    sc->sc_lsr, sc->sc_msr);
 
 			usb2_com_status_change(&(sc->sc_ucom));
 		} else {
-			DPRINTF(0, "ignoring short packet, %d bytes\n",
+			DPRINTF("ignoring short packet, %d bytes\n",
 			    xfer->actlen);
 		}
 
@@ -746,7 +746,7 @@ ubsa_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[4];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UBSA_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}

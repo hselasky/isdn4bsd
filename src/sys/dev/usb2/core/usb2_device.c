@@ -158,7 +158,7 @@ usb2_get_pipe(struct usb2_device *udev, uint8_t iface_index,
 	uint8_t type_mask;
 	uint8_t type_val;
 
-	DPRINTF(8, "udev=%p iface_index=%d address=0x%x "
+	DPRINTFN(10, "udev=%p iface_index=%d address=0x%x "
 	    "type=0x%x dir=0x%x index=%d\n",
 	    udev, iface_index, setup->endpoint,
 	    setup->type, setup->direction, setup->ep_index);
@@ -347,7 +347,7 @@ usb2_fill_iface_data(struct usb2_device *udev,
 	if (iface == NULL) {
 		return (USB_ERR_INVAL);
 	}
-	DPRINTF(4, "iface_index=%d alt_index=%d\n",
+	DPRINTFN(5, "iface_index=%d alt_index=%d\n",
 	    iface_index, alt_index);
 
 	sx_assert(udev->default_sx + 1, SA_LOCKED);
@@ -393,12 +393,12 @@ usb2_fill_iface_data(struct usb2_device *udev,
 	iface->parent_iface_index = USB_IFACE_INDEX_ANY;
 
 	nendpt = id->bNumEndpoints;
-	DPRINTF(4, "found idesc nendpt=%d\n", nendpt);
+	DPRINTFN(5, "found idesc nendpt=%d\n", nendpt);
 
 	desc = (void *)id;
 
 	while (nendpt--) {
-		DPRINTF(10, "endpt=%d\n", nendpt);
+		DPRINTFN(11, "endpt=%d\n", nendpt);
 
 		while ((desc = usb2_desc_foreach(udev->cdesc, desc))) {
 			if ((desc->bDescriptorType == UDESC_ENDPOINT) &&
@@ -428,7 +428,7 @@ found:
 
 error:
 	/* passed end, or bad desc */
-	DPRINTF(-1, "%s: bad descriptor(s), addr=%d!\n",
+	DPRINTFN(0, "%s: bad descriptor(s), addr=%d!\n",
 	    __FUNCTION__, udev->address);
 
 	/* free old pipes if any */
@@ -509,7 +509,7 @@ usb2_set_config_index(struct usb2_device *udev, uint8_t index)
 	uint8_t do_unlock;
 	usb2_error_t err;
 
-	DPRINTF(5, "udev=%p index=%d\n", udev, index);
+	DPRINTFN(6, "udev=%p index=%d\n", udev, index);
 
 	/* automatic locking */
 	if (sx_xlocked(udev->default_sx + 1)) {
@@ -545,7 +545,7 @@ usb2_set_config_index(struct usb2_device *udev, uint8_t index)
 	udev->cdesc = cdp;
 
 	if (cdp->bNumInterface > USB_IFACE_MAX) {
-		DPRINTF(-1, "too many interfaces: %d\n", cdp->bNumInterface);
+		DPRINTFN(0, "too many interfaces: %d\n", cdp->bNumInterface);
 		cdp->bNumInterface = USB_IFACE_MAX;
 	}
 	/* Figure out if the device is self or bus powered. */
@@ -565,7 +565,7 @@ usb2_set_config_index(struct usb2_device *udev, uint8_t index)
 				err = usb2_req_get_hub_descriptor
 				    (udev, &Giant, &hd, 1);
 				if (err) {
-					DPRINTF(-1, "could not read "
+					DPRINTFN(0, "could not read "
 					    "HUB descriptor: %s\n",
 					    usb2_errstr(err));
 
@@ -573,25 +573,25 @@ usb2_set_config_index(struct usb2_device *udev, uint8_t index)
 				    UHD_PWR_INDIVIDUAL) {
 					selfpowered = 1;
 				}
-				DPRINTF(0, "characteristics=0x%04x\n",
+				DPRINTF("characteristics=0x%04x\n",
 				    UGETW(hd.wHubCharacteristics));
 			} else {
 				err = usb2_req_get_device_status
 				    (udev, &Giant, &ds);
 				if (err) {
-					DPRINTF(-1, "could not read "
+					DPRINTFN(0, "could not read "
 					    "device status: %s\n",
 					    usb2_errstr(err));
 				} else if (UGETW(ds.wStatus) & UDS_SELF_POWERED) {
 					selfpowered = 1;
 				}
-				DPRINTF(0, "status=0x%04x \n",
+				DPRINTF("status=0x%04x \n",
 				    UGETW(ds.wStatus));
 			}
 		} else
 			selfpowered = 1;
 	}
-	DPRINTF(0, "udev=%p cdesc=%p (addr %d) cno=%d attr=0x%02x, "
+	DPRINTF("udev=%p cdesc=%p (addr %d) cno=%d attr=0x%02x, "
 	    "selfpowered=%d, power=%d\n",
 	    udev, cdp,
 	    cdp->bConfigurationValue, udev->address, cdp->bmAttributes,
@@ -607,7 +607,7 @@ usb2_set_config_index(struct usb2_device *udev, uint8_t index)
 	}
 
 	if (power > max_power) {
-		DPRINTF(-1, "power exceeded %d > %d\n", power, max_power);
+		DPRINTFN(0, "power exceeded %d > %d\n", power, max_power);
 		err = USB_ERR_NO_POWER;
 		goto done;
 	}
@@ -634,7 +634,7 @@ usb2_set_config_index(struct usb2_device *udev, uint8_t index)
 	}
 
 done:
-	DPRINTF(0, "error=%s\n", usb2_errstr(err));
+	DPRINTF("error=%s\n", usb2_errstr(err));
 	if (err) {
 		usb2_free_iface_data(udev);
 	}
@@ -712,7 +712,7 @@ usb2_set_endpoint_stall(struct usb2_device *udev, struct usb2_pipe *pipe,
 
 	if (pipe == NULL) {
 		/* nothing to do */
-		DPRINTF(0, "Cannot find endpoint\n");
+		DPRINTF("Cannot find endpoint\n");
 		/*
 		 * Pretend that the clear or set stall request is
 		 * successful else some USB host stacks can do
@@ -729,7 +729,7 @@ usb2_set_endpoint_stall(struct usb2_device *udev, struct usb2_pipe *pipe,
 	         * Should not stall control
 	         * nor isochronous endpoints.
 	         */
-		DPRINTF(0, "Invalid endpoint\n");
+		DPRINTF("Invalid endpoint\n");
 		return (0);
 	}
 	mtx_lock(&(udev->bus->mtx));
@@ -741,7 +741,7 @@ usb2_set_endpoint_stall(struct usb2_device *udev, struct usb2_pipe *pipe,
 	if (was_stalled && do_stall) {
 		/* if the pipe is already stalled do nothing */
 		mtx_unlock(&(udev->bus->mtx));
-		DPRINTF(0, "No change\n");
+		DPRINTF("No change\n");
 		return (0);
 	}
 	/* set stalled state */
@@ -876,7 +876,7 @@ usb2_detach_device(struct usb2_device *udev, uint8_t iface_index,
 		/* nothing to do */
 		return;
 	}
-	DPRINTF(3, "udev=%p\n", udev);
+	DPRINTFN(4, "udev=%p\n", udev);
 
 	/* automatic locking */
 	if (sx_xlocked(udev->default_sx + 1)) {
@@ -1056,7 +1056,7 @@ usb2_probe_and_attach(struct usb2_device *udev, uint8_t iface_index)
 	uint8_t do_unlock;
 
 	if (udev == NULL) {
-		DPRINTF(0, "udev == NULL\n");
+		DPRINTF("udev == NULL\n");
 		return (USB_ERR_INVAL);
 	}
 	/* automatic locking */
@@ -1093,7 +1093,7 @@ usb2_probe_and_attach(struct usb2_device *udev, uint8_t iface_index)
 			 * Looks like the end of the USB
 			 * interfaces !
 			 */
-			DPRINTF(1, "end of interfaces "
+			DPRINTFN(2, "end of interfaces "
 			    "at %u\n", i);
 			break;
 		}
@@ -1114,7 +1114,7 @@ usb2_probe_and_attach(struct usb2_device *udev, uint8_t iface_index)
 		    iface->idesc->bInterfaceNumber;
 		uaa.use_generic = 0;
 
-		DPRINTF(1, "iclass=%u/%u/%u iindex=%u/%u\n",
+		DPRINTFN(2, "iclass=%u/%u/%u iindex=%u/%u\n",
 		    uaa.info.bInterfaceClass,
 		    uaa.info.bInterfaceSubClass,
 		    uaa.info.bInterfaceProtocol,
@@ -1139,7 +1139,7 @@ usb2_probe_and_attach(struct usb2_device *udev, uint8_t iface_index)
 		/* remove the last created child; it is unused */
 
 		if (device_delete_child(udev->parent_dev, uaa.temp_dev)) {
-			DPRINTF(-1, "device delete child failed!\n");
+			DPRINTFN(0, "device delete child failed!\n");
 		}
 	}
 done:
@@ -1197,7 +1197,7 @@ usb2_suspend_resume(struct usb2_device *udev, uint8_t do_suspend)
 		/* nothing to do */
 		return (0);
 	}
-	DPRINTF(3, "udev=%p do_suspend=%d\n", udev, do_suspend);
+	DPRINTFN(4, "udev=%p do_suspend=%d\n", udev, do_suspend);
 
 	sx_assert(udev->default_sx + 1, SA_LOCKED);
 
@@ -1275,7 +1275,7 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	usb2_error_t err;
 	uint8_t device_index;
 
-	DPRINTF(0, "parent_dev=%p, bus=%p, parent_hub=%p, depth=%u, "
+	DPRINTF("parent_dev=%p, bus=%p, parent_hub=%p, depth=%u, "
 	    "port_index=%u, port_no=%u, speed=%u, usb2_mode=%u\n",
 	    parent_dev, bus, parent_hub, depth, port_index, port_no,
 	    speed, usb2_mode);
@@ -1401,7 +1401,7 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 		 * was successful.
 		 */
 		if (err) {
-			DPRINTF(-1, "set address %d failed "
+			DPRINTFN(0, "set address %d failed "
 			    "(ignored)\n", udev->address);
 		}
 		/* allow device time to set new address */
@@ -1417,7 +1417,7 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 		/* Setup USB descriptors */
 		err = (usb2_temp_setup_by_index_p) (udev, usb2_template);
 		if (err) {
-			DPRINTF(-1, "setting up USB template failed maybe the USB "
+			DPRINTFN(0, "setting up USB template failed maybe the USB "
 			    "template module has not been loaded\n");
 			goto done;
 		}
@@ -1436,11 +1436,11 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	err = usb2_req_get_desc(udev, &Giant, &udev->ddesc,
 	    USB_MAX_IPACKET, USB_MAX_IPACKET, 0, UDESC_DEVICE, 0, 0);
 	if (err) {
-		DPRINTF(-1, "getting device descriptor "
+		DPRINTFN(0, "getting device descriptor "
 		    "at addr %d failed!\n", udev->address);
 		goto done;
 	}
-	DPRINTF(0, "adding unit addr=%d, rev=%02x, class=%d, "
+	DPRINTF("adding unit addr=%d, rev=%02x, class=%d, "
 	    "subclass=%d, protocol=%d, maxpacket=%d, len=%d, speed=%d\n",
 	    udev->address, UGETW(udev->ddesc.bcdUSB),
 	    udev->ddesc.bDeviceClass,
@@ -1453,7 +1453,7 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	/* get the full device descriptor */
 	err = usb2_req_get_device_desc(udev, &Giant, &udev->ddesc);
 	if (err) {
-		DPRINTF(0, "addr=%d, getting full desc failed\n",
+		DPRINTF("addr=%d, getting full desc failed\n",
 		    udev->address);
 		goto done;
 	}
@@ -1561,14 +1561,14 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 
 repeat_set_config:
 
-		DPRINTF(0, "setting config %u\n", config_index);
+		DPRINTF("setting config %u\n", config_index);
 
 		/* get the USB device configured */
 		sx_xlock(udev->default_sx + 1);
 		err = usb2_set_config_index(udev, config_index);
 		sx_unlock(udev->default_sx + 1);
 		if (err) {
-			DPRINTF(-1, "Failure selecting "
+			DPRINTFN(0, "Failure selecting "
 			    "configuration index %u: %s, port %u, addr %u\n",
 			    config_index, usb2_errstr(err), udev->port_no,
 			    udev->address);
@@ -1578,7 +1578,7 @@ repeat_set_config:
 
 			if ((udev->cdesc->bNumInterface < 2) &&
 			    (usb2_get_no_endpoints(udev->cdesc) == 0)) {
-				DPRINTF(-1, "Found no endpoints "
+				DPRINTFN(0, "Found no endpoints "
 				    "(trying next config)!\n");
 				config_index++;
 				goto repeat_set_config;
@@ -1589,7 +1589,7 @@ repeat_set_config:
 				 * auto-install disk there:
 				 */
 				if (usb2_test_autoinstall(udev, 0) == 0) {
-					DPRINTF(-1, "Found possible auto-install "
+					DPRINTFN(0, "Found possible auto-install "
 					    "disk (trying next config)\n");
 					config_index++;
 					goto repeat_set_config;
@@ -1600,7 +1600,7 @@ repeat_set_config:
 		err = 0;		/* set success */
 	}
 
-	DPRINTF(0, "new dev (addr %d), udev=%p, parent_hub=%p\n",
+	DPRINTF("new dev (addr %d), udev=%p, parent_hub=%p\n",
 	    udev->address, udev, udev->parent_hub);
 
 	/* register our device - we are ready */
@@ -1646,7 +1646,7 @@ usb2_free_device(struct usb2_device *udev)
 		/* already freed */
 		return;
 	}
-	DPRINTF(3, "udev=%p port=%d\n", udev, udev->port_no);
+	DPRINTFN(4, "udev=%p port=%d\n", udev, udev->port_no);
 
 	bus = udev->bus;
 

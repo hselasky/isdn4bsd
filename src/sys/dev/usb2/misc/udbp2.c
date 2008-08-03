@@ -332,7 +332,7 @@ udbp_attach(device_t dev)
 	error = usb2_transfer_setup(uaa->device, &(uaa->info.bIfaceIndex),
 	    sc->sc_xfer, udbp_config, UDBP_T_MAX, sc, &(sc->sc_mtx));
 	if (error) {
-		DPRINTF(0, "error=%s\n", usb2_errstr(error));
+		DPRINTF("error=%s\n", usb2_errstr(error));
 		goto detach;
 	}
 	NG_BT_MBUFQ_INIT(&(sc->sc_xmitq), UDBP_Q_MAXLEN);
@@ -427,7 +427,7 @@ udbp_bulk_read_callback(struct usb2_xfer *xfer)
 
 		sc->sc_bulk_in_buffer = m;
 
-		DPRINTF(0, "received package %d "
+		DPRINTF("received package %d "
 		    "bytes\n", xfer->actlen);
 
 	case USB_ST_SETUP:
@@ -462,7 +462,7 @@ udbp_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[UDBP_T_RD];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UDBP_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -489,7 +489,7 @@ udbp_bulk_read_complete(node_p node, hook_p hook, void *arg1, int arg2)
 
 		if ((sc->sc_hook == NULL) ||
 		    NG_HOOK_NOT_VALID(sc->sc_hook)) {
-			DPRINTF(0, "No upstream hook\n");
+			DPRINTF("No upstream hook\n");
 			goto done;
 		}
 		sc->sc_packets_in++;
@@ -533,12 +533,12 @@ udbp_bulk_write_callback(struct usb2_xfer *xfer)
 		if (m == NULL) {
 			NG_BT_MBUFQ_DEQUEUE(&(sc->sc_xmitq), m);
 			if (m == NULL) {
-				DPRINTF(0, "Data queue is empty\n");
+				DPRINTF("Data queue is empty\n");
 				return;
 			}
 		}
 		if (m->m_pkthdr.len > MCLBYTES) {
-			DPRINTF(0, "truncating large packet "
+			DPRINTF("truncating large packet "
 			    "from %d to %d bytes\n", m->m_pkthdr.len,
 			    MCLBYTES);
 			m->m_pkthdr.len = MCLBYTES;
@@ -549,7 +549,7 @@ udbp_bulk_write_callback(struct usb2_xfer *xfer)
 
 		m_freem(m);
 
-		DPRINTF(0, "packet out: %d bytes\n",
+		DPRINTF("packet out: %d bytes\n",
 		    xfer->frlengths[0]);
 
 		usb2_start_hardware(xfer);
@@ -573,7 +573,7 @@ udbp_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[UDBP_T_WR];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UDBP_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -674,7 +674,7 @@ ng_udbp_rcvmsg(node_p node, item_p item, hook_p lasthook)
 				error = EINVAL;
 				break;
 			}
-			DPRINTF(0, "flags = 0x%08x\n",
+			DPRINTF("flags = 0x%08x\n",
 			    *((uint32_t *)msg->data));
 			break;
 		default:

@@ -361,7 +361,7 @@ umct_cfg_do_request(struct umct_softc *sc, uint8_t request,
 	    temp, 0, NULL, 1000);
 
 	if (err) {
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 	}
 done:
@@ -375,7 +375,7 @@ umct_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[4];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UMCT_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -391,7 +391,7 @@ umct_intr_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 		if (xfer->actlen < 2) {
-			DPRINTF(0, "too short message\n");
+			DPRINTF("too short message\n");
 			goto tr_setup;
 		}
 		usb2_copy_out(xfer->frbuffers, 0, buf, sizeof(buf));
@@ -637,7 +637,7 @@ umct_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UMCT_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -680,7 +680,7 @@ umct_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UMCT_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}

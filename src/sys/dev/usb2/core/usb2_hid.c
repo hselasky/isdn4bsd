@@ -443,7 +443,7 @@ hid_get_data(const u_char *buf, uint32_t len, struct hid_location *loc)
 	uint32_t data;
 	int i, s, t;
 
-	DPRINTF(10, "hid_get_data: loc %d/%d\n", hpos, hsize);
+	DPRINTFN(11, "hid_get_data: loc %d/%d\n", hpos, hsize);
 
 	if (hsize == 0)
 		return (0);
@@ -461,7 +461,7 @@ hid_get_data(const u_char *buf, uint32_t len, struct hid_location *loc)
 	hsize = 32 - hsize;
 	/* Sign extend */
 	data = ((int32_t)data << hsize) >> hsize;
-	DPRINTF(10, "hid_get_data: loc %d/%d = %lu\n",
+	DPRINTFN(11, "hid_get_data: loc %d/%d = %lu\n",
 	    loc->pos, loc->size, (long)data);
 	return (data);
 }

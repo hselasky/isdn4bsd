@@ -1,8 +1,5 @@
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/at91dci.c $");
-
 /*-
- * Copyright (c) 2007-2008 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,21 +24,10 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/at91dci.c $");
  */
 
 /*
- * This file contains the driver for the AT91 series USB Device
- * Controller
- */
-
-/*
- * Thanks to "David Brownell" for helping out regarding the hardware
- * endpoint profiles.
- */
-
-/*
- * NOTE: The "fifo_bank" is not reset in hardware when the endpoint is
- * reset !
+ * This file contains the driver for the Mentor Graphics Inventra USB
+ * 2.0 High Speed Dual-Role controller.
  *
- * NOTE: When the chip detects BUS-reset it will also reset the
- * endpoints, Function-address and more.
+ * NOTE: The current implementation only supports Device Side Mode!
  */
 
 #include <dev/usb2/include/usb2_standard.h>
@@ -49,9 +35,9 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/at91dci.c $");
 #include <dev/usb2/include/usb2_error.h>
 #include <dev/usb2/include/usb2_defs.h>
 
-#define	USB_DEBUG_VAR at91dcidebug
-#define	usb2_config_td_cc at91dci_config_copy
-#define	usb2_config_td_softc at91dci_softc
+#define	USB_DEBUG_VAR musbotgdebug
+#define	usb2_config_td_cc musbotg_config_copy
+#define	usb2_config_td_softc musbotg_softc
 
 #include <dev/usb2/core/usb2_core.h>
 #include <dev/usb2/core/usb2_debug.h>
@@ -66,116 +52,64 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/at91dci.c $");
 
 #include <dev/usb2/controller/usb2_controller.h>
 #include <dev/usb2/controller/usb2_bus.h>
-#include <dev/usb2/controller/at91dci.h>
+#include <dev/usb2/controller/musb2_otg.h>
 
-#define	AT9100_DCI_BUS2SC(bus) \
-   ((struct at91dci_softc *)(((uint8_t *)(bus)) - \
-   USB_P2U(&(((struct at91dci_softc *)0)->sc_bus))))
+#define	MUSBOTG_INTR_ENDPT 1
 
-#define	AT9100_DCI_PC2SC(pc) \
-   AT9100_DCI_BUS2SC((pc)->tag_parent->info->bus)
+#define	MUSBOTG_BUS2SC(bus) \
+   ((struct musbotg_softc *)(((uint8_t *)(bus)) - \
+   USB_P2U(&(((struct musbotg_softc *)0)->sc_bus))))
+
+#define	MUSBOTG_PC2SC(pc) \
+   MUSBOTG_BUS2SC((pc)->tag_parent->info->bus)
 
 #ifdef USB_DEBUG
-static int at91dcidebug = 0;
+static int musbotgdebug = 0;
 
-SYSCTL_NODE(_hw_usb2, OID_AUTO, at91dci, CTLFLAG_RW, 0, "USB at91dci");
-SYSCTL_INT(_hw_usb2_at91dci, OID_AUTO, debug, CTLFLAG_RW,
-    &at91dcidebug, 0, "at91dci debug level");
+SYSCTL_NODE(_hw_usb2, OID_AUTO, musbotg, CTLFLAG_RW, 0, "USB musbotg");
+SYSCTL_INT(_hw_usb2_musbotg, OID_AUTO, debug, CTLFLAG_RW,
+    &musbotgdebug, 0, "Debug level");
 #endif
-
-#define	AT9100_DCI_INTR_ENDPT 1
 
 /* prototypes */
 
-struct usb2_bus_methods at91dci_bus_methods;
-struct usb2_pipe_methods at91dci_device_bulk_methods;
-struct usb2_pipe_methods at91dci_device_ctrl_methods;
-struct usb2_pipe_methods at91dci_device_intr_methods;
-struct usb2_pipe_methods at91dci_device_isoc_fs_methods;
-struct usb2_pipe_methods at91dci_root_ctrl_methods;
-struct usb2_pipe_methods at91dci_root_intr_methods;
+struct usb2_bus_methods musbotg_bus_methods;
+struct usb2_pipe_methods musbotg_device_bulk_methods;
+struct usb2_pipe_methods musbotg_device_ctrl_methods;
+struct usb2_pipe_methods musbotg_device_intr_methods;
+struct usb2_pipe_methods musbotg_device_isoc_methods;
+struct usb2_pipe_methods musbotg_root_ctrl_methods;
+struct usb2_pipe_methods musbotg_root_intr_methods;
 
-static at91dci_cmd_t at91dci_setup_rx;
-static at91dci_cmd_t at91dci_data_rx;
-static at91dci_cmd_t at91dci_data_tx;
-static at91dci_cmd_t at91dci_data_tx_sync;
-static void at91dci_device_done(struct usb2_xfer *xfer, usb2_error_t error);
-static void at91dci_do_poll(struct usb2_bus *bus);
-static void at91dci_root_ctrl_poll(struct at91dci_softc *sc);
-static void at91dci_standard_done(struct usb2_xfer *xfer);
+static musbotg_cmd_t musbotg_setup_rx;
+static musbotg_cmd_t musbotg_setup_data_rx;
+static musbotg_cmd_t musbotg_setup_data_tx;
+static musbotg_cmd_t musbotg_setup_status;
+static musbotg_cmd_t musbotg_data_rx;
+static musbotg_cmd_t musbotg_data_tx;
+static void musbotg_device_done(struct usb2_xfer *xfer, usb2_error_t error);
+static void musbotg_do_poll(struct usb2_bus *bus);
+static void musbotg_root_ctrl_poll(struct musbotg_softc *sc);
+static void musbotg_standard_done(struct usb2_xfer *xfer);
 
-static usb2_sw_transfer_func_t at91dci_root_intr_done;
-static usb2_sw_transfer_func_t at91dci_root_ctrl_done;
-static usb2_config_td_command_t at91dci_root_ctrl_task;
-
-/*
- * NOTE: Some of the bits in the CSR register have inverse meaning so
- * we need a helper macro when acknowledging events:
- */
-#define	AT91_CSR_ACK(csr, what) do {		\
-  (csr) &= ~((AT91_UDP_CSR_FORCESTALL|		\
-	      AT91_UDP_CSR_TXPKTRDY|		\
-	      AT91_UDP_CSR_RXBYTECNT) ^ (what));\
-  (csr) |= ((AT91_UDP_CSR_RX_DATA_BK0|		\
-	     AT91_UDP_CSR_RX_DATA_BK1|		\
-	     AT91_UDP_CSR_TXCOMP|		\
-	     AT91_UDP_CSR_RXSETUP|		\
-	     AT91_UDP_CSR_STALLSENT) ^ (what));	\
-} while (0)
+static usb2_sw_transfer_func_t musbotg_root_intr_done;
+static usb2_sw_transfer_func_t musbotg_root_ctrl_done;
+static usb2_config_td_command_t musbotg_root_ctrl_task;
 
 /*
- * Here is a list of what the chip supports.
- * Probably it supports more than listed here!
+ * Here is a configuration that the chip supports.
  */
-static const struct usb2_hw_ep_profile
-	at91dci_ep_profile[AT91_UDP_EP_MAX] = {
+static const struct usb2_hw_ep_profile musbotg_ep_profile[2] = {
 
 	[0] = {
-		.max_frame_size = 8,
+		.max_frame_size = 64,	/* fixed */
 		.is_simplex = 1,
 		.support_control = 1,
 	},
+
 	[1] = {
-		.max_frame_size = 64,
-		.is_simplex = 1,
-		.support_multi_buffer = 1,
-		.support_bulk = 1,
-		.support_interrupt = 1,
-		.support_isochronous = 1,
-		.support_in = 1,
-		.support_out = 1,
-	},
-	[2] = {
-		.max_frame_size = 64,
-		.is_simplex = 1,
-		.support_multi_buffer = 1,
-		.support_bulk = 1,
-		.support_interrupt = 1,
-		.support_isochronous = 1,
-		.support_in = 1,
-		.support_out = 1,
-	},
-	[3] = {
-		/* can also do BULK */
-		.max_frame_size = 8,
-		.is_simplex = 1,
-		.support_interrupt = 1,
-		.support_in = 1,
-		.support_out = 1,
-	},
-	[4] = {
-		.max_frame_size = 256,
-		.is_simplex = 1,
-		.support_multi_buffer = 1,
-		.support_bulk = 1,
-		.support_interrupt = 1,
-		.support_isochronous = 1,
-		.support_in = 1,
-		.support_out = 1,
-	},
-	[5] = {
-		.max_frame_size = 256,
-		.is_simplex = 1,
+		.max_frame_size = (3 * 1024),
+		.is_simplex = 0,	/* duplex */
 		.support_multi_buffer = 1,
 		.support_bulk = 1,
 		.support_interrupt = 1,
@@ -186,11 +120,21 @@ static const struct usb2_hw_ep_profile
 };
 
 static void
-at91dci_get_hw_ep_profile(struct usb2_device *udev,
+musbotg_get_hw_ep_profile(struct usb2_device *udev,
     const struct usb2_hw_ep_profile **ppf, uint8_t ep_addr)
 {
-	if (ep_addr < AT91_UDP_EP_MAX) {
-		*ppf = (at91dci_ep_profile + ep_addr);
+	struct musbotg_softc *sc;
+
+	sc = MUSBOTG_BUS2SC(udev->bus);
+
+	if (ep_addr < sc->sc_ep_max) {
+		if (ep_addr == 0) {
+			/* control endpoint */
+			*ppf = musbotg_ep_profile;
+		} else {
+			/* non-control endpoints */
+			*ppf = musbotg_ep_profile + 1;
+		}
 	} else {
 		*ppf = NULL;
 	}
@@ -198,33 +142,31 @@ at91dci_get_hw_ep_profile(struct usb2_device *udev,
 }
 
 static void
-at91dci_clocks_on(struct at91dci_softc *sc)
+musbotg_clocks_on(struct musbotg_softc *sc)
 {
 	if (sc->sc_flags.clocks_off &&
 	    sc->sc_flags.port_powered) {
 
-		DPRINTFN(5, "\n");
+		DPRINTFN(4, "\n");
 
 		if (sc->sc_clocks_on) {
 			(sc->sc_clocks_on) (sc->sc_clocks_arg);
 		}
 		sc->sc_flags.clocks_off = 0;
 
-		/* enable Transceiver */
-		AT91_UDP_WRITE_4(sc, AT91_UDP_TXVC, 0);
+		/* XXX enable Transceiver */
 	}
 	return;
 }
 
 static void
-at91dci_clocks_off(struct at91dci_softc *sc)
+musbotg_clocks_off(struct musbotg_softc *sc)
 {
 	if (!sc->sc_flags.clocks_off) {
 
-		DPRINTFN(5, "\n");
+		DPRINTFN(4, "\n");
 
-		/* disable Transceiver */
-		AT91_UDP_WRITE_4(sc, AT91_UDP_TXVC, AT91_UDP_TXVC_DIS);
+		/* XXX disable Transceiver */
 
 		if (sc->sc_clocks_off) {
 			(sc->sc_clocks_off) (sc->sc_clocks_arg);
@@ -235,117 +177,155 @@ at91dci_clocks_off(struct at91dci_softc *sc)
 }
 
 static void
-at91dci_pull_up(struct at91dci_softc *sc)
+musbotg_pull_common(struct musbotg_softc *sc, uint8_t on)
+{
+	uint8_t temp;
+
+	temp = MUSB2_READ_1(sc, MUSB2_REG_POWER);
+	if (on)
+		temp |= MUSB2_MASK_SOFTC;
+	else
+		temp &= ~MUSB2_MASK_SOFTC;
+
+	MUSB2_WRITE_1(sc, MUSB2_REG_POWER, temp);
+	return;
+}
+
+static void
+musbotg_pull_up(struct musbotg_softc *sc)
 {
 	/* pullup D+, if possible */
 
 	if (!sc->sc_flags.d_pulled_up &&
 	    sc->sc_flags.port_powered) {
 		sc->sc_flags.d_pulled_up = 1;
-		(sc->sc_pull_up) (sc->sc_pull_arg);
+		musbotg_pull_common(sc, 1);
 	}
 	return;
 }
 
 static void
-at91dci_pull_down(struct at91dci_softc *sc)
+musbotg_pull_down(struct musbotg_softc *sc)
 {
 	/* pulldown D+, if possible */
 
 	if (sc->sc_flags.d_pulled_up) {
 		sc->sc_flags.d_pulled_up = 0;
-		(sc->sc_pull_down) (sc->sc_pull_arg);
+		musbotg_pull_common(sc, 0);
 	}
 	return;
 }
 
 static void
-at91dci_wakeup_peer(struct at91dci_softc *sc)
+musbotg_wakeup_peer(struct usb2_xfer *xfer)
 {
-	uint32_t temp;
+	struct musbotg_softc *sc = xfer->usb2_sc;
+	uint8_t temp;
+	uint8_t use_polling;
 
 	if (!(sc->sc_flags.status_suspend)) {
 		return;
 	}
-	temp = AT91_UDP_READ_4(sc, AT91_UDP_GSTATE);
+	use_polling = mtx_owned(xfer->priv_mtx) ? 1 : 0;
 
-	if (!(temp & AT91_UDP_GSTATE_ESR)) {
-		return;
-	}
-	AT91_UDP_WRITE_4(sc, AT91_UDP_GSTATE, temp);
+	temp = MUSB2_READ_1(sc, MUSB2_REG_POWER);
+	temp |= MUSB2_MASK_RESUME;
+	MUSB2_WRITE_1(sc, MUSB2_REG_POWER, temp);
 
-	return;
-}
-
-static void
-at91dci_rem_wakeup_set(struct usb2_device *udev, uint8_t is_on)
-{
-	struct at91dci_softc *sc;
-	uint32_t temp;
-
-	DPRINTFN(5, "is_on=%u\n", is_on);
-
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
-
-	sc = AT9100_DCI_BUS2SC(udev->bus);
-
-	temp = AT91_UDP_READ_4(sc, AT91_UDP_GSTATE);
-
-	if (is_on) {
-		temp |= AT91_UDP_GSTATE_ESR;
+	/* wait 10 milliseconds */
+	if (use_polling) {
+		/* polling */
+		DELAY(10000);
 	} else {
-		temp &= ~AT91_UDP_GSTATE_ESR;
+		/* Wait for reset to complete. */
+		if (usb2_config_td_sleep
+		    (&(sc->sc_config_td),
+		    (hz / 100))) {
+			/* ignore */
+		}
 	}
 
-	AT91_UDP_WRITE_4(sc, AT91_UDP_GSTATE, temp);
-
+	temp = MUSB2_READ_1(sc, MUSB2_REG_POWER);
+	temp &= ~MUSB2_MASK_RESUME;
+	MUSB2_WRITE_1(sc, MUSB2_REG_POWER, temp);
 	return;
 }
 
 static void
-at91dci_set_address(struct at91dci_softc *sc, uint8_t addr)
+musbotg_rem_wakeup_set(struct usb2_device *udev, uint8_t is_on)
 {
-	DPRINTFN(5, "addr=%d\n", addr);
+	DPRINTFN(4, "is_on=%u\n", is_on);
+	return;
+}
 
-	AT91_UDP_WRITE_4(sc, AT91_UDP_FADDR, addr |
-	    AT91_UDP_FADDR_EN);
-
+static void
+musbotg_set_address(struct musbotg_softc *sc, uint8_t addr)
+{
+	DPRINTFN(4, "addr=%d\n", addr);
+	addr &= 0x7F;
+	MUSB2_WRITE_1(sc, MUSB2_REG_FADDR, addr);
 	return;
 }
 
 static uint8_t
-at91dci_setup_rx(struct at91dci_td *td)
+musbotg_setup_rx(struct musbotg_td *td)
 {
-	struct at91dci_softc *sc;
+	struct musbotg_softc *sc;
 	struct usb2_device_request req;
-	uint32_t csr;
-	uint32_t temp;
 	uint16_t count;
+	uint8_t csr;
+
+	/* get pointer to softc */
+	sc = MUSBOTG_PC2SC(td->pc);
+
+	/* select endpoint 0 */
+	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, 0);
 
 	/* read out FIFO status */
-	csr = bus_space_read_4(td->io_tag, td->io_hdl,
-	    td->status_reg);
+	csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
 
-	DPRINTFN(5, "csr=0x%08x rem=%u\n", csr, td->remainder);
+	DPRINTFN(4, "csr=0x%02x\n", csr);
 
-	temp = csr;
-	temp &= (AT91_UDP_CSR_RX_DATA_BK0 |
-	    AT91_UDP_CSR_RX_DATA_BK1 |
-	    AT91_UDP_CSR_STALLSENT |
-	    AT91_UDP_CSR_RXSETUP |
-	    AT91_UDP_CSR_TXCOMP);
-
-	if (!(csr & AT91_UDP_CSR_RXSETUP)) {
+	/*
+	 * UNDOCUMENTED: If DATAEND is set we should not call the
+	 * callback, hence the status stage is not complete.
+	 */
+	if (csr & MUSB2_MASK_CSR0L_DATAEND) {
+		/* wait for interrupt */
+		goto not_complete;
+	}
+	if (csr & MUSB2_MASK_CSR0L_SENTSTALL) {
+		/* clear SENTSTALL */
+		MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL, 0);
+		/* get latest status */
+		csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
+		/* update EP0 state */
+		sc->sc_ep0_busy = 0;
+	}
+	if (csr & MUSB2_MASK_CSR0L_SETUPEND) {
+		/* clear SETUPEND */
+		MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL,
+		    MUSB2_MASK_CSR0L_SETUPEND_CLR);
+		/* get latest status */
+		csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
+		/* update EP0 state */
+		sc->sc_ep0_busy = 0;
+	}
+	if (sc->sc_ep0_busy) {
 		/* abort any ongoing transfer */
 		if (!td->did_stall) {
-			DPRINTFN(5, "stalling\n");
-			temp |= AT91_UDP_CSR_FORCESTALL;
+			DPRINTFN(4, "stalling\n");
+			MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL,
+			    MUSB2_MASK_CSR0L_SENDSTALL);
 			td->did_stall = 1;
 		}
 		goto not_complete;
 	}
+	if (!(csr & MUSB2_MASK_CSR0L_RXPKTRDY)) {
+		goto not_complete;
+	}
 	/* get the packet byte count */
-	count = (csr & AT91_UDP_CSR_RXBYTECNT) >> 16;
+	count = MUSB2_READ_2(sc, MUSB2_REG_RXCOUNT);
 
 	/* verify data length */
 	if (count != td->remainder) {
@@ -359,8 +339,8 @@ at91dci_setup_rx(struct at91dci_td *td)
 		goto not_complete;
 	}
 	/* receive data */
-	bus_space_read_multi_1(td->io_tag, td->io_hdl,
-	    td->fifo_reg, (void *)&req, sizeof(req));
+	bus_space_read_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
+	    MUSB2_REG_EPFIFO(0), (void *)&req, sizeof(req));
 
 	/* copy data into real buffer */
 	usb2_copy_in(td->pc, 0, &req, sizeof(req));
@@ -368,8 +348,11 @@ at91dci_setup_rx(struct at91dci_td *td)
 	td->offset = sizeof(req);
 	td->remainder = 0;
 
-	/* get pointer to softc */
-	sc = AT9100_DCI_PC2SC(td->pc);
+	/* set pending command */
+	sc->sc_ep0_cmd = MUSB2_MASK_CSR0L_RXPKTRDY_CLR;
+
+	/* we need set stall or dataend after this */
+	sc->sc_ep0_busy = 1;
 
 	/* sneak peek the set address */
 	if ((req.bmRequestType == UT_WRITE_DEVICE) &&
@@ -378,60 +361,49 @@ at91dci_setup_rx(struct at91dci_td *td)
 	} else {
 		sc->sc_dv_addr = 0xFF;
 	}
-
-	/* sneak peek the endpoint direction */
-	if (req.bmRequestType & UE_DIR_IN) {
-		csr |= AT91_UDP_CSR_DIR;
-	} else {
-		csr &= ~AT91_UDP_CSR_DIR;
-	}
-
-	/* write the direction of the control transfer */
-	AT91_CSR_ACK(csr, temp);
-	bus_space_write_4(td->io_tag, td->io_hdl,
-	    td->status_reg, csr);
 	return (0);			/* complete */
 
 not_complete:
-	/* clear interrupts, if any */
-	if (temp) {
-		DPRINTFN(5, "clearing 0x%08x\n", temp);
-		AT91_CSR_ACK(csr, temp);
-		bus_space_write_4(td->io_tag, td->io_hdl,
-		    td->status_reg, csr);
-	}
 	return (1);			/* not complete */
-
 }
 
+/* Control endpoint only data handling functions (RX/TX/SYNC) */
+
 static uint8_t
-at91dci_data_rx(struct at91dci_td *td)
+musbotg_setup_data_rx(struct musbotg_td *td)
 {
 	struct usb2_page_search buf_res;
-	uint32_t csr;
-	uint32_t temp;
+	struct musbotg_softc *sc;
 	uint16_t count;
-	uint8_t to;
+	uint8_t csr;
 	uint8_t got_short;
 
-	to = 2;				/* don't loop forever! */
+	/* get pointer to softc */
+	sc = MUSBOTG_PC2SC(td->pc);
+
+	/* select endpoint 0 */
+	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, 0);
+
+	/* check if a command is pending */
+	if (sc->sc_ep0_cmd) {
+		MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL, sc->sc_ep0_cmd);
+		sc->sc_ep0_cmd = 0;
+	}
+	/* read out FIFO status */
+	csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
+
+	DPRINTFN(4, "csr=0x%02x\n", csr);
+
 	got_short = 0;
 
-	/* check if any of the FIFO banks have data */
-repeat:
-	/* read out FIFO status */
-	csr = bus_space_read_4(td->io_tag, td->io_hdl,
-	    td->status_reg);
-
-	DPRINTFN(5, "csr=0x%08x rem=%u\n", csr, td->remainder);
-
-	if (csr & AT91_UDP_CSR_RXSETUP) {
+	if (csr & (MUSB2_MASK_CSR0L_SETUPEND |
+	    MUSB2_MASK_CSR0L_SENTSTALL)) {
 		if (td->remainder == 0) {
 			/*
 			 * We are actually complete and have
 			 * received the next SETUP
 			 */
-			DPRINTFN(5, "faking complete\n");
+			DPRINTFN(4, "faking complete\n");
 			return (0);	/* complete */
 		}
 		/*
@@ -440,27 +412,15 @@ repeat:
 		td->error = 1;
 		return (0);		/* complete */
 	}
-	/* Make sure that "STALLSENT" gets cleared */
-	temp = csr;
-	temp &= AT91_UDP_CSR_STALLSENT;
-
-	/* check status */
-	if (!(csr & (AT91_UDP_CSR_RX_DATA_BK0 |
-	    AT91_UDP_CSR_RX_DATA_BK1))) {
-		if (temp) {
-			/* write command */
-			AT91_CSR_ACK(csr, temp);
-			bus_space_write_4(td->io_tag, td->io_hdl,
-			    td->status_reg, csr);
-		}
+	if (!(csr & MUSB2_MASK_CSR0L_RXPKTRDY)) {
 		return (1);		/* not complete */
 	}
 	/* get the packet byte count */
-	count = (csr & AT91_UDP_CSR_RXBYTECNT) >> 16;
+	count = MUSB2_READ_2(sc, MUSB2_REG_RXCOUNT);
 
 	/* verify the packet byte count */
-	if (count != td->max_packet_size) {
-		if (count < td->max_packet_size) {
+	if (count != td->max_frame_size) {
+		if (count < td->max_frame_size) {
 			/* we have a short packet */
 			td->short_pkt = 1;
 			got_short = 1;
@@ -484,8 +444,205 @@ repeat:
 			buf_res.length = count;
 		}
 		/* receive data */
-		bus_space_read_multi_1(td->io_tag, td->io_hdl,
-		    td->fifo_reg, buf_res.buffer, buf_res.length);
+		bus_space_read_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
+		    MUSB2_REG_EPFIFO(0), buf_res.buffer, buf_res.length);
+
+		/* update counters */
+		count -= buf_res.length;
+		td->offset += buf_res.length;
+		td->remainder -= buf_res.length;
+	}
+
+	/* check if we are complete */
+	if ((td->remainder == 0) || got_short) {
+		if (td->short_pkt) {
+			/* we are complete */
+			sc->sc_ep0_cmd = MUSB2_MASK_CSR0L_RXPKTRDY_CLR;
+			return (0);
+		}
+		/* else need to receive a zero length packet */
+	}
+	/* write command - need more data */
+	MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL,
+	    MUSB2_MASK_CSR0L_RXPKTRDY_CLR);
+	return (1);			/* not complete */
+}
+
+static uint8_t
+musbotg_setup_data_tx(struct musbotg_td *td)
+{
+	struct usb2_page_search buf_res;
+	struct musbotg_softc *sc;
+	uint16_t count;
+	uint8_t csr;
+
+	/* get pointer to softc */
+	sc = MUSBOTG_PC2SC(td->pc);
+
+	/* select endpoint 0 */
+	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, 0);
+
+	/* check if a command is pending */
+	if (sc->sc_ep0_cmd) {
+		MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL, sc->sc_ep0_cmd);
+		sc->sc_ep0_cmd = 0;
+	}
+	/* read out FIFO status */
+	csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
+
+	DPRINTFN(4, "csr=0x%02x\n", csr);
+
+	if (csr & (MUSB2_MASK_CSR0L_SETUPEND |
+	    MUSB2_MASK_CSR0L_SENTSTALL)) {
+		/*
+	         * The current transfer was aborted
+	         * by the USB Host
+	         */
+		td->error = 1;
+		return (0);		/* complete */
+	}
+	if (!(csr & MUSB2_MASK_CSR0L_TXPKTRDY)) {
+		return (1);		/* not complete */
+	}
+	count = td->max_frame_size;
+	if (td->remainder < count) {
+		/* we have a short packet */
+		td->short_pkt = 1;
+		count = td->remainder;
+	}
+	while (count > 0) {
+
+		usb2_get_page(td->pc, td->offset, &buf_res);
+
+		/* get correct length */
+		if (buf_res.length > count) {
+			buf_res.length = count;
+		}
+		/* transmit data */
+		bus_space_write_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
+		    MUSB2_REG_EPFIFO(0), buf_res.buffer, buf_res.length);
+
+		/* update counters */
+		count -= buf_res.length;
+		td->offset += buf_res.length;
+		td->remainder -= buf_res.length;
+	}
+
+	/* check remainder */
+	if (td->remainder == 0) {
+		if (td->short_pkt) {
+			sc->sc_ep0_cmd = MUSB2_MASK_CSR0L_TXPKTRDY;
+			return (0);	/* complete */
+		}
+		/* else we need to transmit a short packet */
+	}
+	/* write command */
+	MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL,
+	    MUSB2_MASK_CSR0L_TXPKTRDY);
+
+	return (1);			/* not complete */
+}
+
+static uint8_t
+musbotg_setup_status(struct musbotg_td *td)
+{
+	struct musbotg_softc *sc;
+	uint8_t csr;
+
+	/* get pointer to softc */
+	sc = MUSBOTG_PC2SC(td->pc);
+
+	/* select endpoint 0 */
+	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, 0);
+
+	if (sc->sc_ep0_busy) {
+		sc->sc_ep0_busy = 0;
+		sc->sc_ep0_cmd |= MUSB2_MASK_CSR0L_DATAEND;
+		MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL, sc->sc_ep0_cmd);
+		sc->sc_ep0_cmd = 0;
+	}
+	/* read out FIFO status */
+	csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
+
+	DPRINTFN(4, "csr=0x%02x\n", csr);
+
+	if (csr & MUSB2_MASK_CSR0L_DATAEND) {
+		/* wait for interrupt */
+		return (1);		/* not complete */
+	}
+	if (sc->sc_dv_addr != 0xFF) {
+		/* write function address */
+		musbotg_set_address(sc, sc->sc_dv_addr);
+	}
+	return (0);			/* complete */
+}
+
+static uint8_t
+musbotg_data_rx(struct musbotg_td *td)
+{
+	struct usb2_page_search buf_res;
+	struct musbotg_softc *sc;
+	uint16_t count;
+	uint8_t csr;
+	uint8_t to;
+	uint8_t got_short;
+
+	to = 2;				/* don't loop forever! */
+	got_short = 0;
+
+	/* get pointer to softc */
+	sc = MUSBOTG_PC2SC(td->pc);
+
+	/* select endpoint */
+	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, td->ep_no);
+
+repeat:
+	/* read out FIFO status */
+	csr = MUSB2_READ_1(sc, MUSB2_REG_RXCSRL);
+
+	DPRINTFN(4, "csr=0x%02x\n", csr);
+
+	/* clear overrun */
+	if (csr & MUSB2_MASK_CSRL_RXOVERRUN) {
+		/* make sure we don't clear "RXPKTRDY" */
+		MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRL,
+		    MUSB2_MASK_CSRL_RXPKTRDY);
+	}
+	/* check status */
+	if (!(csr & MUSB2_MASK_CSRL_RXPKTRDY)) {
+		return (1);		/* not complete */
+	}
+	/* get the packet byte count */
+	count = MUSB2_READ_2(sc, MUSB2_REG_RXCOUNT);
+
+	/* verify the packet byte count */
+	if (count != td->max_frame_size) {
+		if (count < td->max_frame_size) {
+			/* we have a short packet */
+			td->short_pkt = 1;
+			got_short = 1;
+		} else {
+			/* invalid USB packet */
+			td->error = 1;
+			return (0);	/* we are complete */
+		}
+	}
+	/* verify the packet byte count */
+	if (count > td->remainder) {
+		/* invalid USB packet */
+		td->error = 1;
+		return (0);		/* we are complete */
+	}
+	while (count > 0) {
+		usb2_get_page(td->pc, td->offset, &buf_res);
+
+		/* get correct length */
+		if (buf_res.length > count) {
+			buf_res.length = count;
+		}
+		/* receive data */
+		bus_space_read_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
+		    MUSB2_REG_EPFIFO(td->ep_no), buf_res.buffer, buf_res.length);
 
 		/* update counters */
 		count -= buf_res.length;
@@ -494,28 +651,7 @@ repeat:
 	}
 
 	/* clear status bits */
-	if (td->support_multi_buffer) {
-		if (td->fifo_bank) {
-			td->fifo_bank = 0;
-			temp |= AT91_UDP_CSR_RX_DATA_BK1;
-		} else {
-			td->fifo_bank = 1;
-			temp |= AT91_UDP_CSR_RX_DATA_BK0;
-		}
-	} else {
-		temp |= (AT91_UDP_CSR_RX_DATA_BK0 |
-		    AT91_UDP_CSR_RX_DATA_BK1);
-	}
-
-	/* write command */
-	AT91_CSR_ACK(csr, temp);
-	bus_space_write_4(td->io_tag, td->io_hdl,
-	    td->status_reg, csr);
-
-	/*
-	 * NOTE: We may have to delay a little bit before
-	 * proceeding after clearing the DATA_BK bits.
-	 */
+	MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRL, 0);
 
 	/* check if we are complete */
 	if ((td->remainder == 0) || got_short) {
@@ -532,51 +668,38 @@ repeat:
 }
 
 static uint8_t
-at91dci_data_tx(struct at91dci_td *td)
+musbotg_data_tx(struct musbotg_td *td)
 {
 	struct usb2_page_search buf_res;
-	uint32_t csr;
-	uint32_t temp;
+	struct musbotg_softc *sc;
 	uint16_t count;
+	uint8_t csr;
 	uint8_t to;
 
 	to = 2;				/* don't loop forever! */
 
+	/* get pointer to softc */
+	sc = MUSBOTG_PC2SC(td->pc);
+
+	/* select endpoint */
+	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, td->ep_no);
+
 repeat:
 
 	/* read out FIFO status */
-	csr = bus_space_read_4(td->io_tag, td->io_hdl,
-	    td->status_reg);
+	csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
 
-	DPRINTFN(5, "csr=0x%08x rem=%u\n", csr, td->remainder);
+	DPRINTFN(4, "csr=0x%02x\n", csr);
 
-	if (csr & AT91_UDP_CSR_RXSETUP) {
-		/*
-	         * The current transfer was aborted
-	         * by the USB Host
-	         */
-		td->error = 1;
-		return (0);		/* complete */
+	if (csr & (MUSB2_MASK_CSRL_TXINCOMP |
+	    MUSB2_MASK_CSRL_TXUNDERRUN)) {
+		/* clear status bits */
+		MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL, 0);
 	}
-	/* Make sure that "STALLSENT" gets cleared */
-	temp = csr;
-	temp &= AT91_UDP_CSR_STALLSENT;
-
-	if (csr & AT91_UDP_CSR_TXPKTRDY) {
-		if (temp) {
-			/* write command */
-			AT91_CSR_ACK(csr, temp);
-			bus_space_write_4(td->io_tag, td->io_hdl,
-			    td->status_reg, csr);
-		}
+	if (csr & MUSB2_MASK_CSRL_TXPKTRDY) {
 		return (1);		/* not complete */
-	} else {
-		/* clear TXCOMP and set TXPKTRDY */
-		temp |= (AT91_UDP_CSR_TXCOMP |
-		    AT91_UDP_CSR_TXPKTRDY);
 	}
-
-	count = td->max_packet_size;
+	count = td->max_frame_size;
 	if (td->remainder < count) {
 		/* we have a short packet */
 		td->short_pkt = 1;
@@ -591,8 +714,8 @@ repeat:
 			buf_res.length = count;
 		}
 		/* transmit data */
-		bus_space_write_multi_1(td->io_tag, td->io_hdl,
-		    td->fifo_reg, buf_res.buffer, buf_res.length);
+		bus_space_write_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
+		    MUSB2_REG_EPFIFO(td->ep_no), buf_res.buffer, buf_res.length);
 
 		/* update counters */
 		count -= buf_res.length;
@@ -601,9 +724,8 @@ repeat:
 	}
 
 	/* write command */
-	AT91_CSR_ACK(csr, temp);
-	bus_space_write_4(td->io_tag, td->io_hdl,
-	    td->status_reg, csr);
+	MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL,
+	    MUSB2_MASK_CSRL_TXPKTRDY);
 
 	/* check remainder */
 	if (td->remainder == 0) {
@@ -619,72 +741,12 @@ repeat:
 }
 
 static uint8_t
-at91dci_data_tx_sync(struct at91dci_td *td)
+musbotg_xfer_do_fifo(struct usb2_xfer *xfer)
 {
-	struct at91dci_softc *sc;
-	uint32_t csr;
-	uint32_t temp;
+	struct musbotg_softc *sc;
+	struct musbotg_td *td;
 
-#if 0
-repeat:
-#endif
-
-	/* read out FIFO status */
-	csr = bus_space_read_4(td->io_tag, td->io_hdl,
-	    td->status_reg);
-
-	DPRINTFN(5, "csr=0x%08x\n", csr);
-
-	if (csr & AT91_UDP_CSR_RXSETUP) {
-		DPRINTFN(5, "faking complete\n");
-		/* Race condition */
-		return (0);		/* complete */
-	}
-	temp = csr;
-	temp &= (AT91_UDP_CSR_STALLSENT |
-	    AT91_UDP_CSR_TXCOMP);
-
-	/* check status */
-	if (csr & AT91_UDP_CSR_TXPKTRDY) {
-		goto not_complete;
-	}
-	if (!(csr & AT91_UDP_CSR_TXCOMP)) {
-		goto not_complete;
-	}
-	sc = AT9100_DCI_PC2SC(td->pc);
-	if (sc->sc_dv_addr != 0xFF) {
-		/*
-		 * The AT91 has a special requirement with regard to
-		 * setting the address and that is to write the new
-		 * address before clearing TXCOMP:
-		 */
-		at91dci_set_address(sc, sc->sc_dv_addr);
-	}
-	/* write command */
-	AT91_CSR_ACK(csr, temp);
-	bus_space_write_4(td->io_tag, td->io_hdl,
-	    td->status_reg, csr);
-
-	return (0);			/* complete */
-
-not_complete:
-	if (temp) {
-		/* write command */
-		AT91_CSR_ACK(csr, temp);
-		bus_space_write_4(td->io_tag, td->io_hdl,
-		    td->status_reg, csr);
-	}
-	return (1);			/* not complete */
-}
-
-static uint8_t
-at91dci_xfer_do_fifo(struct usb2_xfer *xfer)
-{
-	struct at91dci_softc *sc;
-	struct at91dci_td *td;
-	uint8_t temp;
-
-	DPRINTFN(9, "\n");
+	DPRINTFN(8, "\n");
 
 	td = xfer->td_transfer_cache;
 	while (1) {
@@ -710,42 +772,29 @@ at91dci_xfer_do_fifo(struct usb2_xfer *xfer)
 		 * Fetch the next transfer descriptor and transfer
 		 * some flags to the next transfer descriptor
 		 */
-		temp = 0;
-		if (td->fifo_bank)
-			temp |= 1;
 		td = td->obj_next;
 		xfer->td_transfer_cache = td;
-		if (temp & 1)
-			td->fifo_bank = 1;
 	}
 	return (1);			/* not complete */
 
 done:
 	sc = xfer->usb2_sc;
-	temp = (xfer->endpoint & UE_ADDR);
-
-	/* update FIFO bank flag and multi buffer */
-	if (td->fifo_bank) {
-		sc->sc_ep_flags[temp].fifo_bank = 1;
-	} else {
-		sc->sc_ep_flags[temp].fifo_bank = 0;
-	}
 
 	/* compute all actual lengths */
 
-	at91dci_standard_done(xfer);
+	musbotg_standard_done(xfer);
 
 	return (0);			/* complete */
 }
 
 static void
-at91dci_interrupt_poll(struct at91dci_softc *sc)
+musbotg_interrupt_poll(struct musbotg_softc *sc)
 {
 	struct usb2_xfer *xfer;
 
 repeat:
 	TAILQ_FOREACH(xfer, &(sc->sc_bus.intr_q.head), wait_entry) {
-		if (!at91dci_xfer_do_fifo(xfer)) {
+		if (!musbotg_xfer_do_fifo(xfer)) {
 			/* queue has been modified */
 			goto repeat;
 		}
@@ -754,11 +803,11 @@ repeat:
 }
 
 static void
-at91dci_vbus_interrupt(struct usb2_bus *bus, uint8_t is_on)
+musbotg_vbus_interrupt(struct usb2_bus *bus, uint8_t is_on)
 {
-	struct at91dci_softc *sc = AT9100_DCI_BUS2SC(bus);
+	struct musbotg_softc *sc = MUSBOTG_BUS2SC(bus);
 
-	DPRINTFN(5, "vbus = %u\n", is_on);
+	DPRINTFN(4, "vbus = %u\n", is_on);
 
 	mtx_lock(&(sc->sc_bus.mtx));
 	if (is_on) {
@@ -768,7 +817,7 @@ at91dci_vbus_interrupt(struct usb2_bus *bus, uint8_t is_on)
 			/* complete root HUB interrupt endpoint */
 
 			usb2_sw_transfer(&(sc->sc_root_intr),
-			    &at91dci_root_intr_done);
+			    &musbotg_root_intr_done);
 		}
 	} else {
 		if (sc->sc_flags.status_vbus) {
@@ -781,7 +830,7 @@ at91dci_vbus_interrupt(struct usb2_bus *bus, uint8_t is_on)
 			/* complete root HUB interrupt endpoint */
 
 			usb2_sw_transfer(&(sc->sc_root_intr),
-			    &at91dci_root_intr_done);
+			    &musbotg_root_intr_done);
 		}
 	}
 
@@ -791,30 +840,30 @@ at91dci_vbus_interrupt(struct usb2_bus *bus, uint8_t is_on)
 }
 
 void
-at91dci_interrupt(struct at91dci_softc *sc)
+musbotg_interrupt(struct musbotg_softc *sc)
 {
-	uint32_t status;
+	uint8_t usb_status;
+	uint8_t rx_status;
+	uint8_t tx_status;
+	uint8_t temp;
 
 	mtx_lock(&(sc->sc_bus.mtx));
 
-	status = AT91_UDP_READ_4(sc, AT91_UDP_ISR);
-	status &= AT91_UDP_INT_DEFAULT;
+	/* read all interrupt registers */
+	usb_status = MUSB2_READ_1(sc, MUSB2_REG_INTUSB);
 
-	if (!status) {
-		mtx_unlock(&(sc->sc_bus.mtx));
-		return;
-	}
-	/* acknowledge interrupts */
-
-	AT91_UDP_WRITE_4(sc, AT91_UDP_ICR, status);
+	/* read all FIFO interrupts */
+	rx_status = MUSB2_READ_2(sc, MUSB2_REG_INTRX);
+	tx_status = MUSB2_READ_2(sc, MUSB2_REG_INTTX);
 
 	/* check for any bus state change interrupts */
 
-	if (status & AT91_UDP_INT_BUS) {
+	if (usb_status & (MUSB2_MASK_IRESET |
+	    MUSB2_MASK_IRESUME | MUSB2_MASK_ISUSP)) {
 
-		DPRINTFN(5, "real bus interrupt 0x%08x\n", status);
+		DPRINTFN(4, "real bus interrupt 0x%08x\n", usb_status);
 
-		if (status & AT91_UDP_INT_END_BR) {
+		if (usb_status & MUSB2_MASK_IRESET) {
 
 			/* set correct state */
 			sc->sc_flags.status_bus_reset = 1;
@@ -822,56 +871,63 @@ at91dci_interrupt(struct at91dci_softc *sc)
 			sc->sc_flags.change_suspend = 0;
 			sc->sc_flags.change_connect = 1;
 
+			/* determine line speed */
+			temp = MUSB2_READ_1(sc, MUSB2_REG_POWER);
+			if (temp & MUSB2_MASK_HSMODE)
+				sc->sc_flags.status_high_speed = 1;
+			else
+				sc->sc_flags.status_high_speed = 0;
+
+			temp = MUSB2_READ_1(sc, MUSB2_REG_INTUSBE);
 			/* disable resume interrupt */
-			AT91_UDP_WRITE_4(sc, AT91_UDP_IDR,
-			    AT91_UDP_INT_RXRSM);
+			temp &= ~MUSB2_MASK_IRESUME;
 			/* enable suspend interrupt */
-			AT91_UDP_WRITE_4(sc, AT91_UDP_IER,
-			    AT91_UDP_INT_RXSUSP);
+			temp |= MUSB2_MASK_ISUSP;
+			MUSB2_WRITE_1(sc, MUSB2_REG_INTUSBE, temp);
 		}
 		/*
 	         * If RXRSM and RXSUSP is set at the same time we interpret
 	         * that like RESUME. Resume is set when there is at least 3
 	         * milliseconds of inactivity on the USB BUS.
 	         */
-		if (status & AT91_UDP_INT_RXRSM) {
+		if (usb_status & MUSB2_MASK_IRESUME) {
 			if (sc->sc_flags.status_suspend) {
 				sc->sc_flags.status_suspend = 0;
 				sc->sc_flags.change_suspend = 1;
 
+				temp = MUSB2_READ_1(sc, MUSB2_REG_INTUSBE);
 				/* disable resume interrupt */
-				AT91_UDP_WRITE_4(sc, AT91_UDP_IDR,
-				    AT91_UDP_INT_RXRSM);
+				temp &= ~MUSB2_MASK_IRESUME;
 				/* enable suspend interrupt */
-				AT91_UDP_WRITE_4(sc, AT91_UDP_IER,
-				    AT91_UDP_INT_RXSUSP);
+				temp |= MUSB2_MASK_ISUSP;
+				MUSB2_WRITE_1(sc, MUSB2_REG_INTUSBE, temp);
 			}
-		} else if (status & AT91_UDP_INT_RXSUSP) {
+		} else if (usb_status & MUSB2_MASK_ISUSP) {
 			if (!sc->sc_flags.status_suspend) {
 				sc->sc_flags.status_suspend = 1;
 				sc->sc_flags.change_suspend = 1;
 
+				temp = MUSB2_READ_1(sc, MUSB2_REG_INTUSBE);
 				/* disable suspend interrupt */
-				AT91_UDP_WRITE_4(sc, AT91_UDP_IDR,
-				    AT91_UDP_INT_RXSUSP);
-
+				temp &= ~MUSB2_MASK_ISUSP;
 				/* enable resume interrupt */
-				AT91_UDP_WRITE_4(sc, AT91_UDP_IER,
-				    AT91_UDP_INT_RXRSM);
+				temp |= MUSB2_MASK_IRESUME;
+				MUSB2_WRITE_1(sc, MUSB2_REG_INTUSBE, temp);
 			}
 		}
 		/* complete root HUB interrupt endpoint */
 
 		usb2_sw_transfer(&(sc->sc_root_intr),
-		    &at91dci_root_intr_done);
+		    &musbotg_root_intr_done);
 	}
 	/* check for any endpoint interrupts */
 
-	if (status & AT91_UDP_INT_EPS) {
+	if (rx_status || tx_status) {
 
-		DPRINTFN(5, "real endpoint interrupt 0x%08x\n", status);
+		DPRINTFN(4, "real endpoint interrupt "
+		    "rx=0x%04x, tx=0x%04x\n", rx_status, tx_status);
 
-		at91dci_interrupt_poll(sc);
+		musbotg_interrupt_poll(sc);
 	}
 	mtx_unlock(&(sc->sc_bus.mtx));
 
@@ -879,9 +935,9 @@ at91dci_interrupt(struct at91dci_softc *sc)
 }
 
 static void
-at91dci_setup_standard_chain_sub(struct at91dci_std_temp *temp)
+musbotg_setup_standard_chain_sub(struct musbotg_std_temp *temp)
 {
-	struct at91dci_td *td;
+	struct musbotg_td *td;
 
 	/* get current Transfer Descriptor */
 	td = temp->td_next;
@@ -895,7 +951,6 @@ at91dci_setup_standard_chain_sub(struct at91dci_std_temp *temp)
 	td->pc = temp->pc;
 	td->offset = temp->offset;
 	td->remainder = temp->len;
-	td->fifo_bank = 0;
 	td->error = 0;
 	td->did_stall = 0;
 	td->short_pkt = temp->short_pkt;
@@ -904,15 +959,15 @@ at91dci_setup_standard_chain_sub(struct at91dci_std_temp *temp)
 }
 
 static void
-at91dci_setup_standard_chain(struct usb2_xfer *xfer)
+musbotg_setup_standard_chain(struct usb2_xfer *xfer)
 {
-	struct at91dci_std_temp temp;
-	struct at91dci_softc *sc;
-	struct at91dci_td *td;
+	struct musbotg_std_temp temp;
+	struct musbotg_softc *sc;
+	struct musbotg_td *td;
 	uint32_t x;
 	uint8_t ep_no;
 
-	DPRINTFN(9, "addr=%d endpt=%d sumlen=%d speed=%d\n",
+	DPRINTFN(8, "addr=%d endpt=%d sumlen=%d speed=%d\n",
 	    xfer->address, UE_GET_ADDR(xfer->endpoint),
 	    xfer->sumlen, usb2_get_speed(xfer->udev));
 
@@ -937,12 +992,12 @@ at91dci_setup_standard_chain(struct usb2_xfer *xfer)
 	if (xfer->flags_int.control_xfr) {
 		if (xfer->flags_int.control_hdr) {
 
-			temp.func = &at91dci_setup_rx;
+			temp.func = &musbotg_setup_rx;
 			temp.len = xfer->frlengths[0];
 			temp.pc = xfer->frbuffers + 0;
 			temp.short_pkt = temp.len ? 1 : 0;
 
-			at91dci_setup_standard_chain_sub(&temp);
+			musbotg_setup_standard_chain_sub(&temp);
 		}
 		x = 1;
 	} else {
@@ -951,9 +1006,15 @@ at91dci_setup_standard_chain(struct usb2_xfer *xfer)
 
 	if (x != xfer->nframes) {
 		if (xfer->endpoint & UE_DIR_IN) {
-			temp.func = &at91dci_data_tx;
+			if (xfer->flags_int.control_xfr)
+				temp.func = &musbotg_setup_data_tx;
+			else
+				temp.func = &musbotg_data_tx;
 		} else {
-			temp.func = &at91dci_data_rx;
+			if (xfer->flags_int.control_xfr)
+				temp.func = &musbotg_setup_data_rx;
+			else
+				temp.func = &musbotg_data_rx;
 		}
 
 		/* setup "pc" pointer */
@@ -983,7 +1044,7 @@ at91dci_setup_standard_chain(struct usb2_xfer *xfer)
 			temp.short_pkt = (xfer->flags.force_short_xfer) ? 0 : 1;
 		}
 
-		at91dci_setup_standard_chain_sub(&temp);
+		musbotg_setup_standard_chain_sub(&temp);
 
 		if (xfer->flags_int.isochronous_xfr) {
 			temp.offset += temp.len;
@@ -1000,56 +1061,35 @@ at91dci_setup_standard_chain(struct usb2_xfer *xfer)
 
 	if (xfer->flags_int.control_xfr &&
 	    !xfer->flags_int.control_act) {
-		uint8_t need_sync;
 
 		/*
 		 * Send a DATA1 message and invert the current
 		 * endpoint direction.
 		 */
-		if (xfer->endpoint & UE_DIR_IN) {
-			temp.func = &at91dci_data_rx;
-			need_sync = 0;
-		} else {
-			temp.func = &at91dci_data_tx;
-			need_sync = 1;
-		}
+		temp.func = &musbotg_setup_status;
 		temp.len = 0;
 		temp.short_pkt = 0;
 
-		at91dci_setup_standard_chain_sub(&temp);
-		if (need_sync) {
-			/* we need a SYNC point after TX */
-			temp.func = &at91dci_data_tx_sync;
-			temp.len = 0;
-			temp.short_pkt = 0;
-
-			at91dci_setup_standard_chain_sub(&temp);
-		}
+		musbotg_setup_standard_chain_sub(&temp);
 	}
 	/* must have at least one frame! */
 	td = temp.td;
 	xfer->td_transfer_last = td;
-
-	/* setup the correct fifo bank */
-	if (sc->sc_ep_flags[ep_no].fifo_bank) {
-		td = xfer->td_transfer_first;
-		td->fifo_bank = 1;
-	}
 	return;
 }
 
 static void
-at91dci_timeout(void *arg)
+musbotg_timeout(void *arg)
 {
 	struct usb2_xfer *xfer = arg;
-	struct at91dci_softc *sc = xfer->usb2_sc;
+	struct musbotg_softc *sc = xfer->usb2_sc;
 
-	DPRINTF("xfer=%p\n", xfer);
+	DPRINTFN(1, "xfer=%p\n", xfer);
 
 	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	/* transfer is transferred */
-	at91dci_device_done(xfer, USB_ERR_TIMEOUT);
+	musbotg_device_done(xfer, USB_ERR_TIMEOUT);
 
 	mtx_unlock(&sc->sc_bus.mtx);
 
@@ -1057,24 +1097,56 @@ at91dci_timeout(void *arg)
 }
 
 static void
-at91dci_start_standard_chain(struct usb2_xfer *xfer)
+musbotg_ep_int_set(struct usb2_xfer *xfer, uint8_t on)
 {
-	DPRINTFN(9, "\n");
+	struct musbotg_softc *sc = xfer->usb2_sc;
+	uint16_t temp;
+	uint8_t ep_no = xfer->endpoint & UE_ADDR;
+
+	/*
+	 * Only enable the endpoint interrupt when we are
+	 * actually waiting for data, hence we are dealing
+	 * with level triggered interrupts !
+	 */
+	if (ep_no == 0) {
+		temp = MUSB2_READ_2(sc, MUSB2_REG_INTTXE);
+		if (on)
+			temp |= MUSB2_MASK_EPINT(0);
+		else
+			temp &= ~MUSB2_MASK_EPINT(0);
+
+		MUSB2_WRITE_2(sc, MUSB2_REG_INTTXE, temp);
+	} else {
+		if (USB_GET_DATA_ISREAD(xfer)) {
+			temp = MUSB2_READ_2(sc, MUSB2_REG_INTRXE);
+			if (on)
+				temp |= MUSB2_MASK_EPINT(ep_no);
+			else
+				temp &= ~MUSB2_MASK_EPINT(ep_no);
+			MUSB2_WRITE_2(sc, MUSB2_REG_INTRXE, temp);
+		} else {
+			temp = MUSB2_READ_2(sc, MUSB2_REG_INTTXE);
+			if (on)
+				temp |= MUSB2_MASK_EPINT(ep_no);
+			else
+				temp &= ~MUSB2_MASK_EPINT(ep_no);
+			MUSB2_WRITE_2(sc, MUSB2_REG_INTTXE, temp);
+		}
+	}
+	return;
+}
+
+static void
+musbotg_start_standard_chain(struct usb2_xfer *xfer)
+{
+	DPRINTFN(8, "\n");
 
 	/* poll one time */
-	if (at91dci_xfer_do_fifo(xfer)) {
+	if (musbotg_xfer_do_fifo(xfer)) {
 
-		struct at91dci_softc *sc = xfer->usb2_sc;
-		uint8_t ep_no = xfer->endpoint & UE_ADDR;
+		musbotg_ep_int_set(xfer, 1);
 
-		/*
-		 * Only enable the endpoint interrupt when we are actually
-		 * waiting for data, hence we are dealing with level
-		 * triggered interrupts !
-		 */
-		AT91_UDP_WRITE_4(sc, AT91_UDP_IER, AT91_UDP_INT_EP(ep_no));
-
-		DPRINTFN(15, "enable interrupts on endpoint %d\n", ep_no);
+		DPRINTFN(14, "enabled interrupts on endpoint\n");
 
 		/* put transfer on interrupt queue */
 		usb2_transfer_enqueue(&(xfer->udev->bus->intr_q), xfer);
@@ -1082,26 +1154,26 @@ at91dci_start_standard_chain(struct usb2_xfer *xfer)
 		/* start timeout, if any */
 		if (xfer->timeout != 0) {
 			usb2_transfer_timeout_ms(xfer,
-			    &at91dci_timeout, xfer->timeout);
+			    &musbotg_timeout, xfer->timeout);
 		}
 	}
 	return;
 }
 
 static void
-at91dci_root_intr_done(struct usb2_xfer *xfer,
+musbotg_root_intr_done(struct usb2_xfer *xfer,
     struct usb2_sw_transfer *std)
 {
-	struct at91dci_softc *sc = xfer->usb2_sc;
+	struct musbotg_softc *sc = xfer->usb2_sc;
 
-	DPRINTFN(9, "\n");
+	DPRINTFN(8, "\n");
 
 	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	if (std->state != USB_SW_TR_PRE_DATA) {
 		if (std->state == USB_SW_TR_PRE_CALLBACK) {
 			/* transfer transferred */
-			at91dci_device_done(xfer, std->err);
+			musbotg_device_done(xfer, std->err);
 		}
 		goto done;
 	}
@@ -1117,13 +1189,13 @@ done:
 }
 
 static usb2_error_t
-at91dci_standard_done_sub(struct usb2_xfer *xfer)
+musbotg_standard_done_sub(struct usb2_xfer *xfer)
 {
-	struct at91dci_td *td;
+	struct musbotg_td *td;
 	uint32_t len;
 	uint8_t error;
 
-	DPRINTFN(9, "\n");
+	DPRINTFN(8, "\n");
 
 	td = xfer->td_transfer_cache;
 
@@ -1181,11 +1253,11 @@ at91dci_standard_done_sub(struct usb2_xfer *xfer)
 }
 
 static void
-at91dci_standard_done(struct usb2_xfer *xfer)
+musbotg_standard_done(struct usb2_xfer *xfer)
 {
 	usb2_error_t err = 0;
 
-	DPRINTFN(13, "xfer=%p pipe=%p transfer done\n",
+	DPRINTFN(12, "xfer=%p pipe=%p transfer done\n",
 	    xfer, xfer->pipe);
 
 	/* reset scanner */
@@ -1196,7 +1268,7 @@ at91dci_standard_done(struct usb2_xfer *xfer)
 
 		if (xfer->flags_int.control_hdr) {
 
-			err = at91dci_standard_done_sub(xfer);
+			err = musbotg_standard_done_sub(xfer);
 		}
 		xfer->aframes = 1;
 
@@ -1206,7 +1278,7 @@ at91dci_standard_done(struct usb2_xfer *xfer)
 	}
 	while (xfer->aframes != xfer->nframes) {
 
-		err = at91dci_standard_done_sub(xfer);
+		err = musbotg_standard_done_sub(xfer);
 		xfer->aframes++;
 
 		if (xfer->td_transfer_cache == NULL) {
@@ -1217,37 +1289,32 @@ at91dci_standard_done(struct usb2_xfer *xfer)
 	if (xfer->flags_int.control_xfr &&
 	    !xfer->flags_int.control_act) {
 
-		err = at91dci_standard_done_sub(xfer);
+		err = musbotg_standard_done_sub(xfer);
 	}
 done:
-	at91dci_device_done(xfer, err);
+	musbotg_device_done(xfer, err);
 	return;
 }
 
 /*------------------------------------------------------------------------*
- *	at91dci_device_done
+ *	musbotg_device_done
  *
  * NOTE: this function can be called more than one time on the
  * same USB transfer!
  *------------------------------------------------------------------------*/
 static void
-at91dci_device_done(struct usb2_xfer *xfer, usb2_error_t error)
+musbotg_device_done(struct usb2_xfer *xfer, usb2_error_t error)
 {
-	struct at91dci_softc *sc = xfer->usb2_sc;
-	uint8_t ep_no;
-
 	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
 	DPRINTFN(2, "xfer=%p, pipe=%p, error=%d\n",
 	    xfer, xfer->pipe, error);
 
 	if (xfer->flags_int.usb2_mode == USB_MODE_DEVICE) {
-		ep_no = (xfer->endpoint & UE_ADDR);
 
-		/* disable endpoint interrupt */
-		AT91_UDP_WRITE_4(sc, AT91_UDP_IDR, AT91_UDP_INT_EP(ep_no));
+		musbotg_ep_int_set(xfer, 0);
 
-		DPRINTFN(15, "disable interrupts on endpoint %d\n", ep_no);
+		DPRINTFN(14, "disabled interrupts on endpoint\n");
 	}
 	/* dequeue transfer and start next transfer */
 	usb2_transfer_done(xfer, error);
@@ -1255,136 +1322,155 @@ at91dci_device_done(struct usb2_xfer *xfer, usb2_error_t error)
 }
 
 static void
-at91dci_set_stall(struct usb2_device *udev, struct usb2_xfer *xfer,
+musbotg_set_stall(struct usb2_device *udev, struct usb2_xfer *xfer,
     struct usb2_pipe *pipe)
 {
-	struct at91dci_softc *sc;
-	uint32_t csr_val;
-	uint8_t csr_reg;
+	struct musbotg_softc *sc;
+	uint8_t ep_no;
 
 	mtx_assert(&(udev->bus->mtx), MA_OWNED);
 
-	DPRINTFN(5, "pipe=%p\n", pipe);
+	DPRINTFN(4, "pipe=%p\n", pipe);
 
 	if (xfer) {
 		/* cancel any ongoing transfers */
-		at91dci_device_done(xfer, USB_ERR_STALLED);
+		musbotg_device_done(xfer, USB_ERR_STALLED);
 	}
 	/* set FORCESTALL */
-	sc = AT9100_DCI_BUS2SC(udev->bus);
-	csr_reg = (pipe->edesc->bEndpointAddress & UE_ADDR);
-	csr_reg = AT91_UDP_CSR(csr_reg);
-	csr_val = AT91_UDP_READ_4(sc, csr_reg);
-	AT91_CSR_ACK(csr_val, AT91_UDP_CSR_FORCESTALL);
-	AT91_UDP_WRITE_4(sc, csr_reg, csr_val);
+	sc = MUSBOTG_BUS2SC(udev->bus);
+
+	ep_no = (pipe->edesc->bEndpointAddress & UE_ADDR);
+
+	/* select endpoint */
+	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, ep_no);
+
+	if (pipe->edesc->bEndpointAddress & UE_DIR_IN) {
+		MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL,
+		    MUSB2_MASK_CSRL_TXSENDSTALL);
+	} else {
+		MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRL,
+		    MUSB2_MASK_CSRL_RXSENDSTALL);
+	}
 	return;
 }
 
 static void
-at91dci_clear_stall_sub(struct at91dci_softc *sc, uint8_t ep_no,
-    uint8_t ep_type, uint8_t ep_dir)
+musbotg_clear_stall_sub(struct musbotg_softc *sc, uint16_t wMaxPacket,
+    uint8_t ep_no, uint8_t ep_type, uint8_t ep_dir)
 {
-	const struct usb2_hw_ep_profile *pf;
-	uint32_t csr_val;
-	uint32_t temp;
-	uint8_t csr_reg;
-	uint8_t to;
+	uint8_t csr;
 
 	if (ep_type == UE_CONTROL) {
 		/* clearing stall is not needed */
 		return;
 	}
-	/* compute CSR register offset */
-	csr_reg = AT91_UDP_CSR(ep_no);
+	/* select endpoint */
+	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, ep_no);
 
-	/* compute default CSR value */
-	csr_val = 0;
-	AT91_CSR_ACK(csr_val, 0);
+	if (ep_dir == UE_DIR_IN) {
 
-	/* disable endpoint */
-	AT91_UDP_WRITE_4(sc, csr_reg, csr_val);
+		/* Configure endpoint */
+		switch (ep_type) {
+		case UE_INTERRUPT:
+			MUSB2_WRITE_1(sc, MUSB2_REG_TXMAXP, wMaxPacket);
+			MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRH,
+			    MUSB2_MASK_CSRH_TXMODE);
+			break;
+		case UE_ISOCHRONOUS:
+			MUSB2_WRITE_1(sc, MUSB2_REG_TXMAXP, wMaxPacket);
+			MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRH,
+			    MUSB2_MASK_CSRH_TXMODE |
+			    MUSB2_MASK_CSRH_TXISO);
+			break;
+		case UE_BULK:
+			MUSB2_WRITE_1(sc, MUSB2_REG_TXMAXP, wMaxPacket);
+			MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRH,
+			    MUSB2_MASK_CSRH_TXMODE);
+			break;
+		default:
+			break;
+		}
 
-	/* get endpoint profile */
-	at91dci_get_hw_ep_profile(NULL, &pf, ep_no);
-
-	/* reset FIFO */
-	AT91_UDP_WRITE_4(sc, AT91_UDP_RST, AT91_UDP_RST_EP(ep_no));
-	AT91_UDP_WRITE_4(sc, AT91_UDP_RST, 0);
-
-	/*
-	 * NOTE: One would assume that a FIFO reset would release the
-	 * FIFO banks aswell, but it doesn't! We have to do this
-	 * manually!
-	 */
-
-	/* release FIFO banks, if any */
-	for (to = 0; to != 2; to++) {
-
-		/* get csr value */
-		csr_val = AT91_UDP_READ_4(sc, csr_reg);
-
-		if (csr_val & (AT91_UDP_CSR_RX_DATA_BK0 |
-		    AT91_UDP_CSR_RX_DATA_BK1)) {
-			/* clear status bits */
-			if (pf->support_multi_buffer) {
-				if (sc->sc_ep_flags[ep_no].fifo_bank) {
-					sc->sc_ep_flags[ep_no].fifo_bank = 0;
-					temp = AT91_UDP_CSR_RX_DATA_BK1;
-				} else {
-					sc->sc_ep_flags[ep_no].fifo_bank = 1;
-					temp = AT91_UDP_CSR_RX_DATA_BK0;
-				}
-			} else {
-				temp = (AT91_UDP_CSR_RX_DATA_BK0 |
-				    AT91_UDP_CSR_RX_DATA_BK1);
+		/* Need to flush twice in case of double bufring */
+		csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
+		if (csr & MUSB2_MASK_CSRL_TXFIFONEMPTY) {
+			MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL,
+			    MUSB2_MASK_CSRL_TXFFLUSH);
+			csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
+			if (csr & MUSB2_MASK_CSRL_TXFIFONEMPTY) {
+				MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL,
+				    MUSB2_MASK_CSRL_TXFFLUSH);
+				csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
 			}
-		} else {
-			temp = 0;
 		}
+		/* reset data toggle */
+		MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL,
+		    MUSB2_MASK_CSRL_TXDT_CLR);
+		MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL, 0);
+		csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
 
-		/* clear FORCESTALL */
-		temp |= AT91_UDP_CSR_STALLSENT;
-
-		AT91_CSR_ACK(csr_val, temp);
-		AT91_UDP_WRITE_4(sc, csr_reg, csr_val);
-	}
-
-	/* compute default CSR value */
-	csr_val = 0;
-	AT91_CSR_ACK(csr_val, 0);
-
-	/* enable endpoint */
-	csr_val &= ~AT91_UDP_CSR_ET_MASK;
-	csr_val |= AT91_UDP_CSR_EPEDS;
-
-	if (ep_type == UE_CONTROL) {
-		csr_val |= AT91_UDP_CSR_ET_CTRL;
+		/* clear sent stall */
+		if (csr & MUSB2_MASK_CSRL_TXSENTSTALL) {
+			MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL, 0);
+			csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
+		}
 	} else {
-		if (ep_type == UE_BULK) {
-			csr_val |= AT91_UDP_CSR_ET_BULK;
-		} else if (ep_type == UE_INTERRUPT) {
-			csr_val |= AT91_UDP_CSR_ET_INT;
-		} else {
-			csr_val |= AT91_UDP_CSR_ET_ISO;
+
+		/* Configure endpoint */
+		switch (ep_type) {
+		case UE_INTERRUPT:
+			MUSB2_WRITE_1(sc, MUSB2_REG_RXMAXP, wMaxPacket);
+			MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRH,
+			    MUSB2_MASK_CSRH_RXNYET);
+			break;
+		case UE_ISOCHRONOUS:
+			MUSB2_WRITE_1(sc, MUSB2_REG_RXMAXP, wMaxPacket);
+			MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRH,
+			    MUSB2_MASK_CSRH_RXNYET |
+			    MUSB2_MASK_CSRH_RXISO);
+			break;
+		case UE_BULK:
+			MUSB2_WRITE_1(sc, MUSB2_REG_RXMAXP, wMaxPacket);
+			MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRH, 0);
+			break;
+		default:
+			break;
 		}
-		if (ep_dir & UE_DIR_IN) {
-			csr_val |= AT91_UDP_CSR_ET_DIR_IN;
+
+		/* Need to flush twice in case of double bufring */
+
+		csr = MUSB2_READ_1(sc, MUSB2_REG_RXCSRL);
+		if (csr & MUSB2_MASK_CSRL_RXPKTRDY) {
+			MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRL,
+			    MUSB2_MASK_CSRL_RXFFLUSH);
+			csr = MUSB2_READ_1(sc, MUSB2_REG_RXCSRL);
+			if (csr & MUSB2_MASK_CSRL_RXPKTRDY) {
+				MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRL,
+				    MUSB2_MASK_CSRL_RXFFLUSH);
+				csr = MUSB2_READ_1(sc, MUSB2_REG_RXCSRL);
+			}
+		}
+		/* reset data toggle */
+		MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRL,
+		    MUSB2_MASK_CSRL_RXDT_CLR);
+		MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRL, 0);
+		csr = MUSB2_READ_1(sc, MUSB2_REG_RXCSRL);
+
+		/* clear sent stall */
+		if (csr & MUSB2_MASK_CSRL_RXSENTSTALL) {
+			MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRL, 0);
 		}
 	}
-
-	/* enable endpoint */
-	AT91_UDP_WRITE_4(sc, AT91_UDP_CSR(ep_no), csr_val);
-
 	return;
 }
 
 static void
-at91dci_clear_stall(struct usb2_device *udev, struct usb2_pipe *pipe)
+musbotg_clear_stall(struct usb2_device *udev, struct usb2_pipe *pipe)
 {
-	struct at91dci_softc *sc;
+	struct musbotg_softc *sc;
 	struct usb2_endpoint_descriptor *ed;
 
-	DPRINTFN(5, "pipe=%p\n", pipe);
+	DPRINTFN(4, "pipe=%p\n", pipe);
 
 	mtx_assert(&(udev->bus->mtx), MA_OWNED);
 
@@ -1394,13 +1480,14 @@ at91dci_clear_stall(struct usb2_device *udev, struct usb2_pipe *pipe)
 		return;
 	}
 	/* get softc */
-	sc = AT9100_DCI_BUS2SC(udev->bus);
+	sc = MUSBOTG_BUS2SC(udev->bus);
 
 	/* get endpoint descriptor */
 	ed = pipe->edesc;
 
 	/* reset endpoint */
-	at91dci_clear_stall_sub(sc,
+	musbotg_clear_stall_sub(sc,
+	    UGETW(ed->wMaxPacketSize),
 	    (ed->bEndpointAddress & UE_ADDR),
 	    (ed->bmAttributes & UE_XFERTYPE),
 	    (ed->bEndpointAddress & (UE_DIR_IN | UE_DIR_OUT)));
@@ -1408,16 +1495,16 @@ at91dci_clear_stall(struct usb2_device *udev, struct usb2_pipe *pipe)
 }
 
 usb2_error_t
-at91dci_init(struct at91dci_softc *sc)
+musbotg_init(struct musbotg_softc *sc)
 {
-	uint32_t csr_val;
-	uint8_t n;
+	uint8_t nrx;
+	uint8_t ntx;
 
-	DPRINTF("start\n");
+	DPRINTFN(1, "start\n");
 
 	/* set up the bus structure */
-	sc->sc_bus.usbrev = USB_REV_1_1;
-	sc->sc_bus.methods = &at91dci_bus_methods;
+	sc->sc_bus.usbrev = USB_REV_2_0;
+	sc->sc_bus.methods = &musbotg_bus_methods;
 
 	mtx_lock(&(sc->sc_bus.mtx));
 
@@ -1431,56 +1518,96 @@ at91dci_init(struct at91dci_softc *sc)
 
 	/* disable and clear all interrupts */
 
-	AT91_UDP_WRITE_4(sc, AT91_UDP_IDR, 0xFFFFFFFF);
-	AT91_UDP_WRITE_4(sc, AT91_UDP_ICR, 0xFFFFFFFF);
+	MUSB2_WRITE_1(sc, MUSB2_REG_INTUSBE, 0);
+	MUSB2_WRITE_2(sc, MUSB2_REG_INTTXE, 0);
+	MUSB2_WRITE_2(sc, MUSB2_REG_INTRXE, 0);
 
-	/* compute default CSR value */
-
-	csr_val = 0;
-	AT91_CSR_ACK(csr_val, 0);
-
-	/* disable all endpoints */
-
-	for (n = 0; n != AT91_UDP_EP_MAX; n++) {
-
-		/* disable endpoint */
-		AT91_UDP_WRITE_4(sc, AT91_UDP_CSR(n), csr_val);
+	if (MUSB2_READ_1(sc, MUSB2_REG_INTUSB)) {
+		/* ignore */
 	}
+	if (MUSB2_READ_2(sc, MUSB2_REG_INTTX)) {
+		/* ignore */
+	}
+	if (MUSB2_READ_2(sc, MUSB2_REG_INTRX)) {
+		/* ignore */
+	}
+	/* disable pullup */
 
-	/* enable the control endpoint */
+	musbotg_pull_common(sc, 0);
 
-	AT91_CSR_ACK(csr_val, AT91_UDP_CSR_ET_CTRL |
-	    AT91_UDP_CSR_EPEDS);
+	/* wait a little bit (10ms) */
 
-	/* write to FIFO control register */
+	DELAY(10000);
 
-	AT91_UDP_WRITE_4(sc, AT91_UDP_CSR(0), csr_val);
+	/* enable double packet buffering */
 
-	/* enable the interrupts we want */
+	MUSB2_WRITE_2(sc, MUSB2_REG_RXDBDIS, 0);
+	MUSB2_WRITE_2(sc, MUSB2_REG_TXDBDIS, 0);
 
-	AT91_UDP_WRITE_4(sc, AT91_UDP_IER, AT91_UDP_INT_BUS);
+	/* enable HighSpeed and ISO Update flags */
 
-	/* turn off clocks */
+	MUSB2_WRITE_1(sc, MUSB2_REG_POWER,
+	    MUSB2_MASK_HSENAB | MUSB2_MASK_ISOUPD);
 
-	at91dci_clocks_off(sc);
+	/* disable testmode */
+
+	MUSB2_WRITE_1(sc, MUSB2_REG_TESTMODE, 0);
+
+	/* set default value */
+
+	MUSB2_WRITE_1(sc, MUSB2_REG_MISC, 0);
+
+	/* select endpoint index 0 */
+
+	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, 0);
+
+	/* read out number of endpoints */
+
+	nrx =
+	    (MUSB2_READ_1(sc, MUSB2_REG_EPINFO) / 16);
+
+	ntx =
+	    (MUSB2_READ_1(sc, MUSB2_REG_EPINFO) % 16);
+
+	DPRINTFN(2, "RX/TX endpoints: %u/%u\n", nrx, ntx);
+
+	sc->sc_ep_max = (nrx < ntx) ? nrx : ntx;
+
+	/* read out configuration data */
+
+	sc->sc_conf_data = MUSB2_READ_1(sc, MUSB2_REG_CONFDATA);
+
+	DPRINTFN(2, "Config Data: 0x%02x\n",
+	    sc->sc_conf_data);
+
+	DPRINTFN(2, "HW version: 0x%04x\n",
+	    MUSB2_READ_1(sc, MUSB2_REG_HWVERS));
+
+	/* turn on default interrupts */
+
+	MUSB2_WRITE_1(sc, MUSB2_REG_INTUSBE,
+	    MUSB2_MASK_IRESET);
+
+	musbotg_clocks_off(sc);
 
 	mtx_unlock(&(sc->sc_bus.mtx));
 
 	/* catch any lost interrupts */
 
-	at91dci_do_poll(&(sc->sc_bus));
+	musbotg_do_poll(&(sc->sc_bus));
 
 	return (0);			/* success */
 }
 
 void
-at91dci_uninit(struct at91dci_softc *sc)
+musbotg_uninit(struct musbotg_softc *sc)
 {
 	mtx_lock(&(sc->sc_bus.mtx));
 
-	/* disable and clear all interrupts */
-	AT91_UDP_WRITE_4(sc, AT91_UDP_IDR, 0xFFFFFFFF);
-	AT91_UDP_WRITE_4(sc, AT91_UDP_ICR, 0xFFFFFFFF);
+	/* disable all interrupts */
+	MUSB2_WRITE_1(sc, MUSB2_REG_INTUSBE, 0);
+	MUSB2_WRITE_2(sc, MUSB2_REG_INTTXE, 0);
+	MUSB2_WRITE_2(sc, MUSB2_REG_INTRXE, 0);
 
 	sc->sc_flags.port_powered = 0;
 	sc->sc_flags.status_vbus = 0;
@@ -1489,269 +1616,274 @@ at91dci_uninit(struct at91dci_softc *sc)
 	sc->sc_flags.change_suspend = 0;
 	sc->sc_flags.change_connect = 1;
 
-	at91dci_pull_down(sc);
-	at91dci_clocks_off(sc);
+	musbotg_pull_down(sc);
+	musbotg_clocks_off(sc);
 	mtx_unlock(&(sc->sc_bus.mtx));
-
 	return;
 }
 
 void
-at91dci_suspend(struct at91dci_softc *sc)
+musbotg_suspend(struct musbotg_softc *sc)
 {
 	return;
 }
 
 void
-at91dci_resume(struct at91dci_softc *sc)
+musbotg_resume(struct musbotg_softc *sc)
 {
 	return;
 }
 
 static void
-at91dci_do_poll(struct usb2_bus *bus)
+musbotg_do_poll(struct usb2_bus *bus)
 {
-	struct at91dci_softc *sc = AT9100_DCI_BUS2SC(bus);
+	struct musbotg_softc *sc = MUSBOTG_BUS2SC(bus);
 
 	mtx_lock(&(sc->sc_bus.mtx));
-	at91dci_interrupt_poll(sc);
-	at91dci_root_ctrl_poll(sc);
+	musbotg_interrupt_poll(sc);
+	musbotg_root_ctrl_poll(sc);
 	mtx_unlock(&(sc->sc_bus.mtx));
 	return;
 }
 
 /*------------------------------------------------------------------------*
- * at91dci bulk support
+ * musbotg bulk support
  *------------------------------------------------------------------------*/
 static void
-at91dci_device_bulk_open(struct usb2_xfer *xfer)
+musbotg_device_bulk_open(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_device_bulk_close(struct usb2_xfer *xfer)
+musbotg_device_bulk_close(struct usb2_xfer *xfer)
 {
-	at91dci_device_done(xfer, USB_ERR_CANCELLED);
+	musbotg_device_done(xfer, USB_ERR_CANCELLED);
 	return;
 }
 
 static void
-at91dci_device_bulk_enter(struct usb2_xfer *xfer)
+musbotg_device_bulk_enter(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_device_bulk_start(struct usb2_xfer *xfer)
+musbotg_device_bulk_start(struct usb2_xfer *xfer)
 {
 	/* setup TDs */
-	at91dci_setup_standard_chain(xfer);
-	at91dci_start_standard_chain(xfer);
+	musbotg_setup_standard_chain(xfer);
+	musbotg_start_standard_chain(xfer);
 	return;
 }
 
-struct usb2_pipe_methods at91dci_device_bulk_methods =
+struct usb2_pipe_methods musbotg_device_bulk_methods =
 {
-	.open = at91dci_device_bulk_open,
-	.close = at91dci_device_bulk_close,
-	.enter = at91dci_device_bulk_enter,
-	.start = at91dci_device_bulk_start,
+	.open = musbotg_device_bulk_open,
+	.close = musbotg_device_bulk_close,
+	.enter = musbotg_device_bulk_enter,
+	.start = musbotg_device_bulk_start,
 	.enter_is_cancelable = 1,
 	.start_is_cancelable = 1,
 };
 
 /*------------------------------------------------------------------------*
- * at91dci control support
+ * musbotg control support
  *------------------------------------------------------------------------*/
 static void
-at91dci_device_ctrl_open(struct usb2_xfer *xfer)
+musbotg_device_ctrl_open(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_device_ctrl_close(struct usb2_xfer *xfer)
+musbotg_device_ctrl_close(struct usb2_xfer *xfer)
 {
-	at91dci_device_done(xfer, USB_ERR_CANCELLED);
+	musbotg_device_done(xfer, USB_ERR_CANCELLED);
 	return;
 }
 
 static void
-at91dci_device_ctrl_enter(struct usb2_xfer *xfer)
+musbotg_device_ctrl_enter(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_device_ctrl_start(struct usb2_xfer *xfer)
+musbotg_device_ctrl_start(struct usb2_xfer *xfer)
 {
 	/* setup TDs */
-	at91dci_setup_standard_chain(xfer);
-	at91dci_start_standard_chain(xfer);
+	musbotg_setup_standard_chain(xfer);
+	musbotg_start_standard_chain(xfer);
 	return;
 }
 
-struct usb2_pipe_methods at91dci_device_ctrl_methods =
+struct usb2_pipe_methods musbotg_device_ctrl_methods =
 {
-	.open = at91dci_device_ctrl_open,
-	.close = at91dci_device_ctrl_close,
-	.enter = at91dci_device_ctrl_enter,
-	.start = at91dci_device_ctrl_start,
+	.open = musbotg_device_ctrl_open,
+	.close = musbotg_device_ctrl_close,
+	.enter = musbotg_device_ctrl_enter,
+	.start = musbotg_device_ctrl_start,
 	.enter_is_cancelable = 1,
 	.start_is_cancelable = 1,
 };
 
 /*------------------------------------------------------------------------*
- * at91dci interrupt support
+ * musbotg interrupt support
  *------------------------------------------------------------------------*/
 static void
-at91dci_device_intr_open(struct usb2_xfer *xfer)
+musbotg_device_intr_open(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_device_intr_close(struct usb2_xfer *xfer)
+musbotg_device_intr_close(struct usb2_xfer *xfer)
 {
-	at91dci_device_done(xfer, USB_ERR_CANCELLED);
+	musbotg_device_done(xfer, USB_ERR_CANCELLED);
 	return;
 }
 
 static void
-at91dci_device_intr_enter(struct usb2_xfer *xfer)
+musbotg_device_intr_enter(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_device_intr_start(struct usb2_xfer *xfer)
+musbotg_device_intr_start(struct usb2_xfer *xfer)
 {
 	/* setup TDs */
-	at91dci_setup_standard_chain(xfer);
-	at91dci_start_standard_chain(xfer);
+	musbotg_setup_standard_chain(xfer);
+	musbotg_start_standard_chain(xfer);
 	return;
 }
 
-struct usb2_pipe_methods at91dci_device_intr_methods =
+struct usb2_pipe_methods musbotg_device_intr_methods =
 {
-	.open = at91dci_device_intr_open,
-	.close = at91dci_device_intr_close,
-	.enter = at91dci_device_intr_enter,
-	.start = at91dci_device_intr_start,
+	.open = musbotg_device_intr_open,
+	.close = musbotg_device_intr_close,
+	.enter = musbotg_device_intr_enter,
+	.start = musbotg_device_intr_start,
 	.enter_is_cancelable = 1,
 	.start_is_cancelable = 1,
 };
 
 /*------------------------------------------------------------------------*
- * at91dci full speed isochronous support
+ * musbotg full speed isochronous support
  *------------------------------------------------------------------------*/
 static void
-at91dci_device_isoc_fs_open(struct usb2_xfer *xfer)
+musbotg_device_isoc_open(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_device_isoc_fs_close(struct usb2_xfer *xfer)
+musbotg_device_isoc_close(struct usb2_xfer *xfer)
 {
-	at91dci_device_done(xfer, USB_ERR_CANCELLED);
+	musbotg_device_done(xfer, USB_ERR_CANCELLED);
 	return;
 }
 
 static void
-at91dci_device_isoc_fs_enter(struct usb2_xfer *xfer)
+musbotg_device_isoc_enter(struct usb2_xfer *xfer)
 {
-	struct at91dci_softc *sc = xfer->usb2_sc;
+	struct musbotg_softc *sc = xfer->usb2_sc;
 	uint32_t temp;
 	uint32_t nframes;
+	uint32_t fs_frames;
 
-	DPRINTFN(6, "xfer=%p next=%d nframes=%d\n",
+	DPRINTFN(5, "xfer=%p next=%d nframes=%d\n",
 	    xfer, xfer->pipe->isoc_next, xfer->nframes);
 
 	/* get the current frame index */
 
-	nframes = AT91_UDP_READ_4(sc, AT91_UDP_FRM);
+	nframes = MUSB2_READ_2(sc, MUSB2_REG_FRAME);
 
 	/*
 	 * check if the frame index is within the window where the frames
 	 * will be inserted
 	 */
-	temp = (nframes - xfer->pipe->isoc_next) & AT91_UDP_FRM_MASK;
+	temp = (nframes - xfer->pipe->isoc_next) & MUSB2_MASK_FRAME;
+
+	if (usb2_get_speed(xfer->udev) == USB_SPEED_HIGH) {
+		fs_frames = (xfer->nframes + 7) / 8;
+	} else {
+		fs_frames = xfer->nframes;
+	}
 
 	if ((xfer->pipe->is_synced == 0) ||
-	    (temp < xfer->nframes)) {
+	    (temp < fs_frames)) {
 		/*
 		 * If there is data underflow or the pipe queue is
 		 * empty we schedule the transfer a few frames ahead
 		 * of the current frame position. Else two isochronous
 		 * transfers might overlap.
 		 */
-		xfer->pipe->isoc_next = (nframes + 3) & AT91_UDP_FRM_MASK;
+		xfer->pipe->isoc_next = (nframes + 3) & MUSB2_MASK_FRAME;
 		xfer->pipe->is_synced = 1;
-		DPRINTFN(3, "start next=%d\n", xfer->pipe->isoc_next);
+		DPRINTFN(2, "start next=%d\n", xfer->pipe->isoc_next);
 	}
 	/*
 	 * compute how many milliseconds the insertion is ahead of the
 	 * current frame position:
 	 */
-	temp = (xfer->pipe->isoc_next - nframes) & AT91_UDP_FRM_MASK;
+	temp = (xfer->pipe->isoc_next - nframes) & MUSB2_MASK_FRAME;
 
 	/*
 	 * pre-compute when the isochronous transfer will be finished:
 	 */
 	xfer->isoc_time_complete =
 	    usb2_isoc_time_expand(&(sc->sc_bus), nframes) + temp +
-	    xfer->nframes;
+	    fs_frames;
 
 	/* compute frame number for next insertion */
-	xfer->pipe->isoc_next += xfer->nframes;
+	xfer->pipe->isoc_next += fs_frames;
 
 	/* setup TDs */
-	at91dci_setup_standard_chain(xfer);
+	musbotg_setup_standard_chain(xfer);
 	return;
 }
 
 static void
-at91dci_device_isoc_fs_start(struct usb2_xfer *xfer)
+musbotg_device_isoc_start(struct usb2_xfer *xfer)
 {
 	/* start TD chain */
-	at91dci_start_standard_chain(xfer);
+	musbotg_start_standard_chain(xfer);
 	return;
 }
 
-struct usb2_pipe_methods at91dci_device_isoc_fs_methods =
+struct usb2_pipe_methods musbotg_device_isoc_methods =
 {
-	.open = at91dci_device_isoc_fs_open,
-	.close = at91dci_device_isoc_fs_close,
-	.enter = at91dci_device_isoc_fs_enter,
-	.start = at91dci_device_isoc_fs_start,
+	.open = musbotg_device_isoc_open,
+	.close = musbotg_device_isoc_close,
+	.enter = musbotg_device_isoc_enter,
+	.start = musbotg_device_isoc_start,
 	.enter_is_cancelable = 1,
 	.start_is_cancelable = 1,
 };
 
 /*------------------------------------------------------------------------*
- * at91dci root control support
+ * musbotg root control support
  *------------------------------------------------------------------------*
  * simulate a hardware HUB by handling
  * all the necessary requests
  *------------------------------------------------------------------------*/
-
 static void
-at91dci_root_ctrl_open(struct usb2_xfer *xfer)
+musbotg_root_ctrl_open(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_root_ctrl_close(struct usb2_xfer *xfer)
+musbotg_root_ctrl_close(struct usb2_xfer *xfer)
 {
-	struct at91dci_softc *sc = xfer->usb2_sc;
+	struct musbotg_softc *sc = xfer->usb2_sc;
 
 	if (sc->sc_root_ctrl.xfer == xfer) {
 		sc->sc_root_ctrl.xfer = NULL;
 	}
-	at91dci_device_done(xfer, USB_ERR_CANCELLED);
+	musbotg_device_done(xfer, USB_ERR_CANCELLED);
 	return;
 }
 
@@ -1759,7 +1891,7 @@ at91dci_root_ctrl_close(struct usb2_xfer *xfer)
  * USB descriptors for the virtual Root HUB:
  */
 
-static const struct usb2_device_descriptor at91dci_devd = {
+static const struct usb2_device_descriptor musbotg_devd = {
 	.bLength = sizeof(struct usb2_device_descriptor),
 	.bDescriptorType = UDESC_DEVICE,
 	.bcdUSB = {0x00, 0x02},
@@ -1773,7 +1905,7 @@ static const struct usb2_device_descriptor at91dci_devd = {
 	.bNumConfigurations = 1,
 };
 
-static const struct usb2_device_qualifier at91dci_odevd = {
+static const struct usb2_device_qualifier musbotg_odevd = {
 	.bLength = sizeof(struct usb2_device_qualifier),
 	.bDescriptorType = UDESC_DEVICE_QUALIFIER,
 	.bcdUSB = {0x00, 0x02},
@@ -1784,11 +1916,11 @@ static const struct usb2_device_qualifier at91dci_odevd = {
 	.bNumConfigurations = 0,
 };
 
-static const struct at91dci_config_desc at91dci_confd = {
+static const struct musbotg_config_desc musbotg_confd = {
 	.confd = {
 		.bLength = sizeof(struct usb2_config_descriptor),
 		.bDescriptorType = UDESC_CONFIG,
-		.wTotalLength[0] = sizeof(at91dci_confd),
+		.wTotalLength[0] = sizeof(musbotg_confd),
 		.bNumInterface = 1,
 		.bConfigurationValue = 1,
 		.iConfiguration = 0,
@@ -1807,15 +1939,15 @@ static const struct at91dci_config_desc at91dci_confd = {
 	.endpd = {
 		.bLength = sizeof(struct usb2_endpoint_descriptor),
 		.bDescriptorType = UDESC_ENDPOINT,
-		.bEndpointAddress = (UE_DIR_IN | AT9100_DCI_INTR_ENDPT),
+		.bEndpointAddress = (UE_DIR_IN | MUSBOTG_INTR_ENDPT),
 		.bmAttributes = UE_INTERRUPT,
 		.wMaxPacketSize[0] = 8,
 		.bInterval = 255,
 	},
 };
 
-static const struct usb2_hub_descriptor_min at91dci_hubd = {
-	.bDescLength = sizeof(at91dci_hubd),
+static const struct usb2_hub_descriptor_min musbotg_hubd = {
+	.bDescLength = sizeof(musbotg_hubd),
 	.bDescriptorType = UDESC_HUB,
 	.bNbrPorts = 1,
 	.wHubCharacteristics[0] =
@@ -1831,49 +1963,50 @@ static const struct usb2_hub_descriptor_min at91dci_hubd = {
   0x09, 0x04,				/* American English */
 
 #define	STRING_VENDOR \
-  'A', 0, 'T', 0, 'M', 0, 'E', 0, 'L', 0
+  'M', 0, 'e', 0, 'n', 0, 't', 0, 'o', 0, 'r', 0, ' ', 0, \
+  'G', 0, 'r', 0, 'a', 0, 'p', 0, 'h', 0, 'i', 0, 'c', 0, 's', 0
 
 #define	STRING_PRODUCT \
-  'D', 0, 'C', 0, 'I', 0, ' ', 0, 'R', 0, \
+  'O', 0, 'T', 0, 'G', 0, ' ', 0, 'R', 0, \
   'o', 0, 'o', 0, 't', 0, ' ', 0, 'H', 0, \
   'U', 0, 'B', 0,
 
-USB_MAKE_STRING_DESC(STRING_LANG, at91dci_langtab);
-USB_MAKE_STRING_DESC(STRING_VENDOR, at91dci_vendor);
-USB_MAKE_STRING_DESC(STRING_PRODUCT, at91dci_product);
+USB_MAKE_STRING_DESC(STRING_LANG, musbotg_langtab);
+USB_MAKE_STRING_DESC(STRING_VENDOR, musbotg_vendor);
+USB_MAKE_STRING_DESC(STRING_PRODUCT, musbotg_product);
 
 static void
-at91dci_root_ctrl_enter(struct usb2_xfer *xfer)
+musbotg_root_ctrl_enter(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_root_ctrl_start(struct usb2_xfer *xfer)
+musbotg_root_ctrl_start(struct usb2_xfer *xfer)
 {
-	struct at91dci_softc *sc = xfer->usb2_sc;
+	struct musbotg_softc *sc = xfer->usb2_sc;
 
 	sc->sc_root_ctrl.xfer = xfer;
 
 	usb2_config_td_queue_command(
-	    &(sc->sc_config_td), NULL, &at91dci_root_ctrl_task, 0, 0);
+	    &(sc->sc_config_td), NULL, &musbotg_root_ctrl_task, 0, 0);
 
 	return;
 }
 
 static void
-at91dci_root_ctrl_task(struct at91dci_softc *sc,
-    struct at91dci_config_copy *cc, uint16_t refcount)
+musbotg_root_ctrl_task(struct musbotg_softc *sc,
+    struct musbotg_config_copy *cc, uint16_t refcount)
 {
-	at91dci_root_ctrl_poll(sc);
+	musbotg_root_ctrl_poll(sc);
 	return;
 }
 
 static void
-at91dci_root_ctrl_done(struct usb2_xfer *xfer,
+musbotg_root_ctrl_done(struct usb2_xfer *xfer,
     struct usb2_sw_transfer *std)
 {
-	struct at91dci_softc *sc = xfer->usb2_sc;
+	struct musbotg_softc *sc = xfer->usb2_sc;
 	uint16_t value;
 	uint16_t index;
 	uint8_t use_polling;
@@ -1883,7 +2016,7 @@ at91dci_root_ctrl_done(struct usb2_xfer *xfer,
 	if (std->state != USB_SW_TR_SETUP) {
 		if (std->state == USB_SW_TR_PRE_CALLBACK) {
 			/* transfer transferred */
-			at91dci_device_done(xfer, std->err);
+			musbotg_device_done(xfer, std->err);
 		}
 		goto done;
 	}
@@ -2060,31 +2193,31 @@ tr_handle_get_descriptor:
 		if (value & 0xff) {
 			goto tr_stalled;
 		}
-		std->len = sizeof(at91dci_devd);
-		std->ptr = USB_ADD_BYTES(&at91dci_devd, 0);
+		std->len = sizeof(musbotg_devd);
+		std->ptr = USB_ADD_BYTES(&musbotg_devd, 0);
 		goto tr_valid;
 	case UDESC_CONFIG:
 		if (value & 0xff) {
 			goto tr_stalled;
 		}
-		std->len = sizeof(at91dci_confd);
-		std->ptr = USB_ADD_BYTES(&at91dci_confd, 0);
+		std->len = sizeof(musbotg_confd);
+		std->ptr = USB_ADD_BYTES(&musbotg_confd, 0);
 		goto tr_valid;
 	case UDESC_STRING:
 		switch (value & 0xff) {
 		case 0:		/* Language table */
-			std->len = sizeof(at91dci_langtab);
-			std->ptr = USB_ADD_BYTES(&at91dci_langtab, 0);
+			std->len = sizeof(musbotg_langtab);
+			std->ptr = USB_ADD_BYTES(&musbotg_langtab, 0);
 			goto tr_valid;
 
 		case 1:		/* Vendor */
-			std->len = sizeof(at91dci_vendor);
-			std->ptr = USB_ADD_BYTES(&at91dci_vendor, 0);
+			std->len = sizeof(musbotg_vendor);
+			std->ptr = USB_ADD_BYTES(&musbotg_vendor, 0);
 			goto tr_valid;
 
 		case 2:		/* Product */
-			std->len = sizeof(at91dci_product);
-			std->ptr = USB_ADD_BYTES(&at91dci_product, 0);
+			std->len = sizeof(musbotg_product);
+			std->ptr = USB_ADD_BYTES(&musbotg_product, 0);
 			goto tr_valid;
 		default:
 			break;
@@ -2143,11 +2276,11 @@ tr_handle_clear_port_feature:
 	if (index != 1) {
 		goto tr_stalled;
 	}
-	DPRINTFN(9, "UR_CLEAR_PORT_FEATURE on port %d\n", index);
+	DPRINTFN(8, "UR_CLEAR_PORT_FEATURE on port %d\n", index);
 
 	switch (value) {
 	case UHF_PORT_SUSPEND:
-		at91dci_wakeup_peer(sc);
+		musbotg_wakeup_peer(xfer);
 		break;
 
 	case UHF_PORT_ENABLE:
@@ -2163,8 +2296,8 @@ tr_handle_clear_port_feature:
 		break;
 	case UHF_PORT_POWER:
 		sc->sc_flags.port_powered = 0;
-		at91dci_pull_down(sc);
-		at91dci_clocks_off(sc);
+		musbotg_pull_down(sc);
+		musbotg_clocks_off(sc);
 		break;
 	case UHF_C_PORT_CONNECTION:
 		sc->sc_flags.change_connect = 0;
@@ -2182,7 +2315,7 @@ tr_handle_set_port_feature:
 	if (index != 1) {
 		goto tr_stalled;
 	}
-	DPRINTFN(9, "UR_SET_PORT_FEATURE\n");
+	DPRINTFN(8, "UR_SET_PORT_FEATURE\n");
 
 	switch (value) {
 	case UHF_PORT_ENABLE:
@@ -2205,23 +2338,25 @@ tr_handle_set_port_feature:
 
 tr_handle_get_port_status:
 
-	DPRINTFN(9, "UR_GET_PORT_STATUS\n");
+	DPRINTFN(8, "UR_GET_PORT_STATUS\n");
 
 	if (index != 1) {
 		goto tr_stalled;
 	}
 	if (sc->sc_flags.status_vbus) {
-		at91dci_clocks_on(sc);
-		at91dci_pull_up(sc);
+		musbotg_clocks_on(sc);
+		musbotg_pull_up(sc);
 	} else {
-		at91dci_pull_down(sc);
-		at91dci_clocks_off(sc);
+		musbotg_pull_down(sc);
+		musbotg_clocks_off(sc);
 	}
 
-	/* Select FULL-speed and Device Side Mode */
-
+	/* Select Device Side Mode */
 	value = UPS_PORT_MODE_DEVICE;
 
+	if (sc->sc_flags.status_high_speed) {
+		value |= UPS_HIGH_SPEED;
+	}
 	if (sc->sc_flags.port_powered) {
 		value |= UPS_PORT_POWER;
 	}
@@ -2244,8 +2379,9 @@ tr_handle_get_port_status:
 
 		if (sc->sc_flags.status_vbus &&
 		    sc->sc_flags.status_bus_reset) {
-			/* reset endpoint flags */
-			bzero(sc->sc_ep_flags, sizeof(sc->sc_ep_flags));
+			/* reset EP0 state */
+			sc->sc_ep0_busy = 0;
+			sc->sc_ep0_cmd = 0;
 		}
 	}
 	if (sc->sc_flags.change_suspend) {
@@ -2259,8 +2395,8 @@ tr_handle_get_class_descriptor:
 	if (value & 0xFF) {
 		goto tr_stalled;
 	}
-	std->ptr = USB_ADD_BYTES(&at91dci_hubd, 0);
-	std->len = sizeof(at91dci_hubd);
+	std->ptr = USB_ADD_BYTES(&musbotg_hubd, 0);
+	std->len = sizeof(musbotg_hubd);
 	goto tr_valid;
 
 tr_stalled:
@@ -2271,81 +2407,81 @@ done:
 }
 
 static void
-at91dci_root_ctrl_poll(struct at91dci_softc *sc)
+musbotg_root_ctrl_poll(struct musbotg_softc *sc)
 {
 	usb2_sw_transfer(&(sc->sc_root_ctrl),
-	    &at91dci_root_ctrl_done);
+	    &musbotg_root_ctrl_done);
 	return;
 }
 
-struct usb2_pipe_methods at91dci_root_ctrl_methods =
+struct usb2_pipe_methods musbotg_root_ctrl_methods =
 {
-	.open = at91dci_root_ctrl_open,
-	.close = at91dci_root_ctrl_close,
-	.enter = at91dci_root_ctrl_enter,
-	.start = at91dci_root_ctrl_start,
+	.open = musbotg_root_ctrl_open,
+	.close = musbotg_root_ctrl_close,
+	.enter = musbotg_root_ctrl_enter,
+	.start = musbotg_root_ctrl_start,
 	.enter_is_cancelable = 1,
 	.start_is_cancelable = 0,
 };
 
 /*------------------------------------------------------------------------*
- * at91dci root interrupt support
+ * musbotg root interrupt support
  *------------------------------------------------------------------------*/
 static void
-at91dci_root_intr_open(struct usb2_xfer *xfer)
+musbotg_root_intr_open(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_root_intr_close(struct usb2_xfer *xfer)
+musbotg_root_intr_close(struct usb2_xfer *xfer)
 {
-	struct at91dci_softc *sc = xfer->usb2_sc;
+	struct musbotg_softc *sc = xfer->usb2_sc;
 
 	if (sc->sc_root_intr.xfer == xfer) {
 		sc->sc_root_intr.xfer = NULL;
 	}
-	at91dci_device_done(xfer, USB_ERR_CANCELLED);
+	musbotg_device_done(xfer, USB_ERR_CANCELLED);
 	return;
 }
 
 static void
-at91dci_root_intr_enter(struct usb2_xfer *xfer)
+musbotg_root_intr_enter(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_root_intr_start(struct usb2_xfer *xfer)
+musbotg_root_intr_start(struct usb2_xfer *xfer)
 {
-	struct at91dci_softc *sc = xfer->usb2_sc;
+	struct musbotg_softc *sc = xfer->usb2_sc;
 
 	sc->sc_root_intr.xfer = xfer;
 	return;
 }
 
-struct usb2_pipe_methods at91dci_root_intr_methods =
+struct usb2_pipe_methods musbotg_root_intr_methods =
 {
-	.open = at91dci_root_intr_open,
-	.close = at91dci_root_intr_close,
-	.enter = at91dci_root_intr_enter,
-	.start = at91dci_root_intr_start,
+	.open = musbotg_root_intr_open,
+	.close = musbotg_root_intr_close,
+	.enter = musbotg_root_intr_enter,
+	.start = musbotg_root_intr_start,
 	.enter_is_cancelable = 1,
 	.start_is_cancelable = 1,
 };
 
 static void
-at91dci_xfer_setup(struct usb2_setup_params *parm)
+musbotg_xfer_setup(struct usb2_setup_params *parm)
 {
 	const struct usb2_hw_ep_profile *pf;
-	struct at91dci_softc *sc;
+	struct musbotg_softc *sc;
 	struct usb2_xfer *xfer;
 	void *last_obj;
 	uint32_t ntd;
 	uint32_t n;
 	uint8_t ep_no;
 
-	sc = AT9100_DCI_BUS2SC(parm->udev->bus);
+	sc = MUSBOTG_BUS2SC(parm->udev->bus);
 	xfer = parm->curr_xfer;
 
 	/*
@@ -2358,28 +2494,33 @@ at91dci_xfer_setup(struct usb2_setup_params *parm)
 	 * are computed from the following values. Just set some
 	 * reasonable dummies:
 	 */
-	parm->hc_max_packet_size = 0x500;
-	parm->hc_max_packet_count = 1;
-	parm->hc_max_frame_size = 0x500;
+	parm->hc_max_packet_size = 0x400;
+	parm->hc_max_frame_size = 0x400;
+
+	if ((parm->methods == &musbotg_device_isoc_methods) ||
+	    (parm->methods == &musbotg_device_intr_methods))
+		parm->hc_max_packet_count = 3;
+	else
+		parm->hc_max_packet_count = 1;
 
 	usb2_transfer_setup_sub(parm);
 
 	/*
 	 * compute maximum number of TDs
 	 */
-	if (parm->methods == &at91dci_device_ctrl_methods) {
+	if (parm->methods == &musbotg_device_ctrl_methods) {
 
 		ntd = xfer->nframes + 1 /* STATUS */ + 1 /* SYNC */ ;
 
-	} else if (parm->methods == &at91dci_device_bulk_methods) {
+	} else if (parm->methods == &musbotg_device_bulk_methods) {
 
 		ntd = xfer->nframes + 1 /* SYNC */ ;
 
-	} else if (parm->methods == &at91dci_device_intr_methods) {
+	} else if (parm->methods == &musbotg_device_intr_methods) {
 
 		ntd = xfer->nframes + 1 /* SYNC */ ;
 
-	} else if (parm->methods == &at91dci_device_isoc_fs_methods) {
+	} else if (parm->methods == &musbotg_device_isoc_methods) {
 
 		ntd = xfer->nframes + 1 /* SYNC */ ;
 
@@ -2405,7 +2546,7 @@ at91dci_xfer_setup(struct usb2_setup_params *parm)
 	if (ntd) {
 
 		ep_no = xfer->endpoint & UE_ADDR;
-		at91dci_get_hw_ep_profile(xfer->udev, &pf, ep_no);
+		musbotg_get_hw_ep_profile(xfer->udev, &pf, ep_no);
 
 		if (pf == NULL) {
 			/* should not happen */
@@ -2422,21 +2563,16 @@ at91dci_xfer_setup(struct usb2_setup_params *parm)
 
 	for (n = 0; n != ntd; n++) {
 
-		struct at91dci_td *td;
+		struct musbotg_td *td;
 
 		if (parm->buf) {
 
 			td = USB_ADD_BYTES(parm->buf, parm->size[0]);
 
 			/* init TD */
-			td->io_tag = sc->sc_io_tag;
-			td->io_hdl = sc->sc_io_hdl;
-			td->max_packet_size = xfer->max_packet_size;
-			td->status_reg = AT91_UDP_CSR(ep_no);
-			td->fifo_reg = AT91_UDP_FDR(ep_no);
-			if (pf->support_multi_buffer) {
-				td->support_multi_buffer = 1;
-			}
+			td->max_frame_size = xfer->max_frame_size;
+			td->ep_no =
+			    (xfer->pipe->edesc->bEndpointAddress & UE_ADDR);
 			td->obj_next = last_obj;
 
 			last_obj = td;
@@ -2449,16 +2585,16 @@ at91dci_xfer_setup(struct usb2_setup_params *parm)
 }
 
 static void
-at91dci_xfer_unsetup(struct usb2_xfer *xfer)
+musbotg_xfer_unsetup(struct usb2_xfer *xfer)
 {
 	return;
 }
 
 static void
-at91dci_pipe_init(struct usb2_device *udev, struct usb2_endpoint_descriptor *edesc,
+musbotg_pipe_init(struct usb2_device *udev, struct usb2_endpoint_descriptor *edesc,
     struct usb2_pipe *pipe)
 {
-	struct at91dci_softc *sc = AT9100_DCI_BUS2SC(udev->bus);
+	struct musbotg_softc *sc = MUSBOTG_BUS2SC(udev->bus);
 
 	DPRINTFN(2, "pipe=%p, addr=%d, endpt=%d, mode=%d (%d)\n",
 	    pipe, udev->address,
@@ -2473,10 +2609,10 @@ at91dci_pipe_init(struct usb2_device *udev, struct usb2_endpoint_descriptor *ede
 		}
 		switch (edesc->bEndpointAddress) {
 		case USB_CONTROL_ENDPOINT:
-			pipe->methods = &at91dci_root_ctrl_methods;
+			pipe->methods = &musbotg_root_ctrl_methods;
 			break;
-		case UE_DIR_IN | AT9100_DCI_INTR_ENDPT:
-			pipe->methods = &at91dci_root_intr_methods;
+		case UE_DIR_IN | MUSBOTG_INTR_ENDPT:
+			pipe->methods = &musbotg_root_intr_methods;
 			break;
 		default:
 			/* do nothing */
@@ -2488,22 +2624,23 @@ at91dci_pipe_init(struct usb2_device *udev, struct usb2_endpoint_descriptor *ede
 			/* not supported */
 			return;
 		}
-		if (udev->speed != USB_SPEED_FULL) {
+		if ((udev->speed != USB_SPEED_FULL) &&
+		    (udev->speed != USB_SPEED_HIGH)) {
 			/* not supported */
 			return;
 		}
 		switch (edesc->bmAttributes & UE_XFERTYPE) {
 		case UE_CONTROL:
-			pipe->methods = &at91dci_device_ctrl_methods;
+			pipe->methods = &musbotg_device_ctrl_methods;
 			break;
 		case UE_INTERRUPT:
-			pipe->methods = &at91dci_device_intr_methods;
+			pipe->methods = &musbotg_device_intr_methods;
 			break;
 		case UE_ISOCHRONOUS:
-			pipe->methods = &at91dci_device_isoc_fs_methods;
+			pipe->methods = &musbotg_device_isoc_methods;
 			break;
 		case UE_BULK:
-			pipe->methods = &at91dci_device_bulk_methods;
+			pipe->methods = &musbotg_device_bulk_methods;
 			break;
 		default:
 			/* do nothing */
@@ -2513,15 +2650,15 @@ at91dci_pipe_init(struct usb2_device *udev, struct usb2_endpoint_descriptor *ede
 	return;
 }
 
-struct usb2_bus_methods at91dci_bus_methods =
+struct usb2_bus_methods musbotg_bus_methods =
 {
-	.pipe_init = &at91dci_pipe_init,
-	.xfer_setup = &at91dci_xfer_setup,
-	.xfer_unsetup = &at91dci_xfer_unsetup,
-	.do_poll = &at91dci_do_poll,
-	.get_hw_ep_profile = &at91dci_get_hw_ep_profile,
-	.set_stall = &at91dci_set_stall,
-	.clear_stall = &at91dci_clear_stall,
-	.vbus_interrupt = &at91dci_vbus_interrupt,
-	.rem_wakeup_set = &at91dci_rem_wakeup_set,
+	.pipe_init = &musbotg_pipe_init,
+	.xfer_setup = &musbotg_xfer_setup,
+	.xfer_unsetup = &musbotg_xfer_unsetup,
+	.do_poll = &musbotg_do_poll,
+	.get_hw_ep_profile = &musbotg_get_hw_ep_profile,
+	.set_stall = &musbotg_set_stall,
+	.clear_stall = &musbotg_clear_stall,
+	.vbus_interrupt = &musbotg_vbus_interrupt,
+	.rem_wakeup_set = &musbotg_rem_wakeup_set,
 };

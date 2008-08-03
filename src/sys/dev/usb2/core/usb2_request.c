@@ -70,7 +70,7 @@ usb2_do_request_callback(struct usb2_xfer *xfer)
 {
 	;				/* workaround for a bug in "indent" */
 
-	DPRINTF(0, "st=%u\n", USB_GET_STATE(xfer));
+	DPRINTF("st=%u\n", USB_GET_STATE(xfer));
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_SETUP:
@@ -256,7 +256,7 @@ usb2_do_request_flags(struct usb2_device *udev, struct mtx *mtx,
 	}
 	length = UGETW(req->wLength);
 
-	DPRINTF(4, "udev=%p bmRequestType=0x%02x bRequest=0x%02x "
+	DPRINTFN(5, "udev=%p bmRequestType=0x%02x bRequest=0x%02x "
 	    "wValue=0x%02x%02x wIndex=0x%02x%02x wLength=0x%02x%02x\n",
 	    udev, req->bmRequestType, req->bRequest,
 	    req->wValue[1], req->wValue[0],
@@ -271,7 +271,7 @@ usb2_do_request_flags(struct usb2_device *udev, struct mtx *mtx,
 		*actlen = 0;
 	}
 	if (udev->flags.usb2_mode == USB_MODE_DEVICE) {
-		DPRINTF(0, "USB device mode\n");
+		DPRINTF("USB device mode\n");
 		(usb2_temp_get_desc_p) (udev, req, &desc, &temp);
 		if (length > temp) {
 			if (!(flags & USB_SHORT_XFER_OK)) {
@@ -529,7 +529,7 @@ usb2_req_reset_port(struct usb2_device *udev, struct mtx *mtx, uint8_t port)
 #endif
 
 done:
-	DPRINTF(1, "port %d reset returning error=%s\n",
+	DPRINTFN(2, "port %d reset returning error=%s\n",
 	    port, usb2_errstr(err));
 	return (err);
 }
@@ -562,7 +562,7 @@ usb2_req_get_desc(struct usb2_device *udev, struct mtx *mtx, void *desc,
 	uint8_t *buf;
 	usb2_error_t err;
 
-	DPRINTF(3, "id=%d, type=%d, index=%d, max_len=%d\n",
+	DPRINTFN(4, "id=%d, type=%d, index=%d, max_len=%d\n",
 	    id, type, index, max_len);
 
 	req.bmRequestType = UT_READ_DEVICE;
@@ -745,7 +745,7 @@ usb2_req_get_config_desc(struct usb2_device *udev, struct mtx *mtx,
 {
 	usb2_error_t err;
 
-	DPRINTF(3, "confidx=%d\n", conf_index);
+	DPRINTFN(4, "confidx=%d\n", conf_index);
 
 	err = usb2_req_get_desc(udev, mtx, d, sizeof(*d),
 	    sizeof(*d), 0, UDESC_CONFIG, conf_index, 0);
@@ -780,7 +780,7 @@ usb2_req_get_config_desc_full(struct usb2_device *udev, struct mtx *mtx,
 	uint16_t len;
 	usb2_error_t err;
 
-	DPRINTF(3, "index=%d\n", index);
+	DPRINTFN(4, "index=%d\n", index);
 
 	*ppcd = NULL;
 
@@ -823,7 +823,7 @@ usb2_error_t
 usb2_req_get_device_desc(struct usb2_device *udev, struct mtx *mtx,
     struct usb2_device_descriptor *d)
 {
-	DPRINTF(3, "\n");
+	DPRINTFN(4, "\n");
 	return (usb2_req_get_desc(udev, mtx, d, sizeof(*d),
 	    sizeof(*d), 0, UDESC_DEVICE, 0, 3));
 }
@@ -960,7 +960,7 @@ usb2_req_set_address(struct usb2_device *udev, struct mtx *mtx, uint16_t addr)
 {
 	struct usb2_device_request req;
 
-	DPRINTF(5, "setting device address=%d\n", addr);
+	DPRINTFN(6, "setting device address=%d\n", addr);
 
 	req.bmRequestType = UT_WRITE_DEVICE;
 	req.bRequest = UR_SET_ADDRESS;
@@ -1098,7 +1098,7 @@ usb2_req_set_protocol(struct usb2_device *udev, struct mtx *mtx,
 	if ((iface == NULL) || (iface->idesc == NULL)) {
 		return (USB_ERR_INVAL);
 	}
-	DPRINTF(4, "iface=%p, report=%d, endpt=%d\n",
+	DPRINTFN(5, "iface=%p, report=%d, endpt=%d\n",
 	    iface, report, iface->idesc->bInterfaceNumber);
 
 	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
@@ -1127,7 +1127,7 @@ usb2_req_set_report(struct usb2_device *udev, struct mtx *mtx, void *data, uint1
 	if ((iface == NULL) || (iface->idesc == NULL)) {
 		return (USB_ERR_INVAL);
 	}
-	DPRINTF(4, "len=%d\n", len);
+	DPRINTFN(5, "len=%d\n", len);
 
 	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
 	req.bRequest = UR_SET_REPORT;
@@ -1155,7 +1155,7 @@ usb2_req_get_report(struct usb2_device *udev, struct mtx *mtx, void *data,
 	if ((iface == NULL) || (iface->idesc == NULL) || (id == 0)) {
 		return (USB_ERR_INVAL);
 	}
-	DPRINTF(4, "len=%d\n", len);
+	DPRINTFN(5, "len=%d\n", len);
 
 	req.bmRequestType = UT_READ_CLASS_INTERFACE;
 	req.bRequest = UR_GET_REPORT;
@@ -1183,7 +1183,7 @@ usb2_req_set_idle(struct usb2_device *udev, struct mtx *mtx,
 	if ((iface == NULL) || (iface->idesc == NULL)) {
 		return (USB_ERR_INVAL);
 	}
-	DPRINTF(4, "%d %d\n", duration, id);
+	DPRINTFN(5, "%d %d\n", duration, id);
 
 	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
 	req.bRequest = UR_SET_IDLE;
@@ -1236,7 +1236,7 @@ usb2_req_set_config(struct usb2_device *udev, struct mtx *mtx, uint8_t conf)
 {
 	struct usb2_device_request req;
 
-	DPRINTF(0, "setting config %d\n", conf);
+	DPRINTF("setting config %d\n", conf);
 
 	/* do "set configuration" request */
 
@@ -1292,7 +1292,7 @@ usb2_req_re_enumerate(struct usb2_device *udev, struct mtx *mtx)
 	}
 	err = usb2_req_reset_port(parent_hub, mtx, udev->port_no);
 	if (err) {
-		DPRINTF(-1, "addr=%d, port reset failed\n", old_addr);
+		DPRINTFN(0, "addr=%d, port reset failed\n", old_addr);
 		goto done;
 	}
 	/*
@@ -1307,7 +1307,7 @@ usb2_req_re_enumerate(struct usb2_device *udev, struct mtx *mtx)
 	err = usb2_req_set_address(udev, mtx, old_addr);
 	if (err) {
 		/* XXX ignore any errors! */
-		DPRINTF(-1, "addr=%d, set address failed\n",
+		DPRINTFN(0, "addr=%d, set address failed\n",
 		    old_addr);
 		err = 0;
 	}
@@ -1317,7 +1317,7 @@ usb2_req_re_enumerate(struct usb2_device *udev, struct mtx *mtx)
 	/* get the device descriptor */
 	err = usb2_req_get_device_desc(udev, mtx, &ddesc);
 	if (err) {
-		DPRINTF(-1, "addr=%d, getting device "
+		DPRINTFN(0, "addr=%d, getting device "
 		    "descriptor failed!\n", old_addr);
 		goto done;
 	}

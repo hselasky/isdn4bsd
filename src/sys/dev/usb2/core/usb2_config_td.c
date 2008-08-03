@@ -38,7 +38,7 @@ usb2_config_td_dispatch(struct usb2_proc_msg *pm)
 	struct usb2_config_td_item *pi = (void *)pm;
 	struct usb2_config_td *ctd = pi->p_ctd;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	(pi->command_func) (ctd->p_softc, (void *)(pi + 1), pi->command_ref);
 
@@ -70,10 +70,10 @@ usb2_config_td_setup(struct usb2_config_td *ctd, void *priv_sc,
 	struct usb2_config_td_item *pi;
 	uint16_t n;
 
-	DPRINTF(0, " size=%u, count=%u \n", item_size, item_count);
+	DPRINTF(" size=%u, count=%u \n", item_size, item_count);
 
 	if (item_count >= 256) {
-		DPRINTF(-1, "too many items!\n");
+		DPRINTFN(0, "too many items!\n");
 		return (1);
 	}
 	ctd->p_softc = priv_sc;
@@ -113,7 +113,7 @@ usb2_config_td_setup(struct usb2_config_td *ctd, void *priv_sc,
 void
 usb2_config_td_stop(struct usb2_config_td *ctd)
 {
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 	if (ctd->p_msgs) {
 		usb2_proc_drain(&(ctd->usb2_proc));
 	}
@@ -129,7 +129,7 @@ usb2_config_td_stop(struct usb2_config_td *ctd)
 void
 usb2_config_td_unsetup(struct usb2_config_td *ctd)
 {
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	usb2_config_td_stop(ctd);
 
@@ -168,11 +168,11 @@ usb2_config_td_queue_command(struct usb2_config_td *ctd,
 	uint16_t n;
 
 	if (usb2_config_td_is_gone(ctd)) {
-		DPRINTF(0, "gone\n");
+		DPRINTF("gone\n");
 		/* nothing more to do */
 		return;
 	}
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	pi = USB_ADD_BYTES(ctd->p_msgs, 0);
 	for (n = 0;; n += 2) {

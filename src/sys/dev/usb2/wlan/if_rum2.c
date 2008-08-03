@@ -550,7 +550,7 @@ repeat:
 
 	if (err) {
 
-		DPRINTF(0, "device request failed, err=%s "
+		DPRINTF("device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 
 		/* wait a little before next try */
@@ -663,7 +663,7 @@ rum_cfg_bbp_disbusy(struct rum_softc *sc)
 			break;
 		}
 	}
-	DPRINTF(0, "could not disbusy BBP\n");
+	DPRINTF("could not disbusy BBP\n");
 	return (RT2573_BBP_BUSY);	/* failure */
 }
 
@@ -713,7 +713,7 @@ rum_cfg_rf_write(struct rum_softc *sc, uint8_t reg, uint32_t val)
 				return;
 			}
 		} else {
-			DPRINTF(0, "could not write to RF\n");
+			DPRINTF("could not write to RF\n");
 			return;
 		}
 	}
@@ -721,7 +721,7 @@ rum_cfg_rf_write(struct rum_softc *sc, uint8_t reg, uint32_t val)
 	tmp = RT2573_RF_BUSY | RT2573_RF_20BIT | ((val & 0xfffff) << 2) | reg;
 	rum_cfg_write(sc, RT2573_PHY_CSR4, tmp);
 
-	DPRINTF(15, "RF R[%u] <- 0x%05x\n", reg, val & 0xfffff);
+	DPRINTFN(16, "RF R[%u] <- 0x%05x\n", reg, val & 0xfffff);
 	return;
 }
 
@@ -760,7 +760,7 @@ rum_cfg_first_time_setup(struct rum_softc *sc,
 	}
 
 	if (tmp == 0) {
-		DPRINTF(0, "chip is maybe not ready\n");
+		DPRINTF("chip is maybe not ready\n");
 	}
 	/* retrieve MAC address and various other things from EEPROM */
 	rum_cfg_read_eeprom(sc);
@@ -777,7 +777,7 @@ rum_cfg_first_time_setup(struct rum_softc *sc,
 	mtx_lock(&(sc->sc_mtx));
 
 	if (ifp == NULL) {
-		DPRINTF(-1, "could not if_alloc()!\n");
+		DPRINTFN(0, "could not if_alloc()!\n");
 		goto done;
 	}
 	sc->sc_evilhack = ifp;
@@ -999,10 +999,10 @@ rum_bulk_read_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
-		DPRINTF(14, "rx done, actlen=%d\n", xfer->actlen);
+		DPRINTFN(15, "rx done, actlen=%d\n", xfer->actlen);
 
 		if (xfer->actlen < (RT2573_RX_DESC_SIZE + IEEE80211_MIN_LEN)) {
-			DPRINTF(0, "too short transfer, "
+			DPRINTF("too short transfer, "
 			    "%d bytes\n", xfer->actlen);
 			ifp->if_ierrors++;
 			goto tr_setup;
@@ -1018,14 +1018,14 @@ rum_bulk_read_callback(struct usb2_xfer *xfer)
 		         * request to receive those frames when we
 		         * filled RAL_TXRX_CSR2:
 		         */
-			DPRINTF(5, "PHY or CRC error\n");
+			DPRINTFN(6, "PHY or CRC error\n");
 			ifp->if_ierrors++;
 			goto tr_setup;
 		}
 		m = m_getcl(M_DONTWAIT, MT_DATA, M_PKTHDR);
 
 		if (m == NULL) {
-			DPRINTF(0, "could not allocate mbuf\n");
+			DPRINTF("could not allocate mbuf\n");
 			ifp->if_ierrors++;
 			goto tr_setup;
 		}
@@ -1039,7 +1039,7 @@ rum_bulk_read_callback(struct usb2_xfer *xfer)
 		m->m_pkthdr.len = m->m_len = (flags >> 16) & 0xfff;
 
 		if (m->m_len > max_len) {
-			DPRINTF(0, "invalid length in RX "
+			DPRINTF("invalid length in RX "
 			    "descriptor, %u bytes, received %u bytes\n",
 			    m->m_len, max_len);
 			ifp->if_ierrors++;
@@ -1049,7 +1049,7 @@ rum_bulk_read_callback(struct usb2_xfer *xfer)
 		}
 		rssi = rum_get_rssi(sc, sc->sc_rx_desc.rssi);
 
-		DPRINTF(0, "real length=%d bytes, rssi=%d\n", m->m_len, rssi);
+		DPRINTF("real length=%d bytes, rssi=%d\n", m->m_len, rssi);
 
 		if (bpf_peers_present(ifp->if_bpf)) {
 			struct rum_rx_radiotap_header *tap = &(sc->sc_rxtap);
@@ -1118,7 +1118,7 @@ rum_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~RUM_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1203,7 +1203,7 @@ rum_setup_desc_and_tx(struct rum_softc *sc, struct mbuf *m, uint32_t flags,
 		return;
 	}
 	if (rate < 2) {
-		DPRINTF(0, "rate < 2!\n");
+		DPRINTF("rate < 2!\n");
 
 		/* avoid division by zero */
 		rate = 2;
@@ -1263,13 +1263,13 @@ rum_setup_desc_and_tx(struct rum_softc *sc, struct mbuf *m, uint32_t flags,
 	}
 
 	if (sizeof(sc->sc_tx_desc) > MHLEN) {
-		DPRINTF(0, "No room for header structure!\n");
+		DPRINTF("No room for header structure!\n");
 		rum_tx_freem(m);
 		return;
 	}
 	mm = m_gethdr(M_NOWAIT, MT_DATA);
 	if (mm == NULL) {
-		DPRINTF(0, "Could not allocate header mbuf!\n");
+		DPRINTF("Could not allocate header mbuf!\n");
 		rum_tx_freem(m);
 		return;
 	}
@@ -1282,7 +1282,7 @@ rum_setup_desc_and_tx(struct rum_softc *sc, struct mbuf *m, uint32_t flags,
 	if (is_beacon) {
 
 		if (mm->m_pkthdr.len > sizeof(sc->sc_beacon_buf)) {
-			DPRINTF(-1, "Truncating beacon"
+			DPRINTFN(0, "Truncating beacon"
 			    ", %u bytes!\n", mm->m_pkthdr.len);
 			mm->m_pkthdr.len = sizeof(sc->sc_beacon_buf);
 		}
@@ -1312,7 +1312,7 @@ rum_bulk_write_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(10, "transfer complete\n");
+		DPRINTFN(11, "transfer complete\n");
 
 		ifp->if_opackets++;
 
@@ -1334,7 +1334,7 @@ rum_bulk_write_callback(struct usb2_xfer *xfer)
 		if (m) {
 
 			if (m->m_pkthdr.len > (MCLBYTES + RT2573_TX_DESC_SIZE)) {
-				DPRINTF(-1, "data overflow, %u bytes\n",
+				DPRINTFN(0, "data overflow, %u bytes\n",
 				    m->m_pkthdr.len);
 				m->m_pkthdr.len = (MCLBYTES + RT2573_TX_DESC_SIZE);
 			}
@@ -1357,7 +1357,7 @@ rum_bulk_write_callback(struct usb2_xfer *xfer)
 				usb2_bzero(xfer->frbuffers, temp_len, align);
 				temp_len += align;
 			}
-			DPRINTF(10, "sending frame len=%u ferlen=%u\n",
+			DPRINTFN(11, "sending frame len=%u ferlen=%u\n",
 			    m->m_pkthdr.len, temp_len);
 
 			xfer->frlengths[0] = temp_len;
@@ -1370,7 +1370,7 @@ rum_bulk_write_callback(struct usb2_xfer *xfer)
 		break;
 
 	default:			/* Error */
-		DPRINTF(10, "transfer error, %s\n",
+		DPRINTFN(11, "transfer error, %s\n",
 		    usb2_errstr(xfer->error));
 
 		if (xfer->error != USB_ERR_CANCELLED) {
@@ -1391,7 +1391,7 @@ rum_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~RUM_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1531,7 +1531,7 @@ rum_newstate_cb(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 	struct ieee80211com *ic = vap->iv_ic;
 	struct rum_softc *sc = ic->ic_ifp->if_softc;
 
-	DPRINTF(0, "setting new state: %d\n", nstate);
+	DPRINTF("setting new state: %d\n", nstate);
 
 	if (usb2_config_td_is_gone(&(sc->sc_config_td))) {
 		/* Special case which happens at detach. */
@@ -1719,7 +1719,7 @@ rum_cfg_set_chan(struct rum_softc *sc,
 			break;
 	}
 
-	DPRINTF(0, "chan=%d, i=%d\n", chan, i);
+	DPRINTF("chan=%d, i=%d\n", chan, i);
 
 	power = sc->sc_txpow[i];
 	if (power < 0) {
@@ -1901,7 +1901,7 @@ rum_cfg_update_slot(struct rum_softc *sc,
 	tmp = (tmp & ~0xff) | slottime;
 	rum_cfg_write(sc, RT2573_MAC_CSR9, tmp);
 
-	DPRINTF(0, "setting slot time to %u us\n", slottime);
+	DPRINTF("setting slot time to %u us\n", slottime);
 
 	return;
 }
@@ -1967,7 +1967,7 @@ rum_cfg_update_promisc(struct rum_softc *sc,
 
 	rum_cfg_write(sc, RT2573_TXRX_CSR0, tmp);
 
-	DPRINTF(0, "%s promiscuous mode\n",
+	DPRINTF("%s promiscuous mode\n",
 	    (cc->if_flags & IFF_PROMISC) ?
 	    "entering" : "leaving");
 	return;
@@ -2068,13 +2068,13 @@ rum_cfg_read_eeprom(struct rum_softc *sc)
 	sc->sc_tx_ant = (val >> 2) & 0x3;
 	sc->sc_nb_ant = (val & 0x3);
 
-	DPRINTF(0, "RF revision=%d\n", sc->sc_rf_rev);
+	DPRINTF("RF revision=%d\n", sc->sc_rf_rev);
 
 	val = rum_cfg_eeprom_read_2(sc, RT2573_EEPROM_CONFIG2);
 	sc->sc_ext_5ghz_lna = (val >> 6) & 0x1;
 	sc->sc_ext_2ghz_lna = (val >> 4) & 0x1;
 
-	DPRINTF(0, "External 2GHz LNA=%d, External 5GHz LNA=%d\n",
+	DPRINTF("External 2GHz LNA=%d, External 5GHz LNA=%d\n",
 	    sc->sc_ext_2ghz_lna, sc->sc_ext_5ghz_lna);
 
 	val = rum_cfg_eeprom_read_2(sc, RT2573_EEPROM_RSSI_2GHZ_OFFSET);
@@ -2105,7 +2105,7 @@ rum_cfg_read_eeprom(struct rum_softc *sc)
 	if (sc->sc_ext_5ghz_lna) {
 		sc->sc_rssi_5ghz_corr -= 14;
 	}
-	DPRINTF(0, "RSSI 2GHz corr=%d, RSSI 5GHz corr=%d\n",
+	DPRINTF("RSSI 2GHz corr=%d, RSSI 5GHz corr=%d\n",
 	    sc->sc_rssi_2ghz_corr, sc->sc_rssi_5ghz_corr);
 
 	val = rum_cfg_eeprom_read_2(sc, RT2573_EEPROM_FREQ_OFFSET);
@@ -2114,7 +2114,7 @@ rum_cfg_read_eeprom(struct rum_softc *sc)
 	else
 		sc->sc_rffreq = 0;
 
-	DPRINTF(0, "RF freq=%d\n", sc->sc_rffreq);
+	DPRINTF("RF freq=%d\n", sc->sc_rffreq);
 
 	/* read Tx power for all a/b/g channels */
 	rum_cfg_eeprom_read(sc, RT2573_EEPROM_TXPOWER, sc->sc_txpow, 14);
@@ -2150,7 +2150,7 @@ rum_cfg_bbp_init(struct rum_softc *sc)
 				return (1);	/* failure */
 			}
 		} else {
-			DPRINTF(0, "timeout waiting for BBP\n");
+			DPRINTF("timeout waiting for BBP\n");
 			return (1);	/* failure */
 		}
 	}
@@ -2227,7 +2227,7 @@ rum_cfg_init(struct rum_softc *sc,
 				goto fail;
 			}
 		} else {
-			DPRINTF(0, "timeout waiting for "
+			DPRINTF("timeout waiting for "
 			    "BBP/RF to wakeup\n");
 			goto fail;
 		}
@@ -2441,7 +2441,7 @@ rum_cfg_load_microcode(struct rum_softc *sc, const uint8_t *ucode, uint16_t size
 	}
 
 	if (size != 0) {
-		DPRINTF(0, "possibly invalid firmware\n");
+		DPRINTF("possibly invalid firmware\n");
 	}
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = RT2573_MCU_CNTL;
@@ -2476,11 +2476,11 @@ rum_cfg_prepare_beacon(struct rum_softc *sc,
 	if (ic == NULL) {
 		return;
 	}
-	DPRINTF(10, "Sending beacon frame.\n");
+	DPRINTFN(11, "Sending beacon frame.\n");
 
 	m = ieee80211_beacon_alloc(ni, &RUM_VAP(vap)->bo);
 	if (m == NULL) {
-		DPRINTF(-1, "could not allocate beacon\n");
+		DPRINTFN(0, "could not allocate beacon\n");
 		return;
 	}
 	tp = &vap->iv_txparms[ieee80211_chan2mode(ic->ic_bsschan)];
@@ -2758,7 +2758,7 @@ rum_tx_data(struct rum_softc *sc, struct mbuf *m,
 	uint16_t dur;
 	uint16_t rate;
 
-	DPRINTF(10, "Sending data.\n");
+	DPRINTFN(11, "Sending data.\n");
 
 	wh = mtod(m, struct ieee80211_frame *);
 
@@ -2823,7 +2823,7 @@ rum_tx_prot(struct rum_softc *sc,
 	    (prot == IEEE80211_PROT_CTSONLY),
 	    ("protection %u", prot));
 
-	DPRINTF(10, "Sending protection frame.\n");
+	DPRINTFN(11, "Sending protection frame.\n");
 
 	wh = mtod(m, const struct ieee80211_frame *);
 	pktlen = m->m_pkthdr.len + IEEE80211_CRC_LEN;
@@ -2858,7 +2858,7 @@ rum_tx_raw(struct rum_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 	uint32_t flags;
 	uint16_t rate;
 
-	DPRINTF(10, "Sending raw frame.\n");
+	DPRINTFN(11, "Sending raw frame.\n");
 
 	rate = params->ibp_rate0 & IEEE80211_RATE_VAL;
 

@@ -308,7 +308,7 @@ axe_cfg_cmd(struct axe_softc *sc, uint16_t cmd, uint16_t index,
 
 	if (err) {
 
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 
 error:
@@ -551,7 +551,7 @@ axe_cfg_reset(struct axe_softc *sc)
 	err = usb2_req_set_config(sc->sc_udev, &(sc->sc_mtx),
 	    cd->bConfigurationValue);
 	if (err) {
-		DPRINTF(0, "reset failed (ignored)\n");
+		DPRINTF("reset failed (ignored)\n");
 	}
 	/*
 	 * wait a little while for the chip to get its brains in order:
@@ -655,7 +655,7 @@ axe_cfg_ax88178_init(struct axe_softc *sc)
 	uint16_t gpio0;
 	uint8_t err;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	axe_cfg_cmd(sc, AXE_CMD_SROM_WR_ENABLE, 0, 0, NULL);
 	/* XXX magic */
@@ -711,7 +711,7 @@ axe_cfg_ax88772_init(struct axe_softc *sc)
 {
 	uint8_t err;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	axe_cfg_cmd(sc, AXE_CMD_WRITE_GPIO, 0, 0x00b0, NULL);
 	err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 16);
@@ -899,7 +899,7 @@ axe_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[4];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~AXE_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -942,7 +942,7 @@ axe_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~AXE_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1081,7 +1081,7 @@ tr_setup:
 			sc->sc_flags |= AXE_FLAG_READ_STALL;
 			usb2_transfer_start(sc->sc_xfer[3]);
 		}
-		DPRINTF(0, "bulk read error, %s\n",
+		DPRINTF("bulk read error, %s\n",
 		    usb2_errstr(xfer->error));
 		return;
 
@@ -1095,7 +1095,7 @@ axe_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~AXE_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1117,7 +1117,7 @@ axe_bulk_write_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(10, "transfer complete\n");
+		DPRINTFN(11, "transfer complete\n");
 
 		ifp->if_opackets++;
 
@@ -1196,7 +1196,7 @@ done:
 		return;
 
 	default:			/* Error */
-		DPRINTF(10, "transfer error, %s\n",
+		DPRINTFN(11, "transfer error, %s\n",
 		    usb2_errstr(xfer->error));
 
 		if (xfer->error != USB_ERR_CANCELLED) {

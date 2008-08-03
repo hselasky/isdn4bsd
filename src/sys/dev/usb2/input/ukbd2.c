@@ -267,7 +267,7 @@ ukbd_put_key(struct ukbd_softc *sc, uint32_t key)
 {
 	mtx_assert(&Giant, MA_OWNED);
 
-	DPRINTF(0, "0x%02x (%d) %s\n", key, key,
+	DPRINTF("0x%02x (%d) %s\n", key, key,
 	    (key & KEY_RELEASE) ? "released" : "pressed");
 
 	if (sc->sc_inputs < UKBD_IN_BUF_SIZE) {
@@ -278,7 +278,7 @@ ukbd_put_key(struct ukbd_softc *sc, uint32_t key)
 			sc->sc_inputtail = 0;
 		}
 	} else {
-		DPRINTF(0, "input buffer is full\n");
+		DPRINTF("input buffer is full\n");
 	}
 	return;
 }
@@ -295,7 +295,7 @@ ukbd_get_key(struct ukbd_softc *sc, uint8_t wait)
 		usb2_transfer_start(sc->sc_xfer[0]);
 	}
 	if (sc->sc_flags & UKBD_FLAG_POLLING) {
-		DPRINTF(1, "polling\n");
+		DPRINTFN(2, "polling\n");
 
 		while (sc->sc_inputs == 0) {
 
@@ -463,7 +463,7 @@ ukbd_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UKBD_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -479,7 +479,7 @@ ukbd_intr_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(0, "actlen=%d bytes\n", len);
+		DPRINTF("actlen=%d bytes\n", len);
 
 		if (len > sizeof(sc->sc_ndata)) {
 			len = sizeof(sc->sc_ndata);
@@ -489,11 +489,11 @@ ukbd_intr_callback(struct usb2_xfer *xfer)
 			usb2_copy_out(xfer->frbuffers, 0, &(sc->sc_ndata), len);
 #ifdef USB_DEBUG
 			if (sc->sc_ndata.modifiers) {
-				DPRINTF(0, "mod: 0x%04x\n", sc->sc_ndata.modifiers);
+				DPRINTF("mod: 0x%04x\n", sc->sc_ndata.modifiers);
 			}
 			for (i = 0; i < UKBD_NKEYCODE; i++) {
 				if (sc->sc_ndata.keycode[i]) {
-					DPRINTF(0, "[%d] = %d\n", i, sc->sc_ndata.keycode[i]);
+					DPRINTF("[%d] = %d\n", i, sc->sc_ndata.keycode[i]);
 				}
 			}
 #endif					/* USB_DEBUG */
@@ -508,12 +508,12 @@ ukbd_intr_callback(struct usb2_xfer *xfer)
 			xfer->frlengths[0] = xfer->max_data_length;
 			usb2_start_hardware(xfer);
 		} else {
-			DPRINTF(0, "input queue is full!\n");
+			DPRINTF("input queue is full!\n");
 		}
 		return;
 
 	default:			/* Error */
-		DPRINTF(0, "error=%s\n", usb2_errstr(xfer->error));
+		DPRINTF("error=%s\n", usb2_errstr(xfer->error));
 
 		if (xfer->error != USB_ERR_CANCELLED) {
 			/* try to clear stall first */
@@ -557,7 +557,7 @@ ukbd_set_leds_callback(struct usb2_xfer *xfer)
 		return;
 
 	default:			/* Error */
-		DPRINTF(-1, "error=%s\n", usb2_errstr(xfer->error));
+		DPRINTFN(0, "error=%s\n", usb2_errstr(xfer->error));
 		return;
 	}
 }
@@ -599,7 +599,7 @@ ukbd_probe(device_t dev)
 	keyboard_switch_t *sw = kbd_get_switch(UKBD_DRIVER_NAME);
 	struct usb2_attach_arg *uaa = device_get_ivars(dev);
 
-	DPRINTF(10, "\n");
+	DPRINTFN(11, "\n");
 
 	if (sw == NULL) {
 		return (ENXIO);
@@ -655,7 +655,7 @@ ukbd_attach(device_t dev)
 	    UKBD_N_TRANSFER, sc, &Giant);
 
 	if (err) {
-		DPRINTF(0, "error=%s\n", usb2_errstr(err));
+		DPRINTF("error=%s\n", usb2_errstr(err));
 		goto detach;
 	}
 	/* setup default keyboard maps */
@@ -730,7 +730,7 @@ ukbd_detach(device_t dev)
 
 	mtx_assert(&Giant, MA_OWNED);
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	if (sc->sc_flags & UKBD_FLAG_POLLING) {
 		panic("cannot detach polled keyboard!\n");
@@ -765,7 +765,7 @@ ukbd_detach(device_t dev)
 
 	usb2_callout_drain(&(sc->sc_callout));
 
-	DPRINTF(0, "%s: disconnected\n",
+	DPRINTF("%s: disconnected\n",
 	    device_get_nameunit(dev));
 
 	return (0);
@@ -1365,7 +1365,7 @@ ukbd_poll(keyboard_t *kbd, int on)
 static void
 ukbd_set_leds(struct ukbd_softc *sc, uint8_t leds)
 {
-	DPRINTF(0, "leds=0x%02x\n", leds);
+	DPRINTF("leds=0x%02x\n", leds);
 
 	sc->sc_leds = leds;
 	sc->sc_flags |= UKBD_FLAG_SET_LEDS;

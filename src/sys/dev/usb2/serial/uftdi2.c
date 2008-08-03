@@ -288,7 +288,7 @@ uftdi_attach(device_t dev)
 	snprintf(sc->sc_name, sizeof(sc->sc_name),
 	    "%s", device_get_nameunit(dev));
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	sc->sc_iface_index = uaa->info.bIfaceIndex;
 	sc->sc_type = USB_GET_DRIVER_INFO(uaa);
@@ -365,7 +365,7 @@ uftdi_cfg_do_request(struct uftdi_softc *sc, struct usb2_device_request *req,
 
 	if (err) {
 
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 
 error:
@@ -385,7 +385,7 @@ uftdi_cfg_open(struct usb2_com_softc *ucom)
 	uint16_t wIndex = ucom->sc_portno;
 	struct usb2_device_request req;
 
-	DPRINTF(0, "");
+	DPRINTF("");
 
 	/* perform a full reset on the device */
 
@@ -458,7 +458,7 @@ uftdi_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UFTDI_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -486,7 +486,7 @@ uftdi_read_callback(struct usb2_xfer *xfer)
 
 		if ((sc->sc_msr != msr) ||
 		    ((sc->sc_lsr & FTDI_LSR_MASK) != (lsr & FTDI_LSR_MASK))) {
-			DPRINTF(0, "status change msr=0x%02x (0x%02x) "
+			DPRINTF("status change msr=0x%02x (0x%02x) "
 			    "lsr=0x%02x (0x%02x)\n", msr, sc->sc_msr,
 			    lsr, sc->sc_lsr);
 
@@ -528,7 +528,7 @@ uftdi_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UFTDI_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -701,7 +701,7 @@ uftdi_pre_param(struct usb2_com_softc *ucom, struct termios *t)
 	struct uftdi_softc *sc = ucom->sc_parent;
 	struct uftdi_param_config cfg;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	return (uftdi_set_parm_soft(t, &cfg, sc->sc_type));
 }
@@ -720,7 +720,7 @@ uftdi_cfg_param(struct usb2_com_softc *ucom, struct termios *t)
 	}
 	sc->sc_last_lcr = cfg.lcr;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = FTDI_SIO_SET_BAUD_RATE;
@@ -751,7 +751,7 @@ uftdi_cfg_get_status(struct usb2_com_softc *ucom, uint8_t *lsr, uint8_t *msr)
 {
 	struct uftdi_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "msr=0x%02x lsr=0x%02x\n",
+	DPRINTF("msr=0x%02x lsr=0x%02x\n",
 	    sc->sc_msr, sc->sc_lsr);
 
 	*msr = sc->sc_msr;

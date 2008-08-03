@@ -381,7 +381,7 @@ umoscom_cfg_open(struct usb2_com_softc *ucom)
 {
 	struct umoscom_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	/* Purge FIFOs or odd things happen */
 	umoscom_cfg_write(sc, UMOSCOM_FIFO, 0x00 | UMOSCOM_UART_REG);
@@ -467,12 +467,12 @@ umoscom_cfg_param(struct usb2_com_softc *ucom, struct termios *t)
 	struct umoscom_softc *sc = ucom->sc_parent;
 	uint16_t data;
 
-	DPRINTF(0, "speed=%d\n", t->c_ospeed);
+	DPRINTF("speed=%d\n", t->c_ospeed);
 
 	data = ((uint32_t)UMOSCOM_BAUD_REF) / ((uint32_t)t->c_ospeed);
 
 	if (data == 0) {
-		DPRINTF(0, "invalid baud rate!\n");
+		DPRINTF("invalid baud rate!\n");
 		return;
 	}
 	umoscom_cfg_write(sc, UMOSCOM_LCR,
@@ -525,7 +525,7 @@ umoscom_cfg_get_status(struct usb2_com_softc *ucom, uint8_t *p_lsr, uint8_t *p_m
 	uint8_t lsr;
 	uint8_t msr;
 
-	DPRINTF(4, "\n");
+	DPRINTFN(5, "\n");
 
 	/* read status registers */
 
@@ -577,7 +577,7 @@ umoscom_cfg_read(struct umoscom_softc *sc, uint16_t reg)
 
 	umoscom_cfg_do_request(sc, &req, &val);
 
-	DPRINTF(0, "reg=0x%04x, val=0x%02x\n", reg, val);
+	DPRINTF("reg=0x%04x, val=0x%02x\n", reg, val);
 
 	return (val);
 }
@@ -596,7 +596,7 @@ umoscom_cfg_do_request(struct umoscom_softc *sc, struct usb2_device_request *req
 	    (sc->sc_udev, &Giant, req, data, 0, NULL, 1000);
 
 	if (err) {
-		DPRINTF(-1, "control request failed: %s\n",
+		DPRINTFN(0, "control request failed: %s\n",
 		    usb2_errstr(err));
 error:
 		length = UGETW(req->wLength);
@@ -665,7 +665,7 @@ umoscom_write_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_SETUP:
 	case USB_ST_TRANSFERRED:
-		DPRINTF(0, "\n");
+		DPRINTF("\n");
 
 		if (sc->sc_flags & UMOSCOM_FLAG_WRITE_STALL) {
 			usb2_transfer_start(sc->sc_xfer_data[2]);
@@ -681,7 +681,7 @@ umoscom_write_callback(struct usb2_xfer *xfer)
 
 	default:			/* Error */
 		if (xfer->error != USB_ERR_CANCELLED) {
-			DPRINTF(-1, "transfer failed\n");
+			DPRINTFN(0, "transfer failed\n");
 			sc->sc_flags |= UMOSCOM_FLAG_WRITE_STALL;
 			usb2_transfer_start(sc->sc_xfer_data[2]);
 		}
@@ -696,7 +696,7 @@ umoscom_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_data[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UMOSCOM_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -710,11 +710,11 @@ umoscom_read_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(0, "got %d bytes\n", xfer->actlen);
+		DPRINTF("got %d bytes\n", xfer->actlen);
 		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0, xfer->actlen);
 
 	case USB_ST_SETUP:
-		DPRINTF(0, "\n");
+		DPRINTF("\n");
 
 		if (sc->sc_flags & UMOSCOM_FLAG_READ_STALL) {
 			usb2_transfer_start(sc->sc_xfer_data[3]);
@@ -726,7 +726,7 @@ umoscom_read_callback(struct usb2_xfer *xfer)
 
 	default:			/* Error */
 		if (xfer->error != USB_ERR_CANCELLED) {
-			DPRINTF(-1, "transfer failed\n");
+			DPRINTFN(0, "transfer failed\n");
 			sc->sc_flags |= UMOSCOM_FLAG_READ_STALL;
 			usb2_transfer_start(sc->sc_xfer_data[3]);
 		}
@@ -742,7 +742,7 @@ umoscom_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_data[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UMOSCOM_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -757,7 +757,7 @@ umoscom_intr_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 		if (xfer->actlen < 2) {
-			DPRINTF(0, "too short message\n");
+			DPRINTF("too short message\n");
 			goto tr_setup;
 		}
 		usb2_com_status_change(&(sc->sc_ucom));
@@ -774,7 +774,7 @@ tr_setup:
 
 	default:			/* Error */
 		if (xfer->error != USB_ERR_CANCELLED) {
-			DPRINTF(-1, "transfer failed\n");
+			DPRINTFN(0, "transfer failed\n");
 			sc->sc_flags |= UMOSCOM_FLAG_INTR_STALL;
 			usb2_transfer_start(sc->sc_xfer_data[5]);
 		}
@@ -789,7 +789,7 @@ umoscom_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_data[4];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UMOSCOM_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}

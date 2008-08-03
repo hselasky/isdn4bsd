@@ -132,7 +132,7 @@ usb2_process(void *arg)
 		pm = TAILQ_FIRST(&(up->up_qhead));
 
 		if (pm) {
-			DPRINTF(0, "Message pm=%p, cb=%p (enter)\n",
+			DPRINTF("Message pm=%p, cb=%p (enter)\n",
 			    pm, pm->pm_callback);
 
 			(pm->pm_callback) (pm);
@@ -142,7 +142,7 @@ usb2_process(void *arg)
 				TAILQ_REMOVE(&(up->up_qhead), pm, pm_qentry);
 				pm->pm_qentry.tqe_prev = NULL;
 			}
-			DPRINTF(0, "Message pm=%p (leave)\n", pm);
+			DPRINTF("Message pm=%p (leave)\n", pm);
 
 			continue;
 		}
@@ -188,7 +188,7 @@ usb2_proc_setup(struct usb2_process *up, struct mtx *p_mtx, uint8_t prio)
 
 	if (USB_THREAD_CREATE(&usb2_process, up,
 	    &(up->up_ptr), "USBPROC")) {
-		DPRINTF(-1, "Unable to create USB process.");
+		DPRINTFN(0, "Unable to create USB process.");
 		up->up_ptr = NULL;
 		goto error;
 	}
@@ -292,7 +292,7 @@ usb2_proc_msignal(struct usb2_process *up, void *_pm0, void *_pm1)
 		pm2 = NULL;		/* panic - should not happen */
 	}
 
-	DPRINTF(0, " t=%u, num=%u\n", t, up->up_msg_num);
+	DPRINTF(" t=%u, num=%u\n", t, up->up_msg_num);
 
 	/* Put message last on queue */
 

@@ -343,7 +343,7 @@ uscanner_probe(device_t dev)
 {
 	struct usb2_attach_arg *uaa;
 
-	DPRINTF(10, "\n");
+	DPRINTFN(11, "\n");
 
 	uaa = device_get_ivars(dev);
 	if (uaa->usb2_mode != USB_MODE_HOST) {
@@ -478,7 +478,7 @@ uscanner_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~USCANNER_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -539,7 +539,7 @@ uscanner_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~USCANNER_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}

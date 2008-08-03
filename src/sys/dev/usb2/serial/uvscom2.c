@@ -316,7 +316,7 @@ uvscom_attach(device_t dev)
 
 	sc->sc_udev = uaa->device;
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 
 	sc->sc_iface_no = uaa->info.bIfaceNum;
 	sc->sc_iface_index = UVSCOM_IFACE_INDEX;
@@ -325,7 +325,7 @@ uvscom_attach(device_t dev)
 	    sc->sc_xfer, uvscom_config, UVSCOM_N_TRANSFER, sc, &Giant);
 
 	if (error) {
-		DPRINTF(0, "could not allocate all USB transfers!\n");
+		DPRINTF("could not allocate all USB transfers!\n");
 		goto detach;
 	}
 	sc->sc_line = UVSCOM_LINE_INIT;
@@ -356,7 +356,7 @@ uvscom_detach(device_t dev)
 {
 	struct uvscom_softc *sc = device_get_softc(dev);
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 
 	/* stop interrupt pipe */
 
@@ -408,7 +408,7 @@ uvscom_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UVSCOM_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -450,7 +450,7 @@ uvscom_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UVSCOM_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -520,7 +520,7 @@ uvscom_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[4];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UVSCOM_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -532,7 +532,7 @@ uvscom_cfg_set_dtr(struct usb2_com_softc *ucom, uint8_t onoff)
 {
 	struct uvscom_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	if (onoff)
 		sc->sc_line |= UVSCOM_DTR;
@@ -548,7 +548,7 @@ uvscom_cfg_set_rts(struct usb2_com_softc *ucom, uint8_t onoff)
 {
 	struct uvscom_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	if (onoff)
 		sc->sc_line |= UVSCOM_RTS;
@@ -564,7 +564,7 @@ uvscom_cfg_set_break(struct usb2_com_softc *ucom, uint8_t onoff)
 {
 	struct uvscom_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "onoff = %d\n", onoff);
+	DPRINTF("onoff = %d\n", onoff);
 
 	if (onoff)
 		sc->sc_line |= UVSCOM_BREAK;
@@ -602,7 +602,7 @@ uvscom_cfg_param(struct usb2_com_softc *ucom, struct termios *t)
 	struct uvscom_softc *sc = ucom->sc_parent;
 	uint16_t value;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	switch (t->c_ospeed) {
 	case B150:
@@ -684,12 +684,12 @@ uvscom_pre_open(struct usb2_com_softc *ucom)
 {
 	struct uvscom_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "sc = %p\n", sc);
+	DPRINTF("sc = %p\n", sc);
 
 	/* check if PC card was inserted */
 
 	if (sc->sc_unit_status & UVSCOM_NOCARD) {
-		DPRINTF(0, "no PC card!\n");
+		DPRINTF("no PC card!\n");
 		return (ENXIO);
 	}
 	return (0);
@@ -700,7 +700,7 @@ uvscom_cfg_open(struct usb2_com_softc *ucom)
 {
 	struct uvscom_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "sc = %p\n", sc);
+	DPRINTF("sc = %p\n", sc);
 
 	uvscom_cfg_read_status(sc);
 
@@ -712,7 +712,7 @@ uvscom_cfg_close(struct usb2_com_softc *ucom)
 {
 	struct uvscom_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 
 	uvscom_cfg_write(sc, UVSCOM_SHUTDOWN, 0);
 
@@ -792,7 +792,7 @@ uvscom_cfg_write(struct uvscom_softc *sc, uint8_t index, uint16_t value)
 	err = usb2_do_request_flags(sc->sc_udev, &Giant, &req,
 	    NULL, 0, NULL, 1000);
 	if (err) {
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 	}
 	return;
@@ -817,7 +817,7 @@ uvscom_cfg_read_status(struct uvscom_softc *sc)
 	err = usb2_do_request_flags(sc->sc_udev, &Giant, &req,
 	    data, 0, NULL, 1000);
 	if (err) {
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 		data[0] = 0;
 		data[1] = 0;

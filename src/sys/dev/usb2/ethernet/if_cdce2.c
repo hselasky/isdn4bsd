@@ -646,7 +646,7 @@ cdce_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		usb2_transfer_start(xfer_other);
 	}
 	return;
@@ -665,7 +665,7 @@ cdce_bulk_write_512x4_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(10, "transfer complete: "
+		DPRINTFN(11, "transfer complete: "
 		    "%u bytes in %u fragments and %u frames\n",
 		    xfer->actlen, xfer->nframes, sc->sc_tx_mq.ifq_len);
 
@@ -756,7 +756,7 @@ tr_setup:
 		break;
 
 	default:			/* Error */
-		DPRINTF(10, "transfer error, %s\n",
+		DPRINTFN(11, "transfer error, %s\n",
 		    usb2_errstr(xfer->error));
 
 		/* update error counter */
@@ -786,7 +786,7 @@ cdce_bulk_write_std_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(10, "transfer complete: "
+		DPRINTFN(11, "transfer complete: "
 		    "%u bytes in %u frames\n", xfer->actlen,
 		    xfer->aframes);
 
@@ -850,7 +850,7 @@ tr_setup:
 		break;
 
 	default:			/* Error */
-		DPRINTF(10, "transfer error, %s\n",
+		DPRINTFN(11, "transfer error, %s\n",
 		    usb2_errstr(xfer->error));
 
 		/* free all previous mbufs */
@@ -1029,7 +1029,7 @@ cdce_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		usb2_transfer_start(xfer_other);
 	}
 	return;
@@ -1058,7 +1058,7 @@ cdce_bulk_read_512x4_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
-		DPRINTF(0, "received %u bytes in %u frames\n",
+		DPRINTF("received %u bytes in %u frames\n",
 		    xfer->actlen, xfer->aframes);
 
 		/* check state */
@@ -1078,7 +1078,7 @@ cdce_bulk_read_512x4_callback(struct usb2_xfer *xfer)
 				/* start receiving data */
 				sc->sc_flags |= CDCE_FLAG_RX_DATA;
 			}
-			DPRINTF(0, "doing %u fragments\n", rx_frags);
+			DPRINTF("doing %u fragments\n", rx_frags);
 
 		} else {
 			/* we are done receiving data */
@@ -1101,7 +1101,7 @@ tr_setup:
 		}
 		/* we expect a Multi Frame Ethernet Header */
 		if (!(sc->sc_flags & CDCE_FLAG_RX_DATA)) {
-			DPRINTF(0, "expecting length header\n");
+			DPRINTF("expecting length header\n");
 			usb2_set_frame_data(xfer, &(sc->sc_rx.hdr), 0);
 			xfer->frlengths[0] = sizeof(sc->sc_rx.hdr);
 			xfer->nframes = 1;
@@ -1120,7 +1120,7 @@ tr_setup:
 		x = rx_frags - 1;
 		flen = UGETW(sc->sc_rx.hdr.wFragLength[x]);
 		if (!(flen & CDCE_512X4_FRAG_LAST_MASK)) {
-			DPRINTF(0, "no last frag mask\n");
+			DPRINTF("no last frag mask\n");
 			/* try to clear stall first */
 			xfer->flags.stall_pipe = 1;
 			goto tr_setup;
@@ -1164,7 +1164,7 @@ tr_setup:
 				m = NULL;	/* dump it */
 			}
 
-			DPRINTF(16, "frame %u, length = %u \n", y, offset);
+			DPRINTFN(17, "frame %u, length = %u \n", y, offset);
 
 			/* check if we have a buffer */
 			if (m) {
@@ -1194,7 +1194,7 @@ tr_setup:
 				xfer->frlengths[x] =
 				    (flen & CDCE_512X4_FRAG_LENGTH_MASK);
 
-				DPRINTF(16, "length[%u] = %u\n",
+				DPRINTFN(17, "length[%u] = %u\n",
 				    x, xfer->frlengths[x]);
 
 				offset += xfer->frlengths[x];
@@ -1218,7 +1218,7 @@ tr_setup:
 			}
 		}
 
-		DPRINTF(0, "nframes = %u\n", x);
+		DPRINTF("nframes = %u\n", x);
 
 		xfer->nframes = x;
 		xfer->flags.short_xfer_ok = 0;
@@ -1226,7 +1226,7 @@ tr_setup:
 		break;
 
 	default:			/* Error */
-		DPRINTF(0, "error = %s\n",
+		DPRINTF("error = %s\n",
 		    usb2_errstr(xfer->error));
 
 		if (xfer->error != USB_ERR_CANCELLED) {
@@ -1267,7 +1267,7 @@ cdce_bulk_read_std_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
-		DPRINTF(0, "received %u bytes in %u frames\n",
+		DPRINTF("received %u bytes in %u frames\n",
 		    xfer->actlen, xfer->aframes);
 
 		if (sc->sc_flags & CDCE_FLAG_ZAURUS) {
@@ -1319,7 +1319,7 @@ tr_setup:
 		break;
 
 	default:			/* Error */
-		DPRINTF(0, "error = %s\n",
+		DPRINTF("error = %s\n",
 		    usb2_errstr(xfer->error));
 
 		/* free all mbufs */
@@ -1387,7 +1387,7 @@ cdce_intr_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[4];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		usb2_transfer_start(xfer_other);
 	}
 	return;
@@ -1401,7 +1401,7 @@ cdce_intr_read_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
-		DPRINTF(0, "Received %d bytes\n",
+		DPRINTF("Received %d bytes\n",
 		    xfer->actlen);
 
 		/* TODO: decode some indications */
@@ -1436,7 +1436,7 @@ cdce_intr_write_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
-		DPRINTF(0, "Transferred %d bytes\n", xfer->actlen);
+		DPRINTF("Transferred %d bytes\n", xfer->actlen);
 
 	case USB_ST_SETUP:
 tr_setup:

@@ -331,7 +331,7 @@ aue_cfg_do_request(struct aue_softc *sc, struct usb2_device_request *req,
 
 	if (err) {
 
-		DPRINTF(0, "device request failed, err=%s "
+		DPRINTF("device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 
 error:
@@ -438,7 +438,7 @@ aue_cfg_eeprom_getword(struct aue_softc *sc, uint8_t addr,
 				break;
 			}
 		} else {
-			DPRINTF(0, "EEPROM read timed out!\n");
+			DPRINTF("EEPROM read timed out!\n");
 			break;
 		}
 	}
@@ -518,7 +518,7 @@ aue_cfg_miibus_readreg(device_t dev, int phy, int reg)
 				break;
 			}
 		} else {
-			DPRINTF(0, "MII read timed out\n");
+			DPRINTF("MII read timed out\n");
 			break;
 		}
 	}
@@ -564,7 +564,7 @@ aue_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 				break;
 			}
 		} else {
-			DPRINTF(0, "MII write timed out\n");
+			DPRINTF("MII write timed out\n");
 			break;
 		}
 	}
@@ -682,7 +682,7 @@ aue_cfg_reset(struct aue_softc *sc)
 				break;
 			}
 		} else {
-			DPRINTF(0, "reset timed out\n");
+			DPRINTF("reset timed out\n");
 			break;
 		}
 	}
@@ -943,7 +943,7 @@ aue_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[4];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~AUE_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -999,7 +999,7 @@ aue_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~AUE_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1015,7 +1015,7 @@ aue_bulk_read_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(10, "received %d bytes\n", xfer->actlen);
+		DPRINTFN(11, "received %d bytes\n", xfer->actlen);
 
 		if (sc->sc_flags & AUE_FLAG_VER_2) {
 
@@ -1088,7 +1088,7 @@ tr_setup:
 			sc->sc_flags |= AUE_FLAG_READ_STALL;
 			usb2_transfer_start(sc->sc_xfer[3]);
 		}
-		DPRINTF(0, "bulk read error, %s\n",
+		DPRINTF("bulk read error, %s\n",
 		    usb2_errstr(xfer->error));
 		return;
 
@@ -1102,7 +1102,7 @@ aue_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~AUE_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1119,7 +1119,7 @@ aue_bulk_write_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(10, "transfer of %d bytes complete\n", xfer->actlen);
+		DPRINTFN(11, "transfer of %d bytes complete\n", xfer->actlen);
 
 		ifp->if_opackets++;
 
@@ -1183,7 +1183,7 @@ done:
 		return;
 
 	default:			/* Error */
-		DPRINTF(10, "transfer error, %s\n",
+		DPRINTFN(11, "transfer error, %s\n",
 		    usb2_errstr(xfer->error));
 
 		if (xfer->error != USB_ERR_CANCELLED) {

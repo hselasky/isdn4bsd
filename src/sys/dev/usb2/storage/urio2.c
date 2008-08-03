@@ -229,7 +229,7 @@ urio_attach(device_t dev)
 	    urio_config, URIO_T_MAX, sc, &(sc->sc_mtx));
 
 	if (error) {
-		DPRINTF(0, "error=%s\n", usb2_errstr(error));
+		DPRINTF("error=%s\n", usb2_errstr(error));
 		goto detach;
 	}
 	/* set interface permissions */
@@ -288,7 +288,7 @@ urio_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[URIO_T_WR];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~URIO_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -334,7 +334,7 @@ urio_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[URIO_T_RD];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~URIO_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -457,7 +457,7 @@ urio_ioctl(struct usb2_fifo *fifo, u_long cmd, void *addr,
 		goto done;
 	}
 
-	DPRINTF(1, "Sending command\n");
+	DPRINTFN(2, "Sending command\n");
 
 	/* Send rio control message */
 	ur.ucr_request.bRequest = rio_cmd->request;
@@ -478,7 +478,7 @@ urio_detach(device_t dev)
 {
 	struct urio_softc *sc = device_get_softc(dev);
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	usb2_fifo_detach(&(sc->sc_fifo));
 

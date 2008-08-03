@@ -137,7 +137,7 @@ usb2_test_quirk_by_info(const struct usb2_lookup_info *info, uint16_t quirk)
 		px = pe->driver_info;
 		while (1) {
 			if (*px == quirk) {
-				DPRINTF(0, "Found quirk '%s'.\n", usb2_quirkstr(quirk));
+				DPRINTF("Found quirk '%s'.\n", usb2_quirkstr(quirk));
 				return (1);
 			}
 			if (*px == UQ_NONE) {

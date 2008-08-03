@@ -288,7 +288,7 @@ umodem_probe(device_t dev)
 	uint8_t acm;
 	int error;
 
-	DPRINTF(10, "\n");
+	DPRINTFN(11, "\n");
 
 	if (uaa->usb2_mode != USB_MODE_HOST) {
 		return (ENXIO);
@@ -466,14 +466,14 @@ umodem_get_caps(struct usb2_attach_arg *uaa, uint8_t *cm, uint8_t *acm)
 
 	cmd = umodem_get_desc(uaa, UDESC_CS_INTERFACE, UDESCSUB_CDC_CM);
 	if ((cmd == NULL) || (cmd->bLength < sizeof(*cmd))) {
-		DPRINTF(0, "no CM desc\n");
+		DPRINTF("no CM desc\n");
 		return;
 	}
 	*cm = cmd->bmCapabilities;
 
 	cad = umodem_get_desc(uaa, UDESC_CS_INTERFACE, UDESCSUB_CDC_ACM);
 	if ((cad == NULL) || (cad->bLength < sizeof(*cad))) {
-		DPRINTF(0, "no ACM desc\n");
+		DPRINTF("no ACM desc\n");
 		return;
 	}
 	*acm = cad->bmCapabilities;
@@ -486,7 +486,7 @@ umodem_cfg_get_status(struct usb2_com_softc *ucom, uint8_t *lsr, uint8_t *msr)
 {
 	struct umodem_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	*lsr = sc->sc_lsr;
 	*msr = sc->sc_msr;
@@ -506,7 +506,7 @@ umodem_cfg_param(struct usb2_com_softc *ucom, struct termios *t)
 	struct usb2_cdc_line_state ls;
 	struct usb2_device_request req;
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 
 	bzero(&ls, sizeof(ls));
 
@@ -534,7 +534,7 @@ umodem_cfg_param(struct usb2_com_softc *ucom, struct termios *t)
 		break;
 	}
 
-	DPRINTF(0, "rate=%d fmt=%d parity=%d bits=%d\n",
+	DPRINTF("rate=%d fmt=%d parity=%d bits=%d\n",
 	    UGETDW(ls.dwDTERate), ls.bCharFormat,
 	    ls.bParityType, ls.bDataBits);
 
@@ -556,7 +556,7 @@ umodem_ioctl(struct usb2_com_softc *ucom, uint32_t cmd, caddr_t data,
 	struct umodem_softc *sc = ucom->sc_parent;
 	int error = 0;
 
-	DPRINTF(0, "cmd=0x%08x\n", cmd);
+	DPRINTF("cmd=0x%08x\n", cmd);
 
 	switch (cmd) {
 	case USB_GET_CM_OVER_DATA:
@@ -570,7 +570,7 @@ umodem_ioctl(struct usb2_com_softc *ucom, uint32_t cmd, caddr_t data,
 		break;
 
 	default:
-		DPRINTF(0, "unknown\n");
+		DPRINTF("unknown\n");
 		error = ENOTTY;
 		break;
 	}
@@ -584,7 +584,7 @@ umodem_cfg_set_dtr(struct usb2_com_softc *ucom, uint8_t onoff)
 	struct umodem_softc *sc = ucom->sc_parent;
 	struct usb2_device_request req;
 
-	DPRINTF(0, "onoff=%d\n", onoff);
+	DPRINTF("onoff=%d\n", onoff);
 
 	if (onoff)
 		sc->sc_line |= UCDC_LINE_DTR;
@@ -608,7 +608,7 @@ umodem_cfg_set_rts(struct usb2_com_softc *ucom, uint8_t onoff)
 	struct umodem_softc *sc = ucom->sc_parent;
 	struct usb2_device_request req;
 
-	DPRINTF(0, "onoff=%d\n", onoff);
+	DPRINTF("onoff=%d\n", onoff);
 
 	if (onoff)
 		sc->sc_line |= UCDC_LINE_RTS;
@@ -633,7 +633,7 @@ umodem_cfg_set_break(struct usb2_com_softc *ucom, uint8_t onoff)
 	struct usb2_device_request req;
 	uint16_t temp;
 
-	DPRINTF(0, "onoff=%d\n", onoff);
+	DPRINTF("onoff=%d\n", onoff);
 
 	if (sc->sc_acm_cap & USB_CDC_ACM_HAS_BREAK) {
 
@@ -662,12 +662,12 @@ umodem_intr_callback(struct usb2_xfer *xfer)
 	case USB_ST_TRANSFERRED:
 
 		if (xfer->actlen < 8) {
-			DPRINTF(0, "received short packet, "
+			DPRINTF("received short packet, "
 			    "%d bytes\n", xfer->actlen);
 			goto tr_setup;
 		}
 		if (xfer->actlen > sizeof(pkt)) {
-			DPRINTF(0, "truncating message\n");
+			DPRINTF("truncating message\n");
 			xfer->actlen = sizeof(pkt);
 		}
 		usb2_copy_out(xfer->frbuffers, 0, &pkt, xfer->actlen);
@@ -679,7 +679,7 @@ umodem_intr_callback(struct usb2_xfer *xfer)
 			xfer->actlen = wLen;
 		}
 		if (pkt.bmRequestType != UCDC_NOTIFICATION) {
-			DPRINTF(0, "unknown message type, "
+			DPRINTF("unknown message type, "
 			    "0x%02x, on notify pipe!\n",
 			    pkt.bmRequestType);
 			goto tr_setup;
@@ -691,11 +691,11 @@ umodem_intr_callback(struct usb2_xfer *xfer)
 			 * the bits from the notify message
 			 */
 			if (xfer->actlen < 2) {
-				DPRINTF(0, "invalid notification "
+				DPRINTF("invalid notification "
 				    "length, %d bytes!\n", xfer->actlen);
 				break;
 			}
-			DPRINTF(0, "notify bytes = %02x%02x\n",
+			DPRINTF("notify bytes = %02x%02x\n",
 			    pkt.data[0],
 			    pkt.data[1]);
 
@@ -716,7 +716,7 @@ umodem_intr_callback(struct usb2_xfer *xfer)
 			break;
 
 		default:
-			DPRINTF(0, "unknown notify message: 0x%02x\n",
+			DPRINTF("unknown notify message: 0x%02x\n",
 			    pkt.bNotification);
 			break;
 		}
@@ -748,7 +748,7 @@ umodem_intr_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_intr[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UMODEM_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -793,7 +793,7 @@ umodem_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_data[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UMODEM_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -808,7 +808,7 @@ umodem_read_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
-		DPRINTF(0, "actlen=%d\n", xfer->actlen);
+		DPRINTF("actlen=%d\n", xfer->actlen);
 
 		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0,
 		    xfer->actlen);
@@ -839,7 +839,7 @@ umodem_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_data[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UMODEM_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -860,7 +860,7 @@ umodem_set_comm_feature(struct usb2_device *udev, uint8_t iface_no,
 	struct usb2_device_request req;
 	struct usb2_cdc_abstract_state ast;
 
-	DPRINTF(0, "feature=%d state=%d\n",
+	DPRINTF("feature=%d state=%d\n",
 	    feature, state);
 
 	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
@@ -879,7 +879,7 @@ umodem_detach(device_t dev)
 {
 	struct umodem_softc *sc = device_get_softc(dev);
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 
 	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
 
@@ -905,7 +905,7 @@ umodem_cfg_do_request(struct umodem_softc *sc, struct usb2_device_request *req,
 
 	if (err) {
 
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 
 error:

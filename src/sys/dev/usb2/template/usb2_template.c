@@ -797,7 +797,7 @@ usb2_hw_ep_resolve(struct usb2_device *udev,
 			return (USB_ERR_INVAL);
 		}
 		if (!usb2_hw_ep_match(pf, UE_CONTROL, 0)) {
-			DPRINTF(-1, "Endpoint 0 does not "
+			DPRINTFN(0, "Endpoint 0 does not "
 			    "support control\n");
 			return (USB_ERR_INVAL);
 		}
@@ -856,7 +856,7 @@ usb2_hw_ep_resolve(struct usb2_device *udev,
 	    usb2_hw_ep_get_needs(ues, UE_INTERRUPT, 0) ||
 	    usb2_hw_ep_get_needs(ues, UE_CONTROL, 0) ||
 	    usb2_hw_ep_get_needs(ues, UE_BULK, 0)) {
-		DPRINTF(-1, "Could not get needs\n");
+		DPRINTFN(0, "Could not get needs\n");
 		return (USB_ERR_INVAL);
 	}
 	for (ep = ues->ep; ep != ues->ep_max; ep++) {
@@ -869,7 +869,7 @@ usb2_hw_ep_resolve(struct usb2_device *udev,
 		         */
 			if (usb2_hw_ep_find_match(ues, ep, 1) &&
 			    usb2_hw_ep_find_match(ues, ep, 0)) {
-				DPRINTF(-1, "Could not find match\n");
+				DPRINTFN(0, "Could not find match\n");
 				return (USB_ERR_INVAL);
 			}
 		}
@@ -883,7 +883,7 @@ usb2_hw_ep_resolve(struct usb2_device *udev,
 	    usb2_hw_ep_get_needs(ues, UE_INTERRUPT, 1) ||
 	    usb2_hw_ep_get_needs(ues, UE_CONTROL, 1) ||
 	    usb2_hw_ep_get_needs(ues, UE_BULK, 1)) {
-		DPRINTF(-1, "Could not update endpoint address\n");
+		DPRINTFN(0, "Could not update endpoint address\n");
 		return (USB_ERR_INVAL);
 	}
 	return (0);			/* success */
@@ -1191,7 +1191,7 @@ usb2_temp_setup(struct usb2_device *udev,
 	buf = usb2_temp_get_device_desc(udev);
 	uts->err = usb2_hw_ep_resolve(udev, buf);
 	if (uts->err) {
-		DPRINTF(-1, "Could not resolve endpoints for "
+		DPRINTFN(0, "Could not resolve endpoints for "
 		    "Device Descriptor, error = %s\n",
 		    usb2_errstr(uts->err));
 		goto error;
@@ -1204,7 +1204,7 @@ usb2_temp_setup(struct usb2_device *udev,
 		}
 		uts->err = usb2_hw_ep_resolve(udev, buf);
 		if (uts->err) {
-			DPRINTF(-1, "Could not resolve endpoints for "
+			DPRINTFN(0, "Could not resolve endpoints for "
 			    "Config Descriptor %u, error = %s\n", n,
 			    usb2_errstr(uts->err));
 			goto error;

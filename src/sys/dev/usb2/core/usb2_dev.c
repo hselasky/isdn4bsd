@@ -328,31 +328,31 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 	mtx_lock(&usb2_ref_lock);
 	ploc->bus = devclass_get_softc(usb2_devclass_ptr, ploc->bus_index);
 	if (ploc->bus == NULL) {
-		DPRINTF(1, "no bus\n");
+		DPRINTFN(2, "no bus\n");
 		goto error;
 	}
 	if (ploc->dev_index >= ploc->bus->devices_max) {
-		DPRINTF(1, "invalid dev index\n");
+		DPRINTFN(2, "invalid dev index\n");
 		goto error;
 	}
 	ploc->udev = ploc->bus->devices[ploc->dev_index];
 	if (ploc->udev == NULL) {
-		DPRINTF(1, "no device\n");
+		DPRINTFN(2, "no device\n");
 		goto error;
 	}
 	if (ploc->udev->refcount == USB_DEV_REF_MAX) {
-		DPRINTF(1, "no dev ref\n");
+		DPRINTFN(2, "no dev ref\n");
 		goto error;
 	}
 	ploc->iface = usb2_get_iface(ploc->udev, ploc->iface_index);
 	if (ploc->ep_index != 0) {
 		/* non control endpoint - we need an interface */
 		if (ploc->iface == NULL) {
-			DPRINTF(1, "no iface\n");
+			DPRINTFN(2, "no iface\n");
 			goto error;
 		}
 		if (ploc->iface->idesc == NULL) {
-			DPRINTF(1, "no idesc\n");
+			DPRINTFN(2, "no idesc\n");
 			goto error;
 		}
 	}
@@ -399,7 +399,7 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 
 	/* when everything is OK we increment the refcounts */
 	if (ploc->is_write) {
-		DPRINTF(1, "ref write\n");
+		DPRINTFN(2, "ref write\n");
 		ploc->txfifo->refcount++;
 		if (ploc->txfifo->flag_no_uref == 0) {
 			/* we need extra locking */
@@ -407,7 +407,7 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 		}
 	}
 	if (ploc->is_read) {
-		DPRINTF(1, "ref read\n");
+		DPRINTFN(2, "ref read\n");
 		ploc->rxfifo->refcount++;
 		if (ploc->rxfifo->flag_no_uref == 0) {
 			/* we need extra locking */
@@ -416,10 +416,10 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 	}
 	if (ploc->is_uref) {
 		if (need_uref) {
-			DPRINTF(1, "ref udev - needed\n");
+			DPRINTFN(2, "ref udev - needed\n");
 			ploc->udev->refcount++;
 		} else {
-			DPRINTF(1, "ref udev - not needed\n");
+			DPRINTFN(2, "ref udev - not needed\n");
 			ploc->is_uref = 0;
 		}
 	}
@@ -437,7 +437,7 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 
 error:
 	mtx_unlock(&usb2_ref_lock);
-	DPRINTF(1, "fail\n");
+	DPRINTFN(2, "fail\n");
 	return (USB_ERR_INVAL);
 }
 
@@ -671,7 +671,7 @@ usb2_fifo_free(struct usb2_fifo *f)
 	    (f->udev->fifo[f->fifo_index] == f)) {
 		f->udev->fifo[f->fifo_index] = NULL;
 	} else {
-		DPRINTF(-1, "USB FIFO %p has not been linked!\n", f);
+		DPRINTFN(0, "USB FIFO %p has not been linked!\n", f);
 	}
 
 	/* decrease refcount */
@@ -764,7 +764,7 @@ usb2_fifo_open(struct usb2_fifo *f, struct file *fp, struct thread *td,
 
 	if (f == NULL) {
 		/* no FIFO there */
-		DPRINTF(1, "no FIFO\n");
+		DPRINTFN(2, "no FIFO\n");
 		return (ENXIO);
 	}
 	/* remove FWRITE and FREAD flags */
@@ -894,7 +894,7 @@ usb2_fifo_close(struct usb2_fifo *f, struct thread *td, int fflags)
 				f->flag_sleeping = 1;
 				err = usb2_cv_wait_sig(&(f->cv_io), f->priv_mtx);
 				if (err) {
-					DPRINTF(0, "signal received\n");
+					DPRINTF("signal received\n");
 					break;
 				}
 			}
@@ -912,14 +912,14 @@ usb2_fifo_close(struct usb2_fifo *f, struct thread *td, int fflags)
 
 	/* check if we are sleeping */
 	if (f->flag_sleeping) {
-		DPRINTF(1, "Sleeping at close!\n");
+		DPRINTFN(2, "Sleeping at close!\n");
 	}
 	mtx_unlock(f->priv_mtx);
 
 	/* call close method */
 	(f->methods->f_close) (f, fflags, td);
 
-	DPRINTF(0, "closed\n");
+	DPRINTF("closed\n");
 	return;
 }
 
@@ -994,31 +994,31 @@ usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td,
 	int err;
 	int fflags;
 
-	DPRINTF(1, "oflags=0x%08x\n", xxx_oflags);
+	DPRINTFN(2, "oflags=0x%08x\n", xxx_oflags);
 
 	devloc = usb2_last_devloc;
 	usb2_last_devloc = (0 - 1);	/* reset "usb2_last_devloc" */
 
 	if (fp == NULL) {
-		DPRINTF(1, "fp == NULL\n");
+		DPRINTFN(2, "fp == NULL\n");
 		return (ENXIO);
 	}
 	if (usb2_old_f_data != fp->f_data) {
 		if (usb2_old_f_data != NULL) {
-			DPRINTF(-1, "File data mismatch!\n");
+			DPRINTFN(0, "File data mismatch!\n");
 			return (ENXIO);
 		}
 		usb2_old_f_data = fp->f_data;
 	}
 	if (usb2_old_f_ops != fp->f_ops) {
 		if (usb2_old_f_ops != NULL) {
-			DPRINTF(-1, "File ops mismatch!\n");
+			DPRINTFN(0, "File ops mismatch!\n");
 			return (ENXIO);
 		}
 		usb2_old_f_ops = fp->f_ops;
 	}
 	fflags = fp->f_flag;
-	DPRINTF(1, "fflags=0x%08x\n", fflags);
+	DPRINTFN(2, "fflags=0x%08x\n", fflags);
 
 	if (!(fflags & (FREAD | FWRITE))) {
 		/* should not happen */
@@ -1029,12 +1029,12 @@ usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td,
 		return (0);
 	} else if (devloc == (uint32_t)(0 - 1)) {
 		/* tried to open "/dev/usb " */
-		DPRINTF(1, "no devloc\n");
+		DPRINTFN(2, "no devloc\n");
 		return (ENXIO);
 	}
 	err = usb2_ref_device(NULL, &loc, devloc);
 	if (err) {
-		DPRINTF(1, "cannot ref device\n");
+		DPRINTFN(2, "cannot ref device\n");
 		return (ENXIO);
 	}
 	err = usb2_check_thread_perm(loc.udev, td, fflags,
@@ -1055,7 +1055,7 @@ usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td,
 	if (fflags & FREAD) {
 		err = usb2_fifo_open(loc.rxfifo, fp, td, fflags);
 		if (err) {
-			DPRINTF(1, "read open failed\n");
+			DPRINTFN(2, "read open failed\n");
 			usb2_unref_device(&loc);
 			return (err);
 		}
@@ -1063,7 +1063,7 @@ usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td,
 	if (fflags & FWRITE) {
 		err = usb2_fifo_open(loc.txfifo, fp, td, fflags);
 		if (err) {
-			DPRINTF(1, "write open failed\n");
+			DPRINTFN(2, "write open failed\n");
 			if (fflags & FREAD) {
 				usb2_fifo_close(loc.rxfifo, td,
 				    fflags);
@@ -1081,7 +1081,7 @@ usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td,
 
 	usb2_unref_device(&loc);
 
-	DPRINTF(1, "error=%d\n", err);
+	DPRINTFN(2, "error=%d\n", err);
 
 	return (err);
 }
@@ -1140,7 +1140,7 @@ usb2_clone(void *arg, USB_UCRED char *name, int namelen, struct cdev **dev)
 		 * XXX can we assume that the clone and open operation is
 		 * atomic ?
 		 */
-		DPRINTF(1, "Clone race!\n");
+		DPRINTFN(2, "Clone race!\n");
 	}
 	if (strcmp(name, USB_DEVICE_NAME)) {
 		usb2_last_devloc =
@@ -1188,11 +1188,11 @@ usb2_dev_init_post(void *arg)
 	usb2_dev = make_dev(&usb2_devsw, 0, UID_ROOT, GID_OPERATOR,
 	    0000, USB_DEVICE_NAME " ");
 	if (usb2_dev == NULL) {
-		DPRINTF(-1, "Could not create usb bus device!\n");
+		DPRINTFN(0, "Could not create usb bus device!\n");
 	}
 	usb2_clone_tag = EVENTHANDLER_REGISTER(dev_clone, usb2_clone_ptr, NULL, 1000);
 	if (usb2_clone_tag == NULL) {
-		DPRINTF(-1, "Registering clone handler failed!\n");
+		DPRINTFN(0, "Registering clone handler failed!\n");
 	}
 	return;
 }
@@ -1226,7 +1226,7 @@ usb2_close_f(struct file *fp, struct thread *td)
 
 	fflags = fp->f_flag;
 
-	DPRINTF(1, "fflags=%u\n", fflags);
+	DPRINTFN(2, "fflags=%u\n", fflags);
 
 	err = usb2_ref_device(fp, &loc, 0);;
 
@@ -1236,7 +1236,7 @@ usb2_close_f(struct file *fp, struct thread *td)
 
 	/* check for error */
 	if (err) {
-		DPRINTF(1, "could not ref\n");
+		DPRINTFN(2, "could not ref\n");
 		goto done;
 	}
 	if (fflags & FREAD) {
@@ -1312,7 +1312,7 @@ usb2_ioctl_f(struct file *fp, u_long cmd, void *addr,
 	}
 	fflags = fp->f_flag;
 
-	DPRINTF(1, "fflags=%u, cmd=0x%lx\n", fflags, cmd);
+	DPRINTFN(2, "fflags=%u, cmd=0x%lx\n", fflags, cmd);
 
 	if (fflags & FREAD) {
 		if (fflags & FWRITE) {
@@ -1488,7 +1488,7 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred,
 	int err;
 	uint8_t tr_data = 0;
 
-	DPRINTF(1, "\n");
+	DPRINTFN(2, "\n");
 
 	fflags = fp->f_flag & (O_NONBLOCK | O_DIRECT | FREAD | FWRITE);
 	if (fflags & O_DIRECT)
@@ -1541,7 +1541,7 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred,
 				err = EWOULDBLOCK;
 				break;
 			}
-			DPRINTF(0, "sleeping\n");
+			DPRINTF("sleeping\n");
 
 			err = usb2_fifo_wait(f);
 			if (err) {
@@ -1554,7 +1554,7 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred,
 
 		io_len = min(m->cur_data_len, uio->uio_resid);
 
-		DPRINTF(1, "transfer %d bytes from %p\n",
+		DPRINTFN(2, "transfer %d bytes from %p\n",
 		    io_len, m->cur_data_ptr);
 
 		err = usb2_fifo_uiomove(f,
@@ -1620,7 +1620,7 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 	int err;
 	uint8_t tr_data = 0;
 
-	DPRINTF(1, "\n");
+	DPRINTFN(2, "\n");
 
 	fflags = fp->f_flag & (O_NONBLOCK | O_DIRECT |
 	    FREAD | FWRITE | O_FSYNC);
@@ -1671,7 +1671,7 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 				err = EWOULDBLOCK;
 				break;
 			}
-			DPRINTF(0, "sleeping\n");
+			DPRINTF("sleeping\n");
 
 			err = usb2_fifo_wait(f);
 			if (err) {
@@ -1688,7 +1688,7 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 
 		m->cur_data_len = io_len;
 
-		DPRINTF(1, "transfer %d bytes to %p\n",
+		DPRINTFN(2, "transfer %d bytes to %p\n",
 		    io_len, m->cur_data_ptr);
 
 		err = usb2_fifo_uiomove(f,
@@ -1995,10 +1995,10 @@ usb2_fifo_attach(struct usb2_device *udev, void *priv_sc,
 			f_tx->symlink[n / 2] =
 			    usb2_alloc_symlink(src, "%s", buf);
 		}
-		DPRINTF(0, "Symlink: %s -> %s\n", buf, src);
+		DPRINTF("Symlink: %s -> %s\n", buf, src);
 	}
 
-	DPRINTF(1, "attached %p/%p\n", f_tx, f_rx);
+	DPRINTFN(2, "attached %p/%p\n", f_tx, f_rx);
 	return (0);
 }
 
@@ -2061,7 +2061,7 @@ usb2_fifo_detach(struct usb2_fifo_sc *f_sc)
 	f_sc->fp[USB_FIFO_TX] = NULL;
 	f_sc->fp[USB_FIFO_RX] = NULL;
 
-	DPRINTF(1, "detached %p\n", f_sc);
+	DPRINTFN(2, "detached %p\n", f_sc);
 
 	return;
 }

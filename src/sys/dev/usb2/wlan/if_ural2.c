@@ -549,7 +549,7 @@ repeat:
 
 	if (err) {
 
-		DPRINTF(0, "device request failed, err=%s "
+		DPRINTF("device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 
 		/* wait a little before next try */
@@ -686,7 +686,7 @@ ural_cfg_bbp_disbusy(struct ural_softc *sc)
 			break;
 		}
 	}
-	DPRINTF(0, "could not disbusy BBP\n");
+	DPRINTF("could not disbusy BBP\n");
 	return (1);			/* failure */
 }
 
@@ -742,7 +742,7 @@ ural_cfg_rf_write(struct ural_softc *sc, uint8_t reg, uint32_t val)
 				return;
 			}
 		} else {
-			DPRINTF(0, "could not write to RF\n");
+			DPRINTF("could not write to RF\n");
 			return;
 		}
 	}
@@ -751,7 +751,7 @@ ural_cfg_rf_write(struct ural_softc *sc, uint8_t reg, uint32_t val)
 	ural_cfg_write(sc, RAL_PHY_CSR9, tmp & 0xffff);
 	ural_cfg_write(sc, RAL_PHY_CSR10, tmp >> 16);
 
-	DPRINTF(15, "RF R[%u] <- 0x%05x\n", reg, val & 0xfffff);
+	DPRINTFN(16, "RF R[%u] <- 0x%05x\n", reg, val & 0xfffff);
 	return;
 }
 
@@ -789,7 +789,7 @@ ural_cfg_first_time_setup(struct ural_softc *sc,
 	mtx_lock(&(sc->sc_mtx));
 
 	if (ifp == NULL) {
-		DPRINTF(-1, "could not if_alloc()!\n");
+		DPRINTFN(0, "could not if_alloc()!\n");
 		goto done;
 	}
 	sc->sc_evilhack = ifp;
@@ -991,10 +991,10 @@ ural_bulk_read_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
-		DPRINTF(14, "rx done, actlen=%d\n", xfer->actlen);
+		DPRINTFN(15, "rx done, actlen=%d\n", xfer->actlen);
 
 		if (xfer->actlen < RAL_RX_DESC_SIZE) {
-			DPRINTF(0, "too short transfer, "
+			DPRINTF("too short transfer, "
 			    "%d bytes\n", xfer->actlen);
 			ifp->if_ierrors++;
 			goto tr_setup;
@@ -1012,7 +1012,7 @@ ural_bulk_read_callback(struct usb2_xfer *xfer)
 		         * request to receive those frames when we
 		         * filled RAL_TXRX_CSR2:
 		         */
-			DPRINTF(5, "PHY or CRC error\n");
+			DPRINTFN(6, "PHY or CRC error\n");
 			ifp->if_ierrors++;
 			goto tr_setup;
 		}
@@ -1022,7 +1022,7 @@ ural_bulk_read_callback(struct usb2_xfer *xfer)
 		real_len = (flags >> 16) & 0xfff;
 
 		if (real_len > max_len) {
-			DPRINTF(0, "invalid length in RX "
+			DPRINTF("invalid length in RX "
 			    "descriptor, %u bytes, received %u bytes\n",
 			    real_len, max_len);
 			ifp->if_ierrors++;
@@ -1033,7 +1033,7 @@ ural_bulk_read_callback(struct usb2_xfer *xfer)
 		m = m_getcl(M_DONTWAIT, MT_DATA, M_PKTHDR);
 
 		if (m == NULL) {
-			DPRINTF(0, "could not allocate mbuf\n");
+			DPRINTF("could not allocate mbuf\n");
 			ifp->if_ierrors++;
 			goto tr_setup;
 		}
@@ -1043,7 +1043,7 @@ ural_bulk_read_callback(struct usb2_xfer *xfer)
 		m->m_pkthdr.rcvif = ifp;
 		m->m_pkthdr.len = m->m_len = real_len;
 
-		DPRINTF(0, "real length=%d bytes\n", real_len);
+		DPRINTF("real length=%d bytes\n", real_len);
 
 		rssi = URAL_RSSI(sc->sc_rx_desc.rssi);
 
@@ -1121,7 +1121,7 @@ ural_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~URAL_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1183,7 +1183,7 @@ ural_setup_desc_and_tx(struct ural_softc *sc, struct mbuf *m,
 	uint16_t len;
 	uint8_t remainder;
 
-	DPRINTF(0, "in\n");
+	DPRINTF("in\n");
 
 	if (sc->sc_tx_queue.ifq_len >= IFQ_MAXLEN) {
 		/* free packet */
@@ -1199,7 +1199,7 @@ ural_setup_desc_and_tx(struct ural_softc *sc, struct mbuf *m,
 		return;
 	}
 	if (rate < 2) {
-		DPRINTF(0, "rate < 2!\n");
+		DPRINTF("rate < 2!\n");
 
 		/* avoid division by zero */
 		rate = 2;
@@ -1264,17 +1264,17 @@ ural_setup_desc_and_tx(struct ural_softc *sc, struct mbuf *m,
 	sc->sc_tx_desc.eiv = 0;
 
 	if (sizeof(sc->sc_tx_desc) > MHLEN) {
-		DPRINTF(0, "No room for header structure!\n");
+		DPRINTF("No room for header structure!\n");
 		ural_tx_freem(m);
 		return;
 	}
 	mm = m_gethdr(M_NOWAIT, MT_DATA);
 	if (mm == NULL) {
-		DPRINTF(0, "Could not allocate header mbuf!\n");
+		DPRINTF("Could not allocate header mbuf!\n");
 		ural_tx_freem(m);
 		return;
 	}
-	DPRINTF(0, " %zu %u (out)\n", sizeof(sc->sc_tx_desc), m->m_pkthdr.len);
+	DPRINTF(" %zu %u (out)\n", sizeof(sc->sc_tx_desc), m->m_pkthdr.len);
 
 	bcopy(&(sc->sc_tx_desc), mm->m_data, sizeof(sc->sc_tx_desc));
 	mm->m_len = sizeof(sc->sc_tx_desc);
@@ -1301,7 +1301,7 @@ ural_bulk_write_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(10, "transfer complete, %d bytes\n", xfer->actlen);
+		DPRINTFN(11, "transfer complete, %d bytes\n", xfer->actlen);
 
 		ifp->if_opackets++;
 
@@ -1323,7 +1323,7 @@ ural_bulk_write_callback(struct usb2_xfer *xfer)
 		if (m) {
 
 			if (m->m_pkthdr.len > (RAL_FRAME_SIZE + RAL_TX_DESC_SIZE)) {
-				DPRINTF(-1, "data overflow, %u bytes\n",
+				DPRINTFN(0, "data overflow, %u bytes\n",
 				    m->m_pkthdr.len);
 				m->m_pkthdr.len = (RAL_FRAME_SIZE + RAL_TX_DESC_SIZE);
 			}
@@ -1346,7 +1346,7 @@ ural_bulk_write_callback(struct usb2_xfer *xfer)
 				usb2_bzero(xfer->frbuffers, temp_len, align);
 				temp_len += align;
 			}
-			DPRINTF(10, "sending frame len=%u xferlen=%u\n",
+			DPRINTFN(11, "sending frame len=%u xferlen=%u\n",
 			    m->m_pkthdr.len, temp_len);
 
 			xfer->frlengths[0] = temp_len;
@@ -1359,7 +1359,7 @@ ural_bulk_write_callback(struct usb2_xfer *xfer)
 		break;
 
 	default:			/* Error */
-		DPRINTF(10, "transfer error, %s\n",
+		DPRINTFN(11, "transfer error, %s\n",
 		    usb2_errstr(xfer->error));
 
 		if (xfer->error != USB_ERR_CANCELLED) {
@@ -1380,7 +1380,7 @@ ural_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~URAL_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -1524,7 +1524,7 @@ ural_newstate_cb(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 	struct ieee80211com *ic = vap->iv_ic;
 	struct ural_softc *sc = ic->ic_ifp->if_softc;
 
-	DPRINTF(0, "setting new state: %d\n", nstate);
+	DPRINTF("setting new state: %d\n", nstate);
 
 	if (usb2_config_td_is_gone(&(sc->sc_config_td))) {
 		/* Special case which happens at detach. */
@@ -1644,7 +1644,7 @@ ural_cfg_set_chan(struct ural_softc *sc,
 	/* adjust txpower using ifconfig settings */
 	power -= (100 - cc->ic_txpowlimit) / 8;
 
-	DPRINTF(2, "setting channel to %u, "
+	DPRINTFN(3, "setting channel to %u, "
 	    "tx-power to %u\n", chan, power);
 
 	switch (sc->sc_rf_rev) {
@@ -1806,7 +1806,7 @@ ural_cfg_disable_rf_tune(struct ural_softc *sc)
 	tmp = sc->sc_rf_regs[RAL_RF3] & ~RAL_RF3_AUTOTUNE;
 	ural_cfg_rf_write(sc, RAL_RF3, tmp);
 
-	DPRINTF(2, "disabling RF autotune\n");
+	DPRINTFN(3, "disabling RF autotune\n");
 
 	return;
 }
@@ -1843,7 +1843,7 @@ ural_cfg_enable_tsf_sync(struct ural_softc *sc,
 
 	ural_cfg_write(sc, RAL_TXRX_CSR19, tmp);
 
-	DPRINTF(0, "enabling TSF synchronization\n");
+	DPRINTF("enabling TSF synchronization\n");
 
 	return;
 }
@@ -1913,7 +1913,7 @@ ural_cfg_set_bssid(struct ural_softc *sc, uint8_t *bssid)
 {
 	ural_cfg_write_multi(sc, RAL_MAC_CSR5, bssid, IEEE80211_ADDR_LEN);
 
-	DPRINTF(0, "setting BSSID to 0x%02x%02x%02x%02x%02x%02x\n",
+	DPRINTF("setting BSSID to 0x%02x%02x%02x%02x%02x%02x\n",
 	    bssid[5], bssid[4], bssid[3],
 	    bssid[2], bssid[1], bssid[0]);
 	return;
@@ -1924,7 +1924,7 @@ ural_cfg_set_macaddr(struct ural_softc *sc, uint8_t *addr)
 {
 	ural_cfg_write_multi(sc, RAL_MAC_CSR2, addr, IEEE80211_ADDR_LEN);
 
-	DPRINTF(0, "setting MAC to 0x%02x%02x%02x%02x%02x%02x\n",
+	DPRINTF("setting MAC to 0x%02x%02x%02x%02x%02x%02x\n",
 	    addr[5], addr[4], addr[3],
 	    addr[2], addr[1], addr[0]);
 	return;
@@ -1946,7 +1946,7 @@ ural_cfg_update_promisc(struct ural_softc *sc,
 
 	ural_cfg_write(sc, RAL_TXRX_CSR2, tmp);
 
-	DPRINTF(0, "%s promiscuous mode\n",
+	DPRINTF("%s promiscuous mode\n",
 	    (cc->if_flags & IFF_PROMISC) ?
 	    "entering" : "leaving");
 	return;
@@ -2023,7 +2023,7 @@ ural_cfg_read_eeprom(struct ural_softc *sc)
 	sc->sc_tx_ant = (val >> 2) & 0x3;
 	sc->sc_nb_ant = (val & 0x3);
 
-	DPRINTF(0, "val = 0x%04x\n", val);
+	DPRINTF("val = 0x%04x\n", val);
 
 	/* read MAC address */
 	ural_cfg_eeprom_read(sc, RAL_EEPROM_ADDRESS, sc->sc_myaddr,
@@ -2058,7 +2058,7 @@ ural_cfg_bbp_init(struct ural_softc *sc)
 				return (1);	/* failure */
 			}
 		} else {
-			DPRINTF(0, "timeout waiting for BBP\n");
+			DPRINTF("timeout waiting for BBP\n");
 			return (1);	/* failure */
 		}
 	}
@@ -2139,7 +2139,7 @@ ural_cfg_init(struct ural_softc *sc,
 				goto fail;
 			}
 		} else {
-			DPRINTF(0, "timeout waiting for "
+			DPRINTF("timeout waiting for "
 			    "BBP/RF to wakeup\n");
 			goto fail;
 		}
@@ -2161,7 +2161,7 @@ ural_cfg_init(struct ural_softc *sc,
 	ural_cfg_read_multi(sc, RAL_STA_CSR0, sc->sc_sta,
 	    sizeof(sc->sc_sta));
 
-	DPRINTF(0, "rx_ant=%d, tx_ant=%d\n",
+	DPRINTF("rx_ant=%d, tx_ant=%d\n",
 	    sc->sc_rx_ant, sc->sc_tx_ant);
 
 	ural_cfg_set_txantenna(sc, sc->sc_tx_ant);
@@ -2563,11 +2563,11 @@ ural_tx_bcn(struct ural_softc *sc)
 	if (ic == NULL) {
 		return;
 	}
-	DPRINTF(10, "Sending beacon frame.\n");
+	DPRINTFN(11, "Sending beacon frame.\n");
 
 	m = ieee80211_beacon_alloc(ni, &URAL_VAP(vap)->bo);
 	if (m == NULL) {
-		DPRINTF(-1, "could not allocate beacon\n");
+		DPRINTFN(0, "could not allocate beacon\n");
 		return;
 	}
 	tp = &vap->iv_txparms[ieee80211_chan2mode(ic->ic_bsschan)];
@@ -2590,7 +2590,7 @@ ural_tx_data(struct ural_softc *sc, struct mbuf *m, struct ieee80211_node *ni)
 	uint16_t dur;
 	uint16_t rate;
 
-	DPRINTF(10, "Sending data.\n");
+	DPRINTFN(11, "Sending data.\n");
 
 	wh = mtod(m, struct ieee80211_frame *);
 
@@ -2655,7 +2655,7 @@ ural_tx_prot(struct ural_softc *sc,
 	    (prot == IEEE80211_PROT_CTSONLY),
 	    ("protection %u", prot));
 
-	DPRINTF(15, "Sending protection frame.\n");
+	DPRINTFN(16, "Sending protection frame.\n");
 
 	wh = mtod(m, const struct ieee80211_frame *);
 	pktlen = m->m_pkthdr.len + IEEE80211_CRC_LEN;
@@ -2690,7 +2690,7 @@ ural_tx_raw(struct ural_softc *sc, struct mbuf *m, struct ieee80211_node *ni,
 	uint32_t flags;
 	uint16_t rate;
 
-	DPRINTF(10, "Sending raw frame.\n");
+	DPRINTFN(11, "Sending raw frame.\n");
 
 	rate = params->ibp_rate0 & IEEE80211_RATE_VAL;
 

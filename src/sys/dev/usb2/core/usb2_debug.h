@@ -42,14 +42,16 @@ extern int usb2_debug;
 /* Check if USB debugging is enabled. */
 #ifdef USB_DEBUG_VAR
 #ifdef USB_DEBUG
-#define	DPRINTF(n,fmt,...) do {				\
-  if ((USB_DEBUG_VAR) > (n)) {				\
+#define	DPRINTFN(n,fmt,...) do {				\
+  if ((USB_DEBUG_VAR) >= (n)) {				\
     printf("%s:%u: " fmt,				\
 	   __FUNCTION__, __LINE__,## __VA_ARGS__);	\
   }							\
 } while (0)
+#define	DPRINTF(...)	DPRINTFN(1, __VA_ARGS__)
 #else
-#define	DPRINTF(n,fmt,...) do { } while (0)
+#define	DPRINTF(fmt,...) do { } while (0)
+#define	DPRINTFN(n,fmt,...) do { } while (0)
 #endif
 #endif
 

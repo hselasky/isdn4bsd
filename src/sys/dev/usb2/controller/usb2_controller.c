@@ -100,7 +100,7 @@ MODULE_VERSION(usb2_controller, 1);
 static int
 usb2_probe(device_t dev)
 {
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 	return (0);
 }
 
@@ -112,10 +112,10 @@ usb2_attach(device_t dev)
 {
 	struct usb2_bus *bus = device_get_ivars(dev);
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	if (bus == NULL) {
-		DPRINTF(-1, "USB device has no ivars\n");
+		DPRINTFN(0, "USB device has no ivars\n");
 		return (ENXIO);
 	}
 	if (usb2_post_init_called) {
@@ -135,7 +135,7 @@ usb2_detach(device_t dev)
 {
 	struct usb2_bus *bus = device_get_softc(dev);
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	if (bus == NULL) {
 		/* was never setup properly */
@@ -256,7 +256,7 @@ usb2_attach_sub(device_t dev, struct usb2_bus *bus)
 	usb2_error_t err;
 	uint8_t speed;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	mtx_assert(&Giant, MA_OWNED);
 
@@ -361,7 +361,7 @@ usb2_post_init(void *arg)
 			}
 		}
 	} else {
-		DPRINTF(-1, "no devclass\n");
+		DPRINTFN(0, "no devclass\n");
 	}
 	usb2_post_init_called = 1;
 

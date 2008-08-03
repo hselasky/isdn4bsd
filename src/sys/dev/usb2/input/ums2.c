@@ -166,7 +166,7 @@ ums_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UMS_FLAG_INTR_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -189,10 +189,10 @@ ums_intr_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		DPRINTF(5, "sc=%p actlen=%d\n", sc, len);
+		DPRINTFN(6, "sc=%p actlen=%d\n", sc, len);
 
 		if (len > sizeof(sc->sc_temp)) {
-			DPRINTF(5, "truncating large packet to %zu bytes\n",
+			DPRINTFN(6, "truncating large packet to %zu bytes\n",
 			    sizeof(sc->sc_temp));
 			len = sizeof(sc->sc_temp);
 		}
@@ -201,7 +201,7 @@ ums_intr_callback(struct usb2_xfer *xfer)
 		}
 		usb2_copy_out(xfer->frbuffers, 0, buf, len);
 
-		DPRINTF(5, "data = %02x %02x %02x %02x "
+		DPRINTFN(6, "data = %02x %02x %02x %02x "
 		    "%02x %02x %02x %02x\n",
 		    (len > 0) ? buf[0] : 0, (len > 1) ? buf[1] : 0,
 		    (len > 2) ? buf[2] : 0, (len > 3) ? buf[3] : 0,
@@ -276,7 +276,7 @@ ums_intr_callback(struct usb2_xfer *xfer)
 		if (dx || dy || dz || dt || dw ||
 		    (buttons != sc->sc_status.button)) {
 
-			DPRINTF(5, "x:%d y:%d z:%d t:%d w:%d buttons:0x%08x\n",
+			DPRINTFN(6, "x:%d y:%d z:%d t:%d w:%d buttons:0x%08x\n",
 			    dx, dy, dz, dt, dw, buttons);
 
 			sc->sc_status.button = buttons;
@@ -364,7 +364,7 @@ ums_probe(device_t dev)
 	int32_t error = 0;
 	uint16_t d_len;
 
-	DPRINTF(10, "\n");
+	DPRINTFN(11, "\n");
 
 	if (uaa->usb2_mode != USB_MODE_HOST) {
 		return (ENXIO);
@@ -412,7 +412,7 @@ ums_attach(device_t dev)
 	uint16_t d_len;
 	uint8_t i;
 
-	DPRINTF(10, "sc=%p\n", sc);
+	DPRINTFN(11, "sc=%p\n", sc);
 
 	device_set_usb2_desc(dev);
 
@@ -434,7 +434,7 @@ ums_attach(device_t dev)
 	    UMS_N_TRANSFER, sc, &(sc->sc_mtx));
 
 	if (err) {
-		DPRINTF(0, "error=%s\n", usb2_errstr(err));
+		DPRINTF("error=%s\n", usb2_errstr(err));
 		goto detach;
 	}
 	err = usb2_req_get_hid_desc
@@ -561,7 +561,7 @@ ums_attach(device_t dev)
 		sc->sc_flags |= UMS_FLAG_REVZ;
 	}
 	if (isize > sc->sc_xfer[0]->max_frame_size) {
-		DPRINTF(0, "WARNING: report size, %d bytes, is larger "
+		DPRINTF("WARNING: report size, %d bytes, is larger "
 		    "than interrupt size, %d bytes!\n",
 		    isize, sc->sc_xfer[0]->max_frame_size);
 	}
@@ -579,18 +579,18 @@ ums_attach(device_t dev)
 	d_ptr = NULL;
 
 #ifdef USB_DEBUG
-	DPRINTF(0, "sc=%p\n", sc);
-	DPRINTF(0, "X\t%d/%d\n", sc->sc_loc_x.pos, sc->sc_loc_x.size);
-	DPRINTF(0, "Y\t%d/%d\n", sc->sc_loc_y.pos, sc->sc_loc_y.size);
-	DPRINTF(0, "Z\t%d/%d\n", sc->sc_loc_z.pos, sc->sc_loc_z.size);
-	DPRINTF(0, "T\t%d/%d\n", sc->sc_loc_t.pos, sc->sc_loc_t.size);
-	DPRINTF(0, "W\t%d/%d\n", sc->sc_loc_w.pos, sc->sc_loc_w.size);
+	DPRINTF("sc=%p\n", sc);
+	DPRINTF("X\t%d/%d\n", sc->sc_loc_x.pos, sc->sc_loc_x.size);
+	DPRINTF("Y\t%d/%d\n", sc->sc_loc_y.pos, sc->sc_loc_y.size);
+	DPRINTF("Z\t%d/%d\n", sc->sc_loc_z.pos, sc->sc_loc_z.size);
+	DPRINTF("T\t%d/%d\n", sc->sc_loc_t.pos, sc->sc_loc_t.size);
+	DPRINTF("W\t%d/%d\n", sc->sc_loc_w.pos, sc->sc_loc_w.size);
 
 	for (i = 0; i < sc->sc_buttons; i++) {
-		DPRINTF(0, "B%d\t%d/%d\n",
+		DPRINTF("B%d\t%d/%d\n",
 		    i + 1, sc->sc_loc_btn[i].pos, sc->sc_loc_btn[i].size);
 	}
-	DPRINTF(0, "size=%d, id=%d\n", isize, sc->sc_iid);
+	DPRINTF("size=%d, id=%d\n", isize, sc->sc_iid);
 #endif
 
 	if (sc->sc_buttons > MOUSE_MSC_MAXBUTTON)
@@ -644,7 +644,7 @@ ums_detach(device_t self)
 {
 	struct ums_softc *sc = device_get_softc(self);
 
-	DPRINTF(0, "sc=%p\n", sc);
+	DPRINTF("sc=%p\n", sc);
 
 	usb2_fifo_detach(&(sc->sc_fifo));
 
@@ -724,7 +724,7 @@ ums_put_queue(struct ums_softc *sc, int32_t dx, int32_t dy,
 		    sc->sc_mode.packetsize, 1);
 
 	} else {
-		DPRINTF(0, "Buffer full, discarded packet\n");
+		DPRINTF("Buffer full, discarded packet\n");
 	}
 
 	return;
@@ -743,7 +743,7 @@ ums_open(struct usb2_fifo *fifo, int fflags, struct thread *td)
 {
 	struct ums_softc *sc = fifo->priv_sc0;
 
-	DPRINTF(1, "\n");
+	DPRINTFN(2, "\n");
 
 	if (fflags & FREAD) {
 
@@ -782,7 +782,7 @@ ums_ioctl(struct usb2_fifo *fifo, u_long cmd, void *addr,
 	mousemode_t mode;
 	int error = 0;
 
-	DPRINTF(1, "\n");
+	DPRINTFN(2, "\n");
 
 	mtx_lock(&(sc->sc_mtx));
 

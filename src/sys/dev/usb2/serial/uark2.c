@@ -228,7 +228,7 @@ uark_attach(device_t dev)
 	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
 	    &uark_callback, &Giant);
 	if (error) {
-		DPRINTF(0, "usb2_com_attach failed\n");
+		DPRINTF("usb2_com_attach failed\n");
 		goto detach;
 	}
 	return (0);			/* success */
@@ -287,7 +287,7 @@ uark_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UARK_FLAG_BULK_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -330,7 +330,7 @@ uark_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flags &= ~UARK_FLAG_BULK_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -449,7 +449,7 @@ uark_cfg_set_break(struct usb2_com_softc *ucom, uint8_t onoff)
 {
 	struct uark_softc *sc = ucom->sc_parent;
 
-	DPRINTF(0, "onoff=%d\n", onoff);
+	DPRINTF("onoff=%d\n", onoff);
 
 	uark_cfg_write(sc, 4, onoff ? 0x01 : 0x00);
 	return;
@@ -474,7 +474,7 @@ uark_cfg_write(struct uark_softc *sc, uint16_t index, uint16_t value)
 	    (sc->sc_udev, &Giant, &req, NULL, 0, NULL, 1000);
 
 	if (err) {
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 	}
 	return;

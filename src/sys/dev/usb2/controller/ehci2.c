@@ -207,7 +207,7 @@ ehci_init(ehci_softc_t *sc)
 
 	mtx_lock(&sc->sc_bus.mtx);
 
-	DPRINTF(0, "start\n");
+	DPRINTF("start\n");
 
 	usb2_callout_init_mtx(&sc->sc_tmo_pcd, &sc->sc_bus.mtx,
 	    CALLOUT_RETURNUNLOCKED);
@@ -225,14 +225,14 @@ ehci_init(ehci_softc_t *sc)
 	    version >> 8, version & 0xff);
 
 	sparams = EREAD4(sc, EHCI_HCSPARAMS);
-	DPRINTF(0, "sparams=0x%x\n", sparams);
+	DPRINTF("sparams=0x%x\n", sparams);
 
 	sc->sc_noport = EHCI_HCS_N_PORTS(sparams);
 	cparams = EREAD4(sc, EHCI_HCCPARAMS);
-	DPRINTF(0, "cparams=0x%x\n", cparams);
+	DPRINTF("cparams=0x%x\n", cparams);
 
 	if (EHCI_HCC_64BIT(cparams)) {
-		DPRINTF(0, "HCC uses 64-bit structures\n");
+		DPRINTF("HCC uses 64-bit structures\n");
 
 		/* MUST clear segment register if 64 bit capable */
 		EWRITE4(sc, EHCI_CTRLDSSEGMENT, 0);
@@ -240,7 +240,7 @@ ehci_init(ehci_softc_t *sc)
 	sc->sc_bus.usbrev = USB_REV_2_0;
 
 	/* Reset the controller */
-	DPRINTF(0, "%s: resetting\n", device_get_nameunit(sc->sc_bus.bdev));
+	DPRINTF("%s: resetting\n", device_get_nameunit(sc->sc_bus.bdev));
 
 	err = ehci_hc_reset(sc);
 	if (err) {
@@ -496,7 +496,7 @@ ehci_detach(struct ehci_softc *sc)
 	EOWRITE4(sc, EHCI_USBINTR, sc->sc_eintrs);
 
 	if (ehci_hc_reset(sc)) {
-		DPRINTF(0, "reset failed!\n");
+		DPRINTF("reset failed!\n");
 	}
 	mtx_unlock(&sc->sc_bus.mtx);
 
@@ -631,12 +631,12 @@ ehci_resume(struct ehci_softc *sc)
 void
 ehci_shutdown(ehci_softc_t *sc)
 {
-	DPRINTF(0, "stopping the HC\n");
+	DPRINTF("stopping the HC\n");
 
 	mtx_lock(&sc->sc_bus.mtx);
 
 	if (ehci_hc_reset(sc)) {
-		DPRINTF(0, "reset failed!\n");
+		DPRINTF("reset failed!\n");
 	}
 	mtx_unlock(&sc->sc_bus.mtx);
 }
@@ -976,7 +976,7 @@ ehci_transfer_intr_enqueue(struct usb2_xfer *xfer)
 static ehci_sitd_t *
 _ehci_append_fs_td(ehci_sitd_t *std, ehci_sitd_t *last)
 {
-	DPRINTF(10, "%p to %p\n", std, last);
+	DPRINTFN(11, "%p to %p\n", std, last);
 
 	/* (sc->sc_bus.mtx) must be locked */
 
@@ -1002,7 +1002,7 @@ _ehci_append_fs_td(ehci_sitd_t *std, ehci_sitd_t *last)
 static ehci_itd_t *
 _ehci_append_hs_td(ehci_itd_t *std, ehci_itd_t *last)
 {
-	DPRINTF(10, "%p to %p\n", std, last);
+	DPRINTFN(11, "%p to %p\n", std, last);
 
 	/* (sc->sc_bus.mtx) must be locked */
 
@@ -1028,7 +1028,7 @@ _ehci_append_hs_td(ehci_itd_t *std, ehci_itd_t *last)
 static ehci_qh_t *
 _ehci_append_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 {
-	DPRINTF(10, "%p to %p\n", sqh, last);
+	DPRINTFN(11, "%p to %p\n", sqh, last);
 
 	/* (sc->sc_bus.mtx) must be locked */
 
@@ -1061,7 +1061,7 @@ _ehci_append_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 static ehci_sitd_t *
 _ehci_remove_fs_td(ehci_sitd_t *std, ehci_sitd_t *last)
 {
-	DPRINTF(10, "%p from %p\n", std, last);
+	DPRINTFN(11, "%p from %p\n", std, last);
 
 	/* (sc->sc_bus.mtx) must be locked */
 
@@ -1081,7 +1081,7 @@ _ehci_remove_fs_td(ehci_sitd_t *std, ehci_sitd_t *last)
 static ehci_itd_t *
 _ehci_remove_hs_td(ehci_itd_t *std, ehci_itd_t *last)
 {
-	DPRINTF(10, "%p from %p\n", std, last);
+	DPRINTFN(11, "%p from %p\n", std, last);
 
 	/* (sc->sc_bus.mtx) must be locked */
 
@@ -1101,7 +1101,7 @@ _ehci_remove_hs_td(ehci_itd_t *std, ehci_itd_t *last)
 static ehci_qh_t *
 _ehci_remove_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 {
-	DPRINTF(10, "%p from %p\n", sqh, last);
+	DPRINTFN(11, "%p from %p\n", sqh, last);
 
 	/* (sc->sc_bus.mtx) must be locked */
 
@@ -1158,7 +1158,7 @@ ehci_non_isoc_done_sub(struct usb2_xfer *xfer)
 	         */
 		if (len > td->len) {
 			/* should not happen */
-			DPRINTF(0, "Invalid status length, "
+			DPRINTF("Invalid status length, "
 			    "0x%04x/0x%04x bytes\n", len, td->len);
 			status |= EHCI_QTD_HALTED;
 		} else if (xfer->aframes != xfer->nframes) {
@@ -1212,7 +1212,7 @@ ehci_non_isoc_done_sub(struct usb2_xfer *xfer)
 
 #ifdef USB_DEBUG
 	if (status & EHCI_QTD_STATERRS) {
-		DPRINTF(10, "error, addr=%d, endpt=0x%02x, frame=0x%02x"
+		DPRINTFN(11, "error, addr=%d, endpt=0x%02x, frame=0x%02x"
 		    "status=%s%s%s%s%s%s%s%s\n",
 		    xfer->address, xfer->endpoint, xfer->aframes,
 		    (status & EHCI_QTD_ACTIVE) ? "[ACTIVE]" : "[NOT_ACTIVE]",
@@ -1235,7 +1235,7 @@ ehci_non_isoc_done(struct usb2_xfer *xfer)
 {
 	usb2_error_t err = 0;
 
-	DPRINTF(12, "xfer=%p pipe=%p transfer done\n",
+	DPRINTFN(13, "xfer=%p pipe=%p transfer done\n",
 	    xfer, xfer->pipe);
 
 #ifdef USB_DEBUG
@@ -1294,7 +1294,7 @@ ehci_check_transfer(struct usb2_xfer *xfer)
 
 	uint32_t status;
 
-	DPRINTF(12, "xfer=%p checking transfer\n", xfer);
+	DPRINTFN(13, "xfer=%p checking transfer\n", xfer);
 
 	if (methods == &ehci_device_isoc_fs_methods) {
 		ehci_sitd_t *td;
@@ -1399,7 +1399,7 @@ ehci_check_transfer(struct usb2_xfer *xfer)
 	}
 
 done:
-	DPRINTF(12, "xfer=%p is still active\n", xfer);
+	DPRINTFN(13, "xfer=%p is still active\n", xfer);
 	return (0);
 
 transferred:
@@ -1456,7 +1456,7 @@ ehci_interrupt(ehci_softc_t *sc)
 
 	mtx_lock(&sc->sc_bus.mtx);
 
-	DPRINTF(15, "real interrupt\n");
+	DPRINTFN(16, "real interrupt\n");
 
 #ifdef USB_DEBUG
 	if (ehcidebug > 15) {
@@ -1524,7 +1524,7 @@ ehci_timeout(void *arg)
 	struct usb2_xfer *xfer = arg;
 	ehci_softc_t *sc = xfer->usb2_sc;
 
-	DPRINTF(0, "xfer=%p\n", xfer);
+	DPRINTF("xfer=%p\n", xfer);
 
 	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
@@ -1733,7 +1733,7 @@ ehci_setup_standard_chain(struct usb2_xfer *xfer, ehci_qh_t **qh_last)
 	uint32_t qh_endphub;
 	uint32_t x;
 
-	DPRINTF(8, "addr=%d endpt=%d sumlen=%d speed=%d\n",
+	DPRINTFN(9, "addr=%d endpt=%d sumlen=%d speed=%d\n",
 	    xfer->address, UE_GET_ADDR(xfer->endpoint),
 	    xfer->sumlen, usb2_get_speed(xfer->udev));
 
@@ -1875,7 +1875,7 @@ ehci_setup_standard_chain(struct usb2_xfer *xfer, ehci_qh_t **qh_last)
 
 #ifdef USB_DEBUG
 	if (ehcidebug > 8) {
-		DPRINTF(0, "nexttog=%d; data before transfer:\n",
+		DPRINTF("nexttog=%d; data before transfer:\n",
 		    xfer->pipe->toggle_next);
 		ehci_dump_sqtds(xfer->td_transfer_first);
 	}
@@ -1984,7 +1984,7 @@ ehci_root_intr_done(struct usb2_xfer *xfer,
 		/* pick out CHANGE bits from the status register */
 		if (EOREAD4(sc, EHCI_PORTSC(i)) & EHCI_PS_CLEAR) {
 			sc->sc_hub_idata[i / 8] |= 1 << (i % 8);
-			DPRINTF(0, "port %d changed\n", i);
+			DPRINTF("port %d changed\n", i);
 		}
 	}
 done:
@@ -2001,7 +2001,7 @@ ehci_isoc_fs_done(ehci_softc_t *sc, struct usb2_xfer *xfer)
 	ehci_sitd_t *td = xfer->td_transfer_first;
 	ehci_sitd_t **pp_last = &sc->sc_isoc_fs_p_last[xfer->qh_pos];
 
-	DPRINTF(12, "xfer=%p pipe=%p transfer done\n",
+	DPRINTFN(13, "xfer=%p pipe=%p transfer done\n",
 	    xfer, xfer->pipe);
 
 	while (nframes--) {
@@ -2014,7 +2014,7 @@ ehci_isoc_fs_done(ehci_softc_t *sc, struct usb2_xfer *xfer)
 		}
 #ifdef USB_DEBUG
 		if (ehcidebug > 15) {
-			DPRINTF(15, "isoc FS-TD\n");
+			DPRINTF("isoc FS-TD\n");
 			ehci_dump_sitd(td);
 		}
 #endif
@@ -2055,7 +2055,7 @@ ehci_isoc_hs_done(ehci_softc_t *sc, struct usb2_xfer *xfer)
 	ehci_itd_t *td = xfer->td_transfer_first;
 	ehci_itd_t **pp_last = &sc->sc_isoc_hs_p_last[xfer->qh_pos];
 
-	DPRINTF(12, "xfer=%p pipe=%p transfer done\n",
+	DPRINTFN(13, "xfer=%p pipe=%p transfer done\n",
 	    xfer, xfer->pipe);
 
 	while (nframes--) {
@@ -2068,7 +2068,7 @@ ehci_isoc_hs_done(ehci_softc_t *sc, struct usb2_xfer *xfer)
 		}
 #ifdef USB_DEBUG
 		if (ehcidebug > 15) {
-			DPRINTF(15, "isoc HS-TD\n");
+			DPRINTF("isoc HS-TD\n");
 			ehci_dump_itd(td);
 		}
 #endif
@@ -2120,14 +2120,14 @@ ehci_device_done(struct usb2_xfer *xfer, usb2_error_t error)
 
 	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
 
-	DPRINTF(1, "xfer=%p, pipe=%p, error=%d\n",
+	DPRINTFN(2, "xfer=%p, pipe=%p, error=%d\n",
 	    xfer, xfer->pipe, error);
 
 	if ((methods == &ehci_device_bulk_methods) ||
 	    (methods == &ehci_device_ctrl_methods)) {
 #ifdef USB_DEBUG
 		if (ehcidebug > 8) {
-			DPRINTF(0, "nexttog=%d; data after transfer:\n",
+			DPRINTF("nexttog=%d; data after transfer:\n",
 			    xfer->pipe->toggle_next);
 			ehci_dump_sqtds(xfer->td_transfer_first);
 		}
@@ -2302,7 +2302,7 @@ ehci_device_intr_open(struct usb2_xfer *xfer)
 	sc->sc_intr_stat[best]++;
 	xfer->qh_pos = best;
 
-	DPRINTF(2, "best=%d interval=%d\n",
+	DPRINTFN(3, "best=%d interval=%d\n",
 	    best, xfer->interval);
 	return;
 }
@@ -2428,7 +2428,7 @@ ehci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 	ehci_sitd_t *td_last = NULL;
 	ehci_sitd_t **pp_last;
 
-	DPRINTF(5, "xfer=%p next=%d nframes=%d\n",
+	DPRINTFN(6, "xfer=%p next=%d nframes=%d\n",
 	    xfer, xfer->pipe->isoc_next, xfer->nframes);
 
 	/* get the current frame index */
@@ -2453,7 +2453,7 @@ ehci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 		xfer->pipe->isoc_next = (nframes + 3) &
 		    (EHCI_VIRTUAL_FRAMELIST_COUNT - 1);
 		xfer->pipe->is_synced = 1;
-		DPRINTF(2, "start next=%d\n", xfer->pipe->isoc_next);
+		DPRINTFN(3, "start next=%d\n", xfer->pipe->isoc_next);
 	}
 	/*
 	 * compute how many milliseconds the insertion is ahead of the
@@ -2601,7 +2601,7 @@ ehci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 
 #ifdef USB_DEBUG
 		if (ehcidebug > 15) {
-			DPRINTF(15, "FS-TD %d\n", nframes);
+			DPRINTF("FS-TD %d\n", nframes);
 			ehci_dump_sitd(td);
 		}
 #endif
@@ -2722,7 +2722,7 @@ ehci_device_isoc_hs_enter(struct usb2_xfer *xfer)
 	ehci_itd_t *td_last = NULL;
 	ehci_itd_t **pp_last;
 
-	DPRINTF(5, "xfer=%p next=%d nframes=%d\n",
+	DPRINTFN(6, "xfer=%p next=%d nframes=%d\n",
 	    xfer, xfer->pipe->isoc_next, xfer->nframes);
 
 	/* get the current frame index */
@@ -2747,7 +2747,7 @@ ehci_device_isoc_hs_enter(struct usb2_xfer *xfer)
 		xfer->pipe->isoc_next = (nframes + 3) &
 		    (EHCI_VIRTUAL_FRAMELIST_COUNT - 1);
 		xfer->pipe->is_synced = 1;
-		DPRINTF(2, "start next=%d\n", xfer->pipe->isoc_next);
+		DPRINTFN(3, "start next=%d\n", xfer->pipe->isoc_next);
 	}
 	/*
 	 * compute how many milliseconds the insertion is ahead of the
@@ -2873,7 +2873,7 @@ ehci_device_isoc_hs_enter(struct usb2_xfer *xfer)
 			usb2_pc_cpu_flush(td->page_cache);
 #ifdef USB_DEBUG
 			if (ehcidebug > 15) {
-				DPRINTF(15, "HS-TD %d\n", nframes);
+				DPRINTF("HS-TD %d\n", nframes);
 				ehci_dump_itd(td);
 			}
 #endif
@@ -3022,7 +3022,7 @@ ehci_disown(ehci_softc_t *sc, uint16_t index, uint8_t lowspeed)
 	uint32_t port;
 	uint32_t v;
 
-	DPRINTF(0, "index=%d lowspeed=%d\n", index, lowspeed);
+	DPRINTF("index=%d lowspeed=%d\n", index, lowspeed);
 
 	port = EHCI_PORTSC(index);
 	v = EOREAD4(sc, port) & ~EHCI_PS_CLEAR;
@@ -3040,7 +3040,7 @@ ehci_root_ctrl_start(struct usb2_xfer *xfer)
 {
 	ehci_softc_t *sc = xfer->usb2_sc;
 
-	DPRINTF(0, "\n");
+	DPRINTF("\n");
 
 	sc->sc_root_ctrl.xfer = xfer;
 
@@ -3090,7 +3090,7 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 
 	use_polling = mtx_owned(xfer->priv_mtx) ? 1 : 0;
 
-	DPRINTF(2, "type=0x%02x request=0x%02x wLen=0x%04x "
+	DPRINTFN(3, "type=0x%02x request=0x%02x wLen=0x%04x "
 	    "wValue=0x%04x wIndex=0x%04x\n",
 	    std->req.bmRequestType, std->req.bRequest,
 	    UGETW(std->req.wLength), value, index);
@@ -3213,7 +3213,7 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 	case C(UR_CLEAR_FEATURE, UT_WRITE_CLASS_DEVICE):
 		break;
 	case C(UR_CLEAR_FEATURE, UT_WRITE_CLASS_OTHER):
-		DPRINTF(8, "UR_CLEAR_PORT_FEATURE\n");
+		DPRINTFN(9, "UR_CLEAR_PORT_FEATURE\n");
 
 		if ((index < 1) ||
 		    (index > sc->sc_noport)) {
@@ -3233,11 +3233,11 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 			EOWRITE4(sc, port, v & ~EHCI_PS_PP);
 			break;
 		case UHF_PORT_TEST:
-			DPRINTF(2, "clear port test "
+			DPRINTFN(3, "clear port test "
 			    "%d\n", index);
 			break;
 		case UHF_PORT_INDICATOR:
-			DPRINTF(2, "clear port ind "
+			DPRINTFN(3, "clear port ind "
 			    "%d\n", index);
 			EOWRITE4(sc, port, v & ~EHCI_PS_PIC);
 			break;
@@ -3288,7 +3288,7 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 		bzero(sc->sc_hub_desc.temp, 16);
 		break;
 	case C(UR_GET_STATUS, UT_READ_CLASS_OTHER):
-		DPRINTF(8, "get port status i=%d\n",
+		DPRINTFN(9, "get port status i=%d\n",
 		    index);
 		if ((index < 1) ||
 		    (index > sc->sc_noport)) {
@@ -3296,7 +3296,7 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 			goto done;
 		}
 		v = EOREAD4(sc, EHCI_PORTSC(index));
-		DPRINTF(8, "port status=0x%04x\n", v);
+		DPRINTFN(9, "port status=0x%04x\n", v);
 		i = UPS_HIGH_SPEED;
 		if (v & EHCI_PS_CS)
 			i |= UPS_CURRENT_CONNECT_STATUS;
@@ -3344,7 +3344,7 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 			EOWRITE4(sc, port, v | EHCI_PS_SUSP);
 			break;
 		case UHF_PORT_RESET:
-			DPRINTF(5, "reset port %d\n", index);
+			DPRINTFN(6, "reset port %d\n", index);
 			if (EHCI_PS_IS_LOWSPEED(v)) {
 				/* Low speed device, give up ownership. */
 				ehci_disown(sc, index, 1);
@@ -3378,7 +3378,7 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 			}
 
 			v = EOREAD4(sc, port);
-			DPRINTF(0, "ehci after reset, status=0x%08x\n", v);
+			DPRINTF("ehci after reset, status=0x%08x\n", v);
 			if (v & EHCI_PS_PR) {
 				device_printf(sc->sc_bus.bdev,
 				    "port reset timeout\n");
@@ -3394,21 +3394,21 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 				break;
 			}
 			sc->sc_isreset = 1;
-			DPRINTF(0, "ehci port %d reset, status = 0x%08x\n",
+			DPRINTF("ehci port %d reset, status = 0x%08x\n",
 			    index, v);
 			break;
 
 		case UHF_PORT_POWER:
-			DPRINTF(2, "set port power %d\n", index);
+			DPRINTFN(3, "set port power %d\n", index);
 			EOWRITE4(sc, port, v | EHCI_PS_PP);
 			break;
 
 		case UHF_PORT_TEST:
-			DPRINTF(2, "set port test %d\n", index);
+			DPRINTFN(3, "set port test %d\n", index);
 			break;
 
 		case UHF_PORT_INDICATOR:
-			DPRINTF(2, "set port ind %d\n", index);
+			DPRINTFN(3, "set port ind %d\n", index);
 			EOWRITE4(sc, port, v | EHCI_PS_PIC);
 			break;
 
@@ -3767,7 +3767,7 @@ ehci_pipe_init(struct usb2_device *udev, struct usb2_endpoint_descriptor *edesc,
 {
 	ehci_softc_t *sc = EHCI_BUS2SC(udev->bus);
 
-	DPRINTF(1, "pipe=%p, addr=%d, endpt=%d, mode=%d (%d)\n",
+	DPRINTFN(2, "pipe=%p, addr=%d, endpt=%d, mode=%d (%d)\n",
 	    pipe, udev->address,
 	    edesc->bEndpointAddress, udev->flags.usb2_mode,
 	    sc->sc_addr);

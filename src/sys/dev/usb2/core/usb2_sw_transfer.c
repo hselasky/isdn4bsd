@@ -63,7 +63,7 @@ usb2_sw_transfer(struct usb2_sw_transfer *std,
 	xfer = std->xfer;
 	if (xfer == NULL) {
 		/* the transfer is gone */
-		DPRINTF(0, "xfer gone\n");
+		DPRINTF("xfer gone\n");
 		return;
 	}
 	mtx_assert(xfer->usb2_mtx, MA_OWNED);
@@ -158,7 +158,7 @@ usb2_sw_transfer(struct usb2_sw_transfer *std,
 		}
 	}
 done:
-	DPRINTF(0, "done err=%s\n", usb2_errstr(std->err));
+	DPRINTF("done err=%s\n", usb2_errstr(std->err));
 	std->state = USB_SW_TR_PRE_CALLBACK;
 	(func) (xfer, std);
 	return;

@@ -314,7 +314,7 @@ uipaq_cfg_do_request(struct uipaq_softc *sc, struct usb2_device_request *req,
 
 	if (err) {
 
-		DPRINTF(-1, "device request failed, err=%s "
+		DPRINTFN(0, "device request failed, err=%s "
 		    "(ignored)\n", usb2_errstr(err));
 
 error:
@@ -333,7 +333,7 @@ uipaq_cfg_set_dtr(struct usb2_com_softc *ucom, uint8_t onoff)
 	struct uipaq_softc *sc = ucom->sc_parent;
 	struct usb2_device_request req;
 
-	DPRINTF(0, "onoff=%d\n", onoff);
+	DPRINTF("onoff=%d\n", onoff);
 
 	if (onoff)
 		sc->sc_line |= UCDC_LINE_DTR;
@@ -357,7 +357,7 @@ uipaq_cfg_set_rts(struct usb2_com_softc *ucom, uint8_t onoff)
 	struct uipaq_softc *sc = ucom->sc_parent;
 	struct usb2_device_request req;
 
-	DPRINTF(0, "onoff=%d\n", onoff);
+	DPRINTF("onoff=%d\n", onoff);
 
 	if (onoff)
 		sc->sc_line |= UCDC_LINE_RTS;
@@ -433,7 +433,7 @@ uipaq_write_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_data[0];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UIPAQ_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
@@ -475,7 +475,7 @@ uipaq_read_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_xfer *xfer_other = sc->sc_xfer_data[1];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF(0, "stall cleared\n");
+		DPRINTF("stall cleared\n");
 		sc->sc_flag &= ~UIPAQ_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}

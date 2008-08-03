@@ -273,7 +273,7 @@ bbb_command_callback(struct usb2_xfer *xfer)
 		sc->cbw.bCBWLUN = sc->lun;
 		if (sc->cbw.bCDBLength > sizeof(sc->cbw.CBWCDB)) {
 			sc->cbw.bCDBLength = sizeof(sc->cbw.CBWCDB);
-			DPRINTF(-1, "Truncating long command!\n");
+			DPRINTFN(0, "Truncating long command!\n");
 		}
 		xfer->frlengths[0] = sizeof(sc->cbw);
 
@@ -305,7 +305,7 @@ bbb_data_read_callback(struct usb2_xfer *xfer)
 			sc->data_rem = 0;
 		}
 	case USB_ST_SETUP:
-		DPRINTF(0, "max_bulk=%d, data_rem=%d\n",
+		DPRINTF("max_bulk=%d, data_rem=%d\n",
 		    max_bulk, sc->data_rem);
 
 		if (sc->data_rem == 0) {
@@ -358,7 +358,7 @@ bbb_data_write_callback(struct usb2_xfer *xfer)
 			sc->data_rem = 0;
 		}
 	case USB_ST_SETUP:
-		DPRINTF(0, "max_bulk=%d, data_rem=%d\n",
+		DPRINTF("max_bulk=%d, data_rem=%d\n",
 		    max_bulk, sc->data_rem);
 
 		if (sc->data_rem == 0) {
@@ -421,7 +421,7 @@ bbb_status_callback(struct usb2_xfer *xfer)
 		break;
 
 	default:
-		DPRINTF(-1, "Failed to read CSW: %s, try %d\n",
+		DPRINTFN(0, "Failed to read CSW: %s, try %d\n",
 		    usb2_errstr(xfer->error), sc->status_try);
 
 		if ((xfer->error == USB_ERR_CANCELLED) ||
