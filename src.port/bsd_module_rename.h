@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Fri Aug  1 15:46:56 CEST 2008
+ * Date: Mon Aug  4 17:41:35 CEST 2008
  */
 #define DELAY fbsd_DELAY
 #define Giant fbsd_Giant
@@ -42,7 +42,6 @@
 #define callout_module_tick fbsd_callout_module_tick
 #define callout_reset fbsd_callout_reset
 #define callout_stop fbsd_callout_stop
-#define cold fbsd_cold
 #define copyin fbsd_copyin
 #define copyout fbsd_copyout
 #define curthread_sub fbsd_curthread_sub
@@ -123,7 +122,6 @@
 #define pci_set_powerstate_desc fbsd_pci_set_powerstate_desc
 #define pci_write_config_desc fbsd_pci_write_config_desc
 #define printf fbsd_printf
-#define psignal fbsd_psignal
 #define rman_get_bushandle fbsd_rman_get_bushandle
 #define rman_get_bustag fbsd_rman_get_bustag
 #define rman_get_rid fbsd_rman_get_rid

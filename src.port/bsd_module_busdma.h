@@ -23,21 +23,10 @@
  * SUCH DAMAGE.
  */
 
-struct thread;
-struct proc;
+#ifndef _BSD_MODULE_BUSDMA_H_
+#define	_BSD_MODULE_BUSDMA_H_
 
-#define	curthread curthread_sub()
-#define	thread_lock(...) do { } while (0)
-#define	thread_unlock(...) do { } while (0)
+typedef void *bus_dmamap_t;
+typedef void *bus_dmatag_t;
 
-typedef void *PROCESS;
-
-int	kproc_create(void (*) (void *), void *, struct proc **, int flags, int pages, const char *,...)__printflike(6, 7);
-void	kproc_exit(int);
-int	kproc_suspend(struct proc *, int);
-struct thread *curthread_sub(void);
-void	sched_prio(struct thread *td, uint8_t prio);
-
-#define	PROC_LOCK(...) do { } while (0)
-#define	PROC_UNLOCK(...) do { } while (0)
-#define	psignal(...) do { } while (0)
+#endif					/* _BSD_MODULE_BUSDMA_H_ */

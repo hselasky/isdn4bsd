@@ -37,7 +37,6 @@ callout_init_mtx
 callout_module_tick
 callout_reset
 callout_stop
-cold
 copyin
 copyout
 curthread_sub
@@ -118,7 +117,6 @@ pci_read_config_desc
 pci_set_powerstate_desc
 pci_write_config_desc
 printf
-psignal
 rman_get_bushandle
 rman_get_bustag
 rman_get_rid

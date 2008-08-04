@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Fri Aug  1 15:46:56 CEST 2008
+ * Date: Mon Aug  4 17:41:35 CEST 2008
  */
 #define BUS_ALLOC_RESOURCE(dev, ...) \
   (((bus_alloc_resource_t *)(device_get_method(dev, "bus_alloc_resource")))(dev,## __VA_ARGS__))
@@ -31,3 +31,5 @@
   (((device_shutdown_t *)(device_get_method(dev, "device_shutdown")))(dev,## __VA_ARGS__))
 #define DEVICE_SUSPEND(dev, ...) \
   (((device_suspend_t *)(device_get_method(dev, "device_suspend")))(dev,## __VA_ARGS__))
+#define USB2_HANDLE_REQUEST(dev, ...) \
+  (((usb2_handle_request_t *)(device_get_method(dev, "usb2_handle_request")))(dev,## __VA_ARGS__))

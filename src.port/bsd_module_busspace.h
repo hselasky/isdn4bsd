@@ -23,65 +23,31 @@
  * SUCH DAMAGE.
  */
 
-#include "ose.h"
+/* Lite implementation for memory mapped I/O */
 
-#include <bsd_module_all.h>
+typedef void *bus_space_tag_t;
+typedef uint8_t *bus_space_handle_t;
 
-static void
-kproc_start(void)
-{
-	void (*func) (void *arg);
-	void *arg;
+#define	bus_space_write_1(t,h,off,val)  do { \
+    *((uint8_t *)((h) + (off))) = (val); \
+} while (0)
 
-	func = get_env(current_process(), "bsd_func_ptr");
-	arg = get_env(current_process(), "bsd_func_arg");
-	(func) (arg);
-	return;
-}
+#define	bus_space_write_2(t,h,off,val)  do { \
+    *((uint16_t *)((h) + (off))) = (val); \
+} while (0)
 
-int
-	kproc_create(void (*func) (void *), void *arg, struct proc **proc,
-    	int	flags, int pages, const char *fmt,...){
-	PROCESS p;
+#define	bus_space_write_4(t,h,off,val) do { \
+    *((uint32_t *)((h) + (off))) = (val); \
+} while (0)
 
-	p = create_process(OS_PRI_PROC,
-	    "USBPROC", &kproc_start, 4096, 15, (OSTIME) 0,
-	    (PROCESS) 0, (struct OS_redir_entry *)NULL,
-	    (OSVECTOR) 0, (OSUSER) 0);
+#define	bus_space_read_1(t,h,off) *((uint8_t *)((h) + (off)))
+#define	bus_space_read_2(t,h,off) *((uint16_t *)((h) + (off)))
+#define	bus_space_read_4(t,h,off) *((uint32_t *)((h) + (off)))
 
-	*proc = (void *)p;
+void	bus_space_read_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint8_t *datap, bus_size_t count);
+void	bus_space_read_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint16_t *datap, bus_size_t count);
+void	bus_space_read_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint32_t *datap, bus_size_t count);
 
-	set_env(p, "bsd_func_ptr", func);
-	set_env(p, "bsd_func_arg", arg);
-
-	start(p);
-
-	return (0);
-}
-
-void
-kproc_exit(int error)
-{
-	kill_proc(current_process());
-	return;
-}
-
-int
-kproc_suspend(struct proc *proc, int ticks)
-{
-	/* not needed */
-	return (0);
-}
-
-struct thread *
-curthread_sub(void)
-{
-	return ((void *)current_process());
-}
-
-void
-sched_prio(struct thread *td, uint8_t prio)
-{
-	/* not implemented */
-	return;
-}
+void	bus_space_write_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint8_t *datap, bus_size_t count);
+void	bus_space_write_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint16_t *datap, bus_size_t count);
+void	bus_space_write_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint32_t *datap, bus_size_t count);

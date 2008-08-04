@@ -23,8 +23,13 @@
  * SUCH DAMAGE.
  */
 
-void   *malloc(int size, int type, int flags);
-void	free(void *addr, int type);
+struct malloc_type;
+
+void   *malloc(int size, struct malloc_type *type, int flags);
+void	free(void *addr, struct malloc_type *type);
+
+#define	MALLOC_DECLARE(...)
+#define	MALLOC_DEFINE(...)
 
 /* definition of malloc flags */
 
@@ -36,10 +41,8 @@ enum {
 
 /* definition of malloc types */
 
-enum {
-	M_UNKNOWN,
-	M_DEVBUF,
-	M_TEMP,
-	M_MAX
-};
-
+#define	M_UNKNOWN ((struct malloc_type *)0)
+#define	M_DEVBUF ((struct malloc_type *)1)
+#define	M_TEMP ((struct malloc_type *)2)
+#define	M_USBDEV ((struct malloc_type *)3)
+#define	M_USB ((struct malloc_type *)4)

@@ -30,16 +30,12 @@ struct devclass;
 struct device;
 struct module;
 struct module_data;
-struct bus_space_tag;
-struct bus_space_handle;
 struct bus_dma_tag_t;
 struct resource;
 
 typedef struct driver driver_t;
 typedef struct devclass *devclass_t;
 typedef struct device *device_t;
-typedef struct bus_space_tag *bus_space_tag_t;
-typedef struct bus_space_handle *bus_space_handle_t;
 typedef struct bus_dma_tag_t *bus_dma_tag_t;
 typedef void driver_intr_t (void *);
 
@@ -65,7 +61,7 @@ struct device_method {
 
 typedef struct device_method device_method_t;
 
-#define	DEVMETHOD(what,func) { #what, func }
+#define	DEVMETHOD(what,func) { #what, (void *)&func }
 
 struct resource {
 	uint32_t r_start;		/* first entry, inclusive */
@@ -246,4 +242,3 @@ enum {
 	SYS_RES_MEMORY = 3,		/* I/O memory */
 	SYS_RES_IOPORT = 4		/* I/O ports */
 };
-

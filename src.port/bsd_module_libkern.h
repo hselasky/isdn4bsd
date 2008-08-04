@@ -23,6 +23,8 @@
  * SUCH DAMAGE.
  */
 
+#define	memcmp bcmp
+
 /* libkern */
 
 int	bcmp(const void *b1, const void *b2, size_t length);
@@ -57,8 +59,7 @@ void	bzero(void *dst, size_t len);
 
 /* printf */
 
-int printf(const char *format, ...) __printflike(1,2);
-int vprintf(const char *format, va_list ap);
-int vsnprintf(char *dst, size_t size, const char * fmt, va_list ap);
-int snprintf(char *dst, size_t size, const char * fmt, ...) __printflike(2,4);
-
+int	printf(const char *format,...)__printflike(1, 2);
+int	vprintf(const char *format, va_list ap);
+int	vsnprintf(char *dst, size_t size, const char *fmt, va_list ap);
+int	snprintf(char *dst, size_t size, const char *fmt,...)__printflike(2, 4);

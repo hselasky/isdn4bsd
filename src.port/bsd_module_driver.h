@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Fri Aug  1 15:46:56 CEST 2008
+ * Date: Mon Aug  4 17:41:35 CEST 2008
  */
 DRIVER_MODULE(usb_linux, ushub, usb_linux_driver, usb_linux_devclass, NULL, 0)
 DRIVER_MODULE(ushub, usbus, uhub_driver, uhub_devclass, 0, 0)

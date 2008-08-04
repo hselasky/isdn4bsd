@@ -23,21 +23,9 @@
  * SUCH DAMAGE.
  */
 
-struct thread;
-struct proc;
+/* USB configuration */
 
-#define	curthread curthread_sub()
-#define	thread_lock(...) do { } while (0)
-#define	thread_unlock(...) do { } while (0)
+#define	USB_NO_POLL 1
+#define	USB_USE_CONDVAR 1
 
-typedef void *PROCESS;
-
-int	kproc_create(void (*) (void *), void *, struct proc **, int flags, int pages, const char *,...)__printflike(6, 7);
-void	kproc_exit(int);
-int	kproc_suspend(struct proc *, int);
-struct thread *curthread_sub(void);
-void	sched_prio(struct thread *td, uint8_t prio);
-
-#define	PROC_LOCK(...) do { } while (0)
-#define	PROC_UNLOCK(...) do { } while (0)
-#define	psignal(...) do { } while (0)
+typedef int usb2_handle_request_t (device_t dev, const void *req, void **pptr, uint16_t *plen, uint16_t offset, uint8_t is_complete);

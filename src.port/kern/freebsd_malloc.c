@@ -26,7 +26,7 @@
 #include <bsd_module_all.h>
 
 void   *
-malloc(int size, int type, int flags)
+malloc(int size, struct malloc_type *type, int flags)
 {
 	void *temp = alloc(size, 'U' | ('S' << 8) | ('B' << 16));
 
@@ -37,7 +37,7 @@ malloc(int size, int type, int flags)
 }
 
 void
-free(void *addr, int type)
+free(void *addr, struct malloc_type *type)
 {
 	free_buf(&addr);
 	return;

@@ -32,8 +32,29 @@
 #undef __FreeBSD__
 #define	__FreeBSD__
 #define	_KERNEL
+#define	__packed __attribute__((__packed__))
+#define	__aligned(s) __attribute__((__aligned__(s)))
 #define	__printflike(...)
-#define	__DECONST(type, ptr) ((type)(((const uint8_t *)(ptr)) - ((const uint8_t *)0)))
+#define	__DECONST(type, ptr) \
+  ((type)(((const uint8_t *)(ptr)) - ((const uint8_t *)0)))
+
+#define	__FBSDID(...)
+#define	SYSCTL_DECL(...)
+#define	SYSCTL_NODE(...)
+#define	SYSCTL_INT(...)
+
+#define	WARN_GIANTOK(...) do { } while (0)
+#define	KASSERT(...) do { } while (0)
+#define	WARN_SLEEPOK(...) do { } while (0)
+#define	WITNESS_WARN(...) do { } while (0)
+#define	MIN(a,b) (((a) < (b)) ? (a) : (b))
+#define	MAX(a,b) (((a) > (b)) ? (a) : (b))
+
+#define	PAGE_SIZE 4096			/* bytes */
+
+#define	PI_NET 15
+#define	PI_DISK 25
+#define	RFHIGHPID 0
 
 #define	va_size(type)				\
         (((sizeof(type) + sizeof(int) - 1) /	\
@@ -46,8 +67,10 @@
 #define	va_end(ap) do { } while (0)
 
 #define	NULL ((void *)0)
+#define	cold 0
 
-typedef unsigned long size_t;
+typedef unsigned unsigned int size_t;
+typedef unsigned unsigned int off_t;
 typedef unsigned long bus_addr_t;
 typedef unsigned long bus_size_t;
 
@@ -63,7 +86,18 @@ typedef signed short int16_t;
 typedef unsigned char uint8_t;
 typedef signed char int8_t;
 
+typedef unsigned char *caddr_t;
+
 typedef char *va_list;
+
+typedef unsigned long u_long;
+
+struct selinfo {
+};
+struct uio;
+struct mbuf;
+
+#define	fbsd_uiomove(...) EINVAL
 
 #include <bsd_module_devmethod.h>
 #include <bsd_module_queue.h>
@@ -73,13 +107,22 @@ typedef char *va_list;
 #include <bsd_module_callout.h>
 #include <bsd_module_condvar.h>
 #include <bsd_module_sx.h>
+#include <bsd_module_busspace.h>
 #include <bsd_module_bus.h>
 #include <bsd_module_proc.h>
 #include <bsd_module_malloc.h>
 #include <bsd_module_libkern.h>
+#include <bsd_module_busdma.h>
+#include <bsd_module_usb.h>
+#include <bsd_module_ioccom.h>
+#include <bsd_module_file.h>
 
 /* panic */
 
-void panic(const char *fmt, ...) __printflike(1,2);
+void	panic(const char *fmt,...)__printflike(1, 2);
+
+/* delay */
+
+void	DELAY(uint32_t us);
 
 #endif					/* _BSD_MODULE_ALL_H_ */
