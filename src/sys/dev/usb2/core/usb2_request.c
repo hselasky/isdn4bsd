@@ -102,7 +102,7 @@ usb2_do_clear_stall_callback(struct usb2_xfer *xfer)
 	/* round robin pipe clear stall */
 
 	pipe = xfer->udev->pipe_curr;
-	pipe_end = xfer->udev->pipes_end;
+	pipe_end = xfer->udev->pipes + USB_EP_MAX;
 	pipe_first = xfer->udev->pipes;
 	if (pipe == NULL) {
 		pipe = pipe_first;
@@ -665,7 +665,7 @@ usb2_req_get_string_any(struct usb2_device *udev, struct mtx *mtx, char *buf,
 	if (err) {
 		return (err);
 	}
-	temp = buf;
+	temp = (uint8_t *)buf;
 
 	if (temp[0] < 2) {
 		/* string length is too short */

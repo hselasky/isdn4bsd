@@ -261,15 +261,19 @@ usb2_config_td_sleep(struct usb2_config_td *ctd, uint32_t timeout)
 	}
 	if (timeout == 0) {
 		/*
-		 * zero means no timeout, so avoid that by setting
+		 * Zero means no timeout, so avoid that by setting
 		 * timeout to one:
 		 */
 		timeout = 1;
 	}
-	if (mtx_sleep(ctd, ctd->usb2_proc.up_mtx, 0,
-	    "DELAY", timeout)) {
+	mtx_unlock(ctd->usb2_proc.up_mtx);
+
+	if (pause("USBWAIT", timeout)) {
 		/* ignore */
 	}
+	mtx_lock(ctd->usb2_proc.up_mtx);
+
+	is_gone = usb2_config_td_is_gone(ctd);
 done:
 	return (is_gone);
 }

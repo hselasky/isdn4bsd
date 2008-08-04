@@ -629,7 +629,7 @@ ohci_dump_itd(ohci_itd_t *sitd)
 	    le32toh(sitd->itd_be));
 	for (i = 0; i < OHCI_ITD_NOFFSET; i++) {
 		printf("offs[%d]=0x%04x ", i,
-		    (u_int)le16toh(sitd->itd_offset[i]));
+		    (uint32_t)le16toh(sitd->itd_offset[i]));
 	}
 	printf("\n");
 

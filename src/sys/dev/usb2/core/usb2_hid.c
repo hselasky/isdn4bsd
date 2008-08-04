@@ -60,9 +60,9 @@ static void hid_clear_local(struct hid_item *);
 
 #define	MAXUSAGE 100
 struct hid_data {
-	const u_char *start;
-	const u_char *end;
-	const u_char *p;
+	const uint8_t *start;
+	const uint8_t *end;
+	const uint8_t *p;
 	struct hid_item cur;
 	int32_t	usages[MAXUSAGE];
 	int	nu;
@@ -101,7 +101,7 @@ hid_start_parse(const void *d, int len, int kindset)
 
 	s = malloc(sizeof *s, M_TEMP, M_WAITOK | M_ZERO);
 	s->start = s->p = d;
-	s->end = ((const char *)d) + len;
+	s->end = ((const uint8_t *)d) + len;
 	s->kindset = kindset;
 	return (s);
 }
@@ -131,16 +131,16 @@ hid_get_item(struct hid_data *s, struct hid_item *h)
 	struct hid_item *c = &s->cur;
 	unsigned int bTag, bType, bSize;
 	uint32_t oldpos;
-	const u_char *data;
+	const uint8_t *data;
 	int32_t dval;
-	const u_char *p;
+	const uint8_t *p;
 	struct hid_item *hi;
 	int i;
 
 top:
 	if (s->multimax != 0) {
 		if (s->multi < s->multimax) {
-			c->usage = s->usages[min(s->multi, s->nu - 1)];
+			c->usage = s->usages[MIN(s->multi, s->nu - 1)];
 			s->multi++;
 			*h = *c;
 			c->loc.pos += c->loc.size;
@@ -435,11 +435,11 @@ hid_locate(const void *desc, int size, uint32_t u, enum hid_kind k,
 /*------------------------------------------------------------------------*
  *	hid_get_data
  *------------------------------------------------------------------------*/
-u_long
-hid_get_data(const u_char *buf, uint32_t len, struct hid_location *loc)
+uint32_t
+hid_get_data(const uint8_t *buf, uint32_t len, struct hid_location *loc)
 {
-	u_int hpos = loc->pos;
-	u_int hsize = loc->size;
+	uint32_t hpos = loc->pos;
+	uint32_t hsize = loc->size;
 	uint32_t data;
 	int i, s, t;
 

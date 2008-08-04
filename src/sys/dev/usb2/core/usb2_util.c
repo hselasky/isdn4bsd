@@ -39,7 +39,10 @@
 #include <dev/usb2/controller/usb2_bus.h>
 
 /* function prototypes */
+#if (USB_USE_CONDVAR == 0)
 static int usb2_msleep(void *chan, struct mtx *mtx, int priority, const char *wmesg, int timo);
+
+#endif
 
 /*------------------------------------------------------------------------*
  * device_delete_all_children - delete all children of a device
@@ -99,7 +102,7 @@ device_set_usb2_desc(device_t dev)
 		err = 0;
 	}
 
-	temp_p = udev->bus->scratch[0].data;
+	temp_p = (char *)udev->bus->scratch[0].data;
 
 	if (!err) {
 		/* try to get the interface string ! */
@@ -136,12 +139,18 @@ usb2_pause_mtx(struct mtx *mtx, uint32_t ms)
 	} else {
 
 		ms = USB_MS_TO_TICKS(ms);
-		ms++;			/* be sure that we don't return too
-					 * early */
+		/*
+		 * Add one to the number of ticks so that we don't return
+		 * too early!
+		 */
+		ms++;
 
-		if (mtx_sleep(&ms, mtx, 0, "pause_mtx", ms)) {
-			/* should not happen */
+		mtx_unlock(mtx);
+
+		if (pause("USBWAIT", ms)) {
+			/* ignore */
 		}
+		mtx_lock(mtx);
 	}
 	return;
 }
@@ -237,6 +246,8 @@ usb2_make_str_desc(void *ptr, uint16_t max_len, const char *s)
 	}
 	return (totlen);
 }
+
+#if (USB_USE_CONDVAR == 0)
 
 /*------------------------------------------------------------------------*
  *	usb2_cv_init - wrapper function
@@ -336,3 +347,5 @@ usb2_msleep(void *chan, struct mtx *mtx, int priority, const char *wmesg,
 	}
 	return (err);
 }
+
+#endif

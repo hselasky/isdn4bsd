@@ -31,6 +31,18 @@
 #ifndef _USB2_CORE_H_
 #define	_USB2_CORE_H_
 
+/* Default USB configuration */
+
+#ifndef USB_NO_POLL
+#define	USB_NO_POLL 0
+#endif
+
+#ifndef USB_USE_CONDVAR
+#define	USB_USE_CONDVAR 0
+#endif
+
+/* Include files */
+
 #include <sys/stdint.h>
 #include <sys/stddef.h>
 #include <sys/param.h>
@@ -55,9 +67,7 @@
 #include <dev/usb2/include/usb2_revision.h>
 
 #include "usb2_if.h"
-
 #include "opt_usb.h"
-
 #include "opt_bus.h"
 
 #define	USB_STACK_VERSION 2000		/* 2.0 */

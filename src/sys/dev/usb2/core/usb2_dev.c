@@ -1552,7 +1552,7 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred,
 			tr_data = 1;
 		}
 
-		io_len = min(m->cur_data_len, uio->uio_resid);
+		io_len = MIN(m->cur_data_len, uio->uio_resid);
 
 		DPRINTFN(2, "transfer %d bytes from %p\n",
 		    io_len, m->cur_data_ptr);
@@ -1684,7 +1684,7 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 
 		USB_MBUF_RESET(m);
 
-		io_len = min(m->cur_data_len, uio->uio_resid);
+		io_len = MIN(m->cur_data_len, uio->uio_resid);
 
 		m->cur_data_len = io_len;
 
@@ -2103,7 +2103,7 @@ usb2_fifo_put_data(struct usb2_fifo *f, struct usb2_page_cache *pc,
 		if (m) {
 			USB_MBUF_RESET(m);
 
-			io_len = min(len, m->cur_data_len);
+			io_len = MIN(len, m->cur_data_len);
 
 			usb2_copy_out(pc, offset, m->cur_data_ptr, io_len);
 
@@ -2142,7 +2142,7 @@ usb2_fifo_put_data_linear(struct usb2_fifo *f, void *ptr,
 		if (m) {
 			USB_MBUF_RESET(m);
 
-			io_len = min(len, m->cur_data_len);
+			io_len = MIN(len, m->cur_data_len);
 
 			bcopy(ptr, m->cur_data_ptr, io_len);
 
@@ -2205,7 +2205,7 @@ usb2_fifo_get_data(struct usb2_fifo *f, struct usb2_page_cache *pc,
 
 			tr_data = 1;
 
-			io_len = min(len, m->cur_data_len);
+			io_len = MIN(len, m->cur_data_len);
 
 			usb2_copy_in(pc, offset, m->cur_data_ptr, io_len);
 
@@ -2263,7 +2263,7 @@ usb2_fifo_get_data_linear(struct usb2_fifo *f, void *ptr,
 
 			tr_data = 1;
 
-			io_len = min(len, m->cur_data_len);
+			io_len = MIN(len, m->cur_data_len);
 
 			bcopy(m->cur_data_ptr, ptr, io_len);
 

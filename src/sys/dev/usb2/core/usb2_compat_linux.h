@@ -429,7 +429,7 @@ struct urb {
 	uint8_t	transfer_dma;		/* (in) not used on FreeBSD */
 	uint8_t	bsd_isread;
 
-	struct usb_iso_packet_descriptor iso_frame_desc[0];	/* (in) ISO ONLY */
+	struct usb_iso_packet_descriptor iso_frame_desc[];	/* (in) ISO ONLY */
 };
 
 /* various prototypes */

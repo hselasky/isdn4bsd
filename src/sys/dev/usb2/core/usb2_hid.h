@@ -80,7 +80,7 @@ void	hid_end_parse(struct hid_data *s);
 int	hid_get_item(struct hid_data *s, struct hid_item *h);
 int	hid_report_size(const void *buf, int len, enum hid_kind k, uint8_t *id);
 int	hid_locate(const void *desc, int size, uint32_t usage, enum hid_kind kind, struct hid_location *loc, uint32_t *flags);
-u_long	hid_get_data(const u_char *buf, uint32_t len, struct hid_location *loc);
+uint32_t	hid_get_data(const uint8_t *buf, uint32_t len, struct hid_location *loc);
 int	hid_is_collection(const void *desc, int size, uint32_t usage);
 struct usb2_hid_descriptor *hid_get_descriptor_from_usb(struct usb2_config_descriptor *cd, struct usb2_interface_descriptor *id);
 usb2_error_t usb2_req_get_hid_desc(struct usb2_device *udev, struct mtx *mtx, void **descp, uint16_t *sizep, usb2_malloc_type mem, uint8_t iface_index);

@@ -72,7 +72,7 @@ struct uhub_softc {
 	struct usb2_xfer *sc_xfer[2];	/* interrupt xfer */
 	uint8_t	sc_flags;
 #define	UHUB_FLAG_INTR_STALL 0x02
-	uint8_t	sc_name[32];
+	char	sc_name[32];
 };
 
 #define	UHUB_PROTO(sc) ((sc)->sc_udev->ddesc.bDeviceProtocol)

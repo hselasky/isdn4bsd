@@ -96,7 +96,7 @@ struct usb2_pipe *
 usb2_get_pipe_by_addr(struct usb2_device *udev, uint8_t ea_val)
 {
 	struct usb2_pipe *pipe = udev->pipes;
-	struct usb2_pipe *pipe_end = udev->pipes_end;
+	struct usb2_pipe *pipe_end = udev->pipes + USB_EP_MAX;
 	enum {
 		EA_MASK = (UE_DIR_IN | UE_DIR_OUT | UE_ADDR),
 	};
@@ -151,7 +151,7 @@ usb2_get_pipe(struct usb2_device *udev, uint8_t iface_index,
     const struct usb2_config *setup)
 {
 	struct usb2_pipe *pipe = udev->pipes;
-	struct usb2_pipe *pipe_end = udev->pipes_end;
+	struct usb2_pipe *pipe_end = udev->pipes + USB_EP_MAX;
 	uint8_t index = setup->ep_index;
 	uint8_t ea_mask;
 	uint8_t ea_val;
@@ -311,7 +311,7 @@ usb2_free_pipe_data(struct usb2_device *udev,
     uint8_t iface_index, uint8_t iface_mask)
 {
 	struct usb2_pipe *pipe = udev->pipes;
-	struct usb2_pipe *pipe_end = udev->pipes_end;
+	struct usb2_pipe *pipe_end = udev->pipes + USB_EP_MAX;
 
 	while (pipe != pipe_end) {
 		if ((pipe->iface_index & iface_mask) == iface_index) {
@@ -337,7 +337,7 @@ usb2_fill_iface_data(struct usb2_device *udev,
 {
 	struct usb2_interface *iface = usb2_get_iface(udev, iface_index);
 	struct usb2_pipe *pipe = udev->pipes;
-	struct usb2_pipe *pipe_end = udev->pipes_end;
+	struct usb2_pipe *pipe_end = udev->pipes + USB_EP_MAX;
 	struct usb2_interface_descriptor *id;
 	struct usb2_endpoint_descriptor *ed = NULL;
 	struct usb2_descriptor *desc;
@@ -446,7 +446,7 @@ static void
 usb2_free_iface_data(struct usb2_device *udev)
 {
 	struct usb2_interface *iface = udev->ifaces;
-	struct usb2_interface *iface_end = udev->ifaces_end;
+	struct usb2_interface *iface_end = udev->ifaces + USB_IFACE_MAX;
 	uint8_t n;
 
 	/* mtx_assert() */
@@ -786,7 +786,7 @@ usb2_reset_iface_endpoints(struct usb2_device *udev, uint8_t iface_index)
 	usb2_error_t err;
 
 	pipe = udev->pipes;
-	pipe_end = udev->pipes_end;
+	pipe_end = udev->pipes + USB_EP_MAX;
 
 	for (; pipe != pipe_end; pipe++) {
 
@@ -1491,7 +1491,7 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	    udev->ddesc.iSerialNumber) {
 		/* read out the language ID string */
 		err = usb2_req_get_string_desc(udev, &Giant,
-		    scratch_ptr, 4, scratch_size,
+		    (char *)scratch_ptr, 4, scratch_size,
 		    USB_LANGUAGE_TABLE);
 	} else {
 		err = USB_ERR_INVAL;
@@ -1509,24 +1509,24 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 
 	/* get serial number string */
 	err = usb2_req_get_string_any
-	    (udev, &Giant, scratch_ptr,
+	    (udev, &Giant, (char *)scratch_ptr,
 	    scratch_size, udev->ddesc.iSerialNumber);
 
-	strlcpy(udev->serial, scratch_ptr, sizeof(udev->serial));
+	strlcpy(udev->serial, (char *)scratch_ptr, sizeof(udev->serial));
 
 	/* get manufacturer string */
 	err = usb2_req_get_string_any
-	    (udev, &Giant, scratch_ptr,
+	    (udev, &Giant, (char *)scratch_ptr,
 	    scratch_size, udev->ddesc.iManufacturer);
 
-	strlcpy(udev->manufacturer, scratch_ptr, sizeof(udev->manufacturer));
+	strlcpy(udev->manufacturer, (char *)scratch_ptr, sizeof(udev->manufacturer));
 
 	/* get product string */
 	err = usb2_req_get_string_any
-	    (udev, &Giant, scratch_ptr,
+	    (udev, &Giant, (char *)scratch_ptr,
 	    scratch_size, udev->ddesc.iProduct);
 
-	strlcpy(udev->product, scratch_ptr, sizeof(udev->product));
+	strlcpy(udev->product, (char *)scratch_ptr, sizeof(udev->product));
 
 	/* finish up all the strings */
 	usb2_check_strings(udev);
@@ -1608,14 +1608,14 @@ repeat_set_config:
 	    parent_hub->hub->ports + port_index : NULL, udev, device_index);
 
 	/* make a symlink for UGEN */
-	if (snprintf(scratch_ptr, scratch_size,
+	if (snprintf((char *)scratch_ptr, scratch_size,
 	    USB_DEVICE_NAME "%u.%u.0.0",
 	    device_get_unit(udev->bus->bdev),
 	    udev->device_index)) {
 		/* ignore */
 	}
 	udev->ugen_symlink =
-	    usb2_alloc_symlink(scratch_ptr, "ugen%u.%u",
+	    usb2_alloc_symlink((char *)scratch_ptr, "ugen%u.%u",
 	    device_get_unit(udev->bus->bdev),
 	    udev->device_index);
 
@@ -1720,7 +1720,7 @@ usb2_get_iface(struct usb2_device *udev, uint8_t iface_index)
 	struct usb2_interface *iface = udev->ifaces + iface_index;
 
 	if ((iface < udev->ifaces) ||
-	    (iface >= udev->ifaces_end) ||
+	    (iface_index >= USB_IFACE_MAX) ||
 	    (udev->cdesc == NULL) ||
 	    (iface_index >= udev->cdesc->bNumInterface)) {
 		return (NULL);

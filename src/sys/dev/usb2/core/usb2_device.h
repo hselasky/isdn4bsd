@@ -92,13 +92,9 @@ struct usb2_device {
 	struct sx default_sx[2];
 	struct mtx default_mtx[1];
 	struct cv default_cv[2];
-
 	struct usb2_interface ifaces[USB_IFACE_MAX];
-	struct usb2_interface ifaces_end[0];
-
 	struct usb2_pipe default_pipe;	/* Control Endpoint 0 */
 	struct usb2_pipe pipes[USB_EP_MAX];
-	struct usb2_pipe pipes_end[0];
 
 	struct usb2_bus *bus;		/* our USB BUS */
 	device_t parent_dev;		/* parent device */

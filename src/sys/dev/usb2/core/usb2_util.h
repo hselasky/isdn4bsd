@@ -33,6 +33,8 @@ void	device_set_usb2_desc(device_t dev);
 void	usb2_pause_mtx(struct mtx *mtx, uint32_t ms);
 void	usb2_printBCD(char *p, uint16_t p_len, uint16_t bcd);
 void	usb2_trim_spaces(char *p);
+
+#if (USB_USE_CONDVAR == 0)
 void	usb2_cv_init(struct cv *cv, const char *desc);
 void	usb2_cv_destroy(struct cv *cv);
 void	usb2_cv_wait(struct cv *cv, struct mtx *mtx);
@@ -40,5 +42,15 @@ int	usb2_cv_wait_sig(struct cv *cv, struct mtx *mtx);
 int	usb2_cv_timedwait(struct cv *cv, struct mtx *mtx, int timo);
 void	usb2_cv_signal(struct cv *cv);
 void	usb2_cv_broadcast(struct cv *cv);
+
+#else
+#define	usb2_cv_init cv_init
+#define	usb2_cv_destroy cv_destroy
+#define	usb2_cv_wait cv_wait
+#define	usb2_cv_wait_sig cv_wait_sig
+#define	usb2_cv_timedwait cv_timedwait
+#define	usb2_cv_signal cv_signal
+#define	usb2_cv_broadcast cv_broadcast
+#endif
 
 #endif					/* _USB2_UTIL_H_ */

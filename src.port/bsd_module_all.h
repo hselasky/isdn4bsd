@@ -69,8 +69,8 @@
 #define	NULL ((void *)0)
 #define	cold 0
 
-typedef unsigned unsigned int size_t;
-typedef unsigned unsigned int off_t;
+typedef unsigned int size_t;
+typedef unsigned int off_t;
 typedef unsigned long bus_addr_t;
 typedef unsigned long bus_size_t;
 

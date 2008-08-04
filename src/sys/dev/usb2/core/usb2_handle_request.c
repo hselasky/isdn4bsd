@@ -207,6 +207,9 @@ tr_repeat:
 	    (error != ENOTTY) &&
 	    (iface->subdev != NULL) &&
 	    device_is_attached(iface->subdev)) {
+#if 0
+		DEVMETHOD(usb2_handle_request, NULL);	/* dummy */
+#endif
 		error = USB2_HANDLE_REQUEST(iface->subdev,
 		    &req, ppdata, plen,
 		    off, (state == ST_POST_STATUS));

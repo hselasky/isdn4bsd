@@ -72,14 +72,14 @@ static const struct usb2_std_packet_size
 	},
 
 	[UE_BULK] = {
-		[USB_SPEED_LOW] = {},	/* invalid (all zero) */
+		[USB_SPEED_LOW] = {.fixed = {0, 0, 0, 0}},	/* invalid */
 		[USB_SPEED_FULL] = {.fixed = {8, 16, 32, 64}},
 		[USB_SPEED_HIGH] = {.fixed = {512, 512, 512, 512}},
 		[USB_SPEED_VARIABLE] = {.fixed = {512, 512, 1024, 1536}},
 	},
 
 	[UE_ISOCHRONOUS] = {
-		[USB_SPEED_LOW] = {},	/* invalid (all zero) */
+		[USB_SPEED_LOW] = {.fixed = {0, 0, 0, 0}},	/* invalid */
 		[USB_SPEED_FULL] = {.range = {0, 1023}},
 		[USB_SPEED_HIGH] = {.range = {0, 1024}},
 		[USB_SPEED_VARIABLE] = {.range = {0, 3584}},
@@ -2585,6 +2585,8 @@ usb2_clear_stall_callback(struct usb2_xfer *xfer1,
 	return (1);			/* Clear Stall Finished */
 }
 
+#if (USB_NO_POLL == 0)
+
 /*------------------------------------------------------------------------*
  *	usb2_callout_poll
  *------------------------------------------------------------------------*/
@@ -2693,3 +2695,14 @@ usb2_do_poll(struct usb2_xfer **ppxfer, uint16_t max)
 	}
 	return;
 }
+
+#else
+
+void
+usb2_do_poll(struct usb2_xfer **ppxfer, uint16_t max)
+{
+	/* polling not supported */
+	return;
+}
+
+#endif

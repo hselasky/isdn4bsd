@@ -1305,7 +1305,7 @@ done:
 static void
 musbotg_device_done(struct usb2_xfer *xfer, usb2_error_t error)
 {
-	mtx_assert(&sc->sc_bus.mtx, MA_OWNED);
+	mtx_assert(xfer->usb2_mtx, MA_OWNED);
 
 	DPRINTFN(2, "xfer=%p, pipe=%p, error=%d\n",
 	    xfer, xfer->pipe, error);
