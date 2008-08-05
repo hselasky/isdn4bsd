@@ -90,8 +90,6 @@
 					 * data packet */
 #define	USB_VERBOSE
 
-#define	USB_DEBUG
-
 #define	USB_HUB_MAX_DEPTH 5
 
 /* USB transfer states */

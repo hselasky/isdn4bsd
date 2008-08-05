@@ -766,7 +766,7 @@ ohci_isoc_done(struct usb2_xfer *xfer)
 {
 	uint8_t nframes;
 	uint32_t *plen = xfer->frlengths;
-	__volatile__ uint16_t *olen;
+	volatile uint16_t *olen;
 	uint16_t len = 0;
 	ohci_itd_t *td = xfer->td_transfer_first;
 

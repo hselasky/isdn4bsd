@@ -36,12 +36,12 @@ extern int usb2_debug;
 
 /* Force debugging until further */
 #ifndef USB_DEBUG
-#define	USB_DEBUG
+#define	USB_DEBUG 1
 #endif
 
 /* Check if USB debugging is enabled. */
 #ifdef USB_DEBUG_VAR
-#ifdef USB_DEBUG
+#if (USB_DEBUG != 0)
 #define	DPRINTFN(n,fmt,...) do {				\
   if ((USB_DEBUG_VAR) >= (n)) {				\
     printf("%s:%u: " fmt,				\
@@ -50,8 +50,8 @@ extern int usb2_debug;
 } while (0)
 #define	DPRINTF(...)	DPRINTFN(1, __VA_ARGS__)
 #else
-#define	DPRINTF(fmt,...) do { } while (0)
-#define	DPRINTFN(n,fmt,...) do { } while (0)
+#define	DPRINTF(...) do { } while (0)
+#define	DPRINTFN(...) do { } while (0)
 #endif
 #endif
 
