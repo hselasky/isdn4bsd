@@ -342,7 +342,8 @@ found:
 
 int
 bus_setup_intr(device_t dev, struct resource *res, int flags,
-    driver_intr_t *handler, void *priv, void **cookiep)
+    driver_filter_t *filter, driver_intr_t *handler,
+    void *priv, void **cookiep)
 {
 	int err;
 
@@ -355,7 +356,7 @@ bus_setup_intr(device_t dev, struct resource *res, int flags,
 	DEVMETHOD(bus_setup_interrupt, NULL);	/* dummy */
 #endif
 	err = BUS_SETUP_INTERRUPT(device_get_parent(dev), dev,
-	    res, flags, handler, priv, cookiep);
+	    res, flags, filter, handler, priv, cookiep);
 
 	return (err);
 }

@@ -23,10 +23,65 @@
  * SUCH DAMAGE.
  */
 
-/* USB configuration */
+#include <bsd_module_all.h>
 
-#define	USB_NO_POLL 1
-#define	USB_USE_CONDVAR 1
-#define USB_DEBUG 0
+int
+bus_dma_tag_create(bus_dma_tag_t parent, bus_size_t alignment,
+    bus_size_t boundary, bus_addr_t lowaddr, bus_addr_t highaddr,
+    bus_dma_filter_t *filtfunc, void *filtfuncarg, bus_size_t maxsize,
+    int nsegments, bus_size_t maxsegsz, int flags,
+    bus_dma_lock_t *lockfunc, void *lockfuncarg, bus_dma_tag_t *dmat)
+{
+	return (EOPNOTSUPP);
+}
 
-typedef int usb2_handle_request_t (device_t dev, const void *req, void **pptr, uint16_t *plen, uint16_t offset, uint8_t is_complete);
+int
+bus_dma_tag_destroy(bus_dma_tag_t dmat)
+{
+	return (0);
+}
+
+int
+bus_dmamap_create(bus_dma_tag_t dmat, int flags, bus_dmamap_t *mapp)
+{
+	return (EOPNOTSUPP);
+}
+
+int
+bus_dmamap_destroy(bus_dma_tag_t dmat, bus_dmamap_t map)
+{
+	return (0);
+}
+
+int
+bus_dmamap_load(bus_dma_tag_t dmat, bus_dmamap_t map, void *buf,
+    bus_size_t buflen, bus_dmamap_callback_t *callback,
+    void *callback_arg, int flags)
+{
+	return (EOPNOTSUPP);
+}
+
+void
+bus_dmamap_unload(bus_dma_tag_t dmat, bus_dmamap_t map)
+{
+	return;
+}
+
+void
+bus_dmamap_sync(bus_dma_tag_t dmat, bus_dmamap_t map, int op)
+{
+	return;
+}
+
+int
+bus_dmamem_alloc(bus_dma_tag_t dmat, void **vaddr, int flags,
+    bus_dmamap_t *mapp)
+{
+	return (EOPNOTSUPP);
+}
+
+void
+bus_dmamem_free(bus_dma_tag_t dmat, void *vaddr, bus_dmamap_t map)
+{
+	return;
+}

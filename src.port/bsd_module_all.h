@@ -71,8 +71,6 @@
 
 typedef unsigned int size_t;
 typedef unsigned int off_t;
-typedef unsigned long bus_addr_t;
-typedef unsigned long bus_size_t;
 
 typedef unsigned long long int uint64_t;
 typedef signed long long int int64_t;
@@ -88,11 +86,15 @@ typedef signed char int8_t;
 
 typedef unsigned char *caddr_t;
 
+typedef unsigned long bus_addr_t;
+typedef unsigned long bus_size_t;
+
 typedef char *va_list;
 
 typedef unsigned long u_long;
 
 struct selinfo {
+	uint8_t	dummy;
 };
 struct uio;
 struct mbuf;
@@ -107,12 +109,12 @@ struct mbuf;
 #include <bsd_module_callout.h>
 #include <bsd_module_condvar.h>
 #include <bsd_module_sx.h>
+#include <bsd_module_busdma.h>
 #include <bsd_module_busspace.h>
 #include <bsd_module_bus.h>
 #include <bsd_module_proc.h>
 #include <bsd_module_malloc.h>
 #include <bsd_module_libkern.h>
-#include <bsd_module_busdma.h>
 #include <bsd_module_usb.h>
 #include <bsd_module_ioccom.h>
 #include <bsd_module_file.h>
