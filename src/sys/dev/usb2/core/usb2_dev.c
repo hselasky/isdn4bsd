@@ -2167,6 +2167,23 @@ usb2_fifo_put_data_linear(struct usb2_fifo *f, void *ptr,
 	return;
 }
 
+uint8_t
+usb2_fifo_put_data_buffer(struct usb2_fifo *f, void *ptr, uint32_t len)
+{
+	struct usb2_mbuf *m;
+
+	USB_IF_DEQUEUE(&(f->free_q), m);
+
+	if (m) {
+		m->cur_data_len = len;
+		m->cur_data_ptr = ptr;
+		USB_IF_ENQUEUE(&(f->used_q), m);
+		usb2_fifo_wakeup(f);
+		return (1);
+	}
+	return (0);
+}
+
 void
 usb2_fifo_put_data_error(struct usb2_fifo *f)
 {
@@ -2301,6 +2318,37 @@ usb2_fifo_get_data_linear(struct usb2_fifo *f, void *ptr,
 		}
 	}
 	return (tr_data);
+}
+
+uint8_t
+usb2_fifo_get_data_buffer(struct usb2_fifo *f, void **pptr, uint32_t *plen)
+{
+	struct usb2_mbuf *m;
+
+	USB_IF_DEQUEUE(&(f->used_q), m);
+
+	if (m) {
+		*plen = m->cur_data_len;
+		*pptr = m->cur_data_ptr;
+
+		USB_IF_PREPEND(&(f->used_q), m);
+		return (1);
+	}
+	return (0);
+}
+
+void
+usb2_fifo_get_data_next(struct usb2_fifo *f)
+{
+	struct usb2_mbuf *m;
+
+	USB_IF_DEQUEUE(&(f->used_q), m);
+
+	if (m) {
+		USB_IF_ENQUEUE(&(f->free_q), m);
+		usb2_fifo_wakeup(f);
+	}
+	return;
 }
 
 void

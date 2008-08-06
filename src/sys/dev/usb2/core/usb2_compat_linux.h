@@ -31,10 +31,9 @@ struct usb_device;
 struct usb_interface;
 struct usb_driver;
 struct urb;
-struct pt_regs;
 
 typedef void *pm_message_t;
-typedef void (usb_complete_t)(struct urb *, struct pt_regs *);
+typedef void (usb_complete_t)(struct urb *);
 
 #define	USB_MAX_FULL_SPEED_ISOC_FRAMES (60 * 1)
 #define	USB_MAX_HIGH_SPEED_ISOC_FRAMES (60 * 8)
@@ -268,10 +267,10 @@ struct usb_endpoint_descriptor {
 
 #define	USB_ENDPOINT_HALT		0	/* IN/OUT will STALL */
 
-#define	PIPE_ISOCHRONOUS		UE_ISOCHRONOUS
-#define	PIPE_INTERRUPT			UE_INTERRUPT
-#define	PIPE_CONTROL			UE_CONTROL
-#define	PIPE_BULK			UE_BULK
+#define	PIPE_ISOCHRONOUS		0x01	/* UE_ISOCHRONOUS */
+#define	PIPE_INTERRUPT			0x03	/* UE_INTERRUPT */
+#define	PIPE_CONTROL			0x00	/* UE_CONTROL */
+#define	PIPE_BULK			0x02	/* UE_BULK */
 
 /* Whenever Linux references an USB endpoint:
  * a) to initialize "urb->pipe"
@@ -338,6 +337,8 @@ struct usb_host_interface {
 	uint8_t *extra;			/* Extra descriptors */
 
 	uint16_t extralen;
+
+	uint8_t	bsd_iface_index;
 } __aligned(USB_HOST_ALIGN);
 
 struct usb_interface {
@@ -458,5 +459,6 @@ void	usb_linux_register(void *arg);
 void	usb_linux_deregister(void *arg);
 
 #define	interface_to_usbdev(intf) (intf)->linux_udev
+#define	interface_to_bsddev(intf) (intf)->linux_udev->bsd_udev
 
 #endif					/* _USB_COMPAT_LINUX_H */

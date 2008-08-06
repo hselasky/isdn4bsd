@@ -1965,3 +1965,15 @@ usb2_get_interface_altindex(struct usb2_interface *iface)
 {
 	return (iface->alt_index);
 }
+
+uint8_t
+usb2_get_bus_index(struct usb2_device *udev)
+{
+	return ((uint8_t)device_get_unit(udev->bus->bdev));
+}
+
+uint8_t
+usb2_get_device_index(struct usb2_device *udev)
+{
+	return (udev->device_index);
+}

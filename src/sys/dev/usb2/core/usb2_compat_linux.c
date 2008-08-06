@@ -469,7 +469,7 @@ usb_unlink_urb(struct urb *urb)
 		}
 
 		if (urb->complete) {
-			(urb->complete) (urb, NULL);
+			(urb->complete) (urb);
 		}
 	} else {
 
@@ -842,7 +842,6 @@ usb_linux_create_usb_device(struct usb2_device *udev, device_t dev)
 	struct usb2_descriptor *desc;
 	struct usb2_interface_descriptor *id;
 	struct usb2_endpoint_descriptor *ed;
-	struct usb2_device_descriptor *dd;
 	struct usb_device *p_ud = NULL;
 	struct usb_interface *p_ui = NULL;
 	struct usb_host_interface *p_uhi = NULL;
@@ -879,12 +878,6 @@ usb_linux_create_usb_device(struct usb2_device *udev, device_t dev)
 			 */
 			switch (desc->bDescriptorType) {
 			case UDESC_DEVICE:
-				dd = (void *)desc;
-				if (dd->bLength < sizeof(*dd))
-					break;
-				if (p_ud) {
-					bcopy(dd, &(p_ud->descriptor), sizeof(p_ud->descriptor));
-				}
 				break;
 
 			case UDESC_ENDPOINT:
@@ -912,6 +905,7 @@ usb_linux_create_usb_device(struct usb2_device *udev, device_t dev)
 					p_uhi->desc.bNumEndpoints = 0;
 					p_uhi->endpoint = p_uhe;
 					p_uhi->string = "";
+					p_uhi->bsd_iface_index = iface_index;
 					p_uhi++;
 				}
 				iface_no = id->bInterfaceNumber;
@@ -964,7 +958,8 @@ usb_linux_create_usb_device(struct usb2_device *udev, device_t dev)
 			p_ud->bsd_endpoint_start = p_uhe;
 			p_ud->bsd_endpoint_end = p_uhe + nedesc;
 			p_ud->devnum = device_get_unit(dev);
-
+			bcopy(&udev->ddesc, &p_ud->descriptor,
+			    sizeof(p_ud->descriptor));
 			bcopy(udev->default_pipe.edesc, &(p_ud->ep0.desc),
 			    sizeof(p_ud->ep0.desc));
 
@@ -1324,7 +1319,7 @@ usb_linux_cleanup_interface(struct usb_device *dev, struct usb_interface *iface)
  * up, when an USB transfer has finished.
  *------------------------------------------------------------------------*/
 static void
-usb_linux_wait_complete(struct urb *urb, struct pt_regs *pt_regs)
+usb_linux_wait_complete(struct urb *urb)
 {
 	if (urb->transfer_flags & URB_IS_SLEEPING) {
 		usb2_cv_signal(&(urb->cv_wait));
@@ -1344,7 +1339,7 @@ usb_linux_complete(struct usb2_xfer *xfer)
 	urb = xfer->priv_fifo;
 	xfer->priv_fifo = NULL;
 	if (urb->complete) {
-		(urb->complete) (urb, NULL);
+		(urb->complete) (urb);
 	}
 	return;
 }

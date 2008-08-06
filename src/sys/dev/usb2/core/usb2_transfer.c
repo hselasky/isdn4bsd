@@ -272,7 +272,8 @@ usb2_transfer_setup_sub(struct usb2_setup_params *parm)
 	xfer->endpoint = edesc->bEndpointAddress;
 	xfer->max_packet_size = UGETW(edesc->wMaxPacketSize);
 	xfer->max_packet_count = 1;
-	xfer->flags_int.usb2_mode = parm->udev->flags.usb2_mode;	/* make a shadow copy */
+	/* make a shadow copy: */
+	xfer->flags_int.usb2_mode = parm->udev->flags.usb2_mode;
 
 	parm->bufsize = setup_sub->bufsize;
 
@@ -287,7 +288,8 @@ usb2_transfer_setup_sub(struct usb2_setup_params *parm)
 	}
 	/* filter "wMaxPacketSize" according to HC capabilities */
 
-	if (xfer->max_packet_size > parm->hc_max_packet_size) {
+	if ((xfer->max_packet_size > parm->hc_max_packet_size) ||
+	    (xfer->max_packet_size == 0)) {
 		xfer->max_packet_size = parm->hc_max_packet_size;
 	}
 	/* filter "wMaxPacketSize" according to standard sizes */
