@@ -1926,7 +1926,6 @@ void
 usb2_transfer_done(struct usb2_xfer *xfer, usb2_error_t error)
 {
 	struct usb2_xfer_queue *pq;
-	uint8_t block;
 
 	mtx_assert(xfer->usb2_mtx, MA_OWNED);
 
@@ -1964,26 +1963,6 @@ usb2_transfer_done(struct usb2_xfer *xfer, usb2_error_t error)
 		if (pq->curr == xfer) {
 			/* start the next BUS-DMA load, if any */
 			usb2_command_wrapper(pq, NULL);
-		}
-	}
-	/* figure out if this pipe should be blocked */
-	block = (xfer->error &&
-	    (xfer->error != USB_ERR_CANCELLED) &&
-	    (xfer->flags.pipe_bof));
-
-	if (!block) {
-		pq = &(xfer->pipe->pipe_q);
-		if (pq->curr == xfer) {
-			/* start the next USB transfer, if any */
-			usb2_command_wrapper(pq, NULL);
-
-			if (pq->curr || TAILQ_FIRST(&(pq->head))) {
-				/* there is another USB transfer waiting */
-			} else {
-				/* this is the last USB transfer */
-				/* clear isochronous sync flag */
-				xfer->pipe->is_synced = 0;
-			}
 		}
 	}
 	/* keep some statistics */
@@ -2345,6 +2324,14 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 	 */
 	if (pipe->pipe_q.curr == xfer) {
 		usb2_command_wrapper(&(pipe->pipe_q), NULL);
+
+		if (pipe->pipe_q.curr || TAILQ_FIRST(&(pipe->pipe_q.head))) {
+			/* there is another USB transfer waiting */
+		} else {
+			/* this is the last USB transfer */
+			/* clear isochronous sync flag */
+			xfer->pipe->is_synced = 0;
+		}
 	}
 done:
 	return (0);
@@ -2360,6 +2347,10 @@ void
 usb2_command_wrapper(struct usb2_xfer_queue *pq, struct usb2_xfer *xfer)
 {
 	if (xfer) {
+		/*
+		 * If the transfer is not already processing,
+		 * queue it!
+		 */
 		if (pq->curr != xfer) {
 			usb2_transfer_enqueue(pq, xfer);
 			if (pq->curr != NULL) {
@@ -2606,7 +2597,11 @@ usb2_callout_poll(struct usb2_xfer *xfer)
 	}
 	co = &(xfer->timeout_handle);
 
+#if __FreeBSD_version >= 800000
 	mtx = (void *)(co->co.c_lock);
+#else
+	mtx = co->co.c_mtx;
+#endif
 	mtx_lock(mtx);
 
 	if (usb2_callout_pending(co)) {

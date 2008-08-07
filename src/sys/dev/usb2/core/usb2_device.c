@@ -675,8 +675,9 @@ usb2_set_alt_interface_index(struct usb2_device *udev,
 		err = USB_ERR_INVAL;
 		goto done;
 	}
-	usb2_detach_device(udev, iface_index, 1);
-
+	if (udev->flags.usb2_mode == USB_MODE_DEVICE) {
+		usb2_detach_device(udev, iface_index, 1);
+	}
 	err = usb2_fill_iface_data(udev, iface_index, alt_index);
 	if (err) {
 		goto done;

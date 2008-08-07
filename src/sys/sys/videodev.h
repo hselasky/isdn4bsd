@@ -40,7 +40,7 @@
 #ifndef _SYS_VIDEODEV_H_
 #define	_SYS_VIDEODEV_H_
 
-#include <sys/types.h>
+#include <sys/stdint.h>
 #include <sys/time.h>
 
 #if !defined(__user)

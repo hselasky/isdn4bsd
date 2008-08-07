@@ -2410,23 +2410,23 @@ ehci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 	struct usb2_fs_isoc_schedule *fss_start;
 	struct usb2_fs_isoc_schedule *fss_end;
 	struct usb2_fs_isoc_schedule *fss;
+	ehci_sitd_t *td;
+	ehci_sitd_t *td_last = NULL;
+	ehci_sitd_t **pp_last;
+	uint32_t *plen;
 	uint32_t buf_offset;
 	uint32_t nframes;
 	uint32_t temp;
 	uint32_t sitd_mask;
-	uint32_t *plen;
 	uint16_t tlen;
+	uint8_t sa;
+	uint8_t sb;
+	uint8_t error;
 
 #ifdef USB_DEBUG
 	uint8_t once = 1;
 
 #endif
-	uint8_t sa;
-	uint8_t sb;
-	uint8_t error;
-	ehci_sitd_t *td;
-	ehci_sitd_t *td_last = NULL;
-	ehci_sitd_t **pp_last;
 
 	DPRINTFN(6, "xfer=%p next=%d nframes=%d\n",
 	    xfer, xfer->pipe->isoc_next, xfer->nframes);
@@ -2523,7 +2523,13 @@ ehci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 		 * full!
 		 */
 		error = usb2_fs_isoc_schedule_alloc(fss, &sa, *plen);
-
+		if (error) {
+			/*
+			 * The FULL speed schedule is FULL! Set length
+			 * to zero.
+			 */
+			*plen = 0;
+		}
 		if (*plen) {
 			/*
 			 * only call "usb2_get_page()" when we have a
@@ -2536,7 +2542,8 @@ ehci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 			 * NOTE: We need to subtract one from the offset so
 			 * that we are on a valid page!
 			 */
-			usb2_get_page(xfer->frbuffers, buf_offset - 1, &buf_res);
+			usb2_get_page(xfer->frbuffers, buf_offset - 1,
+			    &buf_res);
 			temp = buf_res.physaddr & ~0xFFF;
 		} else {
 			td->sitd_bp[0] = 0;
@@ -2587,15 +2594,6 @@ ehci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 			td->sitd_status = htole32
 			    (EHCI_SITD_ACTIVE |
 			    EHCI_SITD_SET_LEN(*plen));
-		}
-		if (error) {
-			/*
-			 * The FULL speed schedule is FULL! Pretend that the
-			 * transaction has been executed. The IOC bit should
-			 * be active even if the ACTIVE bit is zero.
-			 */
-			td->sitd_status &=
-			    ~htole32(EHCI_SITD_ACTIVE);
 		}
 		usb2_pc_cpu_flush(td->page_cache);
 
@@ -2704,11 +2702,14 @@ ehci_device_isoc_hs_enter(struct usb2_xfer *xfer)
 {
 	struct usb2_page_search buf_res;
 	ehci_softc_t *sc = xfer->usb2_sc;
+	ehci_itd_t *td;
+	ehci_itd_t *td_last = NULL;
+	ehci_itd_t **pp_last;
 	bus_size_t page_addr;
+	uint32_t *plen;
 	uint32_t status;
 	uint32_t buf_offset;
 	uint32_t nframes;
-	uint32_t *plen;
 	uint32_t itd_offset[8 + 1];
 	uint8_t x;
 	uint8_t td_no;
@@ -2718,9 +2719,6 @@ ehci_device_isoc_hs_enter(struct usb2_xfer *xfer)
 	uint8_t once = 1;
 
 #endif
-	ehci_itd_t *td;
-	ehci_itd_t *td_last = NULL;
-	ehci_itd_t **pp_last;
 
 	DPRINTFN(6, "xfer=%p next=%d nframes=%d\n",
 	    xfer, xfer->pipe->isoc_next, xfer->nframes);

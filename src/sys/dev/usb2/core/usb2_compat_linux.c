@@ -28,6 +28,9 @@
 #include <dev/usb2/include/usb2_mfunc.h>
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_error.h>
+#include <dev/usb2/include/usb2_ioctl.h>
+
+#define	USB_DEBUG_VAR usb2_debug
 
 #include <dev/usb2/core/usb2_core.h>
 #include <dev/usb2/core/usb2_compat_linux.h>
@@ -38,6 +41,8 @@
 #include <dev/usb2/core/usb2_transfer.h>
 #include <dev/usb2/core/usb2_parse.h>
 #include <dev/usb2/core/usb2_hub.h>
+#include <dev/usb2/core/usb2_request.h>
+#include <dev/usb2/core/usb2_debug.h>
 
 struct usb_linux_softc {
 	LIST_ENTRY(usb_linux_softc) sc_attached_list;
@@ -62,12 +67,13 @@ static usb2_callback_t usb_linux_non_isoc_callback;
 static usb_complete_t usb_linux_wait_complete;
 
 static uint16_t usb_max_isoc_frames(struct usb_device *dev);
-static int usb_start_wait_urb(struct urb *urb, uint32_t timeout, uint32_t *p_actlen);
+static int usb_start_wait_urb(struct urb *urb, uint32_t timeout, uint16_t *p_actlen);
 static const struct usb_device_id *usb_linux_lookup_id(const struct usb_device_id *id, struct usb2_attach_arg *uaa);
 static struct usb_driver *usb_linux_get_usb_driver(struct usb_linux_softc *sc);
 static struct usb_device *usb_linux_create_usb_device(struct usb2_device *udev, device_t dev);
 static void usb_linux_cleanup_interface(struct usb_device *dev, struct usb_interface *iface);
 static void usb_linux_complete(struct usb2_xfer *xfer);
+static int usb_unlink_urb_sub(struct urb *urb, uint8_t drain);
 
 /*------------------------------------------------------------------------*
  * FreeBSD USB interface
@@ -437,11 +443,34 @@ usb_submit_urb(struct urb *urb, uint16_t mem_flags)
  *
  * This function is used to stop an URB after that it is been
  * submitted, but before the "complete" callback has been called. On
- * FreeBSD this function is always non-blocking, and will always call
- * the "complete" callback with an error before it returns.
  *------------------------------------------------------------------------*/
 int
 usb_unlink_urb(struct urb *urb)
+{
+	return (usb_unlink_urb_sub(urb, 0));
+}
+
+static void
+usb_unlink_bsd(struct usb2_xfer *xfer,
+    struct urb *urb, uint8_t drain)
+{
+	if (xfer &&
+	    usb2_transfer_pending(xfer) &&
+	    (xfer->priv_fifo == (void *)urb)) {
+		if (drain) {
+			mtx_unlock(&Giant);
+			usb2_transfer_drain(xfer);
+			mtx_lock(&Giant);
+		} else {
+			usb2_transfer_stop(xfer);
+		}
+		usb2_transfer_start(xfer);
+	}
+	return;
+}
+
+static int
+usb_unlink_urb_sub(struct urb *urb, uint8_t drain)
 {
 	struct usb_host_endpoint *uhe;
 	uint16_t x;
@@ -479,17 +508,8 @@ usb_unlink_urb(struct urb *urb)
 		 * If so, re-start that transfer, which will lead to the
 		 * termination of that URB:
 		 */
-
-		if (uhe->bsd_xfer[0] &&
-		    (uhe->bsd_xfer[0]->priv_fifo == (void *)urb)) {
-			usb2_transfer_stop(uhe->bsd_xfer[0]);
-			usb2_transfer_start(uhe->bsd_xfer[0]);
-		}
-		if (uhe->bsd_xfer[1] &&
-		    (uhe->bsd_xfer[1]->priv_fifo == (void *)urb)) {
-			usb2_transfer_stop(uhe->bsd_xfer[1]);
-			usb2_transfer_start(uhe->bsd_xfer[1]);
-		}
+		usb_unlink_bsd(uhe->bsd_xfer[0], urb, drain);
+		usb_unlink_bsd(uhe->bsd_xfer[1], urb, drain);
 	}
 	return (0);
 }
@@ -539,7 +559,7 @@ usb_clear_halt(struct usb_device *dev, struct usb_host_endpoint *uhe)
  * Linux USB transfers.
  *------------------------------------------------------------------------*/
 static int
-usb_start_wait_urb(struct urb *urb, uint32_t timeout, uint32_t *p_actlen)
+usb_start_wait_urb(struct urb *urb, uint32_t timeout, uint16_t *p_actlen)
 {
 	int err;
 
@@ -564,8 +584,6 @@ usb_start_wait_urb(struct urb *urb, uint32_t timeout, uint32_t *p_actlen)
 		urb->transfer_flags |= URB_IS_SLEEPING;
 		usb2_cv_wait(&(urb->cv_wait), &Giant);
 		urb->transfer_flags &= ~URB_IS_SLEEPING;
-		if (err)
-			goto done;
 	}
 
 	err = urb->status;
@@ -596,16 +614,21 @@ done:
 int
 usb_control_msg(struct usb_device *dev, struct usb_host_endpoint *uhe,
     uint8_t request, uint8_t requesttype,
-    uint16_t value, uint16_t index, void *data, uint16_t size, uint32_t timeout)
+    uint16_t value, uint16_t index, void *data,
+    uint16_t size, uint32_t timeout)
 {
+	struct usb2_device_request req;
 	struct urb *urb;
-	struct usb2_device_request *req;
-	struct usb_host_endpoint *uhe_write;
-	struct usb_host_endpoint *uhe_read;
-	uint32_t actlen;
 	int err;
+	uint16_t actlen;
 	uint8_t type;
 	uint8_t addr;
+
+	req.bmRequestType = requesttype;
+	req.bRequest = request;
+	USETW(req.wValue, value);
+	USETW(req.wIndex, index);
+	USETW(req.wLength, size);
 
 	if (uhe == NULL) {
 		return (-EINVAL);
@@ -613,31 +636,29 @@ usb_control_msg(struct usb_device *dev, struct usb_host_endpoint *uhe,
 	type = (uhe->desc.bmAttributes & UE_XFERTYPE);
 	addr = (uhe->desc.bEndpointAddress & UE_ADDR);
 
-	/*
-	 * The FreeBSD USB stack supports standard control transfers on
-	 * control endpoints only. For the other two endpoint types we need
-	 * special handling. Check the endpoint type:
-	 */
-	if (type == UE_CONTROL) {
-		uhe_write = NULL;
-		uhe_read = NULL;
-	} else {
-		if (type == UE_ISOCHRONOUS) {
-			return (-EINVAL);
-		}
-		uhe_write = usb_find_host_endpoint(dev, type, addr | UE_DIR_OUT);
-		if (uhe_write == NULL) {
-			return (-EINVAL);
-		}
-		if (requesttype & UT_READ) {
-			uhe_read = usb_find_host_endpoint(dev, type, addr | UE_DIR_IN);
-			if (uhe_read == NULL) {
-				return (-EINVAL);
-			}
-		} else {
-			uhe_read = NULL;
-		}
+	if (type != UE_CONTROL) {
+		return (-EINVAL);
 	}
+	if (addr == 0) {
+		/*
+		 * The FreeBSD USB stack supports standard control
+		 * transfers on control endpoint zero:
+		 */
+		err = usb2_do_request_flags(dev->bsd_udev,
+		    &Giant, &req, data, USB_SHORT_XFER_OK,
+		    &actlen, timeout);
+		if (err) {
+			err = -EPIPE;
+		} else {
+			err = actlen;
+		}
+		return (err);
+	}
+	if (dev->bsd_udev->flags.usb2_mode != USB_MODE_HOST) {
+		/* not supported */
+		return (-EINVAL);
+	}
+	err = usb_setup_endpoint(dev, uhe, 1 /* dummy */ );
 
 	/*
 	 * NOTE: we need to allocate real memory here so that we don't
@@ -650,58 +671,21 @@ usb_control_msg(struct usb_device *dev, struct usb_host_endpoint *uhe,
 		return (-ENOMEM);
 
 	urb->dev = dev;
+	urb->pipe = uhe;
 
-	req = (void *)(urb->setup_packet);
+	bcopy(&req, urb->setup_packet, sizeof(req));
 
-	req->bmRequestType = requesttype;
-	req->bRequest = request;
-	USETW(req->wValue, value);
-	USETW(req->wIndex, index);
-	USETW(req->wLength, size);
-
-	if (size && (req->bmRequestType & UT_WRITE)) {
+	if (size && (!(req.bmRequestType & UT_READ))) {
 		/* move the data to a real buffer */
-		bcopy(data, req + 1, size);
+		bcopy(data, USB_ADD_BYTES(urb->setup_packet,
+		    sizeof(req)), size);
 	}
-	if (type == UE_CONTROL) {
-		urb->pipe = uhe;
-		err = usb_start_wait_urb(urb, timeout, &actlen);
-	} else {
-		urb->pipe = uhe_write;
-		urb->transfer_buffer = urb->setup_packet;
-		urb->transfer_buffer_length = sizeof(*req);
+	err = usb_start_wait_urb(urb, timeout, &actlen);
 
-		err = usb_start_wait_urb(urb, 1000, &actlen);
-		if (err) {
-			goto done;
-		}
-		if (actlen < sizeof(*req)) {
-			err = -EPIPE;
-			actlen = 0;
-			goto done;
-		}
-		if (size) {
-			if (req->bmRequestType & UT_READ) {
-				urb->pipe = uhe_read;
-			}
-			urb->transfer_buffer = req + 1;
-			urb->transfer_buffer_length = size;
-
-			err = usb_start_wait_urb(urb, timeout, &actlen);
-			if (err) {
-				goto done;
-			}
-		}
-	}
-
-done:
-	if (req->bmRequestType & UT_READ) {
-		if (actlen < size) {
-			/* we don't like returning random data */
-			bzero(((uint8_t *)data) + actlen, size - actlen);
-		}
+	if (req.bmRequestType & UT_READ) {
 		if (actlen) {
-			bcopy(req + 1, data, actlen);
+			bcopy(USB_ADD_BYTES(urb->setup_packet,
+			    sizeof(req)), data, actlen);
 		}
 	}
 	usb_free_urb(urb);
@@ -751,7 +735,8 @@ usb_set_interface(struct usb_device *dev, uint8_t iface_no, uint8_t alt_index)
  * size on "wMaxPacketSize".
  *------------------------------------------------------------------------*/
 int
-usb_setup_endpoint(struct usb_device *dev, struct usb_host_endpoint *uhe, uint32_t bufsize)
+usb_setup_endpoint(struct usb_device *dev,
+    struct usb_host_endpoint *uhe, uint32_t bufsize)
 {
 	struct usb2_config cfg[2];
 	uint8_t type = uhe->desc.bmAttributes & UE_XFERTYPE;
@@ -962,12 +947,6 @@ usb_linux_create_usb_device(struct usb2_device *udev, device_t dev)
 			    sizeof(p_ud->descriptor));
 			bcopy(udev->default_pipe.edesc, &(p_ud->ep0.desc),
 			    sizeof(p_ud->ep0.desc));
-
-			if (usb_setup_endpoint(p_ud, &(p_ud->ep0), 1024 /* bytes */ )) {
-				usb_linux_free_device(p_ud);
-				p_ud = NULL;
-				goto done;
-			}
 		}
 	}
 done:
@@ -1007,7 +986,6 @@ usb_alloc_urb(uint16_t iso_packets, uint16_t mem_flags)
 			urb->setup_packet = (void *)(urb + 1);
 			urb->transfer_buffer = (void *)(urb->setup_packet +
 			    sizeof(struct usb2_device_request));
-			urb->transfer_buffer_length = mem_flags;
 		} else {
 			urb->number_of_packets = iso_packets;
 		}
@@ -1058,7 +1036,6 @@ usb_find_host_endpoint(struct usb_device *dev, uint8_t type, uint8_t ep)
 			for (uhe = uhi->endpoint;
 			    uhe != uhe_end;
 			    uhe++) {
-
 				ea = uhe->desc.bEndpointAddress;
 				at = uhe->desc.bmAttributes;
 
@@ -1264,9 +1241,9 @@ usb_init_urb(struct urb *urb)
 void
 usb_kill_urb(struct urb *urb)
 {
-	int err;
-
-	err = usb_unlink_urb(urb);
+	if (usb_unlink_urb_sub(urb, 1)) {
+		/* ignore */
+	}
 	return;
 }
 
@@ -1362,6 +1339,8 @@ usb_linux_isoc_callback(struct usb2_xfer *xfer)
 	struct usb_host_endpoint *uhe = xfer->priv_sc;
 	struct usb_iso_packet_descriptor *uipd;
 
+	DPRINTF("\n");
+
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
@@ -1423,12 +1402,13 @@ tr_setup:
 			TAILQ_REMOVE(&(uhe->bsd_urb_list), urb, bsd_urb_list);
 			urb->bsd_urb_list.tqe_prev = NULL;
 
-			x = usb_max_isoc_frames(urb->dev);
+			x = xfer->max_frame_count;
 			if (urb->number_of_packets > x) {
 				/* XXX simply truncate the transfer */
 				urb->number_of_packets = x;
 			}
 		} else {
+			DPRINTF("Already got a transfer\n");
 
 			/* already got a transfer (should not happen) */
 			urb = xfer->priv_fifo;
@@ -1525,19 +1505,17 @@ usb_linux_non_isoc_callback(struct usb2_xfer *xfer)
 	};
 	struct urb *urb = xfer->priv_fifo;
 	struct usb_host_endpoint *uhe = xfer->priv_sc;
+	uint8_t *ptr;
 	uint32_t max_bulk = xfer->max_data_length;
 	uint8_t data_frame = xfer->flags_int.control_xfr ? 1 : 0;
+
+	DPRINTF("\n");
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
 		if (xfer->flags_int.control_xfr) {
 
-			/* sanity check - should not happen */
-
-			if (xfer->aframes < xfer->nframes) {
-				goto tr_error;
-			}
 			/* don't transfer the setup packet again: */
 
 			xfer->frlengths[0] = 0;
@@ -1562,7 +1540,6 @@ usb_linux_non_isoc_callback(struct usb2_xfer *xfer)
 				urb->status = 0;
 			}
 		} else {
-
 			/* check remainder */
 			if (urb->bsd_length_rem > 0) {
 				goto setup_bulk;
@@ -1576,7 +1553,6 @@ usb_linux_non_isoc_callback(struct usb2_xfer *xfer)
 
 	case USB_ST_SETUP:
 tr_setup:
-
 		/* get next transfer */
 		urb = TAILQ_FIRST(&(uhe->bsd_urb_list));
 		if (urb == NULL) {
@@ -1607,18 +1583,21 @@ tr_setup:
 
 			xfer->frlengths[0] = REQ_SIZE;
 
-			/* setup data transfer direction */
+			ptr = urb->setup_packet;
 
-			urb->bsd_isread = (((uint8_t *)(urb->setup_packet))[0] & UT_READ) ? 1 : 0;
+			/* setup data transfer direction and length */
+			urb->bsd_isread = (ptr[0] & UT_READ) ? 1 : 0;
+			urb->bsd_length_rem = ptr[6] | (ptr[7] << 8);
 
 		} else {
 
 			/* setup data transfer direction */
 
-			urb->bsd_isread = (uhe->desc.bEndpointAddress & UE_DIR_IN) ? 1 : 0;
+			urb->bsd_length_rem = urb->transfer_buffer_length;
+			urb->bsd_isread = (uhe->desc.bEndpointAddress &
+			    UE_DIR_IN) ? 1 : 0;
 		}
 
-		urb->bsd_length_rem = urb->transfer_buffer_length;
 		urb->bsd_data_ptr = urb->transfer_buffer;
 		urb->actual_length = 0;
 
@@ -1658,7 +1637,6 @@ setup_bulk:
 		return;
 
 	default:
-tr_error:
 		if (xfer->error == USB_ERR_CANCELLED) {
 			urb->status = -ECONNRESET;
 		} else {
@@ -1676,6 +1654,5 @@ tr_error:
 			return;
 		}
 		goto tr_setup;
-
 	}
 }
