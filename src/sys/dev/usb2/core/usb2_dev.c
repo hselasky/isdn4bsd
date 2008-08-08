@@ -91,7 +91,11 @@ static d_ioctl_t usb2_ioctl;
 
 static fo_rdwr_t usb2_read_f;
 static fo_rdwr_t usb2_write_f;
+
+#if __FreeBSD_version > 800009
 static fo_truncate_t usb2_truncate_f;
+
+#endif
 static fo_ioctl_t usb2_ioctl_f;
 static fo_poll_t usb2_poll_f;
 static fo_kqfilter_t usb2_kqfilter_f;
@@ -122,7 +126,9 @@ static struct cdevsw usb2_devsw = {
 static struct fileops usb2_ops_f = {
 	.fo_read = usb2_read_f,
 	.fo_write = usb2_write_f,
+#if __FreeBSD_version > 800009
 	.fo_truncate = usb2_truncate_f,
+#endif
 	.fo_ioctl = usb2_ioctl_f,
 	.fo_poll = usb2_poll_f,
 	.fo_kqfilter = usb2_kqfilter_f,
@@ -1600,11 +1606,14 @@ usb2_stat_f(struct file *fp, struct stat *sb, struct ucred *cred, struct thread 
 	return (vnops.fo_stat(fp, sb, cred, td));
 }
 
+#if __FreeBSD_version > 800009
 static int
 usb2_truncate_f(struct file *fp, off_t length, struct ucred *cred, struct thread *td)
 {
 	return (vnops.fo_truncate(fp, length, cred, td));
 }
+
+#endif
 
 /* ARGSUSED */
 static int
@@ -1995,7 +2004,7 @@ usb2_fifo_attach(struct usb2_device *udev, void *priv_sc,
 			f_tx->symlink[n / 2] =
 			    usb2_alloc_symlink(src, "%s", buf);
 		}
-		DPRINTF("Symlink: %s -> %s\n", buf, src);
+		printf("Symlink: %s -> %s\n", buf, src);
 	}
 
 	DPRINTFN(2, "attached %p/%p\n", f_tx, f_rx);

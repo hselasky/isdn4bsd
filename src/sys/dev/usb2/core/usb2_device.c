@@ -974,12 +974,17 @@ usb2_probe_and_attach_sub(struct usb2_device *udev,
 		device_set_ivars(uaa->temp_dev, uaa);
 		device_quiet(uaa->temp_dev);
 	}
-	if (device_probe_and_attach(uaa->temp_dev) == 0) {
+	/*
+	 * Set "subdev" before probe and attach so that "devd" gets
+	 * the information it needs.
+	 */
+	iface->subdev = uaa->temp_dev;
+
+	if (device_probe_and_attach(iface->subdev) == 0) {
 		/*
 		 * The USB attach arguments are only available during probe
 		 * and attach !
 		 */
-		iface->subdev = uaa->temp_dev;
 		uaa->temp_dev = NULL;
 		device_set_ivars(iface->subdev, NULL);
 
@@ -988,6 +993,9 @@ usb2_probe_and_attach_sub(struct usb2_device *udev,
 			device_printf(iface->subdev, "Suspend failed\n");
 		}
 		return (0);		/* success */
+	} else {
+		/* No USB driver found */
+		iface->subdev = NULL;
 	}
 	return (1);			/* failure */
 }
