@@ -91,7 +91,7 @@ struct thread;
  * while it is open!
  */
 struct usb2_com_callback {
-	void    (*usb2_com_cfg_get_status) (struct usb2_com_softc *, uint8_t *, uint8_t *);
+	void    (*usb2_com_cfg_get_status) (struct usb2_com_softc *, uint8_t *plsr, uint8_t *pmsr);
 	void    (*usb2_com_cfg_set_dtr) (struct usb2_com_softc *, uint8_t);
 	void    (*usb2_com_cfg_set_rts) (struct usb2_com_softc *, uint8_t);
 	void    (*usb2_com_cfg_set_break) (struct usb2_com_softc *, uint8_t);
@@ -105,6 +105,7 @@ struct usb2_com_callback {
 	void    (*usb2_com_stop_read) (struct usb2_com_softc *);
 	void    (*usb2_com_start_write) (struct usb2_com_softc *);
 	void    (*usb2_com_stop_write) (struct usb2_com_softc *);
+	void    (*usb2_com_tty_name) (struct usb2_com_softc *, char *pbuf, uint16_t buflen, uint16_t local_subunit);
 };
 
 /* Line status register */

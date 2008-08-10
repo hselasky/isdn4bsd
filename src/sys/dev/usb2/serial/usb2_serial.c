@@ -304,6 +304,7 @@ usb2_com_attach_sub(struct usb2_com_softc *sc)
 {
 	struct tty *tp;
 	int error = 0;
+	char buf[32];			/* temporary TTY device name buffer */
 
 	tp = ttyalloc();
 
@@ -323,11 +324,24 @@ usb2_com_attach_sub(struct usb2_com_softc *sc)
 
 	DPRINTF("tp = %p, unit = %d\n", tp, sc->sc_unit);
 
+	buf[0] = 0;			/* set some default value */
+
+	/* Check if the client has a custom TTY name */
+	if (sc->sc_callback->usb2_com_tty_name) {
+		sc->sc_callback->usb2_com_tty_name(sc, buf,
+		    sizeof(buf), sc->sc_local_unit);
+	}
+	if (buf[0] == 0) {
+		/* Use default TTY name */
+		if (snprintf(buf, sizeof(buf), "U%u", sc->sc_unit)) {
+			/* ignore */
+		}
+	}
 #if !(defined(TS_CALLOUT) || (__FreeBSD_version >= 700022))
 #define	TS_CALLOUT NULL, sc->sc_unit, MINOR_CALLOUT	/* compile fix for
 							 * FreeBSD 6.x */
 #endif
-	error = ttycreate(tp, TS_CALLOUT, "U%d", sc->sc_unit);
+	error = ttycreate(tp, TS_CALLOUT, "%s", buf);
 	if (error) {
 		ttyfree(tp);
 		goto done;
