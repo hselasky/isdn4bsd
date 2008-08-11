@@ -159,7 +159,6 @@ ohci_controller_init(ohci_softc_t *sc)
 {
 	struct usb2_page_search buf_res;
 	uint32_t i;
-	uint32_t s;
 	uint32_t ctl;
 	uint32_t ival;
 	uint32_t hcr;
@@ -172,27 +171,17 @@ ohci_controller_init(ohci_softc_t *sc)
 	if (ctl & OHCI_IR) {
 		/* SMM active, request change */
 		DPRINTF("SMM active, request owner change\n");
-		s = OREAD4(sc, OHCI_COMMAND_STATUS);
-		OWRITE4(sc, OHCI_COMMAND_STATUS, s | OHCI_OCR);
+		OWRITE4(sc, OHCI_COMMAND_STATUS, OHCI_OCR);
 		for (i = 0; (i < 100) && (ctl & OHCI_IR); i++) {
 			DELAY(1000 * 1);
 			ctl = OREAD4(sc, OHCI_CONTROL);
 		}
-		if ((ctl & OHCI_IR) == 0) {
-			device_printf(sc->sc_bus.bdev, "SMM does not respond, resetting\n");
+		if (ctl & OHCI_IR) {
+			device_printf(sc->sc_bus.bdev,
+			    "SMM does not respond, resetting\n");
 			OWRITE4(sc, OHCI_CONTROL, OHCI_HCFS_RESET);
 			goto reset;
 		}
-#if 0
-/* Don't bother trying to reuse the BIOS init, we'll reset it anyway. */
-	} else if ((ctl & OHCI_HCFS_MASK) != OHCI_HCFS_RESET) {
-		/* BIOS started controller. */
-		DPRINTF("BIOS active\n");
-		if ((ctl & OHCI_HCFS_MASK) != OHCI_HCFS_OPERATIONAL) {
-			OWRITE4(sc, OHCI_CONTROL, OHCI_HCFS_OPERATIONAL);
-			DELAY(1000 * USB_RESUME_DELAY);
-		}
-#endif
 	} else {
 		DPRINTF("cold started\n");
 reset:

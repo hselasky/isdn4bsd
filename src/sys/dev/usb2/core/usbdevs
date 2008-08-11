@@ -1,4 +1,4 @@
-$FreeBSD: src/sys/dev/usb/usbdevs,v 1.361 2008/06/27 10:30:08 luigi Exp $
+$FreeBSD: src/sys/dev/usb/usbdevs,v 1.364 2008/08/11 03:57:31 weongyo Exp $
 /* $NetBSD: usbdevs,v 1.392 2004/12/29 08:38:44 imp Exp $ */
 
 /*-
@@ -55,8 +55,8 @@ $FreeBSD: src/sys/dev/usb/usbdevs,v 1.361 2008/06/27 10:30:08 luigi Exp $
  *
  * After adding a vendor ID VNDR and a product ID PRDCT you will have the
  * following extra defines:
- * #define	USB_VENDOR_VNDR              0x????
- * #define	USB_PRODUCT_VNDR_PRDCT       0x????
+ * #define USB_VENDOR_VNDR              0x????
+ * #define USB_PRODUCT_VNDR_PRDCT       0x????
  *
  * You may have to add these defines to the respective probe routines to
  * make the device recognised by the appropriate device driver.
@@ -206,7 +206,6 @@ vendor NEWNEX		0x04f7	Newnex
 vendor BROTHER		0x04f9	Brother Industries
 vendor DALLAS		0x04fa	Dallas Semiconductor
 vendor SUNPLUS		0x04fc	Sunplus
-vendor AIPTEK2		0x04fc	AIPTEK International
 vendor PFU		0x04fe	PFU
 vendor FUJIKURA		0x0501	Fujikura/DDK
 vendor ACER		0x0502	Acer
@@ -436,6 +435,7 @@ vendor AUDIOTECHNICA	0x0909	Audio-Technica
 vendor TRUMPION		0x090a	Trumpion Microelectronics
 vendor FEIYA		0x090c	Feiya
 vendor ALATION		0x0910	Alation Systems
+vendor GLOBESPAN	0x0915	Globespan
 vendor CONCORDCAMERA	0x0919	Concord Camera
 vendor GARMIN		0x091e	Garmin International
 vendor GOHUBS		0x0921	GoHubs
@@ -498,10 +498,10 @@ vendor AMBIT		0x0bb2	Ambit Microsystems
 vendor HTC		0x0bb4	HTC
 vendor REALTEK		0x0bda	Realtek
 vendor ADDONICS2	0x0bf6	Addonics Technology
+vendor FSC		0x0bf8	Fujitsu Siemens Computers
 vendor AGATE		0x0c08	Agate Technologies
 vendor DMI		0x0c0b	DMI
 vendor MICRODIA		0x0c45	Chicony
-vendor CHICONY2		0x0c45	Chicony Electronics
 vendor SEALEVEL		0x0c52	Sealevel System
 vendor LUWEN		0x0c76	Luwen
 vendor KYOCERA2		0x0c88	Kyocera Wireless Corp.
@@ -702,6 +702,7 @@ product ACCTON USB320_EC	0x1046	USB320-EC Ethernet Adapter
 product ACCTON 2664W		0x3501	2664W
 product ACCTON 111		0x3503	T-Sinus 111 Wireless Adapter
 product ACCTON SMCWUSBG		0x4505	SMCWUSB-G
+product ACCTON PRISM_GT		0x4521	PrismGT USB 2.0 WLAN
 product ACCTON SS1001		0x5046	SpeedStream Ethernet Adapter
 product ACCTON ZD1211B		0xe501	ZD1211B
 
@@ -792,7 +793,7 @@ product AINCOMM AWU2000B	0x1001	AWU2000B Wireless Adapter
 
 /* AIPTEK products */
 product AIPTEK POCKETCAM3M	0x2011	PocketCAM 3Mega
-product AIPTEK2 PENCAM_MEGA_1_3 0x504a	PenCam Mega 1.3
+product SUNPLUS PENCAM_MEGA_1_3 0x504a	PenCam Mega 1.3
 
 /* AirPrime products */
 product AIRPRIME PC5220		0x0112	CDMA Wireless PC Card
@@ -855,6 +856,8 @@ product APPLE IPOD_07		0x1207	iPod '07'
 product APPLE IPOD_08		0x1208	iPod '08'
 product APPLE IPODVIDEO		0x1209	iPod Video
 product APPLE IPODNANO		0x120a	iPod Nano
+product APPLE IPHONE		0x1290	iPhone
+product APPLE IPHONE_3G		0x1292	iPhone 3G
 product APPLE ETHERNET		0x1402	Ethernet A1277
 
 /* Arkmicro Technologies */
@@ -879,6 +882,7 @@ product ASUS A9T_WIFI		0x171b	A9T wireless
 product ASUS RT2573_1		0x1723	RT2573
 product ASUS RT2573_2		0x1724	RT2573
 product ASUS LCM		0x1726	LCM display
+product ASUS P535		0x420f	ASUS P535 PDA
 
 /* ATen products */
 product ATEN UC1284		0x2001	Parallel printer
@@ -998,7 +1002,7 @@ product CHIC CYPRESS		0x0003	Cypress USB Mouse
 
 /* Chicony products */
 product CHICONY KB8933		0x0001	KB-8933 keyboard
-product CHICONY2 TWINKLECAM	0x600d	TwinkleCam USB camera
+product MICRODIA TWINKLECAM	0x600d	TwinkleCam USB camera
 
 /* CH Products */
 product CHPRODUCTS PROTHROTTLE	0x00f1	Pro Throttle
@@ -1029,6 +1033,7 @@ product COMPAQ IPAQLINUX	0x505a	iPAQ Linux
 product COMPOSITE USBPS2	0x0001	USB to PS2 Adaptor
 
 /* Conceptronic products */
+product CONCEPTRONIC PRISM_GT	0x3762	PrismGT USB 2.0 WLAN
 product CONCEPTRONIC C11U	0x7100	C11U
 product CONCEPTRONIC WL210	0x7110	WL-210
 product CONCEPTRONIC AR5523_1	0x7801	AR5523
@@ -1095,7 +1100,9 @@ product DALLAS J6502		0x4201	J-6502 speakers
 product DELL PORT		0x0058	Port Replicator
 product DELL AIO926		0x5115	Photo AIO Printer 926
 product DELL BC02		0x8000	BC02 Bluetooth USB Adapter
+product DELL PRISM_GT_1		0x8102	PrismGT USB 2.0 WLAN
 product DELL TM350		0x8103	TrueMobile 350 Bluetooth USB Adapter
+product DELL PRISM_GT_2		0x8104	PrismGT USB 2.0 WLAN
 product DELL U740		0x8135	Dell U740 CDMA
 
 /* Delorme Paublishing products */
@@ -1246,6 +1253,9 @@ product FOSSIL WRISTPDA		0x0002	Wrist PDA
 /* Freecom products */
 product FREECOM DVD		0xfc01	DVD drive
 
+/* Fujitsu Siemens Computers products */
+product FSC E5400		0x1009	PrismGT USB 2.0 WLAN
+
 /* Future Technology Devices products */
 product FTDI SERIAL_8U100AX	0x8372	8U100AX Serial
 product FTDI SERIAL_8U232AM	0x6001	8U232AM Serial
@@ -1312,6 +1322,10 @@ product GLOBALSUN AR5523_1	0x7801	AR5523
 product GLOBALSUN AR5523_1_NF	0x7802	AR5523 (no firmware)
 product GLOBALSUN AR5523_2	0x7811	AR5523
 product GLOBALSUN AR5523_2_NF	0x7812	AR5523 (no firmware)
+
+/* Globespan products */
+product GLOBESPAN PRISM_GT_1	0x2000	PrismGT USB 2.0 WLAN
+product GLOBESPAN PRISM_GT_2	0x2002	PrismGT USB 2.0 WLAN
 
 /* G.Mate, Inc products */
 product GMATE YP3X00		0x1001	YP3X00 PDA
@@ -1439,6 +1453,7 @@ product INTEL EASYPC_CAMERA	0x0110	Easy PC Camera
 product INTEL TESTBOARD		0x9890	82930 test board
 
 /* Intersil products */
+product INTERSIL PRISM_GT	0x1000	PrismGT USB 2.0 WLAN
 product INTERSIL PRISM_2X	0x3642	Prism2.x or Atmel WLAN
 
 /* Interpid Control Systems products */
@@ -1780,6 +1795,7 @@ product NETGEAR EA101		0x1001	Ethernet
 product NETGEAR EA101X		0x1002	Ethernet
 product NETGEAR FA101		0x1020	Ethernet 10/100, USB1.1
 product NETGEAR FA120		0x1040	USB 2.0 Ethernet
+product NETGEAR WG111V2_2	0x4240	PrismGT USB 2.0 WLAN
 product NETGEAR WG111U		0x4300	WG111U
 product NETGEAR WG111U_NF	0x4301	WG111U (no firmware)
 product NETGEAR2 MA101		0x4100	MA101
@@ -2358,6 +2374,7 @@ product WINBOND UH104		0x5518	4-port USB Hub
 product WINMAXGROUP FLASH64MC	0x6660	USB Flash Disk 64M-C
 
 /* Wistron NeWeb products */
+product WISTRONNEWEB UR045G	0x0427	PrismGT USB 2.0 WLAN
 product WISTRONNEWEB UR055G	0x0711	UR055G
 product WISTRONNEWEB AR5523_1	0x0826	AR5523
 product WISTRONNEWEB AR5523_1_NF	0x0827	AR5523 (no firmware)
@@ -2369,6 +2386,10 @@ product XEROX WCM15		0xffef	WorkCenter M15
 
 /* Xirlink products */
 product XIRLINK PCCAM		0x8080	IBM PC Camera
+
+/* Xyratex products */
+product XYRATEX PRISM_GT_1	0x2000	PrismGT USB 2.0 WLAN
+product XYRATEX PRISM_GT_2	0x2002	PrismGT USB 2.0 WLAN
 
 /* Y-E Data products */
 product YEDATA FLASHBUSTERU	0x0000	Flashbuster-U
@@ -2389,6 +2410,7 @@ product YANO FW800HD		0x05fc	METALWEAR-HDD
 product ZCOM M4Y750		0x0001	M4Y-750
 product ZCOM XI725		0x0002	XI-725/726
 product ZCOM XI735		0x0005	XI-735
+product ZCOM XG703A		0x0008	PrismGT USB 2.0 WLAN
 product ZCOM ZD1211		0x0011	ZD1211
 product ZCOM AR5523		0x0012	AR5523
 product ZCOM AR5523_NF		0x0013	AR5523 driver (no firmware)

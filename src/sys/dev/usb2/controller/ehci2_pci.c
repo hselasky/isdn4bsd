@@ -429,8 +429,11 @@ static void
 ehci_pci_takecontroller(device_t self)
 {
 	ehci_softc_t *sc = device_get_softc(self);
-	uint32_t cparams, eec, legsup;
-	int eecp, i;
+	uint32_t cparams;
+	uint32_t eec;
+	uint16_t to;
+	uint8_t eecp;
+	uint8_t bios_sem;
 
 	cparams = EREAD4(sc, EHCI_HCCPARAMS);
 
@@ -441,29 +444,31 @@ ehci_pci_takecontroller(device_t self)
 		if (EHCI_EECP_ID(eec) != EHCI_EC_LEGSUP) {
 			continue;
 		}
-		legsup = eec;
-		if (legsup & EHCI_LEGSUP_BIOSOWNED) {
-			/*
-			 * Only set the "OSOWNED" bit if the "BIOSOWNED" bit
-			 * is set:
-			 */
-			pci_write_config(self, eecp,
-			    legsup | EHCI_LEGSUP_OSOWNED, 4);
-			device_printf(sc->sc_bus.bdev, "waiting for BIOS "
-			    "to give up control\n");
+		bios_sem = pci_read_config(self, eecp +
+		    EHCI_LEGSUP_BIOS_SEM, 1);
+		if (bios_sem == 0) {
+			continue;
+		}
+		device_printf(sc->sc_bus.bdev, "waiting for BIOS "
+		    "to give up control\n");
+		pci_write_config(self, eecp +
+		    EHCI_LEGSUP_OS_SEM, 1, 1);
+		to = 5000;
+		while (1) {
+			bios_sem = pci_read_config(self, eecp +
+			    EHCI_LEGSUP_BIOS_SEM, 1);
+			if (bios_sem == 0)
+				break;
 
-			for (i = 0; i < 5000; i++) {
-				legsup = pci_read_config(self, eecp, 4);
-				if ((legsup & EHCI_LEGSUP_BIOSOWNED) == 0) {
-					break;
-				}
-				DELAY(1000);
+			if (--to == 0) {
+				device_printf(sc->sc_bus.bdev,
+				    "timed out waiting for BIOS\n");
+				break;
 			}
-			if (legsup & EHCI_LEGSUP_BIOSOWNED) {
-				device_printf(sc->sc_bus.bdev, "timed out waiting for BIOS\n");
-			}
+			DELAY(1000);
 		}
 	}
+	return;
 }
 
 static driver_t ehci_driver =

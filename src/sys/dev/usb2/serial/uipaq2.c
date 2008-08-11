@@ -171,6 +171,7 @@ static const struct usb2_device_id uipaq_devs[] = {
 	{USB_VPI(USB_VENDOR_COMPAQ, USB_PRODUCT_COMPAQ_IPAQPOCKETPC, 0)},
 	{USB_VPI(USB_VENDOR_CASIO, USB_PRODUCT_CASIO_BE300, 0)},
 	{USB_VPI(USB_VENDOR_SHARP, USB_PRODUCT_SHARP_WZERO3ES, 0)},
+	{USB_VPI(USB_VENDOR_ASUS, USB_PRODUCT_ASUS_P535, 0)},
 };
 
 static device_method_t uipaq_methods[] = {
