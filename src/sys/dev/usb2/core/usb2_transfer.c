@@ -2322,6 +2322,7 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 	 * If the current USB transfer is completing we need to start the
 	 * next one:
 	 */
+	mtx_lock(xfer->usb2_mtx);
 	if (pipe->pipe_q.curr == xfer) {
 		usb2_command_wrapper(&(pipe->pipe_q), NULL);
 
@@ -2333,6 +2334,7 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 			xfer->pipe->is_synced = 0;
 		}
 	}
+	mtx_unlock(xfer->usb2_mtx);
 done:
 	return (0);
 }

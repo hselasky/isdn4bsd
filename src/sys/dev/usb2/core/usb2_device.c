@@ -470,7 +470,7 @@ usb2_free_iface_data(struct usb2_device *udev)
 		iface->idesc = NULL;
 		iface->alt_index = 0;
 		iface->parent_iface_index = USB_IFACE_INDEX_ANY;
-		iface->perm.active = 0;	/* disable permissions */
+		iface->perm.mode = 0;	/* disable permissions */
 		iface++;
 	}
 

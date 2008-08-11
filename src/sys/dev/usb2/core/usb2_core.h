@@ -156,7 +156,6 @@ struct usb2_perm {
 	uint32_t uid;
 	uint32_t gid;
 	uint16_t mode;
-	uint8_t	active;
 };
 
 /*

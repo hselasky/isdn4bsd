@@ -111,7 +111,6 @@ static struct usb2_perm usb2_perm = {
 	.uid = UID_ROOT,
 	.gid = GID_OPERATOR,
 	.mode = 0660,
-	.active = 1,
 };
 
 static struct cdevsw usb2_devsw = {
@@ -238,11 +237,172 @@ usb2_set_iface_perm(struct usb2_device *udev, uint8_t iface_index,
 		iface->perm.uid = uid;
 		iface->perm.gid = gid;
 		iface->perm.mode = mode;
-		iface->perm.active = 1;
 		mtx_unlock(&usb2_ref_lock);
 
 	}
 	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_set_perm
+ *
+ * This function will set the permissions at the given level.
+ *
+ * Return values:
+ *    0: Success.
+ * Else: Failure.
+ *------------------------------------------------------------------------*/
+static int
+usb2_set_perm(struct usb2_dev_perm *psrc, uint8_t level)
+{
+	struct usb2_location loc;
+	struct usb2_perm *pdst;
+	uint32_t devloc;
+	int error;
+
+	/* only super-user can set permissions */
+	error = suser(curthread);
+	if (error) {
+		return (error);
+	}
+	if ((psrc->bus_index >= USB_BUS_MAX) ||
+	    (psrc->dev_index >= USB_DEV_MAX) ||
+	    (psrc->iface_index >= USB_IFACE_MAX)) {
+		return (EINVAL);
+	}
+	devloc = 0;
+	switch (level) {
+	case 3:
+		devloc += psrc->iface_index *
+		    USB_DEV_MAX * USB_BUS_MAX;
+		/* FALLTHROUGH */
+	case 2:
+		devloc += psrc->dev_index *
+		    USB_BUS_MAX;
+		/* FALLTHROUGH */
+	case 1:
+		devloc += psrc->bus_index;
+		break;
+	default:
+		break;
+	}
+
+	if ((level > 0) && (level < 4)) {
+		error = usb2_ref_device(NULL, &loc, devloc);
+		if (error) {
+			return (error);
+		}
+	}
+	switch (level) {
+	case 3:
+		pdst = &loc.iface->perm;
+		break;
+	case 2:
+		pdst = &loc.udev->perm;
+		break;
+	case 1:
+		pdst = &loc.bus->perm;
+		break;
+	default:
+		pdst = &usb2_perm;
+		break;
+	}
+
+	/* all permissions are protected by "usb2_ref_lock" */
+	mtx_lock(&usb2_ref_lock);
+	pdst->uid = psrc->user_id;
+	pdst->gid = psrc->group_id;
+	pdst->mode = psrc->mode;
+	mtx_unlock(&usb2_ref_lock);
+
+	if ((level > 0) && (level < 4)) {
+		usb2_unref_device(&loc);
+	}
+	return (0);			/* success */
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_get_perm
+ *
+ * This function will get the permissions at the given level.
+ *
+ * Return values:
+ *    0: Success.
+ * Else: Failure.
+ *------------------------------------------------------------------------*/
+static int
+usb2_get_perm(struct usb2_dev_perm *pdst, uint8_t level)
+{
+	struct usb2_location loc;
+	struct usb2_perm *psrc;
+	uint32_t devloc;
+	int error;
+
+	if ((pdst->bus_index >= USB_BUS_MAX) ||
+	    (pdst->dev_index >= USB_DEV_MAX) ||
+	    (pdst->iface_index >= USB_IFACE_MAX)) {
+		return (EINVAL);
+	}
+retry:
+	devloc = 0;
+	switch (level) {
+	case 3:
+		devloc += pdst->iface_index *
+		    USB_DEV_MAX * USB_BUS_MAX;
+		/* FALLTHROUGH */
+	case 2:
+		devloc += pdst->dev_index *
+		    USB_BUS_MAX;
+		/* FALLTHROUGH */
+	case 1:
+		devloc += pdst->bus_index;
+		break;
+	default:
+		break;
+	}
+
+	if ((level > 0) && (level < 4)) {
+		error = usb2_ref_device(NULL, &loc, devloc);
+		if (error) {
+			return (error);
+		}
+	}
+	switch (level) {
+	case 3:
+		psrc = &loc.iface->perm;
+		break;
+	case 2:
+		psrc = &loc.udev->perm;
+		break;
+	case 1:
+		psrc = &loc.bus->perm;
+		break;
+	default:
+		psrc = &usb2_perm;
+		break;
+	}
+
+	/* all permissions are protected by "usb2_ref_lock" */
+	mtx_lock(&usb2_ref_lock);
+	if (psrc->mode != 0) {
+		pdst->user_id = psrc->uid;
+		pdst->group_id = psrc->gid;
+		pdst->mode = psrc->mode;
+		error = 0;
+	} else {
+		error = EINVAL;
+	}
+	mtx_unlock(&usb2_ref_lock);
+
+	if ((level > 0) && (level < 4)) {
+		usb2_unref_device(&loc);
+		if (error) {
+			/* try to find the permission one level down */
+			level--;
+			goto retry;
+		}
+	}
+	return (error);
 }
 
 /*------------------------------------------------------------------------*
@@ -260,7 +420,7 @@ usb2_match_perm(struct usb2_perm *psystem, struct usb2_perm *puser)
 {
 	uint16_t mode;
 
-	if (psystem->active && puser->active) {
+	if ((psystem->mode != 0) && (puser->mode != 0)) {
 		/* continue */
 	} else {
 		return (0);		/* no access */
@@ -962,9 +1122,6 @@ usb2_check_thread_perm(struct usb2_device *udev, struct thread *td,
 		perm.mode |= 0444;
 	if (fflags & FWRITE)
 		perm.mode |= 0222;
-	perm.active = 1;
-
-	mtx_lock(udev->default_mtx);
 
 	/* scan down the permissions tree */
 	if ((ep_index != 0) && iface &&
@@ -984,7 +1141,6 @@ usb2_check_thread_perm(struct usb2_device *udev, struct thread *td,
 		/* no access */
 		err = EPERM;
 	}
-	mtx_unlock(udev->default_mtx);
 	return (err);
 }
 
@@ -1108,16 +1264,44 @@ static int
 usb2_ioctl(struct cdev *dev, u_long cmd, caddr_t data,
     int fflag, struct thread *td)
 {
+	union {
+		struct usb2_read_dir *urd;
+		struct usb2_dev_perm *udp;
+		void   *data;
+	}     u;
 	int err;
 
-	switch (cmd) {
-	case USB_READ_DIR:{
-			struct usb2_read_dir *urd = (void *)data;
+	u.data = data;
 
-			err = usb2_read_symlink(urd->urd_data,
-			    urd->urd_startentry, urd->urd_maxlen);
-			break;
-		}
+	switch (cmd) {
+	case USB_READ_DIR:
+		err = usb2_read_symlink(u.urd->urd_data,
+		    u.urd->urd_startentry, u.urd->urd_maxlen);
+		break;
+	case USB_SET_IFACE_PERM:
+		err = usb2_set_perm(u.udp, 3);
+		break;
+	case USB_SET_DEVICE_PERM:
+		err = usb2_set_perm(u.udp, 2);
+		break;
+	case USB_SET_BUS_PERM:
+		err = usb2_set_perm(u.udp, 1);
+		break;
+	case USB_SET_ROOT_PERM:
+		err = usb2_set_perm(u.udp, 0);
+		break;
+	case USB_GET_IFACE_PERM:
+		err = usb2_get_perm(u.udp, 3);
+		break;
+	case USB_GET_DEVICE_PERM:
+		err = usb2_get_perm(u.udp, 2);
+		break;
+	case USB_GET_BUS_PERM:
+		err = usb2_get_perm(u.udp, 1);
+		break;
+	case USB_GET_ROOT_PERM:
+		err = usb2_get_perm(u.udp, 0);
+		break;
 	default:
 		err = ENOTTY;
 		break;

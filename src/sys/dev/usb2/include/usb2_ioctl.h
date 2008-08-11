@@ -180,6 +180,18 @@ struct usb2_fs_clear_stall_sync {
 	uint8_t	ep_index;
 };
 
+struct usb2_dev_perm {
+	/* Permissions */
+	uint16_t user_id;
+	uint16_t group_id;
+	uint16_t mode;
+
+	/* Device location */
+	uint16_t bus_index;
+	uint16_t dev_index;
+	uint16_t iface_index;
+};
+
 /* USB controller */
 #define	USB_REQUEST		_IOWR('U', 1, struct usb2_ctl_request)
 #define	USB_SETDEBUG		_IOW ('U', 2, int)
@@ -222,10 +234,18 @@ struct usb2_fs_clear_stall_sync {
 #define	USB_IFACE_DRIVER_DETACH	_IOW ('U', 125, int)
 #define	USB_GET_PLUGTIME	_IOR ('U', 126, uint32_t)
 #define	USB_READ_DIR		_IOW ('U', 127, struct usb2_read_dir)
+#define	USB_SET_ROOT_PERM	_IOW ('U', 128, struct usb2_dev_perm)
+#define	USB_SET_BUS_PERM	_IOW ('U', 129, struct usb2_dev_perm)
+#define	USB_SET_DEVICE_PERM	_IOW ('U', 130, struct usb2_dev_perm)
+#define	USB_SET_IFACE_PERM	_IOW ('U', 131, struct usb2_dev_perm)
+#define	USB_GET_ROOT_PERM	_IOW ('U', 132, struct usb2_dev_perm)
+#define	USB_GET_BUS_PERM	_IOW ('U', 133, struct usb2_dev_perm)
+#define	USB_GET_DEVICE_PERM	_IOW ('U', 134, struct usb2_dev_perm)
+#define	USB_GET_IFACE_PERM	_IOW ('U', 135, struct usb2_dev_perm)
 
 /* Modem device */
-#define	USB_GET_CM_OVER_DATA	_IOR ('U', 130, int)
-#define	USB_SET_CM_OVER_DATA	_IOW ('U', 131, int)
+#define	USB_GET_CM_OVER_DATA	_IOR ('U', 160, int)
+#define	USB_SET_CM_OVER_DATA	_IOW ('U', 161, int)
 
 /* USB file system interface */
 #define	USB_FS_START		_IOW ('U', 192, struct usb2_fs_start)
