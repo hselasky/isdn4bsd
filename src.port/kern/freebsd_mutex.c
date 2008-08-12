@@ -40,14 +40,46 @@ SYSINIT(Giant_sysinit, SI_SUB_LOCK, SI_ORDER_MIDDLE, mtx_sysinit, &Giant);
 SYSUNINIT(Giant_sysuninit, SI_SUB_LOCK, SI_ORDER_MIDDLE, mtx_sysuninit, &Giant);
 
 #if 1
+
+#define I32_bit (1 << 7)        /* IRQ disable */
+#define F32_bit (1 << 6)        /* FIQ disable */
+
+#define intr_disable() \
+  atomic_set_cpsr_c(I32_bit, I32_bit)
+
+#define intr_enable(mask) \
+  atomic_set_cpsr_c((mask) & I32_bit, 0)
+
+static inline uint32_t
+atomic_set_cpsr_c(uint32_t bic, uint32_t eor)
+{
+        uint32_t       tmp, ret;
+
+        __asm __volatile(
+                "mrs     %0, cpsr\n"    /* Get the CPSR */
+                "bic     %1, %0, %2\n"  /* Clear bits */
+                "eor     %1, %1, %3\n"  /* XOR bits */
+                "msr     cpsr_c, %1\n"  /* Set the control field of CPSR */
+        : "=&r" (ret), "=&r" (tmp)
+        : "r" (bic), "r" (eor) : "memory");
+
+        return ret;
+}
+#endif
+
+
 static uint32_t atomic_recurse = 0;
+static uint32_t atomic_saved;
 
 static void
 atomic_lock(void)
 {
-	disable_intr();
+	uint32_t temp = intr_disable();
 
-	if (++atomic_recurse == 0xFFFFFFFF) {
+	if (atomic_recurse == 0) {
+		atomic_saved = temp;
+		atomic_recurse = 1;
+	} else if (++atomic_recurse == 0xFFFFFFFF) {
 		panic("freebsd_mutex: Atomic lock overflow!\n");
 	}
 	return;
@@ -57,12 +89,12 @@ static void
 atomic_unlock(void)
 {
 	if (--atomic_recurse == 0) {
-		enable_intr();
+		if (intr_enable(atomic_saved)) {
+			/* ignore */
+		}
 	}
 	return;
 }
-
-#endif
 
 void
 atomic_add_int(uint32_t *p, uint32_t v)

@@ -74,8 +74,6 @@ cv_destroy(struct cv *cv)
 int
 cv_timedwait_sub(struct cv *cv, struct mtx *mtx, uint32_t timo)
 {
-	uint8_t gcount;
-
 	mtx_assert(mtx, MA_OWNED);
 
 	mtx_lock(&cv_mtx);
@@ -93,15 +91,11 @@ cv_timedwait_sub(struct cv *cv, struct mtx *mtx, uint32_t timo)
 		}
 		mtx_unlock(&cv_mtx);
 		mtx_unlock(mtx);
-		gcount = 0;
-		while (mtx_owned(&Giant)) {
-			gcount++;
-			mtx_unlock(&Giant);
-		}
+
+		DROP_GIANT();
 		wait_sem(&(cv->cv_sem));
-		while (gcount--) {
-			mtx_lock(&Giant);
-		}
+		PICKUP_GIANT();
+
 		mtx_lock(mtx);
 		mtx_lock(&cv_mtx);
 		cv->cv_waiters--;

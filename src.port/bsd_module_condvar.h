@@ -35,12 +35,8 @@ void	cv_signal(struct cv *cvp);
 void	cv_broadcast(struct cv *cvp);
 const char *cv_wmesg(struct cv *cvp);
 
-struct SEMAPHORE {
-	uint32_t dummy;
-};
-
 struct cv {
-	struct SEMAPHORE cv_sem;
+	SEMAPHORE cv_sem;
 	struct callout cv_co;
 	struct mtx *cv_mtx;
 	const char *cv_desc;
@@ -49,8 +45,3 @@ struct cv {
 	uint8_t	cv_signalled;
 	uint8_t	cv_timeout;
 };
-
-/* external */
-
-void	wait_sem(struct SEMAPHORE *);
-void	signal_sem(struct SEMAPHORE *);

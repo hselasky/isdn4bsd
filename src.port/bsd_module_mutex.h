@@ -63,3 +63,16 @@ struct mtx {
 	void   *owner_td;
 	uint8_t	init;			/* set if initialised */
 };
+
+#define	DROP_GIANT() do {			\
+	uint32_t level = 0;			\
+	while (mtx_owned(&Giant)) {		\
+		mtx_unlock(&Giant);		\
+		level++;			\
+	}
+
+#define	PICKUP_GIANT()				\
+	while (level--) {			\
+		mtx_lock(&Giant);		\
+	}					\
+} while (0)

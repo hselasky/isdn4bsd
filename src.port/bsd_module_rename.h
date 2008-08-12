@@ -1,13 +1,14 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Mon Aug  4 17:41:35 CEST 2008
+ * Date: Tue Aug 12 19:22:05 CEST 2008
  */
 #define DELAY fbsd_DELAY
 #define Giant fbsd_Giant
 #define _mtx_assert fbsd__mtx_assert
 #define _sx_assert fbsd__sx_assert
 #define atomic_add_int fbsd_atomic_add_int
+#define atomic_set_cpsr_c fbsd_atomic_set_cpsr_c
 #define bcmp fbsd_bcmp
 #define bcopy fbsd_bcopy
 #define bootverbose fbsd_bootverbose
@@ -153,7 +154,6 @@
 #define uiomove fbsd_uiomove
 #define vnops fbsd_vnops
 #define vprintf fbsd_vprintf
-#define vsnprintf fbsd_vsnprintf
 #define vsnrprintf fbsd_vsnrprintf
 #define wakeup fbsd_wakeup
 #define wakeup_one fbsd_wakeup_one

@@ -23,34 +23,23 @@
  * SUCH DAMAGE.
  */
 
-#include <bsd_module_all.h>
+struct selinfo;
 
-int
-printf(const char *fmt,...)
-{
-	va_list ap;
-	int retval;
+int	copyin(const void *uaddr, void *kaddr, size_t len);
+int	copyout(const void *kaddr, void *uaddr, size_t len);
+int	suser(struct thread *td);
+int	pause(const char *wmesg, int timo);
 
-	va_start(ap, fmt);
-	retval = vprintf(fmt, ap);
-	va_end(ap);
-	return (retval);
-}
+int	m_apply(struct mbuf *mbuf, int off, int len, int (*f) (void *arg, void *data, uint32_t len), void *arg);
 
-int
-snprintf(char *dst, size_t size, const char *fmt,...)
-{
-	va_list ap;
-	int retval;
+/* Assume little endian */
 
-	va_start(ap, fmt);
-	retval = vsnprintf(dst, size, fmt, ap);
-	va_end(ap);
-	return (retval);
-}
+#define	htole32(x) ((uint32_t)(x))
+#define	le32toh(x) ((uint32_t)(x))
 
-int
-vsnrprintf(char *dst, size_t size, int radix, const char *fmt, va_list ap)
-{
-	return (vsnprintf(dst, size, fmt, ap));
-}
+#define	htole16(x) ((uint16_t)(x))
+#define	le16toh(x) ((uint16_t)(x))
+
+struct selinfo {
+	uint8_t	dummy;
+};

@@ -51,3 +51,8 @@ void	bus_space_read_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t 
 void	bus_space_write_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint8_t *datap, bus_size_t count);
 void	bus_space_write_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint16_t *datap, bus_size_t count);
 void	bus_space_write_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint32_t *datap, bus_size_t count);
+
+#define	BUS_SPACE_BARRIER_READ 0x01
+#define	BUS_SPACE_BARRIER_WRITE 0x02
+
+void	bus_space_barrier(bus_space_tag_t space, bus_space_handle_t handle, bus_size_t offset, bus_size_t length, int flags);

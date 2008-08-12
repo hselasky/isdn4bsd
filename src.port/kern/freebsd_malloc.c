@@ -28,7 +28,13 @@
 void   *
 malloc(int size, struct malloc_type *type, int flags)
 {
-	void *temp = alloc(size, 'U' | ('S' << 8) | ('B' << 16));
+	void *temp;
+
+	DROP_GIANT();
+
+	temp = alloc(size, 'U' | ('S' << 8) | ('B' << 16));
+
+	PICKUP_GIANT();
 
 	if (temp == NIL) {
 		temp = NULL;
@@ -39,6 +45,6 @@ malloc(int size, struct malloc_type *type, int flags)
 void
 free(void *addr, struct malloc_type *type)
 {
-	free_buf(&addr);
+	free_buf((union SIGNAL **)&addr);
 	return;
 }

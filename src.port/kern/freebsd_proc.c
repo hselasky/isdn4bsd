@@ -23,8 +23,6 @@
  * SUCH DAMAGE.
  */
 
-#include "ose.h"
-
 #include <bsd_module_all.h>
 
 static void
@@ -33,15 +31,16 @@ kproc_start(void)
 	void (*func) (void *arg);
 	void *arg;
 
-	func = get_env(current_process(), "bsd_func_ptr");
-	arg = get_env(current_process(), "bsd_func_arg");
+	func = (void *)get_env(current_process(), "bsd_func_ptr");
+	arg = (void *)get_env(current_process(), "bsd_func_arg");
 	(func) (arg);
 	return;
 }
 
 int
-	kproc_create(void (*func) (void *), void *arg, struct proc **proc,
-    	int	flags, int pages, const char *fmt,...){
+kproc_create(void (*func) (void *), void *arg, struct proc **proc,
+	     int	flags, int pages, const char *fmt,...)
+{
 	PROCESS p;
 
 	p = create_process(OS_PRI_PROC,
@@ -51,8 +50,8 @@ int
 
 	*proc = (void *)p;
 
-	set_env(p, "bsd_func_ptr", func);
-	set_env(p, "bsd_func_arg", arg);
+	set_env(p, "bsd_func_ptr", (char *)func);
+	set_env(p, "bsd_func_arg", (char *)arg);
 
 	start(p);
 

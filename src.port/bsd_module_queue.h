@@ -171,7 +171,7 @@ struct {								\
 	TRASHIT((elm)->field.sle_next);					\
 } while (0)
 
-#define SLIST_REMOVE_NEXT(head, elm, field) do {				\
+#define	SLIST_REMOVE_NEXT(head, elm, field) do {				\
 	SLIST_NEXT(elm, field) =					\
 	    SLIST_NEXT(SLIST_NEXT(elm, field), field);			\
 } while (0)
@@ -273,7 +273,7 @@ struct {								\
 		(head)->stqh_last = &STAILQ_FIRST((head));		\
 } while (0)
 
-#define STAILQ_REMOVE_NEXT(head, elm, field) do {			\
+#define	STAILQ_REMOVE_NEXT(head, elm, field) do {			\
 	if ((STAILQ_NEXT(elm, field) =					\
 	     STAILQ_NEXT(STAILQ_NEXT(elm, field), field)) == NULL)	\
 		(head)->stqh_last = &STAILQ_NEXT((elm), field);		\
@@ -501,4 +501,4 @@ struct {								\
 	QMD_TRACE_ELEM(&(elm)->field);					\
 } while (0)
 
-#endif /* !_BSD_SYS_QUEUE_H_ */
+#endif					/* !_BSD_SYS_QUEUE_H_ */

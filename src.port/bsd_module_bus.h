@@ -37,7 +37,7 @@ typedef struct driver driver_t;
 typedef struct devclass *devclass_t;
 typedef struct device *device_t;
 typedef void driver_intr_t (void *);
-typedef int driver_filter_t(void *);
+typedef int driver_filter_t (void *);
 
 typedef int bus_alloc_resource_t (device_t parent, device_t child, struct resource *res, int type, int *rid, uint32_t start, uint32_t end, uint32_t count, uint32_t flags);
 typedef void bus_free_resource_t (device_t parent, device_t child, struct resource *res, int rid);

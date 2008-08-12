@@ -26,31 +26,68 @@
 #include <bsd_module_all.h>
 
 int
-printf(const char *fmt,...)
+copyin(const void *uaddr, void *kaddr, size_t len)
 {
-	va_list ap;
-	int retval;
-
-	va_start(ap, fmt);
-	retval = vprintf(fmt, ap);
-	va_end(ap);
-	return (retval);
+	return (EINVAL);
 }
 
 int
-snprintf(char *dst, size_t size, const char *fmt,...)
+copyout(const void *kaddr, void *uaddr, size_t len)
 {
-	va_list ap;
-	int retval;
-
-	va_start(ap, fmt);
-	retval = vsnprintf(dst, size, fmt, ap);
-	va_end(ap);
-	return (retval);
+	return (EINVAL);
 }
 
 int
-vsnrprintf(char *dst, size_t size, int radix, const char *fmt, va_list ap)
+suser(struct thread *td)
 {
-	return (vsnprintf(dst, size, fmt, ap));
+	return (EPERM);
 }
+
+int
+pause(const char *wmesg, int timo)
+{
+	DROP_GIANT();
+	delay((OSTIME)timo);
+	PICKUP_GIANT();
+	return (0);
+}
+
+int
+m_apply(struct mbuf *mbuf, int off, int len,
+	int (*f)(void *arg, void *data, uint32_t len), void *arg)
+{
+	/* not supported */
+	return (EINVAL);
+}
+
+void
+selrecord(struct thread *td, struct selinfo *sip)
+{
+	return;
+}
+
+void
+selwakeup(struct selinfo *sip)
+{
+	return;
+}
+
+void
+dev_ref(struct cdev *dev)
+{
+	return;
+}
+
+struct cdev *
+make_dev(struct cdevsw *_devsw, int _minor, uid_t _uid, gid_t _gid,
+	 int _perms, const char *_fmt, ...)
+{
+	return ((void *)1);
+}
+
+void
+destroy_dev(struct cdev *_dev)
+{
+	return;
+}
+

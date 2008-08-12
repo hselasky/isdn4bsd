@@ -62,4 +62,5 @@ void	bzero(void *dst, size_t len);
 int	printf(const char *format,...)__printflike(1, 2);
 int	vprintf(const char *format, va_list ap);
 int	vsnprintf(char *dst, size_t size, const char *fmt, va_list ap);
+int	vsnrprintf(char *, size_t, int, const char *, va_list)__printflike(4, 0);
 int	snprintf(char *dst, size_t size, const char *fmt,...)__printflike(2, 4);

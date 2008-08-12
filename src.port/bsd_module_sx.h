@@ -25,23 +25,23 @@
 
 struct sx;
 
-void sx_init(struct sx *sx, const char *description);
-void sx_destroy(struct sx *sx);
-void sx_slock(struct sx *sx);
-void sx_xlock(struct sx *sx);
-void sx_sunlock(struct sx *sx);
-void sx_xunlock(struct sx *sx);
-void sx_unlock(struct sx *sx);
-int sx_xlocked(struct sx *sx);
-void _sx_assert(struct sx *sx, int what, const char *file, int line);
+void	sx_init(struct sx *sx, const char *description);
+void	sx_destroy(struct sx *sx);
+void	sx_slock(struct sx *sx);
+void	sx_xlock(struct sx *sx);
+void	sx_sunlock(struct sx *sx);
+void	sx_xunlock(struct sx *sx);
+void	sx_unlock(struct sx *sx);
+int	sx_xlocked(struct sx *sx);
+void	_sx_assert(struct sx *sx, int what, const char *file, int line);
 
 #if 1
-#define SA_LOCKED		0x01
-#define SA_SLOCKED		0x02
-#define SA_XLOCKED		0x04
-#define SA_UNLOCKED		0x08
-#define SA_RECURSED		0x10
-#define SA_NOTRECURSED		0x20
+#define	SA_LOCKED		0x01
+#define	SA_SLOCKED		0x02
+#define	SA_XLOCKED		0x04
+#define	SA_UNLOCKED		0x08
+#define	SA_RECURSED		0x10
+#define	SA_NOTRECURSED		0x20
 
 #define	sx_assert(m, what)				\
         _sx_assert((m), (what), __FILE__, __LINE__)
@@ -50,9 +50,9 @@ void _sx_assert(struct sx *sx, int what, const char *file, int line);
 #endif
 
 struct sx {
-  struct cv wait;
-  uint32_t sx_recurse;
-  const char *desc;
-  void   *owner_td;
-  uint8_t	init;			/* set if initialised */
+	struct cv wait;
+	uint32_t sx_recurse;
+	const char *desc;
+	void   *owner_td;
+	uint8_t	init;			/* set if initialised */
 };

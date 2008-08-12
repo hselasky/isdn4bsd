@@ -30,8 +30,6 @@ struct proc;
 #define	thread_lock(...) do { } while (0)
 #define	thread_unlock(...) do { } while (0)
 
-typedef void *PROCESS;
-
 int	kproc_create(void (*) (void *), void *, struct proc **, int flags, int pages, const char *,...)__printflike(6, 7);
 void	kproc_exit(int);
 int	kproc_suspend(struct proc *, int);

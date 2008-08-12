@@ -36,7 +36,7 @@
  */
 
 #ifndef _BSD_SYS_ERRNO_H_
-#define _BSD_SYS_ERRNO_H_
+#define	_BSD_SYS_ERRNO_H_
 
 #define	EPERM		1		/* Operation not permitted */
 #define	ENOENT		2		/* No such file or directory */
@@ -49,7 +49,7 @@
 #define	EBADF		9		/* Bad file descriptor */
 #define	ECHILD		10		/* No child processes */
 #define	EDEADLK		11		/* Resource deadlock avoided */
-					/* 11 was EAGAIN */
+ /* 11 was EAGAIN */
 #define	ENOMEM		12		/* Cannot allocate memory */
 #define	EACCES		13		/* Permission denied */
 #define	EFAULT		14		/* Bad address */
@@ -98,7 +98,8 @@
 #define	EOPNOTSUPP	45		/* Operation not supported */
 #define	ENOTSUP		EOPNOTSUPP	/* Operation not supported */
 #define	EPFNOSUPPORT	46		/* Protocol family not supported */
-#define	EAFNOSUPPORT	47		/* Address family not supported by protocol family */
+#define	EAFNOSUPPORT	47		/* Address family not supported by
+					 * protocol family */
 #define	EADDRINUSE	48		/* Address already in use */
 #define	EADDRNOTAVAIL	49		/* Can't assign requested address */
 
@@ -117,14 +118,14 @@
 #define	ECONNREFUSED	61		/* Connection refused */
 
 #define	ELOOP		62		/* Too many levels of symbolic links */
-#endif /* _POSIX_SOURCE */
+#endif					/* _POSIX_SOURCE */
 #define	ENAMETOOLONG	63		/* File name too long */
 
 /* should be rearranged */
 #ifndef _POSIX_SOURCE
 #define	EHOSTDOWN	64		/* Host is down */
 #define	EHOSTUNREACH	65		/* No route to host */
-#endif /* _POSIX_SOURCE */
+#endif					/* _POSIX_SOURCE */
 #define	ENOTEMPTY	66		/* Directory not empty */
 
 /* quotas & mush */
@@ -141,7 +142,7 @@
 #define	EPROGUNAVAIL	74		/* RPC prog. not avail */
 #define	EPROGMISMATCH	75		/* Program version wrong */
 #define	EPROCUNAVAIL	76		/* Bad procedure for program */
-#endif /* _POSIX_SOURCE */
+#endif					/* _POSIX_SOURCE */
 
 #define	ENOLCK		77		/* No locks available */
 #define	ENOSYS		78		/* Function not implemented */
@@ -152,13 +153,14 @@
 #define	ENEEDAUTH	81		/* Need authenticator */
 #define	EIDRM		82		/* Identifier removed */
 #define	ENOMSG		83		/* No message of desired type */
-#define	EOVERFLOW	84		/* Value too large to be stored in data type */
+#define	EOVERFLOW	84		/* Value too large to be stored in
+					 * data type */
 #define	ECANCELED	85		/* Operation canceled */
 #define	EILSEQ		86		/* Illegal byte sequence */
 #define	ENOATTR		87		/* Attribute not found */
 
-#define EDOOFUS		88		/* Programming error */
-#endif /* _POSIX_SOURCE */
+#define	EDOOFUS		88		/* Programming error */
+#endif					/* _POSIX_SOURCE */
 
 #define	EBADMSG		89		/* Bad message */
 #define	EMULTIHOP	90		/* Multihop attempted */
@@ -167,7 +169,7 @@
 
 #ifndef _POSIX_SOURCE
 #define	ELAST		92		/* Must be equal largest errno */
-#endif /* _POSIX_SOURCE */
+#endif					/* _POSIX_SOURCE */
 
 #ifdef _KERNEL
 /* pseudo-errors returned inside kernel to modify return to process */

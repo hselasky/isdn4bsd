@@ -26,6 +26,8 @@
 #ifndef _BSD_MODULE_ALL_H_
 #define	_BSD_MODULE_ALL_H_
 
+#include <ose.h>
+
 #include <bsd_module_rename.h>
 
 #define	__FreeBSD_version 800000
@@ -93,9 +95,9 @@ typedef char *va_list;
 
 typedef unsigned long u_long;
 
-struct selinfo {
-	uint8_t	dummy;
-};
+typedef unsigned short uid_t;
+typedef unsigned short gid_t;
+
 struct uio;
 struct mbuf;
 
@@ -106,6 +108,7 @@ struct mbuf;
 #include <bsd_module_errno.h>
 #include <bsd_module_kernel.h>
 #include <bsd_module_mutex.h>
+#include <bsd_module_evhandler.h>
 #include <bsd_module_callout.h>
 #include <bsd_module_condvar.h>
 #include <bsd_module_sx.h>
@@ -118,6 +121,7 @@ struct mbuf;
 #include <bsd_module_usb.h>
 #include <bsd_module_ioccom.h>
 #include <bsd_module_file.h>
+#include <bsd_module_misc.h>
 
 /* panic */
 

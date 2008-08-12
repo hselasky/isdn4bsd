@@ -110,3 +110,11 @@ bus_space_write_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offs
 	}
 	return;
 }
+
+void
+bus_space_barrier(bus_space_tag_t space, bus_space_handle_t handle,
+		  bus_size_t offset, bus_size_t length, int flags)
+{
+  /* Assume uncached I/O */
+  return;
+}

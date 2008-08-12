@@ -3,6 +3,7 @@ Giant
 _mtx_assert
 _sx_assert
 atomic_add_int
+atomic_set_cpsr_c
 bcmp
 bcopy
 bootverbose
@@ -148,7 +149,6 @@ ticks
 uiomove
 vnops
 vprintf
-vsnprintf
 vsnrprintf
 wakeup
 wakeup_one

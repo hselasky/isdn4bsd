@@ -32,6 +32,7 @@ struct cdev;
 struct file;
 struct stat;
 struct knote;
+struct selinfo;
 
 #define	FREAD		0x0001
 #define	FWRITE		0x0002
@@ -74,8 +75,7 @@ struct uio {
 typedef int d_open_t (struct cdev *dev, int oflags, int devtype, struct thread *td);
 typedef int d_fdopen_t (struct cdev *dev, int oflags, struct thread *td, struct file *fp);
 typedef int d_close_t (struct cdev *dev, int fflag, int devtype, struct thread *td);
-typedef int d_ioctl_t (struct cdev *dev, u_long cmd, caddr_t data,
-    	int	fflag, struct thread *td);
+typedef int d_ioctl_t (struct cdev *dev, u_long cmd, caddr_t data, int fflag, struct thread *td);
 
 #define	D_TRACKCLOSE    0x00000000	/* track all closes */
 #define	D_VERSION       0x00000000
@@ -93,20 +93,14 @@ struct cdevsw {
 	d_ioctl_t *d_ioctl;
 };
 
-typedef int fo_rdwr_t (struct file *fp, struct uio *uio,
-    	struct	ucred *active_cred, int flags,
-    	struct	thread *td);
+typedef int fo_rdwr_t (struct file *fp, struct uio *uio, struct ucred *active_cred, int flags, struct thread *td);
 
 #define	FOF_OFFSET      1		/* Use the offset in uio argument */
-typedef int fo_truncate_t (struct file *fp, off_t length,
-    	struct	ucred *active_cred, struct thread *td);
-typedef int fo_ioctl_t (struct file *fp, u_long com, void *data,
-    	struct	ucred *active_cred, struct thread *td);
-typedef int fo_poll_t (struct file *fp, int events,
-    	struct	ucred *active_cred, struct thread *td);
+typedef int fo_truncate_t (struct file *fp, off_t length, struct ucred *active_cred, struct thread *td);
+typedef int fo_ioctl_t (struct file *fp, u_long com, void *data, struct ucred *active_cred, struct thread *td);
+typedef int fo_poll_t (struct file *fp, int events, struct ucred *active_cred, struct thread *td);
 typedef int fo_kqfilter_t (struct file *fp, struct knote *kn);
-typedef int fo_stat_t (struct file *fp, struct stat *sb,
-    	struct	ucred *active_cred, struct thread *td);
+typedef int fo_stat_t (struct file *fp, struct stat *sb, struct ucred *active_cred, struct thread *td);
 typedef int fo_close_t (struct file *fp, struct thread *td);
 typedef int fo_flags_t;
 
@@ -169,6 +163,8 @@ struct file {
 #define	FIONREAD        _IOR('f', 127, int)	/* get # bytes to read */
 #define	FIONBIO         _IOW('f', 126, int)	/* set/clear non-blocking i/o */
 #define	FIOASYNC        _IOW('f', 125, int)	/* set/clear async i/o */
+#define	TIOCSPGRP       _IOW('t', 118, int)	/* set pgrp of tty */
+#define	TIOCGPGRP       _IOR('t', 119, int)	/* get pgrp of tty */
 
 #define	UID_ROOT        0
 #define	UID_BIN         3
@@ -181,3 +177,15 @@ struct file {
 #define	GID_BIN         7
 #define	GID_GAMES       13
 #define	GID_DIALER      68
+
+typedef void (*dev_clone_fn) (void *arg, struct ucred *ucred, char *name, int namelen, struct cdev **dev);
+
+EVENTHANDLER_DECLARE(dev_clone, dev_clone_fn);
+
+/* dummies */
+
+void	selrecord(struct thread *td, struct selinfo *sip);
+void	selwakeup(struct selinfo *sip);
+void	dev_ref(struct cdev *dev);
+struct cdev *make_dev(struct cdevsw *_devsw, int _minor, uid_t _uid, gid_t _gid, int _perms, const char *_fmt,...)__printflike(6, 7);
+void	destroy_dev(struct cdev *_dev);

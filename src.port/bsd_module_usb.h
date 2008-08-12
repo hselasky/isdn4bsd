@@ -27,6 +27,13 @@
 
 #define	USB_NO_POLL 1
 #define	USB_USE_CONDVAR 1
-#define USB_DEBUG 0
+#define	USB_DEBUG 0
+
+#define	USB_TD_GET_RUID(td) UID_ROOT
+#define	USB_TD_GET_RGID(td) GID_OPERATOR
+#define	USB_TD_GET_PROC(td) ((struct proc *)(td))
+#define	USB_PROC_GET_GID(td) GID_OPERATOR
+#define	USB_VNOPS_FO_TRUNCATE(...) EINVAL
+#define	USB_VNOPS_FO_STAT(...) EINVAL
 
 typedef int usb2_handle_request_t (device_t dev, const void *req, void **pptr, uint16_t *plen, uint16_t offset, uint8_t is_complete);
