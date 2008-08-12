@@ -41,6 +41,32 @@
 #define	USB_USE_CONDVAR 0
 #endif
 
+#ifndef USB_TD_GET_RUID
+#define	USB_TD_GET_RUID(td) (td)->td_ucred->cr_ruid
+#endif
+
+#ifndef USB_TD_GET_RGID
+#define	USB_TD_GET_RGID(td) (td)->td_ucred->cr_rgid
+#endif
+
+#ifndef USB_TD_GET_PROC
+#define	USB_TD_GET_PROC(td) (td)->td_proc
+#endif
+
+#ifndef USB_PROC_GET_GID
+#define	USB_PROC_GET_GID(td) (td)->p_pgid
+#endif
+
+#ifndef USB_VNOPS_FO_STAT
+#define	USB_VNOPS_FO_STAT(fp, sb, cred, td) \
+    vnops.fo_stat(fp, sb, cred, td)
+#endif
+
+#ifndef USB_VNOPS_FO_TRUNCATE
+#define	USB_VNOPS_FO_TRUNCATE(fp, length, cred, td) \
+    vnops.fo_truncate(fp, length, cred, td)
+#endif
+
 /* Include files */
 
 #include <sys/stdint.h>

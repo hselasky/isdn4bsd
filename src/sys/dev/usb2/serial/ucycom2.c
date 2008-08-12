@@ -269,7 +269,7 @@ ucycom_attach(device_t dev)
 		    "transfers failed!\n");
 		goto detach;
 	}
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &ucycom_callback, &Giant);
 
 	if (error) {
@@ -293,7 +293,7 @@ ucycom_detach(device_t dev)
 {
 	struct ucycom_softc *sc = device_get_softc(dev);
 
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UCYCOM_ENDPT_MAX);
 
@@ -373,7 +373,7 @@ tr_transferred:
 			break;
 		}
 
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers + 1, offset,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers + 1, offset,
 		    sc->sc_olen - offset, &actlen)) {
 
 			req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
@@ -395,7 +395,7 @@ tr_transferred:
 				break;
 			}
 
-			usb2_copy_in(xfer->frbuffers, 0, &(req), sizeof(req));
+			usb2_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
 			usb2_copy_in(xfer->frbuffers + 1, 0, data, offset);
 
 			xfer->frlengths[0] = sizeof(req);
@@ -441,7 +441,7 @@ ucycom_cfg_write(struct ucycom_softc *sc, uint32_t baud, uint8_t cfg)
 	sc->sc_temp_cfg[3] = (baud >> 24) & 0xff;
 	sc->sc_temp_cfg[4] = cfg;
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom))) {
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom)) {
 		return;
 	}
 	err = usb2_do_request_flags
@@ -582,7 +582,7 @@ ucycom_intr_read_callback(struct usb2_xfer *xfer)
 			len = xfer->actlen;
 		}
 		if (len) {
-			usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers,
+			usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers,
 			    offset, len);
 		}
 	case USB_ST_SETUP:

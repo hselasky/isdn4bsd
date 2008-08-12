@@ -258,7 +258,7 @@ ugensa_attach(device_t dev)
 		ssc->sc_usb2_com_ptr->sc_portno = x;
 	}
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_niface, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, sc->sc_ucom, sc->sc_niface, sc,
 	    &ugensa_callback, &Giant);
 	if (error) {
 		DPRINTF("attach failed\n");
@@ -277,7 +277,7 @@ ugensa_detach(device_t dev)
 	struct ugensa_softc *sc = device_get_softc(dev);
 	uint8_t x;
 
-	usb2_com_detach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_niface);
+	usb2_com_detach(&sc->sc_super_ucom, sc->sc_ucom, sc->sc_niface);
 
 	for (x = 0; x < sc->sc_niface; x++) {
 		usb2_transfer_unsetup(sc->sc_sub[x].sc_xfer, UGENSA_N_TRANSFER);

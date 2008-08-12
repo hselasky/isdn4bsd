@@ -242,7 +242,7 @@ usb2_com_attach(struct usb2_com_super_softc *ssc, struct usb2_com_softc *sc,
 		return (ENOMEM);
 	}
 	if (usb2_config_td_setup
-	    (&(ssc->sc_config_td), sc, p_mtx, NULL,
+	    (&ssc->sc_config_td, sc, p_mtx, NULL,
 	    sizeof(struct usb2_com_config_copy), 24 * sub_units)) {
 		usb2_com_units_free(root_unit, sub_units);
 		return (ENOMEM);
@@ -278,7 +278,7 @@ usb2_com_detach(struct usb2_com_super_softc *ssc, struct usb2_com_softc *sc,
 {
 	uint32_t n;
 
-	usb2_config_td_stop(&(ssc->sc_config_td));
+	usb2_config_td_stop(&ssc->sc_config_td);
 
 	for (n = 0; n < sub_units; n++, sc++) {
 		if (sc->sc_flag & UCOM_FLAG_ATTACHED) {
@@ -294,7 +294,7 @@ usb2_com_detach(struct usb2_com_super_softc *ssc, struct usb2_com_softc *sc,
 		}
 	}
 
-	usb2_config_td_unsetup(&(ssc->sc_config_td));
+	usb2_config_td_unsetup(&ssc->sc_config_td);
 
 	return;
 }
@@ -405,7 +405,7 @@ usb2_com_queue_command(struct usb2_com_softc *sc, usb2_config_td_command_t *cmd,
 	struct usb2_com_super_softc *ssc = sc->sc_super;
 
 	usb2_config_td_queue_command
-	    (&(ssc->sc_config_td), &usb2_com_config_copy,
+	    (&ssc->sc_config_td, &usb2_com_config_copy,
 	    cmd, (cmd == &usb2_com_cfg_status_change) ? 1 : 0,
 	    ((sc->sc_local_unit % UCOM_SUB_UNIT_MAX) +
 	    (flag ? UCOM_SUB_UNIT_MAX : 0)));
@@ -440,7 +440,7 @@ usb2_com_cfg_sleep(struct usb2_com_softc *sc, uint32_t timeout)
 {
 	struct usb2_com_super_softc *ssc = sc->sc_super;
 
-	return (usb2_config_td_sleep(&(ssc->sc_config_td), timeout));
+	return (usb2_config_td_sleep(&ssc->sc_config_td, timeout));
 }
 
 /*
@@ -453,7 +453,7 @@ usb2_com_cfg_is_gone(struct usb2_com_softc *sc)
 {
 	struct usb2_com_super_softc *ssc = sc->sc_super;
 
-	return (usb2_config_td_is_gone(&(ssc->sc_config_td)));
+	return (usb2_config_td_is_gone(&ssc->sc_config_td));
 }
 
 static void
@@ -1080,7 +1080,7 @@ usb2_com_get_data(struct usb2_com_softc *sc, struct usb2_page_cache *pc,
 		if (res.length > len) {
 			res.length = len;
 		}
-		cnt = q_to_b(&(tp->t_outq), res.buffer, res.length);
+		cnt = q_to_b(&tp->t_outq, res.buffer, res.length);
 
 		offset += cnt;
 		len -= cnt;
@@ -1144,7 +1144,7 @@ usb2_com_put_data(struct usb2_com_softc *sc, struct usb2_page_cache *pc,
 			    (!(tp->t_state & TS_TBLOCK))) {
 				ttyblock(tp);
 			}
-			cnt = b_to_q(res.buffer, res.length, &(tp->t_rawq));
+			cnt = b_to_q(res.buffer, res.length, &tp->t_rawq);
 
 			tp->t_rawcc += res.length;
 

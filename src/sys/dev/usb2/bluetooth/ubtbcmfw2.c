@@ -216,12 +216,12 @@ ubtbcmfw_attach(device_t dev)
 
 	device_set_usb2_desc(dev);
 
-	mtx_init(&(sc->sc_mtx), "ubtbcmfw lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "ubtbcmfw lock", NULL, MTX_DEF | MTX_RECURSE);
 
 	iface_index = UBTBCMFW_IFACE_IDX;
 	err = usb2_transfer_setup(uaa->device,
 	    &iface_index, sc->sc_xfer, ubtbcmfw_config,
-	    UBTBCMFW_T_MAX, sc, &(sc->sc_mtx));
+	    UBTBCMFW_T_MAX, sc, &sc->sc_mtx);
 	if (err) {
 		device_printf(dev, "allocating USB transfers "
 		    "failed, err=%s\n", usb2_errstr(err));
@@ -231,8 +231,8 @@ ubtbcmfw_attach(device_t dev)
 	usb2_set_iface_perm(uaa->device, uaa->info.bIfaceIndex,
 	    UID_ROOT, GID_OPERATOR, 0644);
 
-	err = usb2_fifo_attach(uaa->device, sc, &(sc->sc_mtx),
-	    &ubtbcmfw_fifo_methods, &(sc->sc_fifo),
+	err = usb2_fifo_attach(uaa->device, sc, &sc->sc_mtx,
+	    &ubtbcmfw_fifo_methods, &sc->sc_fifo,
 	    device_get_unit(dev), 0 - 1, uaa->info.bIfaceIndex);
 	if (err) {
 		goto detach;
@@ -253,11 +253,11 @@ ubtbcmfw_detach(device_t dev)
 {
 	struct ubtbcmfw_softc *sc = device_get_softc(dev);
 
-	usb2_fifo_detach(&(sc->sc_fifo));
+	usb2_fifo_detach(&sc->sc_fifo);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UBTBCMFW_T_MAX);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }
@@ -406,9 +406,9 @@ ubtbcmfw_open(struct usb2_fifo *fifo, int fflags, struct thread *td)
 	}
 	if (fflags & FWRITE) {
 		/* clear stall first */
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		sc->sc_flags |= UBTBCMFW_FLAG_WRITE_STALL;
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		if (usb2_fifo_alloc_buffer(fifo,
 		    sc->sc_xfer[0]->max_data_length,
 		    UBTBCMFW_IFQ_MAXLEN)) {

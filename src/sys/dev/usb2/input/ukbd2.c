@@ -422,15 +422,15 @@ pfound:	;
 	if (sc->sc_flags & UKBD_FLAG_POLLING) {
 		goto done;
 	}
-	if (KBD_IS_ACTIVE(&(sc->sc_kbd)) &&
-	    KBD_IS_BUSY(&(sc->sc_kbd))) {
+	if (KBD_IS_ACTIVE(&sc->sc_kbd) &&
+	    KBD_IS_BUSY(&sc->sc_kbd)) {
 		/* let the callback function process the input */
-		(sc->sc_kbd.kb_callback.kc_func) (&(sc->sc_kbd), KBDIO_KEYINPUT,
+		(sc->sc_kbd.kb_callback.kc_func) (&sc->sc_kbd, KBDIO_KEYINPUT,
 		    sc->sc_kbd.kb_callback.kc_arg);
 	} else {
 		/* read and discard the input, no one is waiting for it */
 		do {
-			c = ukbd_read_char(&(sc->sc_kbd), 0);
+			c = ukbd_read_char(&sc->sc_kbd, 0);
 		} while (c != NOKEY);
 	}
 done:
@@ -449,7 +449,7 @@ ukbd_timeout(void *arg)
 	}
 	ukbd_interrupt(sc);
 
-	usb2_callout_reset(&(sc->sc_callout), hz / 40, &ukbd_timeout, sc);
+	usb2_callout_reset(&sc->sc_callout, hz / 40, &ukbd_timeout, sc);
 
 	mtx_unlock(&Giant);
 
@@ -485,8 +485,8 @@ ukbd_intr_callback(struct usb2_xfer *xfer)
 			len = sizeof(sc->sc_ndata);
 		}
 		if (len) {
-			bzero(&(sc->sc_ndata), sizeof(sc->sc_ndata));
-			usb2_copy_out(xfer->frbuffers, 0, &(sc->sc_ndata), len);
+			bzero(&sc->sc_ndata, sizeof(sc->sc_ndata));
+			usb2_copy_out(xfer->frbuffers, 0, &sc->sc_ndata, len);
 #ifdef USB_DEBUG
 			if (sc->sc_ndata.modifiers) {
 				DPRINTF("mod: 0x%04x\n", sc->sc_ndata.modifiers);
@@ -625,7 +625,7 @@ ukbd_attach(device_t dev)
 	struct ukbd_softc *sc = device_get_softc(dev);
 	struct usb2_attach_arg *uaa = device_get_ivars(dev);
 	int32_t unit = device_get_unit(dev);
-	keyboard_t *kbd = &(sc->sc_kbd);
+	keyboard_t *kbd = &sc->sc_kbd;
 	usb2_error_t err;
 	uint16_t n;
 
@@ -647,11 +647,11 @@ ukbd_attach(device_t dev)
 	sc->sc_mode = K_XLATE;
 	sc->sc_iface = uaa->iface;
 
-	usb2_callout_init_mtx(&(sc->sc_callout), &Giant,
+	usb2_callout_init_mtx(&sc->sc_callout, &Giant,
 	    CALLOUT_RETURNUNLOCKED);
 
 	err = usb2_transfer_setup(uaa->device,
-	    &(uaa->info.bIfaceIndex), sc->sc_xfer, ukbd_config,
+	    &uaa->info.bIfaceIndex, sc->sc_xfer, ukbd_config,
 	    UKBD_N_TRANSFER, sc, &Giant);
 
 	if (err) {
@@ -666,7 +666,7 @@ ukbd_attach(device_t dev)
 		sc->sc_fkeymap[n] = fkey_tab[n];
 	}
 
-	kbd_set_maps(kbd, &(sc->sc_keymap), &(sc->sc_accmap),
+	kbd_set_maps(kbd, &sc->sc_keymap, &(sc->sc_accmap),
 	    sc->sc_fkeymap, UKBD_NFKEY);
 
 	KBD_FOUND_DEVICE(kbd);
@@ -682,7 +682,7 @@ ukbd_attach(device_t dev)
 	/* ignore if SETIDLE fails, hence it is not crucial */
 	err = usb2_req_set_idle(sc->sc_udev, &Giant, sc->sc_iface_index, 0, 0);
 
-	ukbd_ioctl(kbd, KDSETLED, (caddr_t)&(sc->sc_state));
+	ukbd_ioctl(kbd, KDSETLED, (caddr_t)&sc->sc_state);
 
 	KBD_INIT_DONE(kbd);
 
@@ -737,13 +737,13 @@ ukbd_detach(device_t dev)
 	}
 	sc->sc_flags |= UKBD_FLAG_GONE;
 
-	usb2_callout_stop(&(sc->sc_callout));
+	usb2_callout_stop(&sc->sc_callout);
 
-	ukbd_disable(&(sc->sc_kbd));
+	ukbd_disable(&sc->sc_kbd);
 
 #ifdef KBD_INSTALL_CDEV
 	if (sc->sc_flags & UKBD_FLAG_ATTACHED) {
-		error = kbd_detach(&(sc->sc_kbd));
+		error = kbd_detach(&sc->sc_kbd);
 		if (error) {
 			/* usb attach cannot return an error */
 			device_printf(dev, "WARNING: kbd_detach() "
@@ -751,8 +751,8 @@ ukbd_detach(device_t dev)
 		}
 	}
 #endif
-	if (KBD_IS_CONFIGURED(&(sc->sc_kbd))) {
-		error = kbd_unregister(&(sc->sc_kbd));
+	if (KBD_IS_CONFIGURED(&sc->sc_kbd)) {
+		error = kbd_unregister(&sc->sc_kbd);
 		if (error) {
 			/* usb attach cannot return an error */
 			device_printf(dev, "WARNING: kbd_unregister() "
@@ -763,7 +763,7 @@ ukbd_detach(device_t dev)
 
 	usb2_transfer_unsetup(sc->sc_xfer, UKBD_N_TRANSFER);
 
-	usb2_callout_drain(&(sc->sc_callout));
+	usb2_callout_drain(&sc->sc_callout);
 
 	DPRINTF("%s: disconnected\n",
 	    device_get_nameunit(dev));
@@ -778,7 +778,7 @@ ukbd_resume(device_t dev)
 
 	mtx_assert(&Giant, MA_OWNED);
 
-	ukbd_clear_state(&(sc->sc_kbd));
+	ukbd_clear_state(&sc->sc_kbd);
 
 	return (0);
 }

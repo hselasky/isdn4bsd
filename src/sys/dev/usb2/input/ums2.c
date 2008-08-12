@@ -150,11 +150,11 @@ ums_put_queue_timeout(void *__sc)
 {
 	struct ums_softc *sc = __sc;
 
-	mtx_assert(&(sc->sc_mtx), MA_OWNED);
+	mtx_assert(&sc->sc_mtx, MA_OWNED);
 
 	ums_put_queue(sc, 0, 0, 0, 0, 0);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -300,11 +300,11 @@ ums_intr_callback(struct usb2_xfer *xfer)
 			    (dx == 0) && (dy == 0) && (dz == 0) && (dt == 0) &&
 			    (dw == 0) && (buttons == 0)) {
 
-				usb2_callout_reset(&(sc->sc_callout), hz / 20,
+				usb2_callout_reset(&sc->sc_callout, hz / 20,
 				    &ums_put_queue_timeout, sc);
 			} else {
 
-				usb2_callout_stop(&(sc->sc_callout));
+				usb2_callout_stop(&sc->sc_callout);
 
 				ums_put_queue(sc, dx, dy, dz, dt, buttons);
 			}
@@ -416,10 +416,10 @@ ums_attach(device_t dev)
 
 	device_set_usb2_desc(dev);
 
-	mtx_init(&(sc->sc_mtx), "ums lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "ums lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	usb2_callout_init_mtx(&(sc->sc_callout),
-	    &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
+	usb2_callout_init_mtx(&sc->sc_callout,
+	    &sc->sc_mtx, CALLOUT_RETURNUNLOCKED);
 
 	/*
          * Force the report (non-boot) protocol.
@@ -430,8 +430,8 @@ ums_attach(device_t dev)
 	err = usb2_req_set_protocol(uaa->device, NULL, uaa->info.bIfaceIndex, 1);
 
 	err = usb2_transfer_setup(uaa->device,
-	    &(uaa->info.bIfaceIndex), sc->sc_xfer, ums_config,
-	    UMS_N_TRANSFER, sc, &(sc->sc_mtx));
+	    &uaa->info.bIfaceIndex, sc->sc_xfer, ums_config,
+	    UMS_N_TRANSFER, sc, &sc->sc_mtx);
 
 	if (err) {
 		DPRINTF("error=%s\n", usb2_errstr(err));
@@ -504,7 +504,7 @@ ums_attach(device_t dev)
 
 	for (i = 0; i < UMS_BUTTON_MAX; i++) {
 		if (!hid_locate(d_ptr, d_len, HID_USAGE2(HUP_BUTTON, (i + 1)),
-		    hid_input, &(sc->sc_loc_btn[i]), NULL)) {
+		    hid_input, &sc->sc_loc_btn[i], NULL)) {
 			break;
 		}
 	}
@@ -623,8 +623,8 @@ ums_attach(device_t dev)
 	usb2_set_iface_perm(uaa->device, uaa->info.bIfaceIndex,
 	    UID_ROOT, GID_OPERATOR, 0644);
 
-	err = usb2_fifo_attach(uaa->device, sc, &(sc->sc_mtx),
-	    &ums_fifo_methods, &(sc->sc_fifo),
+	err = usb2_fifo_attach(uaa->device, sc, &sc->sc_mtx,
+	    &ums_fifo_methods, &sc->sc_fifo,
 	    unit, 0 - 1, uaa->info.bIfaceIndex);
 	if (err) {
 		goto detach;
@@ -646,13 +646,13 @@ ums_detach(device_t self)
 
 	DPRINTF("sc=%p\n", sc);
 
-	usb2_fifo_detach(&(sc->sc_fifo));
+	usb2_fifo_detach(&sc->sc_fifo);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UMS_N_TRANSFER);
 
-	usb2_callout_drain(&(sc->sc_callout));
+	usb2_callout_drain(&sc->sc_callout);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }
@@ -673,7 +673,7 @@ ums_stop_read(struct usb2_fifo *fifo)
 
 	usb2_transfer_stop(sc->sc_xfer[1]);
 	usb2_transfer_stop(sc->sc_xfer[0]);
-	usb2_callout_stop(&(sc->sc_callout));
+	usb2_callout_stop(&sc->sc_callout);
 	return;
 }
 
@@ -784,7 +784,7 @@ ums_ioctl(struct usb2_fifo *fifo, u_long cmd, void *addr,
 
 	DPRINTFN(2, "\n");
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	switch (cmd) {
 	case MOUSE_GETHWINFO:
@@ -886,7 +886,7 @@ ums_ioctl(struct usb2_fifo *fifo, u_long cmd, void *addr,
 	}
 
 done:
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 	return (error);
 }
 

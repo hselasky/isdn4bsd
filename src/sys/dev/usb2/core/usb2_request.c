@@ -118,7 +118,7 @@ usb2_do_clear_stall_callback(struct usb2_xfer *xfer)
 			pipe->toggle_next = 0;
 			pipe->is_stalled = 0;
 			/* start up the current or next transfer, if any */
-			usb2_command_wrapper(&(pipe->pipe_q),
+			usb2_command_wrapper(&pipe->pipe_q,
 			    pipe->pipe_q.curr);
 		}
 		pipe++;

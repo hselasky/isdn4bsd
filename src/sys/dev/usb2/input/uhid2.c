@@ -548,13 +548,13 @@ uhid_ioctl(struct usb2_fifo *fifo, u_long cmd, void *addr,
 			if (error) {
 				break;
 			}
-			mtx_lock(&(sc->sc_mtx));
+			mtx_lock(&sc->sc_mtx);
 			sc->sc_flags |= UHID_FLAG_IMMED;
-			mtx_unlock(&(sc->sc_mtx));
+			mtx_unlock(&sc->sc_mtx);
 		} else {
-			mtx_lock(&(sc->sc_mtx));
+			mtx_lock(&sc->sc_mtx);
 			sc->sc_flags &= ~UHID_FLAG_IMMED;
-			mtx_unlock(&(sc->sc_mtx));
+			mtx_unlock(&sc->sc_mtx);
 		}
 		break;
 
@@ -666,7 +666,7 @@ uhid_attach(device_t dev)
 	}
 	device_set_usb2_desc(dev);
 
-	mtx_init(&(sc->sc_mtx), "uhid lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "uhid lock", NULL, MTX_DEF | MTX_RECURSE);
 
 	sc->sc_udev = uaa->device;
 
@@ -674,8 +674,8 @@ uhid_attach(device_t dev)
 	sc->sc_iface_index = uaa->info.bIfaceIndex;
 
 	error = usb2_transfer_setup(uaa->device,
-	    &(uaa->info.bIfaceIndex), sc->sc_xfer, uhid_config,
-	    UHID_N_TRANSFER, sc, &(sc->sc_mtx));
+	    &uaa->info.bIfaceIndex, sc->sc_xfer, uhid_config,
+	    UHID_N_TRANSFER, sc, &sc->sc_mtx);
 
 	if (error) {
 		DPRINTF("error=%s\n", usb2_errstr(error));
@@ -724,8 +724,8 @@ uhid_attach(device_t dev)
 	if (sc->sc_repdesc_ptr == NULL) {
 
 		error = usb2_req_get_hid_desc
-		    (uaa->device, &Giant, &(sc->sc_repdesc_ptr),
-		    &(sc->sc_repdesc_size), M_USBDEV, uaa->info.bIfaceIndex);
+		    (uaa->device, &Giant, &sc->sc_repdesc_ptr,
+		    &sc->sc_repdesc_size, M_USBDEV, uaa->info.bIfaceIndex);
 
 		if (error) {
 			device_printf(dev, "no report descriptor\n");
@@ -770,8 +770,8 @@ uhid_attach(device_t dev)
 	usb2_set_iface_perm(uaa->device, uaa->info.bIfaceIndex,
 	    UID_ROOT, GID_OPERATOR, 0644);
 
-	error = usb2_fifo_attach(uaa->device, sc, &(sc->sc_mtx),
-	    &uhid_fifo_methods, &(sc->sc_fifo),
+	error = usb2_fifo_attach(uaa->device, sc, &sc->sc_mtx,
+	    &uhid_fifo_methods, &sc->sc_fifo,
 	    unit, 0 - 1, uaa->info.bIfaceIndex);
 	if (error) {
 		goto detach;
@@ -788,7 +788,7 @@ uhid_detach(device_t dev)
 {
 	struct uhid_softc *sc = device_get_softc(dev);
 
-	usb2_fifo_detach(&(sc->sc_fifo));
+	usb2_fifo_detach(&sc->sc_fifo);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UHID_N_TRANSFER);
 
@@ -797,7 +797,7 @@ uhid_detach(device_t dev)
 			free(sc->sc_repdesc_ptr, M_USBDEV);
 		}
 	}
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }

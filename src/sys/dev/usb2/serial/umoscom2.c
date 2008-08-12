@@ -347,7 +347,7 @@ umoscom_attach(device_t dev)
 	sc->sc_flags |= (UMOSCOM_FLAG_READ_STALL |
 	    UMOSCOM_FLAG_WRITE_STALL);
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &umoscom_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -369,7 +369,7 @@ umoscom_detach(device_t dev)
 
 	mtx_unlock(&Giant);
 
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer_data, UMOSCOM_N_DATA_TRANSFER);
 
@@ -589,7 +589,7 @@ umoscom_cfg_do_request(struct umoscom_softc *sc, struct usb2_device_request *req
 	uint16_t length;
 	usb2_error_t err;
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom)))
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom))
 		goto error;
 
 	err = usb2_do_request_flags
@@ -671,7 +671,7 @@ umoscom_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_xfer_data[2]);
 			return;
 		}
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    UMOSCOM_BUFSIZE, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -711,7 +711,7 @@ umoscom_read_callback(struct usb2_xfer *xfer)
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 		DPRINTF("got %d bytes\n", xfer->actlen);
-		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0, xfer->actlen);
+		usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers, 0, xfer->actlen);
 
 	case USB_ST_SETUP:
 		DPRINTF("\n");
@@ -760,7 +760,7 @@ umoscom_intr_callback(struct usb2_xfer *xfer)
 			DPRINTF("too short message\n");
 			goto tr_setup;
 		}
-		usb2_com_status_change(&(sc->sc_ucom));
+		usb2_com_status_change(&sc->sc_ucom);
 
 	case USB_ST_SETUP:
 tr_setup:

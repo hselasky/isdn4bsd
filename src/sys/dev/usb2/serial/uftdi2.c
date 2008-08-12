@@ -304,7 +304,7 @@ uftdi_attach(device_t dev)
 	}
 
 	error = usb2_transfer_setup(uaa->device,
-	    &(sc->sc_iface_index), sc->sc_xfer, uftdi_config,
+	    &sc->sc_iface_index, sc->sc_xfer, uftdi_config,
 	    UFTDI_ENDPT_MAX, sc, &Giant);
 
 	if (error) {
@@ -326,7 +326,7 @@ uftdi_attach(device_t dev)
 	    FTDI_SIO_SET_DATA_PARITY_NONE |
 	    FTDI_SIO_SET_DATA_BITS(8));
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &uftdi_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -343,7 +343,7 @@ uftdi_detach(device_t dev)
 {
 	struct uftdi_softc *sc = device_get_softc(dev);
 
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UFTDI_ENDPT_MAX);
 
@@ -357,7 +357,7 @@ uftdi_cfg_do_request(struct uftdi_softc *sc, struct usb2_device_request *req,
 	uint16_t length;
 	usb2_error_t err;
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom))) {
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom)) {
 		goto error;
 	}
 	err = usb2_do_request_flags
@@ -427,7 +427,7 @@ uftdi_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers,
 		    sc->sc_hdrlen, UFTDI_OBUFSIZE - sc->sc_hdrlen,
 		    &actlen)) {
 
@@ -493,12 +493,12 @@ uftdi_read_callback(struct usb2_xfer *xfer)
 			sc->sc_msr = msr;
 			sc->sc_lsr = lsr;
 
-			usb2_com_status_change(&(sc->sc_ucom));
+			usb2_com_status_change(&sc->sc_ucom);
 		}
 		xfer->actlen -= 2;
 
 		if (xfer->actlen > 0) {
-			usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 2,
+			usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers, 2,
 			    xfer->actlen);
 		}
 	case USB_ST_SETUP:
@@ -643,7 +643,7 @@ uftdi_set_parm_soft(struct termios *t,
 		break;
 
 	case UFTDI_TYPE_8U232AM:
-		if (uftdi_8u232am_getrate(t->c_ospeed, &(cfg->rate))) {
+		if (uftdi_8u232am_getrate(t->c_ospeed, &cfg->rate)) {
 			return (EINVAL);
 		}
 		break;

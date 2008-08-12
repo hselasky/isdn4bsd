@@ -125,7 +125,7 @@ struct ohci_std_temp {
 static struct ohci_hcca *
 ohci_get_hcca(ohci_softc_t *sc)
 {
-	usb2_pc_cpu_invalidate(&(sc->sc_hw.hcca_pc));
+	usb2_pc_cpu_invalidate(&sc->sc_hw.hcca_pc);
 	return (sc->sc_hcca_p);
 }
 
@@ -135,16 +135,16 @@ ohci_iterate_hw_softc(struct usb2_bus *bus, usb2_bus_mem_sub_cb_t *cb)
 	struct ohci_softc *sc = OHCI_BUS2SC(bus);
 	uint32_t i;
 
-	cb(bus, &(sc->sc_hw.hcca_pc), &(sc->sc_hw.hcca_pg),
+	cb(bus, &sc->sc_hw.hcca_pc, &(sc->sc_hw.hcca_pg),
 	    sizeof(ohci_hcca_t), OHCI_HCCA_ALIGN);
 
-	cb(bus, &(sc->sc_hw.ctrl_start_pc), &(sc->sc_hw.ctrl_start_pg),
+	cb(bus, &sc->sc_hw.ctrl_start_pc, &(sc->sc_hw.ctrl_start_pg),
 	    sizeof(ohci_ed_t), OHCI_ED_ALIGN);
 
-	cb(bus, &(sc->sc_hw.bulk_start_pc), &(sc->sc_hw.bulk_start_pg),
+	cb(bus, &sc->sc_hw.bulk_start_pc, &(sc->sc_hw.bulk_start_pg),
 	    sizeof(ohci_ed_t), OHCI_ED_ALIGN);
 
-	cb(bus, &(sc->sc_hw.isoc_start_pc), &(sc->sc_hw.isoc_start_pg),
+	cb(bus, &sc->sc_hw.isoc_start_pc, &(sc->sc_hw.isoc_start_pg),
 	    sizeof(ohci_ed_t), OHCI_ED_ALIGN);
 
 	for (i = 0; i != OHCI_NO_EDS; i++) {
@@ -222,13 +222,13 @@ reset:
 	/* The controller is now in SUSPEND state, we have 2ms to finish. */
 
 	/* set up HC registers */
-	usb2_get_page(&(sc->sc_hw.hcca_pc), 0, &buf_res);
+	usb2_get_page(&sc->sc_hw.hcca_pc, 0, &buf_res);
 	OWRITE4(sc, OHCI_HCCA, buf_res.physaddr);
 
-	usb2_get_page(&(sc->sc_hw.ctrl_start_pc), 0, &buf_res);
+	usb2_get_page(&sc->sc_hw.ctrl_start_pc, 0, &buf_res);
 	OWRITE4(sc, OHCI_CONTROL_HEAD_ED, buf_res.physaddr);
 
-	usb2_get_page(&(sc->sc_hw.bulk_start_pc), 0, &buf_res);
+	usb2_get_page(&sc->sc_hw.bulk_start_pc, 0, &buf_res);
 	OWRITE4(sc, OHCI_BULK_HEAD_ED, buf_res.physaddr);
 
 	/* disable all interrupts and then switch on all desired interrupts */
@@ -315,13 +315,13 @@ ohci_init(ohci_softc_t *sc)
 	 */
 
 	sc->sc_ctrl_p_last =
-	    ohci_init_ed(&(sc->sc_hw.ctrl_start_pc));
+	    ohci_init_ed(&sc->sc_hw.ctrl_start_pc);
 
 	sc->sc_bulk_p_last =
-	    ohci_init_ed(&(sc->sc_hw.bulk_start_pc));
+	    ohci_init_ed(&sc->sc_hw.bulk_start_pc);
 
 	sc->sc_isoc_p_last =
-	    ohci_init_ed(&(sc->sc_hw.isoc_start_pc));
+	    ohci_init_ed(&sc->sc_hw.isoc_start_pc);
 
 	for (i = 0; i != OHCI_NO_EDS; i++) {
 		sc->sc_intr_p_last[i] =
@@ -367,7 +367,7 @@ ohci_init(ohci_softc_t *sc)
 		ed_int->next = ed_isc;
 		ed_int->ed_next = ed_isc->ed_self;
 	}
-	usb2_get_page(&(sc->sc_hw.hcca_pc), 0, &buf_res);
+	usb2_get_page(&sc->sc_hw.hcca_pc, 0, &buf_res);
 
 	sc->sc_hcca_p = buf_res.buffer;
 
@@ -381,7 +381,7 @@ ohci_init(ohci_softc_t *sc)
 	}
 	/* flush all cache into memory */
 
-	usb2_bus_mem_flush_all(&(sc->sc_bus), &ohci_iterate_hw_softc);
+	usb2_bus_mem_flush_all(&sc->sc_bus, &ohci_iterate_hw_softc);
 
 	/* set up the bus struct */
 	sc->sc_bus.methods = &ohci_bus_methods;
@@ -408,7 +408,7 @@ ohci_init(ohci_softc_t *sc)
 	} else {
 		mtx_unlock(&sc->sc_bus.mtx);
 		/* catch any lost interrupts */
-		ohci_do_poll(&(sc->sc_bus));
+		ohci_do_poll(&sc->sc_bus);
 		return (USB_ERR_NORMAL_COMPLETION);
 	}
 }
@@ -430,7 +430,7 @@ ohci_detach(struct ohci_softc *sc)
 
 	DELAY(1000 * 50);		/* XXX let stray task complete */
 
-	usb2_callout_drain(&(sc->sc_tmo_rhsc));
+	usb2_callout_drain(&sc->sc_tmo_rhsc);
 
 	return;
 }
@@ -504,7 +504,7 @@ ohci_resume(ohci_softc_t *sc)
 	mtx_unlock(&sc->sc_bus.mtx);
 
 	/* catch any lost interrupts */
-	ohci_do_poll(&(sc->sc_bus));
+	ohci_do_poll(&sc->sc_bus);
 
 	return;
 }
@@ -676,7 +676,7 @@ ohci_transfer_intr_enqueue(struct usb2_xfer *xfer)
 		return;
 	}
 	/* put transfer on interrupt queue */
-	usb2_transfer_enqueue(&(xfer->udev->bus->intr_q), xfer);
+	usb2_transfer_enqueue(&xfer->udev->bus->intr_q, xfer);
 
 	/* start timeout, if any */
 	if (xfer->timeout != 0) {
@@ -1099,10 +1099,10 @@ ohci_rhsc_enable(ohci_softc_t *sc)
 	/* acknowledge any RHSC interrupt */
 	OWRITE4(sc, OHCI_INTERRUPT_STATUS, OHCI_RHSC);
 
-	usb2_sw_transfer(&(sc->sc_root_intr),
+	usb2_sw_transfer(&sc->sc_root_intr,
 	    &ohci_root_intr_done);
 
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 	return;
 }
 
@@ -1112,7 +1112,7 @@ ohci_interrupt_poll(ohci_softc_t *sc)
 	struct usb2_xfer *xfer;
 
 repeat:
-	TAILQ_FOREACH(xfer, &(sc->sc_bus.intr_q.head), wait_entry) {
+	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
 		/*
 		 * check if transfer is transferred
 		 */
@@ -1175,7 +1175,7 @@ ohci_interrupt(ohci_softc_t *sc)
 		}
 		hcca->hcca_done_head = 0;
 
-		usb2_pc_cpu_flush(&(sc->sc_hw.hcca_pc));
+		usb2_pc_cpu_flush(&sc->sc_hw.hcca_pc);
 	} else {
 		status = OREAD4(sc, OHCI_INTERRUPT_STATUS) & ~OHCI_WDH;
 	}
@@ -1218,7 +1218,7 @@ ohci_interrupt(ohci_softc_t *sc)
 			sc->sc_eintrs &= ~OHCI_RHSC;
 			OWRITE4(sc, OHCI_INTERRUPT_DISABLE, OHCI_RHSC);
 
-			usb2_sw_transfer(&(sc->sc_root_intr),
+			usb2_sw_transfer(&sc->sc_root_intr,
 			    &ohci_root_intr_done);
 
 			/* do not allow RHSC interrupts > 1 per second */
@@ -1268,10 +1268,10 @@ ohci_do_poll(struct usb2_bus *bus)
 {
 	struct ohci_softc *sc = OHCI_BUS2SC(bus);
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 	ohci_interrupt_poll(sc);
 	ohci_root_ctrl_poll(sc);
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 	return;
 }
 
@@ -1916,7 +1916,7 @@ ohci_device_isoc_enter(struct usb2_xfer *xfer)
 	 * pre-compute when the isochronous transfer will be finished:
 	 */
 	xfer->isoc_time_complete =
-	    (usb2_isoc_time_expand(&(sc->sc_bus), nframes) + buf_offset +
+	    (usb2_isoc_time_expand(&sc->sc_bus, nframes) + buf_offset +
 	    xfer->nframes);
 
 	/* get the real number of frames */
@@ -2164,7 +2164,7 @@ ohci_root_ctrl_start(struct usb2_xfer *xfer)
 	sc->sc_root_ctrl.xfer = xfer;
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &ohci_root_ctrl_task, 0, 0);
+	    (&sc->sc_config_td, NULL, &ohci_root_ctrl_task, 0, 0);
 
 	return;
 }
@@ -2449,7 +2449,7 @@ ohci_root_ctrl_done(struct usb2_xfer *xfer,
 						DELAY(USB_PORT_ROOT_RESET_DELAY * 1000);
 					} else {
 						l = usb2_config_td_sleep
-						    (&(sc->sc_config_td),
+						    (&sc->sc_config_td,
 						    (hz * USB_PORT_ROOT_RESET_DELAY) / 1000);
 					}
 
@@ -2484,7 +2484,7 @@ done:
 static void
 ohci_root_ctrl_poll(struct ohci_softc *sc)
 {
-	usb2_sw_transfer(&(sc->sc_root_ctrl),
+	usb2_sw_transfer(&sc->sc_root_ctrl,
 	    &ohci_root_ctrl_done);
 	return;
 }

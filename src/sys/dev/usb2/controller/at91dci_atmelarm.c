@@ -152,7 +152,7 @@ at91_udp_attach(device_t dev)
 
 	/* get all DMA memory */
 
-	if (usb2_bus_mem_alloc_all(&(sc->sc_dci.sc_bus),
+	if (usb2_bus_mem_alloc_all(&sc->sc_dci.sc_bus,
 	    USB_GET_DMA_TAG(dev), NULL)) {
 		return (ENOMEM);
 	}
@@ -208,20 +208,20 @@ at91_udp_attach(device_t dev)
 	if (!(sc->sc_dci.sc_bus.bdev)) {
 		goto error;
 	}
-	device_set_ivars(sc->sc_dci.sc_bus.bdev, &(sc->sc_dci.sc_bus));
+	device_set_ivars(sc->sc_dci.sc_bus.bdev, &sc->sc_dci.sc_bus);
 
-	err = usb2_config_td_setup(&(sc->sc_dci.sc_config_td), sc,
-	    &(sc->sc_dci.sc_bus.mtx), NULL, 0, 4);
+	err = usb2_config_td_setup(&sc->sc_dci.sc_config_td, sc,
+	    &sc->sc_dci.sc_bus.mtx, NULL, 0, 4);
 	if (err) {
 		device_printf(dev, "could not setup config thread!\n");
 		goto error;
 	}
 #if (__FreeBSD_version >= 700031)
 	err = bus_setup_intr(dev, sc->sc_dci.sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    NULL, (void *)at91dci_interrupt, sc, &(sc->sc_dci.sc_intr_hdl));
+	    NULL, (void *)at91dci_interrupt, sc, &sc->sc_dci.sc_intr_hdl);
 #else
 	err = bus_setup_intr(dev, sc->sc_dci.sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    (void *)at91dci_interrupt, sc, &(sc->sc_dci.sc_intr_hdl));
+	    (void *)at91dci_interrupt, sc, &sc->sc_dci.sc_intr_hdl);
 #endif
 	if (err) {
 		sc->sc_dci.sc_intr_hdl = NULL;
@@ -229,16 +229,16 @@ at91_udp_attach(device_t dev)
 	}
 #if (__FreeBSD_version >= 700031)
 	err = bus_setup_intr(dev, sc->sc_vbus_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    NULL, (void *)at91_vbus_interrupt, sc, &(sc->sc_vbus_intr_hdl));
+	    NULL, (void *)at91_vbus_interrupt, sc, &sc->sc_vbus_intr_hdl);
 #else
 	err = bus_setup_intr(dev, sc->sc_vbus_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    (void *)at91_vbus_interrupt, sc, &(sc->sc_vbus_intr_hdl));
+	    (void *)at91_vbus_interrupt, sc, &sc->sc_vbus_intr_hdl);
 #endif
 	if (err) {
 		sc->sc_vbus_intr_hdl = NULL;
 		goto error;
 	}
-	err = at91dci_init(&(sc->sc_dci));
+	err = at91dci_init(&sc->sc_dci);
 	if (!err) {
 		err = device_probe_and_attach(sc->sc_dci.sc_bus.bdev);
 	}
@@ -271,11 +271,11 @@ at91_udp_detach(device_t dev)
 	device_delete_all_children(dev);
 
 	/* disable Transceiver */
-	AT91_UDP_WRITE_4(&(sc->sc_dci), AT91_UDP_TXVC, AT91_UDP_TXVC_DIS);
+	AT91_UDP_WRITE_4(&sc->sc_dci, AT91_UDP_TXVC, AT91_UDP_TXVC_DIS);
 
 	/* disable and clear all interrupts */
-	AT91_UDP_WRITE_4(&(sc->sc_dci), AT91_UDP_IDR, 0xFFFFFFFF);
-	AT91_UDP_WRITE_4(&(sc->sc_dci), AT91_UDP_ICR, 0xFFFFFFFF);
+	AT91_UDP_WRITE_4(&sc->sc_dci, AT91_UDP_IDR, 0xFFFFFFFF);
+	AT91_UDP_WRITE_4(&sc->sc_dci, AT91_UDP_ICR, 0xFFFFFFFF);
 
 	/* disable VBUS interrupt */
 	at91_pio_gpio_set_interrupt(VBUS_BASE, VBUS_MASK, 0);
@@ -294,7 +294,7 @@ at91_udp_detach(device_t dev)
 		/*
 		 * only call at91_udp_uninit() after at91_udp_init()
 		 */
-		at91dci_uninit(&(sc->sc_dci));
+		at91dci_uninit(&sc->sc_dci);
 
 		err = bus_teardown_intr(dev, sc->sc_dci.sc_irq_res,
 		    sc->sc_dci.sc_intr_hdl);
@@ -310,9 +310,9 @@ at91_udp_detach(device_t dev)
 		    sc->sc_dci.sc_io_res);
 		sc->sc_dci.sc_io_res = NULL;
 	}
-	usb2_config_td_unsetup(&(sc->sc_dci.sc_config_td));
+	usb2_config_td_unsetup(&sc->sc_dci.sc_config_td);
 
-	usb2_bus_mem_free_all(&(sc->sc_dci.sc_bus), NULL);
+	usb2_bus_mem_free_all(&sc->sc_dci.sc_bus, NULL);
 
 	/* disable clocks */
 	at91_pmc_clock_disable(sc->sc_iclk);
@@ -333,7 +333,7 @@ at91_udp_shutdown(device_t dev)
 	if (err)
 		return (err);
 
-	at91dci_uninit(&(sc->sc_dci));
+	at91dci_uninit(&sc->sc_dci);
 
 	return (0);
 }

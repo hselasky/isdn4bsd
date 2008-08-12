@@ -239,7 +239,7 @@ musbotg_wakeup_peer(struct usb2_xfer *xfer)
 	} else {
 		/* Wait for reset to complete. */
 		if (usb2_config_td_sleep
-		    (&(sc->sc_config_td),
+		    (&sc->sc_config_td,
 		    (hz / 100))) {
 			/* ignore */
 		}
@@ -793,7 +793,7 @@ musbotg_interrupt_poll(struct musbotg_softc *sc)
 	struct usb2_xfer *xfer;
 
 repeat:
-	TAILQ_FOREACH(xfer, &(sc->sc_bus.intr_q.head), wait_entry) {
+	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
 		if (!musbotg_xfer_do_fifo(xfer)) {
 			/* queue has been modified */
 			goto repeat;
@@ -809,14 +809,14 @@ musbotg_vbus_interrupt(struct usb2_bus *bus, uint8_t is_on)
 
 	DPRINTFN(4, "vbus = %u\n", is_on);
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 	if (is_on) {
 		if (!sc->sc_flags.status_vbus) {
 			sc->sc_flags.status_vbus = 1;
 
 			/* complete root HUB interrupt endpoint */
 
-			usb2_sw_transfer(&(sc->sc_root_intr),
+			usb2_sw_transfer(&sc->sc_root_intr,
 			    &musbotg_root_intr_done);
 		}
 	} else {
@@ -829,12 +829,12 @@ musbotg_vbus_interrupt(struct usb2_bus *bus, uint8_t is_on)
 
 			/* complete root HUB interrupt endpoint */
 
-			usb2_sw_transfer(&(sc->sc_root_intr),
+			usb2_sw_transfer(&sc->sc_root_intr,
 			    &musbotg_root_intr_done);
 		}
 	}
 
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	return;
 }
@@ -847,7 +847,7 @@ musbotg_interrupt(struct musbotg_softc *sc)
 	uint8_t tx_status;
 	uint8_t temp;
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 
 	/* read all interrupt registers */
 	usb_status = MUSB2_READ_1(sc, MUSB2_REG_INTUSB);
@@ -917,7 +917,7 @@ musbotg_interrupt(struct musbotg_softc *sc)
 		}
 		/* complete root HUB interrupt endpoint */
 
-		usb2_sw_transfer(&(sc->sc_root_intr),
+		usb2_sw_transfer(&sc->sc_root_intr,
 		    &musbotg_root_intr_done);
 	}
 	/* check for any endpoint interrupts */
@@ -929,7 +929,7 @@ musbotg_interrupt(struct musbotg_softc *sc)
 
 		musbotg_interrupt_poll(sc);
 	}
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	return;
 }
@@ -1149,7 +1149,7 @@ musbotg_start_standard_chain(struct usb2_xfer *xfer)
 		DPRINTFN(14, "enabled interrupts on endpoint\n");
 
 		/* put transfer on interrupt queue */
-		usb2_transfer_enqueue(&(xfer->udev->bus->intr_q), xfer);
+		usb2_transfer_enqueue(&xfer->udev->bus->intr_q, xfer);
 
 		/* start timeout, if any */
 		if (xfer->timeout != 0) {
@@ -1328,7 +1328,7 @@ musbotg_set_stall(struct usb2_device *udev, struct usb2_xfer *xfer,
 	struct musbotg_softc *sc;
 	uint8_t ep_no;
 
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
+	mtx_assert(&udev->bus->mtx, MA_OWNED);
 
 	DPRINTFN(4, "pipe=%p\n", pipe);
 
@@ -1472,7 +1472,7 @@ musbotg_clear_stall(struct usb2_device *udev, struct usb2_pipe *pipe)
 
 	DPRINTFN(4, "pipe=%p\n", pipe);
 
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
+	mtx_assert(&udev->bus->mtx, MA_OWNED);
 
 	/* check mode */
 	if (udev->flags.usb2_mode != USB_MODE_DEVICE) {
@@ -1506,7 +1506,7 @@ musbotg_init(struct musbotg_softc *sc)
 	sc->sc_bus.usbrev = USB_REV_2_0;
 	sc->sc_bus.methods = &musbotg_bus_methods;
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 
 	/* turn on clocks */
 
@@ -1590,11 +1590,11 @@ musbotg_init(struct musbotg_softc *sc)
 
 	musbotg_clocks_off(sc);
 
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	/* catch any lost interrupts */
 
-	musbotg_do_poll(&(sc->sc_bus));
+	musbotg_do_poll(&sc->sc_bus);
 
 	return (0);			/* success */
 }
@@ -1602,7 +1602,7 @@ musbotg_init(struct musbotg_softc *sc)
 void
 musbotg_uninit(struct musbotg_softc *sc)
 {
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 
 	/* disable all interrupts */
 	MUSB2_WRITE_1(sc, MUSB2_REG_INTUSBE, 0);
@@ -1618,7 +1618,7 @@ musbotg_uninit(struct musbotg_softc *sc)
 
 	musbotg_pull_down(sc);
 	musbotg_clocks_off(sc);
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 	return;
 }
 
@@ -1639,10 +1639,10 @@ musbotg_do_poll(struct usb2_bus *bus)
 {
 	struct musbotg_softc *sc = MUSBOTG_BUS2SC(bus);
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 	musbotg_interrupt_poll(sc);
 	musbotg_root_ctrl_poll(sc);
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 	return;
 }
 
@@ -1834,7 +1834,7 @@ musbotg_device_isoc_enter(struct usb2_xfer *xfer)
 	 * pre-compute when the isochronous transfer will be finished:
 	 */
 	xfer->isoc_time_complete =
-	    usb2_isoc_time_expand(&(sc->sc_bus), nframes) + temp +
+	    usb2_isoc_time_expand(&sc->sc_bus, nframes) + temp +
 	    fs_frames;
 
 	/* compute frame number for next insertion */
@@ -1989,7 +1989,7 @@ musbotg_root_ctrl_start(struct usb2_xfer *xfer)
 	sc->sc_root_ctrl.xfer = xfer;
 
 	usb2_config_td_queue_command(
-	    &(sc->sc_config_td), NULL, &musbotg_root_ctrl_task, 0, 0);
+	    &sc->sc_config_td, NULL, &musbotg_root_ctrl_task, 0, 0);
 
 	return;
 }
@@ -2021,7 +2021,7 @@ musbotg_root_ctrl_done(struct usb2_xfer *xfer,
 		goto done;
 	}
 	/* buffer reset */
-	std->ptr = USB_ADD_BYTES(&(sc->sc_hub_temp), 0);
+	std->ptr = USB_ADD_BYTES(&sc->sc_hub_temp, 0);
 	std->len = 0;
 
 	value = UGETW(std->req.wValue);
@@ -2409,7 +2409,7 @@ done:
 static void
 musbotg_root_ctrl_poll(struct musbotg_softc *sc)
 {
-	usb2_sw_transfer(&(sc->sc_root_ctrl),
+	usb2_sw_transfer(&sc->sc_root_ctrl,
 	    &musbotg_root_ctrl_done);
 	return;
 }

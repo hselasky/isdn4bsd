@@ -349,7 +349,7 @@ ubsa_attach(device_t dev)
 	sc->sc_iface_no = uaa->info.bIfaceNum;
 	sc->sc_iface_index = UBSA_IFACE_INDEX;
 
-	error = usb2_transfer_setup(uaa->device, &(sc->sc_iface_index),
+	error = usb2_transfer_setup(uaa->device, &sc->sc_iface_index,
 	    sc->sc_xfer, ubsa_config, UBSA_N_TRANSFER, sc, &Giant);
 
 	if (error) {
@@ -360,7 +360,7 @@ ubsa_attach(device_t dev)
 	sc->sc_flag |= (UBSA_FLAG_WRITE_STALL |
 	    UBSA_FLAG_READ_STALL);
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &ubsa_callback, &Giant);
 	if (error) {
 		DPRINTF("usb2_com_attach failed\n");
@@ -380,7 +380,7 @@ ubsa_detach(device_t dev)
 
 	DPRINTF("sc=%p\n", sc);
 
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UBSA_N_TRANSFER);
 
@@ -393,7 +393,7 @@ ubsa_cfg_request(struct ubsa_softc *sc, uint8_t index, uint16_t value)
 	struct usb2_device_request req;
 	usb2_error_t err;
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom))) {
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom)) {
 		return;
 	}
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
@@ -484,8 +484,8 @@ ubsa_cfg_param(struct usb2_com_softc *ucom, struct termios *t)
 	switch (t->c_ospeed) {
 	case B0:
 		ubsa_cfg_request(sc, UBSA_REG_FLOW_CTRL, 0);
-		ubsa_cfg_set_dtr(&(sc->sc_ucom), 0);
-		ubsa_cfg_set_rts(&(sc->sc_ucom), 0);
+		ubsa_cfg_set_dtr(&sc->sc_ucom, 0);
+		ubsa_cfg_set_rts(&sc->sc_ucom, 0);
 		break;
 	case B300:
 	case B600:
@@ -617,7 +617,7 @@ ubsa_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    UBSA_BSIZE, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -656,7 +656,7 @@ ubsa_read_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0, xfer->actlen);
+		usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers, 0, xfer->actlen);
 
 	case USB_ST_SETUP:
 		if (sc->sc_flag & UBSA_FLAG_READ_STALL) {
@@ -714,7 +714,7 @@ ubsa_intr_callback(struct usb2_xfer *xfer)
 			DPRINTF("lsr = 0x%02x, msr = 0x%02x\n",
 			    sc->sc_lsr, sc->sc_msr);
 
-			usb2_com_status_change(&(sc->sc_ucom));
+			usb2_com_status_change(&sc->sc_ucom);
 		} else {
 			DPRINTF("ignoring short packet, %d bytes\n",
 			    xfer->actlen);

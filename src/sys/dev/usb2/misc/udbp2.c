@@ -327,17 +327,17 @@ udbp_attach(device_t dev)
 	snprintf(sc->sc_name, sizeof(sc->sc_name),
 	    "%s", device_get_nameunit(dev));
 
-	mtx_init(&(sc->sc_mtx), "udbp lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "udbp lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	error = usb2_transfer_setup(uaa->device, &(uaa->info.bIfaceIndex),
-	    sc->sc_xfer, udbp_config, UDBP_T_MAX, sc, &(sc->sc_mtx));
+	error = usb2_transfer_setup(uaa->device, &uaa->info.bIfaceIndex,
+	    sc->sc_xfer, udbp_config, UDBP_T_MAX, sc, &sc->sc_mtx);
 	if (error) {
 		DPRINTF("error=%s\n", usb2_errstr(error));
 		goto detach;
 	}
-	NG_BT_MBUFQ_INIT(&(sc->sc_xmitq), UDBP_Q_MAXLEN);
+	NG_BT_MBUFQ_INIT(&sc->sc_xmitq, UDBP_Q_MAXLEN);
 
-	NG_BT_MBUFQ_INIT(&(sc->sc_xmitq_hipri), UDBP_Q_MAXLEN);
+	NG_BT_MBUFQ_INIT(&sc->sc_xmitq_hipri, UDBP_Q_MAXLEN);
 
 	/* create Netgraph node */
 
@@ -383,12 +383,12 @@ udbp_detach(device_t dev)
 
 	usb2_transfer_unsetup(sc->sc_xfer, UDBP_T_MAX);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	/* destroy queues */
 
-	NG_BT_MBUFQ_DESTROY(&(sc->sc_xmitq));
-	NG_BT_MBUFQ_DESTROY(&(sc->sc_xmitq_hipri));
+	NG_BT_MBUFQ_DESTROY(&sc->sc_xmitq);
+	NG_BT_MBUFQ_DESTROY(&sc->sc_xmitq_hipri);
 
 	/* extra check */
 
@@ -479,7 +479,7 @@ udbp_bulk_read_complete(node_p node, hook_p hook, void *arg1, int arg2)
 	if (sc == NULL) {
 		return;
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	m = sc->sc_bulk_in_buffer;
 
@@ -506,7 +506,7 @@ done:
 
 	usb2_transfer_start(sc->sc_xfer[UDBP_T_RD]);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -529,9 +529,9 @@ udbp_bulk_write_callback(struct usb2_xfer *xfer)
 		}
 		/* get next mbuf, if any */
 
-		NG_BT_MBUFQ_DEQUEUE(&(sc->sc_xmitq_hipri), m);
+		NG_BT_MBUFQ_DEQUEUE(&sc->sc_xmitq_hipri, m);
 		if (m == NULL) {
-			NG_BT_MBUFQ_DEQUEUE(&(sc->sc_xmitq), m);
+			NG_BT_MBUFQ_DEQUEUE(&sc->sc_xmitq, m);
 			if (m == NULL) {
 				DPRINTF("Data queue is empty\n");
 				return;
@@ -615,7 +615,7 @@ ng_udbp_newhook(node_p node, hook_p hook, const char *name)
 	if (strcmp(name, NG_UDBP_HOOK_NAME)) {
 		return (EINVAL);
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (sc->sc_hook != NULL) {
 		error = EISCONN;
@@ -624,7 +624,7 @@ ng_udbp_newhook(node_p node, hook_p hook, const char *name)
 		NG_HOOK_SET_PRIVATE(hook, NULL);
 	}
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (error);
 }
@@ -663,10 +663,10 @@ ng_udbp_rcvmsg(node_p node, item_p item, hook_p lasthook)
 					break;
 				}
 				stats = (struct ngudbpstat *)resp->data;
-				mtx_lock(&(sc->sc_mtx));
+				mtx_lock(&sc->sc_mtx);
 				stats->packets_in = sc->sc_packets_in;
 				stats->packets_out = sc->sc_packets_out;
-				mtx_unlock(&(sc->sc_mtx));
+				mtx_unlock(&sc->sc_mtx);
 				break;
 			}
 		case NGM_UDBP_SET_FLAG:
@@ -719,11 +719,11 @@ ng_udbp_rcvdata(hook_p hook, item_p item)
 	    NG_TAG_PRIO, NULL);
 
 	if (ptag && (ptag->priority > NG_PRIO_CUTOFF))
-		queue_ptr = &(sc->sc_xmitq_hipri);
+		queue_ptr = &sc->sc_xmitq_hipri;
 	else
-		queue_ptr = &(sc->sc_xmitq);
+		queue_ptr = &sc->sc_xmitq;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (NG_BT_MBUFQ_FULL(queue_ptr)) {
 		NG_BT_MBUFQ_DROP(queue_ptr);
@@ -738,7 +738,7 @@ ng_udbp_rcvdata(hook_p hook, item_p item)
 		error = 0;
 	}
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (error);
 }
@@ -779,7 +779,7 @@ ng_udbp_rmnode(node_p node)
 
 done:
 	if (sc) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return (0);
 }
@@ -796,7 +796,7 @@ ng_udbp_connect(hook_p hook)
 	/* probably not at splnet, force outward queueing */
 	NG_HOOK_FORCE_QUEUE(NG_HOOK_PEER(hook));
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	sc->sc_flags |= (UDBP_FLAG_READ_STALL |
 	    UDBP_FLAG_WRITE_STALL);
@@ -807,7 +807,7 @@ ng_udbp_connect(hook_p hook)
 	/* start bulk-out transfer */
 	usb2_transfer_start(sc->sc_xfer[UDBP_T_WR]);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);
 }
@@ -825,7 +825,7 @@ ng_udbp_disconnect(hook_p hook)
 
 	if (sc != NULL) {
 
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 
 		if (hook != sc->sc_hook) {
 			error = EINVAL;
@@ -850,7 +850,7 @@ ng_udbp_disconnect(hook_p hook)
 			sc->sc_hook = NULL;
 		}
 
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	if ((NG_NODE_NUMHOOKS(NG_HOOK_NODE(hook)) == 0)
 	    && (NG_NODE_IS_VALID(NG_HOOK_NODE(hook))))

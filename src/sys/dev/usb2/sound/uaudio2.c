@@ -668,7 +668,7 @@ uaudio_attach(device_t dev)
 		DPRINTF("out of memory\n");
 		goto detach;
 	}
-	device_set_ivars(child, &(sc->sc_sndcard_func));
+	device_set_ivars(child, &sc->sc_sndcard_func);
 
 	if (bus_generic_attach(dev)) {
 		DPRINTF("child attach failed\n");
@@ -775,7 +775,7 @@ uaudio_detach(device_t dev)
 	if (bus_generic_detach(dev)) {
 		DPRINTF("detach failed!\n");
 	}
-	sbuf_delete(&(sc->sc_sndstat));
+	sbuf_delete(&sc->sc_sndstat);
 	sc->sc_sndstat_valid = 0;
 
 	umidi_detach(dev);
@@ -1023,8 +1023,8 @@ uaudio_chan_fill_info_sub(struct uaudio_softc *sc, struct usb2_device *udev,
 			    (bBitResolution == bit_resolution)) {
 
 				chan = (ep_dir == UE_DIR_IN) ?
-				    &(sc->sc_rec_chan) :
-				    &(sc->sc_play_chan);
+				    &sc->sc_rec_chan :
+				    &sc->sc_play_chan;
 
 				if ((chan->valid == 0) && usb2_get_iface(udev, curidx)) {
 
@@ -1070,7 +1070,7 @@ uaudio_chan_fill_info_sub(struct uaudio_softc *sc, struct usb2_device *udev,
 					chan->bytes_per_frame = ((rate / fps) * sample_size);
 
 					if (sc->sc_sndstat_valid) {
-						sbuf_printf(&(sc->sc_sndstat), "\n\t"
+						sbuf_printf(&sc->sc_sndstat, "\n\t"
 						    "mode %d.%d:(%s) %dch, %d/%dbit, %s, %dHz",
 						    curidx, alt_index,
 						    (ep_dir == UE_DIR_IN) ? "input" : "output",
@@ -1101,7 +1101,7 @@ uaudio_chan_fill_info(struct uaudio_softc *sc, struct usb2_device *udev)
 	bits -= (bits % 8);
 	rate -= (rate % fps);
 
-	if (sbuf_new(&(sc->sc_sndstat), NULL, 4096, SBUF_AUTOEXTEND)) {
+	if (sbuf_new(&sc->sc_sndstat, NULL, 4096, SBUF_AUTOEXTEND)) {
 		sc->sc_sndstat_valid = 1;
 	}
 	/* try to search for a valid config */
@@ -1121,7 +1121,7 @@ uaudio_chan_fill_info(struct uaudio_softc *sc, struct usb2_device *udev)
 
 done:
 	if (sc->sc_sndstat_valid) {
-		sbuf_finish(&(sc->sc_sndstat));
+		sbuf_finish(&sc->sc_sndstat);
 	}
 	return;
 }
@@ -1316,7 +1316,7 @@ uaudio_chan_init(struct uaudio_softc *sc, struct snd_dbuf *b,
     struct pcm_channel *c, int dir)
 {
 	struct uaudio_chan *ch = ((dir == PCMDIR_PLAY) ?
-	    &(sc->sc_play_chan) : &(sc->sc_rec_chan));
+	    &sc->sc_play_chan : &(sc->sc_rec_chan));
 	uint8_t endpoint;
 	uint8_t iface_index;
 	uint8_t alt_index;
@@ -1466,7 +1466,7 @@ uaudio_chan_getptr(struct uaudio_chan *ch)
 struct pcmchan_caps *
 uaudio_chan_getcaps(struct uaudio_chan *ch)
 {
-	return (&(ch->pcm_cap));
+	return (&ch->pcm_cap);
 }
 
 int
@@ -2582,12 +2582,12 @@ uaudio_mixer_find_inputs_sub(struct uaudio_terminal_node *root,
 
 		case UDESCSUB_AC_FEATURE:
 			uaudio_mixer_find_inputs_sub
-			    (root, &(iot->u.fu->bSourceId), 1, info);
+			    (root, &iot->u.fu->bSourceId, 1, info);
 			break;
 
 		case UDESCSUB_AC_OUTPUT:
 			uaudio_mixer_find_inputs_sub
-			    (root, &(iot->u.ot->bSourceId), 1, info);
+			    (root, &iot->u.ot->bSourceId, 1, info);
 			break;
 
 		case UDESCSUB_AC_MIXER:
@@ -3118,7 +3118,7 @@ uaudio_mixer_init_sub(struct uaudio_softc *sc, struct snd_mixer *m)
 {
 	DPRINTF("\n");
 
-	if (usb2_transfer_setup(sc->sc_udev, &(sc->sc_mixer_iface_index),
+	if (usb2_transfer_setup(sc->sc_udev, &sc->sc_mixer_iface_index,
 	    sc->sc_mixer_xfer, uaudio_mixer_config, 1, sc,
 	    mixer_get_lock(m))) {
 		DPRINTFN(0, "could not allocate USB "
@@ -3254,7 +3254,7 @@ umidi_bulk_read_callback(struct usb2_xfer *xfer)
 
 			cmd_len = umidi_cmd_to_len[buf[0] & 0xF];	/* command length */
 			cn = buf[0] >> 4;	/* cable number */
-			sub = &(chan->sub[cn]);
+			sub = &chan->sub[cn];
 
 			if (cmd_len && (cn < chan->max_cable) && sub->read_open) {
 				usb2_fifo_put_data(sub->fifo.fp[USB_FIFO_RX], xfer->frbuffers,
@@ -3473,7 +3473,7 @@ umidi_bulk_write_callback(struct usb2_xfer *xfer)
 
 			/* round robin de-queueing */
 
-			sub = &(chan->sub[chan->curr_cable]);
+			sub = &chan->sub[chan->curr_cable];
 
 			if (sub->write_open) {
 				usb2_fifo_get_data(sub->fifo.fp[USB_FIFO_TX],
@@ -3548,7 +3548,7 @@ umidi_sub_by_fifo(struct usb2_fifo *fifo)
 	uint32_t n;
 
 	for (n = 0; n < UMIDI_CABLES_MAX; n++) {
-		sub = &(chan->sub[n]);
+		sub = &chan->sub[n];
 		if ((sub->fifo.fp[USB_FIFO_RX] == fifo) ||
 		    (sub->fifo.fp[USB_FIFO_TX] == fifo)) {
 			return (sub);
@@ -3673,9 +3673,9 @@ static void
 umidi_init(device_t dev)
 {
 	struct uaudio_softc *sc = device_get_softc(dev);
-	struct umidi_chan *chan = &(sc->sc_midi_chan);
+	struct umidi_chan *chan = &sc->sc_midi_chan;
 
-	mtx_init(&(chan->mtx), "umidi lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&chan->mtx, "umidi lock", NULL, MTX_DEF | MTX_RECURSE);
 	return;
 }
 
@@ -3695,7 +3695,7 @@ umidi_probe(device_t dev)
 {
 	struct uaudio_softc *sc = device_get_softc(dev);
 	struct usb2_attach_arg *uaa = device_get_ivars(dev);
-	struct umidi_chan *chan = &(sc->sc_midi_chan);
+	struct umidi_chan *chan = &sc->sc_midi_chan;
 	struct umidi_sub_chan *sub;
 	int unit = device_get_unit(dev);
 	int error;
@@ -3708,9 +3708,9 @@ umidi_probe(device_t dev)
 	}
 	usb2_set_parent_iface(sc->sc_udev, chan->iface_index, sc->sc_mixer_iface_index);
 
-	error = usb2_transfer_setup(uaa->device, &(chan->iface_index),
+	error = usb2_transfer_setup(uaa->device, &chan->iface_index,
 	    chan->xfer, umidi_config, UMIDI_N_TRANSFER,
-	    chan, &(chan->mtx));
+	    chan, &chan->mtx);
 	if (error) {
 		DPRINTF("error=%s\n", usb2_errstr(error));
 		goto detach;
@@ -3725,17 +3725,17 @@ umidi_probe(device_t dev)
 
 	for (n = 0; n < chan->max_cable; n++) {
 
-		sub = &(chan->sub[n]);
+		sub = &chan->sub[n];
 
-		error = usb2_fifo_attach(sc->sc_udev, chan, &(chan->mtx),
-		    &umidi_fifo_methods, &(sub->fifo), unit, n,
+		error = usb2_fifo_attach(sc->sc_udev, chan, &chan->mtx,
+		    &umidi_fifo_methods, &sub->fifo, unit, n,
 		    chan->iface_index);
 		if (error) {
 			goto detach;
 		}
 	}
 
-	mtx_lock(&(chan->mtx));
+	mtx_lock(&chan->mtx);
 
 	/* clear stall first */
 	chan->flags |= UMIDI_FLAG_READ_STALL;
@@ -3746,7 +3746,7 @@ umidi_probe(device_t dev)
 	 */
 	usb2_transfer_start(chan->xfer[1]);
 
-	mtx_unlock(&(chan->mtx));
+	mtx_unlock(&chan->mtx);
 
 	return (0);			/* success */
 
@@ -3758,23 +3758,23 @@ static int32_t
 umidi_detach(device_t dev)
 {
 	struct uaudio_softc *sc = device_get_softc(dev);
-	struct umidi_chan *chan = &(sc->sc_midi_chan);
+	struct umidi_chan *chan = &sc->sc_midi_chan;
 	uint32_t n;
 
 	for (n = 0; n < UMIDI_CABLES_MAX; n++) {
-		usb2_fifo_detach(&(chan->sub[n].fifo));
+		usb2_fifo_detach(&chan->sub[n].fifo);
 	}
 
-	mtx_lock(&(chan->mtx));
+	mtx_lock(&chan->mtx);
 
 	usb2_transfer_stop(chan->xfer[3]);
 	usb2_transfer_stop(chan->xfer[1]);
 
-	mtx_unlock(&(chan->mtx));
+	mtx_unlock(&chan->mtx);
 
 	usb2_transfer_unsetup(chan->xfer, UMIDI_N_TRANSFER);
 
-	mtx_destroy(&(chan->mtx));
+	mtx_destroy(&chan->mtx);
 
 	return (0);
 }

@@ -411,7 +411,7 @@ ugen_default_read_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(f->xfer[1]);
 			break;
 		}
-		USB_IF_POLL(&(f->free_q), m);
+		USB_IF_POLL(&f->free_q, m);
 		if (m) {
 			xfer->frlengths[0] = xfer->max_data_length;
 			usb2_start_hardware(xfer);
@@ -1004,12 +1004,12 @@ ugen_fs_get_complete(struct usb2_fifo *f, uint8_t *pindex)
 {
 	struct usb2_mbuf *m;
 
-	USB_IF_DEQUEUE(&(f->used_q), m);
+	USB_IF_DEQUEUE(&f->used_q, m);
 
 	if (m) {
 		*pindex = *((uint8_t *)(m->cur_data_ptr));
 
-		USB_IF_ENQUEUE(&(f->free_q), m);
+		USB_IF_ENQUEUE(&f->free_q, m);
 
 		return (0);		/* success */
 	} else {
@@ -1023,7 +1023,7 @@ ugen_fs_set_complete(struct usb2_fifo *f, uint8_t index)
 {
 	struct usb2_mbuf *m;
 
-	USB_IF_DEQUEUE(&(f->free_q), m);
+	USB_IF_DEQUEUE(&f->free_q, m);
 
 	if (m == NULL) {
 		/* can happen during close */
@@ -1034,7 +1034,7 @@ ugen_fs_set_complete(struct usb2_fifo *f, uint8_t index)
 
 	*((uint8_t *)(m->cur_data_ptr)) = index;
 
-	USB_IF_ENQUEUE(&(f->used_q), m);
+	USB_IF_ENQUEUE(&f->used_q, m);
 
 	f->flag_iscomplete = 1;
 
@@ -1353,13 +1353,13 @@ ugen_fs_copy_out(struct usb2_fifo *f, uint8_t ep_index)
 
 complete:
 	/* update "aFrames" */
-	error = copyout(&fs_ep.aFrames, &(fs_ep_uptr->aFrames),
+	error = copyout(&fs_ep.aFrames, &fs_ep_uptr->aFrames,
 	    sizeof(fs_ep.aFrames));
 	if (error) {
 		return (error);
 	}
 	/* update "status" */
-	error = copyout(&fs_ep.status, &(fs_ep_uptr->status),
+	error = copyout(&fs_ep.status, &fs_ep_uptr->status,
 	    sizeof(fs_ep.status));
 	return (error);
 }

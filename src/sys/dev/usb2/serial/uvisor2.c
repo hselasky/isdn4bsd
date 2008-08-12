@@ -334,7 +334,7 @@ uvisor_attach(device_t dev)
 		    usb2_errstr(error));
 		goto detach;
 	}
-	error = usb2_transfer_setup(uaa->device, &(sc->sc_iface_index),
+	error = usb2_transfer_setup(uaa->device, &sc->sc_iface_index,
 	    sc->sc_xfer, uvisor_config_copy, UVISOR_N_TRANSFER,
 	    sc, &Giant);
 	if (error) {
@@ -345,7 +345,7 @@ uvisor_attach(device_t dev)
 	sc->sc_flag |= (UVISOR_FLAG_WRITE_STALL |
 	    UVISOR_FLAG_READ_STALL);
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &uvisor_callback, &Giant);
 	if (error) {
 		DPRINTF("usb2_com_attach failed\n");
@@ -365,7 +365,7 @@ uvisor_detach(device_t dev)
 
 	DPRINTF("sc=%p\n", sc);
 
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UVISOR_N_TRANSFER);
 
@@ -599,7 +599,7 @@ uvisor_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    UVISOR_BUFSIZE, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -638,7 +638,7 @@ uvisor_read_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0, xfer->actlen);
+		usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers, 0, xfer->actlen);
 
 	case USB_ST_SETUP:
 		if (sc->sc_flag & UVISOR_FLAG_READ_STALL) {

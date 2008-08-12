@@ -321,7 +321,7 @@ uvscom_attach(device_t dev)
 	sc->sc_iface_no = uaa->info.bIfaceNum;
 	sc->sc_iface_index = UVSCOM_IFACE_INDEX;
 
-	error = usb2_transfer_setup(uaa->device, &(sc->sc_iface_index),
+	error = usb2_transfer_setup(uaa->device, &sc->sc_iface_index,
 	    sc->sc_xfer, uvscom_config, UVSCOM_N_TRANSFER, sc, &Giant);
 
 	if (error) {
@@ -334,7 +334,7 @@ uvscom_attach(device_t dev)
 	sc->sc_flag |= (UVSCOM_FLAG_WRITE_STALL |
 	    UVSCOM_FLAG_READ_STALL);
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &uvscom_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -363,7 +363,7 @@ uvscom_detach(device_t dev)
 	if (sc->sc_xfer[4]) {
 		usb2_transfer_stop(sc->sc_xfer[4]);
 	}
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UVSCOM_N_TRANSFER);
 
@@ -383,7 +383,7 @@ uvscom_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    UVSCOM_BULK_BUF_SIZE, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -422,7 +422,7 @@ uvscom_read_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0, xfer->actlen);
+		usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers, 0, xfer->actlen);
 
 	case USB_ST_SETUP:
 		if (sc->sc_flag & UVSCOM_FLAG_READ_STALL) {
@@ -492,7 +492,7 @@ uvscom_intr_callback(struct usb2_xfer *xfer)
 			 * the UCOM layer will ignore this call if the TTY
 			 * device is closed!
 			 */
-			usb2_com_status_change(&(sc->sc_ucom));
+			usb2_com_status_change(&sc->sc_ucom);
 		}
 	case USB_ST_SETUP:
 		if (sc->sc_flag & UVSCOM_FLAG_INTR_STALL) {
@@ -780,7 +780,7 @@ uvscom_cfg_write(struct uvscom_softc *sc, uint8_t index, uint16_t value)
 	struct usb2_device_request req;
 	usb2_error_t err;
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom))) {
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom)) {
 		return;
 	}
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
@@ -805,7 +805,7 @@ uvscom_cfg_read_status(struct uvscom_softc *sc)
 	usb2_error_t err;
 	uint8_t data[2];
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom))) {
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom)) {
 		return (0);
 	}
 	req.bmRequestType = UT_READ_VENDOR_DEVICE;

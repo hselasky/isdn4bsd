@@ -623,12 +623,12 @@ usb2_unref_device(struct usb2_location *ploc)
 	mtx_lock(&usb2_ref_lock);
 	if (ploc->is_read) {
 		if (--(ploc->rxfifo->refcount) == 0) {
-			usb2_cv_signal(&(ploc->rxfifo->cv_drain));
+			usb2_cv_signal(&ploc->rxfifo->cv_drain);
 		}
 	}
 	if (ploc->is_write) {
 		if (--(ploc->txfifo->refcount) == 0) {
-			usb2_cv_signal(&(ploc->txfifo->cv_drain));
+			usb2_cv_signal(&ploc->txfifo->cv_drain);
 		}
 	}
 	if (ploc->is_uref) {
@@ -877,7 +877,7 @@ usb2_dev_get_pipe(struct usb2_device *udev,
 	uint8_t ep_dir;
 
 	if (ep_index == 0) {
-		pipe = &(udev->default_pipe);
+		pipe = &udev->default_pipe;
 	} else {
 		if (dir == USB_FIFO_RX) {
 			if (udev->flags.usb2_mode == USB_MODE_HOST) {
@@ -999,9 +999,9 @@ usb2_fifo_reset(struct usb2_fifo *f)
 		return;
 	}
 	while (1) {
-		USB_IF_DEQUEUE(&(f->used_q), m);
+		USB_IF_DEQUEUE(&f->used_q, m);
 		if (m) {
-			USB_IF_ENQUEUE(&(f->free_q), m);
+			USB_IF_ENQUEUE(&f->free_q, m);
 		} else {
 			break;
 		}
@@ -1029,7 +1029,7 @@ usb2_fifo_close(struct usb2_fifo *f, struct thread *td, int fflags)
 
 	/* check if we are selected */
 	if (f->flag_isselect) {
-		selwakeup(&(f->selinfo));
+		selwakeup(&f->selinfo);
 		f->flag_isselect = 0;
 	}
 	/* check if a thread wants SIGIO */
@@ -1058,7 +1058,7 @@ usb2_fifo_close(struct usb2_fifo *f, struct thread *td, int fflags)
 			    (!f->flag_iserror)) {
 				/* wait until all data has been written */
 				f->flag_sleeping = 1;
-				err = usb2_cv_wait_sig(&(f->cv_io), f->priv_mtx);
+				err = usb2_cv_wait_sig(&f->cv_io, f->priv_mtx);
 				if (err) {
 					DPRINTF("signal received\n");
 					break;
@@ -1115,8 +1115,8 @@ usb2_check_thread_perm(struct usb2_device *udev, struct thread *td,
 	bzero(&perm, sizeof(perm));
 
 	/* create a permissions mask */
-	perm.uid = td->td_ucred->cr_ruid;
-	perm.gid = td->td_ucred->cr_rgid;
+	perm.uid = USB_TD_GET_RUID(td);
+	perm.uid = USB_TD_GET_RGID(td);
 	perm.mode = 0;
 	if (fflags & FREAD)
 		perm.mode |= 0444;
@@ -1131,7 +1131,7 @@ usb2_check_thread_perm(struct usb2_device *udev, struct thread *td,
 	} else if (udev && usb2_match_perm(&perm, &udev->perm)) {
 		/* we got access through the device */
 		err = 0;
-	} else if (udev->bus && usb2_match_perm(&perm, &(udev->bus->perm))) {
+	} else if (udev->bus && usb2_match_perm(&perm, &udev->bus->perm)) {
 		/* we got access through the USB bus */
 		err = 0;
 	} else if (usb2_match_perm(&perm, &usb2_perm)) {
@@ -1458,11 +1458,7 @@ usb2_ioctl_f_sub(struct usb2_fifo *f, u_long cmd, void *addr, struct thread *td)
 				error = EBUSY;
 				break;
 			}
-#if defined(__NetBSD__)
-			f->async_p = td;
-#else
-			f->async_p = td->td_proc;
-#endif
+			f->async_p = USB_TD_GET_PROC(td);
 		} else {
 			f->async_p = NULL;
 		}
@@ -1474,7 +1470,7 @@ usb2_ioctl_f_sub(struct usb2_fifo *f, u_long cmd, void *addr, struct thread *td)
 			error = EINVAL;
 			break;
 		}
-		if (*(int *)addr != f->async_p->p_pgid) {
+		if (*(int *)addr != USB_PROC_GET_GID(f->async_p)) {
 			error = EPERM;
 			break;
 		}
@@ -1606,7 +1602,7 @@ usb2_poll_f(struct file *fp, int events,
 				m = (void *)1;
 			} else {
 				/* check if any packets are available */
-				USB_IF_POLL(&(f->free_q), m);
+				USB_IF_POLL(&f->free_q, m);
 			}
 		} else {
 			if (f->flag_iscomplete) {
@@ -1620,7 +1616,7 @@ usb2_poll_f(struct file *fp, int events,
 			revents |= events & (POLLOUT | POLLWRNORM);
 		} else {
 			f->flag_isselect = 1;
-			selrecord(td, &(f->selinfo));
+			selrecord(td, &f->selinfo);
 		}
 
 		mtx_unlock(f->priv_mtx);
@@ -1638,7 +1634,7 @@ usb2_poll_f(struct file *fp, int events,
 				m = (void *)1;
 			} else {
 				/* check if any packets are available */
-				USB_IF_POLL(&(f->used_q), m);
+				USB_IF_POLL(&f->used_q, m);
 			}
 		} else {
 			if (f->flag_iscomplete) {
@@ -1652,7 +1648,7 @@ usb2_poll_f(struct file *fp, int events,
 			revents |= events & (POLLIN | POLLRDNORM);
 		} else {
 			f->flag_isselect = 1;
-			selrecord(td, &(f->selinfo));
+			selrecord(td, &f->selinfo);
 
 			/* start reading data */
 			(f->methods->f_start_read) (f);
@@ -1707,7 +1703,7 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred,
 	while (uio->uio_resid > 0) {
 
 		if (f->fs_ep_max == 0) {
-			USB_IF_DEQUEUE(&(f->used_q), m);
+			USB_IF_DEQUEUE(&f->used_q, m);
 		} else {
 			/*
 			 * The queue is used for events that should be
@@ -1759,14 +1755,14 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred,
 
 			last_packet = m->last_packet;
 
-			USB_IF_ENQUEUE(&(f->free_q), m);
+			USB_IF_ENQUEUE(&f->free_q, m);
 
 			if (last_packet) {
 				/* keep framing */
 				break;
 			}
 		} else {
-			USB_IF_PREPEND(&(f->used_q), m);
+			USB_IF_PREPEND(&f->used_q, m);
 		}
 
 		if (err) {
@@ -1787,14 +1783,14 @@ done:
 static int
 usb2_stat_f(struct file *fp, struct stat *sb, struct ucred *cred, struct thread *td)
 {
-	return (vnops.fo_stat(fp, sb, cred, td));
+	return (USB_VNOPS_FO_STAT(fp, sb, cred, td));
 }
 
 #if __FreeBSD_version > 800009
 static int
 usb2_truncate_f(struct file *fp, off_t length, struct ucred *cred, struct thread *td)
 {
-	return (vnops.fo_truncate(fp, length, cred, td));
+	return (USB_VNOPS_FO_TRUNCATE(fp, length, cred, td));
 }
 
 #endif
@@ -1844,7 +1840,7 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 	while (uio->uio_resid > 0) {
 
 		if (f->fs_ep_max == 0) {
-			USB_IF_DEQUEUE(&(f->free_q), m);
+			USB_IF_DEQUEUE(&f->free_q, m);
 		} else {
 			/*
 			 * The queue is used for events that should be
@@ -1888,10 +1884,10 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 		    m->cur_data_ptr, io_len, uio);
 
 		if (err) {
-			USB_IF_ENQUEUE(&(f->free_q), m);
+			USB_IF_ENQUEUE(&f->free_q, m);
 			break;
 		} else {
-			USB_IF_ENQUEUE(&(f->used_q), m);
+			USB_IF_ENQUEUE(&f->used_q, m);
 			(f->methods->f_start_write) (f);
 		}
 	}
@@ -1939,7 +1935,7 @@ usb2_fifo_wait(struct usb2_fifo *f)
 	}
 	f->flag_sleeping = 1;
 
-	err = usb2_cv_wait_sig(&(f->cv_io), f->priv_mtx);
+	err = usb2_cv_wait_sig(&f->cv_io, f->priv_mtx);
 
 	if (f->flag_iserror) {
 		/* we are gone */
@@ -1953,7 +1949,7 @@ usb2_fifo_signal(struct usb2_fifo *f)
 {
 	if (f->flag_sleeping) {
 		f->flag_sleeping = 0;
-		usb2_cv_broadcast(&(f->cv_io));
+		usb2_cv_broadcast(&f->cv_io);
 	}
 	return;
 }
@@ -1964,7 +1960,7 @@ usb2_fifo_wakeup(struct usb2_fifo *f)
 	usb2_fifo_signal(f);
 
 	if (f->flag_isselect) {
-		selwakeup(&(f->selinfo));
+		selwakeup(&f->selinfo);
 		f->flag_isselect = 0;
 	}
 	if (f->async_p != NULL) {
@@ -2213,7 +2209,7 @@ usb2_fifo_alloc_buffer(struct usb2_fifo *f, uint32_t bufsize,
 	f->used_q.ifq_maxlen = nbuf;
 
 	f->queue_data = usb2_alloc_mbufs(
-	    M_USBDEV, &(f->free_q), bufsize, nbuf);
+	    M_USBDEV, &f->free_q, bufsize, nbuf);
 
 	if ((f->queue_data == NULL) && bufsize && nbuf) {
 		return (ENOMEM);
@@ -2237,8 +2233,8 @@ usb2_fifo_free_buffer(struct usb2_fifo *f)
 	}
 	/* reset queues */
 
-	bzero(&(f->free_q), sizeof(f->free_q));
-	bzero(&(f->used_q), sizeof(f->used_q));
+	bzero(&f->free_q, sizeof(f->free_q));
+	bzero(&f->used_q, sizeof(f->used_q));
 	return;
 }
 
@@ -2265,7 +2261,7 @@ usb2_fifo_put_bytes_max(struct usb2_fifo *f)
 	struct usb2_mbuf *m;
 	uint32_t len;
 
-	USB_IF_POLL(&(f->free_q), m);
+	USB_IF_POLL(&f->free_q, m);
 
 	if (m) {
 		len = m->max_data_len;
@@ -2291,7 +2287,7 @@ usb2_fifo_put_data(struct usb2_fifo *f, struct usb2_page_cache *pc,
 
 	while (len || (what == 1)) {
 
-		USB_IF_DEQUEUE(&(f->free_q), m);
+		USB_IF_DEQUEUE(&f->free_q, m);
 
 		if (m) {
 			USB_MBUF_RESET(m);
@@ -2307,7 +2303,7 @@ usb2_fifo_put_data(struct usb2_fifo *f, struct usb2_page_cache *pc,
 			if ((len == 0) && (what == 1)) {
 				m->last_packet = 1;
 			}
-			USB_IF_ENQUEUE(&(f->used_q), m);
+			USB_IF_ENQUEUE(&f->used_q, m);
 
 			usb2_fifo_wakeup(f);
 
@@ -2330,7 +2326,7 @@ usb2_fifo_put_data_linear(struct usb2_fifo *f, void *ptr,
 
 	while (len || (what == 1)) {
 
-		USB_IF_DEQUEUE(&(f->free_q), m);
+		USB_IF_DEQUEUE(&f->free_q, m);
 
 		if (m) {
 			USB_MBUF_RESET(m);
@@ -2346,7 +2342,7 @@ usb2_fifo_put_data_linear(struct usb2_fifo *f, void *ptr,
 			if ((len == 0) && (what == 1)) {
 				m->last_packet = 1;
 			}
-			USB_IF_ENQUEUE(&(f->used_q), m);
+			USB_IF_ENQUEUE(&f->used_q, m);
 
 			usb2_fifo_wakeup(f);
 
@@ -2365,12 +2361,12 @@ usb2_fifo_put_data_buffer(struct usb2_fifo *f, void *ptr, uint32_t len)
 {
 	struct usb2_mbuf *m;
 
-	USB_IF_DEQUEUE(&(f->free_q), m);
+	USB_IF_DEQUEUE(&f->free_q, m);
 
 	if (m) {
 		m->cur_data_len = len;
 		m->cur_data_ptr = ptr;
-		USB_IF_ENQUEUE(&(f->used_q), m);
+		USB_IF_ENQUEUE(&f->used_q, m);
 		usb2_fifo_wakeup(f);
 		return (1);
 	}
@@ -2409,7 +2405,7 @@ usb2_fifo_get_data(struct usb2_fifo *f, struct usb2_page_cache *pc,
 
 	while (1) {
 
-		USB_IF_DEQUEUE(&(f->used_q), m);
+		USB_IF_DEQUEUE(&f->used_q, m);
 
 		if (m) {
 
@@ -2426,7 +2422,7 @@ usb2_fifo_get_data(struct usb2_fifo *f, struct usb2_page_cache *pc,
 			m->cur_data_len -= io_len;
 
 			if ((m->cur_data_len == 0) || (what == 1)) {
-				USB_IF_ENQUEUE(&(f->free_q), m);
+				USB_IF_ENQUEUE(&f->free_q, m);
 
 				usb2_fifo_wakeup(f);
 
@@ -2434,7 +2430,7 @@ usb2_fifo_get_data(struct usb2_fifo *f, struct usb2_page_cache *pc,
 					break;
 				}
 			} else {
-				USB_IF_PREPEND(&(f->used_q), m);
+				USB_IF_PREPEND(&f->used_q, m);
 			}
 		} else {
 
@@ -2467,7 +2463,7 @@ usb2_fifo_get_data_linear(struct usb2_fifo *f, void *ptr,
 
 	while (1) {
 
-		USB_IF_DEQUEUE(&(f->used_q), m);
+		USB_IF_DEQUEUE(&f->used_q, m);
 
 		if (m) {
 
@@ -2484,7 +2480,7 @@ usb2_fifo_get_data_linear(struct usb2_fifo *f, void *ptr,
 			m->cur_data_len -= io_len;
 
 			if ((m->cur_data_len == 0) || (what == 1)) {
-				USB_IF_ENQUEUE(&(f->free_q), m);
+				USB_IF_ENQUEUE(&f->free_q, m);
 
 				usb2_fifo_wakeup(f);
 
@@ -2492,7 +2488,7 @@ usb2_fifo_get_data_linear(struct usb2_fifo *f, void *ptr,
 					break;
 				}
 			} else {
-				USB_IF_PREPEND(&(f->used_q), m);
+				USB_IF_PREPEND(&f->used_q, m);
 			}
 		} else {
 
@@ -2518,13 +2514,13 @@ usb2_fifo_get_data_buffer(struct usb2_fifo *f, void **pptr, uint32_t *plen)
 {
 	struct usb2_mbuf *m;
 
-	USB_IF_DEQUEUE(&(f->used_q), m);
+	USB_IF_DEQUEUE(&f->used_q, m);
 
 	if (m) {
 		*plen = m->cur_data_len;
 		*pptr = m->cur_data_ptr;
 
-		USB_IF_PREPEND(&(f->used_q), m);
+		USB_IF_PREPEND(&f->used_q, m);
 		return (1);
 	}
 	return (0);
@@ -2535,10 +2531,10 @@ usb2_fifo_get_data_next(struct usb2_fifo *f)
 {
 	struct usb2_mbuf *m;
 
-	USB_IF_DEQUEUE(&(f->used_q), m);
+	USB_IF_DEQUEUE(&f->used_q, m);
 
 	if (m) {
-		USB_IF_ENQUEUE(&(f->free_q), m);
+		USB_IF_ENQUEUE(&f->free_q, m);
 		usb2_fifo_wakeup(f);
 	}
 	return;

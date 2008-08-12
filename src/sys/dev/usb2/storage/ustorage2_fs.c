@@ -346,7 +346,7 @@ ustorage_fs_attach(device_t dev)
 
 	device_set_usb2_desc(dev);
 
-	mtx_init(&(sc->sc_mtx), "USTORAGE_FS lock",
+	mtx_init(&sc->sc_mtx, "USTORAGE_FS lock",
 	    NULL, (MTX_DEF | MTX_RECURSE));
 
 	/* get interface index */
@@ -360,8 +360,8 @@ ustorage_fs_attach(device_t dev)
 	sc->sc_iface_no = id->bInterfaceNumber;
 
 	err = usb2_transfer_setup(uaa->device,
-	    &(uaa->info.bIfaceIndex), sc->sc_xfer, ustorage_fs_bbb_config,
-	    USTORAGE_FS_T_BBB_MAX, sc, &(sc->sc_mtx));
+	    &uaa->info.bIfaceIndex, sc->sc_xfer, ustorage_fs_bbb_config,
+	    USTORAGE_FS_T_BBB_MAX, sc, &sc->sc_mtx);
 	if (err) {
 		device_printf(dev, "could not setup required "
 		    "transfers, %s\n", usb2_errstr(err));
@@ -369,9 +369,9 @@ ustorage_fs_attach(device_t dev)
 	}
 	/* start Mass Storage State Machine */
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	ustorage_fs_transfer_start(sc, USTORAGE_FS_T_BBB_COMMAND);
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);			/* success */
 
@@ -389,7 +389,7 @@ ustorage_fs_detach(device_t dev)
 
 	usb2_transfer_unsetup(sc->sc_xfer, USTORAGE_FS_T_BBB_MAX);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);			/* success */
 }
@@ -432,9 +432,9 @@ static void
 ustorage_fs_transfer_stop(struct ustorage_fs_softc *sc)
 {
 	usb2_transfer_stop(sc->sc_xfer[sc->sc_last_xfer_index]);
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 	usb2_transfer_drain(sc->sc_xfer[sc->sc_last_xfer_index]);
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	return;
 }
 
@@ -449,17 +449,17 @@ ustorage_fs_handle_request(device_t dev,
 	if (!is_complete) {
 		if (req->bRequest == UR_BBB_RESET) {
 			*plen = 0;
-			mtx_lock(&(sc->sc_mtx));
+			mtx_lock(&sc->sc_mtx);
 			ustorage_fs_transfer_stop(sc);
 			sc->sc_transfer.data_error = 1;
 			ustorage_fs_transfer_start(sc,
 			    USTORAGE_FS_T_BBB_COMMAND);
-			mtx_unlock(&(sc->sc_mtx));
+			mtx_unlock(&sc->sc_mtx);
 			return (0);
 		} else if (req->bRequest == UR_BBB_GET_MAX_LUN) {
 			if (offset == 0) {
 				*plen = 1;
-				*pptr = &(sc->sc_last_lun);
+				*pptr = &sc->sc_last_lun;
 			} else {
 				*plen = 0;
 			}
@@ -569,7 +569,7 @@ tr_setup:
 		}
 
 		xfer->frlengths[0] = sizeof(sc->sc_cbw);
-		usb2_set_frame_data(xfer, &(sc->sc_cbw), 0);
+		usb2_set_frame_data(xfer, &sc->sc_cbw, 0);
 		usb2_start_hardware(xfer);
 		break;
 
@@ -800,7 +800,7 @@ tr_setup:
 		}
 
 		xfer->frlengths[0] = sizeof(sc->sc_csw);
-		usb2_set_frame_data(xfer, &(sc->sc_csw), 0);
+		usb2_set_frame_data(xfer, &sc->sc_csw, 0);
 		usb2_start_hardware(xfer);
 		break;
 

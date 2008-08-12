@@ -254,11 +254,11 @@ kue_cfg_do_request(struct kue_softc *sc, struct usb2_device_request *req,
 	uint16_t length;
 	usb2_error_t err;
 
-	if (usb2_config_td_is_gone(&(sc->sc_config_td))) {
+	if (usb2_config_td_is_gone(&sc->sc_config_td)) {
 		goto error;
 	}
 	err = usb2_do_request_flags
-	    (sc->sc_udev, &(sc->sc_mtx), req, data, 0, NULL, 60000);
+	    (sc->sc_udev, &sc->sc_mtx, req, data, 0, NULL, 60000);
 
 	if (err) {
 		DPRINTF("device request failed, err=%s "
@@ -421,7 +421,7 @@ kue_cfg_reset(struct kue_softc *sc)
 
 	cd = usb2_get_config_descriptor(sc->sc_udev);
 
-	err = usb2_req_set_config(sc->sc_udev, &(sc->sc_mtx),
+	err = usb2_req_set_config(sc->sc_udev, &sc->sc_mtx,
 	    cd->bConfigurationValue);
 	if (err) {
 		DPRINTF("reset failed (ignored)\n");
@@ -429,7 +429,7 @@ kue_cfg_reset(struct kue_softc *sc)
 	/*
 	 * wait a little while for the chip to get its brains in order:
 	 */
-	err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 100);
+	err = usb2_config_td_sleep(&sc->sc_config_td, hz / 100);
 
 	return;
 }
@@ -475,32 +475,32 @@ kue_attach(device_t dev)
 
 	device_set_usb2_desc(dev);
 
-	mtx_init(&(sc->sc_mtx), "kue lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "kue lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	usb2_callout_init_mtx(&(sc->sc_watchdog),
-	    &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
+	usb2_callout_init_mtx(&sc->sc_watchdog,
+	    &sc->sc_mtx, CALLOUT_RETURNUNLOCKED);
 
 	iface_index = KUE_IFACE_IDX;
 	error = usb2_transfer_setup(uaa->device, &iface_index,
-	    sc->sc_xfer, kue_config, KUE_ENDPT_MAX, sc, &(sc->sc_mtx));
+	    sc->sc_xfer, kue_config, KUE_ENDPT_MAX, sc, &sc->sc_mtx);
 	if (error) {
 		device_printf(dev, "allocating USB "
 		    "transfers failed!\n");
 		goto detach;
 	}
-	error = usb2_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
+	error = usb2_config_td_setup(&sc->sc_config_td, sc, &(sc->sc_mtx),
 	    NULL, sizeof(struct usb2_config_td_cc), 16);
 	if (error) {
 		device_printf(dev, "could not setup config "
 		    "thread!\n");
 		goto detach;
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	/* start setup */
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &kue_cfg_first_time_setup, 0, 0);
+	    (&sc->sc_config_td, NULL, &kue_cfg_first_time_setup, 0, 0);
 
 	/* start watchdog (will exit mutex) */
 
@@ -529,17 +529,17 @@ kue_cfg_first_time_setup(struct kue_softc *sc,
 
 	/* read ethernet descriptor */
 	kue_cfg_ctl(sc, KUE_CTL_READ, KUE_CMD_GET_ETHER_DESCRIPTOR,
-	    0, &(sc->sc_desc), sizeof(sc->sc_desc));
+	    0, &sc->sc_desc, sizeof(sc->sc_desc));
 
 	sc->sc_mcfilt_max = KUE_MCFILTCNT(sc);
 	if (sc->sc_mcfilt_max > KUE_MCFILT_MAX) {
 		sc->sc_mcfilt_max = KUE_MCFILT_MAX;
 	}
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	ifp = if_alloc(IFT_ETHER);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (ifp == NULL) {
 		printf("kue%d: could not if_alloc()\n",
@@ -563,11 +563,11 @@ kue_cfg_first_time_setup(struct kue_softc *sc,
 
 	sc->sc_ifp = ifp;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	ether_ifattach(ifp, sc->sc_desc.kue_macaddr);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 done:
 	return;
 }
@@ -578,17 +578,17 @@ kue_detach(device_t dev)
 	struct kue_softc *sc = device_get_softc(dev);
 	struct ifnet *ifp;
 
-	usb2_config_td_stop(&(sc->sc_config_td));
+	usb2_config_td_stop(&sc->sc_config_td);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
-	usb2_callout_stop(&(sc->sc_watchdog));
+	usb2_callout_stop(&sc->sc_watchdog);
 
 	kue_cfg_pre_stop(sc, NULL, 0);
 
 	ifp = sc->sc_ifp;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	/* stop all USB transfers first */
 	usb2_transfer_unsetup(sc->sc_xfer, KUE_ENDPT_MAX);
@@ -600,11 +600,11 @@ kue_detach(device_t dev)
 		ether_ifdetach(ifp);
 		if_free(ifp);
 	}
-	usb2_config_td_unsetup(&(sc->sc_config_td));
+	usb2_config_td_unsetup(&sc->sc_config_td);
 
-	usb2_callout_drain(&(sc->sc_watchdog));
+	usb2_callout_drain(&sc->sc_watchdog);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }
@@ -680,9 +680,9 @@ tr_setup:
 		 * "if_input" here, and not some lines up!
 		 */
 		if (m) {
-			mtx_unlock(&(sc->sc_mtx));
+			mtx_unlock(&sc->sc_mtx);
 			(ifp->if_input) (ifp, m);
-			mtx_lock(&(sc->sc_mtx));
+			mtx_lock(&sc->sc_mtx);
 		}
 		return;
 
@@ -735,7 +735,7 @@ kue_bulk_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_xfer[2]);
 			goto done;
 		}
-		IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
+		IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 
 		if (m == NULL) {
 			goto done;
@@ -794,11 +794,11 @@ kue_start_cb(struct ifnet *ifp)
 {
 	struct kue_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	kue_start_transfers(sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -823,11 +823,11 @@ kue_init_cb(void *arg)
 {
 	struct kue_softc *sc = arg;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), &kue_cfg_pre_init,
+	    (&sc->sc_config_td, &kue_cfg_pre_init,
 	    &kue_cfg_init, 0, 0);
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -886,34 +886,34 @@ kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 
 	switch (command) {
 	case SIOCSIFFLAGS:
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		if (ifp->if_flags & IFF_UP) {
 			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &kue_config_copy,
+				    (&sc->sc_config_td, &kue_config_copy,
 				    &kue_cfg_promisc_upd, 0, 0);
 			} else {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &kue_cfg_pre_init,
+				    (&sc->sc_config_td, &kue_cfg_pre_init,
 				    &kue_cfg_init, 0, 0);
 			}
 		} else {
 			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &kue_cfg_pre_stop,
+				    (&sc->sc_config_td, &kue_cfg_pre_stop,
 				    &kue_cfg_stop, 0, 0);
 			}
 		}
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		break;
 
 	case SIOCADDMULTI:
 	case SIOCDELMULTI:
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		usb2_config_td_queue_command
-		    (&(sc->sc_config_td), &kue_config_copy,
+		    (&sc->sc_config_td, &kue_config_copy,
 		    &kue_cfg_promisc_upd, 0, 0);
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		break;
 
 	default:
@@ -950,12 +950,12 @@ kue_watchdog(void *arg)
 	struct kue_softc *sc = arg;
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &kue_cfg_tick, 0, 0);
+	    (&sc->sc_config_td, NULL, &kue_cfg_tick, 0, 0);
 
-	usb2_callout_reset(&(sc->sc_watchdog),
+	usb2_callout_reset(&sc->sc_watchdog,
 	    hz, &kue_watchdog, sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 	return;
 }
 
@@ -1004,13 +1004,13 @@ kue_shutdown(device_t dev)
 {
 	struct kue_softc *sc = device_get_softc(dev);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), &kue_cfg_pre_stop,
+	    (&sc->sc_config_td, &kue_cfg_pre_stop,
 	    &kue_cfg_stop, 0, 0);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);
 }

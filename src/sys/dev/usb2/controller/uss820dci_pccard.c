@@ -159,7 +159,7 @@ uss820_pccard_attach(device_t dev)
 	}
 	/* get all DMA memory */
 
-	if (usb2_bus_mem_alloc_all(&(sc->sc_bus),
+	if (usb2_bus_mem_alloc_all(&sc->sc_bus,
 	    USB_GET_DMA_TAG(dev), NULL)) {
 		return (ENOMEM);
 	}
@@ -187,20 +187,20 @@ uss820_pccard_attach(device_t dev)
 	if (!(sc->sc_bus.bdev)) {
 		goto error;
 	}
-	device_set_ivars(sc->sc_bus.bdev, &(sc->sc_bus));
+	device_set_ivars(sc->sc_bus.bdev, &sc->sc_bus);
 
-	err = usb2_config_td_setup(&(sc->sc_config_td), sc,
-	    &(sc->sc_bus.mtx), NULL, 0, 4);
+	err = usb2_config_td_setup(&sc->sc_config_td, sc,
+	    &sc->sc_bus.mtx, NULL, 0, 4);
 	if (err) {
 		device_printf(dev, "could not setup config thread!\n");
 		goto error;
 	}
 #if (__FreeBSD_version >= 700031)
 	err = bus_setup_intr(dev, sc->sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    NULL, (void *)uss820dci_interrupt, sc, &(sc->sc_intr_hdl));
+	    NULL, (void *)uss820dci_interrupt, sc, &sc->sc_intr_hdl);
 #else
 	err = bus_setup_intr(dev, sc->sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    (void *)uss820dci_interrupt, sc, &(sc->sc_intr_hdl));
+	    (void *)uss820dci_interrupt, sc, &sc->sc_intr_hdl);
 #endif
 	if (err) {
 		sc->sc_intr_hdl = NULL;
@@ -258,9 +258,9 @@ uss820_pccard_detach(device_t dev)
 		    sc->sc_io_res);
 		sc->sc_io_res = NULL;
 	}
-	usb2_config_td_unsetup(&(sc->sc_config_td));
+	usb2_config_td_unsetup(&sc->sc_config_td);
 
-	usb2_bus_mem_free_all(&(sc->sc_bus), NULL);
+	usb2_bus_mem_free_all(&sc->sc_bus, NULL);
 
 	return (0);
 }

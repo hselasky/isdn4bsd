@@ -206,7 +206,7 @@ usb2_transfer_setup_sub_malloc(struct usb2_setup_params *parm,
 	}
 	/* need to initialize the page cache */
 	parm->dma_page_cache_ptr->tag_parent =
-	    &(parm->curr_xfer->usb2_root->dma_parent_tag);
+	    &parm->curr_xfer->usb2_root->dma_parent_tag;
 
 	if (usb2_pc_alloc_mem(parm->dma_page_cache_ptr,
 	    parm->dma_page_ptr, size, align)) {
@@ -595,7 +595,7 @@ usb2_transfer_setup_sub(struct usb2_setup_params *parm)
 	if (parm->buf) {
 		for (x = 0; x != n_frbuffers; x++) {
 			xfer->frbuffers[x].tag_parent =
-			    &(xfer->usb2_root->dma_parent_tag);
+			    &xfer->usb2_root->dma_parent_tag;
 
 			if (xfer->flags_int.bdma_enable &&
 			    (parm->bufsize_max > 0)) {
@@ -723,21 +723,21 @@ usb2_transfer_setup(struct usb2_device *udev,
 			info->xfer_page_cache_start = USB_ADD_BYTES(buf, parm.size[5]);
 			info->xfer_page_cache_end = USB_ADD_BYTES(buf, parm.size[2]);
 
-			usb2_cv_init(&(info->cv_drain), "WDRAIN");
+			usb2_cv_init(&info->cv_drain, "WDRAIN");
 
-			info->usb2_mtx = &(udev->bus->mtx);
+			info->usb2_mtx = &udev->bus->mtx;
 			info->priv_mtx = priv_mtx;
 
-			usb2_dma_tag_setup(&(info->dma_parent_tag),
+			usb2_dma_tag_setup(&info->dma_parent_tag,
 			    parm.dma_tag_p, udev->bus->dma_parent_tag[0].tag,
 			    priv_mtx, &usb2_bdma_done_event, info, 32, parm.dma_tag_max);
 
 			info->bus = udev->bus;
 
-			TAILQ_INIT(&(info->done_q.head));
+			TAILQ_INIT(&info->done_q.head);
 			info->done_q.command = &usb2_callback_wrapper;
 
-			TAILQ_INIT(&(info->dma_q.head));
+			TAILQ_INIT(&info->dma_q.head);
 			info->dma_q.command = &usb2_bdma_work_loop;
 
 			info->done_m[0].hdr.pm_callback = &usb2_callback_proc;
@@ -747,8 +747,8 @@ usb2_transfer_setup(struct usb2_device *udev,
 
 			/* create a callback thread */
 
-			if (usb2_proc_setup(&(info->done_p),
-			    &(udev->bus->mtx), USB_PRI_HIGH)) {
+			if (usb2_proc_setup(&info->done_p,
+			    &udev->bus->mtx, USB_PRI_HIGH)) {
 				parm.err = USB_ERR_NO_INTR_THREAD;
 				goto done;
 			}
@@ -764,9 +764,9 @@ usb2_transfer_setup(struct usb2_device *udev,
 
 			/* select mode specific structure */
 			if (udev->flags.usb2_mode == USB_MODE_HOST) {
-				parm.curr_setup_sub = &(setup->mh);
+				parm.curr_setup_sub = &setup->mh;
 			} else {
-				parm.curr_setup_sub = &(setup->md);
+				parm.curr_setup_sub = &setup->md;
 			}
 			/* skip USB transfers without callbacks: */
 			if (parm.curr_setup_sub->callback == NULL) {
@@ -802,7 +802,7 @@ usb2_transfer_setup(struct usb2_device *udev,
 				xfer->address = udev->address;
 				xfer->priv_sc = priv_sc;
 				xfer->priv_mtx = priv_mtx;
-				xfer->usb2_mtx = &(udev->bus->mtx);
+				xfer->usb2_mtx = &udev->bus->mtx;
 				xfer->usb2_root = info;
 				info->setup_refcount++;
 
@@ -975,7 +975,7 @@ usb2_transfer_unsetup_sub(struct usb2_xfer_root *info, uint8_t needs_delay)
 	mtx_unlock(info->usb2_mtx);
 
 	/* wait for interrupt thread to exit */
-	usb2_proc_unsetup(&(info->done_p));
+	usb2_proc_unsetup(&info->done_p);
 
 	/* free DMA'able memory, if any */
 	pc = info->dma_page_cache_start;
@@ -992,9 +992,9 @@ usb2_transfer_unsetup_sub(struct usb2_xfer_root *info, uint8_t needs_delay)
 	}
 
 	/* free all DMA tags */
-	usb2_dma_tag_unsetup(&(info->dma_parent_tag));
+	usb2_dma_tag_unsetup(&info->dma_parent_tag);
 
-	usb2_cv_destroy(&(info->cv_drain));
+	usb2_cv_destroy(&info->cv_drain);
 
 	/*
 	 * free the "memory_base" last, hence the "info" structure is
@@ -1070,7 +1070,7 @@ usb2_transfer_unsetup(struct usb2_xfer **pxfer, uint16_t n_setup)
 				pxfer[n_setup] = NULL;
 			}
 
-			usb2_callout_drain(&(xfer->timeout_handle));
+			usb2_callout_drain(&xfer->timeout_handle);
 
 			if (xfer->usb2_root) {
 				info = xfer->usb2_root;
@@ -1406,7 +1406,7 @@ usb2_start_hardware(struct usb2_xfer *xfer)
 	 */
 	if (xfer->flags_int.bdma_enable) {
 		/* insert the USB transfer last in the BUS-DMA queue */
-		usb2_command_wrapper(&(xfer->usb2_root->dma_q), xfer);
+		usb2_command_wrapper(&xfer->usb2_root->dma_q, xfer);
 		return;
 	}
 	/*
@@ -1451,7 +1451,7 @@ usb2_pipe_enter(struct usb2_xfer *xfer)
 	}
 
 	/* start the transfer */
-	usb2_command_wrapper(&(pipe->pipe_q), xfer);
+	usb2_command_wrapper(&pipe->pipe_q, xfer);
 	mtx_unlock(xfer->usb2_mtx);
 	return;
 }
@@ -1581,7 +1581,7 @@ usb2_transfer_pending(struct usb2_xfer *xfer)
 		return (1);
 	}
 	info = xfer->usb2_root;
-	pq = &(info->done_q);
+	pq = &info->done_q;
 
 	if (pq->curr == xfer) {
 		/* we are currently scheduled for callback */
@@ -1624,7 +1624,7 @@ usb2_transfer_drain(struct usb2_xfer *xfer)
 		 * Wait until the current outstanding USB
 		 * transfer is complete !
 		 */
-		usb2_cv_wait(&(xfer->usb2_root->cv_drain), xfer->priv_mtx);
+		usb2_cv_wait(&xfer->usb2_root->cv_drain, xfer->priv_mtx);
 	}
 	mtx_unlock(xfer->priv_mtx);
 
@@ -1688,7 +1688,7 @@ usb2_callback_proc(struct usb2_proc_msg *_pm)
 	mtx_lock(info->usb2_mtx);
 
 	/* Continue where we lost track */
-	usb2_command_wrapper(&(info->done_q),
+	usb2_command_wrapper(&info->done_q,
 	    info->done_q.curr);
 
 	mtx_unlock(info->priv_mtx);
@@ -1705,7 +1705,7 @@ static void
 usb2_callback_ss_done_defer(struct usb2_xfer *xfer)
 {
 	struct usb2_xfer_root *info = xfer->usb2_root;
-	struct usb2_xfer_queue *pq = &(info->done_q);
+	struct usb2_xfer_queue *pq = &info->done_q;
 
 	if (!mtx_owned(xfer->usb2_mtx)) {
 		panic("%s: called unlocked!\n", __FUNCTION__);
@@ -1720,8 +1720,8 @@ usb2_callback_ss_done_defer(struct usb2_xfer *xfer)
 	         * will have a Lock Order Reversal, LOR, if we try to
 	         * proceed !
 	         */
-		if (usb2_proc_msignal(&(info->done_p),
-		    &(info->done_m[0]), &(info->done_m[1]))) {
+		if (usb2_proc_msignal(&info->done_p,
+		    &info->done_m[0], &(info->done_m[1]))) {
 			/* ignore */
 		}
 	} else {
@@ -1762,8 +1762,8 @@ usb2_callback_wrapper(struct usb2_xfer_queue *pq)
 	         * will have a Lock Order Reversal, LOR, if we try to
 	         * proceed !
 	         */
-		if (usb2_proc_msignal(&(info->done_p),
-		    &(info->done_m[0]), &(info->done_m[1]))) {
+		if (usb2_proc_msignal(&info->done_p,
+		    &info->done_m[0], &(info->done_m[1]))) {
 			/* ignore */
 		}
 		return;
@@ -1829,17 +1829,17 @@ usb2_callback_wrapper(struct usb2_xfer_queue *pq)
 	    (xfer->flags_int.started) &&
 	    (xfer->usb2_state == USB_ST_ERROR)) {
 		/* try to loop, but not recursivly */
-		usb2_command_wrapper(&(info->done_q), xfer);
+		usb2_command_wrapper(&info->done_q, xfer);
 		return;
 	} else if (xfer->flags_int.draining &&
 	    (!xfer->flags_int.transferring)) {
 		/* "usb2_transfer_drain()" is waiting for end of transfer */
 		xfer->flags_int.draining = 0;
-		usb2_cv_broadcast(&(xfer->usb2_root->cv_drain));
+		usb2_cv_broadcast(&xfer->usb2_root->cv_drain);
 	}
 done:
 	/* do the next callback, if any */
-	usb2_command_wrapper(&(info->done_q),
+	usb2_command_wrapper(&info->done_q,
 	    info->done_q.curr);
 	return;
 }
@@ -1883,7 +1883,7 @@ usb2_transfer_dequeue(struct usb2_xfer *xfer)
 
 	pq = xfer->wait_queue;
 	if (pq) {
-		TAILQ_REMOVE(&(pq->head), xfer, wait_entry);
+		TAILQ_REMOVE(&pq->head, xfer, wait_entry);
 		xfer->wait_queue = NULL;
 	}
 	return;
@@ -1906,7 +1906,7 @@ usb2_transfer_enqueue(struct usb2_xfer_queue *pq, struct usb2_xfer *xfer)
 	 */
 	if (xfer->wait_queue == NULL) {
 		xfer->wait_queue = pq;
-		TAILQ_INSERT_TAIL(&(pq->head), xfer, wait_entry);
+		TAILQ_INSERT_TAIL(&pq->head, xfer, wait_entry);
 	}
 	return;
 }
@@ -1944,7 +1944,7 @@ usb2_transfer_done(struct usb2_xfer *xfer, usb2_error_t error)
 		xfer->error = error;
 	}
 	/* stop any callouts */
-	usb2_callout_stop(&(xfer->timeout_handle));
+	usb2_callout_stop(&xfer->timeout_handle);
 
 	/*
 	 * If we are waiting on a queue, just remove the USB transfer
@@ -1958,7 +1958,7 @@ usb2_transfer_done(struct usb2_xfer *xfer, usb2_error_t error)
 		 * If the private USB lock is not locked, then we assume
 		 * that the BUS-DMA load stage has been passed:
 		 */
-		pq = &(xfer->usb2_root->dma_q);
+		pq = &xfer->usb2_root->dma_q;
 
 		if (pq->curr == xfer) {
 			/* start the next BUS-DMA load, if any */
@@ -2111,8 +2111,8 @@ usb2_pipe_start(struct usb2_xfer_queue *pq)
 				    udev, NULL, pipe);
 			} else if (udev->default_xfer[1]) {
 				info = udev->default_xfer[1]->usb2_root;
-				if (usb2_proc_msignal(&(info->done_p),
-				    &(udev->cs_msg[0]), &(udev->cs_msg[1]))) {
+				if (usb2_proc_msignal(&info->done_p,
+				    &udev->cs_msg[0], &(udev->cs_msg[1]))) {
 					/* ignore */
 				}
 			}
@@ -2171,7 +2171,7 @@ usb2_transfer_timeout_ms(struct usb2_xfer *xfer,
 	mtx_assert(xfer->usb2_mtx, MA_OWNED);
 
 	/* defer delay */
-	usb2_callout_reset(&(xfer->timeout_handle),
+	usb2_callout_reset(&xfer->timeout_handle,
 	    USB_MS_TO_TICKS(ms), cb, xfer);
 	return;
 }
@@ -2324,9 +2324,9 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 	 */
 	mtx_lock(xfer->usb2_mtx);
 	if (pipe->pipe_q.curr == xfer) {
-		usb2_command_wrapper(&(pipe->pipe_q), NULL);
+		usb2_command_wrapper(&pipe->pipe_q, NULL);
 
-		if (pipe->pipe_q.curr || TAILQ_FIRST(&(pipe->pipe_q.head))) {
+		if (pipe->pipe_q.curr || TAILQ_FIRST(&pipe->pipe_q.head)) {
 			/* there is another USB transfer waiting */
 		} else {
 			/* this is the last USB transfer */
@@ -2375,9 +2375,9 @@ usb2_command_wrapper(struct usb2_xfer_queue *pq, struct usb2_xfer *xfer)
 			pq->recurse_2 = 1;
 
 			if (pq->curr == NULL) {
-				xfer = TAILQ_FIRST(&(pq->head));
+				xfer = TAILQ_FIRST(&pq->head);
 				if (xfer) {
-					TAILQ_REMOVE(&(pq->head), xfer,
+					TAILQ_REMOVE(&pq->head, xfer,
 					    wait_entry);
 					xfer->wait_queue = NULL;
 					pq->curr = xfer;
@@ -2483,9 +2483,9 @@ usb2_clear_data_toggle(struct usb2_device *udev, struct usb2_pipe *pipe)
 {
 	DPRINTFN(5, "udev=%p pipe=%p\n", udev, pipe);
 
-	mtx_lock(&(udev->bus->mtx));
+	mtx_lock(&udev->bus->mtx);
 	pipe->toggle_next = 0;
-	mtx_unlock(&(udev->bus->mtx));
+	mtx_unlock(&udev->bus->mtx);
 	return;
 }
 
@@ -2597,7 +2597,7 @@ usb2_callout_poll(struct usb2_xfer *xfer)
 	if (xfer == NULL) {
 		return;
 	}
-	co = &(xfer->timeout_handle);
+	co = &xfer->timeout_handle;
 
 #if __FreeBSD_version >= 800000
 	mtx = (void *)(co->co.c_lock);

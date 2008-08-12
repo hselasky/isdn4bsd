@@ -285,7 +285,7 @@ at91dci_rem_wakeup_set(struct usb2_device *udev, uint8_t is_on)
 
 	DPRINTFN(5, "is_on=%u\n", is_on);
 
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
+	mtx_assert(&udev->bus->mtx, MA_OWNED);
 
 	sc = AT9100_DCI_BUS2SC(udev->bus);
 
@@ -744,7 +744,7 @@ at91dci_interrupt_poll(struct at91dci_softc *sc)
 	struct usb2_xfer *xfer;
 
 repeat:
-	TAILQ_FOREACH(xfer, &(sc->sc_bus.intr_q.head), wait_entry) {
+	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
 		if (!at91dci_xfer_do_fifo(xfer)) {
 			/* queue has been modified */
 			goto repeat;
@@ -760,14 +760,14 @@ at91dci_vbus_interrupt(struct usb2_bus *bus, uint8_t is_on)
 
 	DPRINTFN(5, "vbus = %u\n", is_on);
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 	if (is_on) {
 		if (!sc->sc_flags.status_vbus) {
 			sc->sc_flags.status_vbus = 1;
 
 			/* complete root HUB interrupt endpoint */
 
-			usb2_sw_transfer(&(sc->sc_root_intr),
+			usb2_sw_transfer(&sc->sc_root_intr,
 			    &at91dci_root_intr_done);
 		}
 	} else {
@@ -780,12 +780,12 @@ at91dci_vbus_interrupt(struct usb2_bus *bus, uint8_t is_on)
 
 			/* complete root HUB interrupt endpoint */
 
-			usb2_sw_transfer(&(sc->sc_root_intr),
+			usb2_sw_transfer(&sc->sc_root_intr,
 			    &at91dci_root_intr_done);
 		}
 	}
 
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	return;
 }
@@ -795,13 +795,13 @@ at91dci_interrupt(struct at91dci_softc *sc)
 {
 	uint32_t status;
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 
 	status = AT91_UDP_READ_4(sc, AT91_UDP_ISR);
 	status &= AT91_UDP_INT_DEFAULT;
 
 	if (!status) {
-		mtx_unlock(&(sc->sc_bus.mtx));
+		mtx_unlock(&sc->sc_bus.mtx);
 		return;
 	}
 	/* acknowledge interrupts */
@@ -862,7 +862,7 @@ at91dci_interrupt(struct at91dci_softc *sc)
 		}
 		/* complete root HUB interrupt endpoint */
 
-		usb2_sw_transfer(&(sc->sc_root_intr),
+		usb2_sw_transfer(&sc->sc_root_intr,
 		    &at91dci_root_intr_done);
 	}
 	/* check for any endpoint interrupts */
@@ -873,7 +873,7 @@ at91dci_interrupt(struct at91dci_softc *sc)
 
 		at91dci_interrupt_poll(sc);
 	}
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	return;
 }
@@ -1077,7 +1077,7 @@ at91dci_start_standard_chain(struct usb2_xfer *xfer)
 		DPRINTFN(15, "enable interrupts on endpoint %d\n", ep_no);
 
 		/* put transfer on interrupt queue */
-		usb2_transfer_enqueue(&(xfer->udev->bus->intr_q), xfer);
+		usb2_transfer_enqueue(&xfer->udev->bus->intr_q, xfer);
 
 		/* start timeout, if any */
 		if (xfer->timeout != 0) {
@@ -1262,7 +1262,7 @@ at91dci_set_stall(struct usb2_device *udev, struct usb2_xfer *xfer,
 	uint32_t csr_val;
 	uint8_t csr_reg;
 
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
+	mtx_assert(&udev->bus->mtx, MA_OWNED);
 
 	DPRINTFN(5, "pipe=%p\n", pipe);
 
@@ -1386,7 +1386,7 @@ at91dci_clear_stall(struct usb2_device *udev, struct usb2_pipe *pipe)
 
 	DPRINTFN(5, "pipe=%p\n", pipe);
 
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
+	mtx_assert(&udev->bus->mtx, MA_OWNED);
 
 	/* check mode */
 	if (udev->flags.usb2_mode != USB_MODE_DEVICE) {
@@ -1419,7 +1419,7 @@ at91dci_init(struct at91dci_softc *sc)
 	sc->sc_bus.usbrev = USB_REV_1_1;
 	sc->sc_bus.methods = &at91dci_bus_methods;
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 
 	/* turn on clocks */
 
@@ -1464,11 +1464,11 @@ at91dci_init(struct at91dci_softc *sc)
 
 	at91dci_clocks_off(sc);
 
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	/* catch any lost interrupts */
 
-	at91dci_do_poll(&(sc->sc_bus));
+	at91dci_do_poll(&sc->sc_bus);
 
 	return (0);			/* success */
 }
@@ -1476,7 +1476,7 @@ at91dci_init(struct at91dci_softc *sc)
 void
 at91dci_uninit(struct at91dci_softc *sc)
 {
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 
 	/* disable and clear all interrupts */
 	AT91_UDP_WRITE_4(sc, AT91_UDP_IDR, 0xFFFFFFFF);
@@ -1491,7 +1491,7 @@ at91dci_uninit(struct at91dci_softc *sc)
 
 	at91dci_pull_down(sc);
 	at91dci_clocks_off(sc);
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	return;
 }
@@ -1513,10 +1513,10 @@ at91dci_do_poll(struct usb2_bus *bus)
 {
 	struct at91dci_softc *sc = AT9100_DCI_BUS2SC(bus);
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 	at91dci_interrupt_poll(sc);
 	at91dci_root_ctrl_poll(sc);
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 	return;
 }
 
@@ -1701,7 +1701,7 @@ at91dci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 	 * pre-compute when the isochronous transfer will be finished:
 	 */
 	xfer->isoc_time_complete =
-	    usb2_isoc_time_expand(&(sc->sc_bus), nframes) + temp +
+	    usb2_isoc_time_expand(&sc->sc_bus, nframes) + temp +
 	    xfer->nframes;
 
 	/* compute frame number for next insertion */
@@ -1856,7 +1856,7 @@ at91dci_root_ctrl_start(struct usb2_xfer *xfer)
 	sc->sc_root_ctrl.xfer = xfer;
 
 	usb2_config_td_queue_command(
-	    &(sc->sc_config_td), NULL, &at91dci_root_ctrl_task, 0, 0);
+	    &sc->sc_config_td, NULL, &at91dci_root_ctrl_task, 0, 0);
 
 	return;
 }
@@ -1888,7 +1888,7 @@ at91dci_root_ctrl_done(struct usb2_xfer *xfer,
 		goto done;
 	}
 	/* buffer reset */
-	std->ptr = USB_ADD_BYTES(&(sc->sc_hub_temp), 0);
+	std->ptr = USB_ADD_BYTES(&sc->sc_hub_temp, 0);
 	std->len = 0;
 
 	value = UGETW(std->req.wValue);
@@ -2273,7 +2273,7 @@ done:
 static void
 at91dci_root_ctrl_poll(struct at91dci_softc *sc)
 {
-	usb2_sw_transfer(&(sc->sc_root_ctrl),
+	usb2_sw_transfer(&sc->sc_root_ctrl,
 	    &at91dci_root_ctrl_done);
 	return;
 }

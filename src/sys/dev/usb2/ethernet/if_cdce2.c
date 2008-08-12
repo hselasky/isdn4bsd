@@ -337,7 +337,7 @@ cdce_attach(device_t dev)
 	snprintf(sc->sc_name, sizeof(sc->sc_name), "%s",
 	    device_get_nameunit(dev));
 
-	mtx_init(&(sc->sc_mtx), "cdce lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "cdce lock", NULL, MTX_DEF | MTX_RECURSE);
 
 	if (sc->sc_flags & CDCE_FLAG_NO_UNION) {
 		sc->sc_ifaces_index[0] = uaa->info.bIfaceIndex;
@@ -414,14 +414,14 @@ alloc_transfers:
 		error = usb2_transfer_setup
 		    (uaa->device, sc->sc_ifaces_index,
 		    sc->sc_xfer, cdce_config, CDCE_N_TRANSFER,
-		    sc, &(sc->sc_mtx));
+		    sc, &sc->sc_mtx);
 
 		if (error == 0) {
 			break;
 		}
 	}
 
-	ifmedia_init(&(sc->sc_ifmedia), 0,
+	ifmedia_init(&sc->sc_ifmedia, 0,
 	    &cdce_ifmedia_upd_cb,
 	    &cdce_ifmedia_sts_cb);
 
@@ -513,9 +513,9 @@ alloc_transfers:
 	ether_ifattach(ifp, eaddr);
 
 	/* start the interrupt transfer, if any */
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	usb2_transfer_start(sc->sc_xfer[4]);
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);			/* success */
 
@@ -530,13 +530,13 @@ cdce_detach(device_t dev)
 	struct cdce_softc *sc = device_get_softc(dev);
 	struct ifnet *ifp;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	cdce_stop(sc);
 
 	ifp = sc->sc_ifp;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	/* stop all USB transfers first */
 	usb2_transfer_unsetup(sc->sc_xfer, CDCE_N_TRANSFER);
@@ -547,9 +547,9 @@ cdce_detach(device_t dev)
 	if (ifp) {
 		ether_ifdetach(ifp);
 		if_free(ifp);
-		ifmedia_removeall(&(sc->sc_ifmedia));
+		ifmedia_removeall(&sc->sc_ifmedia);
 	}
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }
@@ -559,11 +559,11 @@ cdce_start_cb(struct ifnet *ifp)
 {
 	struct cdce_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	cdce_start_transfers(sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -602,7 +602,7 @@ cdce_fwd_mq(struct cdce_softc *sc, struct cdce_mq *mq)
 
 	if (mq->ifq_head) {
 
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 
 		while (1) {
 
@@ -614,7 +614,7 @@ cdce_fwd_mq(struct cdce_softc *sc, struct cdce_mq *mq)
 			(ifp->if_input) (ifp, m);
 		}
 
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 	}
 	return;
 }
@@ -673,7 +673,7 @@ cdce_bulk_write_512x4_callback(struct usb2_xfer *xfer)
 		ifp->if_opackets += sc->sc_tx_mq.ifq_len;
 
 		/* free all previous mbufs */
-		cdce_free_mq(&(sc->sc_tx_mq));
+		cdce_free_mq(&sc->sc_tx_mq);
 
 	case USB_ST_SETUP:
 tr_setup:
@@ -688,7 +688,7 @@ tr_setup:
 
 		while (x != CDCE_512X4_FRAMES_MAX) {
 
-			IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
+			IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 
 			if (m == NULL) {
 				break;
@@ -707,7 +707,7 @@ tr_setup:
 				}
 				m = mt;
 			}
-			_IF_ENQUEUE(&(sc->sc_tx_mq), m);
+			_IF_ENQUEUE(&sc->sc_tx_mq, m);
 
 			/*
 			 * if there's a BPF listener, bounce a copy
@@ -750,7 +750,7 @@ tr_setup:
 		 */
 		USETW(sc->sc_tx.hdr.wFragLength[y - 1], 0);
 		xfer->frlengths[0] = CDCE_512X4_FRAG_LENGTH_OFFSET + ((y - 1) * 2) + 1;
-		usb2_set_frame_data(xfer, &(sc->sc_tx.hdr), 0);
+		usb2_set_frame_data(xfer, &sc->sc_tx.hdr, 0);
 		xfer->nframes = y;
 		usb2_start_hardware(xfer);
 		break;
@@ -763,7 +763,7 @@ tr_setup:
 		ifp->if_oerrors += sc->sc_tx_mq.ifq_len;
 
 		/* free all previous mbufs */
-		cdce_free_mq(&(sc->sc_tx_mq));
+		cdce_free_mq(&sc->sc_tx_mq);
 
 		if (xfer->error != USB_ERR_CANCELLED) {
 			/* try to clear stall first */
@@ -793,7 +793,7 @@ cdce_bulk_write_std_callback(struct usb2_xfer *xfer)
 		ifp->if_opackets++;
 
 		/* free all previous mbufs */
-		cdce_free_mq(&(sc->sc_tx_mq));
+		cdce_free_mq(&sc->sc_tx_mq);
 
 	case USB_ST_SETUP:
 tr_setup:
@@ -802,7 +802,7 @@ tr_setup:
 			usb2_transfer_start(sc->sc_xfer[2]);
 			break;
 		}
-		IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
+		IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 
 		if (m == NULL) {
 			break;
@@ -834,7 +834,7 @@ tr_setup:
 		if (m->m_pkthdr.len > MCLBYTES) {
 			m->m_pkthdr.len = MCLBYTES;
 		}
-		_IF_ENQUEUE(&(sc->sc_tx_mq), m);
+		_IF_ENQUEUE(&sc->sc_tx_mq, m);
 
 		xfer->frlengths[0] = m->m_len;
 		usb2_set_frame_data(xfer, m->m_data, 0);
@@ -854,7 +854,7 @@ tr_setup:
 		    usb2_errstr(xfer->error));
 
 		/* free all previous mbufs */
-		cdce_free_mq(&(sc->sc_tx_mq));
+		cdce_free_mq(&sc->sc_tx_mq);
 		ifp->if_oerrors++;
 
 		if (xfer->error != USB_ERR_CANCELLED) {
@@ -935,11 +935,11 @@ cdce_shutdown(device_t dev)
 {
 	struct cdce_softc *sc = device_get_softc(dev);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	cdce_stop(sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);
 }
@@ -966,7 +966,7 @@ cdce_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 
 	switch (command) {
 	case SIOCSIFFLAGS:
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		if (ifp->if_flags & IFF_UP) {
 			if (!(ifp->if_drv_flags & IFF_DRV_RUNNING)) {
 				cdce_init_cb(sc);
@@ -976,7 +976,7 @@ cdce_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 				cdce_stop(sc);
 			}
 		}
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		break;
 
 	case SIOCSIFMEDIA:
@@ -998,7 +998,7 @@ cdce_init_cb(void *arg)
 	struct cdce_softc *sc = arg;
 	struct ifnet *ifp;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	ifp = sc->sc_ifp;
 
@@ -1017,7 +1017,7 @@ cdce_init_cb(void *arg)
 
 	cdce_start_transfers(sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -1102,7 +1102,7 @@ tr_setup:
 		/* we expect a Multi Frame Ethernet Header */
 		if (!(sc->sc_flags & CDCE_FLAG_RX_DATA)) {
 			DPRINTF("expecting length header\n");
-			usb2_set_frame_data(xfer, &(sc->sc_rx.hdr), 0);
+			usb2_set_frame_data(xfer, &sc->sc_rx.hdr, 0);
 			xfer->frlengths[0] = sizeof(sc->sc_rx.hdr);
 			xfer->nframes = 1;
 			xfer->flags.short_xfer_ok = 1;
@@ -1173,7 +1173,7 @@ tr_setup:
 				m->m_pkthdr.len = m->m_len = offset;
 
 				/* enqueue */
-				_IF_ENQUEUE(&(sc->sc_rx_mq), m);
+				_IF_ENQUEUE(&sc->sc_rx_mq, m);
 
 				data_ptr = m->m_data;
 				ifp->if_ipackets++;
@@ -1248,10 +1248,10 @@ tr_setup:
 	 * USB_ERR_CANCELLED.
 	 */
 	if (fwd_mq) {
-		cdce_fwd_mq(sc, &(sc->sc_rx_mq));
+		cdce_fwd_mq(sc, &sc->sc_rx_mq);
 	}
 	if (free_mq) {
-		cdce_free_mq(&(sc->sc_rx_mq));
+		cdce_free_mq(&sc->sc_rx_mq);
 	}
 	return;
 }
@@ -1277,7 +1277,7 @@ cdce_bulk_read_std_callback(struct usb2_xfer *xfer)
 				xfer->frlengths[0] -= 4;
 			}
 		}
-		_IF_DEQUEUE(&(sc->sc_rx_mq), m);
+		_IF_DEQUEUE(&sc->sc_rx_mq, m);
 
 		if (m) {
 
@@ -1306,13 +1306,13 @@ tr_setup:
 			 * We are out of mbufs and need to dump all the
 			 * received data !
 			 */
-			usb2_set_frame_data(xfer, &(sc->sc_rx.data), 0);
+			usb2_set_frame_data(xfer, &sc->sc_rx.data, 0);
 			xfer->frlengths[0] = sizeof(sc->sc_rx.data);
 
 		} else {
 			usb2_set_frame_data(xfer, m->m_data, 0);
 			xfer->frlengths[0] = m->m_len;
-			_IF_ENQUEUE(&(sc->sc_rx_mq), m);
+			_IF_ENQUEUE(&sc->sc_rx_mq, m);
 		}
 		xfer->nframes = 1;
 		usb2_start_hardware(xfer);
@@ -1323,7 +1323,7 @@ tr_setup:
 		    usb2_errstr(xfer->error));
 
 		/* free all mbufs */
-		cdce_free_mq(&(sc->sc_rx_mq));
+		cdce_free_mq(&sc->sc_rx_mq);
 
 		if (xfer->error != USB_ERR_CANCELLED) {
 			/* try to clear stall first */
@@ -1343,9 +1343,9 @@ tr_setup:
 	 * USB_ERR_CANCELLED.
 	 */
 	if (m_rx) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		(ifp->if_input) (ifp, m_rx);
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 	}
 	return;
 }

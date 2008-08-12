@@ -219,14 +219,14 @@ urio_attach(device_t dev)
 
 	sc->sc_udev = uaa->device;
 
-	mtx_init(&(sc->sc_mtx), "urio lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "urio lock", NULL, MTX_DEF | MTX_RECURSE);
 
 	snprintf(sc->sc_name, sizeof(sc->sc_name),
 	    "%s", device_get_nameunit(dev));
 
 	error = usb2_transfer_setup(uaa->device,
-	    &(uaa->info.bIfaceIndex), sc->sc_xfer,
-	    urio_config, URIO_T_MAX, sc, &(sc->sc_mtx));
+	    &uaa->info.bIfaceIndex, sc->sc_xfer,
+	    urio_config, URIO_T_MAX, sc, &sc->sc_mtx);
 
 	if (error) {
 		DPRINTF("error=%s\n", usb2_errstr(error));
@@ -236,8 +236,8 @@ urio_attach(device_t dev)
 	usb2_set_iface_perm(uaa->device, uaa->info.bIfaceIndex,
 	    UID_ROOT, GID_OPERATOR, 0644);
 
-	error = usb2_fifo_attach(uaa->device, sc, &(sc->sc_mtx),
-	    &urio_fifo_methods, &(sc->sc_fifo),
+	error = usb2_fifo_attach(uaa->device, sc, &sc->sc_mtx,
+	    &urio_fifo_methods, &sc->sc_fifo,
 	    device_get_unit(dev), 0 - 1, uaa->info.bIfaceIndex);
 	if (error) {
 		goto detach;
@@ -389,9 +389,9 @@ urio_open(struct usb2_fifo *fifo, int fflags, struct thread *td)
 	}
 	if (fflags & FREAD) {
 		/* clear stall first */
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		sc->sc_flags |= URIO_FLAG_READ_STALL;
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 
 		if (usb2_fifo_alloc_buffer(fifo,
 		    sc->sc_xfer[URIO_T_RD]->max_data_length,
@@ -480,11 +480,11 @@ urio_detach(device_t dev)
 
 	DPRINTF("\n");
 
-	usb2_fifo_detach(&(sc->sc_fifo));
+	usb2_fifo_detach(&sc->sc_fifo);
 
 	usb2_transfer_unsetup(sc->sc_xfer, URIO_T_MAX);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }

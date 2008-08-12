@@ -376,7 +376,7 @@ uscanner_attach(device_t dev)
 	 * sc_xfer are initialised later.
 	 */
 	sc->sc_flags = USB_GET_DRIVER_INFO(uaa);
-	mtx_init(&(sc->sc_mtx), "uscanner mutex", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "uscanner mutex", NULL, MTX_DEF | MTX_RECURSE);
 
 	/*
 	 * Announce the device:
@@ -386,8 +386,8 @@ uscanner_attach(device_t dev)
 	/*
 	 * Setup the transfer.
 	 */
-	if ((error = usb2_transfer_setup(uaa->device, &(uaa->info.bIfaceIndex), sc->sc_xfer,
-	    uscanner_config, USCANNER_N_TRANSFER, sc, &(sc->sc_mtx)))) {
+	if ((error = usb2_transfer_setup(uaa->device, &uaa->info.bIfaceIndex, sc->sc_xfer,
+	    uscanner_config, USCANNER_N_TRANSFER, sc, &sc->sc_mtx))) {
 		device_printf(dev, "could not setup transfers, "
 		    "error=%s\n", usb2_errstr(error));
 		goto detach;
@@ -396,8 +396,8 @@ uscanner_attach(device_t dev)
 	usb2_set_iface_perm(uaa->device, uaa->info.bIfaceIndex,
 	    UID_ROOT, GID_OPERATOR, 0644);
 
-	error = usb2_fifo_attach(uaa->device, sc, &(sc->sc_mtx),
-	    &uscanner_fifo_methods, &(sc->sc_fifo),
+	error = usb2_fifo_attach(uaa->device, sc, &sc->sc_mtx,
+	    &uscanner_fifo_methods, &sc->sc_fifo,
 	    unit, 0 - 1, uaa->info.bIfaceIndex);
 	if (error) {
 		goto detach;
@@ -419,9 +419,9 @@ uscanner_detach(device_t dev)
 
 	sc = device_get_softc(dev);
 
-	usb2_fifo_detach(&(sc->sc_fifo));
+	usb2_fifo_detach(&sc->sc_fifo);
 	usb2_transfer_unsetup(sc->sc_xfer, USCANNER_N_TRANSFER);
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }

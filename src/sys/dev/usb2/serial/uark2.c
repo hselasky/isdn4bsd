@@ -225,7 +225,7 @@ uark_attach(device_t dev)
 	sc->sc_flags |= (UARK_FLAG_BULK_WRITE_STALL |
 	    UARK_FLAG_BULK_READ_STALL);
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &uark_callback, &Giant);
 	if (error) {
 		DPRINTF("usb2_com_attach failed\n");
@@ -243,7 +243,7 @@ uark_detach(device_t dev)
 {
 	struct uark_softc *sc = device_get_softc(dev);
 
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UARK_N_TRANSFER);
 
@@ -263,7 +263,7 @@ uark_bulk_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    UARK_BUF_SIZE, &actlen)) {
 			xfer->frlengths[0] = actlen;
 			usb2_start_hardware(xfer);
@@ -301,7 +301,7 @@ uark_bulk_read_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    xfer->actlen);
 
 	case USB_ST_SETUP:
@@ -461,7 +461,7 @@ uark_cfg_write(struct uark_softc *sc, uint16_t index, uint16_t value)
 	struct usb2_device_request req;
 	usb2_error_t err;
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom))) {
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom)) {
 		return;
 	}
 	req.bmRequestType = UARK_WRITE;

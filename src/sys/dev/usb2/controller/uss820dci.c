@@ -230,7 +230,7 @@ uss820dci_rem_wakeup_set(struct usb2_device *udev, uint8_t is_on)
 
 	DPRINTFN(5, "is_on=%u\n", is_on);
 
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
+	mtx_assert(&udev->bus->mtx, MA_OWNED);
 
 	sc = USS820_DCI_BUS2SC(udev->bus);
 
@@ -713,7 +713,7 @@ uss820dci_interrupt_poll(struct uss820dci_softc *sc)
 	struct usb2_xfer *xfer;
 
 repeat:
-	TAILQ_FOREACH(xfer, &(sc->sc_bus.intr_q.head), wait_entry) {
+	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
 		if (!uss820dci_xfer_do_fifo(xfer)) {
 			/* queue has been modified */
 			goto repeat;
@@ -750,7 +750,7 @@ uss820dci_interrupt(struct uss820dci_softc *sc)
 	uint8_t ssr;
 	uint8_t event;
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 
 	ssr = USS820_READ_1(sc, USS820_SSR);
 
@@ -808,7 +808,7 @@ uss820dci_interrupt(struct uss820dci_softc *sc)
 
 			/* complete root HUB interrupt endpoint */
 
-			usb2_sw_transfer(&(sc->sc_root_intr),
+			usb2_sw_transfer(&sc->sc_root_intr,
 			    &uss820dci_root_intr_done);
 		}
 	}
@@ -821,7 +821,7 @@ uss820dci_interrupt(struct uss820dci_softc *sc)
 	/* poll all active transfers */
 	uss820dci_interrupt_poll(sc);
 
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	return;
 }
@@ -1054,7 +1054,7 @@ uss820dci_start_standard_chain(struct usb2_xfer *xfer)
 		uss820dci_intr_set(xfer, 1);
 
 		/* put transfer on interrupt queue */
-		usb2_transfer_enqueue(&(xfer->udev->bus->intr_q), xfer);
+		usb2_transfer_enqueue(&xfer->udev->bus->intr_q, xfer);
 
 		/* start timeout, if any */
 		if (xfer->timeout != 0) {
@@ -1233,7 +1233,7 @@ uss820dci_set_stall(struct usb2_device *udev, struct usb2_xfer *xfer,
 	uint8_t ep_dir;
 	uint8_t temp;
 
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
+	mtx_assert(&udev->bus->mtx, MA_OWNED);
 
 	DPRINTFN(5, "pipe=%p\n", pipe);
 
@@ -1319,7 +1319,7 @@ uss820dci_clear_stall(struct usb2_device *udev, struct usb2_pipe *pipe)
 	struct uss820dci_softc *sc;
 	struct usb2_endpoint_descriptor *ed;
 
-	mtx_assert(&(udev->bus->mtx), MA_OWNED);
+	mtx_assert(&udev->bus->mtx, MA_OWNED);
 
 	DPRINTFN(5, "pipe=%p\n", pipe);
 
@@ -1356,7 +1356,7 @@ uss820dci_init(struct uss820dci_softc *sc)
 	sc->sc_bus.usbrev = USB_REV_1_1;
 	sc->sc_bus.methods = &uss820dci_bus_methods;
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 
 	/* we always have VBUS */
 	sc->sc_flags.status_vbus = 1;
@@ -1375,7 +1375,7 @@ uss820dci_init(struct uss820dci_softc *sc)
 			break;
 		}
 		if (n == 100) {
-			mtx_unlock(&(sc->sc_bus.mtx));
+			mtx_unlock(&sc->sc_bus.mtx);
 			return (USB_ERR_INVAL);
 		}
 		/* wait a little for things to stabilise */
@@ -1393,7 +1393,7 @@ uss820dci_init(struct uss820dci_softc *sc)
 	temp = USS820_READ_1(sc, USS820_REV);
 
 	if (temp < 0x13) {
-		mtx_unlock(&(sc->sc_bus.mtx));
+		mtx_unlock(&sc->sc_bus.mtx);
 		return (USB_ERR_INVAL);
 	}
 	/* enable interrupts */
@@ -1494,11 +1494,11 @@ uss820dci_init(struct uss820dci_softc *sc)
 		uss820dci_update_shared_1(sc, USS820_EPCON, 0xFF, temp);
 	}
 
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	/* catch any lost interrupts */
 
-	uss820dci_do_poll(&(sc->sc_bus));
+	uss820dci_do_poll(&sc->sc_bus);
 
 	return (0);			/* success */
 }
@@ -1508,7 +1508,7 @@ uss820dci_uninit(struct uss820dci_softc *sc)
 {
 	uint8_t temp;
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 
 	/* disable all interrupts */
 	temp = USS820_READ_1(sc, USS820_SCR);
@@ -1523,7 +1523,7 @@ uss820dci_uninit(struct uss820dci_softc *sc)
 	sc->sc_flags.change_connect = 1;
 
 	uss820dci_pull_down(sc);
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	return;
 }
@@ -1545,10 +1545,10 @@ uss820dci_do_poll(struct usb2_bus *bus)
 {
 	struct uss820dci_softc *sc = USS820_DCI_BUS2SC(bus);
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 	uss820dci_interrupt_poll(sc);
 	uss820dci_root_ctrl_poll(sc);
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 	return;
 }
 
@@ -1733,7 +1733,7 @@ uss820dci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 	 * pre-compute when the isochronous transfer will be finished:
 	 */
 	xfer->isoc_time_complete =
-	    usb2_isoc_time_expand(&(sc->sc_bus), nframes) + temp +
+	    usb2_isoc_time_expand(&sc->sc_bus, nframes) + temp +
 	    xfer->nframes;
 
 	/* compute frame number for next insertion */
@@ -1888,7 +1888,7 @@ uss820dci_root_ctrl_start(struct usb2_xfer *xfer)
 	sc->sc_root_ctrl.xfer = xfer;
 
 	usb2_config_td_queue_command(
-	    &(sc->sc_config_td), NULL, &uss820dci_root_ctrl_task, 0, 0);
+	    &sc->sc_config_td, NULL, &uss820dci_root_ctrl_task, 0, 0);
 
 	return;
 }
@@ -1920,7 +1920,7 @@ uss820dci_root_ctrl_done(struct usb2_xfer *xfer,
 		goto done;
 	}
 	/* buffer reset */
-	std->ptr = USB_ADD_BYTES(&(sc->sc_hub_temp), 0);
+	std->ptr = USB_ADD_BYTES(&sc->sc_hub_temp, 0);
 	std->len = 0;
 
 	value = UGETW(std->req.wValue);
@@ -2296,7 +2296,7 @@ done:
 static void
 uss820dci_root_ctrl_poll(struct uss820dci_softc *sc)
 {
-	usb2_sw_transfer(&(sc->sc_root_ctrl),
+	usb2_sw_transfer(&sc->sc_root_ctrl,
 	    &uss820dci_root_ctrl_done);
 	return;
 }

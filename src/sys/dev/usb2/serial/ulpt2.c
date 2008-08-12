@@ -177,17 +177,17 @@ ulpt_reset(struct ulpt_softc *sc)
 	 * so we try both.
 	 */
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	req.bmRequestType = UT_WRITE_CLASS_OTHER;
-	if (usb2_do_request_flags(sc->sc_udev, &(sc->sc_mtx),
+	if (usb2_do_request_flags(sc->sc_udev, &sc->sc_mtx,
 	    &req, NULL, 0, NULL, 2 * USB_MS_HZ)) {	/* 1.0 */
 		req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
-		if (usb2_do_request_flags(sc->sc_udev, &(sc->sc_mtx),
+		if (usb2_do_request_flags(sc->sc_udev, &sc->sc_mtx,
 		    &req, NULL, 0, NULL, 2 * USB_MS_HZ)) {	/* 1.1 */
 			/* ignore error */
 		}
 	}
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 	return;
 }
 
@@ -478,9 +478,9 @@ unlpt_open(struct usb2_fifo *fifo, int fflags, struct thread *td)
 	}
 	if (fflags & FREAD) {
 		/* clear stall first */
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		sc->sc_flags |= ULPT_FLAG_READ_STALL;
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		if (usb2_fifo_alloc_buffer(fifo,
 		    sc->sc_xfer[1]->max_data_length,
 		    ULPT_IFQ_MAXLEN)) {
@@ -489,9 +489,9 @@ unlpt_open(struct usb2_fifo *fifo, int fflags, struct thread *td)
 	}
 	if (fflags & FWRITE) {
 		/* clear stall first */
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		sc->sc_flags |= ULPT_FLAG_WRITE_STALL;
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		if (usb2_fifo_alloc_buffer(fifo,
 		    sc->sc_xfer[0]->max_data_length,
 		    ULPT_IFQ_MAXLEN)) {
@@ -560,10 +560,10 @@ ulpt_attach(device_t dev)
 
 	device_set_usb2_desc(dev);
 
-	mtx_init(&(sc->sc_mtx), "ulpt lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "ulpt lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	usb2_callout_init_mtx(&(sc->sc_watchdog),
-	    &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
+	usb2_callout_init_mtx(&sc->sc_watchdog,
+	    &sc->sc_mtx, CALLOUT_RETURNUNLOCKED);
 
 	/* search through all the descriptors looking for bidir mode */
 
@@ -611,7 +611,7 @@ found:
 
 	error = usb2_transfer_setup(uaa->device, &iface_index,
 	    sc->sc_xfer, ulpt_config, ULPT_N_TRANSFER,
-	    sc, &(sc->sc_mtx));
+	    sc, &sc->sc_mtx);
 	if (error) {
 		DPRINTF("error=%s\n", usb2_errstr(error));
 		goto detach;
@@ -658,21 +658,21 @@ found:
 	usb2_set_iface_perm(uaa->device, uaa->info.bIfaceIndex,
 	    UID_ROOT, GID_OPERATOR, 0644);
 
-	error = usb2_fifo_attach(uaa->device, sc, &(sc->sc_mtx),
-	    &ulpt_fifo_methods, &(sc->sc_fifo),
+	error = usb2_fifo_attach(uaa->device, sc, &sc->sc_mtx,
+	    &ulpt_fifo_methods, &sc->sc_fifo,
 	    unit, 0 - 1, uaa->info.bIfaceIndex);
 	if (error) {
 		goto detach;
 	}
-	error = usb2_fifo_attach(uaa->device, sc, &(sc->sc_mtx),
-	    &unlpt_fifo_methods, &(sc->sc_fifo_noreset),
+	error = usb2_fifo_attach(uaa->device, sc, &sc->sc_mtx,
+	    &unlpt_fifo_methods, &sc->sc_fifo_noreset,
 	    unit, 0 - 1, uaa->info.bIfaceIndex);
 	if (error) {
 		goto detach;
 	}
 	/* start reading of status */
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	ulpt_watchdog(sc);		/* will unlock mutex */
 
@@ -690,18 +690,18 @@ ulpt_detach(device_t dev)
 
 	DPRINTF("sc=%p\n", sc);
 
-	usb2_fifo_detach(&(sc->sc_fifo));
-	usb2_fifo_detach(&(sc->sc_fifo_noreset));
+	usb2_fifo_detach(&sc->sc_fifo);
+	usb2_fifo_detach(&sc->sc_fifo_noreset);
 
-	mtx_lock(&(sc->sc_mtx));
-	usb2_callout_stop(&(sc->sc_watchdog));
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
+	usb2_callout_stop(&sc->sc_watchdog);
+	mtx_unlock(&sc->sc_mtx);
 
 	usb2_transfer_unsetup(sc->sc_xfer, ULPT_N_TRANSFER);
 
-	usb2_callout_drain(&(sc->sc_watchdog));
+	usb2_callout_drain(&sc->sc_watchdog);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }
@@ -758,14 +758,14 @@ ulpt_watchdog(void *arg)
 {
 	struct ulpt_softc *sc = arg;
 
-	mtx_assert(&(sc->sc_mtx), MA_OWNED);
+	mtx_assert(&sc->sc_mtx, MA_OWNED);
 
 	usb2_transfer_start(sc->sc_xfer[2]);
 
-	usb2_callout_reset(&(sc->sc_watchdog),
+	usb2_callout_reset(&sc->sc_watchdog,
 	    hz, &ulpt_watchdog, sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 	return;
 }
 

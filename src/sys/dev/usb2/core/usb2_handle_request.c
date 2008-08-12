@@ -295,7 +295,7 @@ tr_repeat:
 	case UT_READ_INTERFACE:
 		switch (req.bRequest) {
 		case UR_GET_INTERFACE:
-			*ppdata = &(iface->alt_index);
+			*ppdata = &iface->alt_index;
 			*plen = 1;
 			break;
 
@@ -356,9 +356,9 @@ usb2_handle_get_stall(struct usb2_device *udev, uint8_t ea_val)
 		/* nothing to do */
 		return (0);
 	}
-	mtx_lock(&(udev->bus->mtx));
+	mtx_lock(&udev->bus->mtx);
 	halted = pipe->is_stalled;
-	mtx_unlock(&(udev->bus->mtx));
+	mtx_unlock(&udev->bus->mtx);
 
 	return (halted);
 }
@@ -379,7 +379,7 @@ usb2_handle_remote_wakeup(struct usb2_xfer *xfer, uint8_t is_on)
 	udev = xfer->udev;
 	bus = udev->bus;
 
-	mtx_lock(&(bus->mtx));
+	mtx_lock(&bus->mtx);
 
 	if (is_on) {
 		udev->flags.remote_wakeup = 1;
@@ -389,7 +389,7 @@ usb2_handle_remote_wakeup(struct usb2_xfer *xfer, uint8_t is_on)
 
 	(bus->methods->rem_wakeup_set) (xfer->udev, is_on);
 
-	mtx_unlock(&(bus->mtx));
+	mtx_unlock(&bus->mtx);
 
 	return (0);			/* success */
 }
@@ -588,14 +588,14 @@ tr_handle_get_status:
 
 	wValue = 0;
 
-	mtx_lock(&(udev->bus->mtx));
+	mtx_lock(&udev->bus->mtx);
 	if (udev->flags.remote_wakeup) {
 		wValue |= UDS_REMOTE_WAKEUP;
 	}
 	if (udev->flags.self_powered) {
 		wValue |= UDS_SELF_POWERED;
 	}
-	mtx_unlock(&(udev->bus->mtx));
+	mtx_unlock(&udev->bus->mtx);
 
 	USETW(temp.wStatus, wValue);
 	src_mcopy = temp.wStatus;

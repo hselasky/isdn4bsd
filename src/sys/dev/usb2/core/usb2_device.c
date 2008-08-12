@@ -284,14 +284,14 @@ usb2_fill_pipe_data(struct usb2_device *udev, uint8_t iface_index,
 	/* initialise USB pipe structure */
 	pipe->edesc = edesc;
 	pipe->iface_index = iface_index;
-	TAILQ_INIT(&(pipe->pipe_q.head));
+	TAILQ_INIT(&pipe->pipe_q.head);
 	pipe->pipe_q.command = &usb2_pipe_start;
 
 	/* clear stall, if any */
 	if (udev->bus->methods->clear_stall) {
-		mtx_lock(&(udev->bus->mtx));
+		mtx_lock(&udev->bus->mtx);
 		(udev->bus->methods->clear_stall) (udev, pipe);
-		mtx_unlock(&(udev->bus->mtx));
+		mtx_unlock(&udev->bus->mtx);
 	}
 	return;
 }
@@ -733,7 +733,7 @@ usb2_set_endpoint_stall(struct usb2_device *udev, struct usb2_pipe *pipe,
 		DPRINTF("Invalid endpoint\n");
 		return (0);
 	}
-	mtx_lock(&(udev->bus->mtx));
+	mtx_lock(&udev->bus->mtx);
 
 	/* store current stall state */
 	was_stalled = pipe->is_stalled;
@@ -741,7 +741,7 @@ usb2_set_endpoint_stall(struct usb2_device *udev, struct usb2_pipe *pipe,
 	/* check for no change */
 	if (was_stalled && do_stall) {
 		/* if the pipe is already stalled do nothing */
-		mtx_unlock(&(udev->bus->mtx));
+		mtx_unlock(&udev->bus->mtx);
 		DPRINTF("No change\n");
 		return (0);
 	}
@@ -770,9 +770,9 @@ usb2_set_endpoint_stall(struct usb2_device *udev, struct usb2_pipe *pipe,
 		(udev->bus->methods->clear_stall) (udev, pipe);
 
 		/* start up the current or next transfer, if any */
-		usb2_command_wrapper(&(pipe->pipe_q), pipe->pipe_q.curr);
+		usb2_command_wrapper(&pipe->pipe_q, pipe->pipe_q.curr);
 	}
-	mtx_unlock(&(udev->bus->mtx));
+	mtx_unlock(&udev->bus->mtx);
 	return (0);
 }
 
@@ -910,7 +910,7 @@ usb2_detach_device(struct usb2_device *udev, uint8_t iface_index,
 			/* looks like the end of the USB interfaces */
 			break;
 		}
-		usb2_detach_device_sub(udev, &(iface->subdev), free_subdev);
+		usb2_detach_device_sub(udev, &iface->subdev, free_subdev);
 	}
 
 	if (do_unlock) {
@@ -1210,15 +1210,15 @@ usb2_suspend_resume(struct usb2_device *udev, uint8_t do_suspend)
 
 	sx_assert(udev->default_sx + 1, SA_LOCKED);
 
-	mtx_lock(&(udev->bus->mtx));
+	mtx_lock(&udev->bus->mtx);
 	/* filter the suspend events */
 	if (udev->flags.suspended == do_suspend) {
-		mtx_unlock(&(udev->bus->mtx));
+		mtx_unlock(&udev->bus->mtx);
 		/* nothing to do */
 		return (0);
 	}
 	udev->flags.suspended = do_suspend;
-	mtx_unlock(&(udev->bus->mtx));
+	mtx_unlock(&udev->bus->mtx);
 
 	/* do the suspend or resume */
 
@@ -1246,7 +1246,7 @@ usb2_clear_stall_proc(struct usb2_proc_msg *_pm)
 	struct usb2_device *udev = pm->udev;
 
 	/* Change lock */
-	mtx_unlock(&(udev->bus->mtx));
+	mtx_unlock(&udev->bus->mtx);
 	mtx_lock(udev->default_mtx);
 
 	/* Start clear stall callback */
@@ -1254,7 +1254,7 @@ usb2_clear_stall_proc(struct usb2_proc_msg *_pm)
 
 	/* Change lock */
 	mtx_unlock(udev->default_mtx);
-	mtx_lock(&(udev->bus->mtx));
+	mtx_lock(&udev->bus->mtx);
 	return;
 }
 
@@ -1934,7 +1934,7 @@ usb2_get_device_descriptor(struct usb2_device *udev)
 {
 	if (udev == NULL)
 		return (NULL);		/* be NULL safe */
-	return (&(udev->ddesc));
+	return (&udev->ddesc);
 }
 
 struct usb2_config_descriptor *
@@ -1957,7 +1957,7 @@ usb2_test_quirk(const struct usb2_attach_arg *uaa, uint16_t quirk)
 {
 	uint8_t found;
 
-	found = (usb2_test_quirk_p) (&(uaa->info), quirk);
+	found = (usb2_test_quirk_p) (&uaa->info, quirk);
 	return (found);
 }
 

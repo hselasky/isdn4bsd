@@ -276,34 +276,34 @@ udav_attach(device_t dev)
 	snprintf(sc->sc_name, sizeof(sc->sc_name), "%s",
 	    device_get_nameunit(dev));
 
-	mtx_init(&(sc->sc_mtx), "udav lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "udav lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	usb2_callout_init_mtx(&(sc->sc_watchdog),
-	    &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
+	usb2_callout_init_mtx(&sc->sc_watchdog,
+	    &sc->sc_mtx, CALLOUT_RETURNUNLOCKED);
 
 	iface_index = UDAV_IFACE_INDEX;
 	error = usb2_transfer_setup(uaa->device, &iface_index,
-	    sc->sc_xfer, udav_config, UDAV_ENDPT_MAX, sc, &(sc->sc_mtx));
+	    sc->sc_xfer, udav_config, UDAV_ENDPT_MAX, sc, &sc->sc_mtx);
 	if (error) {
 		device_printf(dev, "allocating USB "
 		    "transfers failed!\n");
 		goto detach;
 	}
-	error = usb2_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
+	error = usb2_config_td_setup(&sc->sc_config_td, sc, &(sc->sc_mtx),
 	    NULL, sizeof(struct usb2_config_td_cc), 16);
 	if (error) {
 		device_printf(dev, "could not setup config "
 		    "thread!\n");
 		goto detach;
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	sc->sc_flags |= UDAV_FLAG_WAIT_LINK;
 
 	/* start setup */
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &udav_cfg_first_time_setup, 0, 0);
+	    (&sc->sc_config_td, NULL, &udav_cfg_first_time_setup, 0, 0);
 
 	/* start watchdog (will exit mutex) */
 
@@ -332,11 +332,11 @@ udav_cfg_first_time_setup(struct udav_softc *sc,
 
 	udav_cfg_csr_read(sc, UDAV_PAR, eaddr, ETHER_ADDR_LEN);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	ifp = if_alloc(IFT_ETHER);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (ifp == NULL) {
 		printf("%s: could not if_alloc()\n",
@@ -361,16 +361,16 @@ udav_cfg_first_time_setup(struct udav_softc *sc,
 	 * XXX need Giant when accessing the device structures !
 	 */
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	mtx_lock(&Giant);
 
-	error = mii_phy_probe(sc->sc_dev, &(sc->sc_miibus),
+	error = mii_phy_probe(sc->sc_dev, &sc->sc_miibus,
 	    &udav_ifmedia_change_cb,
 	    &udav_ifmedia_status_cb);
 	mtx_unlock(&Giant);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (error) {
 		printf("%s: MII without any PHY!\n",
@@ -380,7 +380,7 @@ udav_cfg_first_time_setup(struct udav_softc *sc,
 	}
 	sc->sc_ifp = ifp;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	/*
 	 * Call MI attach routine.
@@ -388,7 +388,7 @@ udav_cfg_first_time_setup(struct udav_softc *sc,
 
 	ether_ifattach(ifp, eaddr);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 done:
 	return;
@@ -400,9 +400,9 @@ udav_detach(device_t dev)
 	struct udav_softc *sc = device_get_softc(dev);
 	struct ifnet *ifp;
 
-	usb2_config_td_stop(&(sc->sc_config_td));
+	usb2_config_td_stop(&sc->sc_config_td);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	usb2_callout_stop(&sc->sc_watchdog);
 
@@ -410,7 +410,7 @@ udav_detach(device_t dev)
 
 	ifp = sc->sc_ifp;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	/* stop all USB transfers first */
 	usb2_transfer_unsetup(sc->sc_xfer, UDAV_ENDPT_MAX);
@@ -422,11 +422,11 @@ udav_detach(device_t dev)
 		ether_ifdetach(ifp);
 		if_free(ifp);
 	}
-	usb2_config_td_unsetup(&(sc->sc_config_td));
+	usb2_config_td_unsetup(&sc->sc_config_td);
 
-	usb2_callout_drain(&(sc->sc_watchdog));
+	usb2_callout_drain(&sc->sc_watchdog);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }
@@ -438,11 +438,11 @@ udav_cfg_do_request(struct udav_softc *sc, struct usb2_device_request *req,
 	uint16_t length;
 	usb2_error_t err;
 
-	if (usb2_config_td_is_gone(&(sc->sc_config_td))) {
+	if (usb2_config_td_is_gone(&sc->sc_config_td)) {
 		goto error;
 	}
 	err = usb2_do_request_flags
-	    (sc->sc_udev, &(sc->sc_mtx), req, data, 0, NULL, 1000);
+	    (sc->sc_udev, &sc->sc_mtx, req, data, 0, NULL, 1000);
 
 	if (err) {
 
@@ -583,11 +583,11 @@ udav_init_cb(void *arg)
 {
 	struct udav_softc *sc = arg;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), &udav_cfg_pre_init,
+	    (&sc->sc_config_td, &udav_cfg_pre_init,
 	    &udav_cfg_init, 0, 0);
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -682,7 +682,7 @@ udav_cfg_reset(struct udav_softc *sc)
 
 		if (to < 100) {
 
-			err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 100);
+			err = usb2_config_td_sleep(&sc->sc_config_td, hz / 100);
 
 			if (err) {
 				break;
@@ -697,7 +697,7 @@ udav_cfg_reset(struct udav_softc *sc)
 		}
 	}
 
-	err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 100);
+	err = usb2_config_td_sleep(&sc->sc_config_td, hz / 100);
 
 	return;
 }
@@ -756,11 +756,11 @@ udav_start_cb(struct ifnet *ifp)
 {
 	struct udav_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	udav_start_transfers(sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -823,7 +823,7 @@ udav_bulk_write_callback(struct usb2_xfer *xfer)
 			 */
 			goto done;
 		}
-		IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
+		IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 
 		if (m == NULL) {
 			goto done;
@@ -972,9 +972,9 @@ tr_setup:
 		 * "if_input" here, and not some lines up!
 		 */
 		if (m) {
-			mtx_unlock(&(sc->sc_mtx));
+			mtx_unlock(&sc->sc_mtx);
 			(ifp->if_input) (ifp, m);
-			mtx_lock(&(sc->sc_mtx));
+			mtx_lock(&sc->sc_mtx);
 		}
 		return;
 
@@ -1041,34 +1041,34 @@ udav_ioctl_cb(struct ifnet *ifp, u_long cmd, caddr_t data)
 
 	switch (cmd) {
 	case SIOCSIFFLAGS:
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		if (ifp->if_flags & IFF_UP) {
 			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &udav_config_copy,
+				    (&sc->sc_config_td, &udav_config_copy,
 				    &udav_cfg_promisc_upd, 0, 0);
 			} else {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &udav_cfg_pre_init,
+				    (&sc->sc_config_td, &udav_cfg_pre_init,
 				    &udav_cfg_init, 0, 0);
 			}
 		} else {
 			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &udav_cfg_pre_stop,
+				    (&sc->sc_config_td, &udav_cfg_pre_stop,
 				    &udav_cfg_stop, 0, 0);
 			}
 		}
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		break;
 
 	case SIOCADDMULTI:
 	case SIOCDELMULTI:
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		usb2_config_td_queue_command
-		    (&(sc->sc_config_td), &udav_config_copy,
+		    (&sc->sc_config_td, &udav_config_copy,
 		    &udav_cfg_promisc_upd, 0, 0);
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		break;
 
 	case SIOCGIFMEDIA:
@@ -1094,15 +1094,15 @@ udav_watchdog(void *arg)
 {
 	struct udav_softc *sc = arg;
 
-	mtx_assert(&(sc->sc_mtx), MA_OWNED);
+	mtx_assert(&sc->sc_mtx, MA_OWNED);
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &udav_cfg_tick, 0, 0);
+	    (&sc->sc_config_td, NULL, &udav_cfg_tick, 0, 0);
 
-	usb2_callout_reset(&(sc->sc_watchdog),
+	usb2_callout_reset(&sc->sc_watchdog,
 	    hz, &udav_watchdog, sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 	return;
 }
 
@@ -1158,11 +1158,11 @@ udav_ifmedia_change_cb(struct ifnet *ifp)
 {
 	struct udav_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL,
+	    (&sc->sc_config_td, NULL,
 	    &udav_cfg_ifmedia_change, 0, 0);
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);
 }
@@ -1198,7 +1198,7 @@ udav_ifmedia_status_cb(struct ifnet *ifp, struct ifmediareq *ifmr)
 {
 	struct udav_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		ifmr->ifm_active = sc->sc_media_active;
@@ -1208,7 +1208,7 @@ udav_ifmedia_status_cb(struct ifnet *ifp, struct ifmediareq *ifmr)
 		ifmr->ifm_status = 0;
 	}
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -1257,10 +1257,10 @@ udav_cfg_miibus_readreg(device_t dev, int phy, int reg)
 		return (0);
 	}
 	/* avoid recursive locking */
-	if (mtx_owned(&(sc->sc_mtx))) {
+	if (mtx_owned(&sc->sc_mtx)) {
 		do_unlock = 0;
 	} else {
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		do_unlock = 1;
 	}
 
@@ -1280,7 +1280,7 @@ udav_cfg_miibus_readreg(device_t dev, int phy, int reg)
 	udav_cfg_csr_read(sc, UDAV_EPDRL, val, 2);
 
 	if (do_unlock) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	data16 = (val[0] | (val[1] << 8));
 
@@ -1302,10 +1302,10 @@ udav_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 		return (0);
 	}
 	/* avoid recursive locking */
-	if (mtx_owned(&(sc->sc_mtx))) {
+	if (mtx_owned(&sc->sc_mtx)) {
 		do_unlock = 0;
 	} else {
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		do_unlock = 1;
 	}
 
@@ -1327,7 +1327,7 @@ udav_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 	UDAV_CFG_CLRBIT(sc, UDAV_EPCR, UDAV_EPCR_ERPRW);
 
 	if (do_unlock) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return (0);
 }
@@ -1348,13 +1348,13 @@ udav_shutdown(device_t dev)
 {
 	struct udav_softc *sc = device_get_softc(dev);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), &udav_cfg_pre_stop,
+	    (&sc->sc_config_td, &udav_cfg_pre_stop,
 	    &udav_cfg_stop, 0, 0);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);
 }

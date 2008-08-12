@@ -633,7 +633,7 @@ usb2_pc_dmamap_create(struct usb2_page_cache *pc, uint32_t size)
 		goto error;
 	}
 	/* create DMA map */
-	if (bus_dmamap_create(utag->tag, 0, &(pc->map))) {
+	if (bus_dmamap_create(utag->tag, 0, &pc->map)) {
 		goto error;
 	}
 	pc->tag = utag->tag;
@@ -988,7 +988,7 @@ usb2_pc_dmamap_create(struct usb2_page_cache *pc, uint32_t size)
 		goto error;
 	}
 	if (bus_dmamap_create(utag->tag, size, utag->n_seg,
-	    USB_PAGE_SIZE, 0, BUS_DMA_WAITOK, &(pc->map))) {
+	    USB_PAGE_SIZE, 0, BUS_DMA_WAITOK, &pc->map)) {
 		goto error;
 	}
 	pc->tag = utag->tag;
@@ -1277,7 +1277,7 @@ usb2_bdma_done_event(struct usb2_dma_parent_tag *udpt)
 	info->dma_error = udpt->dma_error;
 
 	/* enter workloop again */
-	usb2_command_wrapper(&(info->dma_q),
+	usb2_command_wrapper(&info->dma_q,
 	    info->dma_q.curr);
 	return;
 }

@@ -153,22 +153,22 @@ uhci_iterate_hw_softc(struct usb2_bus *bus, usb2_bus_mem_sub_cb_t *cb)
 	struct uhci_softc *sc = UHCI_BUS2SC(bus);
 	uint32_t i;
 
-	cb(bus, &(sc->sc_hw.pframes_pc), &(sc->sc_hw.pframes_pg),
+	cb(bus, &sc->sc_hw.pframes_pc, &(sc->sc_hw.pframes_pg),
 	    sizeof(uint32_t) * UHCI_FRAMELIST_COUNT, UHCI_FRAMELIST_ALIGN);
 
-	cb(bus, &(sc->sc_hw.ls_ctl_start_pc), &(sc->sc_hw.ls_ctl_start_pg),
+	cb(bus, &sc->sc_hw.ls_ctl_start_pc, &(sc->sc_hw.ls_ctl_start_pg),
 	    sizeof(uhci_qh_t), UHCI_QH_ALIGN);
 
-	cb(bus, &(sc->sc_hw.fs_ctl_start_pc), &(sc->sc_hw.fs_ctl_start_pg),
+	cb(bus, &sc->sc_hw.fs_ctl_start_pc, &(sc->sc_hw.fs_ctl_start_pg),
 	    sizeof(uhci_qh_t), UHCI_QH_ALIGN);
 
-	cb(bus, &(sc->sc_hw.bulk_start_pc), &(sc->sc_hw.bulk_start_pg),
+	cb(bus, &sc->sc_hw.bulk_start_pc, &(sc->sc_hw.bulk_start_pg),
 	    sizeof(uhci_qh_t), UHCI_QH_ALIGN);
 
-	cb(bus, &(sc->sc_hw.last_qh_pc), &(sc->sc_hw.last_qh_pg),
+	cb(bus, &sc->sc_hw.last_qh_pc, &(sc->sc_hw.last_qh_pg),
 	    sizeof(uhci_qh_t), UHCI_QH_ALIGN);
 
-	cb(bus, &(sc->sc_hw.last_td_pc), &(sc->sc_hw.last_td_pg),
+	cb(bus, &sc->sc_hw.last_td_pc, &(sc->sc_hw.last_td_pg),
 	    sizeof(uhci_td_t), UHCI_TD_ALIGN);
 
 	for (i = 0; i != UHCI_VFRAMELIST_COUNT; i++) {
@@ -201,13 +201,13 @@ uhci_mem_layout_init(struct uhci_mem_layout *ml, struct usb2_xfer *xfer)
 static void
 uhci_mem_layout_fixup(struct uhci_mem_layout *ml, struct uhci_td *td)
 {
-	usb2_get_page(ml->buf_pc, ml->buf_offset, &(ml->buf_res));
+	usb2_get_page(ml->buf_pc, ml->buf_offset, &ml->buf_res);
 
 	if (ml->buf_res.length < td->len) {
 
 		/* need to do a fixup */
 
-		usb2_get_page(ml->fix_pc, 0, &(ml->fix_res));
+		usb2_get_page(ml->fix_pc, 0, &ml->fix_res);
 
 		td->td_buffer = htole32(ml->fix_res.physaddr);
 
@@ -321,7 +321,7 @@ done_1:
 done_2:
 
 	/* reload the configuration */
-	usb2_get_page(&(sc->sc_hw.pframes_pc), 0, &buf_res);
+	usb2_get_page(&sc->sc_hw.pframes_pc, 0, &buf_res);
 	UWRITE4(sc, UHCI_FLBASEADDR, buf_res.physaddr);
 	UWRITE2(sc, UHCI_FRNUM, sc->sc_saved_frnum);
 	UWRITE1(sc, UHCI_SOF, sc->sc_saved_sof);
@@ -432,13 +432,13 @@ uhci_init(uhci_softc_t *sc)
 	 * Setup QH's
 	 */
 	sc->sc_ls_ctl_p_last =
-	    uhci_init_qh(&(sc->sc_hw.ls_ctl_start_pc));
+	    uhci_init_qh(&sc->sc_hw.ls_ctl_start_pc);
 
 	sc->sc_fs_ctl_p_last =
-	    uhci_init_qh(&(sc->sc_hw.fs_ctl_start_pc));
+	    uhci_init_qh(&sc->sc_hw.fs_ctl_start_pc);
 
 	sc->sc_bulk_p_last =
-	    uhci_init_qh(&(sc->sc_hw.bulk_start_pc));
+	    uhci_init_qh(&sc->sc_hw.bulk_start_pc);
 #if 0
 	sc->sc_reclaim_qh_p =
 	    sc->sc_fs_ctl_p_last;
@@ -449,10 +449,10 @@ uhci_init(uhci_softc_t *sc)
 #endif
 
 	sc->sc_last_qh_p =
-	    uhci_init_qh(&(sc->sc_hw.last_qh_pc));
+	    uhci_init_qh(&sc->sc_hw.last_qh_pc);
 
 	sc->sc_last_td_p =
-	    uhci_init_td(&(sc->sc_hw.last_td_pc));
+	    uhci_init_td(&sc->sc_hw.last_td_pc);
 
 	for (x = 0; x != UHCI_VFRAMELIST_COUNT; x++) {
 		sc->sc_isoc_p_last[x] =
@@ -579,7 +579,7 @@ uhci_init(uhci_softc_t *sc)
 		struct usb2_page_search buf_res;
 		uint32_t *pframes;
 
-		usb2_get_page(&(sc->sc_hw.pframes_pc), 0, &buf_res);
+		usb2_get_page(&sc->sc_hw.pframes_pc, 0, &buf_res);
 
 		pframes = buf_res.buffer;
 
@@ -601,7 +601,7 @@ uhci_init(uhci_softc_t *sc)
 	}
 	/* flush all cache into memory */
 
-	usb2_bus_mem_flush_all(&(sc->sc_bus), &uhci_iterate_hw_softc);
+	usb2_bus_mem_flush_all(&sc->sc_bus, &uhci_iterate_hw_softc);
 
 	/* set up the bus struct */
 	sc->sc_bus.methods = &uhci_bus_methods;
@@ -615,7 +615,7 @@ uhci_init(uhci_softc_t *sc)
 	mtx_unlock(&sc->sc_bus.mtx);
 
 	/* catch lost interrupts */
-	uhci_do_poll(&(sc->sc_bus));
+	uhci_do_poll(&sc->sc_bus);
 
 	return (0);
 }
@@ -681,7 +681,7 @@ uhci_resume(uhci_softc_t *sc)
 	mtx_unlock(&sc->sc_bus.mtx);
 
 	/* catch lost interrupts */
-	uhci_do_poll(&(sc->sc_bus));
+	uhci_do_poll(&sc->sc_bus);
 
 	return;
 }
@@ -896,7 +896,7 @@ uhci_transfer_intr_enqueue(struct usb2_xfer *xfer)
 		return;
 	}
 	/* put transfer on interrupt queue */
-	usb2_transfer_enqueue(&(xfer->udev->bus->intr_q), xfer);
+	usb2_transfer_enqueue(&xfer->udev->bus->intr_q, xfer);
 
 	/* start timeout, if any */
 	if (xfer->timeout != 0) {
@@ -1422,7 +1422,7 @@ uhci_interrupt_poll(uhci_softc_t *sc)
 	struct usb2_xfer *xfer;
 
 repeat:
-	TAILQ_FOREACH(xfer, &(sc->sc_bus.intr_q.head), wait_entry) {
+	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
 		/*
 		 * check if transfer is transferred
 		 */
@@ -1534,10 +1534,10 @@ uhci_do_poll(struct usb2_bus *bus)
 {
 	struct uhci_softc *sc = UHCI_BUS2SC(bus);
 
-	mtx_lock(&(sc->sc_bus.mtx));
+	mtx_lock(&sc->sc_bus.mtx);
 	uhci_interrupt_poll(sc);
 	uhci_root_ctrl_poll(sc);
-	mtx_unlock(&(sc->sc_bus.mtx));
+	mtx_unlock(&sc->sc_bus.mtx);
 	return;
 }
 
@@ -1643,7 +1643,7 @@ restart:
 
 			/* fill out buffer pointer and do fixup, if any */
 
-			uhci_mem_layout_fixup(&(temp->ml), td);
+			uhci_mem_layout_fixup(&temp->ml, td);
 		}
 
 		td->alt_next = td_alt_next;
@@ -1713,7 +1713,7 @@ uhci_setup_standard_chain(struct usb2_xfer *xfer)
 	temp.setup_alt_next = xfer->flags_int.short_frames_ok;
 	temp.short_frames_ok = xfer->flags_int.short_frames_ok;
 
-	uhci_mem_layout_init(&(temp.ml), xfer);
+	uhci_mem_layout_init(&temp.ml, xfer);
 
 	temp.td_status =
 	    htole32(UHCI_TD_ZERO_ACTLEN(UHCI_TD_SET_ERRCNT(3) |
@@ -2189,7 +2189,7 @@ uhci_device_isoc_enter(struct usb2_xfer *xfer)
 	 * pre-compute when the isochronous transfer will be finished:
 	 */
 	xfer->isoc_time_complete =
-	    usb2_isoc_time_expand(&(sc->sc_bus), nframes) + temp +
+	    usb2_isoc_time_expand(&sc->sc_bus, nframes) + temp +
 	    xfer->nframes;
 
 	/* get the real number of frames */
@@ -2436,7 +2436,7 @@ uhci_portreset(uhci_softc_t *sc, uint16_t index, uint8_t use_polling)
 		/* polling */
 		DELAY(USB_PORT_ROOT_RESET_DELAY * 1000);
 	} else {
-		l = usb2_config_td_sleep(&(sc->sc_config_td),
+		l = usb2_config_td_sleep(&sc->sc_config_td,
 		    (hz * USB_PORT_ROOT_RESET_DELAY) / 1000);
 	}
 
@@ -2450,7 +2450,7 @@ uhci_portreset(uhci_softc_t *sc, uint16_t index, uint8_t use_polling)
 		/* polling */
 		DELAY(1000);
 	} else {
-		l = usb2_config_td_sleep(&(sc->sc_config_td),
+		l = usb2_config_td_sleep(&sc->sc_config_td,
 		    hz / 1000);
 	}
 
@@ -2466,7 +2466,7 @@ uhci_portreset(uhci_softc_t *sc, uint16_t index, uint8_t use_polling)
 			/* polling */
 			DELAY(USB_PORT_RESET_DELAY * 1000);
 		} else {
-			l = usb2_config_td_sleep(&(sc->sc_config_td),
+			l = usb2_config_td_sleep(&sc->sc_config_td,
 			    (hz * USB_PORT_RESET_DELAY) / 1000);
 		}
 
@@ -2533,7 +2533,7 @@ uhci_root_ctrl_start(struct usb2_xfer *xfer)
 	sc->sc_root_ctrl.xfer = xfer;
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &uhci_root_ctrl_task, 0, 0);
+	    (&sc->sc_config_td, NULL, &uhci_root_ctrl_task, 0, 0);
 
 	return;
 }
@@ -2853,7 +2853,7 @@ done:
 static void
 uhci_root_ctrl_poll(struct uhci_softc *sc)
 {
-	usb2_sw_transfer(&(sc->sc_root_ctrl),
+	usb2_sw_transfer(&sc->sc_root_ctrl,
 	    &uhci_root_ctrl_done);
 	return;
 }
@@ -2957,7 +2957,7 @@ uhci_root_intr_check(void *arg)
 		 */
 		uhci_root_intr_start(xfer);
 	} else {
-		usb2_sw_transfer(&(sc->sc_root_intr),
+		usb2_sw_transfer(&sc->sc_root_intr,
 		    &uhci_root_intr_done);
 	}
 	mtx_unlock(&sc->sc_bus.mtx);

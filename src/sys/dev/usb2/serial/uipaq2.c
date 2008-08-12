@@ -237,7 +237,7 @@ uipaq_attach(device_t dev)
 	sc->sc_flag |= (UIPAQ_FLAG_READ_STALL |
 	    UIPAQ_FLAG_WRITE_STALL);
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &uipaq_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -254,7 +254,7 @@ uipaq_detach(device_t dev)
 {
 	struct uipaq_softc *sc = device_get_softc(dev);
 
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer_data, UIPAQ_N_DATA_TRANSFER);
 
@@ -308,7 +308,7 @@ uipaq_cfg_do_request(struct uipaq_softc *sc, struct usb2_device_request *req,
 	uint16_t length;
 	usb2_error_t err;
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom))) {
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom)) {
 		goto error;
 	}
 	err = usb2_do_request(sc->sc_udev, &Giant, req, data);
@@ -409,7 +409,7 @@ uipaq_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_xfer_data[2]);
 			return;
 		}
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    UIPAQ_BUF_SIZE, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -448,7 +448,7 @@ uipaq_read_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    xfer->actlen);
 
 	case USB_ST_SETUP:

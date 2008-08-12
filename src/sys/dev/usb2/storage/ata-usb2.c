@@ -333,7 +333,7 @@ atausb2_attach(device_t dev)
 	sc->locked_ch = NULL;
 	sc->restart_ch = NULL;
 	sc->usb2_speed = usb2_get_speed(uaa->device);
-	mtx_init(&(sc->locked_mtx), "ATAUSB lock", NULL, (MTX_DEF | MTX_RECURSE));
+	mtx_init(&sc->locked_mtx, "ATAUSB lock", NULL, (MTX_DEF | MTX_RECURSE));
 
 	id = usb2_get_interface_descriptor(uaa->iface);
 	switch (id->bInterfaceProtocol) {
@@ -378,9 +378,9 @@ atausb2_attach(device_t dev)
 	    (strcmp(subclass, "ATAPI") && strcmp(subclass, "SCSI"))) {
 		goto detach;
 	}
-	err = usb2_transfer_setup(uaa->device, &(uaa->info.bIfaceIndex),
+	err = usb2_transfer_setup(uaa->device, &uaa->info.bIfaceIndex,
 	    sc->xfer, atausb2_config, ATAUSB_T_BBB_MAX, sc,
-	    &(sc->locked_mtx));
+	    &sc->locked_mtx);
 
 	/* skip reset first time */
 	sc->last_xfer_no = ATAUSB_T_BBB_COMMAND;
@@ -576,7 +576,7 @@ atausb2_t_bbb_command_callback(struct usb2_xfer *xfer)
 			bzero(sc->cbw.cdb, 16);
 			bcopy(request->u.atapi.ccb, sc->cbw.cdb, 12);	/* XXX SOS */
 
-			usb2_copy_in(xfer->frbuffers, 0, &(sc->cbw), sizeof(sc->cbw));
+			usb2_copy_in(xfer->frbuffers, 0, &sc->cbw, sizeof(sc->cbw));
 
 			xfer->frlengths[0] = sizeof(sc->cbw);
 			usb2_start_hardware(xfer);
@@ -713,9 +713,9 @@ atausb2_t_bbb_status_callback(struct usb2_xfer *xfer)
 	case USB_ST_TRANSFERRED:
 
 		if (xfer->actlen < sizeof(sc->csw)) {
-			bzero(&(sc->csw), sizeof(sc->csw));
+			bzero(&sc->csw, sizeof(sc->csw));
 		}
-		usb2_copy_out(xfer->frbuffers, 0, &(sc->csw), xfer->actlen);
+		usb2_copy_out(xfer->frbuffers, 0, &sc->csw, xfer->actlen);
 
 		if (request->flags & (ATA_R_READ | ATA_R_WRITE)) {
 			request->donecount = sc->ata_donecount;
@@ -804,7 +804,7 @@ atausb2_cancel_request(struct atausb2_softc *sc)
 {
 	struct ata_request *request;
 
-	mtx_assert(&(sc->locked_mtx), MA_OWNED);
+	mtx_assert(&sc->locked_mtx, MA_OWNED);
 
 	request = sc->ata_request;
 	sc->ata_request = NULL;
@@ -813,11 +813,11 @@ atausb2_cancel_request(struct atausb2_softc *sc)
 	if (request) {
 		request->error = ATA_E_ATAPI_SENSE_MASK;
 
-		mtx_unlock(&(sc->locked_mtx));
+		mtx_unlock(&sc->locked_mtx);
 
 		ata_interrupt(device_get_softc(request->parent));
 
-		mtx_lock(&(sc->locked_mtx));
+		mtx_lock(&sc->locked_mtx);
 	}
 	return;
 }

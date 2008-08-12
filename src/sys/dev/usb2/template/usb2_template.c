@@ -920,7 +920,7 @@ usb2_temp_get_device_desc(struct usb2_device *udev)
 	if (udev->usb2_template_ptr == NULL) {
 		return (NULL);
 	}
-	dd = &(udev->usb2_template_ptr->udd);
+	dd = &udev->usb2_template_ptr->udd;
 	if (dd->bDescriptorType != UDESC_DEVICE) {
 		/* sanity check failed */
 		return (NULL);
@@ -943,7 +943,7 @@ usb2_temp_get_qualifier_desc(struct usb2_device *udev)
 	if (udev->usb2_template_ptr == NULL) {
 		return (NULL);
 	}
-	dq = &(udev->usb2_template_ptr->udq);
+	dq = &udev->usb2_template_ptr->udq;
 	if (dq->bDescriptorType != UDESC_DEVICE_QUALIFIER) {
 		/* sanity check failed */
 		return (NULL);
@@ -969,7 +969,7 @@ usb2_temp_get_config_desc(struct usb2_device *udev,
 	if (udev->usb2_template_ptr == NULL) {
 		return (NULL);
 	}
-	dd = &(udev->usb2_template_ptr->udd);
+	dd = &udev->usb2_template_ptr->udd;
 	cd = (void *)(udev->usb2_template_ptr + 1);
 
 	if (index >= dd->bNumConfigurations) {

@@ -386,7 +386,7 @@ ufoma_attach(device_t dev)
 	sc->sc_dev = dev;
 	sc->sc_unit = device_get_unit(dev);
 
-	usb2_cv_init(&(sc->sc_cv), "CWAIT");
+	usb2_cv_init(&sc->sc_cv, "CWAIT");
 
 	device_set_usb2_desc(dev);
 
@@ -403,7 +403,7 @@ ufoma_attach(device_t dev)
 	sc->sc_ctrl_iface_index = uaa->info.bIfaceIndex;
 
 	error = usb2_transfer_setup(uaa->device,
-	    &(sc->sc_ctrl_iface_index), sc->sc_ctrl_xfer,
+	    &sc->sc_ctrl_iface_index, sc->sc_ctrl_xfer,
 	    ufoma_ctrl_config, UFOMA_CTRL_ENDPT_MAX, sc, &Giant);
 
 	if (error) {
@@ -439,7 +439,7 @@ ufoma_attach(device_t dev)
 		goto detach;
 	}
 	sc->sc_modetable[0] = (elements + 1);
-	bcopy(mad->bMode, &(sc->sc_modetable[1]), elements);
+	bcopy(mad->bMode, &sc->sc_modetable[1], elements);
 
 	sc->sc_currentmode = UMCPC_ACM_MODE_UNLINKED;
 	sc->sc_modetoactivate = mad->bMode[0];
@@ -448,7 +448,7 @@ ufoma_attach(device_t dev)
 	sc->sc_flags |= (UFOMA_FLAG_BULK_WRITE_STALL |
 	    UFOMA_FLAG_BULK_READ_STALL);
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &ufoma_callback, &Giant);
 	if (error) {
 		DPRINTF("usb2_com_attach failed\n");
@@ -466,7 +466,7 @@ ufoma_detach(device_t dev)
 {
 	struct ufoma_softc *sc = device_get_softc(dev);
 
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_ctrl_xfer, UFOMA_CTRL_ENDPT_MAX);
 
@@ -475,7 +475,7 @@ ufoma_detach(device_t dev)
 	if (sc->sc_modetable) {
 		free(sc->sc_modetable, M_USBDEV);
 	}
-	usb2_cv_destroy(&(sc->sc_cv));
+	usb2_cv_destroy(&sc->sc_cv);
 
 	return (0);
 }
@@ -487,7 +487,7 @@ ufoma_cfg_do_request(struct ufoma_softc *sc, struct usb2_device_request *req,
 	uint16_t length;
 	usb2_error_t err;
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom))) {
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom)) {
 		goto error;
 	}
 	err = usb2_do_request_flags
@@ -541,7 +541,7 @@ ufoma_cfg_link_state(struct ufoma_softc *sc)
 
 	ufoma_cfg_do_request(sc, &req, sc->sc_modetable);
 
-	error = usb2_cv_timedwait(&(sc->sc_cv), &Giant, hz);
+	error = usb2_cv_timedwait(&sc->sc_cv, &Giant, hz);
 
 	if (error) {
 		DPRINTF("NO response\n");
@@ -563,7 +563,7 @@ ufoma_cfg_activate_state(struct ufoma_softc *sc, uint16_t state)
 
 	ufoma_cfg_do_request(sc, &req, NULL);
 
-	error = usb2_cv_timedwait(&(sc->sc_cv), &Giant,
+	error = usb2_cv_timedwait(&sc->sc_cv, &Giant,
 	    (UFOMA_MAX_TIMEOUT * hz));
 	if (error) {
 		DPRINTF("No response\n");
@@ -584,7 +584,7 @@ tr_transferred:
 			goto tr_setup;
 		}
 		if (xfer->frlengths[1] > 0) {
-			usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers + 1,
+			usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers + 1,
 			    0, xfer->frlengths[1]);
 		}
 	case USB_ST_SETUP:
@@ -633,7 +633,7 @@ ufoma_ctrl_write_callback(struct usb2_xfer *xfer)
 tr_transferred:
 	case USB_ST_SETUP:
 tr_setup:
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers + 1,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers + 1,
 		    0, 1, &actlen)) {
 
 			req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
@@ -714,7 +714,7 @@ ufoma_intr_callback(struct usb2_xfer *xfer)
 			if (!(temp & 0xff)) {
 				DPRINTF("Mode change failed!\n");
 			}
-			usb2_cv_signal(&(sc->sc_cv));
+			usb2_cv_signal(&sc->sc_cv);
 		}
 		if (pkt.bmRequestType != UCDC_NOTIFICATION) {
 			goto tr_setup;
@@ -763,7 +763,7 @@ ufoma_intr_callback(struct usb2_xfer *xfer)
 			if (mstatus & UCDC_N_SERIAL_DCD) {
 				sc->sc_msr |= SER_DCD;
 			}
-			usb2_com_status_change(&(sc->sc_ucom));
+			usb2_com_status_change(&sc->sc_ucom);
 			break;
 
 		default:
@@ -804,7 +804,7 @@ ufoma_bulk_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_bulk_xfer[2]);
 			return;
 		}
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    UFOMA_BULK_BUF_SIZE, &actlen)) {
 			xfer->frlengths[0] = actlen;
 			usb2_start_hardware(xfer);
@@ -842,7 +842,7 @@ ufoma_bulk_read_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    xfer->actlen);
 
 	case USB_ST_SETUP:
@@ -1116,7 +1116,7 @@ ufoma_modem_setup(device_t dev, struct ufoma_softc *sc,
 	}
 
 	error = usb2_transfer_setup(uaa->device,
-	    &(sc->sc_data_iface_index), sc->sc_bulk_xfer,
+	    &sc->sc_data_iface_index, sc->sc_bulk_xfer,
 	    ufoma_bulk_config, UFOMA_BULK_ENDPT_MAX, sc, &Giant);
 
 	if (error) {

@@ -1001,7 +1001,7 @@ usb2_intr_schedule_adjust(struct usb2_device *udev, int16_t len, uint8_t slot)
 	struct usb2_bus *bus = udev->bus;
 	struct usb2_hub *hub;
 
-	mtx_assert(&(bus->mtx), MA_OWNED);
+	mtx_assert(&bus->mtx, MA_OWNED);
 
 	if (usb2_get_speed(udev) == USB_SPEED_HIGH) {
 		if (slot >= USB_HS_MICRO_FRAMES_MAX) {
@@ -1078,7 +1078,7 @@ usb2_isoc_time_expand(struct usb2_bus *bus, uint16_t isoc_time_curr)
 {
 	uint16_t rem;
 
-	mtx_assert(&(bus->mtx), MA_OWNED);
+	mtx_assert(&bus->mtx, MA_OWNED);
 
 	rem = bus->isoc_time_last & (USB_ISOC_TIME_MAX - 1);
 
@@ -1278,15 +1278,15 @@ usb2_needs_explore(struct usb2_bus *bus, uint8_t do_probe)
 		DPRINTF("No bus pointer!\n");
 		return;
 	}
-	mtx_lock(&(bus->mtx));
+	mtx_lock(&bus->mtx);
 	if (do_probe) {
 		bus->do_probe = 1;
 	}
-	if (usb2_proc_msignal(&(bus->explore_proc),
-	    &(bus->explore_msg[0]), &(bus->explore_msg[1]))) {
+	if (usb2_proc_msignal(&bus->explore_proc,
+	    &bus->explore_msg[0], &(bus->explore_msg[1]))) {
 		/* ignore */
 	}
-	mtx_unlock(&(bus->mtx));
+	mtx_unlock(&bus->mtx);
 	return;
 }
 

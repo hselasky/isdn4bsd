@@ -90,7 +90,7 @@ usb2_dump_queue(struct usb2_pipe *pipe)
 	struct usb2_xfer *xfer;
 
 	printf("usb2_dump_queue: pipe=%p xfer: ", pipe);
-	TAILQ_FOREACH(xfer, &(pipe->pipe_q.head), wait_entry) {
+	TAILQ_FOREACH(xfer, &pipe->pipe_q.head, wait_entry) {
 		printf(" %p", xfer);
 	}
 	printf("\n");

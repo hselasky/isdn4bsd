@@ -75,7 +75,7 @@ ohci_atmelarm_attach(device_t dev)
 	}
 	/* get all DMA memory */
 
-	if (usb2_bus_mem_alloc_all(&(sc->sc_ohci.sc_bus),
+	if (usb2_bus_mem_alloc_all(&sc->sc_ohci.sc_bus,
 	    USB_GET_DMA_TAG(dev), &ohci_iterate_hw_softc)) {
 		return ENOMEM;
 	}
@@ -106,22 +106,22 @@ ohci_atmelarm_attach(device_t dev)
 	if (!(sc->sc_ohci.sc_bus.bdev)) {
 		goto error;
 	}
-	device_set_ivars(sc->sc_ohci.sc_bus.bdev, &(sc->sc_ohci.sc_bus));
+	device_set_ivars(sc->sc_ohci.sc_bus.bdev, &sc->sc_ohci.sc_bus);
 
 	strlcpy(sc->sc_ohci.sc_vendor, "Atmel", sizeof(sc->sc_ohci.sc_vendor));
 
-	err = usb2_config_td_setup(&(sc->sc_ohci.sc_config_td), sc,
-	    &(sc->sc_ohci.sc_bus.mtx), NULL, 0, 4);
+	err = usb2_config_td_setup(&sc->sc_ohci.sc_config_td, sc,
+	    &sc->sc_ohci.sc_bus.mtx, NULL, 0, 4);
 	if (err) {
 		device_printf(dev, "could not setup config thread!\n");
 		goto error;
 	}
 #if (__FreeBSD_version >= 700031)
 	err = bus_setup_intr(dev, sc->sc_ohci.sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    NULL, (void *)ohci_interrupt, sc, &(sc->sc_ohci.sc_intr_hdl));
+	    NULL, (void *)ohci_interrupt, sc, &sc->sc_ohci.sc_intr_hdl);
 #else
 	err = bus_setup_intr(dev, sc->sc_ohci.sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    (void *)ohci_interrupt, sc, &(sc->sc_ohci.sc_intr_hdl));
+	    (void *)ohci_interrupt, sc, &sc->sc_ohci.sc_intr_hdl);
 #endif
 	if (err) {
 		sc->sc_ohci.sc_intr_hdl = NULL;
@@ -135,7 +135,7 @@ ohci_atmelarm_attach(device_t dev)
 	bus_space_write_4(sc->sc_ohci.sc_io_tag, sc->sc_ohci.sc_io_hdl,
 	    OHCI_CONTROL, 0);
 
-	err = ohci_init(&(sc->sc_ohci));
+	err = ohci_init(&sc->sc_ohci);
 	if (!err) {
 		err = device_probe_and_attach(sc->sc_ohci.sc_bus.bdev);
 	}
@@ -184,7 +184,7 @@ ohci_atmelarm_detach(device_t dev)
 		/*
 		 * only call ohci_detach() after ohci_init()
 		 */
-		ohci_detach(&(sc->sc_ohci));
+		ohci_detach(&sc->sc_ohci);
 
 		err = bus_teardown_intr(dev, sc->sc_ohci.sc_irq_res, sc->sc_ohci.sc_intr_hdl);
 		sc->sc_ohci.sc_intr_hdl = NULL;
@@ -198,9 +198,9 @@ ohci_atmelarm_detach(device_t dev)
 		    sc->sc_ohci.sc_io_res);
 		sc->sc_ohci.sc_io_res = NULL;
 	}
-	usb2_config_td_unsetup(&(sc->sc_ohci.sc_config_td));
+	usb2_config_td_unsetup(&sc->sc_ohci.sc_config_td);
 
-	usb2_bus_mem_free_all(&(sc->sc_ohci.sc_bus), &ohci_iterate_hw_softc);
+	usb2_bus_mem_free_all(&sc->sc_ohci.sc_bus, &ohci_iterate_hw_softc);
 
 	return (0);
 }

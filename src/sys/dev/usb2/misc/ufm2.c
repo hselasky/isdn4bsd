@@ -138,7 +138,7 @@ ufm_attach(device_t dev)
 	snprintf(sc->sc_name, sizeof(sc->sc_name), "%s",
 	    device_get_nameunit(dev));
 
-	mtx_init(&(sc->sc_mtx), "ufm lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "ufm lock", NULL, MTX_DEF | MTX_RECURSE);
 
 	device_set_usb2_desc(dev);
 
@@ -146,8 +146,8 @@ ufm_attach(device_t dev)
 	usb2_set_iface_perm(uaa->device, uaa->info.bIfaceIndex,
 	    UID_ROOT, GID_OPERATOR, 0644);
 
-	error = usb2_fifo_attach(uaa->device, sc, &(sc->sc_mtx),
-	    &ufm_fifo_methods, &(sc->sc_fifo),
+	error = usb2_fifo_attach(uaa->device, sc, &sc->sc_mtx,
+	    &ufm_fifo_methods, &sc->sc_fifo,
 	    device_get_unit(dev), 0 - 1, uaa->info.bIfaceIndex);
 	if (error) {
 		goto detach;
@@ -164,9 +164,9 @@ ufm_detach(device_t dev)
 {
 	struct ufm_softc *sc = device_get_softc(dev);
 
-	usb2_fifo_detach(&(sc->sc_fifo));
+	usb2_fifo_detach(&sc->sc_fifo);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }
@@ -218,9 +218,9 @@ ufm_set_freq(struct ufm_softc *sc, void *addr)
 	 * units of 12.5kHz.  We add one to the IFM to make rounding
 	 * easier.
 	 */
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	sc->sc_freq = freq;
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	freq = (freq + 10700001) / 12500;
 
@@ -242,9 +242,9 @@ ufm_get_freq(struct ufm_softc *sc, void *addr)
 {
 	int *valp = (int *)addr;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	*valp = sc->sc_freq;
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 	return (0);
 }
 
@@ -291,9 +291,9 @@ ufm_get_stat(struct ufm_softc *sc, void *addr)
 	 * will be valid, so sleep that amount.
 	 */
 
-	mtx_lock(&(sc->sc_mtx));
-	usb2_pause_mtx(&(sc->sc_mtx), USB_MS_HZ / 4);
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
+	usb2_pause_mtx(&sc->sc_mtx, USB_MS_HZ / 4);
+	mtx_unlock(&sc->sc_mtx);
 
 	if (ufm_do_req(sc, UFM_CMD0,
 	    0x00, 0x24, &ret)) {

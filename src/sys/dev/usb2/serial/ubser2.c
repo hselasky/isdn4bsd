@@ -288,7 +288,7 @@ ubser_attach(device_t dev)
 
 	device_printf(dev, "found %i serials\n", sc->sc_numser);
 
-	error = usb2_transfer_setup(uaa->device, &(sc->sc_iface_index),
+	error = usb2_transfer_setup(uaa->device, &sc->sc_iface_index,
 	    sc->sc_xfer, ubser_config, UBSER_TR_MAX, sc, &Giant);
 	if (error) {
 		goto detach;
@@ -305,7 +305,7 @@ ubser_attach(device_t dev)
 		sc->sc_ucom[n].sc_portno = n;
 	}
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), sc->sc_ucom,
+	error = usb2_com_attach(&sc->sc_super_ucom, sc->sc_ucom,
 	    sc->sc_numser, sc, &ubser_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -334,7 +334,7 @@ ubser_detach(device_t dev)
 
 	DPRINTF("\n");
 
-	usb2_com_detach(&(sc->sc_super_ucom), sc->sc_ucom, sc->sc_numser);
+	usb2_com_detach(&sc->sc_super_ucom, sc->sc_ucom, sc->sc_numser);
 
 	/*
 	 * need to stop all transfers atomically, hence when clear stall

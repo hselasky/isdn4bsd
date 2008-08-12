@@ -217,7 +217,7 @@ bbb_done(struct bbb_transfer *sc, uint8_t error)
 	sc->error = error;
 	sc->state = ST_COMMAND;
 	sc->status_try = 1;
-	usb2_cv_signal(&(sc->cv));
+	usb2_cv_signal(&sc->cv);
 	return;
 }
 
@@ -277,7 +277,7 @@ bbb_command_callback(struct usb2_xfer *xfer)
 		}
 		xfer->frlengths[0] = sizeof(sc->cbw);
 
-		usb2_set_frame_data(xfer, &(sc->cbw), 0);
+		usb2_set_frame_data(xfer, &sc->cbw, 0);
 		usb2_start_hardware(xfer);
 		break;
 
@@ -416,7 +416,7 @@ bbb_status_callback(struct usb2_xfer *xfer)
 	case USB_ST_SETUP:
 		xfer->frlengths[0] = sizeof(sc->csw);
 
-		usb2_set_frame_data(xfer, &(sc->csw), 0);
+		usb2_set_frame_data(xfer, &sc->csw, 0);
 		usb2_start_hardware(xfer);
 		break;
 
@@ -460,7 +460,7 @@ bbb_command_start(struct bbb_transfer *sc, uint8_t dir, uint8_t lun,
 	usb2_transfer_start(sc->xfer[sc->state]);
 
 	while (usb2_transfer_pending(sc->xfer[sc->state])) {
-		usb2_cv_wait(&(sc->cv), &(sc->mtx));
+		usb2_cv_wait(&sc->cv, &(sc->mtx));
 	}
 	return (sc->error);
 }
@@ -516,17 +516,17 @@ usb2_test_autoinstall(struct usb2_device *udev, uint8_t iface_index)
 	if (sc == NULL) {
 		return (USB_ERR_NOMEM);
 	}
-	mtx_init(&(sc->mtx), "USB autoinstall", NULL, MTX_DEF);
-	usb2_cv_init(&(sc->cv), "WBBB");
+	mtx_init(&sc->mtx, "USB autoinstall", NULL, MTX_DEF);
+	usb2_cv_init(&sc->cv, "WBBB");
 
 	err = usb2_transfer_setup(udev,
 	    &iface_index, sc->xfer, bbb_config,
-	    ST_MAX, sc, &(sc->mtx));
+	    ST_MAX, sc, &sc->mtx);
 
 	if (err) {
 		goto done;
 	}
-	mtx_lock(&(sc->mtx));
+	mtx_lock(&sc->mtx);
 
 	timeout = 4;			/* tries */
 
@@ -549,17 +549,17 @@ repeat_inquiry:
 			return (0);
 		}
 	} else if (--timeout) {
-		usb2_pause_mtx(&(sc->mtx), USB_MS_HZ);
+		usb2_pause_mtx(&sc->mtx, USB_MS_HZ);
 		goto repeat_inquiry;
 	}
 	err = USB_ERR_INVAL;
 	goto done;
 
 done:
-	mtx_unlock(&(sc->mtx));
+	mtx_unlock(&sc->mtx);
 	usb2_transfer_unsetup(sc->xfer, ST_MAX);
-	mtx_destroy(&(sc->mtx));
-	usb2_cv_destroy(&(sc->cv));
+	mtx_destroy(&sc->mtx);
+	usb2_cv_destroy(&sc->cv);
 	free(sc, M_USB);
 	return (err);
 }

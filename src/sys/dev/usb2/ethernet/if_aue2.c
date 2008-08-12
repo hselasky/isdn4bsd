@@ -323,11 +323,11 @@ aue_cfg_do_request(struct aue_softc *sc, struct usb2_device_request *req,
 	uint16_t length;
 	usb2_error_t err;
 
-	if (usb2_config_td_is_gone(&(sc->sc_config_td))) {
+	if (usb2_config_td_is_gone(&sc->sc_config_td)) {
 		goto error;
 	}
 	err = usb2_do_request_flags
-	    (sc->sc_udev, &(sc->sc_mtx), req, data, 0, NULL, 1000);
+	    (sc->sc_udev, &sc->sc_mtx, req, data, 0, NULL, 1000);
 
 	if (err) {
 
@@ -434,7 +434,7 @@ aue_cfg_eeprom_getword(struct aue_softc *sc, uint8_t addr,
 			if (aue_cfg_csr_read_1(sc, AUE_EE_CTL) & AUE_EECTL_DONE) {
 				break;
 			}
-			if (usb2_config_td_sleep(&(sc->sc_config_td), hz / 100)) {
+			if (usb2_config_td_sleep(&sc->sc_config_td, hz / 100)) {
 				break;
 			}
 		} else {
@@ -474,10 +474,10 @@ aue_cfg_miibus_readreg(device_t dev, int phy, int reg)
 	uint8_t do_unlock;
 
 	/* avoid recursive locking */
-	if (mtx_owned(&(sc->sc_mtx))) {
+	if (mtx_owned(&sc->sc_mtx)) {
 		do_unlock = 0;
 	} else {
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		do_unlock = 1;
 	}
 
@@ -514,7 +514,7 @@ aue_cfg_miibus_readreg(device_t dev, int phy, int reg)
 			if (aue_cfg_csr_read_1(sc, AUE_PHY_CTL) & AUE_PHYCTL_DONE) {
 				break;
 			}
-			if (usb2_config_td_sleep(&(sc->sc_config_td), hz / 100)) {
+			if (usb2_config_td_sleep(&sc->sc_config_td, hz / 100)) {
 				break;
 			}
 		} else {
@@ -527,7 +527,7 @@ aue_cfg_miibus_readreg(device_t dev, int phy, int reg)
 
 done:
 	if (do_unlock) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return (i);
 }
@@ -543,10 +543,10 @@ aue_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 		return (0);
 	}
 	/* avoid recursive locking */
-	if (mtx_owned(&(sc->sc_mtx))) {
+	if (mtx_owned(&sc->sc_mtx)) {
 		do_unlock = 0;
 	} else {
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		do_unlock = 1;
 	}
 
@@ -560,7 +560,7 @@ aue_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 			if (aue_cfg_csr_read_1(sc, AUE_PHY_CTL) & AUE_PHYCTL_DONE) {
 				break;
 			}
-			if (usb2_config_td_sleep(&(sc->sc_config_td), hz / 100)) {
+			if (usb2_config_td_sleep(&sc->sc_config_td, hz / 100)) {
 				break;
 			}
 		} else {
@@ -570,7 +570,7 @@ aue_cfg_miibus_writereg(device_t dev, int phy, int reg, int data)
 	}
 
 	if (do_unlock) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return (0);
 }
@@ -583,10 +583,10 @@ aue_cfg_miibus_statchg(device_t dev)
 	uint8_t do_unlock;
 
 	/* avoid recursive locking */
-	if (mtx_owned(&(sc->sc_mtx))) {
+	if (mtx_owned(&sc->sc_mtx)) {
 		do_unlock = 0;
 	} else {
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		do_unlock = 1;
 	}
 
@@ -618,7 +618,7 @@ aue_cfg_miibus_statchg(device_t dev)
 		aue_cfg_miibus_writereg(dev, 0, 0x1b, auxmode | 0x04);
 	}
 	if (do_unlock) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return;
 }
@@ -678,7 +678,7 @@ aue_cfg_reset(struct aue_softc *sc)
 			if (!(aue_cfg_csr_read_1(sc, AUE_CTL1) & AUE_CTL1_RESETMAC)) {
 				break;
 			}
-			if (usb2_config_td_sleep(&(sc->sc_config_td), hz / 100)) {
+			if (usb2_config_td_sleep(&sc->sc_config_td, hz / 100)) {
 				break;
 			}
 		} else {
@@ -713,7 +713,7 @@ aue_cfg_reset(struct aue_softc *sc)
 		aue_cfg_reset_pegasus_II(sc);
 	}
 	/* wait a little while for the chip to get its brains in order: */
-	usb2_config_td_sleep(&(sc->sc_config_td), hz / 100);
+	usb2_config_td_sleep(&sc->sc_config_td, hz / 100);
 
 	return;
 }
@@ -766,35 +766,35 @@ aue_attach(device_t dev)
 	snprintf(sc->sc_name, sizeof(sc->sc_name), "%s",
 	    device_get_nameunit(dev));
 
-	mtx_init(&(sc->sc_mtx), "aue lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "aue lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	usb2_callout_init_mtx(&(sc->sc_watchdog),
-	    &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
+	usb2_callout_init_mtx(&sc->sc_watchdog,
+	    &sc->sc_mtx, CALLOUT_RETURNUNLOCKED);
 
 	iface_index = AUE_IFACE_IDX;
 	error = usb2_transfer_setup(uaa->device, &iface_index,
 	    sc->sc_xfer, aue_config, AUE_ENDPT_MAX,
-	    sc, &(sc->sc_mtx));
+	    sc, &sc->sc_mtx);
 	if (error) {
 		device_printf(dev, "allocating USB "
 		    "transfers failed!\n");
 		goto detach;
 	}
-	error = usb2_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
+	error = usb2_config_td_setup(&sc->sc_config_td, sc, &(sc->sc_mtx),
 	    NULL, sizeof(struct usb2_config_td_cc), 16);
 	if (error) {
 		device_printf(dev, "could not setup config "
 		    "thread!\n");
 		goto detach;
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	sc->sc_flags |= AUE_FLAG_WAIT_LINK;
 
 	/* start setup */
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &aue_cfg_first_time_setup, 0, 0);
+	    (&sc->sc_config_td, NULL, &aue_cfg_first_time_setup, 0, 0);
 
 	/* start watchdog (will exit mutex) */
 
@@ -824,11 +824,11 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 	/* get station address from the EEPROM */
 	aue_cfg_read_eeprom(sc, eaddr, 0, 3);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	ifp = if_alloc(IFT_ETHER);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (ifp == NULL) {
 		printf("%s: could not if_alloc()\n",
@@ -853,17 +853,17 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 	 * XXX need Giant when accessing the device structures !
 	 */
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	mtx_lock(&Giant);
 
-	error = mii_phy_probe(sc->sc_dev, &(sc->sc_miibus),
+	error = mii_phy_probe(sc->sc_dev, &sc->sc_miibus,
 	    &aue_ifmedia_upd_cb,
 	    &aue_ifmedia_sts_cb);
 
 	mtx_unlock(&Giant);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	/*
 	 * Do MII setup.
@@ -886,14 +886,14 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 	}
 	sc->sc_ifp = ifp;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	/*
 	 * Call MI attach routine.
 	 */
 	ether_ifattach(ifp, eaddr);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 done:
 	return;
@@ -905,17 +905,17 @@ aue_detach(device_t dev)
 	struct aue_softc *sc = device_get_softc(dev);
 	struct ifnet *ifp;
 
-	usb2_config_td_stop(&(sc->sc_config_td));
+	usb2_config_td_stop(&sc->sc_config_td);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
-	usb2_callout_stop(&(sc->sc_watchdog));
+	usb2_callout_stop(&sc->sc_watchdog);
 
 	aue_cfg_pre_stop(sc, NULL, 0);
 
 	ifp = sc->sc_ifp;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	/* stop all USB transfers first */
 	usb2_transfer_unsetup(sc->sc_xfer, AUE_ENDPT_MAX);
@@ -927,11 +927,11 @@ aue_detach(device_t dev)
 		ether_ifdetach(ifp);
 		if_free(ifp);
 	}
-	usb2_config_td_unsetup(&(sc->sc_config_td));
+	usb2_config_td_unsetup(&sc->sc_config_td);
 
-	usb2_callout_drain(&(sc->sc_watchdog));
+	usb2_callout_drain(&sc->sc_watchdog);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }
@@ -1029,7 +1029,7 @@ aue_bulk_read_callback(struct usb2_xfer *xfer)
 				ifp->if_ierrors++;
 				goto tr_setup;
 			}
-			usb2_copy_out(xfer->frbuffers, xfer->actlen - 4, &(sc->sc_rxpkt),
+			usb2_copy_out(xfer->frbuffers, xfer->actlen - 4, &sc->sc_rxpkt,
 			    sizeof(sc->sc_rxpkt));
 
 			/*
@@ -1076,9 +1076,9 @@ tr_setup:
 		 * "if_input" here, and not some lines up!
 		 */
 		if (m) {
-			mtx_unlock(&(sc->sc_mtx));
+			mtx_unlock(&sc->sc_mtx);
 			(ifp->if_input) (ifp, m);
-			mtx_lock(&(sc->sc_mtx));
+			mtx_lock(&sc->sc_mtx);
 		}
 		return;
 
@@ -1135,7 +1135,7 @@ aue_bulk_write_callback(struct usb2_xfer *xfer)
 			 */
 			goto done;
 		}
-		IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
+		IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 
 		if (m == NULL) {
 			goto done;
@@ -1255,11 +1255,11 @@ aue_start_cb(struct ifnet *ifp)
 {
 	struct aue_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	aue_start_transfers(sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -1269,10 +1269,10 @@ aue_init_cb(void *arg)
 {
 	struct aue_softc *sc = arg;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), &aue_cfg_pre_init, &aue_cfg_init, 0, 0);
-	mtx_unlock(&(sc->sc_mtx));
+	    (&sc->sc_config_td, &aue_cfg_pre_init, &aue_cfg_init, 0, 0);
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -1371,10 +1371,10 @@ aue_ifmedia_upd_cb(struct ifnet *ifp)
 {
 	struct aue_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &aue_cfg_ifmedia_upd, 0, 0);
-	mtx_unlock(&(sc->sc_mtx));
+	    (&sc->sc_config_td, NULL, &aue_cfg_ifmedia_upd, 0, 0);
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);
 }
@@ -1413,12 +1413,12 @@ aue_ifmedia_sts_cb(struct ifnet *ifp, struct ifmediareq *ifmr)
 {
 	struct aue_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	ifmr->ifm_active = sc->sc_media_active;
 	ifmr->ifm_status = sc->sc_media_status;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 	return;
 }
 
@@ -1431,34 +1431,34 @@ aue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 
 	switch (command) {
 	case SIOCSIFFLAGS:
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		if (ifp->if_flags & IFF_UP) {
 			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &aue_config_copy,
+				    (&sc->sc_config_td, &aue_config_copy,
 				    &aue_cfg_promisc_upd, 0, 0);
 			} else {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &aue_cfg_pre_init,
+				    (&sc->sc_config_td, &aue_cfg_pre_init,
 				    &aue_cfg_init, 0, 0);
 			}
 		} else {
 			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &aue_cfg_pre_stop,
+				    (&sc->sc_config_td, &aue_cfg_pre_stop,
 				    &aue_cfg_stop, 0, 0);
 			}
 		}
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		break;
 
 	case SIOCADDMULTI:
 	case SIOCDELMULTI:
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		usb2_config_td_queue_command
-		    (&(sc->sc_config_td), &aue_config_copy,
+		    (&sc->sc_config_td, &aue_config_copy,
 		    &aue_cfg_setmulti, 0, 0);
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		break;
 
 	case SIOCGIFMEDIA:
@@ -1468,7 +1468,7 @@ aue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 			error = EINVAL;
 		} else {
 			error = ifmedia_ioctl
-			    (ifp, (void *)data, &(mii->mii_media), command);
+			    (ifp, (void *)data, &mii->mii_media, command);
 		}
 		break;
 
@@ -1484,15 +1484,15 @@ aue_watchdog(void *arg)
 {
 	struct aue_softc *sc = arg;
 
-	mtx_assert(&(sc->sc_mtx), MA_OWNED);
+	mtx_assert(&sc->sc_mtx, MA_OWNED);
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &aue_cfg_tick, 0, 0);
+	    (&sc->sc_config_td, NULL, &aue_cfg_tick, 0, 0);
 
-	usb2_callout_reset(&(sc->sc_watchdog),
+	usb2_callout_reset(&sc->sc_watchdog,
 	    hz, &aue_watchdog, sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 	return;
 }
 
@@ -1554,13 +1554,13 @@ aue_shutdown(device_t dev)
 {
 	struct aue_softc *sc = device_get_softc(dev);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), &aue_cfg_pre_stop,
+	    (&sc->sc_config_td, &aue_cfg_pre_stop,
 	    &aue_cfg_stop, 0, 0);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);
 }

@@ -424,7 +424,7 @@ usb_submit_urb(struct urb *urb, uint16_t mem_flags)
 	    uhe->bsd_xfer[1]) {
 		/* we are ready! */
 
-		TAILQ_INSERT_HEAD(&(uhe->bsd_urb_list), urb, bsd_urb_list);
+		TAILQ_INSERT_HEAD(&uhe->bsd_urb_list, urb, bsd_urb_list);
 
 		urb->status = -EINPROGRESS;
 
@@ -488,7 +488,7 @@ usb_unlink_urb_sub(struct urb *urb, uint8_t drain)
 	if (urb->bsd_urb_list.tqe_prev) {
 
 		/* not started yet, just remove it from the queue */
-		TAILQ_REMOVE(&(uhe->bsd_urb_list), urb, bsd_urb_list);
+		TAILQ_REMOVE(&uhe->bsd_urb_list, urb, bsd_urb_list);
 		urb->bsd_urb_list.tqe_prev = NULL;
 		urb->status = -ECONNRESET;
 		urb->actual_length = 0;
@@ -547,7 +547,7 @@ usb_clear_halt(struct usb_device *dev, struct usb_host_endpoint *uhe)
 
 	usb2_clear_data_toggle(dev->bsd_udev, pipe);
 
-	return (usb_control_msg(dev, &(dev->ep0),
+	return (usb_control_msg(dev, &dev->ep0,
 	    UR_CLEAR_FEATURE, UT_WRITE_ENDPOINT,
 	    UF_ENDPOINT_HALT, addr, NULL, 0, 1000));
 }
@@ -582,7 +582,7 @@ usb_start_wait_urb(struct urb *urb, uint32_t timeout, uint16_t *p_actlen)
 	 */
 	while (urb->transfer_flags & URB_WAIT_WAKEUP) {
 		urb->transfer_flags |= URB_IS_SLEEPING;
-		usb2_cv_wait(&(urb->cv_wait), &Giant);
+		usb2_cv_wait(&urb->cv_wait, &Giant);
 		urb->transfer_flags &= ~URB_IS_SLEEPING;
 	}
 
@@ -785,7 +785,7 @@ usb_setup_endpoint(struct usb_device *dev,
 
 		/* Allocate and setup two generic FreeBSD USB transfers */
 
-		if (usb2_transfer_setup(dev->bsd_udev, &(uhe->bsd_iface_index),
+		if (usb2_transfer_setup(dev->bsd_udev, &uhe->bsd_iface_index,
 		    uhe->bsd_xfer, cfg, 2, uhe, &Giant)) {
 			return (-EINVAL);
 		}
@@ -805,7 +805,7 @@ usb_setup_endpoint(struct usb_device *dev,
 		cfg[0].mh.flags.proxy_buffer = 1;
 		cfg[0].mh.flags.short_xfer_ok = 1;
 
-		if (usb2_transfer_setup(dev->bsd_udev, &(uhe->bsd_iface_index),
+		if (usb2_transfer_setup(dev->bsd_udev, &uhe->bsd_iface_index,
 		    uhe->bsd_xfer, cfg, 1, uhe, &Giant)) {
 			return (-EINVAL);
 		}
@@ -871,7 +871,7 @@ usb_linux_create_usb_device(struct usb2_device *udev, device_t dev)
 				    (iface_index == 0))
 					break;
 				if (p_uhe) {
-					bcopy(ed, &(p_uhe->desc), sizeof(p_uhe->desc));
+					bcopy(ed, &p_uhe->desc, sizeof(p_uhe->desc));
 					p_uhe->bsd_iface_index = iface_index - 1;
 					p_uhe++;
 				}
@@ -886,7 +886,7 @@ usb_linux_create_usb_device(struct usb2_device *udev, device_t dev)
 				if (id->bLength < sizeof(*id))
 					break;
 				if (p_uhi) {
-					bcopy(id, &(p_uhi->desc), sizeof(p_uhi->desc));
+					bcopy(id, &p_uhi->desc, sizeof(p_uhi->desc));
 					p_uhi->desc.bNumEndpoints = 0;
 					p_uhi->endpoint = p_uhe;
 					p_uhi->string = "";
@@ -945,7 +945,7 @@ usb_linux_create_usb_device(struct usb2_device *udev, device_t dev)
 			p_ud->devnum = device_get_unit(dev);
 			bcopy(&udev->ddesc, &p_ud->descriptor,
 			    sizeof(p_ud->descriptor));
-			bcopy(udev->default_pipe.edesc, &(p_ud->ep0.desc),
+			bcopy(udev->default_pipe.edesc, &p_ud->ep0.desc,
 			    sizeof(p_ud->ep0.desc));
 		}
 	}
@@ -981,7 +981,7 @@ usb_alloc_urb(uint16_t iso_packets, uint16_t mem_flags)
 	urb = malloc(size, M_USBDEV, M_WAITOK | M_ZERO);
 	if (urb) {
 
-		usb2_cv_init(&(urb->cv_wait), "URBWAIT");
+		usb2_cv_init(&urb->cv_wait, "URBWAIT");
 		if (iso_packets == 0xFFFF) {
 			urb->setup_packet = (void *)(urb + 1);
 			urb->transfer_buffer = (void *)(urb->setup_packet +
@@ -1048,7 +1048,7 @@ usb_find_host_endpoint(struct usb_device *dev, uint8_t type, uint8_t ep)
 	}
 
 	if ((type == UE_CONTROL) && ((ep & UE_ADDR) == 0)) {
-		return (&(dev->ep0));
+		return (&dev->ep0);
 	}
 	return (NULL);
 }
@@ -1182,7 +1182,7 @@ usb_linux_free_device(struct usb_device *dev)
 		err = usb_setup_endpoint(dev, uhe, 0);
 		uhe++;
 	}
-	err = usb_setup_endpoint(dev, &(dev->ep0), 0);
+	err = usb_setup_endpoint(dev, &dev->ep0, 0);
 	free(dev, M_USBDEV);
 	return;
 }
@@ -1211,7 +1211,7 @@ usb_free_urb(struct urb *urb)
 	usb_kill_urb(urb);
 
 	/* destroy condition variable */
-	usb2_cv_destroy(&(urb->cv_wait));
+	usb2_cv_destroy(&urb->cv_wait);
 
 	/* just free it */
 	free(urb, M_USBDEV);
@@ -1299,7 +1299,7 @@ static void
 usb_linux_wait_complete(struct urb *urb)
 {
 	if (urb->transfer_flags & URB_IS_SLEEPING) {
-		usb2_cv_signal(&(urb->cv_wait));
+		usb2_cv_signal(&urb->cv_wait);
 	}
 	urb->transfer_flags &= ~URB_WAIT_WAKEUP;
 	return;
@@ -1394,12 +1394,12 @@ tr_setup:
 		if (xfer->priv_fifo == NULL) {
 
 			/* get next transfer */
-			urb = TAILQ_FIRST(&(uhe->bsd_urb_list));
+			urb = TAILQ_FIRST(&uhe->bsd_urb_list);
 			if (urb == NULL) {
 				/* nothing to do */
 				return;
 			}
-			TAILQ_REMOVE(&(uhe->bsd_urb_list), urb, bsd_urb_list);
+			TAILQ_REMOVE(&uhe->bsd_urb_list, urb, bsd_urb_list);
 			urb->bsd_urb_list.tqe_prev = NULL;
 
 			x = xfer->max_frame_count;
@@ -1554,12 +1554,12 @@ usb_linux_non_isoc_callback(struct usb2_xfer *xfer)
 	case USB_ST_SETUP:
 tr_setup:
 		/* get next transfer */
-		urb = TAILQ_FIRST(&(uhe->bsd_urb_list));
+		urb = TAILQ_FIRST(&uhe->bsd_urb_list);
 		if (urb == NULL) {
 			/* nothing to do */
 			return;
 		}
-		TAILQ_REMOVE(&(uhe->bsd_urb_list), urb, bsd_urb_list);
+		TAILQ_REMOVE(&uhe->bsd_urb_list, urb, bsd_urb_list);
 		urb->bsd_urb_list.tqe_prev = NULL;
 
 		xfer->priv_fifo = urb;

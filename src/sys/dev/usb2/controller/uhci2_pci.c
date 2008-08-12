@@ -252,7 +252,7 @@ uhci_pci_attach(device_t self)
 	}
 	/* get all DMA memory */
 
-	if (usb2_bus_mem_alloc_all(&(sc->sc_bus), USB_GET_DMA_TAG(self),
+	if (usb2_bus_mem_alloc_all(&sc->sc_bus, USB_GET_DMA_TAG(self),
 	    &uhci_iterate_hw_softc)) {
 		return ENOMEM;
 	}
@@ -320,7 +320,7 @@ uhci_pci_attach(device_t self)
 		break;
 	}
 
-	err = usb2_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_bus.mtx),
+	err = usb2_config_td_setup(&sc->sc_config_td, sc, &(sc->sc_bus.mtx),
 	    NULL, 0, 4);
 	if (err) {
 		device_printf(self, "could not setup config thread!\n");
@@ -328,10 +328,10 @@ uhci_pci_attach(device_t self)
 	}
 #if (__FreeBSD_version >= 700031)
 	err = bus_setup_intr(self, sc->sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    NULL, (void *)(void *)uhci_interrupt, sc, &(sc->sc_intr_hdl));
+	    NULL, (void *)(void *)uhci_interrupt, sc, &sc->sc_intr_hdl);
 #else
 	err = bus_setup_intr(self, sc->sc_irq_res, INTR_TYPE_BIO | INTR_MPSAFE,
-	    (void *)(void *)uhci_interrupt, sc, &(sc->sc_intr_hdl));
+	    (void *)(void *)uhci_interrupt, sc, &sc->sc_intr_hdl);
 #endif
 
 	if (err) {
@@ -374,7 +374,7 @@ uhci_pci_detach(device_t self)
 	uhci_softc_t *sc = device_get_softc(self);
 	device_t bdev;
 
-	usb2_config_td_stop(&(sc->sc_config_td));
+	usb2_config_td_stop(&sc->sc_config_td);
 
 	if (sc->sc_bus.bdev) {
 		bdev = sc->sc_bus.bdev;
@@ -417,9 +417,9 @@ uhci_pci_detach(device_t self)
 		    sc->sc_io_res);
 		sc->sc_io_res = NULL;
 	}
-	usb2_config_td_unsetup(&(sc->sc_config_td));
+	usb2_config_td_unsetup(&sc->sc_config_td);
 
-	usb2_bus_mem_free_all(&(sc->sc_bus), &uhci_iterate_hw_softc);
+	usb2_bus_mem_free_all(&sc->sc_bus, &uhci_iterate_hw_softc);
 
 	return (0);
 }

@@ -79,7 +79,7 @@ usb2_sw_transfer(struct usb2_sw_transfer *std,
 
 			if (xfer->frlengths[0] == sizeof(std->req)) {
 				usb2_copy_out(xfer->frbuffers, 0,
-				    &(std->req), sizeof(std->req));
+				    &std->req, sizeof(std->req));
 			} else {
 				std->err = USB_ERR_INVAL;
 				goto done;

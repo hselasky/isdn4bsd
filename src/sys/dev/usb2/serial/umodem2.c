@@ -377,14 +377,14 @@ umodem_attach(device_t dev)
 		sc->sc_cm_over_data = 1;
 	}
 	error = usb2_transfer_setup(uaa->device,
-	    &(sc->sc_data_iface_index), sc->sc_xfer_data,
+	    &sc->sc_data_iface_index, sc->sc_xfer_data,
 	    umodem_config_data, UMODEM_N_DATA_TRANSFER,
 	    sc, &Giant);
 	if (error) {
 		goto detach;
 	}
 	error = usb2_transfer_setup(uaa->device,
-	    &(sc->sc_ctrl_iface_index), sc->sc_xfer_intr,
+	    &sc->sc_ctrl_iface_index, sc->sc_xfer_intr,
 	    umodem_config_intr, UMODEM_N_INTR_TRANSFER,
 	    sc, &Giant);
 
@@ -396,7 +396,7 @@ umodem_attach(device_t dev)
 	sc->sc_flag |= (UMODEM_FLAG_READ_STALL |
 	    UMODEM_FLAG_WRITE_STALL);
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &umodem_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -712,7 +712,7 @@ umodem_intr_callback(struct usb2_xfer *xfer)
 			if (pkt.data[0] & UCDC_N_SERIAL_DCD) {
 				sc->sc_msr |= SER_DCD;
 			}
-			usb2_com_status_change(&(sc->sc_ucom));
+			usb2_com_status_change(&sc->sc_ucom);
 			break;
 
 		default:
@@ -768,7 +768,7 @@ umodem_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_xfer_data[2]);
 			return;
 		}
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    UMODEM_BUF_SIZE, &actlen)) {
 
 			xfer->frlengths[0] = actlen;
@@ -810,7 +810,7 @@ umodem_read_callback(struct usb2_xfer *xfer)
 
 		DPRINTF("actlen=%d\n", xfer->actlen);
 
-		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    xfer->actlen);
 
 	case USB_ST_SETUP:
@@ -881,7 +881,7 @@ umodem_detach(device_t dev)
 
 	DPRINTF("sc=%p\n", sc);
 
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer_intr, UMODEM_N_INTR_TRANSFER);
 
@@ -897,7 +897,7 @@ umodem_cfg_do_request(struct umodem_softc *sc, struct usb2_device_request *req,
 	uint16_t length;
 	usb2_error_t err;
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom))) {
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom)) {
 		goto error;
 	}
 	err = usb2_do_request_flags(sc->sc_udev, &Giant, req,

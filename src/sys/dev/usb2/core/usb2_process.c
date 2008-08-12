@@ -129,7 +129,7 @@ usb2_process(void *arg)
 		 * baud rate programming command, which then gives the
 		 * desired result.
 		 */
-		pm = TAILQ_FIRST(&(up->up_qhead));
+		pm = TAILQ_FIRST(&up->up_qhead);
 
 		if (pm) {
 			DPRINTF("Message pm=%p, cb=%p (enter)\n",
@@ -137,9 +137,9 @@ usb2_process(void *arg)
 
 			(pm->pm_callback) (pm);
 
-			if (pm == TAILQ_FIRST(&(up->up_qhead))) {
+			if (pm == TAILQ_FIRST(&up->up_qhead)) {
 				/* nothing changed */
-				TAILQ_REMOVE(&(up->up_qhead), pm, pm_qentry);
+				TAILQ_REMOVE(&up->up_qhead, pm, pm_qentry);
 				pm->pm_qentry.tqe_prev = NULL;
 			}
 			DPRINTF("Message pm=%p (leave)\n", pm);
@@ -148,14 +148,14 @@ usb2_process(void *arg)
 		}
 		if (up->up_dsleep) {
 			up->up_dsleep = 0;
-			usb2_cv_broadcast(&(up->up_drain));
+			usb2_cv_broadcast(&up->up_drain);
 		}
 		up->up_msleep = 1;
-		usb2_cv_wait(&(up->up_cv), up->up_mtx);
+		usb2_cv_wait(&up->up_cv, up->up_mtx);
 	}
 
 	up->up_ptr = NULL;
-	usb2_cv_signal(&(up->up_cv));
+	usb2_cv_signal(&up->up_cv);
 	mtx_unlock(up->up_mtx);
 
 	USB_THREAD_EXIT(0);
@@ -181,13 +181,13 @@ usb2_proc_setup(struct usb2_process *up, struct mtx *p_mtx, uint8_t prio)
 	up->up_mtx = p_mtx;
 	up->up_prio = prio;
 
-	TAILQ_INIT(&(up->up_qhead));
+	TAILQ_INIT(&up->up_qhead);
 
-	usb2_cv_init(&(up->up_cv), "WMSG");
-	usb2_cv_init(&(up->up_drain), "DMSG");
+	usb2_cv_init(&up->up_cv, "WMSG");
+	usb2_cv_init(&up->up_drain, "DMSG");
 
 	if (USB_THREAD_CREATE(&usb2_process, up,
-	    &(up->up_ptr), "USBPROC")) {
+	    &up->up_ptr, "USBPROC")) {
 		DPRINTFN(0, "Unable to create USB process.");
 		up->up_ptr = NULL;
 		goto error;
@@ -217,8 +217,8 @@ usb2_proc_unsetup(struct usb2_process *up)
 	}
 	usb2_proc_drain(up);
 
-	usb2_cv_destroy(&(up->up_cv));
-	usb2_cv_destroy(&(up->up_drain));
+	usb2_cv_destroy(&up->up_cv);
+	usb2_cv_destroy(&up->up_drain);
 
 	/* make sure that we do not enter here again */
 	up->up_mtx = NULL;
@@ -287,7 +287,7 @@ usb2_proc_msignal(struct usb2_process *up, void *_pm0, void *_pm1)
 			pm2 = pm1;
 		}
 
-		TAILQ_REMOVE(&(up->up_qhead), pm2, pm_qentry);
+		TAILQ_REMOVE(&up->up_qhead, pm2, pm_qentry);
 	} else {
 		pm2 = NULL;		/* panic - should not happen */
 	}
@@ -297,13 +297,13 @@ usb2_proc_msignal(struct usb2_process *up, void *_pm0, void *_pm1)
 	/* Put message last on queue */
 
 	pm2->pm_num = up->up_msg_num;
-	TAILQ_INSERT_TAIL(&(up->up_qhead), pm2, pm_qentry);
+	TAILQ_INSERT_TAIL(&up->up_qhead, pm2, pm_qentry);
 
 	/* Check if we need to wakeup the USB process. */
 
 	if (up->up_msleep) {
 		up->up_msleep = 0;	/* save "cv_signal()" calls */
-		usb2_cv_signal(&(up->up_cv));
+		usb2_cv_signal(&up->up_cv);
 	}
 	return (pm2);
 }
@@ -339,17 +339,17 @@ usb2_proc_mwait(struct usb2_process *up, void *_pm0, void *_pm1)
 	if (up->up_curtd == curthread) {
 		/* Just remove the messages from the queue. */
 		if (pm0->pm_qentry.tqe_prev) {
-			TAILQ_REMOVE(&(up->up_qhead), pm0, pm_qentry);
+			TAILQ_REMOVE(&up->up_qhead, pm0, pm_qentry);
 			pm0->pm_qentry.tqe_prev = NULL;
 		}
 		if (pm1->pm_qentry.tqe_prev) {
-			TAILQ_REMOVE(&(up->up_qhead), pm1, pm_qentry);
+			TAILQ_REMOVE(&up->up_qhead, pm1, pm_qentry);
 			pm1->pm_qentry.tqe_prev = NULL;
 		}
 	} else if (pm0->pm_qentry.tqe_prev ||
 	    pm1->pm_qentry.tqe_prev) {
 		up->up_dsleep = 1;
-		usb2_cv_wait(&(up->up_drain), up->up_mtx);
+		usb2_cv_wait(&up->up_drain, up->up_mtx);
 	}
 	mtx_unlock(up->up_mtx);
 	return;
@@ -387,7 +387,7 @@ usb2_proc_drain(struct usb2_process *up)
 		if (up->up_msleep || up->up_csleep) {
 			up->up_msleep = 0;
 			up->up_csleep = 0;
-			usb2_cv_signal(&(up->up_cv));
+			usb2_cv_signal(&up->up_cv);
 		}
 		/* Check if someone is waiting - should not happen */
 
@@ -401,7 +401,7 @@ usb2_proc_drain(struct usb2_process *up)
 			printf("WARNING: A USB process has been left suspended!\n");
 			break;
 		}
-		usb2_cv_wait(&(up->up_cv), up->up_mtx);
+		usb2_cv_wait(&up->up_cv, up->up_mtx);
 	}
 	mtx_unlock(up->up_mtx);
 	return;
@@ -435,10 +435,10 @@ usb2_proc_cwait(struct usb2_process *up, int timeout)
 	up->up_csleep = 1;
 
 	if (timeout == 0) {
-		usb2_cv_wait(&(up->up_cv), up->up_mtx);
+		usb2_cv_wait(&up->up_cv, up->up_mtx);
 		error = 0;
 	} else {
-		error = usb2_cv_timedwait(&(up->up_cv), up->up_mtx, timeout);
+		error = usb2_cv_timedwait(&up->up_cv, up->up_mtx, timeout);
 	}
 
 	up->up_csleep = 0;
@@ -464,7 +464,7 @@ usb2_proc_csignal(struct usb2_process *up)
 
 	if (up->up_csleep) {
 		up->up_csleep = 0;
-		usb2_cv_signal(&(up->up_cv));
+		usb2_cv_signal(&up->up_cv);
 	}
 	return;
 }

@@ -123,7 +123,7 @@ int
 usb2_lookup_id_by_uaa(const struct usb2_device_id *id, uint32_t sizeof_id,
     struct usb2_attach_arg *uaa)
 {
-	id = usb2_lookup_id_by_info(id, sizeof_id, &(uaa->info));
+	id = usb2_lookup_id_by_info(id, sizeof_id, &uaa->info);
 	if (id) {
 		/* copy driver info */
 		uaa->driver_info = id->driver_info;

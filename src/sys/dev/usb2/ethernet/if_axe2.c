@@ -300,11 +300,11 @@ axe_cfg_cmd(struct axe_softc *sc, uint16_t cmd, uint16_t index,
 	USETW(req.wIndex, index);
 	USETW(req.wLength, length);
 
-	if (usb2_config_td_is_gone(&(sc->sc_config_td))) {
+	if (usb2_config_td_is_gone(&sc->sc_config_td)) {
 		goto error;
 	}
 	err = usb2_do_request_flags
-	    (sc->sc_udev, &(sc->sc_mtx), &req, buf, 0, NULL, 1000);
+	    (sc->sc_udev, &sc->sc_mtx, &req, buf, 0, NULL, 1000);
 
 	if (err) {
 
@@ -328,10 +328,10 @@ axe_cfg_miibus_readreg(device_t dev, int phy, int reg)
 	uint8_t do_unlock;
 
 	/* avoid recursive locking */
-	if (mtx_owned(&(sc->sc_mtx))) {
+	if (mtx_owned(&sc->sc_mtx)) {
 		do_unlock = 0;
 	} else {
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		do_unlock = 1;
 	}
 
@@ -365,7 +365,7 @@ axe_cfg_miibus_readreg(device_t dev, int phy, int reg)
 	}
 done:
 	if (do_unlock) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return (val);
 }
@@ -379,10 +379,10 @@ axe_cfg_miibus_writereg(device_t dev, int phy, int reg, int val)
 	val = htole16(val);
 
 	/* avoid recursive locking */
-	if (mtx_owned(&(sc->sc_mtx))) {
+	if (mtx_owned(&sc->sc_mtx)) {
 		do_unlock = 0;
 	} else {
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		do_unlock = 1;
 	}
 
@@ -391,7 +391,7 @@ axe_cfg_miibus_writereg(device_t dev, int phy, int reg, int val)
 	axe_cfg_cmd(sc, AXE_CMD_MII_OPMODE_HW, 0, 0, NULL);
 
 	if (do_unlock) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return (0);
 }
@@ -405,10 +405,10 @@ axe_cfg_miibus_statchg(device_t dev)
 	uint8_t do_unlock;
 
 	/* avoid recursive locking */
-	if (mtx_owned(&(sc->sc_mtx))) {
+	if (mtx_owned(&sc->sc_mtx)) {
 		do_unlock = 0;
 	} else {
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		do_unlock = 1;
 	}
 
@@ -435,7 +435,7 @@ axe_cfg_miibus_statchg(device_t dev)
 	}
 	axe_cfg_cmd(sc, AXE_CMD_WRITE_MEDIA, 0, val, NULL);
 	if (do_unlock) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return;
 }
@@ -448,10 +448,10 @@ axe_ifmedia_upd_cb(struct ifnet *ifp)
 {
 	struct axe_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &axe_cfg_ifmedia_upd, 0, 0);
-	mtx_unlock(&(sc->sc_mtx));
+	    (&sc->sc_config_td, NULL, &axe_cfg_ifmedia_upd, 0, 0);
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);
 }
@@ -490,10 +490,10 @@ axe_ifmedia_sts_cb(struct ifnet *ifp, struct ifmediareq *ifmr)
 {
 	struct axe_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	ifmr->ifm_active = sc->sc_media_active;
 	ifmr->ifm_status = sc->sc_media_status;
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -548,7 +548,7 @@ axe_cfg_reset(struct axe_softc *sc)
 
 	cd = usb2_get_config_descriptor(sc->sc_udev);
 
-	err = usb2_req_set_config(sc->sc_udev, &(sc->sc_mtx),
+	err = usb2_req_set_config(sc->sc_udev, &sc->sc_mtx,
 	    cd->bConfigurationValue);
 	if (err) {
 		DPRINTF("reset failed (ignored)\n");
@@ -556,7 +556,7 @@ axe_cfg_reset(struct axe_softc *sc)
 	/*
 	 * wait a little while for the chip to get its brains in order:
 	 */
-	err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 100);
+	err = usb2_config_td_sleep(&sc->sc_config_td, hz / 100);
 
 	return;
 }
@@ -606,35 +606,35 @@ axe_attach(device_t dev)
 	snprintf(sc->sc_name, sizeof(sc->sc_name), "%s",
 	    device_get_nameunit(dev));
 
-	mtx_init(&(sc->sc_mtx), "axe lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "axe lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	usb2_callout_init_mtx(&(sc->sc_watchdog),
-	    &(sc->sc_mtx), CALLOUT_RETURNUNLOCKED);
+	usb2_callout_init_mtx(&sc->sc_watchdog,
+	    &sc->sc_mtx, CALLOUT_RETURNUNLOCKED);
 
 	iface_index = AXE_IFACE_IDX;
 	error = usb2_transfer_setup(uaa->device, &iface_index,
 	    sc->sc_xfer, axe_config, AXE_ENDPT_MAX,
-	    sc, &(sc->sc_mtx));
+	    sc, &sc->sc_mtx);
 	if (error) {
 		device_printf(dev, "allocating USB "
 		    "transfers failed!\n");
 		goto detach;
 	}
-	error = usb2_config_td_setup(&(sc->sc_config_td), sc, &(sc->sc_mtx),
+	error = usb2_config_td_setup(&sc->sc_config_td, sc, &(sc->sc_mtx),
 	    NULL, sizeof(struct usb2_config_td_cc), 16);
 	if (error) {
 		device_printf(dev, "could not setup config "
 		    "thread!\n");
 		goto detach;
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	sc->sc_flags |= AXE_FLAG_WAIT_LINK;
 
 	/* start setup */
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &axe_cfg_first_time_setup, 0, 0);
+	    (&sc->sc_config_td, NULL, &axe_cfg_first_time_setup, 0, 0);
 
 	/* start watchdog (will exit mutex) */
 
@@ -675,32 +675,32 @@ axe_cfg_ax88178_init(struct axe_softc *sc)
 	}
 
 	axe_cfg_cmd(sc, AXE_CMD_WRITE_GPIO, 0, 0x008c, NULL);
-	err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 16);
+	err = usb2_config_td_sleep(&sc->sc_config_td, hz / 16);
 
 	if ((eeprom >> 8) != 0x01) {
 		axe_cfg_cmd(sc, AXE_CMD_WRITE_GPIO, 0, 0x003c, NULL);
-		err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 32);
+		err = usb2_config_td_sleep(&sc->sc_config_td, hz / 32);
 
 		axe_cfg_cmd(sc, AXE_CMD_WRITE_GPIO, 0, 0x001c, NULL);
-		err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 3);
+		err = usb2_config_td_sleep(&sc->sc_config_td, hz / 3);
 
 		axe_cfg_cmd(sc, AXE_CMD_WRITE_GPIO, 0, 0x003c, NULL);
-		err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 32);
+		err = usb2_config_td_sleep(&sc->sc_config_td, hz / 32);
 	} else {
 		axe_cfg_cmd(sc, AXE_CMD_WRITE_GPIO, 0, 0x0004, NULL);
-		err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 32);
+		err = usb2_config_td_sleep(&sc->sc_config_td, hz / 32);
 
 		axe_cfg_cmd(sc, AXE_CMD_WRITE_GPIO, 0, 0x000c, NULL);
-		err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 32);
+		err = usb2_config_td_sleep(&sc->sc_config_td, hz / 32);
 	}
 
 	/* soft reset */
 	axe_cfg_cmd(sc, AXE_CMD_SW_RESET_REG, 0, AXE_SW_RESET_CLEAR, NULL);
-	err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 4);
+	err = usb2_config_td_sleep(&sc->sc_config_td, hz / 4);
 
 	axe_cfg_cmd(sc, AXE_CMD_SW_RESET_REG, 0,
 	    AXE_SW_RESET_PRL | AXE_178_RESET_MAGIC, NULL);
-	err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 4);
+	err = usb2_config_td_sleep(&sc->sc_config_td, hz / 4);
 
 	axe_cfg_cmd(sc, AXE_CMD_RXCTL_WRITE, 0, 0, NULL);
 	return;
@@ -714,22 +714,22 @@ axe_cfg_ax88772_init(struct axe_softc *sc)
 	DPRINTF("\n");
 
 	axe_cfg_cmd(sc, AXE_CMD_WRITE_GPIO, 0, 0x00b0, NULL);
-	err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 16);
+	err = usb2_config_td_sleep(&sc->sc_config_td, hz / 16);
 
 	if (sc->sc_phyaddrs[1] == AXE_INTPHY) {
 		/* ask for the embedded PHY */
 		axe_cfg_cmd(sc, AXE_CMD_SW_PHY_SELECT, 0, 0x01, NULL);
-		err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 64);
+		err = usb2_config_td_sleep(&sc->sc_config_td, hz / 64);
 
 		/* power down and reset state, pin reset state */
 		axe_cfg_cmd(sc, AXE_CMD_SW_RESET_REG, 0,
 		    AXE_SW_RESET_CLEAR, NULL);
-		err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 16);
+		err = usb2_config_td_sleep(&sc->sc_config_td, hz / 16);
 
 		/* power down/reset state, pin operating state */
 		axe_cfg_cmd(sc, AXE_CMD_SW_RESET_REG, 0,
 		    AXE_SW_RESET_IPPD | AXE_SW_RESET_PRL, NULL);
-		err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 4);
+		err = usb2_config_td_sleep(&sc->sc_config_td, hz / 4);
 
 		/* power up, reset */
 		axe_cfg_cmd(sc, AXE_CMD_SW_RESET_REG, 0,
@@ -741,14 +741,14 @@ axe_cfg_ax88772_init(struct axe_softc *sc)
 	} else {
 		/* ask for external PHY */
 		axe_cfg_cmd(sc, AXE_CMD_SW_PHY_SELECT, 0, 0x00, NULL);
-		err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 64);
+		err = usb2_config_td_sleep(&sc->sc_config_td, hz / 64);
 
 		/* power down internal PHY */
 		axe_cfg_cmd(sc, AXE_CMD_SW_RESET_REG, 0,
 		    AXE_SW_RESET_IPPD | AXE_SW_RESET_PRL, NULL);
 	}
 
-	err = usb2_config_td_sleep(&(sc->sc_config_td), hz / 4);
+	err = usb2_config_td_sleep(&sc->sc_config_td, hz / 4);
 	axe_cfg_cmd(sc, AXE_CMD_RXCTL_WRITE, 0, 0, NULL);
 	return;
 }
@@ -793,11 +793,11 @@ axe_cfg_first_time_setup(struct axe_softc *sc,
 	 */
 	sc->sc_phyaddrs[0] = sc->sc_phyaddrs[1] = 0xFF;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	ifp = if_alloc(IFT_ETHER);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (ifp == NULL) {
 		printf("%s: could not if_alloc()\n",
@@ -822,16 +822,16 @@ axe_cfg_first_time_setup(struct axe_softc *sc,
 	 * XXX need Giant when accessing the device structures !
 	 */
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	mtx_lock(&Giant);
 
-	error = mii_phy_probe(sc->sc_dev, &(sc->sc_miibus),
+	error = mii_phy_probe(sc->sc_dev, &sc->sc_miibus,
 	    &axe_ifmedia_upd_cb,
 	    &axe_ifmedia_sts_cb);
 	mtx_unlock(&Giant);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (error) {
 		printf("%s: MII without any PHY!\n",
@@ -841,7 +841,7 @@ axe_cfg_first_time_setup(struct axe_softc *sc,
 	}
 	sc->sc_ifp = ifp;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	/*
 	 * Call MI attach routine.
@@ -849,7 +849,7 @@ axe_cfg_first_time_setup(struct axe_softc *sc,
 
 	ether_ifattach(ifp, eaddr);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 done:
 	return;
@@ -861,9 +861,9 @@ axe_detach(device_t dev)
 	struct axe_softc *sc = device_get_softc(dev);
 	struct ifnet *ifp;
 
-	usb2_config_td_stop(&(sc->sc_config_td));
+	usb2_config_td_stop(&sc->sc_config_td);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	usb2_callout_stop(&sc->sc_watchdog);
 
@@ -871,7 +871,7 @@ axe_detach(device_t dev)
 
 	ifp = sc->sc_ifp;
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	/* stop all USB transfers first */
 	usb2_transfer_unsetup(sc->sc_xfer, AXE_ENDPT_MAX);
@@ -883,11 +883,11 @@ axe_detach(device_t dev)
 		ether_ifdetach(ifp);
 		if_free(ifp);
 	}
-	usb2_config_td_unsetup(&(sc->sc_config_td));
+	usb2_config_td_unsetup(&sc->sc_config_td);
 
-	usb2_callout_drain(&(sc->sc_watchdog));
+	usb2_callout_drain(&sc->sc_watchdog);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }
@@ -1024,7 +1024,7 @@ axe_bulk_read_callback(struct usb2_xfer *xfer)
 			m->m_pkthdr.len = m->m_len;
 
 			/* enqueue */
-			_IF_ENQUEUE(&(mq), m);
+			_IF_ENQUEUE(&mq, m);
 
 	skip:
 
@@ -1059,11 +1059,11 @@ tr_setup:
 		 */
 		if (mq.ifq_head) {
 
-			mtx_unlock(&(sc->sc_mtx));
+			mtx_unlock(&sc->sc_mtx);
 
 			while (1) {
 
-				_IF_DEQUEUE(&(mq), m);
+				_IF_DEQUEUE(&mq, m);
 
 				if (m == NULL)
 					break;
@@ -1071,7 +1071,7 @@ tr_setup:
 				(ifp->if_input) (ifp, m);
 			}
 
-			mtx_lock(&(sc->sc_mtx));
+			mtx_lock(&sc->sc_mtx);
 		}
 		return;
 
@@ -1137,7 +1137,7 @@ axe_bulk_write_callback(struct usb2_xfer *xfer)
 
 		while (1) {
 
-			IFQ_DRV_DEQUEUE(&(ifp->if_snd), m);
+			IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 
 			if (m == NULL) {
 				if (pos > 0)
@@ -1246,11 +1246,11 @@ axe_start_cb(struct ifnet *ifp)
 {
 	struct axe_softc *sc = ifp->if_softc;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	axe_start_transfers(sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -1276,10 +1276,10 @@ axe_init_cb(void *arg)
 {
 	struct axe_softc *sc = arg;
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), &axe_cfg_pre_init, &axe_cfg_init, 0, 0);
-	mtx_unlock(&(sc->sc_mtx));
+	    (&sc->sc_config_td, &axe_cfg_pre_init, &axe_cfg_init, 0, 0);
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -1391,34 +1391,34 @@ axe_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 
 	switch (command) {
 	case SIOCSIFFLAGS:
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		if (ifp->if_flags & IFF_UP) {
 			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &axe_config_copy,
+				    (&sc->sc_config_td, &axe_config_copy,
 				    &axe_cfg_promisc_upd, 0, 0);
 			} else {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &axe_cfg_pre_init,
+				    (&sc->sc_config_td, &axe_cfg_pre_init,
 				    &axe_cfg_init, 0, 0);
 			}
 		} else {
 			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 				usb2_config_td_queue_command
-				    (&(sc->sc_config_td), &axe_cfg_pre_stop,
+				    (&sc->sc_config_td, &axe_cfg_pre_stop,
 				    &axe_cfg_stop, 0, 0);
 			}
 		}
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		break;
 
 	case SIOCADDMULTI:
 	case SIOCDELMULTI:
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 		usb2_config_td_queue_command
-		    (&(sc->sc_config_td), &axe_config_copy,
+		    (&sc->sc_config_td, &axe_config_copy,
 		    &axe_cfg_setmulti, 0, 0);
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		break;
 
 	case SIOCGIFMEDIA:
@@ -1428,7 +1428,7 @@ axe_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data)
 			error = EINVAL;
 		} else {
 			error = ifmedia_ioctl
-			    (ifp, (void *)data, &(mii->mii_media), command);
+			    (ifp, (void *)data, &mii->mii_media, command);
 		}
 		break;
 
@@ -1444,15 +1444,15 @@ axe_watchdog(void *arg)
 {
 	struct axe_softc *sc = arg;
 
-	mtx_assert(&(sc->sc_mtx), MA_OWNED);
+	mtx_assert(&sc->sc_mtx, MA_OWNED);
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), NULL, &axe_cfg_tick, 0, 0);
+	    (&sc->sc_config_td, NULL, &axe_cfg_tick, 0, 0);
 
-	usb2_callout_reset(&(sc->sc_watchdog),
+	usb2_callout_reset(&sc->sc_watchdog,
 	    hz, &axe_watchdog, sc);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 	return;
 }
 
@@ -1509,13 +1509,13 @@ axe_shutdown(device_t dev)
 {
 	struct axe_softc *sc = device_get_softc(dev);
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	usb2_config_td_queue_command
-	    (&(sc->sc_config_td), &axe_cfg_pre_stop,
+	    (&sc->sc_config_td, &axe_cfg_pre_stop,
 	    &axe_cfg_stop, 0, 0);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);
 }

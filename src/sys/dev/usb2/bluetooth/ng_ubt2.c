@@ -525,12 +525,12 @@ ubt_attach(device_t dev)
 	 * Interface 0
 	 */
 
-	mtx_init(&(sc->sc_mtx), "ubt lock", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_mtx, "ubt lock", NULL, MTX_DEF | MTX_RECURSE);
 
 	iface_index = 0;
 	if (usb2_transfer_setup
 	    (uaa->device, &iface_index, sc->sc_xfer_if_0, ubt_config_if_0,
-	    UBT_IF_0_N_TRANSFER, sc, &(sc->sc_mtx))) {
+	    UBT_IF_0_N_TRANSFER, sc, &sc->sc_mtx)) {
 		device_printf(dev, "Could not allocate transfers "
 		    "for interface 0!\n");
 		goto detach;
@@ -585,7 +585,7 @@ ubt_attach(device_t dev)
 	iface_index = 1;
 	if (usb2_transfer_setup
 	    (uaa->device, &iface_index, sc->sc_xfer_if_1,
-	    isoc_setup, UBT_IF_1_N_TRANSFER, sc, &(sc->sc_mtx))) {
+	    isoc_setup, UBT_IF_1_N_TRANSFER, sc, &sc->sc_mtx)) {
 		device_printf(dev, "Could not allocate transfers "
 		    "for interface 1!\n");
 		goto detach;
@@ -650,14 +650,14 @@ ubt_detach(device_t dev)
 
 	usb2_transfer_unsetup(sc->sc_xfer_if_1, UBT_IF_1_N_TRANSFER);
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	/* destroy queues */
 
-	NG_BT_MBUFQ_DESTROY(&(sc->sc_cmdq));
-	NG_BT_MBUFQ_DESTROY(&(sc->sc_aclq));
-	NG_BT_MBUFQ_DESTROY(&(sc->sc_scoq));
-	NG_BT_MBUFQ_DESTROY(&(sc->sc_sciq));
+	NG_BT_MBUFQ_DESTROY(&sc->sc_cmdq);
+	NG_BT_MBUFQ_DESTROY(&sc->sc_aclq);
+	NG_BT_MBUFQ_DESTROY(&sc->sc_scoq);
+	NG_BT_MBUFQ_DESTROY(&sc->sc_sciq);
 
 	return (0);
 }
@@ -684,7 +684,7 @@ tr_transferred:
 
 		/* get next mbuf, if any */
 
-		NG_BT_MBUFQ_DEQUEUE(&(sc->sc_cmdq), m);
+		NG_BT_MBUFQ_DEQUEUE(&sc->sc_cmdq, m);
 
 		if (m == NULL) {
 			NG_UBT_INFO(sc, "HCI command queue is empty\n");
@@ -830,7 +830,7 @@ ubt_intr_read_complete(node_p node, hook_p hook, void *arg1, int arg2)
 	if (sc == NULL) {
 		return;
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	m = sc->sc_intr_buffer;
 
@@ -880,7 +880,7 @@ done:
 
 	usb2_transfer_start(sc->sc_xfer_if_0[2]);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -985,7 +985,7 @@ ubt_bulk_read_complete(node_p node, hook_p hook, void *arg1, int arg2)
 	if (sc == NULL) {
 		return;
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	m = sc->sc_bulk_in_buffer;
 
@@ -1037,7 +1037,7 @@ done:
 
 	usb2_transfer_start(sc->sc_xfer_if_0[1]);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -1150,7 +1150,7 @@ tr_transferred:
 					NG_UBT_INFO(sc, "got complete SCO data "
 					    "frame, length=%d\n", hdr.length);
 
-					if (!NG_BT_MBUFQ_FULL(&(sc->sc_sciq))) {
+					if (!NG_BT_MBUFQ_FULL(&sc->sc_sciq)) {
 
 						/* allocate a new mbuf */
 
@@ -1191,7 +1191,7 @@ tr_transferred:
 						m->m_pkthdr.len += xfer->frlengths[n];
 						m->m_len += xfer->frlengths[n];
 
-						NG_BT_MBUFQ_ENQUEUE(&(sc->sc_sciq), m);
+						NG_BT_MBUFQ_ENQUEUE(&sc->sc_sciq, m);
 					}
 				}
 			}
@@ -1201,7 +1201,7 @@ tr_transferred:
 	case USB_ST_SETUP:
 tr_setup:
 
-		if (NG_BT_MBUFQ_LEN(&(sc->sc_sciq)) > 0) {
+		if (NG_BT_MBUFQ_LEN(&sc->sc_sciq) > 0) {
 			ng_send_fn(sc->sc_node, NULL, ubt_isoc_read_complete, NULL, 0);
 		}
 		for (n = 0; n < xfer->nframes; n++) {
@@ -1230,11 +1230,11 @@ ubt_isoc_read_complete(node_p node, hook_p hook, void *arg1, int arg2)
 	if (sc == NULL) {
 		return;
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	while (1) {
 
-		NG_BT_MBUFQ_DEQUEUE(&(sc->sc_sciq), m);
+		NG_BT_MBUFQ_DEQUEUE(&sc->sc_sciq, m);
 
 		if (m == NULL) {
 			break;
@@ -1262,7 +1262,7 @@ done:
 		}
 	}
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return;
 }
@@ -1353,7 +1353,7 @@ ng_ubt_shutdown(node_p node)
 	if (sc == NULL) {
 		goto done;
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	/* Create Netgraph node */
 	if (ng_make_node_common(&typestruct, &sc->sc_node) != 0) {
@@ -1375,7 +1375,7 @@ ng_ubt_shutdown(node_p node)
 
 done:
 	if (sc) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return (0);
 }
@@ -1394,7 +1394,7 @@ ng_ubt_newhook(node_p node, hook_p hook, char const *name)
 	if (strcmp(name, NG_UBT_HOOK) != 0) {
 		return (EINVAL);
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (sc->sc_hook != NULL) {
 		error = EISCONN;
@@ -1402,7 +1402,7 @@ ng_ubt_newhook(node_p node, hook_p hook, char const *name)
 		sc->sc_hook = hook;
 	}
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (error);
 }
@@ -1419,7 +1419,7 @@ ng_ubt_connect(hook_p hook)
 
 	NG_HOOK_FORCE_QUEUE(NG_HOOK_PEER(hook));
 
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	sc->sc_flags |= (UBT_FLAG_READ_STALL |
 	    UBT_FLAG_WRITE_STALL |
@@ -1449,7 +1449,7 @@ ng_ubt_connect(hook_p hook)
 	usb2_transfer_start(sc->sc_xfer_if_1[3]);
 #endif
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (0);
 }
@@ -1466,7 +1466,7 @@ ng_ubt_disconnect(hook_p hook)
 
 	if (sc != NULL) {
 
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 
 		if (hook != sc->sc_hook) {
 			error = EINVAL;
@@ -1504,7 +1504,7 @@ ng_ubt_disconnect(hook_p hook)
 			sc->sc_hook = NULL;
 		}
 
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return (error);
 }
@@ -1525,7 +1525,7 @@ ng_ubt_rcvmsg(node_p node, item_p item, hook_p lasthook)
 		NG_FREE_ITEM(item);
 		return (EHOSTDOWN);
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	NGI_GET_MSG(item, msg);
 
@@ -1688,7 +1688,7 @@ ng_ubt_rcvmsg(node_p node, item_p item, hook_p lasthook)
 	NG_RESPOND_MSG(error, node, item, rsp);
 	NG_FREE_MSG(msg);
 
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 
 	return (error);
 }
@@ -1710,7 +1710,7 @@ ng_ubt_rcvdata(hook_p hook, item_p item)
 		error = EHOSTDOWN;
 		goto done;
 	}
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 
 	if (hook != sc->sc_hook) {
 		error = EINVAL;
@@ -1767,7 +1767,7 @@ done:
 	NG_FREE_ITEM(item);
 
 	if (sc) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 	return (error);
 }

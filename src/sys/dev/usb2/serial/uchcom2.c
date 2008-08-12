@@ -378,7 +378,7 @@ uchcom_attach(device_t dev)
 	sc->sc_flag |= (UCHCOM_FLAG_READ_STALL |
 	    UCHCOM_FLAG_WRITE_STALL);
 
-	error = usb2_com_attach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
 	    &uchcom_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -397,7 +397,7 @@ uchcom_detach(device_t dev)
 
 	DPRINTFN(11, "\n");
 
-	usb2_com_detach(&(sc->sc_super_ucom), &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UCHCOM_N_TRANSFER);
 
@@ -419,7 +419,7 @@ uchcom_do_request(struct uchcom_softc *sc,
 	length = UGETW(req->wLength);
 	actlen = 0;
 
-	if (usb2_com_cfg_is_gone(&(sc->sc_ucom))) {
+	if (usb2_com_cfg_is_gone(&sc->sc_ucom)) {
 		goto done;
 	}
 	err = usb2_do_request_flags(sc->sc_udev, &Giant, req,
@@ -939,7 +939,7 @@ uchcom_write_callback(struct usb2_xfer *xfer)
 			usb2_transfer_start(sc->sc_xfer[2]);
 			return;
 		}
-		if (usb2_com_get_data(&(sc->sc_ucom), xfer->frbuffers, 0,
+		if (usb2_com_get_data(&sc->sc_ucom, xfer->frbuffers, 0,
 		    UCHCOM_BULK_BUF_SIZE, &actlen)) {
 
 			DPRINTF("actlen = %d\n", actlen);
@@ -980,7 +980,7 @@ uchcom_read_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		usb2_com_put_data(&(sc->sc_ucom), xfer->frbuffers, 0, xfer->actlen);
+		usb2_com_put_data(&sc->sc_ucom, xfer->frbuffers, 0, xfer->actlen);
 
 	case USB_ST_SETUP:
 		if (sc->sc_flag & UCHCOM_FLAG_READ_STALL) {

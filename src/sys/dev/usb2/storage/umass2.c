@@ -1422,7 +1422,7 @@ umass_attach(device_t dev)
 
 	device_set_usb2_desc(dev);
 
-	mtx_init(&(sc->sc_mtx), "UMASS lock", NULL, (MTX_DEF | MTX_RECURSE));
+	mtx_init(&sc->sc_mtx, "UMASS lock", NULL, (MTX_DEF | MTX_RECURSE));
 
 	/* get interface index */
 
@@ -1491,8 +1491,8 @@ umass_attach(device_t dev)
 	if (sc->sc_proto & UMASS_PROTO_BBB) {
 
 		err = usb2_transfer_setup(uaa->device,
-		    &(uaa->info.bIfaceIndex), sc->sc_xfer, umass_bbb_config,
-		    UMASS_T_BBB_MAX, sc, &(sc->sc_mtx));
+		    &uaa->info.bIfaceIndex, sc->sc_xfer, umass_bbb_config,
+		    UMASS_T_BBB_MAX, sc, &sc->sc_mtx);
 
 		/* skip reset first time */
 		sc->sc_last_xfer_index = UMASS_T_BBB_COMMAND;
@@ -1500,10 +1500,10 @@ umass_attach(device_t dev)
 	} else if (sc->sc_proto & (UMASS_PROTO_CBI | UMASS_PROTO_CBI_I)) {
 
 		err = usb2_transfer_setup(uaa->device,
-		    &(uaa->info.bIfaceIndex), sc->sc_xfer, umass_cbi_config,
+		    &uaa->info.bIfaceIndex, sc->sc_xfer, umass_cbi_config,
 		    (sc->sc_proto & UMASS_PROTO_CBI_I) ?
 		    UMASS_T_CBI_MAX : (UMASS_T_CBI_MAX - 2), sc,
-		    &(sc->sc_mtx));
+		    &sc->sc_mtx);
 
 		/* skip reset first time */
 		sc->sc_last_xfer_index = UMASS_T_CBI_COMMAND;
@@ -1576,15 +1576,15 @@ umass_detach(device_t dev)
 	usb2_transfer_unsetup(sc->sc_xfer, UMASS_T_MAX);
 
 #if (__FreeBSD_version >= 700037)
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 #endif
 	umass_cam_detach_sim(sc);
 
 #if (__FreeBSD_version >= 700037)
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 #endif
 
-	mtx_destroy(&(sc->sc_mtx));
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);			/* success */
 }
@@ -1650,7 +1650,7 @@ umass_cancel_ccb(struct umass_softc *sc)
 {
 	union ccb *ccb;
 
-	mtx_assert(&(sc->sc_mtx), MA_OWNED);
+	mtx_assert(&sc->sc_mtx, MA_OWNED);
 
 	ccb = sc->sc_transfer.ccb;
 	sc->sc_transfer.ccb = NULL;
@@ -1841,7 +1841,7 @@ umass_t_bbb_command_callback(struct usb2_xfer *xfer)
 
 			DIF(UDMASS_BBB, umass_bbb_dump_cbw(sc, &sc->cbw));
 
-			usb2_copy_in(xfer->frbuffers, 0, &(sc->cbw), sizeof(sc->cbw));
+			usb2_copy_in(xfer->frbuffers, 0, &sc->cbw, sizeof(sc->cbw));
 
 			xfer->frlengths[0] = sizeof(sc->cbw);
 			usb2_start_hardware(xfer);
@@ -1991,11 +1991,11 @@ umass_t_bbb_status_callback(struct usb2_xfer *xfer)
 		/* Zero missing parts of the CSW: */
 
 		if (xfer->actlen < sizeof(sc->csw)) {
-			bzero(&(sc->csw), sizeof(sc->csw));
+			bzero(&sc->csw, sizeof(sc->csw));
 		}
-		usb2_copy_out(xfer->frbuffers, 0, &(sc->csw), xfer->actlen);
+		usb2_copy_out(xfer->frbuffers, 0, &sc->csw, xfer->actlen);
 
-		DIF(UDMASS_BBB, umass_bbb_dump_csw(sc, &(sc->csw)));
+		DIF(UDMASS_BBB, umass_bbb_dump_csw(sc, &sc->csw));
 
 		residue = UGETDW(sc->csw.dCSWDataResidue);
 
@@ -2488,7 +2488,7 @@ umass_t_cbi_status_callback(struct usb2_xfer *xfer)
 		if (xfer->actlen < sizeof(sc->sbl)) {
 			goto tr_setup;
 		}
-		usb2_copy_out(xfer->frbuffers, 0, &(sc->sbl), sizeof(sc->sbl));
+		usb2_copy_out(xfer->frbuffers, 0, &sc->sbl, sizeof(sc->sbl));
 
 		residue = (sc->sc_transfer.data_len -
 		    sc->sc_transfer.actlen);
@@ -2590,7 +2590,7 @@ umass_cam_attach_sim(struct umass_softc *sc)
 	    sc /* priv */ ,
 	    sc->sc_unit /* unit number */ ,
 #if (__FreeBSD_version >= 700037)
-	    &(sc->sc_mtx) /* mutex */ ,
+	    &sc->sc_mtx /* mutex */ ,
 #endif
 	    1 /* maximum device openings */ ,
 	    0 /* maximum tagged device openings */ ,
@@ -2601,25 +2601,25 @@ umass_cam_attach_sim(struct umass_softc *sc)
 		return (ENOMEM);
 	}
 #if (__FreeBSD_version >= 700037)
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 #endif
 
 #if (__FreeBSD_version >= 700048)
 	if (xpt_bus_register(sc->sc_sim, sc->sc_dev, sc->sc_unit) != CAM_SUCCESS) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 		return (ENOMEM);
 	}
 #else
 	if (xpt_bus_register(sc->sc_sim, sc->sc_unit) != CAM_SUCCESS) {
 #if (__FreeBSD_version >= 700037)
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 #endif
 		return (ENOMEM);
 	}
 #endif
 
 #if (__FreeBSD_version >= 700037)
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 #endif
 	return (0);
 }
@@ -2662,14 +2662,14 @@ umass_cam_rescan(struct umass_softc *sc)
 		return;
 	}
 #if (__FreeBSD_version >= 700037)
-	mtx_lock(&(sc->sc_mtx));
+	mtx_lock(&sc->sc_mtx);
 #endif
 
 	if (xpt_create_path(&path, xpt_periph, cam_sim_path(sc->sc_sim),
 	    CAM_TARGET_WILDCARD, CAM_LUN_WILDCARD)
 	    != CAM_REQ_CMP) {
 #if (__FreeBSD_version >= 700037)
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 #endif
 		free(ccb, M_USBDEV);
 		return;
@@ -2681,7 +2681,7 @@ umass_cam_rescan(struct umass_softc *sc)
 	xpt_action(ccb);
 
 #if (__FreeBSD_version >= 700037)
-	mtx_unlock(&(sc->sc_mtx));
+	mtx_unlock(&sc->sc_mtx);
 #endif
 
 	/* The scan is in progress now. */
@@ -2745,7 +2745,7 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 
 	if (sc) {
 #if (__FreeBSD_version < 700037)
-		mtx_lock(&(sc->sc_mtx));
+		mtx_lock(&sc->sc_mtx);
 #endif
 	}
 	/*
@@ -2864,7 +2864,7 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 					    (sc->sc_transfer.cmd_data[1] & SI_EVPD)) {
 						struct scsi_sense_data *sense;
 
-						sense = &(ccb->csio.sense_data);
+						sense = &ccb->csio.sense_data;
 						bzero(sense, sizeof(*sense));
 						sense->error_code = SSD_CURRENT_ERROR;
 						sense->flags = SSD_KEY_ILLEGAL_REQUEST;
@@ -3029,7 +3029,7 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 done:
 #if (__FreeBSD_version < 700037)
 	if (sc) {
-		mtx_unlock(&(sc->sc_mtx));
+		mtx_unlock(&sc->sc_mtx);
 	}
 #endif
 	return;
@@ -3084,14 +3084,14 @@ umass_cam_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue,
 		DPRINTF(sc, UDMASS_SCSI, "Fetching %d bytes of "
 		    "sense data\n", ccb->csio.sense_len);
 
-		if (umass_std_transform(sc, ccb, &(sc->cam_scsi_sense.opcode),
+		if (umass_std_transform(sc, ccb, &sc->cam_scsi_sense.opcode,
 		    sizeof(sc->cam_scsi_sense))) {
 
 			if ((sc->sc_quirks & FORCE_SHORT_INQUIRY) &&
 			    (sc->sc_transfer.cmd_data[0] == INQUIRY)) {
 				ccb->csio.sense_len = SHORT_INQUIRY_LENGTH;
 			}
-			umass_command_start(sc, DIR_IN, &(ccb->csio.sense_data.error_code),
+			umass_command_start(sc, DIR_IN, &ccb->csio.sense_data.error_code,
 			    ccb->csio.sense_len, ccb->ccb_h.timeout,
 			    &umass_cam_sense_cb, ccb);
 		}
@@ -3176,7 +3176,7 @@ umass_cam_sense_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue,
 			/* the rest of the command was filled in at attach */
 
 			if (umass_std_transform(sc, ccb,
-			    &(sc->cam_scsi_test_unit_ready.opcode),
+			    &sc->cam_scsi_test_unit_ready.opcode,
 			    sizeof(sc->cam_scsi_test_unit_ready))) {
 				umass_command_start(sc, DIR_NONE, NULL, 0,
 				    ccb->ccb_h.timeout,

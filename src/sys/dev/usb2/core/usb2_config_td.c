@@ -86,7 +86,7 @@ usb2_config_td_setup(struct usb2_config_td *ctd, void *priv_sc,
 	if (ctd->p_msgs == NULL) {
 		return (1);
 	}
-	if (usb2_proc_setup(&(ctd->usb2_proc), priv_mtx, USB_PRI_MED)) {
+	if (usb2_proc_setup(&ctd->usb2_proc, priv_mtx, USB_PRI_MED)) {
 		free(ctd->p_msgs, M_USBDEV);
 		ctd->p_msgs = NULL;
 		return (1);
@@ -115,7 +115,7 @@ usb2_config_td_stop(struct usb2_config_td *ctd)
 {
 	DPRINTF("\n");
 	if (ctd->p_msgs) {
-		usb2_proc_drain(&(ctd->usb2_proc));
+		usb2_proc_drain(&ctd->usb2_proc);
 	}
 	return;
 }
@@ -134,7 +134,7 @@ usb2_config_td_unsetup(struct usb2_config_td *ctd)
 	usb2_config_td_stop(ctd);
 
 	if (ctd->p_msgs) {
-		usb2_proc_unsetup(&(ctd->usb2_proc));
+		usb2_proc_unsetup(&ctd->usb2_proc);
 		free(ctd->p_msgs, M_USBDEV);
 		ctd->p_msgs = NULL;
 	}
@@ -208,7 +208,7 @@ usb2_config_td_queue_command(struct usb2_config_td *ctd,
 	 * We have two message structures. One of them will get
 	 * queued:
 	 */
-	pi = usb2_proc_msignal(&(ctd->usb2_proc), pi_0, pi_1);
+	pi = usb2_proc_msignal(&ctd->usb2_proc, pi_0, pi_1);
 
 	/*
 	 * The job of the post-command function is to finish the command in
@@ -239,7 +239,7 @@ usb2_config_td_queue_command(struct usb2_config_td *ctd,
 uint8_t
 usb2_config_td_is_gone(struct usb2_config_td *ctd)
 {
-	return (usb2_proc_is_gone(&(ctd->usb2_proc)));
+	return (usb2_proc_is_gone(&ctd->usb2_proc));
 }
 
 /*------------------------------------------------------------------------*
