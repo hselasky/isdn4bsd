@@ -125,9 +125,9 @@ device_set_usb2_desc(device_t dev)
  *	 usb2_pause_mtx - factored out code
  *
  * This function will delay the code by the passed number of
- * milliseconds. The passed mutex "mtx" will be dropped while
- * waiting. The number of milliseconds per second is 1024 for sake of
- * optimisation.
+ * milliseconds. The passed mutex "mtx" will be dropped while waiting,
+ * if "mtx" is not NULL. The number of milliseconds per second is 1024
+ * for sake of optimisation.
  *------------------------------------------------------------------------*/
 void
 usb2_pause_mtx(struct mtx *mtx, uint32_t ms)
@@ -145,12 +145,14 @@ usb2_pause_mtx(struct mtx *mtx, uint32_t ms)
 		 */
 		ms++;
 
-		mtx_unlock(mtx);
+		if (mtx != NULL)
+			mtx_unlock(mtx);
 
 		if (pause("USBWAIT", ms)) {
 			/* ignore */
 		}
-		mtx_lock(mtx);
+		if (mtx != NULL)
+			mtx_lock(mtx);
 	}
 	return;
 }

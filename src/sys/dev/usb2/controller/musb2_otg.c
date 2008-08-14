@@ -238,11 +238,7 @@ musbotg_wakeup_peer(struct usb2_xfer *xfer)
 		DELAY(10000);
 	} else {
 		/* Wait for reset to complete. */
-		if (usb2_config_td_sleep
-		    (&sc->sc_config_td,
-		    (hz / 100))) {
-			/* ignore */
-		}
+		usb2_pause_mtx(&sc->sc_bus.mtx, 10);
 	}
 
 	temp = MUSB2_READ_1(sc, MUSB2_REG_POWER);
@@ -1514,7 +1510,7 @@ musbotg_init(struct musbotg_softc *sc)
 		(sc->sc_clocks_on) (sc->sc_clocks_arg);
 	}
 	/* wait a little for things to stabilise */
-	DELAY(1000);
+	usb2_pause_mtx(&sc->sc_bus.mtx, 1);
 
 	/* disable and clear all interrupts */
 
@@ -1536,8 +1532,7 @@ musbotg_init(struct musbotg_softc *sc)
 	musbotg_pull_common(sc, 0);
 
 	/* wait a little bit (10ms) */
-
-	DELAY(10000);
+	usb2_pause_mtx(&sc->sc_bus.mtx, 10);
 
 	/* enable double packet buffering */
 

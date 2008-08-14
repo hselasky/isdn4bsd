@@ -1427,7 +1427,7 @@ at91dci_init(struct at91dci_softc *sc)
 		(sc->sc_clocks_on) (sc->sc_clocks_arg);
 	}
 	/* wait a little for things to stabilise */
-	DELAY(1000);
+	usb2_pause_mtx(&sc->sc_bus.mtx, 1);
 
 	/* disable and clear all interrupts */
 

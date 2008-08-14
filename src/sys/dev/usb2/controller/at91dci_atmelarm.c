@@ -128,7 +128,7 @@ static int
 at91_udp_probe(device_t dev)
 {
 	device_set_desc(dev, "AT91 integrated AT91_UDP controller");
-	return (BUS_PROBE_DEFAULT);
+	return (0);
 }
 
 static int
@@ -174,8 +174,7 @@ at91_udp_attach(device_t dev)
 	at91_udp_pull_down(sc);
 
 	/* wait 10ms for pulldown to stabilise */
-
-	DELAY(10000);
+	usb2_pause_mtx(NULL, 10);
 
 	sc->sc_iclk = at91_pmc_clock_ref("udc_clk");
 	sc->sc_fclk = at91_pmc_clock_ref("udpck");

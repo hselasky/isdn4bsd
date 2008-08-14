@@ -453,7 +453,7 @@ ehci_pci_takecontroller(device_t self)
 		    "to give up control\n");
 		pci_write_config(self, eecp +
 		    EHCI_LEGSUP_OS_SEM, 1, 1);
-		to = 5000;
+		to = 500;
 		while (1) {
 			bios_sem = pci_read_config(self, eecp +
 			    EHCI_LEGSUP_BIOS_SEM, 1);
@@ -465,7 +465,7 @@ ehci_pci_takecontroller(device_t self)
 				    "timed out waiting for BIOS\n");
 				break;
 			}
-			DELAY(1000);
+			usb2_pause_mtx(NULL, 10);	/* wait 10ms */
 		}
 	}
 	return;

@@ -161,7 +161,7 @@ ehci_hc_reset(ehci_softc_t *sc)
 	EOWRITE4(sc, EHCI_USBCMD, 0);	/* Halt controller */
 
 	for (n = 0; n != 100; n++) {
-		DELAY(1000 * 1);
+		usb2_pause_mtx(&sc->sc_bus.mtx, 1);
 		hcr = EOREAD4(sc, EHCI_USBSTS);
 		if (hcr & EHCI_STS_HCH) {
 			hcr = 0;
@@ -177,7 +177,7 @@ ehci_hc_reset(ehci_softc_t *sc)
 
 	EOWRITE4(sc, EHCI_USBCMD, EHCI_CMD_HCRESET);
 	for (n = 0; n != 100; n++) {
-		DELAY(1000 * 1);
+		usb2_pause_mtx(&sc->sc_bus.mtx, 1);
 		hcr = EOREAD4(sc, EHCI_USBCMD);
 		if (!(hcr & EHCI_CMD_HCRESET)) {
 			hcr = 0;
@@ -462,7 +462,7 @@ ehci_init(ehci_softc_t *sc)
 	EOWRITE4(sc, EHCI_CONFIGFLAG, EHCI_CONF_CF);
 
 	for (i = 0; i < 100; i++) {
-		DELAY(1000 * 1);
+		usb2_pause_mtx(&sc->sc_bus.mtx, 1);
 		hcr = EOREAD4(sc, EHCI_USBSTS) & EHCI_STS_HCH;
 		if (!hcr) {
 			break;
@@ -498,9 +498,10 @@ ehci_detach(struct ehci_softc *sc)
 	if (ehci_hc_reset(sc)) {
 		DPRINTF("reset failed!\n");
 	}
-	mtx_unlock(&sc->sc_bus.mtx);
+	/* XXX let stray task complete */
+	usb2_pause_mtx(&sc->sc_bus.mtx, 50);
 
-	DELAY(1000 * 300);		/* XXX let stray task complete */
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	usb2_callout_drain(&sc->sc_tmo_pcd);
 
@@ -537,7 +538,7 @@ ehci_suspend(struct ehci_softc *sc)
 		if (hcr == 0) {
 			break;
 		}
-		DELAY(1000 * 1);
+		usb2_pause_mtx(&sc->sc_bus.mtx, 1);
 	}
 
 	if (hcr != 0) {
@@ -551,7 +552,7 @@ ehci_suspend(struct ehci_softc *sc)
 		if (hcr == EHCI_STS_HCH) {
 			break;
 		}
-		DELAY(1000 * 1);
+		usb2_pause_mtx(&sc->sc_bus.mtx, 1);
 	}
 
 	if (hcr != EHCI_STS_HCH) {
@@ -595,7 +596,8 @@ ehci_resume(struct ehci_softc *sc)
 	}
 
 	if (hcr) {
-		DELAY(1000 * USB_RESUME_WAIT);
+		usb2_pause_mtx(&sc->sc_bus.mtx,
+		    USB_RESUME_WAIT);
 
 		for (i = 1; i <= sc->sc_noport; i++) {
 			cmd = EOREAD4(sc, EHCI_PORTSC(i));
@@ -613,14 +615,15 @@ ehci_resume(struct ehci_softc *sc)
 		if (hcr != EHCI_STS_HCH) {
 			break;
 		}
-		DELAY(1000 * 1);
+		usb2_pause_mtx(&sc->sc_bus.mtx, 1);
 	}
 	if (hcr == EHCI_STS_HCH) {
 		device_printf(sc->sc_bus.bdev, "config timeout\n");
 	}
-	mtx_unlock(&sc->sc_bus.mtx);
+	usb2_pause_mtx(&sc->sc_bus.mtx,
+	    USB_RESUME_WAIT);
 
-	DELAY(1000 * USB_RESUME_WAIT);
+	mtx_unlock(&sc->sc_bus.mtx);
 
 	/* catch any lost interrupts */
 	ehci_do_poll(&sc->sc_bus);
@@ -3357,9 +3360,8 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 				DELAY(USB_PORT_ROOT_RESET_DELAY * 1000);
 			} else {
 				/* Wait for reset to complete. */
-				l = usb2_config_td_sleep
-				    (&sc->sc_config_td,
-				    (hz * USB_PORT_ROOT_RESET_DELAY) / 1000);
+				usb2_pause_mtx(&sc->sc_bus.mtx,
+				    USB_PORT_ROOT_RESET_DELAY);
 			}
 
 			/* Terminate reset sequence. */
@@ -3370,9 +3372,8 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 				DELAY(EHCI_PORT_RESET_COMPLETE * 1000);
 			} else {
 				/* Wait for HC to complete reset. */
-				l = usb2_config_td_sleep
-				    (&sc->sc_config_td,
-				    (hz * EHCI_PORT_RESET_COMPLETE) / 1000);
+				usb2_pause_mtx(&sc->sc_bus.mtx,
+				    EHCI_PORT_RESET_COMPLETE);
 			}
 
 			v = EOREAD4(sc, port);

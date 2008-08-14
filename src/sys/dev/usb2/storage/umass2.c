@@ -124,7 +124,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/umass.c,v 1.162 2008/02/21 19:07:08 remko Ex
 
 #include <cam/cam_periph.h>
 
-#if 0
+#if 1
 /* this enables loading of virtual buffers into DMA */
 #define	UMASS_USB_FLAGS .ext_buffer=1,
 #else
