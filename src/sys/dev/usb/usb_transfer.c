@@ -754,7 +754,7 @@ usbd_transfer_setup_sub(struct usbd_setup_params *parm)
 
 			usbd_set_frame_offset(xfer, 0, 0);
 
-			if (type == UE_CONTROL) {
+			if ((type == UE_CONTROL) && (n_frbuffers > 1)) {
 				usbd_set_frame_offset(xfer, REQ_SIZE, 1);
 			}
 		}
