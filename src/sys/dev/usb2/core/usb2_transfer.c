@@ -529,7 +529,7 @@ usb2_transfer_setup_sub(struct usb2_setup_params *parm)
 
 			usb2_set_frame_offset(xfer, 0, 0);
 
-			if (type == UE_CONTROL) {
+			if ((type == UE_CONTROL) && (n_frbuffers > 1)) {
 				usb2_set_frame_offset(xfer, REQ_SIZE, 1);
 			}
 		}

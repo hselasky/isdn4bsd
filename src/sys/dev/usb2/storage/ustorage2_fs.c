@@ -983,7 +983,11 @@ ustorage_fs_inquiry(struct ustorage_fs_softc *sc)
 	buf[4] = 31;
 	/* Additional length */
 	/* No special options */
-	sprintf(buf + 8, "%-8s%-16s%04x", vendor_id, product_id,
+	/*
+	 * NOTE: We are writing an extra zero here, that is not
+	 * transferred to the peer:
+	 */
+	snprintf(buf + 8, 28 + 1, "%-8s%-16s%04x", vendor_id, product_id,
 	    USTORAGE_FS_RELEASE);
 	return (ustorage_fs_min_len(sc, 36, 0 - 1));
 }
