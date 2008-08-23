@@ -1013,6 +1013,9 @@ ugen_fs_get_complete(struct usb2_fifo *f, uint8_t *pindex)
 
 		return (0);		/* success */
 	} else {
+
+		*pindex = 0;		/* fix compiler warning */
+
 		f->flag_iscomplete = 0;
 	}
 	return (1);			/* failure */
