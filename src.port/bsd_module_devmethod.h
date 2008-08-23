@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Tue Aug 12 19:22:05 CEST 2008
+ * Date: Sat Aug 23 11:33:38 CEST 2008
  */
 #define BUS_ALLOC_RESOURCE(dev, ...) \
   (((bus_alloc_resource_t *)(device_get_method(dev, "bus_alloc_resource")))(dev,## __VA_ARGS__))

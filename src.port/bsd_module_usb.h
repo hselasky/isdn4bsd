@@ -27,7 +27,7 @@
 
 #define	USB_NO_POLL 1
 #define	USB_USE_CONDVAR 1
-#define	USB_DEBUG 0
+#define	USB_DEBUG 1
 
 #define	USB_TD_GET_RUID(td) UID_ROOT
 #define	USB_TD_GET_RGID(td) GID_OPERATOR

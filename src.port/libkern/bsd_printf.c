@@ -25,6 +25,7 @@
 
 #include <bsd_module_all.h>
 
+#ifdef printf
 int
 printf(const char *fmt,...)
 {
@@ -36,6 +37,26 @@ printf(const char *fmt,...)
 	va_end(ap);
 	return (retval);
 }
+
+#endif
+
+#ifdef vprintf
+int
+vprintf(const char *fmt, va_list ap)
+{
+	int val;
+	char buf[128];
+
+	va_start(ap, fmt);
+	val = vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+
+	printf("%s", buf);
+
+	return (val);
+}
+
+#endif
 
 int
 snprintf(char *dst, size_t size, const char *fmt,...)

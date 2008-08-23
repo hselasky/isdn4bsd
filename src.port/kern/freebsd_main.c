@@ -88,12 +88,12 @@ do_sysinit(const struct sysinit **ppstart,
 
 				if ((temp1 == level_first) &&
 				    (temp2 == order_first)) {
-#if 0
+#if 1
 					printf("calling %p(%p) @ %s:%d:\n",
 					    sys->func, sys->udata,
 					    sys->file, sys->line);
 #endif
-					(sys->func) (sys->udata);
+					(sys->func) (__DECONST(void *, sys->udata));
 				}
 				if ((temp1 > level_first) &&
 				    (temp1 < level_next)) {
@@ -125,6 +125,9 @@ bsd_load_module(void)
 	do_sysinit(sysinit_load, sysinit_load +
 	    (sizeof(sysinit_load) / sizeof(sysinit_load[0])),
 	    0, 0 - 1);
+
+	printf("BSD Module Load Complete\n");
+
 	return (0);			/* XXX success */
 }
 
@@ -134,5 +137,8 @@ bsd_unload_module(void)
 	do_sysinit(sysinit_unload, sysinit_unload +
 	    (sizeof(sysinit_unload) / sizeof(sysinit_unload[0])),
 	    0, 0 - 1);
+
+	printf("BSD Module Unload Complete\n");
+
 	return (0);			/* XXX success */
 }

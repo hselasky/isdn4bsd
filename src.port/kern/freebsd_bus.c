@@ -108,7 +108,7 @@ bus_generic_driver_added(device_t dev, driver_t *driver)
 struct resource *
 bus_alloc_resource_any(device_t dev, int type, int *rid, uint32_t flags)
 {
-	return (0);
+	return (bus_alloc_resource(dev, type, rid, 0, 0 - 1, 1, flags));
 }
 
 uint32_t
@@ -177,7 +177,7 @@ device_set_flags(device_t dev, uint32_t flags)
 }
 
 bus_dma_tag_t
-device_get_dma_tag(device_t dev)
+bus_get_dma_tag(device_t dev)
 {
 	return ((dev) ? (dev->dev_dma_tag) : NULL);
 }
@@ -589,6 +589,10 @@ device_add_child_ordered(device_t dev, int order, const char *name, int unit)
 	}
 	child->dev_order = order;
 
+	if (dev == NULL) {
+		/* no parent */
+		goto done;
+	}
 	TAILQ_FOREACH(place, &dev->dev_children, dev_link) {
 		if (place->dev_order > order) {
 			break;
@@ -625,6 +629,10 @@ device_delete_child(device_t dev, device_t child)
 	int error = 0;
 	device_t grandchild;
 
+	if (dev != device_get_parent(child)) {
+		device_printf(dev, "WARNING: Trying to delete "
+		    "non-parenting child!\n");
+	}
 	/* remove children first */
 
 	while ((grandchild = TAILQ_FIRST(&child->dev_children))) {
@@ -640,8 +648,10 @@ device_delete_child(device_t dev, device_t child)
 
 	devclass_delete_device(child->dev_module, child);
 
-	TAILQ_REMOVE(&dev->dev_children, child, dev_link);
-
+	if (dev != NULL) {
+		/* remove child from parent */
+		TAILQ_REMOVE(&dev->dev_children, child, dev_link);
+	}
 	free(child, M_DEVBUF);
 
 done:
@@ -1021,4 +1031,4 @@ device_kld_unload(void *arg)
 	return;
 }
 
-SYSINIT(module_unload, SI_SUB_KLD, SI_ORDER_FIRST, &device_kld_unload, NULL);
+SYSUNINIT(module_unload, SI_SUB_KLD, SI_ORDER_FIRST, &device_kld_unload, NULL);

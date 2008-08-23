@@ -65,7 +65,6 @@ device_detach
 device_detach_desc
 device_get_children
 device_get_desc
-device_get_dma_tag
 device_get_flags
 device_get_ivars
 device_get_method
@@ -117,7 +116,6 @@ pci_get_powerstate_desc
 pci_read_config_desc
 pci_set_powerstate_desc
 pci_write_config_desc
-printf
 rman_get_bushandle
 rman_get_bustag
 rman_get_rid

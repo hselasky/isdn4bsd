@@ -41,30 +41,43 @@ SYSUNINIT(Giant_sysuninit, SI_SUB_LOCK, SI_ORDER_MIDDLE, mtx_sysuninit, &Giant);
 
 #if 1
 
-#define I32_bit (1 << 7)        /* IRQ disable */
-#define F32_bit (1 << 6)        /* FIQ disable */
+#define	I32_bit (1 << 7)		/* IRQ disable */
+#define	F32_bit (1 << 6)		/* FIQ disable */
 
-#define intr_disable() \
+#define	intr_disable() \
   atomic_set_cpsr_c(I32_bit, I32_bit)
 
-#define intr_enable(mask) \
+#define	intr_enable(mask) \
   atomic_set_cpsr_c((mask) & I32_bit, 0)
 
 static inline uint32_t
 atomic_set_cpsr_c(uint32_t bic, uint32_t eor)
 {
-        uint32_t       tmp, ret;
+	uint32_t tmp, ret;
 
-        __asm __volatile(
-                "mrs     %0, cpsr\n"    /* Get the CPSR */
-                "bic     %1, %0, %2\n"  /* Clear bits */
-                "eor     %1, %1, %3\n"  /* XOR bits */
-                "msr     cpsr_c, %1\n"  /* Set the control field of CPSR */
-        : "=&r" (ret), "=&r" (tmp)
-        : "r" (bic), "r" (eor) : "memory");
+#if 1
+	__asm __volatile(
+	          "mrs     %0, cpsr\n"	/* Get the CPSR */
+	          "bic     %1, %0, %2\n"/* Clear bits */
+	          "eor     %1, %1, %3\n"/* XOR bits */
+	          "msr     cpsr_c, %1\n"/* Set the control field of CPSR */
+	    :     "=&r"(ret), "=&r"(tmp)
+	    :     "r"(bic), "r"(eor):"memory");
 
-        return ret;
+#else
+	__asm {
+		mrs tmp, cpsr		/* Get the CPSR */
+		    bic ret, tmp, bic	/* Clear bits */
+		    eor ret, ret, eor	/* XOR bits */
+		    msr cpsr_c, ret	/* Set the control field of CPSR */
+	}
+#endif
+	    return ret;
 }
+
+#else
+#define	intr_disable() 0
+#define	intr_enable(...) 0
 #endif
 
 

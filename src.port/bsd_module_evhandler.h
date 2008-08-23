@@ -86,7 +86,7 @@ eventhandler_register_##name(struct eventhandler_list *list,		\
 			     const char *name, type func,		\
 			     void *arg, int priority)			\
 {									\
-  return eventhandler_register(list, name, func, arg, priority);	\
+  return eventhandler_register(list, name, (void *)func, arg, priority);	\
 }
 
 #define	EVENTHANDLER_REGISTER(name, func, arg, pri)		\

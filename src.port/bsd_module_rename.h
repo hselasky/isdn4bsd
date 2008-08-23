@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Tue Aug 12 19:22:05 CEST 2008
+ * Date: Sat Aug 23 11:33:38 CEST 2008
  */
 #define DELAY fbsd_DELAY
 #define Giant fbsd_Giant
@@ -70,7 +70,6 @@
 #define device_detach_desc fbsd_device_detach_desc
 #define device_get_children fbsd_device_get_children
 #define device_get_desc fbsd_device_get_desc
-#define device_get_dma_tag fbsd_device_get_dma_tag
 #define device_get_flags fbsd_device_get_flags
 #define device_get_ivars fbsd_device_get_ivars
 #define device_get_method fbsd_device_get_method
@@ -122,7 +121,6 @@
 #define pci_read_config_desc fbsd_pci_read_config_desc
 #define pci_set_powerstate_desc fbsd_pci_set_powerstate_desc
 #define pci_write_config_desc fbsd_pci_write_config_desc
-#define printf fbsd_printf
 #define rman_get_bushandle fbsd_rman_get_bushandle
 #define rman_get_bustag fbsd_rman_get_bustag
 #define rman_get_rid fbsd_rman_get_rid

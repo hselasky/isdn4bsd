@@ -34,6 +34,8 @@
 #undef __FreeBSD__
 #define	__FreeBSD__
 #define	_KERNEL
+#define	__inline inline
+#define	__volatile volatile
 #define	__packed __attribute__((__packed__))
 #define	__aligned(s) __attribute__((__aligned__(s)))
 #define	__printflike(...)
@@ -68,6 +70,7 @@
 
 #define	va_end(ap) do { } while (0)
 
+#undef NULL
 #define	NULL ((void *)0)
 #define	cold 0
 

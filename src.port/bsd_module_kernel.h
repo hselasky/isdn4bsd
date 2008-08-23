@@ -132,7 +132,7 @@ struct sysinit {
 	enum sysinit_sub_id subsystem;	/* subsystem identifier */
 	enum sysinit_elem_order order;	/* init order within subsystem */
 	sysinit_nfunc_t func;		/* function		 */
-	void   *udata;			/* function argument */
+	const void *udata;		/* function argument */
 	const char *file;
 	int	line;
 };
@@ -140,14 +140,12 @@ struct sysinit {
 /*
  * Called on module load/unload
  */
-#define	SYSINIT_PASS_DATA(...) __VA_ARGS__
-
 #define	SYSINIT(uniquifier, subsystem, order, func, ident)	\
   const struct sysinit bsd_##uniquifier##_sys_init =		\
-  { subsystem, order, func, __DECONST(void *,ident), __FILE__, __LINE__ }
+  { subsystem, order, func, (const void *)(ident), __FILE__, __LINE__ }
 
 #define	SYSUNINIT(uniquifier, subsystem, order, func, ident)	\
   const struct sysinit bsd_##uniquifier##_sys_uninit =		\
-  { subsystem, order, func, __DECONST(void*,ident), __FILE__, __LINE__ }
+  { subsystem, order, func, (const void *)(ident), __FILE__, __LINE__ }
 
 #endif					/* _BSD_MODULE_KERNEL_H_ */

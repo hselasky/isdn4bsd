@@ -106,7 +106,8 @@ callout_do(struct callout_head *coh)
 		mtx_lock(mtx);
 		mtx_lock(&callout_mtx);
 		if (co == curr_callout) {
-			do_unlock = (co->co_flags & CALLOUT_RETURNUNLOCKED) ? 0 : 1;
+			do_unlock =
+			    (co->co_flags & CALLOUT_RETURNUNLOCKED) ? 0 : 1;
 			mtx_unlock(&callout_mtx);
 			(co->co_func) (co->co_arg);
 			mtx_lock(&callout_mtx);
@@ -133,17 +134,29 @@ callout_do(struct callout_head *coh)
 	return;
 }
 
-void
+#define	DELTA 1
+
+static uint8_t callout_module_teardown = 0;
+
+static void
 callout_module_tick(void *arg)
 {
-	uint32_t m = 1;
+	uint32_t m;
 	uint32_t delta;
-	uint8_t power = 0;
+	uint8_t power;
 
-	delta = ticks ^ (ticks + 1);
+repeat:
+
+	m = 1;
+
+	power = 0;
+
 	mtx_lock(&callout_mtx);
 	ticks++;
 	mtx_unlock(&callout_mtx);
+
+	delta = ticks ^ (2 * ticks);
+
 	while (power != MAX_POWER) {
 		if (delta & m) {
 			if (ticks & m)
@@ -154,8 +167,45 @@ callout_module_tick(void *arg)
 		m *= 2;
 		power++;
 	}
+
+	if (callout_module_teardown == 0) {
+		pause("TWAIT", DELTA);
+		goto repeat;
+	}
+	kproc_exit(0);
+
 	return;
 }
+
+static void
+callout_sysinit(void *arg)
+{
+	int err;
+	struct proc *proc;
+
+	err = kproc_create(&callout_module_tick, NULL,
+	    &proc, RFHIGHPID, 0, "USBTICK");
+	if (err) {
+		printf("WARNING: Could not create callout "
+		    "tick process, err=%d!\n", err);
+	}
+	return;
+}
+
+SYSINIT(callout_sysinit, SI_SUB_KLD, SI_ORDER_FIRST, &callout_sysinit, NULL);
+
+static void
+callout_sysuninit(void *arg)
+{
+	callout_module_teardown = 1;
+
+	pause("SYNC", 2 * DELTA);
+
+	return;
+}
+
+SYSUNINIT(callout_sysuninit, SI_SUB_KLD, SI_ORDER_FIRST, &callout_sysuninit, NULL);
+
 
 void
 callout_init_mtx(struct callout *co, struct mtx *mtx, int flags)
@@ -206,10 +256,10 @@ callout_drain(struct callout *co)
 }
 
 void
-callout_reset(struct callout *co, uint32_t ticks,
+callout_reset(struct callout *co, uint32_t to_ticks,
     timeout_t *func, void *arg)
 {
-	uint8_t power = callout_power(ticks);
+	uint8_t power = callout_power(to_ticks);
 	struct callout_head *coh;
 
 	mtx_assert(co->co_mtx, MA_OWNED);

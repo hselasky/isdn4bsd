@@ -5,6 +5,14 @@
 # all header files used in the project. 
 #
 
+pre_scan()
+{
+	while read F
+	do
+		find ../src ../src.port -name "$F"
+	done
+}
+
 scan()
 {
     while read F
@@ -78,12 +86,7 @@ mkautogen > bsd_module_sysuninit.h
 
 echo -n "Scanning "
 
-find \
-    ../src/sys/dev/usb2/core \
-    ../src/sys/dev/usb2/controller \
-    ./kern \
-    \( -name "*.c" -or -name "*.h" \) -and -type f \
-    | scan
+cat Makefile.inc | sed -e "s/^SRCS..//g" | grep -v "^#" | pre_scan | scan
 
 echo " done"
 

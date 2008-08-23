@@ -49,7 +49,6 @@ struct callout {
 	uint8_t	co_power;
 };
 
-void	callout_module_tick(void *arg);
 void	callout_init_mtx(struct callout *c, struct mtx *mtx, int flags);
 void	callout_stop(struct callout *c);
 void	callout_drain(struct callout *c);

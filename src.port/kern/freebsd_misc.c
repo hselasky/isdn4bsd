@@ -47,14 +47,14 @@ int
 pause(const char *wmesg, int timo)
 {
 	DROP_GIANT();
-	delay((OSTIME)timo);
+	delay((OSTIME) timo);
 	PICKUP_GIANT();
 	return (0);
 }
 
 int
 m_apply(struct mbuf *mbuf, int off, int len,
-	int (*f)(void *arg, void *data, uint32_t len), void *arg)
+    int (*f) (void *arg, void *data, uint32_t len), void *arg)
 {
 	/* not supported */
 	return (EINVAL);
@@ -80,7 +80,7 @@ dev_ref(struct cdev *dev)
 
 struct cdev *
 make_dev(struct cdevsw *_devsw, int _minor, uid_t _uid, gid_t _gid,
-	 int _perms, const char *_fmt, ...)
+    int _perms, const char *_fmt,...)
 {
 	return ((void *)1);
 }
@@ -91,3 +91,20 @@ destroy_dev(struct cdev *_dev)
 	return;
 }
 
+extern uint32_t fbsd_get_timer_us(void);
+
+void
+DELAY(uint32_t us)
+{
+	uint32_t start;
+	uint32_t delta;
+
+	start = fbsd_get_timer_us();
+	while (1) {
+		delta = fbsd_get_timer_us() - start;
+		if (delta >= us) {
+			break;
+		}
+	}
+	return;
+}

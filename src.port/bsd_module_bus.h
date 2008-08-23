@@ -210,7 +210,7 @@ int	device_probe_and_attach(device_t dev);
 int	device_detach(device_t dev);
 void   *device_get_softc(device_t dev);
 void	device_set_softc(device_t dev, void *softc);
-bus_dma_tag_t device_get_dma_tag(device_t dev);
+bus_dma_tag_t bus_get_dma_tag(device_t dev);
 int	device_delete_child(device_t dev, device_t child);
 int	device_get_children(device_t dev, device_t **devlistp, int *devcountp);
 int	device_is_attached(device_t dev);

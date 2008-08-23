@@ -25,21 +25,29 @@
 
 #include <bsd_module_all.h>
 
-typedef void (panic_t)(void);
+extern uint32_t __umodsi3(uint32_t rem, uint32_t div);
 
-void
-panic(const char *fmt,...)
+uint32_t
+__umodsi3(uint32_t rem, uint32_t div)
 {
-	va_list ap;
+	uint8_t c;
 
-	va_start(ap, fmt);
-	if (vprintf(fmt, ap)) {
-		/* ignore */
+	if (((div - 1) & div) == 0) {
+		/* power of two */
+		return (rem & (div - 1));
 	}
-	va_end(ap);
+	c = 1;
+	while (!(div & 0x80000000)) {
+		div *= 2;
+		c++;
+	}
 
-	/* Panic by calling NULL */
-	((panic_t *)NULL) ();
+	do {
+		if (rem >= div) {
+			rem -= div;
+		}
+		div /= 2;
+	} while (--c);
 
-	return;
+	return (rem);
 }

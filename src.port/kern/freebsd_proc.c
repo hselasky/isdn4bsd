@@ -28,18 +28,18 @@
 static void
 kproc_start(void)
 {
-	void (*func) (void *arg);
+	kproc_func_t *func;
 	void *arg;
 
-	func = (void *)get_env(current_process(), "bsd_func_ptr");
-	arg = (void *)get_env(current_process(), "bsd_func_arg");
+	func = (void *)get_envp(current_process(), "bsd_func_ptr");
+	arg = (void *)get_envp(current_process(), "bsd_func_arg");
 	(func) (arg);
 	return;
 }
 
 int
-kproc_create(void (*func) (void *), void *arg, struct proc **proc,
-	     int	flags, int pages, const char *fmt,...)
+kproc_create(kproc_func_t *func, void *arg, struct proc **proc,
+    int flags, int pages, const char *fmt,...)
 {
 	PROCESS p;
 
@@ -50,8 +50,8 @@ kproc_create(void (*func) (void *), void *arg, struct proc **proc,
 
 	*proc = (void *)p;
 
-	set_env(p, "bsd_func_ptr", (char *)func);
-	set_env(p, "bsd_func_arg", (char *)arg);
+	set_envp(p, "bsd_func_ptr", (OSADDRESS) func);
+	set_envp(p, "bsd_func_arg", (OSADDRESS) arg);
 
 	start(p);
 

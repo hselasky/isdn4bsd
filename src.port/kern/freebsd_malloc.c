@@ -25,6 +25,7 @@
 
 #include <bsd_module_all.h>
 
+#ifdef malloc
 void   *
 malloc(int size, struct malloc_type *type, int flags)
 {
@@ -32,19 +33,32 @@ malloc(int size, struct malloc_type *type, int flags)
 
 	DROP_GIANT();
 
-	temp = alloc(size, 'U' | ('S' << 8) | ('B' << 16));
+#undef malloc
+	extern void *malloc(int size);
 
+	temp = malloc(size);
+
+	printf("malloc: %u bytes = %p\n", size, temp);
+
+	if ((flags & M_ZERO) && (temp != NULL)) {
+		memset(temp, 0, size);
+	}
 	PICKUP_GIANT();
 
-	if (temp == NIL) {
-		temp = NULL;
-	}
 	return (temp);
 }
 
+#endif
+
+#ifdef free
 void
 free(void *addr, struct malloc_type *type)
 {
-	free_buf((union SIGNAL **)&addr);
+#undef free
+	extern void free(void *buf);
+
+	free(addr);
 	return;
 }
+
+#endif
