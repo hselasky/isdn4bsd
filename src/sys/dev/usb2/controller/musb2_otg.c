@@ -127,7 +127,7 @@ musbotg_get_hw_ep_profile(struct usb2_device *udev,
 
 	sc = MUSBOTG_BUS2SC(udev->bus);
 
-	if (ep_addr < sc->sc_ep_max) {
+	if (ep_addr <= sc->sc_ep_max) {
 		if (ep_addr == 0) {
 			/* control endpoint */
 			*ppf = musbotg_ep_profile;
@@ -1495,6 +1495,7 @@ musbotg_init(struct musbotg_softc *sc)
 {
 	uint8_t nrx;
 	uint8_t ntx;
+	uint8_t temp;
 
 	DPRINTFN(1, "start\n");
 
@@ -1512,21 +1513,12 @@ musbotg_init(struct musbotg_softc *sc)
 	/* wait a little for things to stabilise */
 	usb2_pause_mtx(&sc->sc_bus.mtx, 1);
 
-	/* disable and clear all interrupts */
+	/* disable all interrupts */
 
 	MUSB2_WRITE_1(sc, MUSB2_REG_INTUSBE, 0);
 	MUSB2_WRITE_2(sc, MUSB2_REG_INTTXE, 0);
 	MUSB2_WRITE_2(sc, MUSB2_REG_INTRXE, 0);
 
-	if (MUSB2_READ_1(sc, MUSB2_REG_INTUSB)) {
-		/* ignore */
-	}
-	if (MUSB2_READ_2(sc, MUSB2_REG_INTTX)) {
-		/* ignore */
-	}
-	if (MUSB2_READ_2(sc, MUSB2_REG_INTRX)) {
-		/* ignore */
-	}
 	/* disable pullup */
 
 	musbotg_pull_common(sc, 0);
@@ -1543,6 +1535,14 @@ musbotg_init(struct musbotg_softc *sc)
 
 	MUSB2_WRITE_1(sc, MUSB2_REG_POWER,
 	    MUSB2_MASK_HSENAB | MUSB2_MASK_ISOUPD);
+
+	/* clear Session bit, if set */
+
+	temp = MUSB2_READ_1(sc, MUSB2_REG_DEVCTL);
+	temp &= ~MUSB2_MASK_SESS;
+	MUSB2_WRITE_1(sc, MUSB2_REG_DEVCTL, temp);
+
+	DPRINTF("DEVCTL=0x%02x\n", temp);
 
 	/* disable testmode */
 
