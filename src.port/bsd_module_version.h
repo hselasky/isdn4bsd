@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Sat Aug 23 11:33:38 CEST 2008
+ * Date: Sun Aug 24 19:00:14 CEST 2008
  */
 MODULE_VERSION(usb2_controller, 1)
 MODULE_VERSION(usb2_core, 1)

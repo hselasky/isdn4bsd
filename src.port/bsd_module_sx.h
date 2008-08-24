@@ -51,8 +51,8 @@ void	_sx_assert(struct sx *sx, int what, const char *file, int line);
 
 struct sx {
 	struct cv wait;
-	uint32_t sx_recurse;
+	volatile uint32_t sx_recurse;
 	const char *desc;
-	void   *owner_td;
-	uint8_t	init;			/* set if initialised */
+	volatile void *owner_td;
+	volatile uint8_t init;		/* set if initialised */
 };

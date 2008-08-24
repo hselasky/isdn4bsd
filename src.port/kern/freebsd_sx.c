@@ -103,8 +103,8 @@ sx_unlock(struct sx *sx)
 		panic("Lock '%s' is not locked\n", sx->desc);
 	}
 	if (sx->sx_recurse == 0) {
-		cv_signal(&(sx->wait));
 		sx->owner_td = SX_NO_THREAD;
+		cv_signal(&(sx->wait));
 	} else {
 		sx->sx_recurse--;
 	}

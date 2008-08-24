@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Sat Aug 23 11:33:38 CEST 2008
+ * Date: Sun Aug 24 19:00:14 CEST 2008
  */
 #define DELAY fbsd_DELAY
 #define Giant fbsd_Giant
@@ -152,6 +152,7 @@
 #define uiomove fbsd_uiomove
 #define vnops fbsd_vnops
 #define vprintf fbsd_vprintf
+#define vsnprintf fbsd_vsnprintf
 #define vsnrprintf fbsd_vsnrprintf
 #define wakeup fbsd_wakeup
 #define wakeup_one fbsd_wakeup_one

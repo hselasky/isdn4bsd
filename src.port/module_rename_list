@@ -147,6 +147,7 @@ ticks
 uiomove
 vnops
 vprintf
+vsnprintf
 vsnrprintf
 wakeup
 wakeup_one
