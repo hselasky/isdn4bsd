@@ -215,6 +215,7 @@ vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 			case '8':
 			case '9':
 			case '-':
+				ap -= sizeof(void *);
 				escape = 2;
 				break;
 

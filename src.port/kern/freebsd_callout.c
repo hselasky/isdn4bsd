@@ -155,7 +155,7 @@ repeat:
 	ticks++;
 	mtx_unlock(&callout_mtx);
 
-	delta = ticks ^ (2 * ticks);
+	delta = ticks ^ (ticks - 1);
 
 	while (power != MAX_POWER) {
 		if (delta & m) {

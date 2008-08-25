@@ -841,11 +841,13 @@ device_detach(device_t dev)
 	const struct module_data *mod = dev->dev_module;
 	int error;
 
+#if 0
 	if (mod == NULL) {
 		device_printf(dev, "invalid device: "
 		    "dev->dev_module == NULL!\n");
 		return (0);
 	}
+#endif
 	if (dev->dev_attached) {
 #if 0
 		DEVMETHOD(device_detach, NULL);	/* dummy */

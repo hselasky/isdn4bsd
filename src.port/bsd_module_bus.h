@@ -86,7 +86,6 @@ struct device {
 	struct device *dev_parent;
 	bus_dma_tag_t dev_dma_tag;
 	const struct module_data *dev_module;
-	void   *dev_aux_data;
 	void   *dev_sc;
 	void   *dev_aux;
 	void    (*dev_intr_func) (void *);
