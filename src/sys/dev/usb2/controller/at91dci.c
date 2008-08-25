@@ -2405,7 +2405,7 @@ at91dci_xfer_setup(struct usb2_setup_params *parm)
 	if (ntd) {
 
 		ep_no = xfer->endpoint & UE_ADDR;
-		at91dci_get_hw_ep_profile(xfer->udev, &pf, ep_no);
+		at91dci_get_hw_ep_profile(parm->udev, &pf, ep_no);
 
 		if (pf == NULL) {
 			/* should not happen */

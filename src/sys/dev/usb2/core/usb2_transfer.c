@@ -1312,13 +1312,8 @@ usb2_start_hardware(struct usb2_xfer *xfer)
 		usb2_transfer_dequeue(xfer);
 		mtx_unlock(xfer->usb2_mtx);
 	}
-	if (xfer->flags_int.bdma_enable) {
-		/* no need for DMA delay */
-		xfer->flags_int.did_dma_delay = 1;
-	} else {
-		/* clear "did_dma_delay" flag */
-		xfer->flags_int.did_dma_delay = 0;
-	}
+	/* clear "did_dma_delay" flag */
+	xfer->flags_int.did_dma_delay = 0;
 
 	/* clear "did_close" flag */
 	xfer->flags_int.did_close = 0;
@@ -2115,7 +2110,14 @@ usb2_pipe_start(struct usb2_xfer_queue *pq)
 				    &udev->cs_msg[0], &(udev->cs_msg[1]))) {
 					/* ignore */
 				}
+			} else {
+				/* should not happen */
+				DPRINTFN(0, "No stall handler!\n");
 			}
+			/*
+			 * We get started again when the stall is cleared!
+			 */
+			return;
 		}
 	}
 	/*
@@ -2230,9 +2232,13 @@ usb2_callback_wrapper_sub(struct usb2_xfer *xfer)
 		DPRINTFN(3, "DMA delay, %u ms, "
 		    "on %p\n", temp, xfer);
 
-		usb2_transfer_timeout_ms(xfer,
-		    &usb2_dma_delay_done_cb, temp);
-		return (1);		/* wait for new callback */
+		if (temp != 0) {
+			mtx_lock(xfer->usb2_mtx);
+			usb2_transfer_timeout_ms(xfer,
+			    &usb2_dma_delay_done_cb, temp);
+			mtx_unlock(xfer->usb2_mtx);
+			return (1);	/* wait for new callback */
+		}
 	}
 	/* check actual number of frames */
 	if (xfer->aframes > xfer->nframes) {

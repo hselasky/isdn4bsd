@@ -99,7 +99,7 @@ static usb2_config_td_command_t musbotg_root_ctrl_task;
 /*
  * Here is a configuration that the chip supports.
  */
-static const struct usb2_hw_ep_profile musbotg_ep_profile[2] = {
+static const struct usb2_hw_ep_profile musbotg_ep_profile[4] = {
 
 	[0] = {
 		.max_frame_size = 64,	/* fixed */
@@ -117,6 +117,27 @@ static const struct usb2_hw_ep_profile musbotg_ep_profile[2] = {
 		.support_in = 1,
 		.support_out = 1,
 	},
+
+
+	[2] = {
+		.max_frame_size = (3 * 1024),
+		.is_simplex = 1,	/* simplex */
+		.support_multi_buffer = 1,
+		.support_bulk = 1,
+		.support_interrupt = 1,
+		.support_isochronous = 1,
+		.support_in = 1,
+	},
+
+	[3] = {
+		.max_frame_size = (3 * 1024),
+		.is_simplex = 1,	/* simplex */
+		.support_multi_buffer = 1,
+		.support_bulk = 1,
+		.support_interrupt = 1,
+		.support_isochronous = 1,
+		.support_out = 1,
+	},
 };
 
 static void
@@ -127,14 +148,18 @@ musbotg_get_hw_ep_profile(struct usb2_device *udev,
 
 	sc = MUSBOTG_BUS2SC(udev->bus);
 
-	if (ep_addr <= sc->sc_ep_max) {
-		if (ep_addr == 0) {
-			/* control endpoint */
-			*ppf = musbotg_ep_profile;
-		} else {
-			/* non-control endpoints */
-			*ppf = musbotg_ep_profile + 1;
-		}
+	if (ep_addr == 0) {
+		/* control endpoint */
+		*ppf = musbotg_ep_profile;
+	} else if (ep_addr <= sc->sc_ep_max) {
+		/* non-control duplex endpoints */
+		*ppf = musbotg_ep_profile + 1;
+	} else if (ep_addr <= sc->sc_ep_tx_max) {
+		/* non-control simplex TX endpoints */
+		*ppf = musbotg_ep_profile + 2;
+	} else if (ep_addr <= sc->sc_ep_rx_max) {
+		/* non-control simplex RX endpoints */
+		*ppf = musbotg_ep_profile + 3;
 	} else {
 		*ppf = NULL;
 	}
@@ -497,7 +522,7 @@ musbotg_setup_data_tx(struct musbotg_td *td)
 		td->error = 1;
 		return (0);		/* complete */
 	}
-	if (!(csr & MUSB2_MASK_CSR0L_TXPKTRDY)) {
+	if (csr & MUSB2_MASK_CSR0L_TXPKTRDY) {
 		return (1);		/* not complete */
 	}
 	count = td->max_frame_size;
@@ -874,12 +899,19 @@ musbotg_interrupt(struct musbotg_softc *sc)
 			else
 				sc->sc_flags.status_high_speed = 0;
 
-			temp = MUSB2_READ_1(sc, MUSB2_REG_INTUSBE);
+			/*
+			 * After reset all interrupts are on and we need to
+			 * turn them off!
+			 */
+			temp = MUSB2_MASK_IRESET;
 			/* disable resume interrupt */
 			temp &= ~MUSB2_MASK_IRESUME;
 			/* enable suspend interrupt */
 			temp |= MUSB2_MASK_ISUSP;
 			MUSB2_WRITE_1(sc, MUSB2_REG_INTUSBE, temp);
+			/* disable TX and RX interrupts */
+			MUSB2_WRITE_2(sc, MUSB2_REG_INTTXE, 0);
+			MUSB2_WRITE_2(sc, MUSB2_REG_INTRXE, 0);
 		}
 		/*
 	         * If RXRSM and RXSUSP is set at the same time we interpret
@@ -1564,9 +1596,13 @@ musbotg_init(struct musbotg_softc *sc)
 	ntx =
 	    (MUSB2_READ_1(sc, MUSB2_REG_EPINFO) % 16);
 
+	/* these numbers exclude the control endpoint */
+
 	DPRINTFN(2, "RX/TX endpoints: %u/%u\n", nrx, ntx);
 
 	sc->sc_ep_max = (nrx < ntx) ? nrx : ntx;
+	sc->sc_ep_rx_max = nrx;
+	sc->sc_ep_tx_max = ntx;
 
 	/* read out configuration data */
 
@@ -2541,7 +2577,7 @@ musbotg_xfer_setup(struct usb2_setup_params *parm)
 	if (ntd) {
 
 		ep_no = xfer->endpoint & UE_ADDR;
-		musbotg_get_hw_ep_profile(xfer->udev, &pf, ep_no);
+		musbotg_get_hw_ep_profile(parm->udev, &pf, ep_no);
 
 		if (pf == NULL) {
 			/* should not happen */
@@ -2566,8 +2602,7 @@ musbotg_xfer_setup(struct usb2_setup_params *parm)
 
 			/* init TD */
 			td->max_frame_size = xfer->max_frame_size;
-			td->ep_no =
-			    (xfer->pipe->edesc->bEndpointAddress & UE_ADDR);
+			td->ep_no = ep_no;
 			td->obj_next = last_obj;
 
 			last_obj = td;

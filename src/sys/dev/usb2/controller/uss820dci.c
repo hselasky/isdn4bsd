@@ -2427,7 +2427,7 @@ uss820dci_xfer_setup(struct usb2_setup_params *parm)
 	if (ntd) {
 
 		ep_no = xfer->endpoint & UE_ADDR;
-		uss820dci_get_hw_ep_profile(xfer->udev, &pf, ep_no);
+		uss820dci_get_hw_ep_profile(parm->udev, &pf, ep_no);
 
 		if (pf == NULL) {
 			/* should not happen */

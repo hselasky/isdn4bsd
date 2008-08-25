@@ -1744,7 +1744,7 @@ static void
 umass_t_bbb_reset3_callback(struct usbd_xfer *xfer)
 {
 	umass_t_bbb_data_clear_stall_callback(xfer, UMASS_T_BBB_COMMAND,
-	    UMASS_T_BBB_DATA_READ);
+	    UMASS_T_BBB_DATA_WRITE);
 	return;
 }
 

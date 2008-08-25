@@ -365,7 +365,11 @@ struct musbotg_softc {
 	void    (*sc_clocks_off) (void *arg);
 	void   *sc_clocks_arg;
 
-	uint8_t	sc_ep_max;		/* maximum number of endpoints */
+	uint8_t	sc_ep_max;		/* maximum number of duplex endpoints */
+	uint8_t	sc_ep_rx_max;		/* maximum number of simplex RX
+					 * endpoints */
+	uint8_t	sc_ep_tx_max;		/* maximum number of simplex TX
+					 * endpoints */
 	uint8_t	sc_rt_addr;		/* root HUB address */
 	uint8_t	sc_dv_addr;		/* device address */
 	uint8_t	sc_conf;		/* root HUB config */
