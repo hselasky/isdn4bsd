@@ -353,6 +353,7 @@ struct musbotg_softc {
 	struct usb2_sw_transfer sc_root_ctrl;
 	struct usb2_sw_transfer sc_root_intr;
 	struct usb2_config_td sc_config_td;
+	struct usb2_hw_ep_profile sc_hw_ep_profile[16];
 
 	struct resource *sc_io_res;
 	struct resource *sc_irq_res;
@@ -366,10 +367,6 @@ struct musbotg_softc {
 	void   *sc_clocks_arg;
 
 	uint8_t	sc_ep_max;		/* maximum number of duplex endpoints */
-	uint8_t	sc_ep_rx_max;		/* maximum number of simplex RX
-					 * endpoints */
-	uint8_t	sc_ep_tx_max;		/* maximum number of simplex TX
-					 * endpoints */
 	uint8_t	sc_rt_addr;		/* root HUB address */
 	uint8_t	sc_dv_addr;		/* device address */
 	uint8_t	sc_conf;		/* root HUB config */

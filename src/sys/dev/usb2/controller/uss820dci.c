@@ -107,12 +107,14 @@ static const struct usb2_hw_ep_profile
 	uss820dci_ep_profile[] = {
 
 	[0] = {
-		.max_frame_size = 32,
+		.max_in_frame_size = 32,
+		.max_out_frame_size = 32,
 		.is_simplex = 0,
 		.support_control = 1,
 	},
 	[1] = {
-		.max_frame_size = 64,
+		.max_in_frame_size = 64,
+		.max_out_frame_size = 64,
 		.is_simplex = 0,
 		.support_multi_buffer = 1,
 		.support_bulk = 1,
@@ -121,7 +123,8 @@ static const struct usb2_hw_ep_profile
 		.support_out = 1,
 	},
 	[2] = {
-		.max_frame_size = 8,
+		.max_in_frame_size = 8,
+		.max_out_frame_size = 8,
 		.is_simplex = 0,
 		.support_multi_buffer = 1,
 		.support_bulk = 1,
@@ -130,7 +133,8 @@ static const struct usb2_hw_ep_profile
 		.support_out = 1,
 	},
 	[3] = {
-		.max_frame_size = 256,
+		.max_in_frame_size = 256,
+		.max_out_frame_size = 256,
 		.is_simplex = 0,
 		.support_multi_buffer = 1,
 		.support_isochronous = 1,
@@ -1437,16 +1441,21 @@ uss820dci_init(struct uss820dci_softc *sc)
 
 		uss820dci_get_hw_ep_profile(NULL, &pf, n);
 
+		/* the maximum frame sizes should be the same */
+		if (pf->max_in_frame_size != pf->max_out_frame_size) {
+			DPRINTF("Max frame size mismatch %u != %u\n",
+			    pf->max_in_frame_size, pf->max_out_frame_size);
+		}
 		if (pf->support_isochronous) {
-			if (pf->max_frame_size <= 64) {
+			if (pf->max_in_frame_size <= 64) {
 				temp = (USS820_TXCON_FFSZ_16_64 |
 				    USS820_TXCON_TXISO |
 				    USS820_TXCON_ATM);
-			} else if (pf->max_frame_size <= 256) {
+			} else if (pf->max_in_frame_size <= 256) {
 				temp = (USS820_TXCON_FFSZ_64_256 |
 				    USS820_TXCON_TXISO |
 				    USS820_TXCON_ATM);
-			} else if (pf->max_frame_size <= 512) {
+			} else if (pf->max_in_frame_size <= 512) {
 				temp = (USS820_TXCON_FFSZ_8_512 |
 				    USS820_TXCON_TXISO |
 				    USS820_TXCON_ATM);
@@ -1456,14 +1465,14 @@ uss820dci_init(struct uss820dci_softc *sc)
 				    USS820_TXCON_ATM);
 			}
 		} else {
-			if ((pf->max_frame_size <= 8) &&
+			if ((pf->max_in_frame_size <= 8) &&
 			    (sc->sc_flags.mcsr_feat)) {
 				temp = (USS820_TXCON_FFSZ_8_512 |
 				    USS820_TXCON_ATM);
-			} else if (pf->max_frame_size <= 16) {
+			} else if (pf->max_in_frame_size <= 16) {
 				temp = (USS820_TXCON_FFSZ_16_64 |
 				    USS820_TXCON_ATM);
-			} else if ((pf->max_frame_size <= 32) &&
+			} else if ((pf->max_in_frame_size <= 32) &&
 			    (sc->sc_flags.mcsr_feat)) {
 				temp = (USS820_TXCON_FFSZ_32_1024 |
 				    USS820_TXCON_ATM);

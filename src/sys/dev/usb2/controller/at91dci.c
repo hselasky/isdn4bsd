@@ -131,12 +131,14 @@ static const struct usb2_hw_ep_profile
 	at91dci_ep_profile[AT91_UDP_EP_MAX] = {
 
 	[0] = {
-		.max_frame_size = 8,
+		.max_in_frame_size = 8,
+		.max_out_frame_size = 8,
 		.is_simplex = 1,
 		.support_control = 1,
 	},
 	[1] = {
-		.max_frame_size = 64,
+		.max_in_frame_size = 64,
+		.max_out_frame_size = 64,
 		.is_simplex = 1,
 		.support_multi_buffer = 1,
 		.support_bulk = 1,
@@ -146,7 +148,8 @@ static const struct usb2_hw_ep_profile
 		.support_out = 1,
 	},
 	[2] = {
-		.max_frame_size = 64,
+		.max_in_frame_size = 64,
+		.max_out_frame_size = 64,
 		.is_simplex = 1,
 		.support_multi_buffer = 1,
 		.support_bulk = 1,
@@ -157,14 +160,16 @@ static const struct usb2_hw_ep_profile
 	},
 	[3] = {
 		/* can also do BULK */
-		.max_frame_size = 8,
+		.max_in_frame_size = 8,
+		.max_out_frame_size = 8,
 		.is_simplex = 1,
 		.support_interrupt = 1,
 		.support_in = 1,
 		.support_out = 1,
 	},
 	[4] = {
-		.max_frame_size = 256,
+		.max_in_frame_size = 256,
+		.max_out_frame_size = 256,
 		.is_simplex = 1,
 		.support_multi_buffer = 1,
 		.support_bulk = 1,
@@ -174,7 +179,8 @@ static const struct usb2_hw_ep_profile
 		.support_out = 1,
 	},
 	[5] = {
-		.max_frame_size = 256,
+		.max_in_frame_size = 256,
+		.max_out_frame_size = 256,
 		.is_simplex = 1,
 		.support_multi_buffer = 1,
 		.support_bulk = 1,

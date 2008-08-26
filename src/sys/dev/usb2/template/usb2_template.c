@@ -492,6 +492,7 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 	const struct usb2_hw_ep_profile *pf;
 	uint16_t distance;
 	uint16_t temp;
+	uint16_t max_frame_size;
 	uint8_t n;
 	uint8_t best_n;
 	uint8_t dir_in;
@@ -547,8 +548,15 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 			/* mismatch */
 			continue;
 		}
-		if (pf->max_frame_size >= ep->max_frame_size) {
-			temp = (pf->max_frame_size - ep->max_frame_size);
+		/* get maximum frame size */
+		if (dir_in)
+			max_frame_size = pf->max_in_frame_size;
+		else
+			max_frame_size = pf->max_out_frame_size;
+
+		/* check if we have a matching profile */
+		if (max_frame_size >= ep->max_frame_size) {
+			temp = (max_frame_size - ep->max_frame_size);
 			if (distance > temp) {
 				distance = temp;
 				best_n = n;
@@ -557,7 +565,7 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 		} else if ((ep->needs_ep_type == UE_BULK) ||
 		    (ep->needs_ep_type == UE_CONTROL)) {
 			/* frame size is not so important */
-			temp = (ep->max_frame_size - pf->max_frame_size);
+			temp = (ep->max_frame_size - max_frame_size);
 			if (distance > temp) {
 				distance = temp;
 				best_n = n;
@@ -570,6 +578,12 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 	if (best_n != 0) {
 		/* get the correct profile */
 		pf = ep->pf;
+
+		/* get maximum frame size */
+		if (dir_in)
+			max_frame_size = pf->max_in_frame_size;
+		else
+			max_frame_size = pf->max_out_frame_size;
 
 		/* reserve IN-endpoint */
 		if (dir_in || pf->is_simplex) {
@@ -588,8 +602,8 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 		 * Frame Size than we wanted, we need to update the Maximum
 		 * Frame Size !
 		 */
-		if (ep->max_frame_size > pf->max_frame_size) {
-			ep->max_frame_size = pf->max_frame_size;
+		if (ep->max_frame_size > max_frame_size) {
+			ep->max_frame_size = max_frame_size;
 		}
 		return (0);		/* got a match */
 	}
@@ -809,7 +823,7 @@ usb2_hw_ep_resolve(struct usb2_device *udev,
 			 */
 			while (1) {
 				/* check if "mps" is ok */
-				if (pf->max_frame_size >= mps) {
+				if (pf->max_in_frame_size >= mps) {
 					break;
 				}
 				/* reduce maximum packet size */
@@ -829,7 +843,7 @@ usb2_hw_ep_resolve(struct usb2_device *udev,
 				mps = 512;
 			}
 			/* Check if we support the specified wMaxPacketSize */
-			if (pf->max_frame_size < mps) {
+			if (pf->max_in_frame_size < mps) {
 				return (USB_ERR_INVAL);
 			}
 		}

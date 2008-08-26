@@ -103,7 +103,8 @@ struct usb2_pipe_methods {
  * endpoint supports.
  */
 struct usb2_hw_ep_profile {
-	uint16_t max_frame_size;
+	uint16_t max_in_frame_size;	/* IN-token direction */
+	uint16_t max_out_frame_size;	/* OUT-token direction */
 	uint8_t	is_simplex:1;
 	uint8_t	support_multi_buffer:1;
 	uint8_t	support_bulk:1;

@@ -99,45 +99,14 @@ static usb2_config_td_command_t musbotg_root_ctrl_task;
 /*
  * Here is a configuration that the chip supports.
  */
-static const struct usb2_hw_ep_profile musbotg_ep_profile[4] = {
+static const struct usb2_hw_ep_profile musbotg_ep_profile[1] = {
 
 	[0] = {
-		.max_frame_size = 64,	/* fixed */
+		.max_in_frame_size = 64,/* fixed */
+		.max_out_frame_size = 64,	/* fixed */
 		.is_simplex = 1,
 		.support_control = 1,
-	},
-
-	[1] = {
-		.max_frame_size = (3 * 1024),
-		.is_simplex = 0,	/* duplex */
-		.support_multi_buffer = 1,
-		.support_bulk = 1,
-		.support_interrupt = 1,
-		.support_isochronous = 1,
-		.support_in = 1,
-		.support_out = 1,
-	},
-
-
-	[2] = {
-		.max_frame_size = (3 * 1024),
-		.is_simplex = 1,	/* simplex */
-		.support_multi_buffer = 1,
-		.support_bulk = 1,
-		.support_interrupt = 1,
-		.support_isochronous = 1,
-		.support_in = 1,
-	},
-
-	[3] = {
-		.max_frame_size = (3 * 1024),
-		.is_simplex = 1,	/* simplex */
-		.support_multi_buffer = 1,
-		.support_bulk = 1,
-		.support_interrupt = 1,
-		.support_isochronous = 1,
-		.support_out = 1,
-	},
+	}
 };
 
 static void
@@ -152,14 +121,8 @@ musbotg_get_hw_ep_profile(struct usb2_device *udev,
 		/* control endpoint */
 		*ppf = musbotg_ep_profile;
 	} else if (ep_addr <= sc->sc_ep_max) {
-		/* non-control duplex endpoints */
-		*ppf = musbotg_ep_profile + 1;
-	} else if (ep_addr <= sc->sc_ep_tx_max) {
-		/* non-control simplex TX endpoints */
-		*ppf = musbotg_ep_profile + 2;
-	} else if (ep_addr <= sc->sc_ep_rx_max) {
-		/* non-control simplex RX endpoints */
-		*ppf = musbotg_ep_profile + 3;
+		/* other endpoints */
+		*ppf = sc->sc_hw_ep_profile + ep_addr;
 	} else {
 		*ppf = NULL;
 	}
@@ -1386,6 +1349,8 @@ static void
 musbotg_clear_stall_sub(struct musbotg_softc *sc, uint16_t wMaxPacket,
     uint8_t ep_no, uint8_t ep_type, uint8_t ep_dir)
 {
+	uint16_t mps;
+	uint16_t temp;
 	uint8_t csr;
 
 	if (ep_type == UE_CONTROL) {
@@ -1394,6 +1359,19 @@ musbotg_clear_stall_sub(struct musbotg_softc *sc, uint16_t wMaxPacket,
 	}
 	/* select endpoint */
 	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, ep_no);
+
+	/* compute max frame size */
+	mps = wMaxPacket & 0x7FF;
+	switch ((wMaxPacket >> 11) & 3) {
+	case 1:
+		mps *= 2;
+		break;
+	case 2:
+		mps *= 3;
+		break;
+	default:
+		break;
+	}
 
 	if (ep_dir == UE_DIR_IN) {
 
@@ -1437,6 +1415,18 @@ musbotg_clear_stall_sub(struct musbotg_softc *sc, uint16_t wMaxPacket,
 		MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL, 0);
 		csr = MUSB2_READ_1(sc, MUSB2_REG_TXCSRL);
 
+		/* set double/single buffering */
+		temp = MUSB2_READ_2(sc, MUSB2_REG_TXDBDIS);
+		if (mps <= (sc->sc_hw_ep_profile[ep_no].
+		    max_in_frame_size / 2)) {
+			/* double buffer */
+			temp &= ~(1 << ep_no);
+		} else {
+			/* single buffer */
+			temp |= (1 << ep_no);
+		}
+		MUSB2_WRITE_2(sc, MUSB2_REG_TXDBDIS, temp);
+
 		/* clear sent stall */
 		if (csr & MUSB2_MASK_CSRL_TXSENTSTALL) {
 			MUSB2_WRITE_1(sc, MUSB2_REG_TXCSRL, 0);
@@ -1466,7 +1456,6 @@ musbotg_clear_stall_sub(struct musbotg_softc *sc, uint16_t wMaxPacket,
 		}
 
 		/* Need to flush twice in case of double bufring */
-
 		csr = MUSB2_READ_1(sc, MUSB2_REG_RXCSRL);
 		if (csr & MUSB2_MASK_CSRL_RXPKTRDY) {
 			MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRL,
@@ -1483,6 +1472,18 @@ musbotg_clear_stall_sub(struct musbotg_softc *sc, uint16_t wMaxPacket,
 		    MUSB2_MASK_CSRL_RXDT_CLR);
 		MUSB2_WRITE_1(sc, MUSB2_REG_RXCSRL, 0);
 		csr = MUSB2_READ_1(sc, MUSB2_REG_RXCSRL);
+
+		/* set double/single buffering */
+		temp = MUSB2_READ_2(sc, MUSB2_REG_RXDBDIS);
+		if (mps <= (sc->sc_hw_ep_profile[ep_no].
+		    max_out_frame_size / 2)) {
+			/* double buffer */
+			temp &= ~(1 << ep_no);
+		} else {
+			/* single buffer */
+			temp |= (1 << ep_no);
+		}
+		MUSB2_WRITE_2(sc, MUSB2_REG_RXDBDIS, temp);
 
 		/* clear sent stall */
 		if (csr & MUSB2_MASK_CSRL_RXSENTSTALL) {
@@ -1525,9 +1526,13 @@ musbotg_clear_stall(struct usb2_device *udev, struct usb2_pipe *pipe)
 usb2_error_t
 musbotg_init(struct musbotg_softc *sc)
 {
+	struct usb2_hw_ep_profile *pf;
 	uint8_t nrx;
 	uint8_t ntx;
 	uint8_t temp;
+	uint8_t fsize;
+	uint8_t frx;
+	uint8_t ftx;
 
 	DPRINTFN(1, "start\n");
 
@@ -1558,10 +1563,9 @@ musbotg_init(struct musbotg_softc *sc)
 	/* wait a little bit (10ms) */
 	usb2_pause_mtx(&sc->sc_bus.mtx, 10);
 
-	/* enable double packet buffering */
-
-	MUSB2_WRITE_2(sc, MUSB2_REG_RXDBDIS, 0);
-	MUSB2_WRITE_2(sc, MUSB2_REG_TXDBDIS, 0);
+	/* disable double packet buffering */
+	MUSB2_WRITE_2(sc, MUSB2_REG_RXDBDIS, 0xFFFF);
+	MUSB2_WRITE_2(sc, MUSB2_REG_TXDBDIS, 0xFFFF);
 
 	/* enable HighSpeed and ISO Update flags */
 
@@ -1600,10 +1604,10 @@ musbotg_init(struct musbotg_softc *sc)
 
 	DPRINTFN(2, "RX/TX endpoints: %u/%u\n", nrx, ntx);
 
-	sc->sc_ep_max = (nrx < ntx) ? nrx : ntx;
-	sc->sc_ep_rx_max = nrx;
-	sc->sc_ep_tx_max = ntx;
-
+	sc->sc_ep_max = (nrx > ntx) ? nrx : ntx;
+	if (sc->sc_ep_max == 0) {
+		DPRINTFN(2, "ERROR: Looks like the clocks are off!\n");
+	}
 	/* read out configuration data */
 
 	sc->sc_conf_data = MUSB2_READ_1(sc, MUSB2_REG_CONFDATA);
@@ -1613,6 +1617,51 @@ musbotg_init(struct musbotg_softc *sc)
 
 	DPRINTFN(2, "HW version: 0x%04x\n",
 	    MUSB2_READ_1(sc, MUSB2_REG_HWVERS));
+
+	/* initialise endpoint profiles */
+
+	for (temp = 1; temp <= sc->sc_ep_max; temp++) {
+		pf = sc->sc_hw_ep_profile + temp;
+
+		/* select endpoint */
+		MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, temp);
+
+		fsize = MUSB2_READ_1(sc, MUSB2_REG_FSIZE);
+		frx = (fsize & MUSB2_MASK_RX_FSIZE) / 16;;
+		ftx = (fsize & MUSB2_MASK_TX_FSIZE);
+
+		DPRINTF("Endpoint %u FIFO size: IN=%u, OUT=%u\n",
+		    temp, pf->max_in_frame_size,
+		    pf->max_out_frame_size);
+
+		if (frx && ftx && (temp <= nrx) && (temp <= ntx)) {
+			pf->max_in_frame_size = 1 << ftx;
+			pf->max_out_frame_size = 1 << frx;
+			pf->is_simplex = 0;	/* duplex */
+			pf->support_multi_buffer = 1;
+			pf->support_bulk = 1;
+			pf->support_interrupt = 1;
+			pf->support_isochronous = 1;
+			pf->support_in = 1;
+			pf->support_out = 1;
+		} else if (frx && (temp <= nrx)) {
+			pf->max_out_frame_size = 1 << frx;
+			pf->is_simplex = 1;	/* simplex */
+			pf->support_multi_buffer = 1;
+			pf->support_bulk = 1;
+			pf->support_interrupt = 1;
+			pf->support_isochronous = 1;
+			pf->support_out = 1;
+		} else if (ftx && (temp <= ntx)) {
+			pf->max_in_frame_size = 1 << ftx;
+			pf->is_simplex = 1;	/* simplex */
+			pf->support_multi_buffer = 1;
+			pf->support_bulk = 1;
+			pf->support_interrupt = 1;
+			pf->support_isochronous = 1;
+			pf->support_in = 1;
+		}
+	}
 
 	/* turn on default interrupts */
 
