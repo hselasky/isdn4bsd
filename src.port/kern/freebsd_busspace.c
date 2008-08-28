@@ -40,8 +40,7 @@ bus_space_read_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offse
 	}
 
 	while (count--) {
-		datap[0] = *ptr;
-		datap++;
+		*datap++ = *ptr;
 	}
 	return;
 }
@@ -50,6 +49,15 @@ void
 bus_space_read_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint16_t *datap, bus_size_t count)
 {
 	volatile uint16_t *ptr = (void *)(h + offset);
+
+	while (count >= 4) {
+		datap[0] = *ptr;
+		datap[1] = *ptr;
+		datap[2] = *ptr;
+		datap[3] = *ptr;
+		count -= 4;
+		datap += 4;
+	}
 
 	while (count--) {
 		*datap++ = *ptr;
@@ -61,6 +69,15 @@ void
 bus_space_read_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint32_t *datap, bus_size_t count)
 {
 	volatile uint32_t *ptr = (void *)(h + offset);
+
+	while (count >= 4) {
+		datap[0] = *ptr;
+		datap[1] = *ptr;
+		datap[2] = *ptr;
+		datap[3] = *ptr;
+		count -= 4;
+		datap += 4;
+	}
 
 	while (count--) {
 		*datap++ = *ptr;
@@ -83,8 +100,7 @@ bus_space_write_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offs
 	}
 
 	while (count--) {
-		*ptr = datap[0];
-		datap++;
+		*ptr = *datap++;
 	}
 	return;
 }
@@ -93,6 +109,15 @@ void
 bus_space_write_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint16_t *datap, bus_size_t count)
 {
 	volatile uint16_t *ptr = (void *)(h + offset);
+
+	while (count >= 4) {
+		*ptr = datap[0];
+		*ptr = datap[1];
+		*ptr = datap[2];
+		*ptr = datap[3];
+		count -= 4;
+		datap += 4;
+	}
 
 	while (count--) {
 		*ptr = *datap++;
@@ -104,6 +129,15 @@ void
 bus_space_write_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint32_t *datap, bus_size_t count)
 {
 	volatile uint32_t *ptr = (void *)(h + offset);
+
+	while (count >= 4) {
+		*ptr = datap[0];
+		*ptr = datap[1];
+		*ptr = datap[2];
+		*ptr = datap[3];
+		count -= 4;
+		datap += 4;
+	}
 
 	while (count--) {
 		*ptr = *datap++;

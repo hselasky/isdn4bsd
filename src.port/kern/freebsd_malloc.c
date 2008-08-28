@@ -31,12 +31,13 @@ malloc(int size, struct malloc_type *type, int flags)
 {
 	void *temp;
 
+	if (flags & M_NOWAIT) {
+		/* XXX - TODO */
+	}
+
 	DROP_GIANT();
 
-#undef malloc
-	extern void *malloc(int size);
-
-	temp = malloc(size);
+	temp = heap_alloc_shared(size, __FILE__, __LINE__);
 
 	printf("malloc: %u bytes = %p\n", size, temp);
 
@@ -54,10 +55,7 @@ malloc(int size, struct malloc_type *type, int flags)
 void
 free(void *addr, struct malloc_type *type)
 {
-#undef free
-	extern void free(void *buf);
-
-	free(addr);
+	heap_free_shared(addr);
 	return;
 }
 

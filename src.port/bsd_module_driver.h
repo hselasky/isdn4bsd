@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Sun Aug 24 19:00:14 CEST 2008
+ * Date: Thu Aug 28 08:15:34 CEST 2008
  */
 DRIVER_MODULE(atmelarm, atmelarm, atmelarm_driver, atmelarm_devclass, atmelarm_mod_load, 0)
 DRIVER_MODULE(usbus, ohci, usb2_driver, usb2_devclass, 0, 0)

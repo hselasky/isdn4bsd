@@ -34,6 +34,9 @@ kproc_start(void)
 	func = (void *)get_envp(current_process(), "bsd_func_ptr");
 	arg = (void *)get_envp(current_process(), "bsd_func_arg");
 	(func) (arg);
+	printf("kproc_start: WARNING: Process %p did "
+	    "not call kproc_exit()!\n", curthread);
+	kproc_exit(0);
 	return;
 }
 
