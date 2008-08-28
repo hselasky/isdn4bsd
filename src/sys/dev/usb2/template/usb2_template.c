@@ -562,15 +562,6 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 				best_n = n;
 				ep->pf = pf;
 			}
-		} else if ((ep->needs_ep_type == UE_BULK) ||
-		    (ep->needs_ep_type == UE_CONTROL)) {
-			/* frame size is not so important */
-			temp = (ep->max_frame_size - max_frame_size);
-			if (distance > temp) {
-				distance = temp;
-				best_n = n;
-				ep->pf = pf;
-			}
 		}
 	}
 
@@ -596,14 +587,6 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 			ues->bmOutAlloc[best_n / 8] |=
 			    (1 << (best_n % 8));
 			ep->hw_endpoint_out = best_n | UE_DIR_OUT;
-		}
-		/*
-		 * In case we choose an endpoint having a smaller Maximum
-		 * Frame Size than we wanted, we need to update the Maximum
-		 * Frame Size !
-		 */
-		if (ep->max_frame_size > max_frame_size) {
-			ep->max_frame_size = max_frame_size;
 		}
 		return (0);		/* got a match */
 	}
@@ -633,7 +616,6 @@ usb2_hw_ep_get_needs(struct usb2_hw_ep_scratch *ues,
 	struct usb2_endpoint_descriptor *ed;
 	uint16_t wMaxPacketSize;
 	uint16_t temp;
-	uint8_t allow_override;
 	uint8_t speed;
 
 	ep_iface = ues->ep_max;
@@ -683,7 +665,7 @@ handle_endpoint_desc:
 		wMaxPacketSize = UGETW(ed->wMaxPacketSize);
 		if ((wMaxPacketSize & 0xF800) &&
 		    (speed == USB_SPEED_HIGH)) {
-			/* handle frame multiplier */
+			/* handle packet multiplier */
 			temp = (wMaxPacketSize >> 11) & 3;
 			wMaxPacketSize &= 0x7FF;
 			if (temp == 2) {
@@ -691,46 +673,14 @@ handle_endpoint_desc:
 			} else {
 				wMaxPacketSize *= 3;
 			}
-			allow_override = 0;
-		} else {
-			if ((ep_type == UE_BULK) ||
-			    (ep_type == UE_CONTROL)) {
-				allow_override = 1;
-			} else {
-				allow_override = 0;
-			}
 		}
 
 		if (is_complete) {
 
-			/*
-			 * We assume that
-			 * "ep_curr->max_frame_size"
-			 * is correct according to the
-			 * speed we are connected at !
-			 */
-			while (1) {
-
-				if (wMaxPacketSize <=
-				    ep_curr->max_frame_size) {
-					break;
-				}
-				if (wMaxPacketSize < 8) {
-					return (1);	/* failure */
-				}
-				if (!allow_override) {
-					return (1);	/* failure */
-				}
-				/*
-				 * We have a BULK or CONTROL
-				 * endpoint having a packet
-				 * size that the hardware
-				 * cannot handle ! Try to
-				 * work it around!
-				 */
-				wMaxPacketSize /= 2;
-				USETW(ed->wMaxPacketSize,
-				    wMaxPacketSize);
+			/* check if we have enough buffer space */
+			if (wMaxPacketSize >
+			    ep_curr->max_frame_size) {
+				return (1); /* failure */
 			}
 
 			if (ed->bEndpointAddress & UE_DIR_IN) {

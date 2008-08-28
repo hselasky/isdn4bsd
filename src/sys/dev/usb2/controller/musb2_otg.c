@@ -271,7 +271,7 @@ musbotg_setup_rx(struct musbotg_td *td)
 	DPRINTFN(4, "csr=0x%02x\n", csr);
 
 	/*
-	 * UNDOCUMENTED: If DATAEND is set we should not call the
+	 * NOTE: If DATAEND is set we should not call the
 	 * callback, hence the status stage is not complete.
 	 */
 	if (csr & MUSB2_MASK_CSR0L_DATAEND) {
@@ -427,6 +427,24 @@ musbotg_setup_data_rx(struct musbotg_td *td)
 		if (buf_res.length > count) {
 			buf_res.length = count;
 		}
+		/* check if we can optimise */
+		if ((!(USB_P2U(buf_res.buffer) & 3)) &&
+		    (buf_res.length >= 4)) {
+			uint32_t temp;
+
+			/* receive data 4 bytes at a time */
+			bus_space_read_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
+			    MUSB2_REG_EPFIFO(0), buf_res.buffer,
+			    buf_res.length / 4);
+
+			temp = buf_res.length & ~3;
+
+			/* update counters */
+			count -= temp;
+			td->offset += temp;
+			td->remainder -= temp;
+			continue;
+		}
 		/* receive data */
 		bus_space_read_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
 		    MUSB2_REG_EPFIFO(0), buf_res.buffer, buf_res.length);
@@ -502,6 +520,24 @@ musbotg_setup_data_tx(struct musbotg_td *td)
 		if (buf_res.length > count) {
 			buf_res.length = count;
 		}
+		/* check if we can optimise */
+		if ((!(USB_P2U(buf_res.buffer) & 3)) &&
+		    (buf_res.length >= 4)) {
+			uint32_t temp;
+
+			/* transmit data 4 bytes at a time */
+			bus_space_write_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
+			    MUSB2_REG_EPFIFO(0), buf_res.buffer,
+			    buf_res.length / 4);
+
+			temp = buf_res.length & ~3;
+
+			/* update counters */
+			count -= temp;
+			td->offset += temp;
+			td->remainder -= temp;
+			continue;
+		}
 		/* transmit data */
 		bus_space_write_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
 		    MUSB2_REG_EPFIFO(0), buf_res.buffer, buf_res.length);
@@ -571,7 +607,7 @@ musbotg_data_rx(struct musbotg_td *td)
 	uint8_t to;
 	uint8_t got_short;
 
-	to = 2;				/* don't loop forever! */
+	to = 8;				/* don't loop forever! */
 	got_short = 0;
 
 	/* get pointer to softc */
@@ -624,9 +660,28 @@ repeat:
 		if (buf_res.length > count) {
 			buf_res.length = count;
 		}
+		/* check if we can optimise */
+		if ((!(USB_P2U(buf_res.buffer) & 3)) &&
+		    (buf_res.length >= 4)) {
+			uint32_t temp;
+
+			/* receive data 4 bytes at a time */
+			bus_space_read_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
+			    MUSB2_REG_EPFIFO(td->ep_no), buf_res.buffer,
+			    buf_res.length / 4);
+
+			temp = buf_res.length & ~3;
+
+			/* update counters */
+			count -= temp;
+			td->offset += temp;
+			td->remainder -= temp;
+			continue;
+		}
 		/* receive data */
 		bus_space_read_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
-		    MUSB2_REG_EPFIFO(td->ep_no), buf_res.buffer, buf_res.length);
+		    MUSB2_REG_EPFIFO(td->ep_no), buf_res.buffer,
+		    buf_res.length);
 
 		/* update counters */
 		count -= buf_res.length;
@@ -660,7 +715,7 @@ musbotg_data_tx(struct musbotg_td *td)
 	uint8_t csr;
 	uint8_t to;
 
-	to = 2;				/* don't loop forever! */
+	to = 8;				/* don't loop forever! */
 
 	/* get pointer to softc */
 	sc = MUSBOTG_PC2SC(td->pc);
@@ -697,9 +752,28 @@ repeat:
 		if (buf_res.length > count) {
 			buf_res.length = count;
 		}
+		/* check if we can optimise */
+		if ((!(USB_P2U(buf_res.buffer) & 3)) &&
+		    (buf_res.length >= 4)) {
+			uint32_t temp;
+
+			/* transmit data 4 bytes at a time */
+			bus_space_write_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
+			    MUSB2_REG_EPFIFO(td->ep_no), buf_res.buffer,
+			    buf_res.length / 4);
+
+			temp = buf_res.length & ~3;
+
+			/* update counters */
+			count -= temp;
+			td->offset += temp;
+			td->remainder -= temp;
+			continue;
+		}
 		/* transmit data */
 		bus_space_write_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
-		    MUSB2_REG_EPFIFO(td->ep_no), buf_res.buffer, buf_res.length);
+		    MUSB2_REG_EPFIFO(td->ep_no), buf_res.buffer,
+		    buf_res.length);
 
 		/* update counters */
 		count -= buf_res.length;
@@ -775,6 +849,7 @@ static void
 musbotg_interrupt_poll(struct musbotg_softc *sc)
 {
 	struct usb2_xfer *xfer;
+	uint8_t to = 2;
 
 repeat:
 	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
@@ -783,6 +858,8 @@ repeat:
 			goto repeat;
 		}
 	}
+	if (--to)
+		goto repeat;
 	return;
 }
 
