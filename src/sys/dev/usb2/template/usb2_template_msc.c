@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/usb2_template_msc.c $");
+__FBSDID("$FreeBSD$");
 
 /*-
  * Copyright (c) 2008 Hans Petter Selasky <hselasky@freebsd.org>

@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/umct.c,v 1.18 2007/06/18 22:27:57 imp Exp $");
+__FBSDID("$FreeBSD$");
 
 /*-
  * Copyright (c) 2003 Scott Long

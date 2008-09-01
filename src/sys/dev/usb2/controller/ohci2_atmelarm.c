@@ -23,7 +23,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/arm/at91/ohci_atmelarm.c,v 1.4 2007/10/29 21:01:50 imp Exp $");
+__FBSDID("$FreeBSD$");
 
 #include <dev/usb2/include/usb2_mfunc.h>
 #include <dev/usb2/include/usb2_defs.h>

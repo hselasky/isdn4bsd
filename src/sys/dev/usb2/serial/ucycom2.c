@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ucycom.c,v 1.6 2007/06/21 14:42:33 imp Exp $");
+__FBSDID("$FreeBSD$");
 
 /*-
  * Copyright (c) 2004 Dag-Erling Coïdan Smørgrav

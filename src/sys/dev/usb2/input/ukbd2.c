@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ukbd.c,v 1.76 2007/12/29 21:55:24 wkoszek Exp $");
+__FBSDID("$FreeBSD$");
 
 
 /*-

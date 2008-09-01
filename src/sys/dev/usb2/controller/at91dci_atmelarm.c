@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/arm/at91/at91_udp.c $");
+__FBSDID("$FreeBSD$");
 
 /*-
  * Copyright (c) 2007-2008 Hans Petter Selasky. All rights reserved.

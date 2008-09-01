@@ -49,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uipaq.c,v 1.11 2008/05/08 21:22:27 delphij Exp $");
+__FBSDID("$FreeBSD$");
 
 #include <dev/usb2/include/usb2_devid.h>
 #include <dev/usb2/include/usb2_standard.h>

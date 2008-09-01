@@ -22,7 +22,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/if_rum.c,v 1.23 2008/06/07 18:38:02 sam Exp $");
+__FBSDID("$FreeBSD$");
 
 /*-
  * Ralink Technology RT2501USB/RT2601USB chipset driver

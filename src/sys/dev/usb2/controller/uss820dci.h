@@ -1,3 +1,4 @@
+/* $FreeBSD$ */
 /*-
  * Copyright (c) 2007 Hans Petter Selasky <hselasky@freebsd.org>
  * All rights reserved.

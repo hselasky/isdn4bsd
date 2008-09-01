@@ -1,4 +1,5 @@
-/*
+/* $FreeBSD$ */
+/*-
  *  Video for Linux v2.0 device IOCTL definition file
  *
  *  Copyright (C) 1999-2007 the contributors

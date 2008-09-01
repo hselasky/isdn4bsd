@@ -1,3 +1,7 @@
+#
+# $FreeBSD$
+#
+
 
 SUBDIR =
 SUBDIR += bluetooth

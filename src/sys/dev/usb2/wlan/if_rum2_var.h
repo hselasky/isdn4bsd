@@ -1,4 +1,4 @@
-/*	$FreeBSD: src/sys/dev/usb/if_rumvar.h,v 1.3 2008/04/20 20:35:38 sam Exp $ 	*/
+/*	$FreeBSD$ 	*/
 
 /*-
  * Copyright (c) 2005, 2006 Damien Bergamini <damien.bergamini@free.fr>

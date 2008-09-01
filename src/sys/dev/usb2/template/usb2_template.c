@@ -1,3 +1,4 @@
+/* $FreeBSD$ */
 /*-
  * Copyright (c) 2007 Hans Petter Selasky. All rights reserved.
  *
@@ -674,15 +675,13 @@ handle_endpoint_desc:
 				wMaxPacketSize *= 3;
 			}
 		}
-
 		if (is_complete) {
 
 			/* check if we have enough buffer space */
 			if (wMaxPacketSize >
 			    ep_curr->max_frame_size) {
-				return (1); /* failure */
+				return (1);	/* failure */
 			}
-
 			if (ed->bEndpointAddress & UE_DIR_IN) {
 				ed->bEndpointAddress =
 				    ep_curr->hw_endpoint_in;

@@ -1,3 +1,5 @@
+$FreeBSD$
+
 DESCRIPTION OF THE NEW USB API
 
 The new USB 2.0 API consists of 5 functions. All transfer types are

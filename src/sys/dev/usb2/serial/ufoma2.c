@@ -1,7 +1,7 @@
 /*	$NetBSD: umodem.c,v 1.45 2002/09/23 05:51:23 simonb Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/ufoma.c,v 1.10 2007/07/27 12:00:29 takawata Exp $");
+__FBSDID("$FreeBSD$");
 
 /*-
  * Copyright (c) 2005, Takanori Watanabe

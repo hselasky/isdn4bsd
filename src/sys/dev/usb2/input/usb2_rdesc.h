@@ -26,7 +26,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: src/sys/dev/usb/usb_rdesc.h,v 1.3 2005/12/31 04:38:50 mux Exp $
+ * $FreeBSD$
  *
  * This file contains replacements for broken HID report descriptors.
  */

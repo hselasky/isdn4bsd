@@ -777,9 +777,7 @@ ihfc_unsetup_resource(device_t dev)
 	}
 
 #ifdef IHFC_USB_ENABLED
-        mtx_lock(sc->sc_mtx_p);
         usb2_config_td_stop(&(sc->sc_config_td));
-        mtx_unlock(sc->sc_mtx_p);
 
 	/*
 	 * USB unsetup

@@ -1,3 +1,4 @@
+/* $FreeBSD$ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -24,6 +25,6 @@
  */
 
 #ifndef _USB2_BLUETOOTH_H_
-#define _USB2_BLUETOOTH_H_
+#define	_USB2_BLUETOOTH_H_
 
-#endif /* _USB2_BLUETOOTH_H_ */
+#endif					/* _USB2_BLUETOOTH_H_ */

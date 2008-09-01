@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb/uss820dci_pccard.c $");
+__FBSDID("$FreeBSD$");
 
 /*-
  * Copyright (c) 2008 Hans Petter Selasky <hselasky@freebsd.org>

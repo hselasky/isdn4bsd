@@ -1,3 +1,7 @@
+#
+# $FreeBSD$
+#
+
 S=     ${.CURDIR}/../../..
 
 .PATH: $S/dev/usb2/misc
