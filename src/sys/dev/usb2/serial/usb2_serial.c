@@ -278,7 +278,7 @@ usb2_com_detach(struct usb2_com_super_softc *ssc, struct usb2_com_softc *sc,
 {
 	uint32_t n;
 
-	usb2_config_td_stop(&ssc->sc_config_td);
+	usb2_config_td_drain(&ssc->sc_config_td);
 
 	for (n = 0; n < sub_units; n++, sc++) {
 		if (sc->sc_flag & UCOM_FLAG_ATTACHED) {

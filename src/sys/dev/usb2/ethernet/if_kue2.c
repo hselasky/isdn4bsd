@@ -578,7 +578,7 @@ kue_detach(device_t dev)
 	struct kue_softc *sc = device_get_softc(dev);
 	struct ifnet *ifp;
 
-	usb2_config_td_stop(&sc->sc_config_td);
+	usb2_config_td_drain(&sc->sc_config_td);
 
 	mtx_lock(&sc->sc_mtx);
 

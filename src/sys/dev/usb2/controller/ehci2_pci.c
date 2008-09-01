@@ -377,7 +377,7 @@ ehci_pci_detach(device_t self)
 	ehci_softc_t *sc = device_get_softc(self);
 	device_t bdev;
 
-	usb2_config_td_stop(&sc->sc_config_td);
+	usb2_config_td_drain(&sc->sc_config_td);
 
 	if (sc->sc_bus.bdev) {
 		bdev = sc->sc_bus.bdev;

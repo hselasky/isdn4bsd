@@ -777,7 +777,7 @@ ihfc_unsetup_resource(device_t dev)
 	}
 
 #ifdef IHFC_USB_ENABLED
-        usb2_config_td_stop(&(sc->sc_config_td));
+        usb2_config_td_drain(&(sc->sc_config_td));
 
 	/*
 	 * USB unsetup

@@ -103,7 +103,7 @@ usb2_config_td_setup(struct usb2_config_td *ctd, void *priv_sc,
 }
 
 /*------------------------------------------------------------------------*
- *	usb2_config_td_stop
+ *	usb2_config_td_drain
  *
  * This function will tear down an USB config thread, waiting for the
  * currently executing command to return.
@@ -112,7 +112,7 @@ usb2_config_td_setup(struct usb2_config_td *ctd, void *priv_sc,
  * this function does nothing.
  *------------------------------------------------------------------------*/
 void
-usb2_config_td_stop(struct usb2_config_td *ctd)
+usb2_config_td_drain(struct usb2_config_td *ctd)
 {
 	DPRINTF("\n");
 	if (ctd->p_msgs) {
@@ -132,7 +132,7 @@ usb2_config_td_unsetup(struct usb2_config_td *ctd)
 {
 	DPRINTF("\n");
 
-	usb2_config_td_stop(ctd);
+	usb2_config_td_drain(ctd);
 
 	if (ctd->p_msgs) {
 		usb2_proc_unsetup(&ctd->usb2_proc);
