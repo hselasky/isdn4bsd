@@ -78,6 +78,7 @@ atmelarm_free_resource(device_t parent, device_t child,
 	return;
 }
 
+extern int (*UsbInterruptFilterPtr) (void *);
 extern void (*UsbInterruptHandlerPtr) (void *);
 extern void *UsbInterruptHandlerArg;
 
@@ -86,14 +87,15 @@ atmelarm_setup_interrupt(device_t parent, device_t child,
     struct resource *r, int flags, driver_filter_t *filter,
     driver_intr_t *handler, void *arg, void **cookiep)
 {
-	if (filter)
-		return (EINVAL);
+	if (UsbInterruptFilterPtr)
+		return (EBUSY);
 
 	if (UsbInterruptHandlerPtr)
 		return (EBUSY);
 
 	UsbInterruptHandlerArg = arg;
 	UsbInterruptHandlerPtr = handler;
+	UsbInterruptFilterPtr = filter;
 
 	*cookiep = handler;
 
@@ -105,6 +107,7 @@ atmelarm_teardown_interrupt(device_t parent, device_t child,
     struct resource *r, void *cookie)
 {
 	UsbInterruptHandlerPtr = NULL;
+	UsbInterruptFilterPtr = NULL;
 	return (0);
 }
 

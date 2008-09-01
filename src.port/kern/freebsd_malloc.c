@@ -34,7 +34,6 @@ malloc(int size, struct malloc_type *type, int flags)
 	if (flags & M_NOWAIT) {
 		/* XXX - TODO */
 	}
-
 	DROP_GIANT();
 
 	temp = heap_alloc_shared(size, __FILE__, __LINE__);

@@ -39,6 +39,10 @@ typedef struct device *device_t;
 typedef void driver_intr_t (void *);
 typedef int driver_filter_t (void *);
 
+#define	FILTER_STRAY            0x01
+#define	FILTER_HANDLED          0x02
+#define	FILTER_SCHEDULE_THREAD  0x04
+
 typedef int bus_alloc_resource_t (device_t parent, device_t child, struct resource *res, int type, int *rid, uint32_t start, uint32_t end, uint32_t count, uint32_t flags);
 typedef void bus_free_resource_t (device_t parent, device_t child, struct resource *res, int rid);
 typedef int bus_setup_interrupt_t (device_t parent, device_t child, struct resource *r, int flags, driver_filter_t *filter, driver_intr_t *handler, void *arg, void **cookiep);
