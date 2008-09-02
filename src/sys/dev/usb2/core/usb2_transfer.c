@@ -1496,6 +1496,8 @@ usb2_transfer_start(struct usb2_xfer *xfer)
 void
 usb2_transfer_stop(struct usb2_xfer *xfer)
 {
+	struct usb2_pipe *pipe;
+
 	if (xfer == NULL) {
 		/* transfer is gone */
 		return;
@@ -1527,6 +1529,10 @@ usb2_transfer_stop(struct usb2_xfer *xfer)
 		if (xfer->flags_int.can_cancel_immed &&
 		    (!xfer->flags_int.did_close)) {
 			DPRINTF("close\n");
+			/*
+			 * The following will lead to an USB_ERR_CANCELLED
+			 * error code being passed to the USB callback.
+			 */
 			(xfer->pipe->methods->close) (xfer);
 			/* only close once */
 			xfer->flags_int.did_close = 1;
@@ -1543,6 +1549,20 @@ usb2_transfer_stop(struct usb2_xfer *xfer)
 		 * Any additional DMA delay is done by
 		 * "usb2_transfer_unsetup()".
 		 */
+
+		/*
+		 * Special case. Check if we need to restart a blocked
+		 * pipe.
+		 */
+		pipe = xfer->pipe;
+
+		/*
+		 * If the current USB transfer is completing we need
+		 * to start the next one:
+		 */
+		if (pipe->pipe_q.curr == xfer) {
+			usb2_command_wrapper(&pipe->pipe_q, NULL);
+		}
 	}
 
 	mtx_unlock(xfer->usb2_mtx);

@@ -135,6 +135,38 @@ usb2_copy_in(struct usb2_page_cache *cache, uint32_t offset,
 }
 
 /*------------------------------------------------------------------------*
+ *  usb2_copy_in_user - copy directly to DMA-able memory from userland
+ *
+ * Return values:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+int
+usb2_copy_in_user(struct usb2_page_cache *cache, uint32_t offset,
+    const void *ptr, uint32_t len)
+{
+	struct usb2_page_search buf_res;
+	int error;
+
+	while (len != 0) {
+
+		usb2_get_page(cache, offset, &buf_res);
+
+		if (buf_res.length > len) {
+			buf_res.length = len;
+		}
+		error = copyin(ptr, buf_res.buffer, buf_res.length);
+		if (error)
+			return (error);
+
+		offset += buf_res.length;
+		len -= buf_res.length;
+		ptr = USB_ADD_BYTES(ptr, buf_res.length);
+	}
+	return (0);			/* success */
+}
+
+/*------------------------------------------------------------------------*
  *  usb2_m_copy_in - copy a mbuf chain directly into DMA-able memory
  *------------------------------------------------------------------------*/
 struct usb2_m_copy_in_arg {
@@ -222,6 +254,38 @@ usb2_copy_out(struct usb2_page_cache *cache, uint32_t offset,
 		ptr = USB_ADD_BYTES(ptr, res.length);
 	}
 	return;
+}
+
+/*------------------------------------------------------------------------*
+ *  usb2_copy_out_user - copy directly from DMA-able memory to userland
+ *
+ * Return values:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+int
+usb2_copy_out_user(struct usb2_page_cache *cache, uint32_t offset,
+    void *ptr, uint32_t len)
+{
+	struct usb2_page_search res;
+	int error;
+
+	while (len != 0) {
+
+		usb2_get_page(cache, offset, &res);
+
+		if (res.length > len) {
+			res.length = len;
+		}
+		error = copyout(res.buffer, ptr, res.length);
+		if (error)
+			return (error);
+
+		offset += res.length;
+		len -= res.length;
+		ptr = USB_ADD_BYTES(ptr, res.length);
+	}
+	return (0);			/* success */
 }
 
 /*------------------------------------------------------------------------*

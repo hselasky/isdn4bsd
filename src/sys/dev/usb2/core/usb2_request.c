@@ -96,7 +96,7 @@ usb2_do_clear_stall_callback(struct usb2_xfer *xfer)
 	struct usb2_pipe *pipe;
 	struct usb2_pipe *pipe_end;
 	struct usb2_pipe *pipe_first;
-	struct usb2_pipe *pipe_start;
+	uint8_t to = USB_EP_MAX;
 
 	mtx_lock(xfer->usb2_mtx);
 
@@ -107,11 +107,7 @@ usb2_do_clear_stall_callback(struct usb2_xfer *xfer)
 	pipe_first = xfer->udev->pipes;
 	if (pipe == NULL) {
 		pipe = pipe_first;
-		pipe_start = pipe_first;
-	} else {
-		pipe_start = pipe;
 	}
-
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 		if (pipe->edesc &&
@@ -126,42 +122,38 @@ usb2_do_clear_stall_callback(struct usb2_xfer *xfer)
 
 	case USB_ST_SETUP:
 tr_setup:
-		while (1) {
-			if (pipe == pipe_end) {
-				pipe = pipe_first;
-			}
-			if (pipe == pipe_start) {
-				/* nothing to do */
-				break;
-			}
-			if (pipe->edesc &&
-			    pipe->is_stalled) {
-
-				/* setup a clear-stall packet */
-
-				req.bmRequestType = UT_WRITE_ENDPOINT;
-				req.bRequest = UR_CLEAR_FEATURE;
-				USETW(req.wValue, UF_ENDPOINT_HALT);
-				req.wIndex[0] = pipe->edesc->bEndpointAddress;
-				req.wIndex[1] = 0;
-				USETW(req.wLength, 0);
-
-				/* copy in the transfer */
-
-				usb2_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
-
-				/* set length */
-				xfer->frlengths[0] = sizeof(req);
-				xfer->nframes = 1;
-				mtx_unlock(xfer->usb2_mtx);
-
-				usb2_start_hardware(xfer);
-
-				mtx_lock(xfer->usb2_mtx);
-				break;
-			}
-			pipe++;
+		if (pipe == pipe_end) {
+			pipe = pipe_first;
 		}
+		if (pipe->edesc &&
+		    pipe->is_stalled) {
+
+			/* setup a clear-stall packet */
+
+			req.bmRequestType = UT_WRITE_ENDPOINT;
+			req.bRequest = UR_CLEAR_FEATURE;
+			USETW(req.wValue, UF_ENDPOINT_HALT);
+			req.wIndex[0] = pipe->edesc->bEndpointAddress;
+			req.wIndex[1] = 0;
+			USETW(req.wLength, 0);
+
+			/* copy in the transfer */
+
+			usb2_copy_in(xfer->frbuffers, 0, &req, sizeof(req));
+
+			/* set length */
+			xfer->frlengths[0] = sizeof(req);
+			xfer->nframes = 1;
+			mtx_unlock(xfer->usb2_mtx);
+
+			usb2_start_hardware(xfer);
+
+			mtx_lock(xfer->usb2_mtx);
+			break;
+		}
+		pipe++;
+		if (--to)
+			goto tr_setup;
 		break;
 
 	default:
@@ -214,6 +206,9 @@ tr_setup:
  *  at a later point in time. This is tunable by the "hw.usb.ss_delay"
  *  sysctl. This flag is mostly useful for debugging.
  *
+ *  o USB_USER_DATA_PTR: treat the "data" pointer like a userland
+ *  pointer.
+ *
  * "actlen" - if non-NULL the actual transfer length will be stored in
  * the 16-bit unsigned integer pointed to by "actlen". This
  * information is mostly useful when the "USB_SHORT_XFER_OK" flag is
@@ -240,12 +235,12 @@ usb2_do_request_flags(struct usb2_device *udev, struct mtx *mtx,
 {
 	struct usb2_xfer *xfer;
 	const void *desc;
+	int err = 0;
 	uint32_t start_ticks;
 	uint32_t delta_ticks;
 	uint32_t max_ticks;
 	uint16_t length;
 	uint16_t temp;
-	usb2_error_t err = 0;
 
 	if (timeout < 50) {
 		/* timeout is too small */
@@ -284,7 +279,13 @@ usb2_do_request_flags(struct usb2_device *udev, struct mtx *mtx,
 			*actlen = length;
 		}
 		if (length > 0) {
-			bcopy(desc, data, length);
+			if (flags & USB_USER_DATA_PTR) {
+				if (copyout(desc, data, length)) {
+					return (USB_ERR_INVAL);
+				}
+			} else {
+				bcopy(desc, data, length);
+			}
 		}
 		return (0);		/* success */
 	}
@@ -340,7 +341,18 @@ usb2_do_request_flags(struct usb2_device *udev, struct mtx *mtx,
 
 		if (temp > 0) {
 			if (!(req->bmRequestType & UT_READ)) {
-				usb2_copy_in(xfer->frbuffers + 1, 0, data, temp);
+				if (flags & USB_USER_DATA_PTR) {
+					mtx_unlock(xfer->priv_mtx);
+					err = usb2_copy_in_user(xfer->frbuffers + 1,
+					    0, data, temp);
+					mtx_lock(xfer->priv_mtx);
+					if (err) {
+						err = USB_ERR_INVAL;
+						break;
+					}
+				} else {
+					usb2_copy_in(xfer->frbuffers + 1, 0, data, temp);
+				}
 			}
 			xfer->nframes = 2;
 		} else {
@@ -400,7 +412,19 @@ usb2_do_request_flags(struct usb2_device *udev, struct mtx *mtx,
 		}
 		if (temp > 0) {
 			if (req->bmRequestType & UT_READ) {
-				usb2_copy_out(xfer->frbuffers + 1, 0, data, temp);
+				if (flags & USB_USER_DATA_PTR) {
+					mtx_unlock(xfer->priv_mtx);
+					err = usb2_copy_out_user(xfer->frbuffers + 1,
+					    0, data, temp);
+					mtx_lock(xfer->priv_mtx);
+					if (err) {
+						err = USB_ERR_INVAL;
+						break;
+					}
+				} else {
+					usb2_copy_out(xfer->frbuffers + 1,
+					    0, data, temp);
+				}
 			}
 		}
 		/*
@@ -429,6 +453,13 @@ usb2_do_request_flags(struct usb2_device *udev, struct mtx *mtx,
 		}
 	}
 
+	if (err) {
+		/*
+		 * Make sure that the control endpoint is no longer
+		 * blocked in case of a non-transfer related error:
+		 */
+		usb2_transfer_stop(xfer);
+	}
 	mtx_unlock(xfer->priv_mtx);
 
 done:
@@ -437,7 +468,7 @@ done:
 	if (mtx) {
 		mtx_lock(mtx);
 	}
-	return (err);
+	return ((usb2_error_t)err);
 }
 
 /*------------------------------------------------------------------------*
@@ -1312,6 +1343,9 @@ usb2_req_re_enumerate(struct usb2_device *udev, struct mtx *mtx)
 		    old_addr);
 		err = 0;
 	}
+	/* restore device address */
+	udev->address = old_addr;
+
 	/* allow device time to set new address */
 	usb2_pause_mtx(mtx, USB_SET_ADDRESS_SETTLE);
 

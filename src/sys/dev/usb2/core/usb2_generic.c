@@ -901,8 +901,6 @@ ugen_do_request(struct usb2_fifo *f, struct usb2_ctl_request *ur)
 	int error;
 	uint16_t len;
 	uint16_t actlen;
-	uint8_t isread;
-	void *data = NULL;
 
 	if (f->flag_no_uref) {
 		/* control endpoint only */
@@ -912,44 +910,24 @@ ugen_do_request(struct usb2_fifo *f, struct usb2_ctl_request *ur)
 		return (EPERM);
 	}
 	len = UGETW(ur->ucr_request.wLength);
-	isread = (ur->ucr_request.bmRequestType & UT_READ) ? 1 : 0;
 
+	/* check if "ucr_data" is valid */
 	if (len != 0) {
 		if (ur->ucr_data == NULL) {
-			return (EINVAL);
-		}
-		data = malloc(len, M_USBDEV, M_WAITOK);
-		if (data == NULL) {
-			error = ENOMEM;
-			goto done;
-		}
-		if (!(ur->ucr_request.bmRequestType & UT_READ)) {
-			error = copyin(ur->ucr_data, data, len);
-			if (error) {
-				goto done;
-			}
+			return (EFAULT);
 		}
 	}
+	/* do the USB request */
 	error = usb2_do_request_flags
-	    (f->udev, NULL, &ur->ucr_request, data,
-	    (ur->ucr_flags & USB_SHORT_XFER_OK), &actlen,
+	    (f->udev, NULL, &ur->ucr_request, ur->ucr_data,
+	    (ur->ucr_flags & USB_SHORT_XFER_OK) |
+	    USB_USER_DATA_PTR, &actlen,
 	    USB_DEFAULT_TIMEOUT);
 
 	ur->ucr_actlen = actlen;
 
 	if (error) {
 		error = EIO;
-		goto done;
-	}
-	if ((len != 0) && (ur->ucr_request.bmRequestType & UT_READ)) {
-		error = copyout(data, ur->ucr_data, len);
-		if (error) {
-			goto done;
-		}
-	}
-done:
-	if (data) {
-		free(data, M_USBDEV);
 	}
 	return (error);
 }

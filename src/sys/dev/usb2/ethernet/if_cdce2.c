@@ -76,11 +76,8 @@ static device_suspend_t cdce_suspend;
 static device_resume_t cdce_resume;
 static usb2_handle_request_t cdce_handle_request;
 
-static usb2_callback_t cdce_bulk_write_clear_stall_callback;
 static usb2_callback_t cdce_bulk_write_callback;
-static usb2_callback_t cdce_bulk_read_clear_stall_callback;
 static usb2_callback_t cdce_bulk_read_callback;
-static usb2_callback_t cdce_intr_read_clear_stall_callback;
 static usb2_callback_t cdce_intr_read_callback;
 static usb2_callback_t cdce_intr_write_callback;
 
@@ -145,32 +142,6 @@ static const struct usb2_config cdce_config[CDCE_N_TRANSFER] = {
 	},
 
 	[2] = {
-		.type = UE_CONTROL,
-		.endpoint = 0x00,	/* Control pipe */
-		.direction = UE_DIR_ANY,
-		.if_index = 0,
-		/* Host Mode Only */
-		.mh.bufsize = sizeof(struct usb2_device_request),
-		.mh.interval = 50,	/* 50ms */
-		.mh.flags = {},
-		.mh.callback = &cdce_bulk_write_clear_stall_callback,
-		.mh.timeout = 1000,	/* 1 second */
-	},
-
-	[3] = {
-		.type = UE_CONTROL,
-		.endpoint = 0x00,	/* Control pipe */
-		.direction = UE_DIR_ANY,
-		.if_index = 0,
-		/* Host Mode Only */
-		.mh.bufsize = sizeof(struct usb2_device_request),
-		.mh.interval = 50,	/* 50ms */
-		.mh.flags = {},
-		.mh.callback = &cdce_bulk_read_clear_stall_callback,
-		.mh.timeout = 1000,	/* 1 second */
-	},
-
-	[4] = {
 		.type = UE_INTERRUPT,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
@@ -185,19 +156,6 @@ static const struct usb2_config cdce_config[CDCE_N_TRANSFER] = {
 		.md.flags = {.pipe_bof = 1,.force_short_xfer = 1,.no_pipe_ok = 1,},
 		.md.callback = &cdce_intr_write_callback,
 		.md.timeout = 10000,	/* 10 seconds */
-	},
-
-	[5] = {
-		.type = UE_CONTROL,
-		.endpoint = 0x00,	/* Control pipe */
-		.direction = UE_DIR_ANY,
-		.if_index = 1,
-		/* Host Mode Only */
-		.mh.bufsize = sizeof(struct usb2_device_request),
-		.mh.interval = 50,	/* 50ms */
-		.mh.flags = {},
-		.mh.callback = &cdce_intr_read_clear_stall_callback,
-		.mh.timeout = 1000,	/* 1 second */
 	},
 };
 
@@ -225,12 +183,13 @@ static driver_t cdce_driver = {
 static devclass_t cdce_devclass;
 
 DRIVER_MODULE(cdce, ushub, cdce_driver, cdce_devclass, NULL, 0);
-MODULE_VERSION(cdce, 0);
+MODULE_VERSION(cdce, 1);
 MODULE_DEPEND(cdce, usb2_core, 1, 1, 1);
 MODULE_DEPEND(cdce, ether, 1, 1, 1);
 
 static const struct usb2_device_id cdce_devs[] = {
 	{USB_IF_CSI(UICLASS_CDC, UISUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL, 0)},
+	{USB_IF_CSI(UICLASS_CDC, UISUBCLASS_MOBILE_DIRECT_LINE_MODEL, 0)},
 
 	{USB_VPI(USB_VENDOR_ACERLABS, USB_PRODUCT_ACERLABS_M5632, CDCE_FLAG_NO_UNION)},
 	{USB_VPI(USB_VENDOR_AMBIT, USB_PRODUCT_AMBIT_NTL_250, CDCE_FLAG_NO_UNION)},
@@ -514,7 +473,7 @@ alloc_transfers:
 
 	/* start the interrupt transfer, if any */
 	mtx_lock(&sc->sc_mtx);
-	usb2_transfer_start(sc->sc_xfer[4]);
+	usb2_transfer_start(sc->sc_xfer[2]);
 	mtx_unlock(&sc->sc_mtx);
 
 	return (0);			/* success */
@@ -640,19 +599,6 @@ cdce_free_mq(struct cdce_mq *mq)
 }
 
 static void
-cdce_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
-{
-	struct cdce_softc *sc = xfer->priv_sc;
-	struct usb2_xfer *xfer_other = sc->sc_xfer[0];
-
-	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF("stall cleared\n");
-		usb2_transfer_start(xfer_other);
-	}
-	return;
-}
-
-static void
 cdce_bulk_write_512x4_callback(struct usb2_xfer *xfer)
 {
 	struct cdce_softc *sc = xfer->priv_sc;
@@ -677,12 +623,6 @@ cdce_bulk_write_512x4_callback(struct usb2_xfer *xfer)
 
 	case USB_ST_SETUP:
 tr_setup:
-		if (xfer->flags.stall_pipe &&
-		    (xfer->flags_int.usb2_mode == USB_MODE_HOST)) {
-			/* try to clear stall */
-			usb2_transfer_start(sc->sc_xfer[2]);
-			break;
-		}
 		x = 0;			/* number of frames */
 		y = 1;			/* number of fragments */
 
@@ -784,6 +724,8 @@ cdce_bulk_write_std_callback(struct usb2_xfer *xfer)
 	struct mbuf *mt;
 	uint32_t crc;
 
+	DPRINTFN(1, "\n");
+
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 		DPRINTFN(11, "transfer complete: "
@@ -797,11 +739,6 @@ cdce_bulk_write_std_callback(struct usb2_xfer *xfer)
 
 	case USB_ST_SETUP:
 tr_setup:
-		if (xfer->flags.stall_pipe &&
-		    (xfer->flags_int.usb2_mode == USB_MODE_HOST)) {
-			usb2_transfer_start(sc->sc_xfer[2]);
-			break;
-		}
 		IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 
 		if (m == NULL) {
@@ -925,8 +862,6 @@ cdce_stop(struct cdce_softc *sc)
 	 */
 	usb2_transfer_stop(sc->sc_xfer[0]);
 	usb2_transfer_stop(sc->sc_xfer[1]);
-	usb2_transfer_stop(sc->sc_xfer[2]);
-	usb2_transfer_stop(sc->sc_xfer[3]);
 	return;
 }
 
@@ -1023,19 +958,6 @@ cdce_init_cb(void *arg)
 }
 
 static void
-cdce_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
-{
-	struct cdce_softc *sc = xfer->priv_sc;
-	struct usb2_xfer *xfer_other = sc->sc_xfer[1];
-
-	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF("stall cleared\n");
-		usb2_transfer_start(xfer_other);
-	}
-	return;
-}
-
-static void
 cdce_bulk_read_512x4_callback(struct usb2_xfer *xfer)
 {
 	struct cdce_softc *sc = xfer->priv_sc;
@@ -1089,15 +1011,8 @@ cdce_bulk_read_512x4_callback(struct usb2_xfer *xfer)
 	case USB_ST_SETUP:
 tr_setup:
 		if (xfer->flags.stall_pipe) {
-
 			/* we are done */
 			sc->sc_flags &= ~CDCE_FLAG_RX_DATA;
-
-			if (xfer->flags_int.usb2_mode == USB_MODE_HOST) {
-				usb2_transfer_start(sc->sc_xfer[3]);
-				free_mq = 1;
-				break;
-			}
 		}
 		/* we expect a Multi Frame Ethernet Header */
 		if (!(sc->sc_flags & CDCE_FLAG_RX_DATA)) {
@@ -1292,13 +1207,6 @@ cdce_bulk_read_std_callback(struct usb2_xfer *xfer)
 		}
 	case USB_ST_SETUP:
 tr_setup:
-		if (xfer->flags.stall_pipe) {
-
-			if (xfer->flags_int.usb2_mode == USB_MODE_HOST) {
-				usb2_transfer_start(sc->sc_xfer[3]);
-				break;
-			}
-		}
 		m = usb2_ether_get_mbuf();
 		if (m == NULL) {
 
@@ -1381,23 +1289,9 @@ cdce_ifmedia_sts_cb(struct ifnet *const ifp, struct ifmediareq *req)
 }
 
 static void
-cdce_intr_read_clear_stall_callback(struct usb2_xfer *xfer)
-{
-	struct cdce_softc *sc = xfer->priv_sc;
-	struct usb2_xfer *xfer_other = sc->sc_xfer[4];
-
-	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF("stall cleared\n");
-		usb2_transfer_start(xfer_other);
-	}
-	return;
-}
-
-static void
 cdce_intr_read_callback(struct usb2_xfer *xfer)
 {
-	struct cdce_softc *sc = xfer->priv_sc;
-
+	;				/* style fix */
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
@@ -1408,13 +1302,8 @@ cdce_intr_read_callback(struct usb2_xfer *xfer)
 
 	case USB_ST_SETUP:
 tr_setup:
-		if (xfer->flags.stall_pipe &&
-		    (xfer->flags_int.usb2_mode == USB_MODE_HOST)) {
-			usb2_transfer_start(sc->sc_xfer[5]);
-		} else {
-			xfer->frlengths[0] = xfer->max_data_length;
-			usb2_start_hardware(xfer);
-		}
+		xfer->frlengths[0] = xfer->max_data_length;
+		usb2_start_hardware(xfer);
 		break;
 
 	default:			/* Error */
@@ -1431,8 +1320,7 @@ tr_setup:
 static void
 cdce_intr_write_callback(struct usb2_xfer *xfer)
 {
-	struct cdce_softc *sc = xfer->priv_sc;
-
+	;				/* style fix */
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 
@@ -1440,15 +1328,10 @@ cdce_intr_write_callback(struct usb2_xfer *xfer)
 
 	case USB_ST_SETUP:
 tr_setup:
-		if (xfer->flags.stall_pipe &&
-		    (xfer->flags_int.usb2_mode == USB_MODE_HOST)) {
-			usb2_transfer_start(sc->sc_xfer[5]);
-		} else {
 #if 0
-			xfer->frlengths[0] = XXX;
-			usb2_start_hardware(xfer);
+		xfer->frlengths[0] = XXX;
+		usb2_start_hardware(xfer);
 #endif
-		}
 		break;
 
 	default:			/* Error */

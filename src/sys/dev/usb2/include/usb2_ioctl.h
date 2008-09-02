@@ -45,6 +45,7 @@ struct usb2_ctl_request {
 #define	USB_USE_POLLING         0x0001	/* internal flag */
 #define	USB_SHORT_XFER_OK       0x0004	/* allow short reads */
 #define	USB_DELAY_STATUS_STAGE  0x0010	/* insert delay before STATUS stage */
+#define	USB_USER_DATA_PTR	0x0020	/* internal flag */
 	uint16_t ucr_actlen;		/* actual length transferred */
 	uint8_t	ucr_addr;		/* zero - currently not used */
 	struct usb2_device_request ucr_request;

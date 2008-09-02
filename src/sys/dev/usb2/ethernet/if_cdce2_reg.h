@@ -35,7 +35,7 @@
 #ifndef _USB_IF_CDCEREG_H_
 #define	_USB_IF_CDCEREG_H_
 
-#define	CDCE_N_TRANSFER	6		/* units */
+#define	CDCE_N_TRANSFER	3		/* units */
 #define	CDCE_IND_SIZE_MAX 32		/* bytes */
 #define	CDCE_512X4_IFQ_MAXLEN MAX((2*CDCE_512X4_FRAMES_MAX), IFQ_MAXLEN)
 

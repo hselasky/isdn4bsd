@@ -231,17 +231,27 @@ static const struct usb2_temp_endpoint_desc *eth_data_endpoints[] = {
 	NULL,
 };
 
+static const struct usb2_temp_interface_desc eth_data_null_interface = {
+	.ppEndpoints = NULL,		/* no endpoints */
+	.bInterfaceClass = UICLASS_CDC_DATA,
+	.bInterfaceSubClass = 0,
+	.bInterfaceProtocol = 0,
+	.iInterface = STRING_ETH_DATA_INDEX,
+};
+
 static const struct usb2_temp_interface_desc eth_data_interface = {
 	.ppEndpoints = eth_data_endpoints,
 	.bInterfaceClass = UICLASS_CDC_DATA,
 	.bInterfaceSubClass = UISUBCLASS_DATA,
 	.bInterfaceProtocol = 0,
 	.iInterface = STRING_ETH_DATA_INDEX,
+	.isAltInterface = 1,		/* this is an alternate setting */
 };
 
 static const struct usb2_temp_interface_desc *eth_interfaces[] = {
 	&eth_control_interface,
 	&eth_control_if_512x4,
+	&eth_data_null_interface,
 	&eth_data_interface,
 	NULL,
 };
