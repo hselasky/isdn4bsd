@@ -125,6 +125,8 @@ struct mbuf;
 #include <bsd_module_ioccom.h>
 #include <bsd_module_file.h>
 #include <bsd_module_misc.h>
+#include <bsd_module_tq.h>
+#include <bsd_module_bussig.h>
 
 /* panic */
 

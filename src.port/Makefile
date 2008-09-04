@@ -10,9 +10,14 @@
 PROG= usb2kernel
 MAN=  # no manual page at the moment
 SRCS= 
-CFLAGS += -ffreestanding -Wall -include ./bsd_module_all.h -nostdlib -nostdinc -I . -I ../src/sys
+CFLAGS += -O2 -g -ffreestanding -Wall -include ./bsd_module_all.h -nostdlib -nostdinc -I . -I ../src/sys
+SIGBASED_IO=
 
 .include "Makefile.inc"
+
+.if exists(Makefile.add)
+.include "Makefile.add"
+.endif
 
 .include <bsd.prog.mk>
 

@@ -1,3 +1,7 @@
+.if defined(SIGBASED_IO)
+SRCS+=freebsd_bussig.c
+SRCS+=freebsd_tq.c
+.endif
 SRCS+=freebsd_atmelarm.c
 SRCS+=freebsd_bus.c
 SRCS+=freebsd_sx.c
