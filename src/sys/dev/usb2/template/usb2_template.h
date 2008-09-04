@@ -31,6 +31,7 @@
 #define	_USB_TEMPLATE_H_
 
 typedef const void *(usb2_temp_get_string_desc_t)(uint16_t lang_id, uint8_t string_index);
+typedef const void *(usb2_temp_get_vendor_desc_t)(const struct usb2_device_request *req);
 
 struct usb2_temp_packet_size {
 	uint16_t mps[USB_SPEED_MAX];
@@ -67,6 +68,7 @@ struct usb2_temp_config_desc {
 
 struct usb2_temp_device_desc {
 	usb2_temp_get_string_desc_t *getStringDesc;
+	usb2_temp_get_vendor_desc_t *getVendorDesc;
 	const struct usb2_temp_config_desc **ppConfigDesc;
 	uint16_t idVendor;
 	uint16_t idProduct;

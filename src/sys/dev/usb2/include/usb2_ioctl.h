@@ -32,6 +32,7 @@
 #include <sys/ioccom.h>
 
 #define	USB_DEVICE_NAME "usb"
+#define	USB_GENERIC_NAME "ugen"
 
 struct usb2_read_dir {
 	void   *urd_data;

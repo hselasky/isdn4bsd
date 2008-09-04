@@ -69,6 +69,7 @@ static void *usb2_temp_get_device_desc(struct usb2_device *udev);
 static void *usb2_temp_get_qualifier_desc(struct usb2_device *udev);
 static void *usb2_temp_get_config_desc(struct usb2_device *udev, uint16_t *pLength, uint8_t index);
 static const void *usb2_temp_get_string_desc(struct usb2_device *udev, uint16_t lang_id, uint8_t string_index);
+static const void *usb2_temp_get_vendor_desc(struct usb2_device *udev, const struct usb2_device_request *req);
 static const void *usb2_temp_get_hub_desc(struct usb2_device *udev);
 static void usb2_temp_get_desc(struct usb2_device *udev, struct usb2_device_request *req, const void **pPtr, uint16_t *pLength);
 static usb2_error_t usb2_temp_setup(struct usb2_device *udev, const struct usb2_temp_device_desc *tdd);
@@ -955,6 +956,29 @@ usb2_temp_get_config_desc(struct usb2_device *udev,
 }
 
 /*------------------------------------------------------------------------*
+ *	usb2_temp_get_vendor_desc
+ *
+ * Returns:
+ *  NULL: No vendor descriptor found.
+ *  Else: Pointer to a vendor descriptor.
+ *------------------------------------------------------------------------*/
+static const void *
+usb2_temp_get_vendor_desc(struct usb2_device *udev,
+    const struct usb2_device_request *req)
+{
+	const struct usb2_temp_device_desc *tdd;
+
+	tdd = usb2_temp_get_tdd(udev);
+	if (tdd == NULL) {
+		return (NULL);
+	}
+	if (tdd->getVendorDesc == NULL) {
+		return (NULL);
+	}
+	return ((tdd->getVendorDesc) (req));
+}
+
+/*------------------------------------------------------------------------*
  *	usb2_temp_get_string_desc
  *
  * Returns:
@@ -1023,6 +1047,10 @@ usb2_temp_get_desc(struct usb2_device *udev, struct usb2_device_request *req,
 			goto tr_stalled;
 		}
 		break;
+	case UT_READ_VENDOR_DEVICE:
+	case UT_READ_VENDOR_OTHER:
+		buf = usb2_temp_get_vendor_desc(udev, req);
+		goto tr_valid;
 	default:
 		goto tr_stalled;
 	}

@@ -419,6 +419,7 @@ usb2_handle_request(struct usb2_xfer *xfer)
 	uint16_t wValue;
 	uint16_t wIndex;
 	uint8_t state;
+	usb2_error_t err;
 	union {
 		uWord	wStatus;
 		uint8_t	buf[2];
@@ -564,11 +565,25 @@ usb2_handle_request(struct usb2_xfer *xfer)
 		break;
 	default:
 		/* we use "USB_ADD_BYTES" to de-const the src_zcopy */
-		if (usb2_handle_iface_request(xfer,
+		err = usb2_handle_iface_request(xfer,
 		    USB_ADD_BYTES(&src_zcopy, 0),
-		    &max_len, req, off, state)) {
-			goto tr_stalled;
+		    &max_len, req, off, state);
+		if (err == 0) {
+			goto tr_valid;
 		}
+		/*
+		 * Reset zero-copy pointer and max length
+		 * variable in case they were unintentionally
+		 * set:
+		 */
+		src_zcopy = NULL;
+		max_len = 0;
+
+		/*
+		 * Check if we have a vendor specific
+		 * descriptor:
+		 */
+		goto tr_handle_get_descriptor;
 	}
 	goto tr_valid;
 

@@ -283,6 +283,7 @@ struct usb2_interface_descriptor {
 
 #define	UICLASS_PHYSICAL	0x05
 #define	UICLASS_IMAGE		0x06
+#define	UISUBCLASS_SIC		1	/* still image class */
 #define	UICLASS_PRINTER		0x07
 #define	UISUBCLASS_PRINTER	1
 #define	UIPROTO_PRINTER_UNI	1

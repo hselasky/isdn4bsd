@@ -1314,37 +1314,55 @@ usb2_ioctl(struct cdev *dev, u_long cmd, caddr_t data,
  *      usb2_clone - cdev callback
  *
  * This function is the kernel clone callback for "/dev/usbX.Y".
+ *
+ * NOTE: This function assumes that the clone and device open
+ * operation is atomic.
  *------------------------------------------------------------------------*/
 static void
 usb2_clone(void *arg, USB_UCRED char *name, int namelen, struct cdev **dev)
 {
 	enum {
 		USB_DNAME_LEN = sizeof(USB_DEVICE_NAME) - 1,
+		USB_GNAME_LEN = sizeof(USB_GENERIC_NAME) - 1,
 	};
 
 	if (*dev) {
 		/* someone else has created a device */
 		return;
 	}
-	if (usb2_last_devloc != (uint32_t)(0 - 1)) {
-		/*
-		 * XXX can we assume that the clone and open operation is
-		 * atomic ?
-		 */
-		DPRINTFN(2, "Clone race!\n");
-	}
-	if (strcmp(name, USB_DEVICE_NAME)) {
-		usb2_last_devloc =
-		    usb2_lookup_symlink(name, namelen);
-	} else {
+	/* reset device location */
+	usb2_last_devloc = (uint32_t)(0 - 1);
+
+	/*
+	 * Check if we are matching "usb", "ugen" or an internal
+	 * symbolic link:
+	 */
+	if ((namelen >= USB_DNAME_LEN) &&
+	    (bcmp(name, USB_DEVICE_NAME, USB_DNAME_LEN) == 0)) {
 		if (namelen == USB_DNAME_LEN) {
+			/* USB management device location */
 			usb2_last_devloc = (uint32_t)(0 - 2);
 		} else {
+			/* USB endpoint */
 			usb2_last_devloc =
 			    usb2_path_convert(name + USB_DNAME_LEN);
 		}
+	} else if ((namelen >= USB_GNAME_LEN) &&
+	    (bcmp(name, USB_GENERIC_NAME, USB_GNAME_LEN) == 0)) {
+		if (namelen == USB_GNAME_LEN) {
+			/* USB management device location */
+			usb2_last_devloc = (uint32_t)(0 - 2);
+		} else {
+			/* USB endpoint */
+			usb2_last_devloc =
+			    usb2_path_convert(name + USB_GNAME_LEN);
+		}
 	}
-
+	if (usb2_last_devloc == (uint32_t)(0 - 1)) {
+		/* Search for symbolic link */
+		usb2_last_devloc =
+		    usb2_lookup_symlink(name, namelen);
+	}
 	if (usb2_last_devloc == (uint32_t)(0 - 1)) {
 		/* invalid location */
 		return;
@@ -1449,6 +1467,10 @@ usb2_ioctl_f_sub(struct usb2_fifo *f, u_long cmd, void *addr, struct thread *td)
 	int error = 0;
 
 	switch (cmd) {
+	case FIODTYPE:
+		*(int *)addr = 0;	/* character device */
+		break;
+
 	case FIONBIO:
 		/* handled by upper FS layer */
 		break;
