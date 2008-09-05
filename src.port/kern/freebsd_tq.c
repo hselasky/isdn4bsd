@@ -50,7 +50,6 @@ bsd_tq_frag_get_free(struct bsd_tq_fifo *queue)
 {
 	struct bsd_tq_frag *frag;
 
-	mtx_assert(&queue->mtx, MA_OWNED);
 	frag = TAILQ_FIRST(&queue->free_q);
 	if (frag != NULL) {
 		TAILQ_REMOVE(&queue->free_q, frag, entry);
@@ -63,7 +62,6 @@ bsd_tq_frag_get_used(struct bsd_tq_fifo *queue)
 {
 	struct bsd_tq_frag *frag;
 
-	mtx_assert(&queue->mtx, MA_OWNED);
 	frag = TAILQ_FIRST(&queue->used_q);
 	if (frag != NULL) {
 		TAILQ_REMOVE(&queue->used_q, frag, entry);
@@ -74,7 +72,6 @@ bsd_tq_frag_get_used(struct bsd_tq_fifo *queue)
 void
 bsd_tq_frag_put_free(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag)
 {
-	mtx_assert(&queue->mtx, MA_OWNED);
 	TAILQ_INSERT_TAIL(&queue->free_q, frag, entry);
 	return;
 }
@@ -82,22 +79,7 @@ bsd_tq_frag_put_free(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag)
 void
 bsd_tq_frag_put_used(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag)
 {
-	mtx_assert(&queue->mtx, MA_OWNED);
 	TAILQ_INSERT_TAIL(&queue->used_q, frag, entry);
-	return;
-}
-
-void
-bsd_tq_fifo_lock(struct bsd_tq_fifo *queue)
-{
-	mtx_lock(&queue->mtx);
-	return;
-}
-
-void
-bsd_tq_fifo_unlock(struct bsd_tq_fifo *queue)
-{
-	mtx_unlock(&queue->mtx);
 	return;
 }
 
@@ -106,8 +88,6 @@ bsd_tq_fifo_init(struct bsd_tq_fifo *queue, struct bsd_tq_frag *pfrags,
     uint32_t nfrags)
 {
 	uint32_t n;
-
-	mtx_init(&queue->mtx, "USBQUEUE", NULL, MTX_DEF);
 
 	TAILQ_INIT(&queue->free_q);
 	TAILQ_INIT(&queue->used_q);
@@ -121,6 +101,5 @@ bsd_tq_fifo_init(struct bsd_tq_fifo *queue, struct bsd_tq_frag *pfrags,
 void
 bsd_tq_fifo_uninit(struct bsd_tq_fifo *queue)
 {
-	mtx_destroy(&queue->mtx);
 	return;
 }

@@ -23,7 +23,7 @@
  * SUCH DAMAGE.
  */
 
-typedef void (bsd_tq_start_t)(void *arg);	/* called unlocked */
+typedef void (bsd_tq_cmd_t)(void *arg);	/* called unlocked */
 
 #ifdef __FreeBSD__
 struct bsd_tq_frag {
@@ -35,7 +35,6 @@ struct bsd_tq_frag {
 struct bsd_tq_fifo {
 	TAILQ_HEAD(, bsd_tq_frag) free_q;
 	TAILQ_HEAD(, bsd_tq_frag) used_q;
-	struct mtx mtx;
 };
 
 #else
@@ -49,9 +48,7 @@ struct bsd_tq_fifo;
 struct bsd_tq_frag *bsd_tq_frag_get_free(struct bsd_tq_fifo *queue);	/* X */
 struct bsd_tq_frag *bsd_tq_frag_get_used(struct bsd_tq_fifo *queue);	/* X */
 void	bsd_tq_fifo_init(struct bsd_tq_fifo *queue, struct bsd_tq_frag *pfrags, uint32_t nfrags);
-void	bsd_tq_fifo_lock(struct bsd_tq_fifo *queue);
 void	bsd_tq_fifo_uninit(struct bsd_tq_fifo *queue);
-void	bsd_tq_fifo_unlock(struct bsd_tq_fifo *queue);
 void	bsd_tq_frag_get_buf_len(struct bsd_tq_frag *frag, void **ppbuf, uint32_t *plen);
 void	bsd_tq_frag_put_free(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag);	/* X */
 void	bsd_tq_frag_put_used(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag);	/* X */
