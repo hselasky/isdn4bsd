@@ -288,8 +288,16 @@
   bus_space_write_1((sc)->sc_io_tag, (sc)->sc_io_hdl, reg, data)
 
 struct musbotg_td;
+struct musbotg_softc;
 
 typedef uint8_t (musbotg_cmd_t)(struct musbotg_td *td);
+
+struct musbotg_dma {
+	struct musbotg_softc *sc;
+	uint8_t	busy:1;
+	uint8_t	complete:1;
+	uint8_t	error:1;
+};
 
 struct musbotg_td {
 	struct musbotg_td *obj_next;
@@ -304,6 +312,7 @@ struct musbotg_td {
 	uint8_t	short_pkt:1;
 	uint8_t	support_multi_buffer:1;
 	uint8_t	did_stall:1;
+	uint8_t	dma_enabled:1;
 };
 
 struct musbotg_std_temp {
@@ -355,6 +364,10 @@ struct musbotg_softc {
 	struct usb2_sw_transfer sc_root_intr;
 	struct usb2_config_td sc_config_td;
 	struct usb2_hw_ep_profile sc_hw_ep_profile[16];
+#ifdef MUSB2_DMA_ENABLED
+	struct musbotg_dma sc_rx_dma[16];
+	struct musbotg_dma sc_tx_dma[16];
+#endif
 
 	struct resource *sc_io_res;
 	struct resource *sc_irq_res;
@@ -367,7 +380,10 @@ struct musbotg_softc {
 	void    (*sc_clocks_off) (void *arg);
 	void   *sc_clocks_arg;
 
-	uint8_t	sc_ep_max;		/* maximum number of duplex endpoints */
+	uint32_t sc_dma_align;		/* DMA buffer alignment */
+
+	uint8_t	sc_ep_max;		/* maximum number of RX and TX
+					 * endpoints supported */
 	uint8_t	sc_rt_addr;		/* root HUB address */
 	uint8_t	sc_dv_addr;		/* device address */
 	uint8_t	sc_conf;		/* root HUB config */
@@ -387,5 +403,21 @@ void	musbotg_uninit(struct musbotg_softc *sc);
 void	musbotg_suspend(struct musbotg_softc *sc);
 void	musbotg_resume(struct musbotg_softc *sc);
 void	musbotg_interrupt(struct musbotg_softc *sc);
+
+#ifdef MUSB2_DMA_ENABLED
+void	musbotg_start_rxdma(void *arg, const void *dstaddr, uint32_t bytecount, uint32_t ep_no);
+void	musbotg_start_txdma(void *arg, const void *srcaddr, uint32_t bytecount, uint32_t ep_no);
+void	musbotg_stop_rxdma_async(uint32_t ep_no);
+void	musbotg_stop_txdma_async(uint32_t ep_no);
+void	musbotg_complete_dma_cb(void *arg, uint32_t is_error);
+uint32_t musbotg_support_rxdma(uint32_t ep_no);
+uint32_t musbotg_support_txdma(uint32_t ep_no);
+uint32_t musbotg_get_dma_align(void);
+
+#else
+#define	musbotg_support_rxdma(...) 0
+#define	musbotg_support_txdma(...) 0
+#define	musbotg_get_dma_align(...) 0
+#endif
 
 #endif					/* _MUSB2_OTG_H_ */
