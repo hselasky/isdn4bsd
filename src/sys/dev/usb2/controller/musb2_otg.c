@@ -431,15 +431,34 @@ musbotg_setup_data_rx(struct musbotg_td *td)
 		if (buf_res.length > count) {
 			buf_res.length = count;
 		}
-		/*
-		 * Compute the least number of bytes to the next buffer
-		 * alignment address:
-		 */
-		temp = 4 - (USB_P2U(buf_res.buffer) & 3);
+		/* check for unaligned memory address */
+		if (USB_P2U(buf_res.buffer) & 3) {
 
+			temp = count & ~3;
+
+			if (temp) {
+				/* receive data 4 bytes at a time */
+				bus_space_read_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
+				    MUSB2_REG_EPFIFO(0), sc->sc_bounce_buf,
+				    temp / 4);
+			}
+			temp = count & 3;
+			if (temp) {
+				/* receive data 1 byte at a time */
+				bus_space_read_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
+				    MUSB2_REG_EPFIFO(0),
+				    (void *)(&sc->sc_bounce_buf[count / 4]), temp);
+			}
+			usb2_copy_in(td->pc, td->offset,
+			    sc->sc_bounce_buf, count);
+
+			/* update offset and remainder */
+			td->offset += count;
+			td->remainder -= count;
+			break;
+		}
 		/* check if we can optimise */
-		if ((temp == 4) &&
-		    (buf_res.length >= 4)) {
+		if (buf_res.length >= 4) {
 
 			/* receive data 4 bytes at a time */
 			bus_space_read_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
@@ -453,10 +472,6 @@ musbotg_setup_data_rx(struct musbotg_td *td)
 			td->offset += temp;
 			td->remainder -= temp;
 			continue;
-		}
-		/* minimise data transfer length */
-		if (buf_res.length > temp) {
-			buf_res.length = temp;
 		}
 		/* receive data */
 		bus_space_read_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
@@ -534,15 +549,34 @@ musbotg_setup_data_tx(struct musbotg_td *td)
 		if (buf_res.length > count) {
 			buf_res.length = count;
 		}
-		/*
-		 * Compute the least number of bytes to the next buffer
-		 * alignment address:
-		 */
-		temp = 4 - (USB_P2U(buf_res.buffer) & 3);
+		/* check for unaligned memory address */
+		if (USB_P2U(buf_res.buffer) & 3) {
 
+			usb2_copy_out(td->pc, td->offset,
+			    sc->sc_bounce_buf, count);
+
+			temp = count & ~3;
+
+			if (temp) {
+				/* transmit data 4 bytes at a time */
+				bus_space_write_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
+				    MUSB2_REG_EPFIFO(0), sc->sc_bounce_buf,
+				    temp / 4);
+			}
+			temp = count & 3;
+			if (temp) {
+				/* receive data 1 byte at a time */
+				bus_space_write_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
+				    MUSB2_REG_EPFIFO(0),
+				    ((void *)&sc->sc_bounce_buf[count / 4]), temp);
+			}
+			/* update offset and remainder */
+			td->offset += count;
+			td->remainder -= count;
+			break;
+		}
 		/* check if we can optimise */
-		if ((temp == 4) &&
-		    (buf_res.length >= 4)) {
+		if (buf_res.length >= 4) {
 
 			/* transmit data 4 bytes at a time */
 			bus_space_write_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
@@ -556,10 +590,6 @@ musbotg_setup_data_tx(struct musbotg_td *td)
 			td->offset += temp;
 			td->remainder -= temp;
 			continue;
-		}
-		/* minimise data transfer length */
-		if (buf_res.length > temp) {
-			buf_res.length = temp;
 		}
 		/* transmit data */
 		bus_space_write_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
@@ -734,6 +764,32 @@ repeat:
 		if (buf_res.length > count) {
 			buf_res.length = count;
 		}
+		/* check for unaligned memory address */
+		if (USB_P2U(buf_res.buffer) & 3) {
+
+			temp = count & ~3;
+
+			if (temp) {
+				/* receive data 4 bytes at a time */
+				bus_space_read_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
+				    MUSB2_REG_EPFIFO(td->ep_no), sc->sc_bounce_buf,
+				    temp / 4);
+			}
+			temp = count & 3;
+			if (temp) {
+				/* receive data 1 byte at a time */
+				bus_space_read_multi_1(sc->sc_io_tag,
+				    sc->sc_io_hdl, MUSB2_REG_EPFIFO(td->ep_no),
+				    ((void *)&sc->sc_bounce_buf[count / 4]), temp);
+			}
+			usb2_copy_in(td->pc, td->offset,
+			    sc->sc_bounce_buf, count);
+
+			/* update offset and remainder */
+			td->offset += count;
+			td->remainder -= count;
+			break;
+		}
 #ifdef MUSB2_DMA_ENABLED
 		if (td->dma_enabled) {
 			/*
@@ -755,9 +811,13 @@ repeat:
 				sc->sc_rx_dma[td->ep_no].error = 0;
 
 				/* start DMA job */
-				musbotg_start_rxdma(sc->sc_rx_dma + td->ep_no,
-				    buf_res.buffer, temp, td->ep_no);
-
+				if (musbotg_start_rxdma(sc->sc_rx_dma[td->ep_no].dma_chan,
+				    sc->sc_rx_dma + td->ep_no, buf_res.buffer, temp)) {
+					/* DMA failure */
+					td->error = 1;
+					/* we are complete */
+					return (0);
+				}
 				/*
 				 * Pre-advance buffer pointers because the
 				 * USB chip will update its counters:
@@ -772,15 +832,8 @@ repeat:
 			}
 		}
 #endif
-		/*
-		 * Compute the least number of bytes to the next buffer
-		 * alignment address:
-		 */
-		temp = 4 - (USB_P2U(buf_res.buffer) & 3);
-
 		/* check if we can optimise */
-		if ((temp == 4) &&
-		    (buf_res.length >= 4)) {
+		if (buf_res.length >= 4) {
 
 			/* receive data 4 bytes at a time */
 			bus_space_read_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
@@ -794,10 +847,6 @@ repeat:
 			td->offset += temp;
 			td->remainder -= temp;
 			continue;
-		}
-		/* minimise data transfer length */
-		if (buf_res.length > temp) {
-			buf_res.length = temp;
 		}
 		/* receive data */
 		bus_space_read_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
@@ -880,6 +929,32 @@ repeat:
 		if (buf_res.length > count) {
 			buf_res.length = count;
 		}
+		/* check for unaligned memory address */
+		if (USB_P2U(buf_res.buffer) & 3) {
+
+			usb2_copy_out(td->pc, td->offset,
+			    sc->sc_bounce_buf, count);
+
+			temp = count & ~3;
+
+			if (temp) {
+				/* transmit data 4 bytes at a time */
+				bus_space_write_multi_4(sc->sc_io_tag,
+				    sc->sc_io_hdl, MUSB2_REG_EPFIFO(td->ep_no),
+				    sc->sc_bounce_buf, temp / 4);
+			}
+			temp = count & 3;
+			if (temp) {
+				/* receive data 1 byte at a time */
+				bus_space_write_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
+				    MUSB2_REG_EPFIFO(td->ep_no),
+				    ((void *)&sc->sc_bounce_buf[count / 4]), temp);
+			}
+			/* update offset and remainder */
+			td->offset += count;
+			td->remainder -= count;
+			break;
+		}
 #ifdef MUSB2_DMA_ENABLED
 		if (td->dma_enabled) {
 			/*
@@ -921,8 +996,13 @@ repeat:
 					sc->sc_tx_dma[td->ep_no].error = 0;
 
 					/* start DMA job */
-					musbotg_start_txdma(sc->sc_tx_dma + td->ep_no,
-					    buf_res.buffer, temp, td->ep_no);
+					if (musbotg_start_txdma(sc->sc_tx_dma[td->ep_no].dma_chan,
+					    sc->sc_tx_dma + td->ep_no, buf_res.buffer, temp)) {
+						/* DMA failure */
+						td->error = 1;
+						/* we are complete */
+						return (0);
+					}
 					return (1);	/* wait for callback */
 				}
 			}
@@ -932,15 +1012,8 @@ repeat:
 			}
 		}
 #endif
-		/*
-		 * Compute the least number of bytes to the next buffer
-		 * alignment address:
-		 */
-		temp = 4 - (USB_P2U(buf_res.buffer) & 3);
-
 		/* check if we can optimise */
-		if ((temp == 4) &&
-		    (buf_res.length >= 4)) {
+		if (buf_res.length >= 4) {
 
 			/* transmit data 4 bytes at a time */
 			bus_space_write_multi_4(sc->sc_io_tag, sc->sc_io_hdl,
@@ -954,10 +1027,6 @@ repeat:
 			td->offset += temp;
 			td->remainder -= temp;
 			continue;
-		}
-		/* minimise data transfer length */
-		if (buf_res.length > temp) {
-			buf_res.length = temp;
 		}
 		/* transmit data */
 		bus_space_write_multi_1(sc->sc_io_tag, sc->sc_io_hdl,
@@ -1390,7 +1459,7 @@ musbotg_ep_int_set(struct usb2_xfer *xfer, uint8_t on)
 					 * so there is no need for an
 					 * immediate DMA stop!
 					 */
-					musbotg_stop_rxdma_async(ep_no);
+					musbotg_stop_rxdma_async(sc->sc_tx_dma[ep_no].dma_chan);
 				}
 				sc->sc_rx_dma[ep_no].complete = 0;
 				sc->sc_rx_dma[ep_no].busy = 0;
@@ -1412,7 +1481,7 @@ musbotg_ep_int_set(struct usb2_xfer *xfer, uint8_t on)
 					 * so there is no need for an
 					 * immediate DMA stop!
 					 */
-					musbotg_stop_txdma_async(ep_no);
+					musbotg_stop_txdma_async(sc->sc_tx_dma[ep_no].dma_chan);
 				}
 				sc->sc_tx_dma[ep_no].complete = 0;
 				sc->sc_tx_dma[ep_no].busy = 0;
@@ -1671,13 +1740,17 @@ musbotg_clear_stall_sub(struct musbotg_softc *sc, uint16_t wMaxPacket,
 
 	if (ep_dir == UE_DIR_IN) {
 
+#ifdef MUSB2_DMA_ENABLED
 		/* check if we support DMA */
-		if (musbotg_support_txdma(ep_no)) {
+		if (sc->sc_tx_dma_res[ep_no] != NULL) {
 			temp = MUSB2_MASK_CSRH_TXDMAREQMODE |
 			    MUSB2_MASK_CSRH_TXDMAREQENA;
 		} else {
 			temp = 0;
 		}
+#else
+		temp = 0;
+#endif
 
 		/* Configure endpoint */
 		switch (ep_type) {
@@ -1738,13 +1811,17 @@ musbotg_clear_stall_sub(struct musbotg_softc *sc, uint16_t wMaxPacket,
 		}
 	} else {
 
+#ifdef MUSB2_DMA_ENABLED
 		/* check if we support DMA */
-		if (musbotg_support_rxdma(ep_no)) {
+		if (sc->sc_rx_dma_res[ep_no] != NULL) {
 			temp = MUSB2_MASK_CSRH_RXDMAREQMODE |
 			    MUSB2_MASK_CSRH_RXDMAREQENA;
 		} else {
 			temp = 0;
 		}
+#else
+		temp = 0;
+#endif
 
 		/* Configure endpoint */
 		switch (ep_type) {
@@ -2020,6 +2097,7 @@ musbotg_uninit(struct musbotg_softc *sc)
 	musbotg_pull_down(sc);
 	musbotg_clocks_off(sc);
 	mtx_unlock(&sc->sc_bus.mtx);
+
 	return;
 }
 
@@ -2975,17 +3053,19 @@ musbotg_xfer_setup(struct usb2_setup_params *parm)
 			td->ep_no = ep_no;
 			td->obj_next = last_obj;
 
+#ifdef MUSB2_DMA_ENABLED
 			/* check for DMA support */
 			if ((xfer->endpoint & (UE_DIR_IN |
 			    UE_DIR_OUT)) == UE_DIR_IN) {
-				if (musbotg_support_txdma(ep_no)) {
+				if (sc->sc_tx_dma_res[ep_no] != NULL) {
 					td->dma_enabled = 1;
 				}
 			} else {
-				if (musbotg_support_rxdma(ep_no)) {
+				if (sc->sc_rx_dma_res[ep_no] != NULL) {
 					td->dma_enabled = 1;
 				}
 			}
+#endif
 			last_obj = td;
 		}
 		parm->size[0] += sizeof(*td);

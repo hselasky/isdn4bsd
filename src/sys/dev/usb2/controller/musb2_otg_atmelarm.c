@@ -65,7 +65,10 @@ musbotg_vbus_interrupt(struct musbotg_super_softc *sc)
 static void
 musbotg_clocks_on(void *arg)
 {
+#if 0
 	struct musbotg_super_softc *sc = arg;
+
+#endif
 
 	return;
 }
@@ -73,7 +76,10 @@ musbotg_clocks_on(void *arg)
 static void
 musbotg_clocks_off(void *arg)
 {
+#if 0
 	struct musbotg_super_softc *sc = arg;
+
+#endif
 
 	return;
 }
@@ -92,6 +98,11 @@ musbotg_attach(device_t dev)
 	int err;
 	int rid;
 
+#ifdef MUSB2_DMA_ENABLED
+	int temp;
+
+#endif
+
 	if (sc == NULL) {
 		return (ENXIO);
 	}
@@ -107,6 +118,25 @@ musbotg_attach(device_t dev)
 	    USB_GET_DMA_TAG(dev), NULL)) {
 		return (ENOMEM);
 	}
+#ifdef MUSB2_DMA_ENABLED
+	/* allocate all DMA channels */
+	for (temp = 0; temp != 16; temp++) {
+		rid = temp;		/* OUT endpoint */
+		sc->sc_otg.sc_rx_dma_res[temp] =
+		    bus_alloc_resource_any(dev, SYS_RES_DRQ, &rid, RF_ACTIVE);
+		if (sc->sc_otg.sc_rx_dma_res[temp]) {
+			sc->sc_otg.sc_rx_dma[temp].dma_chan =
+			    rman_get_start(sc->sc_otg.sc_rx_dma_res[temp]);
+		}
+		rid = temp | 0x80;	/* IN endpoint */
+		sc->sc_otg.sc_tx_dma_res[temp] =
+		    bus_alloc_resource_any(dev, SYS_RES_DRQ, &rid, RF_ACTIVE);
+		if (sc->sc_otg.sc_tx_dma_res[temp]) {
+			sc->sc_otg.sc_tx_dma[temp].dma_chan =
+			    rman_get_start(sc->sc_otg.sc_tx_dma_res[temp]);
+		}
+	}
+#endif
 	rid = 0;
 	sc->sc_otg.sc_io_res =
 	    bus_alloc_resource_any(dev, SYS_RES_MEMORY, &rid, RF_ACTIVE);
@@ -172,6 +202,10 @@ musbotg_detach(device_t dev)
 	device_t bdev;
 	int err;
 
+#ifdef MUSB2_DMA_ENABLED
+	int temp;
+
+#endif
 	if (sc->sc_otg.sc_bus.bdev) {
 		bdev = sc->sc_otg.sc_bus.bdev;
 		device_detach(bdev);
@@ -190,11 +224,26 @@ musbotg_detach(device_t dev)
 		    sc->sc_otg.sc_intr_hdl);
 		sc->sc_otg.sc_intr_hdl = NULL;
 	}
+#ifdef MUSB2_DMA_ENABLED
+	/* free all DMA channels */
+	for (temp = 0; temp != 16; temp++) {
+		if (sc->sc_otg.sc_rx_dma_res[temp]) {
+			bus_release_resource(dev, SYS_RES_DRQ,
+			    temp, sc->sc_otg.sc_rx_dma_res[temp]);
+		}
+		if (sc->sc_otg.sc_tx_dma_res[temp]) {
+			bus_release_resource(dev, SYS_RES_DRQ,
+			    temp | 0x80, sc->sc_otg.sc_tx_dma_res[temp]);
+		}
+	}
+#endif
+	/* free IRQ channel, if any */
 	if (sc->sc_otg.sc_irq_res) {
 		bus_release_resource(dev, SYS_RES_IRQ, 0,
 		    sc->sc_otg.sc_irq_res);
 		sc->sc_otg.sc_irq_res = NULL;
 	}
+	/* free memory resource, if any */
 	if (sc->sc_otg.sc_io_res) {
 		bus_release_resource(dev, SYS_RES_MEMORY, 0,
 		    sc->sc_otg.sc_io_res);
