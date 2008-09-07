@@ -54,19 +54,45 @@ DRIVER_MODULE(atmelarm, atmelarm, atmelarm_driver, atmelarm_devclass, atmelarm_m
 
 extern volatile uint8_t *UsbIoBase;
 
+#ifdef MUSB2_DMA_ENABLED
+extern uint32_t musbotg_get_dma_chan(int unit, int rid);
+
+#endif
+
 static int
 atmelarm_alloc_resource(device_t parent, device_t child,
     struct resource *res, int type, int *rid, uint32_t start,
     uint32_t end, uint32_t count, uint32_t flags)
 {
-	if ((type == SYS_RES_MEMORY) && (rid[0] == 0)) {
-		res->r_start = UsbIoBase - (uint8_t *)0;
-		res->r_end = (UsbIoBase - (uint8_t *)0) + 0x400;
-		res->r_bustag = NULL;
-		res->r_bushandle = (bus_space_handle_t)UsbIoBase;
-		return (0);
-	} else if ((type == SYS_RES_IRQ) && (rid[0] == 0)) {
-		return (0);
+	switch (type) {
+#ifdef MUSB2_DMA_ENABLED
+		case SYS_RES_DRQ:
+		start = musbotg_get_dma_chan(device_get_unit(child), rid[0]);
+		if (start != 0) {
+			res->r_start = start;
+			res->r_end = start;
+			res->r_bustag = NULL;
+			res->r_bushandle = NULL;
+			return (0);
+		}
+		break;
+#endif
+	case SYS_RES_MEMORY:
+		if (rid[0] == 0) {
+			res->r_start = UsbIoBase - (uint8_t *)0;
+			res->r_end = (UsbIoBase - (uint8_t *)0) + 0x400;
+			res->r_bustag = NULL;
+			res->r_bushandle = (bus_space_handle_t)UsbIoBase;
+			return (0);
+		}
+		break;
+	case SYS_RES_IRQ:
+		if (rid[0] == 0) {
+			return (0);
+		}
+		break;
+	default:
+		break;
 	}
 	return (EINVAL);
 }

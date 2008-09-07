@@ -165,6 +165,7 @@ struct file {
 #define	FIOASYNC        _IOW('f', 125, int)	/* set/clear async i/o */
 #define	TIOCSPGRP       _IOW('t', 118, int)	/* set pgrp of tty */
 #define	TIOCGPGRP       _IOR('t', 119, int)	/* get pgrp of tty */
+#define	FIODTYPE        _IOW('f', 150, int)	/* disk type */
 
 #define	UID_ROOT        0
 #define	UID_BIN         3
