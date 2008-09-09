@@ -69,17 +69,44 @@ void
 bus_space_read_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint32_t *datap, bus_size_t count)
 {
 	volatile uint32_t *ptr = (void *)(h + offset);
+	uint32_t rem;
 
-	while (count >= 4) {
-		datap[0] = *ptr;
-		datap[1] = *ptr;
-		datap[2] = *ptr;
-		datap[3] = *ptr;
-		count -= 4;
-		datap += 4;
+#ifdef TARGET_IS_ARM
+	rem = count & 7;
+	count &= ~7;
+	if (count >= 8) {
+		do {
+			__asm volatile (
+			             "ldr r0, [%2]\n"
+			             "ldr r1, [%2]\n"
+			             "ldr r2, [%2]\n"
+			             "ldr r3, [%2]\n"
+			             "ldr r4, [%2]\n"
+			             "ldr r5, [%2]\n"
+			             "ldr r6, [%2]\n"
+			             "ldr r7, [%2]\n"
+			             "stmia %0!,{r0-r7}\n":
+			             "=r" (datap):
+			             "r"(datap),
+			             "r"(ptr):"memory",
+			             "r0", "r1", "r2", "r3",
+			             "r4", "r5", "r6", "r7");
+		} while ((count -= 8));
 	}
-
-	while (count--) {
+#else
+	rem = count & 3;
+	count &= ~3;
+	if (count >= 4) {
+		do {
+			datap[0] = *ptr;
+			datap[1] = *ptr;
+			datap[2] = *ptr;
+			datap[3] = *ptr;
+			datap += 4;
+		} while ((count -= 4));
+	}
+#endif
+	while (rem--) {
 		*datap++ = *ptr;
 	}
 	return;
@@ -129,17 +156,47 @@ void
 bus_space_write_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint32_t *datap, bus_size_t count)
 {
 	volatile uint32_t *ptr = (void *)(h + offset);
+	uint32_t rem;
 
-	while (count >= 4) {
-		*ptr = datap[0];
-		*ptr = datap[1];
-		*ptr = datap[2];
-		*ptr = datap[3];
-		count -= 4;
-		datap += 4;
+#ifdef TARGET_IS_ARM
+	rem = count & 7;
+	count &= ~7;
+
+	if (count >= 8) {
+		do {
+			__asm volatile (
+			             "ldmia %0!, {r0-r7}\n"
+			             "str r0, [%2]\n"
+			             "str r1, [%2]\n"
+			             "str r2, [%2]\n"
+			             "str r3, [%2]\n"
+			             "str r4, [%2]\n"
+			             "str r5, [%2]\n"
+			             "str r6, [%2]\n"
+			             "str r7, [%2]\n":
+			             "=r" (datap):
+			             "r"(datap),
+			             "r"(ptr):"memory",
+			             "r0", "r1", "r2", "r3",
+			             "r4", "r5", "r6", "r7");
+
+		} while ((count -= 8));
 	}
+#else
+	rem = count & 3;
+	count &= ~3;
+	if (count >= 4) {
+		do {
+			*ptr = datap[0];
+			*ptr = datap[1];
+			*ptr = datap[2];
+			*ptr = datap[3];
+			datap += 4;
+		} while ((count -= 4));
+	}
+#endif
 
-	while (count--) {
+	while (rem--) {
 		*ptr = *datap++;
 	}
 	return;

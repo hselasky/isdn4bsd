@@ -29,20 +29,20 @@ typedef void *bus_space_tag_t;
 typedef uint8_t *bus_space_handle_t;
 
 #define	bus_space_write_1(t,h,off,val)  do { \
-    *((uint8_t *)((h) + (off))) = (val); \
+    *((volatile uint8_t *)((h) + (off))) = (val); \
 } while (0)
 
 #define	bus_space_write_2(t,h,off,val)  do { \
-    *((uint16_t *)((h) + (off))) = (val); \
+    *((volatile uint16_t *)((h) + (off))) = (val); \
 } while (0)
 
 #define	bus_space_write_4(t,h,off,val) do { \
-    *((uint32_t *)((h) + (off))) = (val); \
+    *((volatile uint32_t *)((h) + (off))) = (val); \
 } while (0)
 
-#define	bus_space_read_1(t,h,off) *((uint8_t *)((h) + (off)))
-#define	bus_space_read_2(t,h,off) *((uint16_t *)((h) + (off)))
-#define	bus_space_read_4(t,h,off) *((uint32_t *)((h) + (off)))
+#define	bus_space_read_1(t,h,off) *((volatile uint8_t *)((h) + (off)))
+#define	bus_space_read_2(t,h,off) *((volatile uint16_t *)((h) + (off)))
+#define	bus_space_read_4(t,h,off) *((volatile uint32_t *)((h) + (off)))
 
 void	bus_space_read_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint8_t *datap, bus_size_t count);
 void	bus_space_read_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint16_t *datap, bus_size_t count);

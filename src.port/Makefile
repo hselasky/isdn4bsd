@@ -15,9 +15,4 @@ SIGBASED_IO=
 
 .include "Makefile.inc"
 
-.if exists(Makefile.add)
-.include "Makefile.add"
-.endif
-
 .include <bsd.prog.mk>
-
