@@ -365,12 +365,6 @@ struct musbotg_softc {
 	struct usb2_sw_transfer sc_root_intr;
 	struct usb2_config_td sc_config_td;
 	struct usb2_hw_ep_profile sc_hw_ep_profile[16];
-#ifdef MUSB2_DMA_ENABLED
-	struct musbotg_dma sc_rx_dma[16];
-	struct musbotg_dma sc_tx_dma[16];
-	struct resource *sc_rx_dma_res[16];
-	struct resource *sc_tx_dma_res[16];
-#endif
 	struct resource *sc_io_res;
 	struct resource *sc_irq_res;
 	void   *sc_intr_hdl;
@@ -382,7 +376,6 @@ struct musbotg_softc {
 	void    (*sc_clocks_off) (void *arg);
 	void   *sc_clocks_arg;
 
-	uint32_t sc_dma_align;		/* DMA buffer alignment */
 	uint32_t sc_bounce_buf[(1024 * 3) / 4];	/* bounce buffer */
 
 	uint8_t	sc_ep_max;		/* maximum number of RX and TX
@@ -406,16 +399,5 @@ void	musbotg_uninit(struct musbotg_softc *sc);
 void	musbotg_suspend(struct musbotg_softc *sc);
 void	musbotg_resume(struct musbotg_softc *sc);
 void	musbotg_interrupt(struct musbotg_softc *sc);
-
-#ifdef MUSB2_DMA_ENABLED
-/* These functions needs to be implemented for your DMA controller */
-int	musbotg_start_rxdma(uint32_t dma_chan, void *arg, const void *dstaddr, uint32_t bytecount);
-int	musbotg_start_txdma(uint32_t dma_chan, void *arg, const void *srcaddr, uint32_t bytecount);
-uint32_t musbotg_get_dma_align(void);
-void	musbotg_complete_dma_cb(void *arg, uint32_t is_error);
-void	musbotg_stop_rxdma_async(uint32_t dma_chan);
-void	musbotg_stop_txdma_async(uint32_t dma_chan);
-
-#endif
 
 #endif					/* _MUSB2_OTG_H_ */

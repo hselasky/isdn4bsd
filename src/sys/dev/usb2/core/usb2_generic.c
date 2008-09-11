@@ -442,8 +442,8 @@ ugen_default_write_callback(struct usb2_xfer *xfer)
 	case USB_ST_SETUP:
 	case USB_ST_TRANSFERRED:
 		/*
-		 * If writing is in stall, just jump to clear stall callback and
-		 * solve the situation.
+		 * If writing is in stall, just jump to clear stall
+		 * callback and solve the situation.
 		 */
 		if (f->flag_stall) {
 			usb2_transfer_start(f->xfer[1]);
@@ -1633,99 +1633,227 @@ ugen_fs_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 }
 
 static int
+ugen_set_short_xfer(struct usb2_fifo *f, void *addr)
+{
+	if (f->xfer[0] || f->xfer[1]) {
+		/* cannot change this during transfer */
+		return (EBUSY);
+	}
+	if (*(int *)addr)
+		f->flag_short = 1;
+	else
+		f->flag_short = 0;
+	return (0);
+}
+
+static int
+ugen_set_timeout(struct usb2_fifo *f, void *addr)
+{
+	f->timeout = *(int *)addr;
+	if (f->timeout > 65535) {
+		/* limit user input */
+		f->timeout = 65535;
+	}
+	return (0);
+}
+
+static int
+ugen_get_frame_size(struct usb2_fifo *f, void *addr)
+{
+	if (f->xfer[0]) {
+		*(int *)addr = f->xfer[0]->max_frame_size;
+	} else {
+		return (EINVAL);
+	}
+	return (0);
+}
+
+static int
+ugen_set_buffer_size(struct usb2_fifo *f, void *addr)
+{
+	if (f->xfer[0] || f->xfer[1]) {
+		/* cannot change this during transfer */
+		return (EBUSY);
+	}
+	if (*(int *)addr < 1024)
+		f->bufsize = 1024;
+	else if (*(int *)addr < (256 * 1024))
+		f->bufsize = *(int *)addr;
+	else
+		f->bufsize = 256 * 1024;
+	return (0);
+}
+
+static int
+ugen_get_buffer_size(struct usb2_fifo *f, void *addr)
+{
+	*(int *)addr = f->bufsize;
+	return (0);
+}
+
+static int
+ugen_get_iface_desc(struct usb2_fifo *f,
+    struct usb2_interface_descriptor *idesc)
+{
+	struct usb2_interface *iface;
+
+	iface = usb2_get_iface(f->udev, f->iface_index);
+	if (iface && iface->idesc) {
+		*idesc = *(iface->idesc);
+	} else {
+		return (EIO);
+	}
+	return (0);
+}
+
+static int
+ugen_get_endpoint_desc(struct usb2_fifo *f,
+    struct usb2_endpoint_descriptor *ed)
+{
+	struct usb2_pipe *pipe;
+
+	pipe = f->priv_sc0;
+
+	if (pipe && pipe->edesc) {
+		*ed = *pipe->edesc;
+	} else {
+		return (EINVAL);
+	}
+	return (0);
+}
+
+static int
 ugen_iface_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 {
-	union {
-		struct usb2_interface_descriptor *idesc;
-		struct usb2_endpoint_descriptor *ed;
-		struct usb2_alt_interface *ai;
-		int    *pint;
-		void   *addr;
-	}     u;
-	struct usb2_interface *iface;
-	struct usb2_pipe *pipe;
+	struct usb2_fifo *f_rx;
+	struct usb2_fifo *f_tx;
 	int error = 0;
 
-	u.addr = addr;
+	f_rx = f->udev->fifo[(f->fifo_index & ~1) + USB_FIFO_RX];
+	f_tx = f->udev->fifo[(f->fifo_index & ~1) + USB_FIFO_TX];
 
 	switch (cmd) {
-	case USB_SET_SHORT_XFER:
-		if (f->xfer[0] || f->xfer[1]) {
-			/* cannot change this during transfer */
-			error = EBUSY;
-			break;
-		}
-		if (*(int *)addr)
-			f->flag_short = 1;
-		else
-			f->flag_short = 0;
-		break;
-
-	case USB_SET_TIMEOUT:
-		f->timeout = *(int *)addr;
-		if (f->timeout > 65535) {
-			/* limit user input */
-			f->timeout = 65535;
-		}
-		break;
-
-	case USB_GET_FRAME_SIZE:
-		if (f->xfer[0]) {
-			*(int *)addr = f->xfer[0]->max_frame_size;
+	case USB_SET_RX_SHORT_XFER:
+		if (fflags & FREAD) {
+			error = ugen_set_short_xfer(f_rx, addr);
 		} else {
 			error = EINVAL;
 		}
 		break;
 
-	case USB_SET_BUFFER_SIZE:
-		if (f->xfer[0] || f->xfer[1]) {
-			/* cannot change this during transfer */
-			error = EBUSY;
-			break;
-		}
-		if (*(int *)addr < 1024)
-			f->bufsize = 1024;
-		else if (*(int *)addr < (256 * 1024))
-			f->bufsize = *(int *)addr;
-		else
-			f->bufsize = 256 * 1024;
-		break;
-
-	case USB_GET_BUFFER_SIZE:
-		*(int *)addr = f->bufsize;
-		break;
-
-	case USB_GET_INTERFACE_DESC:
-		iface = usb2_get_iface(f->udev, f->iface_index);
-		if (iface && iface->idesc) {
-			*u.idesc = *(iface->idesc);
-		} else {
-			error = EIO;
-			break;
-		}
-		break;
-
-	case USB_GET_ENDPOINT_DESC:
-
-		pipe = f->priv_sc0;
-
-		if (pipe && pipe->edesc) {
-			*u.ed = *pipe->edesc;
+	case USB_SET_TX_FORCE_SHORT:
+		if (fflags & FWRITE) {
+			error = ugen_set_short_xfer(f_tx, addr);
 		} else {
 			error = EINVAL;
-			break;
+		}
+		break;
+
+	case USB_SET_RX_TIMEOUT:
+		if (fflags & FREAD) {
+			error = ugen_set_timeout(f_rx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_SET_TX_TIMEOUT:
+		if (fflags & FWRITE) {
+			error = ugen_set_timeout(f_tx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_GET_RX_FRAME_SIZE:
+		if (fflags & FREAD) {
+			error = ugen_get_frame_size(f_rx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_GET_TX_FRAME_SIZE:
+		if (fflags & FWRITE) {
+			error = ugen_get_frame_size(f_tx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_SET_RX_BUFFER_SIZE:
+		if (fflags & FREAD) {
+			error = ugen_set_buffer_size(f_rx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_SET_TX_BUFFER_SIZE:
+		if (fflags & FWRITE) {
+			error = ugen_set_buffer_size(f_tx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_GET_RX_BUFFER_SIZE:
+		if (fflags & FREAD) {
+			error = ugen_get_buffer_size(f_rx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_GET_TX_BUFFER_SIZE:
+		if (fflags & FWRITE) {
+			error = ugen_get_buffer_size(f_tx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_GET_RX_INTERFACE_DESC:
+		if (fflags & FREAD) {
+			error = ugen_get_iface_desc(f_rx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_GET_TX_INTERFACE_DESC:
+		if (fflags & FWRITE) {
+			error = ugen_get_iface_desc(f_tx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_GET_RX_ENDPOINT_DESC:
+		if (fflags & FREAD) {
+			error = ugen_get_endpoint_desc(f_rx, addr);
+		} else {
+			error = EINVAL;
+		}
+		break;
+
+	case USB_GET_TX_ENDPOINT_DESC:
+		if (fflags & FWRITE) {
+			error = ugen_get_endpoint_desc(f_tx, addr);
+		} else {
+			error = EINVAL;
 		}
 		break;
 
 	case USB_SET_RX_STALL_FLAG:
-		if ((fflags & FREAD) && (*u.pint)) {
-			f->flag_stall = 1;
+		if ((fflags & FREAD) && (*(int *)addr)) {
+			f_rx->flag_stall = 1;
 		}
 		break;
 
 	case USB_SET_TX_STALL_FLAG:
-		if ((fflags & FWRITE) && (*u.pint)) {
-			f->flag_stall = 1;
+		if ((fflags & FWRITE) && (*(int *)addr)) {
+			f_tx->flag_stall = 1;
 		}
 		break;
 

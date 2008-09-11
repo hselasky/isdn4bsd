@@ -847,6 +847,7 @@ usb2_fifo_free(struct usb2_fifo *f)
 	f->flag_iserror = 1;
 	/* need to wait until all callers have exited */
 	while (f->refcount != 0) {
+		mtx_unlock(&usb2_ref_lock);	/* avoid LOR */
 		mtx_lock(f->priv_mtx);
 		/* get I/O thread out of any sleep state */
 		if (f->flag_sleeping) {
@@ -854,6 +855,7 @@ usb2_fifo_free(struct usb2_fifo *f)
 			usb2_cv_broadcast(&f->cv_io);
 		}
 		mtx_unlock(f->priv_mtx);
+		mtx_lock(&usb2_ref_lock);
 
 		/* wait for sync */
 		usb2_cv_wait(&f->cv_drain, &usb2_ref_lock);
@@ -1462,7 +1464,8 @@ done:
 }
 
 static int
-usb2_ioctl_f_sub(struct usb2_fifo *f, u_long cmd, void *addr, struct thread *td)
+usb2_ioctl_f_sub(struct usb2_fifo *f, u_long cmd, void *addr,
+    struct thread *td)
 {
 	int error = 0;
 
@@ -1526,17 +1529,10 @@ usb2_ioctl_f(struct file *fp, u_long cmd, void *addr,
 	if (fflags & FREAD) {
 		if (fflags & FWRITE) {
 			/*
-			 * Automagically figure out if we have an IOCTL that
-			 * should not be replicated to both FIFOs:
+			 * Make sure that the IOCTL is not
+			 * duplicated:
 			 */
-			if ((loc.rxfifo->priv_sc0 ==
-			    loc.txfifo->priv_sc0) &&
-			    (loc.rxfifo->priv_sc1 ==
-			    loc.txfifo->priv_sc1) &&
-			    (loc.rxfifo->methods ==
-			    loc.txfifo->methods)) {
-				is_common = 1;
-			}
+			is_common = 1;
 		}
 		err_rx = usb2_ioctl_f_sub(loc.rxfifo, cmd, addr, td);
 		if (err_rx == ENOTTY) {
@@ -1624,6 +1620,13 @@ usb2_poll_f(struct file *fp, int events,
 				/* we got an error */
 				m = (void *)1;
 			} else {
+				if (f->queue_data == NULL) {
+					/*
+					 * start write transfer, if not
+					 * already started
+					 */
+					(f->methods->f_start_write) (f);
+				}
 				/* check if any packets are available */
 				USB_IF_POLL(&f->free_q, m);
 			}
@@ -1656,6 +1659,13 @@ usb2_poll_f(struct file *fp, int events,
 				/* we have and error */
 				m = (void *)1;
 			} else {
+				if (f->queue_data == NULL) {
+					/*
+					 * start read transfer, if not
+					 * already started
+					 */
+					(f->methods->f_start_read) (f);
+				}
 				/* check if any packets are available */
 				USB_IF_POLL(&f->used_q, m);
 			}
@@ -1859,6 +1869,10 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 	if (f->flag_iserror) {
 		err = EIO;
 		goto done;
+	}
+	if ((f->queue_data == NULL) && (f->fs_ep_max == 0)) {
+		/* start write transfer, if not already started */
+		(f->methods->f_start_write) (f);
 	}
 	while (uio->uio_resid > 0) {
 

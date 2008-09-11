@@ -108,21 +108,34 @@ static const struct usb2_temp_packet_size bulk_mps = {
 	.mps[USB_SPEED_HIGH] = 512,
 };
 
+static const struct usb2_temp_packet_size intr_mps = {
+	.mps[USB_SPEED_FULL] = 64,
+	.mps[USB_SPEED_HIGH] = 64,
+};
+
 static const struct usb2_temp_endpoint_desc bulk_out_ep = {
 	.pPacketSize = &bulk_mps,
-	.direction = UE_DIR_OUT,
+#ifdef USB_HIP_OUT_EP_0
+	.bEndpointAddress = USB_HIP_OUT_EP_0,
+#else
+	.bEndpointAddress = UE_DIR_OUT,
+#endif
 	.bmAttributes = UE_BULK,
 };
 
 static const struct usb2_temp_endpoint_desc intr_in_ep = {
-	.pPacketSize = &bulk_mps,
-	.direction = UE_DIR_IN,
+	.pPacketSize = &intr_mps,
+	.bEndpointAddress = UE_DIR_IN,
 	.bmAttributes = UE_INTERRUPT,
 };
 
 static const struct usb2_temp_endpoint_desc bulk_in_ep = {
 	.pPacketSize = &bulk_mps,
-	.direction = UE_DIR_IN,
+#ifdef USB_HIP_IN_EP_0
+	.bEndpointAddress = USB_HIP_IN_EP_0,
+#else
+	.bEndpointAddress = UE_DIR_IN,
+#endif
 	.bmAttributes = UE_BULK,
 };
 

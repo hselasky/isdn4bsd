@@ -45,7 +45,12 @@ struct usb2_temp_endpoint_desc {
 	const void **ppRawDesc;
 	const struct usb2_temp_packet_size *pPacketSize;
 	const struct usb2_temp_interval *pIntervals;
-	uint8_t	direction;		/* UE_DIR_IN or UE_DIR_OUT */
+	/*
+	 * If (bEndpointAddress & UE_ADDR) is non-zero the endpoint number
+	 * is pre-selected for this endpoint descriptor. Else an endpoint
+	 * number is automatically chosen.
+	 */
+	uint8_t	bEndpointAddress;	/* UE_DIR_IN or UE_DIR_OUT */
 	uint8_t	bmAttributes;
 };
 

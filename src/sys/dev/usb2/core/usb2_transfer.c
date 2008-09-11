@@ -1336,6 +1336,20 @@ usb2_start_hardware(struct usb2_xfer *xfer)
 	/* sanity check */
 
 	if (xfer->nframes == 0) {
+		if (xfer->flags.stall_pipe) {
+			/*
+			 * Special case - want to stall without transferring
+			 * any data:
+			 */
+			DPRINTF("xfer=%p nframes=0: stall "
+			    "or clear stall!\n", xfer);
+			mtx_lock(xfer->usb2_mtx);
+			xfer->flags_int.can_cancel_immed = 1;
+			/* start the transfer */
+			usb2_command_wrapper(&xfer->pipe->pipe_q, xfer);
+			mtx_unlock(xfer->usb2_mtx);
+			return;
+		}
 		mtx_lock(xfer->usb2_mtx);
 		usb2_transfer_done(xfer, USB_ERR_INVAL);
 		mtx_unlock(xfer->usb2_mtx);
@@ -2140,6 +2154,13 @@ usb2_pipe_start(struct usb2_xfer_queue *pq)
 			 */
 			return;
 		}
+	}
+	/* Set or clear stall complete - special case */
+	if (xfer->nframes == 0) {
+		/* we are complete */
+		xfer->aframes = 0;
+		usb2_transfer_done(xfer, 0);
+		return;
 	}
 	/*
 	 * Handled cases:

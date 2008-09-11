@@ -164,7 +164,7 @@ usb2_make_endpoint_desc(struct usb2_temp_setup *temp,
 		/* escape for Zero Max Packet Size */
 		mps = 0;
 	}
-	ea = (ted->direction & (UE_DIR_IN | UE_DIR_OUT));
+	ea = (ted->bEndpointAddress & (UE_ADDR | UE_DIR_IN | UE_DIR_OUT));
 	et = (ted->bmAttributes & UE_XFERTYPE);
 
 	/*
@@ -503,7 +503,12 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 	distance = 0xFFFF;
 	best_n = 0;
 
+	if ((!ep->needs_in) && (!ep->needs_out)) {
+		return (0);		/* we are done */
+	}
 	if (ep->needs_ep_type == UE_CONTROL) {
+		ep->needs_in = 0;
+		ep->needs_out = 0;
 		dir_in = 1;
 		dir_out = 1;
 	} else {
@@ -572,12 +577,6 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 		/* get the correct profile */
 		pf = ep->pf;
 
-		/* get maximum frame size */
-		if (dir_in)
-			max_frame_size = pf->max_in_frame_size;
-		else
-			max_frame_size = pf->max_out_frame_size;
-
 		/* reserve IN-endpoint */
 		if (dir_in || pf->is_simplex) {
 			ues->bmInAlloc[best_n / 8] |=
@@ -609,6 +608,7 @@ static uint8_t
 usb2_hw_ep_get_needs(struct usb2_hw_ep_scratch *ues,
     uint8_t ep_type, uint8_t is_complete)
 {
+	const struct usb2_hw_ep_profile *pf;
 	struct usb2_hw_ep_scratch_sub *ep_iface;
 	struct usb2_hw_ep_scratch_sub *ep_curr;
 	struct usb2_hw_ep_scratch_sub *ep_max;
@@ -619,6 +619,7 @@ usb2_hw_ep_get_needs(struct usb2_hw_ep_scratch *ues,
 	uint16_t wMaxPacketSize;
 	uint16_t temp;
 	uint8_t speed;
+	uint8_t ep_no;
 
 	ep_iface = ues->ep_max;
 	ep_curr = ues->ep_max;
@@ -670,13 +671,58 @@ handle_endpoint_desc:
 			/* handle packet multiplier */
 			temp = (wMaxPacketSize >> 11) & 3;
 			wMaxPacketSize &= 0x7FF;
-			if (temp == 2) {
+			if (temp == 1) {
 				wMaxPacketSize *= 2;
 			} else {
 				wMaxPacketSize *= 3;
 			}
 		}
-		if (is_complete) {
+		/*
+		 * Check if we have a fixed endpoint number, else the
+		 * endpoint number is allocated dynamically:
+		 */
+		ep_no = (ed->bEndpointAddress & UE_ADDR);
+		if (ep_no != 0) {
+
+			/* get HW endpoint profile */
+			(ues->methods->get_hw_ep_profile)
+			    (ues->udev, &pf, ep_no);
+			if (pf == NULL) {
+				/* HW profile does not exist - failure */
+				DPRINTFN(0, "Endpoint profile %u "
+				    "does not exist\n", ep_no);
+				return (1);
+			}
+			/* reserve fixed endpoint number */
+			if (ep_type == UE_CONTROL) {
+				ues->bmInAlloc[ep_no / 8] |=
+				    (1 << (ep_no % 8));
+				ues->bmOutAlloc[ep_no / 8] |=
+				    (1 << (ep_no % 8));
+				if ((pf->max_in_frame_size < wMaxPacketSize) ||
+				    (pf->max_out_frame_size < wMaxPacketSize)) {
+					DPRINTFN(0, "Endpoint profile %u "
+					    "has too small buffer!\n", ep_no);
+					return (1);
+				}
+			} else if (ed->bEndpointAddress & UE_DIR_IN) {
+				ues->bmInAlloc[ep_no / 8] |=
+				    (1 << (ep_no % 8));
+				if (pf->max_in_frame_size < wMaxPacketSize) {
+					DPRINTFN(0, "Endpoint profile %u "
+					    "has too small buffer!\n", ep_no);
+					return (1);
+				}
+			} else {
+				ues->bmOutAlloc[ep_no / 8] |=
+				    (1 << (ep_no % 8));
+				if (pf->max_out_frame_size < wMaxPacketSize) {
+					DPRINTFN(0, "Endpoint profile %u "
+					    "has too small buffer!\n", ep_no);
+					return (1);
+				}
+			}
+		} else if (is_complete) {
 
 			/* check if we have enough buffer space */
 			if (wMaxPacketSize >

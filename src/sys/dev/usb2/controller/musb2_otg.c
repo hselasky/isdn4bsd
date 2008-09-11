@@ -650,33 +650,6 @@ musbotg_setup_status(struct musbotg_td *td)
 	return (0);			/* complete */
 }
 
-#ifdef MUSB2_DMA_ENABLED
-void
-musbotg_complete_dma_cb(void *arg, uint32_t is_error)
-{
-	struct musbotg_dma *dma = arg;
-	struct musbotg_softc *sc;
-
-	sc = dma->sc;
-
-	mtx_lock(&sc->sc_bus.mtx);
-
-	dma->busy = 0;
-
-	if (is_error) {
-		dma->error = 1;
-	}
-	DPRINTFN(4, "DMA interrupt\n");
-
-	musbotg_interrupt_poll(sc);
-
-	mtx_unlock(&sc->sc_bus.mtx);
-
-	return;
-}
-
-#endif
-
 static uint8_t
 musbotg_data_rx(struct musbotg_td *td)
 {
@@ -693,11 +666,6 @@ musbotg_data_rx(struct musbotg_td *td)
 	/* get pointer to softc */
 	sc = MUSBOTG_PC2SC(td->pc);
 
-#ifdef MUSB2_DMA_ENABLED
-	if (sc->sc_rx_dma[td->ep_no].busy) {
-		return (1);		/* not complete */
-	}
-#endif
 	/* select endpoint */
 	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, td->ep_no);
 
@@ -723,21 +691,8 @@ repeat:
 	DPRINTFN(4, "count=0x%04x\n", count);
 
 	/*
-	 * First check for DMA complete and then check for short or
-	 * invalid packet:
+	 * Check for short or invalid packet:
 	 */
-#ifdef MUSB2_DMA_ENABLED
-	if (sc->sc_rx_dma[td->ep_no].complete) {
-		sc->sc_rx_dma[td->ep_no].complete = 0;
-		/* check for errors */
-		if ((count >= td->max_frame_size) ||
-		    (sc->sc_rx_dma[td->ep_no].error)) {
-			/* invalid USB packet */
-			td->error = 1;
-			return (0);	/* we are complete */
-		}
-	} else
-#endif
 	if (count != td->max_frame_size) {
 		if (count < td->max_frame_size) {
 			/* we have a short packet */
@@ -790,48 +745,6 @@ repeat:
 			td->remainder -= count;
 			break;
 		}
-#ifdef MUSB2_DMA_ENABLED
-		if (td->dma_enabled) {
-			/*
-			 * Compute the least number of bytes to the next DMA
-			 * alignment address:
-			 */
-			temp = sc->sc_dma_align -
-			    (USB_P2U(buf_res.buffer) & (sc->sc_dma_align - 1));
-
-			/* check if we can do DMA */
-			if ((temp == sc->sc_dma_align) &&
-			    (buf_res.length >= sc->sc_dma_align)) {
-
-				temp = buf_res.length & ~(sc->sc_dma_align - 1);
-
-				/* set some status bits */
-				sc->sc_rx_dma[td->ep_no].busy = 1;
-				sc->sc_rx_dma[td->ep_no].complete = 1;
-				sc->sc_rx_dma[td->ep_no].error = 0;
-
-				/* start DMA job */
-				if (musbotg_start_rxdma(sc->sc_rx_dma[td->ep_no].dma_chan,
-				    sc->sc_rx_dma + td->ep_no, buf_res.buffer, temp)) {
-					/* DMA failure */
-					td->error = 1;
-					/* we are complete */
-					return (0);
-				}
-				/*
-				 * Pre-advance buffer pointers because the
-				 * USB chip will update its counters:
-				 */
-				td->offset += temp;
-				td->remainder -= temp;
-				return (1);	/* wait for callback */
-			}
-			/* minimise data transfer length */
-			if (buf_res.length > temp) {
-				buf_res.length = temp;
-			}
-		}
-#endif
 		/* check if we can optimise */
 		if (buf_res.length >= 4) {
 
@@ -890,11 +803,6 @@ musbotg_data_tx(struct musbotg_td *td)
 	/* get pointer to softc */
 	sc = MUSBOTG_PC2SC(td->pc);
 
-#ifdef MUSB2_DMA_ENABLED
-	if (sc->sc_tx_dma[td->ep_no].busy) {
-		return (1);		/* not complete */
-	}
-#endif
 	/* select endpoint */
 	MUSB2_WRITE_1(sc, MUSB2_REG_EPINDEX, td->ep_no);
 
@@ -955,63 +863,6 @@ repeat:
 			td->remainder -= count;
 			break;
 		}
-#ifdef MUSB2_DMA_ENABLED
-		if (td->dma_enabled) {
-			/*
-			 * Compute the least number of bytes to the next DMA
-			 * alignment address:
-			 */
-			temp = sc->sc_dma_align -
-			    (USB_P2U(buf_res.buffer) & (sc->sc_dma_align - 1));
-
-			/* check if we can do DMA */
-			if ((temp == sc->sc_dma_align) &&
-			    (buf_res.length >= sc->sc_dma_align)) {
-
-				temp = buf_res.length & ~(sc->sc_dma_align - 1);
-
-				/*
-				 * Check for DMA complete or if we should
-				 * start DMA:
-				 */
-				if (sc->sc_tx_dma[td->ep_no].complete) {
-					sc->sc_tx_dma[td->ep_no].complete = 0;
-
-					/* check for errors */
-					if (sc->sc_tx_dma[td->ep_no].error) {
-						/* invalid USB packet */
-						td->error = 1;
-						/* we are complete */
-						return (0);
-					}
-					/* update counters */
-					count -= temp;
-					td->offset += temp;
-					td->remainder -= temp;
-					continue;
-				} else {
-					/* set some status bits */
-					sc->sc_tx_dma[td->ep_no].busy = 1;
-					sc->sc_tx_dma[td->ep_no].complete = 1;
-					sc->sc_tx_dma[td->ep_no].error = 0;
-
-					/* start DMA job */
-					if (musbotg_start_txdma(sc->sc_tx_dma[td->ep_no].dma_chan,
-					    sc->sc_tx_dma + td->ep_no, buf_res.buffer, temp)) {
-						/* DMA failure */
-						td->error = 1;
-						/* we are complete */
-						return (0);
-					}
-					return (1);	/* wait for callback */
-				}
-			}
-			/* minimise data transfer length */
-			if (buf_res.length > temp) {
-				buf_res.length = temp;
-			}
-		}
-#endif
 		/* check if we can optimise */
 		if (buf_res.length >= 4) {
 
@@ -1107,7 +958,6 @@ static void
 musbotg_interrupt_poll(struct musbotg_softc *sc)
 {
 	struct usb2_xfer *xfer;
-	uint8_t to = 2;
 
 repeat:
 	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
@@ -1116,8 +966,7 @@ repeat:
 			goto repeat;
 		}
 	}
-	if (--to)
-		goto repeat;
+
 	return;
 }
 
@@ -1161,12 +1010,15 @@ musbotg_vbus_interrupt(struct usb2_bus *bus, uint8_t is_on)
 void
 musbotg_interrupt(struct musbotg_softc *sc)
 {
+	uint16_t rx_status;
+	uint16_t tx_status;
 	uint8_t usb_status;
-	uint8_t rx_status;
-	uint8_t tx_status;
 	uint8_t temp;
+	uint8_t to = 2;
 
 	mtx_lock(&sc->sc_bus.mtx);
+
+repeat:
 
 	/* read all interrupt registers */
 	usb_status = MUSB2_READ_1(sc, MUSB2_REG_INTUSB);
@@ -1249,12 +1101,16 @@ musbotg_interrupt(struct musbotg_softc *sc)
 	/* check for any endpoint interrupts */
 
 	if (rx_status || tx_status) {
-
 		DPRINTFN(4, "real endpoint interrupt "
 		    "rx=0x%04x, tx=0x%04x\n", rx_status, tx_status);
-
-		musbotg_interrupt_poll(sc);
 	}
+	/* poll one time regardless of FIFO status */
+
+	musbotg_interrupt_poll(sc);
+
+	if (--to)
+		goto repeat;
+
 	mtx_unlock(&sc->sc_bus.mtx);
 
 	return;
@@ -1451,20 +1307,6 @@ musbotg_ep_int_set(struct usb2_xfer *xfer, uint8_t on)
 				temp &= ~MUSB2_MASK_EPINT(ep_no);
 			MUSB2_WRITE_2(sc, MUSB2_REG_INTRXE, temp);
 
-#ifdef MUSB2_DMA_ENABLED
-			if (on == 0) {
-				if (sc->sc_rx_dma[ep_no].busy) {
-					/*
-					 * The USB driver uses a DMA delay
-					 * so there is no need for an
-					 * immediate DMA stop!
-					 */
-					musbotg_stop_rxdma_async(sc->sc_tx_dma[ep_no].dma_chan);
-				}
-				sc->sc_rx_dma[ep_no].complete = 0;
-				sc->sc_rx_dma[ep_no].busy = 0;
-			}
-#endif
 		} else {
 			temp = MUSB2_READ_2(sc, MUSB2_REG_INTTXE);
 			if (on)
@@ -1472,21 +1314,6 @@ musbotg_ep_int_set(struct usb2_xfer *xfer, uint8_t on)
 			else
 				temp &= ~MUSB2_MASK_EPINT(ep_no);
 			MUSB2_WRITE_2(sc, MUSB2_REG_INTTXE, temp);
-
-#ifdef MUSB2_DMA_ENABLED
-			if (on == 0) {
-				if (sc->sc_tx_dma[ep_no].busy) {
-					/*
-					 * The USB driver uses a DMA delay
-					 * so there is no need for an
-					 * immediate DMA stop!
-					 */
-					musbotg_stop_txdma_async(sc->sc_tx_dma[ep_no].dma_chan);
-				}
-				sc->sc_tx_dma[ep_no].complete = 0;
-				sc->sc_tx_dma[ep_no].busy = 0;
-			}
-#endif
 		}
 	}
 	return;
@@ -1740,17 +1567,7 @@ musbotg_clear_stall_sub(struct musbotg_softc *sc, uint16_t wMaxPacket,
 
 	if (ep_dir == UE_DIR_IN) {
 
-#ifdef MUSB2_DMA_ENABLED
-		/* check if we support DMA */
-		if (sc->sc_tx_dma_res[ep_no] != NULL) {
-			temp = MUSB2_MASK_CSRH_TXDMAREQMODE |
-			    MUSB2_MASK_CSRH_TXDMAREQENA;
-		} else {
-			temp = 0;
-		}
-#else
 		temp = 0;
-#endif
 
 		/* Configure endpoint */
 		switch (ep_type) {
@@ -1811,17 +1628,7 @@ musbotg_clear_stall_sub(struct musbotg_softc *sc, uint16_t wMaxPacket,
 		}
 	} else {
 
-#ifdef MUSB2_DMA_ENABLED
-		/* check if we support DMA */
-		if (sc->sc_rx_dma_res[ep_no] != NULL) {
-			temp = MUSB2_MASK_CSRH_RXDMAREQMODE |
-			    MUSB2_MASK_CSRH_RXDMAREQENA;
-		} else {
-			temp = 0;
-		}
-#else
 		temp = 0;
-#endif
 
 		/* Configure endpoint */
 		switch (ep_type) {
@@ -1928,15 +1735,6 @@ musbotg_init(struct musbotg_softc *sc)
 	/* set up the bus structure */
 	sc->sc_bus.usbrev = USB_REV_2_0;
 	sc->sc_bus.methods = &musbotg_bus_methods;
-
-#ifdef MUSB2_DMA_ENABLED
-	/* initialise DMA structures */
-	for (temp = 0; temp != 16; temp++) {
-		sc->sc_rx_dma[temp].sc = sc;
-		sc->sc_tx_dma[temp].sc = sc;
-	}
-	sc->sc_dma_align = musbotg_get_dma_align();
-#endif
 
 	mtx_lock(&sc->sc_bus.mtx);
 
@@ -3053,19 +2851,6 @@ musbotg_xfer_setup(struct usb2_setup_params *parm)
 			td->ep_no = ep_no;
 			td->obj_next = last_obj;
 
-#ifdef MUSB2_DMA_ENABLED
-			/* check for DMA support */
-			if ((xfer->endpoint & (UE_DIR_IN |
-			    UE_DIR_OUT)) == UE_DIR_IN) {
-				if (sc->sc_tx_dma_res[ep_no] != NULL) {
-					td->dma_enabled = 1;
-				}
-			} else {
-				if (sc->sc_rx_dma_res[ep_no] != NULL) {
-					td->dma_enabled = 1;
-				}
-			}
-#endif
 			last_obj = td;
 		}
 		parm->size[0] += sizeof(*td);

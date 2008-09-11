@@ -64,6 +64,8 @@ static void usb2_suspend_resume_sub(struct usb2_device *udev, device_t dev, uint
 static void usb2_clear_stall_proc(struct usb2_proc_msg *_pm);
 static void usb2_check_strings(struct usb2_device *udev);
 static usb2_error_t usb2_fill_iface_data(struct usb2_device *udev, uint8_t iface_index, uint8_t alt_index);
+static void usb2_notify_addq(const char *type, struct usb2_device *udev);
+static void usb2_fifo_free_wrap(struct usb2_device *udev, uint8_t iface_index, uint8_t free_all);
 
 /* static structures */
 
@@ -77,7 +79,9 @@ static const uint8_t usb2_hub_speed_combs[USB_SPEED_MAX][USB_SPEED_MAX] = {
 	[USB_SPEED_LOW][USB_SPEED_LOW] = 1,
 };
 
-static int usb2_template = 0;
+/* This variable is global to allow easy access to it: */
+
+int	usb2_template = 0;
 
 SYSCTL_INT(_hw_usb2, OID_AUTO, template, CTLFLAG_RW,
     &usb2_template, 0, "Selected USB device side template");
@@ -337,13 +341,12 @@ usb2_fill_iface_data(struct usb2_device *udev,
     uint8_t iface_index, uint8_t alt_index)
 {
 	struct usb2_interface *iface = usb2_get_iface(udev, iface_index);
-	struct usb2_pipe *pipe = udev->pipes;
-	struct usb2_pipe *pipe_end = udev->pipes + USB_EP_MAX;
+	struct usb2_pipe *pipe;
+	struct usb2_pipe *pipe_end;
 	struct usb2_interface_descriptor *id;
 	struct usb2_endpoint_descriptor *ed = NULL;
 	struct usb2_descriptor *desc;
 	uint8_t nendpt;
-	uint8_t i;
 
 	if (iface == NULL) {
 		return (USB_ERR_INVAL);
@@ -353,15 +356,8 @@ usb2_fill_iface_data(struct usb2_device *udev,
 
 	sx_assert(udev->default_sx + 1, SA_LOCKED);
 
-	/*
-	 * Free any USB FIFO on the interface:
-	 */
-	for (i = 2; i != USB_FIFO_MAX; i++) {
-		if (udev->fifo[i] &&
-		    (udev->fifo[i]->iface_index == iface_index)) {
-			usb2_fifo_free(udev->fifo[i]);
-		}
-	}
+	pipe = udev->pipes;
+	pipe_end = udev->pipes + USB_EP_MAX;
 
 	/*
 	 * Check if any USB pipes on the given USB interface are in
@@ -448,7 +444,6 @@ usb2_free_iface_data(struct usb2_device *udev)
 {
 	struct usb2_interface *iface = udev->ifaces;
 	struct usb2_interface *iface_end = udev->ifaces + USB_IFACE_MAX;
-	uint8_t n;
 
 	/* mtx_assert() */
 
@@ -457,12 +452,6 @@ usb2_free_iface_data(struct usb2_device *udev)
 		usb_linux_free_device(udev->linux_dev);
 		udev->linux_dev = NULL;
 	}
-	/* free all generic USB FIFOs except the control endpoint FIFO */
-	for (n = 2; n != USB_FIFO_MAX; n++) {
-		usb2_fifo_free(udev->fifo[n]);
-		udev->fifo[n] = NULL;
-	}
-
 	/* free all pipes, if any */
 	usb2_free_pipe_data(udev, 0, 0);
 
@@ -522,6 +511,9 @@ usb2_set_config_index(struct usb2_device *udev, uint8_t index)
 
 	/* detach all interface drivers */
 	usb2_detach_device(udev, USB_IFACE_INDEX_ANY, 1);
+
+	/* free all FIFOs except control endpoint FIFOs */
+	usb2_fifo_free_wrap(udev, USB_IFACE_INDEX_ANY, 0);
 
 	/* free all configuration data structures */
 	usb2_free_iface_data(udev);
@@ -679,6 +671,9 @@ usb2_set_alt_interface_index(struct usb2_device *udev,
 	if (udev->flags.usb2_mode == USB_MODE_DEVICE) {
 		usb2_detach_device(udev, iface_index, 1);
 	}
+	/* free all FIFOs for this interface */
+	usb2_fifo_free_wrap(udev, iface_index, 0);
+
 	err = usb2_fill_iface_data(udev, iface_index, alt_index);
 	if (err) {
 		goto done;
@@ -1633,6 +1628,8 @@ repeat_set_config:
 	    device_get_unit(udev->bus->bdev),
 	    udev->device_index, udev->manufacturer,
 	    device_get_nameunit(udev->bus->bdev));
+
+	usb2_notify_addq("+", udev);
 done:
 	if (err) {
 		/* free device  */
@@ -1657,6 +1654,8 @@ usb2_free_device(struct usb2_device *udev)
 		return;
 	}
 	DPRINTFN(4, "udev=%p port=%d\n", udev, udev->port_no);
+
+	usb2_notify_addq("-", udev);
 
 	bus = udev->bus;
 
@@ -1688,12 +1687,13 @@ usb2_free_device(struct usb2_device *udev)
 		/* stop receiving any control transfers (Device Side Mode) */
 		usb2_transfer_unsetup(udev->default_xfer, USB_DEFAULT_XFER_MAX);
 	}
-	/* free all interface related data and FIFOs, if any */
-	usb2_free_iface_data(udev);
+	/* free all FIFOs */
+	usb2_fifo_free_wrap(udev, USB_IFACE_INDEX_ANY, 1);
 
-	/* free generic control endpoint FIFOs, if any */
-	usb2_fifo_free(udev->fifo[0]);
-	usb2_fifo_free(udev->fifo[1]);
+	/*
+	 * Free all interface related data and FIFOs, if any.
+	 */
+	usb2_free_iface_data(udev);
 
 	/* unsetup any leftover default USB transfers */
 	usb2_transfer_unsetup(udev->default_xfer, USB_DEFAULT_XFER_MAX);
@@ -1986,4 +1986,112 @@ uint8_t
 usb2_get_device_index(struct usb2_device *udev)
 {
 	return (udev->device_index);
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_notify_addq
+ *
+ * This function will generate events for dev.
+ *------------------------------------------------------------------------*/
+static void
+usb2_notify_addq(const char *type, struct usb2_device *udev)
+{
+	char *data = NULL;
+	struct malloc_type *mt;
+
+	mtx_lock(&malloc_mtx);
+	mt = malloc_desc2type("bus");	/* XXX M_BUS */
+	mtx_unlock(&malloc_mtx);
+	if (mt == NULL)
+		return;
+
+	data = malloc(512, mt, M_NOWAIT);
+	if (data == NULL)
+		return;
+
+	/* String it all together. */
+	if (udev->parent_hub) {
+		snprintf(data, 1024,
+		    "%s"
+		    "ugen%u.%u "
+		    "vendor=0x%04x "
+		    "product=0x%04x "
+		    "devclass=0x%02x "
+		    "devsubclass=0x%02x "
+		    "sernum=\"%s\" "
+		    "at "
+		    "port=%u "
+		    "on "
+		    "ugen%u.%u\n",
+		    type,
+		    device_get_unit(udev->bus->bdev),
+		    udev->device_index,
+		    UGETW(udev->ddesc.idVendor),
+		    UGETW(udev->ddesc.idProduct),
+		    udev->ddesc.bDeviceClass,
+		    udev->ddesc.bDeviceSubClass,
+		    udev->serial,
+		    udev->port_no,
+		    device_get_unit(udev->bus->bdev),
+		    udev->parent_hub->device_index);
+	} else {
+		snprintf(data, 1024,
+		    "%s"
+		    "ugen%u.%u "
+		    "vendor=0x%04x "
+		    "product=0x%04x "
+		    "devclass=0x%02x "
+		    "devsubclass=0x%02x "
+		    "sernum=\"%s\" "
+		    "at port=%u "
+		    "on "
+		    "%s\n",
+		    type,
+		    device_get_unit(udev->bus->bdev),
+		    udev->device_index,
+		    UGETW(udev->ddesc.idVendor),
+		    UGETW(udev->ddesc.idProduct),
+		    udev->ddesc.bDeviceClass,
+		    udev->ddesc.bDeviceSubClass,
+		    udev->serial,
+		    udev->port_no,
+		    device_get_nameunit(device_get_parent(udev->bus->bdev)));
+	}
+	devctl_queue_data(data);
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_fifo_free_wrap
+ *
+ * The function will free the FIFOs.
+ *------------------------------------------------------------------------*/
+static void
+usb2_fifo_free_wrap(struct usb2_device *udev,
+    uint8_t iface_index, uint8_t free_all)
+{
+	struct usb2_fifo *f;
+	struct usb2_pipe *pipe;
+	uint16_t i;
+
+	/*
+	 * Free any USB FIFOs on the given interface:
+	 */
+	for (i = 0; i != USB_FIFO_MAX; i++) {
+		f = udev->fifo[i];
+		if (f == NULL) {
+			continue;
+		}
+		pipe = f->priv_sc0;
+		if ((pipe == &udev->default_pipe) && (free_all == 0)) {
+			/* don't free UGEN control endpoint yet */
+			continue;
+		}
+		/* Check if the interface index matches */
+		if ((iface_index == f->iface_index) ||
+		    (iface_index == USB_IFACE_INDEX_ANY)) {
+			usb2_fifo_free(f);
+		}
+	}
+	return;
 }
