@@ -73,3 +73,4 @@ SRCS+=usb2_template.c
 SRCS+=usb2_template_cdce.c
 SRCS+=usb2_template_msc.c
 SRCS+=usb2_template_mtp.c
+

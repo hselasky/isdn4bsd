@@ -30,11 +30,15 @@ struct bsd_tq_frag {
 	TAILQ_ENTRY(bsd_tq_frag) entry;
 	void   *pbuf;
 	uint32_t len;
+#define	BSD_TQ_FRAG_ERROR 0x80000000 /* set stall / clear stall */
+#define	BSD_TQ_FRAG_SHORT 0x40000000 /* receive short OK / force short TX */
 };
 
 struct bsd_tq_fifo {
 	TAILQ_HEAD(, bsd_tq_frag) free_q;
 	TAILQ_HEAD(, bsd_tq_frag) used_q;
+	TAILQ_HEAD(, bsd_tq_frag) temp_q;
+	TAILQ_HEAD(, bsd_tq_frag) done_q;
 };
 
 #else
@@ -47,11 +51,15 @@ struct bsd_tq_fifo;
 
 struct bsd_tq_frag *bsd_tq_frag_get_free(struct bsd_tq_fifo *queue);	/* X */
 struct bsd_tq_frag *bsd_tq_frag_get_used(struct bsd_tq_fifo *queue);	/* X */
+struct bsd_tq_frag *bsd_tq_frag_get_temp(struct bsd_tq_fifo *queue);	/* X */
+struct bsd_tq_frag *bsd_tq_frag_get_done(struct bsd_tq_fifo *queue);	/* X */
 void	bsd_tq_fifo_init(struct bsd_tq_fifo *queue, struct bsd_tq_frag *pfrags, uint32_t nfrags);
 void	bsd_tq_fifo_uninit(struct bsd_tq_fifo *queue);
 void	bsd_tq_frag_get_buf_len(struct bsd_tq_frag *frag, void **ppbuf, uint32_t *plen);
 void	bsd_tq_frag_put_free(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag);	/* X */
 void	bsd_tq_frag_put_used(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag);	/* X */
+void	bsd_tq_frag_put_temp(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag);	/* X */
+void	bsd_tq_frag_put_done(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag);	/* X */
 void	bsd_tq_frag_set_buf_len(struct bsd_tq_frag *frag, void *buf, uint32_t len);
 
 /*

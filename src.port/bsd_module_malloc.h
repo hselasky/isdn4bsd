@@ -27,9 +27,12 @@ struct malloc_type;
 
 void   *malloc(int size, struct malloc_type *type, int flags);
 void	free(void *addr, struct malloc_type *type);
+struct malloc_type *malloc_desc2type(const char *desc);
 
 #define	MALLOC_DECLARE(...)
 #define	MALLOC_DEFINE(...)
+
+#define	malloc_mtx Giant
 
 /* definition of malloc flags */
 
@@ -46,3 +49,4 @@ enum {
 #define	M_TEMP ((struct malloc_type *)2)
 #define	M_USBDEV ((struct malloc_type *)3)
 #define	M_USB ((struct malloc_type *)4)
+#define	M_BUS ((struct malloc_type *)5)

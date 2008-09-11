@@ -4,6 +4,7 @@
 	${.CURDIR}/../src/sys/dev/usb2/template \
 	${.CURDIR}/../src/sys/dev/usb2/storage \
 	${.CURDIR}/../src/sys/dev/usb2/controller \
+	${.CURDIR}/module/mtp \
 	${.CURDIR}/kern \
 	${.CURDIR}/libkern
 

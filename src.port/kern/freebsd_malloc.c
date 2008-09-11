@@ -59,3 +59,10 @@ free(void *addr, struct malloc_type *type)
 }
 
 #endif
+
+struct malloc_type *
+malloc_desc2type(const char *desc)
+{
+	/* not supported */
+	return (NULL);
+}

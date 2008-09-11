@@ -69,6 +69,30 @@ bsd_tq_frag_get_used(struct bsd_tq_fifo *queue)
 	return (frag);
 }
 
+struct bsd_tq_frag *
+bsd_tq_frag_get_temp(struct bsd_tq_fifo *queue)
+{
+	struct bsd_tq_frag *frag;
+
+	frag = TAILQ_FIRST(&queue->temp_q);
+	if (frag != NULL) {
+		TAILQ_REMOVE(&queue->temp_q, frag, entry);
+	}
+	return (frag);
+}
+
+struct bsd_tq_frag *
+bsd_tq_frag_get_done(struct bsd_tq_fifo *queue)
+{
+	struct bsd_tq_frag *frag;
+
+	frag = TAILQ_FIRST(&queue->done_q);
+	if (frag != NULL) {
+		TAILQ_REMOVE(&queue->done_q, frag, entry);
+	}
+	return (frag);
+}
+
 void
 bsd_tq_frag_put_free(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag)
 {
@@ -84,6 +108,20 @@ bsd_tq_frag_put_used(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag)
 }
 
 void
+bsd_tq_frag_put_temp(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag)
+{
+	TAILQ_INSERT_TAIL(&queue->temp_q, frag, entry);
+	return;
+}
+
+void
+bsd_tq_frag_put_done(struct bsd_tq_fifo *queue, struct bsd_tq_frag *frag)
+{
+	TAILQ_INSERT_TAIL(&queue->done_q, frag, entry);
+	return;
+}
+
+void
 bsd_tq_fifo_init(struct bsd_tq_fifo *queue, struct bsd_tq_frag *pfrags,
     uint32_t nfrags)
 {
@@ -91,6 +129,8 @@ bsd_tq_fifo_init(struct bsd_tq_fifo *queue, struct bsd_tq_frag *pfrags,
 
 	TAILQ_INIT(&queue->free_q);
 	TAILQ_INIT(&queue->used_q);
+	TAILQ_INIT(&queue->temp_q);
+	TAILQ_INIT(&queue->done_q);
 
 	for (n = 0; n != nfrags; n++) {
 		bsd_tq_frag_put_free(queue, pfrags + n);

@@ -224,6 +224,7 @@ void   *devclass_get_softc(devclass_t dc, int unit);
 int	devclass_get_maxunit(devclass_t dc);
 device_t devclass_get_device(devclass_t dc, int unit);
 devclass_t devclass_find(const char *classname);
+void	devctl_queue_data(char *data);
 
 enum {
 	INTR_TYPE_TTY = 1,

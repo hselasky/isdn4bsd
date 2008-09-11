@@ -56,6 +56,7 @@ devclass_find
 devclass_get_device
 devclass_get_maxunit
 devclass_get_softc
+devctl_queue_data
 device_add_child
 device_add_child_ordered
 device_attach_desc
@@ -99,6 +100,7 @@ kproc_suspend
 m_apply
 make_dev
 malloc
+malloc_desc2type
 memcpy
 memset
 mtx_destroy

@@ -1017,6 +1017,14 @@ device_kld_event(int what)
 	return;
 }
 
+void
+devctl_queue_data(char *data)
+{
+	/* we just free the data */
+	free(data, M_BUS);
+	return;
+}
+
 static void
 device_kld_load(void *arg)
 {

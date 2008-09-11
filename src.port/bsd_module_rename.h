@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Thu Aug 28 08:15:34 CEST 2008
+ * Date: Wed Sep 10 21:30:24 CEST 2008
  */
 #define DELAY fbsd_DELAY
 #define Giant fbsd_Giant
@@ -61,6 +61,7 @@
 #define devclass_get_device fbsd_devclass_get_device
 #define devclass_get_maxunit fbsd_devclass_get_maxunit
 #define devclass_get_softc fbsd_devclass_get_softc
+#define devctl_queue_data fbsd_devctl_queue_data
 #define device_add_child fbsd_device_add_child
 #define device_add_child_ordered fbsd_device_add_child_ordered
 #define device_attach_desc fbsd_device_attach_desc
@@ -104,6 +105,7 @@
 #define m_apply fbsd_m_apply
 #define make_dev fbsd_make_dev
 #define malloc fbsd_malloc
+#define malloc_desc2type fbsd_malloc_desc2type
 #define memcpy fbsd_memcpy
 #define memset fbsd_memset
 #define mtx_destroy fbsd_mtx_destroy
