@@ -161,6 +161,8 @@ static const struct usb2_device_id rum_devs[] = {
 	{USB_VPI(USB_VENDOR_DICKSMITH, USB_PRODUCT_DICKSMITH_RT2573, 0)},
 	{USB_VPI(USB_VENDOR_DLINK2, USB_PRODUCT_DLINK2_DWLG122C1, 0)},
 	{USB_VPI(USB_VENDOR_DLINK2, USB_PRODUCT_DLINK2_WUA1340, 0)},
+	{USB_VPI(USB_VENDOR_DLINK2, USB_PRODUCT_DLINK2_DWA111, 0)},
+	{USB_VPI(USB_VENDOR_DLINK2, USB_PRODUCT_DLINK2_DWA110, 0)},
 	{USB_VPI(USB_VENDOR_GIGABYTE, USB_PRODUCT_GIGABYTE_GNWB01GS, 0)},
 	{USB_VPI(USB_VENDOR_GIGABYTE, USB_PRODUCT_GIGABYTE_GNWI05GS, 0)},
 	{USB_VPI(USB_VENDOR_GIGASET, USB_PRODUCT_GIGASET_RT2573, 0)},
@@ -1533,15 +1535,16 @@ rum_newstate_cb(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 
 	DPRINTF("setting new state: %d\n", nstate);
 
+	mtx_lock(&sc->sc_mtx);
 	if (usb2_config_td_is_gone(&sc->sc_config_td)) {
+		mtx_unlock(&sc->sc_mtx);
+
 		/* Special case which happens at detach. */
 		if (nstate == IEEE80211_S_INIT) {
 			(uvp->newstate) (vap, nstate, arg);
 		}
 		return (0);		/* nothing to do */
 	}
-	mtx_lock(&sc->sc_mtx);
-
 	/* store next state */
 	sc->sc_ns_state = nstate;
 	sc->sc_ns_arg = arg;

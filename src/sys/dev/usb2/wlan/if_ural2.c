@@ -1526,15 +1526,16 @@ ural_newstate_cb(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 
 	DPRINTF("setting new state: %d\n", nstate);
 
+	mtx_lock(&sc->sc_mtx);
 	if (usb2_config_td_is_gone(&sc->sc_config_td)) {
+		mtx_unlock(&sc->sc_mtx);
+
 		/* Special case which happens at detach. */
 		if (nstate == IEEE80211_S_INIT) {
 			(uvp->newstate) (vap, nstate, arg);
 		}
 		return (0);		/* nothing to do */
 	}
-	mtx_lock(&sc->sc_mtx);
-
 	/* store next state */
 	sc->sc_ns_state = nstate;
 	sc->sc_ns_arg = arg;

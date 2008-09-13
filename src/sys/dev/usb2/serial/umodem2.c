@@ -571,7 +571,7 @@ umodem_ioctl(struct usb2_com_softc *ucom, uint32_t cmd, caddr_t data,
 
 	default:
 		DPRINTF("unknown\n");
-		error = ENOTTY;
+		error = ENOIOCTL;
 		break;
 	}
 

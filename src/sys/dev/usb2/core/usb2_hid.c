@@ -205,8 +205,11 @@ top:
 		case 0:		/* Main */
 			switch (bTag) {
 			case 8:	/* Input */
-				if (!(s->kindset & (1 << hid_input)))
+				if (!(s->kindset & (1 << hid_input))) {
+					if (s->nu > 0)
+						s->nu--;
 					continue;
+				}
 				c->kind = hid_input;
 				c->flags = dval;
 		ret:
@@ -235,8 +238,11 @@ top:
 					return (1);
 				}
 			case 9:	/* Output */
-				if (!(s->kindset & (1 << hid_output)))
+				if (!(s->kindset & (1 << hid_output))) {
+					if (s->nu > 0)
+						s->nu--;
 					continue;
+				}
 				c->kind = hid_output;
 				c->flags = dval;
 				goto ret;
@@ -249,8 +255,11 @@ top:
 				s->nu = 0;
 				return (1);
 			case 11:	/* Feature */
-				if (!(s->kindset & (1 << hid_feature)))
+				if (!(s->kindset & (1 << hid_feature))) {
+					if (s->nu > 0)
+						s->nu--;
 					continue;
+				}
 				c->kind = hid_feature;
 				c->flags = dval;
 				goto ret;
@@ -278,7 +287,7 @@ top:
 				c->logical_maximum = dval;
 				break;
 			case 3:
-				c->physical_maximum = dval;
+				c->physical_minimum = dval;
 				break;
 			case 4:
 				c->physical_maximum = dval;

@@ -1,4 +1,4 @@
-$FreeBSD$
+$FreeBSD: src/sys/dev/usb/usbdevs,v 1.370 2008/09/09 19:59:51 remko Exp $
 /* $NetBSD: usbdevs,v 1.392 2004/12/29 08:38:44 imp Exp $ */
 
 /*-
@@ -364,6 +364,7 @@ vendor SYNTECH		0x0745	Syntech Information
 vendor DIGITALSTREAM	0x074e	Digital Stream
 vendor AUREAL		0x0755	Aureal Semiconductor
 vendor MIDIMAN		0x0763	Midiman
+vendor CYBERPOWER	0x0764	Cyber Power Systems, Inc.
 vendor SURECOM		0x0769	Surecom Technology
 vendor LINKSYS2		0x077b	Linksys
 vendor GRIFFIN		0x077d	Griffin Technology
@@ -806,6 +807,7 @@ product ALCOR2 KBD_HUB		0x2802	Kbd Hub
 
 product ALCOR MA_KBD_HUB	0x9213	MacAlly Kbd Hub
 product ALCOR AU9814		0x9215	AU9814 Hub
+product ALCOR UMCR_9361		0x9361	USB Multimedia Card Reader
 product ALCOR SM_KBD		0x9410	MicroConnectors/StrongMan Keyboard
 product ALCOR NEC_KBD_HUB	0x9472	NEC Kbd Hub
 
@@ -1078,6 +1080,9 @@ product CURITEL HX550C		0x1101	CDMA 2000 1xRTT USB modem (HX-550C)
 product CURITEL HX57XB		0x2101	CDMA 2000 1xRTT USB modem (HX-570/575B/PR-600)
 product CURITEL PC5740		0x3701	Broadband Wireless modem
 
+/* CyberPower products */
+product CYBERPOWER 1500CAVRLCD	0x0501	1500CAVRLCD
+
 /* CyberTAN Technology products */
 product CYBERTAN TG54USB	0x1666	TG54USB
 
@@ -1149,6 +1154,7 @@ product DLINK DSB650		0xabc1	10/100 Ethernet
 product DLINK2 DWLG122C1	0x3c03	DWL-G122 c1
 product DLINK2 WUA1340		0x3c04	WUA-1340
 product DLINK2 DWA111		0x3c06	DWA-111
+product DLINK2 DWA110		0x3c07	DWA-110
 
 /* DMI products */
 product DMI CFSM_RW		0xa109	CF/SM Reader/Writer
@@ -2096,6 +2102,7 @@ product SIEMENS3 X75		0x0004	X75
 product SIERRA AIRCARD580	0x0112	Sierra Wireless AirCard 580
 product SIERRA MC5720		0x0218	MC5720 Wireless Modem
 product SIERRA AC875U		0x6812	AC875U HSDPA USB Modem
+product SIERRA MC8755_3		0x6813	MC8755 HSDPA
 
 /* Sigmatel products */
 product SIGMATEL I_BEAD100	0x8008	i-Bead 100 MP3 Player
@@ -2437,3 +2444,4 @@ product ZYXEL G200V2		0x3407	G-200 v2
 product ZYXEL AG225H		0x3409	AG-225H
 product ZYXEL M202		0x340a	M-202
 product ZYXEL G220V2		0x340f	G-220 v2
+product ZYXEL G202		0x3410	G-202

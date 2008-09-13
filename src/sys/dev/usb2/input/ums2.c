@@ -461,8 +461,9 @@ ums_attach(device_t dev)
 	}
 	/* Try the wheel first as the Z activator since it's tradition. */
 	if (hid_locate(d_ptr, d_len, HID_USAGE2(HUP_GENERIC_DESKTOP,
-	    HUG_WHEEL), hid_input, &sc->sc_loc_z, &flags)) {
-
+	    HUG_WHEEL), hid_input, &sc->sc_loc_z, &flags) ||
+	    hid_locate(d_ptr, d_len, HID_USAGE2(HUP_GENERIC_DESKTOP,
+	    HUG_TWHEEL), hid_input, &sc->sc_loc_z, &flags)) {
 		if ((flags & MOUSE_FLAGS_MASK) == MOUSE_FLAGS) {
 			sc->sc_flags |= UMS_FLAG_Z_AXIS;
 		}

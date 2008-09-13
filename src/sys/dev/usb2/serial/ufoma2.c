@@ -360,8 +360,9 @@ ufoma_probe(device_t dev)
 	if (mad == NULL) {
 		return (ENXIO);
 	}
-#if 0
-	if (mad->bType != UMCPC_ACM_TYPE_AB5) {
+#ifndef UFOMA_HANDSFREE
+	if ((mad->bType == UMCPC_ACM_TYPE_AB5) ||
+	    (mad->bType == UMCPC_ACM_TYPE_AB6)) {
 		return (ENXIO);
 	}
 #endif

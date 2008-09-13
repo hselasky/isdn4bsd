@@ -177,6 +177,7 @@ static const struct usb2_device_id zyd_devs[] = {
 	{USB_VPI(USB_VENDOR_ZYXEL, USB_PRODUCT_ZYXEL_AG225H, ZYD_ZD1211)},
 	{USB_VPI(USB_VENDOR_ZYXEL, USB_PRODUCT_ZYXEL_ZYAIRG220, ZYD_ZD1211)},
 	{USB_VPI(USB_VENDOR_ZYXEL, USB_PRODUCT_ZYXEL_G200V2, ZYD_ZD1211)},
+	{USB_VPI(USB_VENDOR_ZYXEL, USB_PRODUCT_ZYXEL_G202, ZYD_ZD1211)},
 	/* ZYD_ZD1211B */
 	{USB_VPI(USB_VENDOR_ACCTON, USB_PRODUCT_ACCTON_SMCWUSBG, ZYD_ZD1211B)},
 	{USB_VPI(USB_VENDOR_ACCTON, USB_PRODUCT_ACCTON_ZD1211B, ZYD_ZD1211B)},
@@ -2139,15 +2140,15 @@ zyd_newstate_cb(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 
 	DPRINTF("setting new state: %d\n", nstate);
 
+	mtx_lock(&sc->sc_mtx);
 	if (usb2_config_td_is_gone(&sc->sc_config_td)) {
+		mtx_unlock(&sc->sc_mtx);
 		/* Special case which happens at detach. */
 		if (nstate == IEEE80211_S_INIT) {
 			(uvp->newstate) (vap, nstate, arg);
 		}
 		return (0);		/* nothing to do */
 	}
-	mtx_lock(&sc->sc_mtx);
-
 	/* store next state */
 	sc->sc_ns_state = nstate;
 	sc->sc_ns_arg = arg;
