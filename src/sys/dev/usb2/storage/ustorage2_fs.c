@@ -294,6 +294,10 @@ ustorage_fs_probe(device_t dev)
 	if (uaa->usb2_mode != USB_MODE_DEVICE) {
 		return (ENXIO);
 	}
+	if (uaa->use_generic == 0) {
+		/* give other drivers a try first */
+		return (ENXIO);
+	}
 	/* Check for a standards compliant device */
 	id = usb2_get_interface_descriptor(uaa->iface);
 	if ((id == NULL) ||

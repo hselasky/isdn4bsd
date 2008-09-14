@@ -1396,6 +1396,10 @@ umass_probe(device_t dev)
 	if (uaa->usb2_mode != USB_MODE_HOST) {
 		return (ENXIO);
 	}
+	if (uaa->use_generic == 0) {
+		/* give other drivers a try first */
+		return (ENXIO);
+	}
 	temp = umass_probe_proto(dev, uaa);
 
 	return (temp.error);

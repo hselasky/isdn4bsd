@@ -284,6 +284,10 @@ atausb2_probe(device_t dev)
 	if (uaa->usb2_mode != USB_MODE_HOST) {
 		return (ENXIO);
 	}
+	if (uaa->use_generic == 0) {
+		/* give other drivers a try first */
+		return (ENXIO);
+	}
 	id = usb2_get_interface_descriptor(uaa->iface);
 	if ((!id) || (id->bInterfaceClass != UICLASS_MASS)) {
 		return (ENXIO);
