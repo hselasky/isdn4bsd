@@ -61,6 +61,7 @@ install:
 	@echo ""
 	cd ${.CURDIR}/../../libusb20 && make clean cleandepend depend all install
 	cd ${.CURDIR}/../../usbview && make clean cleandepend depend all install
+	cd ${.CURDIR}/../../usbconfig && make clean cleandepend depend all install
 
 	@echo ""
 	@echo "KNOWN ISSUE: usb2_sound does not compile "
@@ -88,7 +89,7 @@ install:
 	@echo "usb2_serial_load=YES"
 	@echo "EOF"
 	@echo ""
-	@echo "Temporary USB utility installed: usbview"
+	@echo "USB utilities installed: usbview and usbconfig"
 	@echo ""
 	@echo "3) Need libusb-0.1.12_2 support? Then please override "
 	@echo "bsd.c in libusb-0.1 distro with: ${.CURDIR}/../../libusb10/bsd.c"
