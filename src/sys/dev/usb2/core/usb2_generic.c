@@ -934,9 +934,6 @@ ugen_do_request(struct usb2_fifo *f, struct usb2_ctl_request *ur)
 
 /*------------------------------------------------------------------------
  *	ugen_re_enumerate
- *
- * NOTE: This function will currently not restore the device
- * configuration.
  *------------------------------------------------------------------------*/
 static int
 ugen_re_enumerate(struct usb2_fifo *f)
@@ -1239,6 +1236,7 @@ ugen_fs_copy_out(struct usb2_fifo *f, uint8_t ep_index)
 	}
 	fs_ep.status = xfer->error;
 	fs_ep.aFrames = xfer->aframes;
+	fs_ep.isoc_time_complete = xfer->isoc_time_complete;
 	if (xfer->error) {
 		goto complete;
 	}
@@ -1337,12 +1335,19 @@ complete:
 	/* update "aFrames" */
 	error = copyout(&fs_ep.aFrames, &fs_ep_uptr->aFrames,
 	    sizeof(fs_ep.aFrames));
-	if (error) {
-		return (error);
-	}
+	if (error)
+		goto done;
+
+	/* update "isoc_time_complete" */
+	error = copyout(&fs_ep.isoc_time_complete,
+	    &fs_ep_uptr->isoc_time_complete,
+	    sizeof(fs_ep.isoc_time_complete));
+	if (error)
+		goto done;
 	/* update "status" */
 	error = copyout(&fs_ep.status, &fs_ep_uptr->status,
 	    sizeof(fs_ep.status));
+done:
 	return (error);
 }
 
@@ -1723,6 +1728,105 @@ ugen_get_endpoint_desc(struct usb2_fifo *f,
 }
 
 static int
+ugen_set_power_mode(struct usb2_fifo *f, int mode)
+{
+	struct usb2_device *udev = f->udev;
+	int err;
+
+	if ((udev == NULL) ||
+	    (udev->parent_hub == NULL)) {
+		return (EINVAL);
+	}
+	if (suser(curthread)) {
+		return (EPERM);
+	}
+	switch (mode) {
+	case USB_POWER_MODE_OFF:
+		/* clear suspend */
+		err = usb2_req_clear_port_feature(udev->parent_hub,
+		    NULL, udev->port_no, UHF_PORT_SUSPEND);
+		if (err)
+			break;
+
+		/* clear port enable */
+		err = usb2_req_clear_port_feature(udev->parent_hub,
+		    NULL, udev->port_no, UHF_PORT_ENABLE);
+		break;
+
+	case USB_POWER_MODE_ON:
+	case USB_POWER_MODE_SAVE:
+	case USB_POWER_MODE_RESUME:
+		/* TODO: implement USB power save */
+		err = usb2_req_clear_port_feature(udev->parent_hub,
+		    NULL, udev->port_no, UHF_PORT_SUSPEND);
+		break;
+
+	case USB_POWER_MODE_SUSPEND:
+		/* TODO: implement USB power save */
+		err = usb2_req_set_port_feature(udev->parent_hub,
+		    NULL, udev->port_no, UHF_PORT_SUSPEND);
+		break;
+	default:
+		return (EINVAL);
+	}
+
+	if (err)
+		return (ENXIO);		/* I/O failure */
+
+	udev->power_mode = mode;	/* update copy of power mode */
+
+	return (0);			/* success */
+}
+
+static int
+ugen_get_power_mode(struct usb2_fifo *f)
+{
+	struct usb2_device *udev = f->udev;
+
+	if ((udev == NULL) ||
+	    (udev->parent_hub == NULL)) {
+		return (USB_POWER_MODE_ON);
+	}
+	return (udev->power_mode);
+}
+
+static int
+ugen_do_port_feature(struct usb2_fifo *f, uint8_t port_no,
+    uint8_t set, uint16_t feature)
+{
+	struct usb2_device *udev = f->udev;
+	struct usb2_hub *hub;
+	int err;
+
+	if (suser(curthread)) {
+		return (EPERM);
+	}
+	if (port_no == 0) {
+		return (EINVAL);
+	}
+	if ((udev == NULL) ||
+	    (udev->hub == NULL)) {
+		return (EINVAL);
+	}
+	hub = udev->hub;
+
+	if (port_no > hub->nports) {
+		return (EINVAL);
+	}
+	if (set)
+		err = usb2_req_set_port_feature(udev,
+		    NULL, port_no, feature);
+	else
+		err = usb2_req_clear_port_feature(udev,
+		    NULL, port_no, feature);
+
+	if (err)
+		return (ENXIO);		/* failure */
+
+	return (0);			/* success */
+}
+
+static int
 ugen_iface_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 {
 	struct usb2_fifo *f_rx;
@@ -1875,6 +1979,7 @@ ugen_ctrl_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 		struct usb2_device_stats *stat;
 		uint32_t *ptime;
 		void   *addr;
+		int    *pint;
 	}     u;
 	struct usb2_device_descriptor *dtemp;
 	struct usb2_config_descriptor *ctemp;
@@ -1991,7 +2096,41 @@ ugen_ctrl_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 		*u.ptime = f->udev->plugtime;
 		break;
 
-		/* ... more IOCTL's to come ! ... --hps */
+	case USB_CLAIM_INTERFACE:
+	case USB_RELEASE_INTERFACE:
+		/* TODO */
+		break;
+
+	case USB_IFACE_DRIVER_ACTIVE:
+		/* TODO */
+		*u.pint = 0;
+		break;
+
+	case USB_IFACE_DRIVER_DETACH:
+		/* TODO */
+		if (suser(curthread))
+			error = EPERM;
+		else
+			error = EINVAL;
+		break;
+
+	case USB_SET_POWER_MODE:
+		error = ugen_set_power_mode(f, *u.pint);
+		break;
+
+	case USB_GET_POWER_MODE:
+		*u.pint = ugen_get_power_mode(f);
+		break;
+
+	case USB_SET_PORT_ENABLE:
+		error = ugen_do_port_feature(f,
+		    *u.pint, 1, UHF_PORT_ENABLE);
+		break;
+
+	case USB_SET_PORT_DISABLE:
+		error = ugen_do_port_feature(f,
+		    *u.pint, 0, UHF_PORT_ENABLE);
+		break;
 
 	default:
 		error = EINVAL;

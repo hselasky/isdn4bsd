@@ -1333,6 +1333,7 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	udev->bus = bus;
 	udev->address = USB_START_ADDR;	/* default value */
 	udev->plugtime = (uint32_t)ticks;
+	udev->power_mode = USB_POWER_MODE_ON;
 
 	/* we are not ready yet */
 	udev->refcount = 1;

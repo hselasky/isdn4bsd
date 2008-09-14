@@ -34,6 +34,13 @@
 #define	USB_DEVICE_NAME "usb"
 #define	USB_GENERIC_NAME "ugen"
 
+/* definition of USB power mode */
+#define	USB_POWER_MODE_OFF 0		/* turn off device */
+#define	USB_POWER_MODE_ON 1		/* always on */
+#define	USB_POWER_MODE_SAVE 2		/* automatic suspend and resume */
+#define	USB_POWER_MODE_SUSPEND 3	/* force suspend */
+#define	USB_POWER_MODE_RESUME 4		/* force resume */
+
 struct usb2_read_dir {
 	void   *urd_data;
 	uint32_t urd_startentry;
@@ -148,6 +155,8 @@ struct usb2_fs_endpoint {
 	/* will do a clear-stall before xfer */
 #define	USB_FS_FLAG_CLEAR_STALL 0x0008
 	uint16_t timeout;		/* in milliseconds */
+	/* isocronous completion time in milliseconds - used for echo cancel */
+	uint16_t isoc_time_complete;
 	/* timeout value for no timeout */
 #define	USB_FS_TIMEOUT_NONE 0
 	uint8_t	status;			/* see USB_ERR_XXX */
@@ -252,10 +261,14 @@ struct usb2_dev_perm {
 #define	USB_SET_TX_BUFFER_SIZE	_IOW ('U', 140, int)
 #define	USB_GET_TX_INTERFACE_DESC _IOR ('U', 141, struct usb2_interface_descriptor)
 #define	USB_GET_TX_ENDPOINT_DESC _IOR ('U', 142, struct usb2_endpoint_descriptor)
+#define	USB_SET_PORT_ENABLE	_IOW ('U', 143, int)
+#define	USB_SET_PORT_DISABLE	_IOW ('U', 144, int)
+#define	USB_SET_POWER_MODE	_IOW ('U', 145, int)
+#define	USB_GET_POWER_MODE	_IOW ('U', 146, int)
 
 /* Modem device */
-#define	USB_GET_CM_OVER_DATA	_IOR ('U', 160, int)
-#define	USB_SET_CM_OVER_DATA	_IOW ('U', 161, int)
+#define	USB_GET_CM_OVER_DATA	_IOR ('U', 180, int)
+#define	USB_SET_CM_OVER_DATA	_IOW ('U', 181, int)
 
 /* USB file system interface */
 #define	USB_FS_START		_IOW ('U', 192, struct usb2_fs_start)

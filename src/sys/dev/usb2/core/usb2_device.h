@@ -128,6 +128,7 @@ struct usb2_device {
 	uint8_t	hs_hub_addr;		/* high-speed HUB address */
 	uint8_t	hs_port_no;		/* high-speed HUB port number */
 	uint8_t	driver_added_refcount;	/* our driver added generation count */
+	uint8_t	power_mode;		/* see USB_POWER_XXX */
 
 	/* the "flags" field is write-protected by "bus->mtx" */
 
