@@ -1066,6 +1066,7 @@ usb2_com_put_data(struct usb2_com_softc *sc, struct usb2_page_cache *pc,
 		/* pass characters to tty layer */
 
 		buf = res.buffer;
+		cnt = res.length;
 
 		/* first check if we can pass the buffer directly */
 
