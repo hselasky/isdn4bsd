@@ -60,7 +60,6 @@ install:
 
 	@echo ""
 	cd ${.CURDIR}/../../libusb20 && make clean cleandepend depend all install
-	cd ${.CURDIR}/../../usbview && make clean cleandepend depend all install
 	cd ${.CURDIR}/../../usbconfig && make clean cleandepend depend all install
 
 	@echo ""
@@ -89,10 +88,13 @@ install:
 	@echo "usb2_serial_load=YES"
 	@echo "EOF"
 	@echo ""
-	@echo "USB utilities installed: usbview and usbconfig"
+	@echo "USB utilities installed: usbconfig"
 	@echo ""
 	@echo "3) Need libusb-0.1.12_2 support? Then please override "
 	@echo "bsd.c in libusb-0.1 distro with: ${.CURDIR}/../../libusb10/bsd.c"
 	@echo ""
 	@echo "Have fun! --hps"
 	@echo ""
+
+clean:
+	rm -f temp.tar
