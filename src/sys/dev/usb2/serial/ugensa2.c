@@ -244,41 +244,37 @@ ugensa_attach(device_t dev)
 	struct usb2_attach_arg *uaa = device_get_ivars(dev);
 	struct ugensa_softc *sc = device_get_softc(dev);
 	struct ugensa_sub_softc *ssc;
+	struct usb2_interface *iface;
 	int32_t error;
-	uint8_t x;
 	uint8_t iface_index;
+	int x, cnt;
 
-	if (sc == NULL) {
+	if (sc == NULL)
 		return (ENOMEM);
-	}
+
 	device_set_usb2_desc(dev);
 
 	/* Figure out how many interfaces this device has got */
-	for (x = 0; x < UGENSA_IFACE_MAX; x++) {
-		if ((usb2_get_pipe(uaa->device, x, ugensa_xfer_config + 0) == NULL) ||
-		    (usb2_get_pipe(uaa->device, x, ugensa_xfer_config + 1) == NULL)) {
+	for (cnt = 0; cnt < UGENSA_IFACE_MAX; cnt++) {
+		if ((usb2_get_pipe(uaa->device, cnt, ugensa_xfer_config + 0) == NULL) ||
+		    (usb2_get_pipe(uaa->device, cnt, ugensa_xfer_config + 1) == NULL)) {
 			/* we have reached the end */
 			break;
 		}
 	}
 
-	if (x == 0) {
+	if (cnt == 0) {
 		device_printf(dev, "No interfaces!\n");
 		goto detach;
-	} else {
-		device_printf(dev, "Found %d interfaces.\n", x);
-		sc->sc_niface = x;
-		for (x = 1; x != sc->sc_niface; x++) {
-			usb2_set_parent_iface(uaa->device,
-			    x, uaa->info.bIfaceIndex);
-		}
 	}
+	for (x = 0; x < cnt; x++) {
+		iface = usb2_get_iface(uaa->device, x);
+		if (iface->idesc->bInterfaceClass != UICLASS_VENDOR)
+			/* Not a serial port, most likely a SD reader */
+			continue;
 
-	for (x = 0; x < sc->sc_niface; x++) {
-
-		ssc = sc->sc_sub + x;
-
-		ssc->sc_usb2_com_ptr = sc->sc_ucom + x;
+		ssc = sc->sc_sub + sc->sc_niface;
+		ssc->sc_usb2_com_ptr = sc->sc_ucom + sc->sc_niface;
 
 		iface_index = (UGENSA_IFACE_INDEX + x);
 		error = usb2_transfer_setup(uaa->device,
@@ -295,8 +291,13 @@ ugensa_attach(device_t dev)
 		    UGENSA_FLAG_BULK_READ_STALL);
 
 		/* initialize port number */
-		ssc->sc_usb2_com_ptr->sc_portno = x;
+		ssc->sc_usb2_com_ptr->sc_portno = sc->sc_niface;
+		sc->sc_niface++;
+		if (x != uaa->info.bIfaceIndex)
+			usb2_set_parent_iface(uaa->device, x,
+			    uaa->info.bIfaceIndex);
 	}
+	device_printf(dev, "Found %d interfaces.\n", sc->sc_niface);
 
 	error = usb2_com_attach(&sc->sc_super_ucom, sc->sc_ucom, sc->sc_niface, sc,
 	    &ugensa_callback, &Giant);
