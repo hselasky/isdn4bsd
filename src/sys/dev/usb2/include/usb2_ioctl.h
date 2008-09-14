@@ -184,9 +184,9 @@ struct usb2_fs_clear_stall_sync {
 };
 
 struct usb2_dev_perm {
-	/* Permissions */
-	uint16_t user_id;
-	uint16_t group_id;
+	/* Access information */
+	uint32_t user_id;
+	uint32_t group_id;
 	uint16_t mode;
 
 	/* Device location */
@@ -241,10 +241,10 @@ struct usb2_dev_perm {
 #define	USB_SET_BUS_PERM	_IOW ('U', 129, struct usb2_dev_perm)
 #define	USB_SET_DEVICE_PERM	_IOW ('U', 130, struct usb2_dev_perm)
 #define	USB_SET_IFACE_PERM	_IOW ('U', 131, struct usb2_dev_perm)
-#define	USB_GET_ROOT_PERM	_IOW ('U', 132, struct usb2_dev_perm)
-#define	USB_GET_BUS_PERM	_IOW ('U', 133, struct usb2_dev_perm)
-#define	USB_GET_DEVICE_PERM	_IOW ('U', 134, struct usb2_dev_perm)
-#define	USB_GET_IFACE_PERM	_IOW ('U', 135, struct usb2_dev_perm)
+#define	USB_GET_ROOT_PERM	_IOWR('U', 132, struct usb2_dev_perm)
+#define	USB_GET_BUS_PERM	_IOWR('U', 133, struct usb2_dev_perm)
+#define	USB_GET_DEVICE_PERM	_IOWR('U', 134, struct usb2_dev_perm)
+#define	USB_GET_IFACE_PERM	_IOWR('U', 135, struct usb2_dev_perm)
 #define	USB_SET_TX_FORCE_SHORT	_IOW ('U', 136, int)
 #define	USB_SET_TX_TIMEOUT	_IOW ('U', 137, int)
 #define	USB_GET_TX_FRAME_SIZE	_IOR ('U', 138, int)

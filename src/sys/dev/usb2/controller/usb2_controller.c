@@ -221,10 +221,8 @@ usb2_bus_detach(struct usb2_proc_msg *pm)
 	dev = bus->bdev;
 	/* clear the softc */
 	device_set_softc(dev, NULL);
-	/* clear bdev variable */
-	bus->bdev = NULL;
-
 	mtx_unlock(&bus->mtx);
+
 	mtx_lock(&Giant);
 
 	/* detach children first */
@@ -239,6 +237,8 @@ usb2_bus_detach(struct usb2_proc_msg *pm)
 
 	mtx_unlock(&Giant);
 	mtx_lock(&bus->mtx);
+	/* clear bdev variable last */
+	bus->bdev = NULL;
 	return;
 }
 

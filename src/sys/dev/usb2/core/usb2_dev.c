@@ -271,7 +271,10 @@ usb2_set_perm(struct usb2_dev_perm *psrc, uint8_t level)
 	    (psrc->iface_index >= USB_IFACE_MAX)) {
 		return (EINVAL);
 	}
-	devloc = 0;
+	if (level == 1)
+		devloc = USB_BUS_MAX;	/* use root-HUB to access bus */
+	else
+		devloc = 0;
 	switch (level) {
 	case 3:
 		devloc += psrc->iface_index *
@@ -296,6 +299,10 @@ usb2_set_perm(struct usb2_dev_perm *psrc, uint8_t level)
 	}
 	switch (level) {
 	case 3:
+		if (loc.iface == NULL) {
+			usb2_unref_device(&loc);
+			return (EINVAL);
+		}
 		pdst = &loc.iface->perm;
 		break;
 	case 2:
@@ -345,7 +352,10 @@ usb2_get_perm(struct usb2_dev_perm *pdst, uint8_t level)
 		return (EINVAL);
 	}
 retry:
-	devloc = 0;
+	if (level == 1)
+		devloc = USB_BUS_MAX;	/* use root-HUB to access bus */
+	else
+		devloc = 0;
 	switch (level) {
 	case 3:
 		devloc += pdst->iface_index *
@@ -370,6 +380,10 @@ retry:
 	}
 	switch (level) {
 	case 3:
+		if (loc.iface == NULL) {
+			usb2_unref_device(&loc);
+			return (EINVAL);
+		}
 		psrc = &loc.iface->perm;
 		break;
 	case 2:
@@ -495,16 +509,16 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 	mtx_lock(&usb2_ref_lock);
 	ploc->bus = devclass_get_softc(usb2_devclass_ptr, ploc->bus_index);
 	if (ploc->bus == NULL) {
-		DPRINTFN(2, "no bus\n");
+		DPRINTFN(2, "no bus at %u\n", ploc->bus_index);
 		goto error;
 	}
 	if (ploc->dev_index >= ploc->bus->devices_max) {
-		DPRINTFN(2, "invalid dev index\n");
+		DPRINTFN(2, "invalid dev index, %u\n", ploc->dev_index);
 		goto error;
 	}
 	ploc->udev = ploc->bus->devices[ploc->dev_index];
 	if (ploc->udev == NULL) {
-		DPRINTFN(2, "no device\n");
+		DPRINTFN(2, "no device at %u\n", ploc->dev_index);
 		goto error;
 	}
 	if (ploc->udev->refcount == USB_DEV_REF_MAX) {
