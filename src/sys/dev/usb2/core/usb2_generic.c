@@ -843,10 +843,11 @@ usb2_gen_fill_deviceinfo(struct usb2_fifo *f, struct usb2_device_info *di)
 	di->udi_power = udev->flags.self_powered ? 0 : udev->power;
 	di->udi_speed = udev->speed;
 	di->udi_mode = udev->flags.usb2_mode;
+	di->udi_power_mode = udev->power_mode;
 	if (udev->flags.suspended) {
-		di->udi_devstate = USB_DEVSTATE_SUSPENDED;
+		di->udi_suspended = 1;
 	} else {
-		di->udi_devstate = USB_DEVSTATE_ENABLED;
+		di->udi_suspended = 0;
 	}
 
 	hub = udev->parent_hub;
@@ -1754,6 +1755,12 @@ ugen_set_power_mode(struct usb2_fifo *f, int mode)
 		break;
 
 	case USB_POWER_MODE_ON:
+		/* enable port */
+		err = usb2_req_set_port_feature(udev->parent_hub,
+		    NULL, udev->port_no, UHF_PORT_ENABLE);
+
+		/* FALLTHROUGH */
+
 	case USB_POWER_MODE_SAVE:
 	case USB_POWER_MODE_RESUME:
 		/* TODO: implement USB power save */

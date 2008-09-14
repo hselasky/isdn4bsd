@@ -106,11 +106,9 @@ struct usb2_device_info {
 	uint8_t	udi_hubaddr;		/* parent HUB address */
 	uint8_t	udi_hubindex;		/* parent HUB device index */
 	uint8_t	udi_hubport;		/* parent HUB port */
-	uint8_t	udi_devstate;
-#define	USB_DEVSTATE_ENABLED 0x0
-#define	USB_DEVSTATE_SUSPENDED 0x1
-#define	USB_DEVSTATE_POWERED 0x2
-#define	USB_DEVSTATE_DISABLED 0x3
+	uint8_t	udi_power_mode;		/* see "USB_POWER_MODE_XXX" */
+	uint8_t	udi_suspended;		/* set if device is suspended */
+	uint8_t udi_reserved[16];	/* leave space for the future */
 	char	udi_product[128];
 	char	udi_vendor[128];
 	char	udi_serial[64];
@@ -264,7 +262,7 @@ struct usb2_dev_perm {
 #define	USB_SET_PORT_ENABLE	_IOW ('U', 143, int)
 #define	USB_SET_PORT_DISABLE	_IOW ('U', 144, int)
 #define	USB_SET_POWER_MODE	_IOW ('U', 145, int)
-#define	USB_GET_POWER_MODE	_IOW ('U', 146, int)
+#define	USB_GET_POWER_MODE	_IOR ('U', 146, int)
 
 /* Modem device */
 #define	USB_GET_CM_OVER_DATA	_IOR ('U', 180, int)
