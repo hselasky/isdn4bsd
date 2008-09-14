@@ -74,7 +74,7 @@ SYSCTL_INT(_hw_usb2_dev, OID_AUTO, debug, CTLFLAG_RW,
 
 static uint32_t usb2_path_convert_one(const char **pp);
 static uint32_t usb2_path_convert(const char *path);
-static uint8_t usb2_match_perm(struct usb2_perm *psystem, struct usb2_perm *puser);
+static int usb2_check_access(int fflags, struct usb2_perm *puser);
 static int usb2_fifo_open(struct usb2_fifo *f, struct file *fp, struct thread *td, int fflags);
 static void usb2_fifo_close(struct usb2_fifo *f, struct thread *td, int fflags);
 static void usb2_dev_init(void *arg);
@@ -421,37 +421,33 @@ retry:
 }
 
 /*------------------------------------------------------------------------*
- *	usb2_match_perm
+ *	usb2_check_access
  *
- * This function will compare two permission structures and see if
- * they are matching.
+ * This function will verify the given access information.
  *
  * Return values:
- * 0: Permissions are not matching.
- * Else: Permissions are matching.
+ * 0: Access granted.
+ * Else: No access granted.
  *------------------------------------------------------------------------*/
-static uint8_t
-usb2_match_perm(struct usb2_perm *psystem, struct usb2_perm *puser)
+static int
+usb2_check_access(int fflags, struct usb2_perm *puser)
 {
-	uint16_t mode;
+	mode_t accmode;
 
-	if ((psystem->mode != 0) && (puser->mode != 0)) {
+	if ((fflags & (FWRITE | FREAD)) && (puser->mode != 0)) {
 		/* continue */
 	} else {
-		return (0);		/* no access */
+		return (EPERM);		/* no access */
 	}
 
-	/* get the mode differences with regard to the bits that are set */
-	mode = ((psystem->mode ^ puser->mode) & puser->mode);
+	accmode = 0;
+	if (fflags & FWRITE)
+		accmode |= VWRITE;
+	if (fflags & FREAD)
+		accmode |= VREAD;
 
-	if ((psystem->uid == puser->uid) && ((mode & 0700) == 0)) {
-		return (1);		/* allow access */
-	} else if ((psystem->gid == puser->gid) && ((mode & 0070) == 0)) {
-		return (1);		/* allow access */
-	} else if ((mode & 0007) == 0) {
-		return (1);		/* allow access */
-	}
-	return (0);			/* deny access */
+	return (vaccess(VCHR, puser->mode, puser->uid,
+	    puser->gid, accmode, curthread->td_ucred, NULL));
 }
 
 /*------------------------------------------------------------------------*
@@ -1117,7 +1113,6 @@ int
 usb2_check_thread_perm(struct usb2_device *udev, struct thread *td,
     int fflags, uint8_t iface_index, uint8_t ep_index)
 {
-	struct usb2_perm perm;
 	struct usb2_interface *iface;
 	int err;
 
@@ -1128,30 +1123,20 @@ usb2_check_thread_perm(struct usb2_device *udev, struct thread *td,
 	if (iface->idesc == NULL) {
 		return (EINVAL);
 	}
-	/* set default value */
-	bzero(&perm, sizeof(perm));
-
-	/* create a permissions mask */
-	perm.uid = USB_TD_GET_RUID(td);
-	perm.uid = USB_TD_GET_RGID(td);
-	perm.mode = 0;
-	if (fflags & FREAD)
-		perm.mode |= 0444;
-	if (fflags & FWRITE)
-		perm.mode |= 0222;
-
 	/* scan down the permissions tree */
 	if ((ep_index != 0) && iface &&
-	    usb2_match_perm(&perm, &iface->perm)) {
+	    (usb2_check_access(fflags, &iface->perm) == 0)) {
 		/* we got access through the interface */
 		err = 0;
-	} else if (udev && usb2_match_perm(&perm, &udev->perm)) {
+	} else if (udev &&
+	    (usb2_check_access(fflags, &udev->perm) == 0)) {
 		/* we got access through the device */
 		err = 0;
-	} else if (udev->bus && usb2_match_perm(&perm, &udev->bus->perm)) {
+	} else if (udev->bus &&
+	    (usb2_check_access(fflags, &udev->bus->perm) == 0)) {
 		/* we got access through the USB bus */
 		err = 0;
-	} else if (usb2_match_perm(&perm, &usb2_perm)) {
+	} else if (usb2_check_access(fflags, &usb2_perm) == 0) {
 		/* we got general access */
 		err = 0;
 	} else {
@@ -1409,9 +1394,14 @@ usb2_dev_init_post(void *arg)
 	 * Create a dummy device so that we are visible. This device
 	 * should never be opened. Therefore a space character is
 	 * appended after the USB device name.
+	 *
+	 * NOTE: The permissions of this device is 0777, because we
+	 * check the permissions again in the open routine against the
+	 * real USB permissions which are not 0777. Else USB access
+	 * will be limited to one user and one group.
 	 */
 	usb2_dev = make_dev(&usb2_devsw, 0, UID_ROOT, GID_OPERATOR,
-	    0000, USB_DEVICE_NAME " ");
+	    0777, USB_DEVICE_NAME " ");
 	if (usb2_dev == NULL) {
 		DPRINTFN(0, "Could not create usb bus device!\n");
 	}
@@ -2699,7 +2689,6 @@ int
 usb2_read_symlink(uint8_t *user_ptr, uint32_t startentry, uint32_t user_len)
 {
 	struct usb2_symlink *ps;
-	uint32_t curoff = 0;
 	uint32_t temp;
 	uint32_t delta = 0;
 	uint8_t len;
@@ -2709,14 +2698,22 @@ usb2_read_symlink(uint8_t *user_ptr, uint32_t startentry, uint32_t user_len)
 
 	TAILQ_FOREACH(ps, &usb2_sym_head, sym_entry) {
 
+		/*
+		 * Compute total length of source and destination symlink
+		 * strings pluss one length byte and two NUL bytes:
+		 */
 		temp = ps->src_len + ps->dst_len + 3;
 
 		if (temp > 255) {
+			/*
+			 * Skip entry because this length cannot fit
+			 * into one byte:
+			 */
 			continue;
 		}
 		if (startentry != 0) {
+			/* decrement read offset */
 			startentry--;
-			curoff += temp;
 			continue;
 		}
 		if (temp > user_len) {
@@ -2766,7 +2763,6 @@ usb2_read_symlink(uint8_t *user_ptr, uint32_t startentry, uint32_t user_len)
 		}
 		delta += 1;
 
-		curoff += temp;
 		user_len -= temp;
 	}
 

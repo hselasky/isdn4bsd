@@ -42,14 +42,6 @@
 #define	USB_USE_CONDVAR 0
 #endif
 
-#ifndef USB_TD_GET_RUID
-#define	USB_TD_GET_RUID(td) (td)->td_ucred->cr_ruid
-#endif
-
-#ifndef USB_TD_GET_RGID
-#define	USB_TD_GET_RGID(td) (td)->td_ucred->cr_rgid
-#endif
-
 #ifndef USB_TD_GET_PROC
 #define	USB_TD_GET_PROC(td) (td)->td_proc
 #endif
