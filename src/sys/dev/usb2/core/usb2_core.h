@@ -115,7 +115,9 @@
 
 #define	USB_MAX_IPACKET		8	/* maximum size of the initial USB
 					 * data packet */
-#define	USB_VERBOSE
+#ifndef USB_VERBOSE
+#define	USB_VERBOSE 1
+#endif
 
 #define	USB_HUB_MAX_DEPTH 5
 

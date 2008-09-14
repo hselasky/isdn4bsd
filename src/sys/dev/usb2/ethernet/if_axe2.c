@@ -107,7 +107,7 @@ MODULE_DEPEND(axe, usb2_core, 1, 1, 1);
 MODULE_DEPEND(axe, ether, 1, 1, 1);
 MODULE_DEPEND(axe, miibus, 1, 1, 1);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int axe_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, axe, CTLFLAG_RW, 0, "USB axe");

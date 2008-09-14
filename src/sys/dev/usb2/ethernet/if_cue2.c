@@ -125,7 +125,7 @@ static void cue_init_cb(void *arg);
 static int cue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
 static void cue_watchdog(void *arg);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int cue_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, cue, CTLFLAG_RW, 0, "USB cue");

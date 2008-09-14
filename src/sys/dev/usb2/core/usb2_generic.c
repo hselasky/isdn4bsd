@@ -98,7 +98,7 @@ struct usb2_fifo_methods usb2_ugen_methods = {
 	.f_stop_write = &ugen_stop_io,
 };
 
-#ifdef	USB_DEBUG
+#if USB_DEBUG
 static int ugen_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, ugen, CTLFLAG_RW, 0, "USB generic");

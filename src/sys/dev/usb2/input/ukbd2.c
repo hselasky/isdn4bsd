@@ -85,7 +85,7 @@ __FBSDID("$FreeBSD$");
 /* the following file must be included after "ukbdmap.h" */
 #include <dev/kbd/kbdtables.h>
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int ukbd_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, ukbd, CTLFLAG_RW, 0, "USB ukbd");
@@ -487,7 +487,7 @@ ukbd_intr_callback(struct usb2_xfer *xfer)
 		if (len) {
 			bzero(&sc->sc_ndata, sizeof(sc->sc_ndata));
 			usb2_copy_out(xfer->frbuffers, 0, &sc->sc_ndata, len);
-#ifdef USB_DEBUG
+#if USB_DEBUG
 			if (sc->sc_ndata.modifiers) {
 				DPRINTF("mod: 0x%04x\n", sc->sc_ndata.modifiers);
 			}

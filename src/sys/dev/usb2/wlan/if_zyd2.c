@@ -52,7 +52,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/usb2/wlan/if_zyd2_reg.h>
 #include <dev/usb2/wlan/if_zyd2_fw.h>
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int zyd_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, zyd, CTLFLAG_RW, 0, "USB zyd");

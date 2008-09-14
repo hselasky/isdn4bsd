@@ -64,7 +64,7 @@
 #define	USS820_DCI_PC2SC(pc) \
    USS820_DCI_BUS2SC((pc)->tag_parent->info->bus)
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int uss820dcidebug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, uss820dci, CTLFLAG_RW, 0, "USB uss820dci");

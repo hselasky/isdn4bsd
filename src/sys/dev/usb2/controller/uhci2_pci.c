@@ -58,6 +58,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/usb2/core/usb2_config_td.h>
 #include <dev/usb2/core/usb2_sw_transfer.h>
 #include <dev/usb2/core/usb2_util.h>
+#include <dev/usb2/core/usb2_debug.h>
 
 #include <dev/usb2/controller/usb2_controller.h>
 #include <dev/usb2/controller/usb2_bus.h>
@@ -345,7 +346,7 @@ uhci_pci_attach(device_t self)
 	 * that the BIOS won't touch the keyboard anymore if it is connected
 	 * to the ports of the root hub?
 	 */
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (pci_read_config(self, PCI_LEGSUP, 2) != PCI_LEGSUP_USBPIRQDEN) {
 		device_printf(self, "LegSup = 0x%04x\n",
 		    pci_read_config(self, PCI_LEGSUP, 2));

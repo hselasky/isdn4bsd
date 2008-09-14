@@ -1278,7 +1278,7 @@ usb2_start_hardware(struct usb2_xfer *xfer)
 	    xfer, xfer->pipe, xfer->nframes, USB_GET_DATA_ISREAD(xfer) ?
 	    "read" : "write");
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (USB_DEBUG_VAR > 0) {
 		mtx_lock(xfer->usb2_mtx);
 

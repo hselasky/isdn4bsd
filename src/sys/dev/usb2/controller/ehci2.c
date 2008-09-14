@@ -73,7 +73,7 @@ __FBSDID("$FreeBSD$");
 #define	EHCI_BUS2SC(bus) ((ehci_softc_t *)(((uint8_t *)(bus)) - \
    USB_P2U(&(((ehci_softc_t *)0)->sc_bus))))
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int ehcidebug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, ehci, CTLFLAG_RW, 0, "USB ehci");
@@ -212,7 +212,7 @@ ehci_init(ehci_softc_t *sc)
 	usb2_callout_init_mtx(&sc->sc_tmo_pcd, &sc->sc_bus.mtx,
 	    CALLOUT_RETURNUNLOCKED);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ehcidebug > 2) {
 		ehci_dump_regs(sc);
 	}
@@ -437,7 +437,7 @@ ehci_init(ehci_softc_t *sc)
 
 	usb2_bus_mem_flush_all(&sc->sc_bus, &ehci_iterate_hw_softc);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ehcidebug) {
 		ehci_dump_sqh(sc->sc_async_p_last);
 	}
@@ -644,7 +644,7 @@ ehci_shutdown(ehci_softc_t *sc)
 	mtx_unlock(&sc->sc_bus.mtx);
 }
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static void
 ehci_dump_regs(ehci_softc_t *sc)
 {
@@ -1051,7 +1051,7 @@ _ehci_append_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 
 	usb2_pc_cpu_flush(last->page_cache);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ehcidebug > 5) {
 		printf("%s:\n", __FUNCTION__);
 		ehci_dump_sqh(sqh);
@@ -1213,7 +1213,7 @@ ehci_non_isoc_done_sub(struct usb2_xfer *xfer)
 	xfer->pipe->toggle_next =
 	    (status & EHCI_QTD_TOGGLE_MASK) ? 1 : 0;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (status & EHCI_QTD_STATERRS) {
 		DPRINTFN(11, "error, addr=%d, endpt=0x%02x, frame=0x%02x"
 		    "status=%s%s%s%s%s%s%s%s\n",
@@ -1241,7 +1241,7 @@ ehci_non_isoc_done(struct usb2_xfer *xfer)
 	DPRINTFN(13, "xfer=%p pipe=%p transfer done\n",
 	    xfer, xfer->pipe);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ehcidebug > 10) {
 		ehci_dump_sqtds(xfer->td_transfer_first);
 	}
@@ -1461,7 +1461,7 @@ ehci_interrupt(ehci_softc_t *sc)
 
 	DPRINTFN(16, "real interrupt\n");
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ehcidebug > 15) {
 		ehci_dump_regs(sc);
 	}
@@ -1482,7 +1482,7 @@ ehci_interrupt(ehci_softc_t *sc)
 	if (status & EHCI_STS_HSE) {
 		printf("%s: unrecoverable error, "
 		    "controller halted\n", __FUNCTION__);
-#ifdef USB_DEBUG
+#if USB_DEBUG
 		ehci_dump_regs(sc);
 		ehci_dump_isoc(sc);
 #endif
@@ -1876,7 +1876,7 @@ ehci_setup_standard_chain(struct usb2_xfer *xfer, ehci_qh_t **qh_last)
 
 	xfer->td_transfer_last = td;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ehcidebug > 8) {
 		DPRINTF("nexttog=%d; data before transfer:\n",
 		    xfer->pipe->toggle_next);
@@ -2015,7 +2015,7 @@ ehci_isoc_fs_done(ehci_softc_t *sc, struct usb2_xfer *xfer)
 		if (pp_last >= &sc->sc_isoc_fs_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT]) {
 			pp_last = &sc->sc_isoc_fs_p_last[0];
 		}
-#ifdef USB_DEBUG
+#if USB_DEBUG
 		if (ehcidebug > 15) {
 			DPRINTF("isoc FS-TD\n");
 			ehci_dump_sitd(td);
@@ -2069,7 +2069,7 @@ ehci_isoc_hs_done(ehci_softc_t *sc, struct usb2_xfer *xfer)
 		if (pp_last >= &sc->sc_isoc_hs_p_last[EHCI_VIRTUAL_FRAMELIST_COUNT]) {
 			pp_last = &sc->sc_isoc_hs_p_last[0];
 		}
-#ifdef USB_DEBUG
+#if USB_DEBUG
 		if (ehcidebug > 15) {
 			DPRINTF("isoc HS-TD\n");
 			ehci_dump_itd(td);
@@ -2128,7 +2128,7 @@ ehci_device_done(struct usb2_xfer *xfer, usb2_error_t error)
 
 	if ((methods == &ehci_device_bulk_methods) ||
 	    (methods == &ehci_device_ctrl_methods)) {
-#ifdef USB_DEBUG
+#if USB_DEBUG
 		if (ehcidebug > 8) {
 			DPRINTF("nexttog=%d; data after transfer:\n",
 			    xfer->pipe->toggle_next);
@@ -2426,7 +2426,7 @@ ehci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 	uint8_t sb;
 	uint8_t error;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	uint8_t once = 1;
 
 #endif
@@ -2510,7 +2510,7 @@ ehci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 		/* reuse sitd_portaddr and sitd_back from last transfer */
 
 		if (*plen > xfer->max_frame_size) {
-#ifdef USB_DEBUG
+#if USB_DEBUG
 			if (once) {
 				once = 0;
 				printf("%s: frame length(%d) exceeds %d "
@@ -2600,7 +2600,7 @@ ehci_device_isoc_fs_enter(struct usb2_xfer *xfer)
 		}
 		usb2_pc_cpu_flush(td->page_cache);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 		if (ehcidebug > 15) {
 			DPRINTF("FS-TD %d\n", nframes);
 			ehci_dump_sitd(td);
@@ -2718,7 +2718,7 @@ ehci_device_isoc_hs_enter(struct usb2_xfer *xfer)
 	uint8_t td_no;
 	uint8_t page_no;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	uint8_t once = 1;
 
 #endif
@@ -2796,7 +2796,7 @@ ehci_device_isoc_hs_enter(struct usb2_xfer *xfer)
 		}
 		/* range check */
 		if (*plen > xfer->max_frame_size) {
-#ifdef USB_DEBUG
+#if USB_DEBUG
 			if (once) {
 				once = 0;
 				printf("%s: frame length(%d) exceeds %d bytes "
@@ -2872,7 +2872,7 @@ ehci_device_isoc_hs_enter(struct usb2_xfer *xfer)
 				td->itd_status[7] |= htole32(EHCI_ITD_IOC);
 			}
 			usb2_pc_cpu_flush(td->page_cache);
-#ifdef USB_DEBUG
+#if USB_DEBUG
 			if (ehcidebug > 15) {
 				DPRINTF("HS-TD %d\n", nframes);
 				ehci_dump_itd(td);

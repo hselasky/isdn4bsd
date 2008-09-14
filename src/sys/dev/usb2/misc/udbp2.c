@@ -80,7 +80,7 @@ __FBSDID("$FreeBSD$");
 
 #include <dev/usb2/misc/udbp2.h>
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int udbp_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, udbp, CTLFLAG_RW, 0, "USB udbp");

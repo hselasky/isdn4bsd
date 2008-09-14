@@ -1356,7 +1356,7 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	hub = udev->parent_hub;
 	if (hub) {
 		if (usb2_hub_speed_combs[hub->speed][speed] == 0) {
-#ifdef USB_DEBUG
+#if USB_DEBUG
 			printf("%s: the selected subdevice and HUB speed "
 			    "combination is not supported %d/%d.\n",
 			    __FUNCTION__, speed, hub->speed);
@@ -1827,7 +1827,7 @@ usb2_devinfo(struct usb2_device *udev, char *dst_ptr, uint16_t dst_len)
 	return;
 }
 
-#ifdef USB_VERBOSE
+#if USB_VERBOSE
 /*
  * Descriptions of of known vendors and devices ("products").
  */
@@ -1858,7 +1858,7 @@ usb2_check_strings(struct usb2_device *udev)
 	const char *vendor;
 	const char *product;
 
-#ifdef USB_VERBOSE
+#if USB_VERBOSE
 	const struct usb_knowndev *kdp;
 
 #endif
@@ -1883,7 +1883,7 @@ usb2_check_strings(struct usb2_device *udev)
 	vendor_id = UGETW(udd->idVendor);
 	product_id = UGETW(udd->idProduct);
 
-#ifdef USB_VERBOSE
+#if USB_VERBOSE
 	if (vendor == NULL || product == NULL) {
 
 		for (kdp = usb_knowndevs;

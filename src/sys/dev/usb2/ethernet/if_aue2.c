@@ -93,7 +93,7 @@ MODULE_DEPEND(aue, usb2_core, 1, 1, 1);
 MODULE_DEPEND(aue, ether, 1, 1, 1);
 MODULE_DEPEND(aue, miibus, 1, 1, 1);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int aue_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, aue, CTLFLAG_RW, 0, "USB aue");

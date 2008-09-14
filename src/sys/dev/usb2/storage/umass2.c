@@ -131,7 +131,7 @@ __FBSDID("$FreeBSD$");
 #define	UMASS_USB_FLAGS
 #endif
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 #define	DIF(m, x)				\
   do {						\
     if (umass_debug & (m)) { x ; }		\
@@ -1019,7 +1019,7 @@ static uint8_t umass_atapi_transform(struct umass_softc *sc, uint8_t *cmd_ptr, u
 static uint8_t umass_no_transform(struct umass_softc *sc, uint8_t *cmd, uint8_t cmdlen);
 static uint8_t umass_std_transform(struct umass_softc *sc, union ccb *ccb, uint8_t *cmd, uint8_t cmdlen);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static void umass_bbb_dump_cbw(struct umass_softc *sc, umass_bbb_cbw_t *cbw);
 static void umass_bbb_dump_csw(struct umass_softc *sc, umass_bbb_csw_t *csw);
 static void umass_cbi_dump_cmd(struct umass_softc *sc, void *cmd, uint8_t cmdlen);
@@ -1442,7 +1442,7 @@ umass_attach(device_t dev)
 	}
 	sc->sc_iface_no = id->bInterfaceNumber;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	device_printf(dev, " ");
 
 	switch (sc->sc_proto & UMASS_PROTO_COMMAND) {
@@ -2635,7 +2635,7 @@ umass_cam_attach_sim(struct umass_softc *sc)
 static void
 umass_cam_rescan_callback(struct cam_periph *periph, union ccb *ccb)
 {
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	struct umass_softc *sc = NULL;
 
 	if (ccb->ccb_h.status != CAM_REQ_CMP) {
@@ -3519,7 +3519,7 @@ umass_std_transform(struct umass_softc *sc, union ccb *ccb,
 	return (1);
 }
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static void
 umass_bbb_dump_cbw(struct umass_softc *sc, umass_bbb_cbw_t *cbw)
 {

@@ -75,7 +75,7 @@ __FBSDID("$FreeBSD$");
 #define	AT9100_DCI_PC2SC(pc) \
    AT9100_DCI_BUS2SC((pc)->tag_parent->info->bus)
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int at91dcidebug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, at91dci, CTLFLAG_RW, 0, "USB at91dci");

@@ -80,7 +80,7 @@
 #include <dev/sound/chip.h>
 #include "feeder_if.h"
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int uaudio_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, uaudio, CTLFLAG_RW, 0, "USB uaudio");
@@ -295,7 +295,7 @@ static const struct uaudio_format uaudio_formats[] = {
 #define	UAC_RECORD	3
 #define	UAC_NCLASSES	4
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static const char *uac_names[] = {
 	"outputs", "inputs", "equalization", "record"
 };
@@ -316,7 +316,7 @@ static usb2_callback_t umidi_bulk_read_callback;
 static usb2_callback_t umidi_write_clear_stall_callback;
 static usb2_callback_t umidi_bulk_write_callback;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static void uaudio_chan_dump_ep_desc(const usb2_endpoint_descriptor_audio_t *ed);
 
 #endif
@@ -336,14 +336,14 @@ static void uaudio_mixer_add_processing(struct uaudio_softc *sc, const struct ua
 static void uaudio_mixer_add_extension(struct uaudio_softc *sc, const struct uaudio_terminal_node *iot, int id);
 static const void *uaudio_mixer_verify_desc(const void *arg, uint32_t len);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static void uaudio_mixer_dump_cluster(uint8_t id, const struct uaudio_terminal_node *iot);
 
 #endif
 
 static struct usb2_audio_cluster uaudio_mixer_get_cluster(uint8_t id, const struct uaudio_terminal_node *iot);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static const char *uaudio_mixer_get_terminal_name(uint16_t terminal_type);
 
 #endif
@@ -787,7 +787,7 @@ uaudio_detach(device_t dev)
  * AS - Audio Stream - routines
  *========================================================================*/
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static void
 uaudio_chan_dump_ep_desc(const usb2_endpoint_descriptor_audio_t *ed)
 {
@@ -1029,7 +1029,7 @@ uaudio_chan_fill_info_sub(struct uaudio_softc *sc, struct usb2_device *udev,
 				if ((chan->valid == 0) && usb2_get_iface(udev, curidx)) {
 
 					chan->valid = 1;
-#ifdef USB_DEBUG
+#if USB_DEBUG
 					uaudio_chan_dump_ep_desc(ed1);
 					uaudio_chan_dump_ep_desc(ed2);
 
@@ -1570,7 +1570,7 @@ uaudio_mixer_add_ctl(struct uaudio_softc *sc, struct uaudio_mixer_node *mc)
 	}
 	uaudio_mixer_add_ctl_sub(sc, mc);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (uaudio_debug > 2) {
 		uint8_t i;
 
@@ -1590,7 +1590,7 @@ static void
 uaudio_mixer_add_input(struct uaudio_softc *sc,
     const struct uaudio_terminal_node *iot, int id)
 {
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	const struct usb2_audio_input_terminal *d = iot[id].u.it;
 
 	DPRINTFN(3, "bTerminalId=%d wTerminalType=0x%04x "
@@ -1607,7 +1607,7 @@ static void
 uaudio_mixer_add_output(struct uaudio_softc *sc,
     const struct uaudio_terminal_node *iot, int id)
 {
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	const struct usb2_audio_output_terminal *d = iot[id].u.ot;
 
 	DPRINTFN(3, "bTerminalId=%d wTerminalType=0x%04x "
@@ -2147,7 +2147,7 @@ error:
 	return (NULL);
 }
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static void
 uaudio_mixer_dump_cluster(uint8_t id, const struct uaudio_terminal_node *iot)
 {
@@ -2241,7 +2241,7 @@ done:
 	return (r);
 }
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 
 struct uaudio_tt_to_string {
 	uint16_t terminal_type;
@@ -2747,7 +2747,7 @@ uaudio_mixer_fill_info(struct uaudio_softc *sc, struct usb2_device *udev,
 		(iot + i)->root = iot;
 	} while (i--);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	i = ID_max;
 	do {
 		uint8_t j;

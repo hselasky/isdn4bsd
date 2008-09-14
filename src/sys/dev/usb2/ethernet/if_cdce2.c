@@ -90,7 +90,7 @@ static void cdce_init_cb(void *arg);
 static int cdce_ifmedia_upd_cb(struct ifnet *ifp);
 static void cdce_ifmedia_sts_cb(struct ifnet *const ifp, struct ifmediareq *req);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int cdce_debug = 0;
 static int cdce_force_512x4 = 0;
 
@@ -286,7 +286,7 @@ cdce_attach(device_t dev)
 	}
 	/* get the interface subclass we are using */
 	sc->sc_iface_protocol = uaa->iface->idesc->bInterfaceProtocol;
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (cdce_force_512x4) {
 		sc->sc_iface_protocol = UIPROTO_CDC_ETH_512X4;
 	}

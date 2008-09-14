@@ -68,7 +68,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/usb2/serial/usb2_serial.h>
 #include <dev/usb2/serial/uftdi2_reg.h>
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int uftdi_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, uftdi, CTLFLAG_RW, 0, "USB uftdi");

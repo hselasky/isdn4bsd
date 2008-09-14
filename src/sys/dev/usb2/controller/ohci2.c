@@ -62,7 +62,7 @@ __FBSDID("$FreeBSD$");
 #define	OHCI_BUS2SC(bus) ((ohci_softc_t *)(((uint8_t *)(bus)) - \
    USB_P2U(&(((ohci_softc_t *)0)->sc_bus))))
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int ohcidebug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, ohci, CTLFLAG_RW, 0, "USB ohci");
@@ -216,7 +216,7 @@ reset:
 		device_printf(sc->sc_bus.bdev, "reset timeout\n");
 		return (USB_ERR_IOERROR);
 	}
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ohcidebug > 15) {
 		ohci_dumpregs(sc);
 	}
@@ -275,7 +275,7 @@ reset:
 		sc->sc_noport = OHCI_GET_NDP(OREAD4(sc, OHCI_RH_DESCRIPTOR_A));
 	}
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ohcidebug > 5) {
 		ohci_dumpregs(sc);
 	}
@@ -394,7 +394,7 @@ ohci_init(ohci_softc_t *sc)
 	usb2_callout_init_mtx(&sc->sc_tmo_rhsc, &sc->sc_bus.mtx,
 	    CALLOUT_RETURNUNLOCKED);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ohcidebug > 15) {
 		for (i = 0; i != OHCI_NO_EDS; i++) {
 			printf("ed#%d ", i);
@@ -451,7 +451,7 @@ ohci_suspend(ohci_softc_t *sc)
 
 	mtx_lock(&sc->sc_bus.mtx);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	DPRINTF("\n");
 	if (ohcidebug > 2) {
 		ohci_dumpregs(sc);
@@ -484,7 +484,7 @@ ohci_resume(ohci_softc_t *sc)
 
 	mtx_lock(&sc->sc_bus.mtx);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	DPRINTF("\n");
 	if (ohcidebug > 2) {
 		ohci_dumpregs(sc);
@@ -517,7 +517,7 @@ ohci_resume(ohci_softc_t *sc)
 	return;
 }
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static void
 ohci_dumpregs(ohci_softc_t *sc)
 {
@@ -772,7 +772,7 @@ ohci_isoc_done(struct usb2_xfer *xfer)
 			panic("%s:%d: out of TD's\n",
 			    __FUNCTION__, __LINE__);
 		}
-#ifdef USB_DEBUG
+#if USB_DEBUG
 		if (ohcidebug > 5) {
 			DPRINTF("isoc TD\n");
 			ohci_dump_itd(td);
@@ -814,7 +814,7 @@ ohci_isoc_done(struct usb2_xfer *xfer)
 	return;
 }
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static const char *const
 	ohci_cc_strs[] =
 {
@@ -934,7 +934,7 @@ ohci_non_isoc_done(struct usb2_xfer *xfer)
 	DPRINTFN(13, "xfer=%p pipe=%p transfer done\n",
 	    xfer, xfer->pipe);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ohcidebug > 10) {
 		ohci_dump_tds(xfer->td_transfer_first);
 	}
@@ -1152,7 +1152,7 @@ ohci_interrupt(ohci_softc_t *sc)
 
 	DPRINTFN(16, "real interrupt\n");
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ohcidebug > 15) {
 		ohci_dumpregs(sc);
 	}
@@ -1568,7 +1568,7 @@ ohci_setup_standard_chain(struct usb2_xfer *xfer, ohci_ed_t **ed_last)
 
 	xfer->td_transfer_last = td;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ohcidebug > 8) {
 		DPRINTF("nexttog=%d; data before transfer:\n",
 		    xfer->pipe->toggle_next);
@@ -2022,7 +2022,7 @@ ohci_device_isoc_enter(struct usb2_xfer *xfer)
 
 	xfer->td_transfer_last = td_last;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (ohcidebug > 8) {
 		DPRINTF("data before transfer:\n");
 		ohci_dump_itds(xfer->td_transfer_first);

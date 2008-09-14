@@ -90,7 +90,7 @@ __FBSDID("$FreeBSD$");
 
 #include <dev/usb2/serial/usb2_serial.h>
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int usb2_com_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, ucom, CTLFLAG_RW, 0, "USB ucom");

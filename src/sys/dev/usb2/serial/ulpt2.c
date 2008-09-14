@@ -66,7 +66,7 @@ __FBSDID("$FreeBSD$");
 
 #include <sys/syslog.h>
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int ulpt_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, ulpt, CTLFLAG_RW, 0, "USB ulpt");

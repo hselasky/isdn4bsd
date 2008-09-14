@@ -52,7 +52,7 @@
 #define	USB_THREAD_EXIT(err)	kthread_exit(err)
 #endif
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int usb2_proc_debug;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, proc, CTLFLAG_RW, 0, "USB process");

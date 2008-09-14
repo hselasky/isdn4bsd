@@ -66,7 +66,7 @@ __FBSDID("$FreeBSD$");
 #define	UHCI_BUS2SC(bus) ((uhci_softc_t *)(((uint8_t *)(bus)) - \
    USB_P2U(&(((uhci_softc_t *)0)->sc_bus))))
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int uhcidebug = 0;
 static int uhcinoloop = 0;
 
@@ -420,7 +420,7 @@ uhci_init(uhci_softc_t *sc)
 
 	DPRINTF("start\n");
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (uhcidebug > 2) {
 		uhci_dumpregs(sc);
 	}
@@ -630,7 +630,7 @@ uhci_suspend(uhci_softc_t *sc)
 {
 	mtx_lock(&sc->sc_bus.mtx);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (uhcidebug > 2) {
 		uhci_dumpregs(sc);
 	}
@@ -674,7 +674,7 @@ uhci_resume(uhci_softc_t *sc)
 
 	uhci_start(sc);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (uhcidebug > 2) {
 		uhci_dumpregs(sc);
 	}
@@ -688,7 +688,7 @@ uhci_resume(uhci_softc_t *sc)
 	return;
 }
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static void
 uhci_dumpregs(uhci_softc_t *sc)
 {
@@ -851,7 +851,7 @@ uhci_add_loop(uhci_softc_t *sc)
 	struct uhci_qh *qh_lst;
 	struct uhci_qh *qh_rec;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (uhcinoloop) {
 		return;
 	}
@@ -875,7 +875,7 @@ uhci_rem_loop(uhci_softc_t *sc)
 {
 	struct uhci_qh *qh_lst;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (uhcinoloop) {
 		return;
 	}
@@ -1050,7 +1050,7 @@ uhci_isoc_done(uhci_softc_t *sc, struct usb2_xfer *xfer)
 		if (pp_last >= &sc->sc_isoc_p_last[UHCI_VFRAMELIST_COUNT]) {
 			pp_last = &sc->sc_isoc_p_last[0];
 		}
-#ifdef USB_DEBUG
+#if USB_DEBUG
 		if (uhcidebug > 5) {
 			DPRINTF("isoc TD\n");
 			uhci_dump_td(td);
@@ -1183,7 +1183,7 @@ uhci_non_isoc_done_sub(struct usb2_xfer *xfer)
 
 	xfer->pipe->toggle_next = (token & UHCI_TD_SET_DT(1)) ? 0 : 1;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (status & UHCI_TD_ERROR) {
 		DPRINTFN(11, "error, addr=%d, endpt=0x%02x, frame=0x%02x "
 		    "status=%s%s%s%s%s%s%s%s%s%s%s\n",
@@ -1213,7 +1213,7 @@ uhci_non_isoc_done(struct usb2_xfer *xfer)
 	DPRINTFN(13, "xfer=%p pipe=%p transfer done\n",
 	    xfer, xfer->pipe);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (uhcidebug > 10) {
 		uhci_dump_tds(xfer->td_transfer_first);
 	}
@@ -1452,7 +1452,7 @@ uhci_interrupt(uhci_softc_t *sc)
 
 	DPRINTFN(16, "real interrupt\n");
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (uhcidebug > 15) {
 		uhci_dumpregs(sc);
 	}
@@ -1466,7 +1466,7 @@ uhci_interrupt(uhci_softc_t *sc)
 	    UHCI_STS_HCPE | UHCI_STS_HCH)) {
 
 		if (status & UHCI_STS_RD) {
-#ifdef USB_DEBUG
+#if USB_DEBUG
 			printf("%s: resume detect\n",
 			    __FUNCTION__);
 #endif
@@ -1483,7 +1483,7 @@ uhci_interrupt(uhci_softc_t *sc)
 			/* no acknowledge needed */
 			printf("%s: host controller halted\n",
 			    __FUNCTION__);
-#ifdef USB_DEBUG
+#if USB_DEBUG
 			uhci_dump_all(sc);
 #endif
 		}
@@ -1836,7 +1836,7 @@ uhci_setup_standard_chain(struct usb2_xfer *xfer)
 
 	xfer->td_transfer_last = td;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	if (uhcidebug > 8) {
 		DPRINTF("nexttog=%d; data before transfer:\n",
 		    xfer->pipe->toggle_next);
@@ -2152,7 +2152,7 @@ uhci_device_isoc_enter(struct usb2_xfer *xfer)
 	uint32_t temp;
 	uint32_t *plen;
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 	uint8_t once = 1;
 
 #endif
@@ -2224,7 +2224,7 @@ uhci_device_isoc_enter(struct usb2_xfer *xfer)
 			pp_last = &sc->sc_isoc_p_last[0];
 		}
 		if (*plen > xfer->max_frame_size) {
-#ifdef USB_DEBUG
+#if USB_DEBUG
 			if (once) {
 				once = 0;
 				printf("%s: frame length(%d) exceeds %d "
@@ -2276,7 +2276,7 @@ uhci_device_isoc_enter(struct usb2_xfer *xfer)
 
 		usb2_pc_cpu_flush(td->page_cache);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 		if (uhcidebug > 5) {
 			DPRINTF("TD %d\n", nframes);
 			uhci_dump_td(td);

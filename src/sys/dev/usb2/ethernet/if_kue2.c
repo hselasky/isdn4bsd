@@ -165,7 +165,7 @@ static void kue_init_cb(void *arg);
 static int kue_ioctl_cb(struct ifnet *ifp, u_long command, caddr_t data);
 static void kue_watchdog(void *arg);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int kue_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, kue, CTLFLAG_RW, 0, "USB kue");

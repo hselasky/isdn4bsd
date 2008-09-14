@@ -53,7 +53,7 @@
 
 #define	UHUB_INTR_INTERVAL 250		/* ms */
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int uhub_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, uhub, CTLFLAG_RW, 0, "USB HUB");

@@ -50,7 +50,7 @@
 #include <dev/usb2/core/usb2_process.h>
 #include <dev/usb2/core/usb2_device.h>
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int ustorage_fs_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, ustorage_fs, CTLFLAG_RW, 0, "USB ustorage_fs");

@@ -56,7 +56,7 @@ static void usb2_bus_mem_free_all_cb(struct usb2_bus *bus, struct usb2_page_cach
 
 /* static variables */
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int usb2_ctrl_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, ctrl, CTLFLAG_RW, 0, "USB controller");

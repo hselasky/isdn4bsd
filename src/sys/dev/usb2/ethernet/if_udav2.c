@@ -213,7 +213,7 @@ MODULE_DEPEND(udav, usb2_core, 1, 1, 1);
 MODULE_DEPEND(udav, ether, 1, 1, 1);
 MODULE_DEPEND(udav, miibus, 1, 1, 1);
 
-#ifdef USB_DEBUG
+#if USB_DEBUG
 static int udav_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, udav, CTLFLAG_RW, 0, "USB udav");

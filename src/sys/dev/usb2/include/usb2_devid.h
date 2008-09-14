@@ -1440,6 +1440,7 @@
 
 /* HUAWEI products */
 #define	USB_PRODUCT_HUAWEI_MOBILE	0x1001		/* Huawei Mobile */
+#define	USB_PRODUCT_HUAWEI_E270	0x1003		/* Huawei HSPA modem */
 
 /* HUAWEI 3com products */
 #define	USB_PRODUCT_HUAWEI3COM_WUB320G	0x0009		/* Aolynk WUB320g */
@@ -1663,6 +1664,9 @@
 #define	USB_PRODUCT_MELCO_G54HP	0x00d9		/* WLI-U2-G54HP */
 #define	USB_PRODUCT_MELCO_KG54L	0x00da		/* WLI-U2-KG54L */
 
+/* Merlin products */
+#define	USB_PRODUCT_MERLIN_V620	0x1110		/* Merlin V620 */
+
 /* MetaGeek products */
 #define	USB_PRODUCT_METAGEEK_WISPY1B	0x083e		/* MetaGeek Wi-Spy */
 #define	USB_PRODUCT_METAGEEK_WISPY24X	0x083f		/* MetaGeek Wi-Spy 2.4x */
@@ -1828,13 +1832,21 @@
 #define	USB_PRODUCT_NOVATECH_RT2573	0x9021		/* RT2573 */
 
 /* Novatel Wireless products */
+#define	USB_PRODUCT_NOVATEL_V640	0x1100		/* Merlin V620 */
 #define	USB_PRODUCT_NOVATEL_CDMA_MODEM	0x1110		/* Novatel Wireless Merlin CDMA */
 #define	USB_PRODUCT_NOVATEL_V620	0x1110		/* Merlin V620 */
 #define	USB_PRODUCT_NOVATEL_V740	0x1120		/* Merlin V740 */
 #define	USB_PRODUCT_NOVATEL_V720	0x1130		/* Merlin V720 */
 #define	USB_PRODUCT_NOVATEL_U740	0x1400		/* Merlin U740 */
+#define	USB_PRODUCT_NOVATEL_U740_2	0x1410		/* Merlin U740 */
+#define	USB_PRODUCT_NOVATEL_U870	0x1420		/* Merlin U870 */
+#define	USB_PRODUCT_NOVATEL_XU870	0x1430		/* Merlin XU870 */
+#define	USB_PRODUCT_NOVATEL_X950D	0x1450		/* Merlin X950D */
+#define	USB_PRODUCT_NOVATEL_ES620	0x2100		/* ES620 CDMA */
 #define	USB_PRODUCT_NOVATEL_U720	0x2110		/* Merlin U720 */
 #define	USB_PRODUCT_NOVATEL_U727	0x4100		/* Merlin U727 CDMA */
+#define	USB_PRODUCT_NOVATEL_U950D	0x4400		/* Novatel MC950D HSUPA */
+#define	USB_PRODUCT_NOVATEL_ZEROCD	0x5010		/* Novatel ZeroCD */
 #define	USB_PRODUCT_NOVATEL2_FLEXPACKGPS	0x0100		/* NovAtel FlexPack GPS receiver */
 
 /* Merlin products */
@@ -2107,9 +2119,31 @@
 
 /* Sierra Wireless products */
 #define	USB_PRODUCT_SIERRA_AIRCARD580	0x0112		/* Sierra Wireless AirCard 580 */
+#define	USB_PRODUCT_SIERRA_AIRCARD595	0x0019		/* Sierra Wireless AirCard 595 */
+#define	USB_PRODUCT_SIERRA_AC595U	0x0120		/* Sierra Wireless AirCard 595U */
+#define	USB_PRODUCT_SIERRA_AC597E	0x0021		/* Sierra Wireless AirCard 597E */
+#define	USB_PRODUCT_SIERRA_C597	0x0023		/* Sierra Wireless Compass 597 */
+#define	USB_PRODUCT_SIERRA_AC880	0x6850		/* Sierra Wireless AirCard 880 */
+#define	USB_PRODUCT_SIERRA_AC881	0x6851		/* Sierra Wireless AirCard 881 */
+#define	USB_PRODUCT_SIERRA_AC880E	0x6852		/* Sierra Wireless AirCard 880E */
+#define	USB_PRODUCT_SIERRA_AC881E	0x6853		/* Sierra Wireless AirCard 881E */
+#define	USB_PRODUCT_SIERRA_AC880U	0x6855		/* Sierra Wireless AirCard 880U */
+#define	USB_PRODUCT_SIERRA_AC881U	0x6856		/* Sierra Wireless AirCard 881U */
+#define	USB_PRODUCT_SIERRA_EM5625	0x0017		/* EM5625 */
 #define	USB_PRODUCT_SIERRA_MC5720	0x0218		/* MC5720 Wireless Modem */
+#define	USB_PRODUCT_SIERRA_MC5720_2	0x0018		/* MC5720 */
+#define	USB_PRODUCT_SIERRA_MC5725	0x0020		/* MC5725 */
+#define	USB_PRODUCT_SIERRA_MINI5725	0x0220		/* Sierra Wireless miniPCI 5275 */
+#define	USB_PRODUCT_SIERRA_MC8755_2	0x6802		/* MC8755 */
+#define	USB_PRODUCT_SIERRA_MC8765	0x6803		/* MC8765 */
+#define	USB_PRODUCT_SIERRA_MC8755	0x6804		/* MC8755 */
 #define	USB_PRODUCT_SIERRA_AC875U	0x6812		/* AC875U HSDPA USB Modem */
 #define	USB_PRODUCT_SIERRA_MC8755_3	0x6813		/* MC8755 HSDPA */
+#define	USB_PRODUCT_SIERRA_MC8775_2	0x6815		/* MC8775 */
+#define	USB_PRODUCT_SIERRA_AIRCARD875	0x6820		/* Aircard 875 HSDPA */
+#define	USB_PRODUCT_SIERRA_MC8780	0x6832		/* MC8780 */
+#define	USB_PRODUCT_SIERRA_MC8781	0x6833		/* MC8781 */
+#define	USB_PRODUCT_SIERRA_TRUINSTALL	0x0fff		/* Aircard Tru Installer */
 
 /* Sigmatel products */
 #define	USB_PRODUCT_SIGMATEL_I_BEAD100	0x8008		/* i-Bead 100 MP3 Player */
