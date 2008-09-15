@@ -64,7 +64,9 @@ static struct rbch_softc {
 #define ST_VBR          0x20 /* Variable Bit Rate */
 
 	call_desc_t *sc_cd;	/* Call Descriptor */
+#if 0
 	struct termios it_in;
+#endif
 
 	fifo_translator_t *sc_fifo_translator; /* fifo translator  */
 
@@ -131,8 +133,10 @@ i4b_rbch_attach(void *dummy)
 		sc->sc_unit = i;
 		sc->sc_flags = ST_IDLE;
 
+#if 0
 		sc->it_in.c_ispeed = sc->it_in.c_ospeed = 64000;
 		termioschars(&sc->it_in);
+#endif
 	}
 	return;
 }
@@ -431,11 +435,11 @@ i4b_rbch_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thre
 		case TIOCSETAW: /* drain output, set termios struct? */
 		case TIOCSETA:	/* Set termios struct */
 			break;
-
+#if 0
 		case TIOCGETA:	/* Get termios struct */
 			*(struct termios *)data = sc->it_in;
 			break;
-
+#endif
 		case TIOCMGET:
 			*(int *)data = TIOCM_LE|TIOCM_DTR|TIOCM_RTS|TIOCM_CTS|TIOCM_DSR;
 			if(f)
