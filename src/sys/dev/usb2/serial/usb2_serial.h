@@ -125,6 +125,7 @@ struct usb2_com_super_softc {
 
 struct usb2_com_softc {
 	struct termios sc_termios_copy;
+	struct cv sc_cv;
 	const struct usb2_com_callback *sc_callback;
 	struct usb2_com_super_softc *sc_super;
 	struct tty *sc_tty;
@@ -144,6 +145,7 @@ struct usb2_com_softc {
 	uint8_t	sc_lsr;
 	uint8_t	sc_msr;
 	uint8_t	sc_mcr;
+	uint8_t	sc_ttyfreed;		/* set when TTY has been freed */
 };
 
 int	usb2_com_attach(struct usb2_com_super_softc *ssc, struct usb2_com_softc *sc, uint32_t sub_units, void *parent, const struct usb2_com_callback *callback, struct mtx *p_mtx);

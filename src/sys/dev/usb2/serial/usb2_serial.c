@@ -87,6 +87,7 @@ __FBSDID("$FreeBSD$");
 #include <dev/usb2/core/usb2_config_td.h>
 #include <dev/usb2/core/usb2_request.h>
 #include <dev/usb2/core/usb2_busdma.h>
+#include <dev/usb2/core/usb2_util.h>
 
 #include <dev/usb2/serial/usb2_serial.h>
 
@@ -337,6 +338,7 @@ usb2_com_attach_sub(struct usb2_com_softc *sc)
 	sc->sc_tty = tp;
 
 	DPRINTF("ttycreate: %s\n", buf);
+	usb2_cv_init(&sc->sc_cv, "usb2_com");
 
 done:
 	return (error);
@@ -364,6 +366,9 @@ usb2_com_detach_sub(struct usb2_com_softc *sc)
 		tty_rel_gone(tp);
 
 		mtx_lock(sc->sc_parent_mtx);
+		/* Wait for the callback after the TTY is torn down */
+		while (sc->sc_ttyfreed == 0)
+			usb2_cv_wait(&sc->sc_cv, sc->sc_parent_mtx);
 		/*
 		 * make sure that read and write transfers are stopped
 		 */
@@ -375,6 +380,7 @@ usb2_com_detach_sub(struct usb2_com_softc *sc)
 		}
 		mtx_unlock(sc->sc_parent_mtx);
 	}
+	usb2_cv_destroy(&sc->sc_cv);
 	return;
 }
 
@@ -815,6 +821,8 @@ usb2_com_cfg_status_change(struct usb2_com_softc *sc,
 	sc = cc->cc_softc;
 	tp = sc->sc_tty;
 
+	mtx_assert(sc->sc_parent_mtx, MA_OWNED);
+
 	if (!(sc->sc_flag & UCOM_FLAG_LL_READY)) {
 		return;
 	}
@@ -1093,13 +1101,12 @@ usb2_com_put_data(struct usb2_com_softc *sc, struct usb2_page_cache *pc,
 }
 
 static void
-usb2_com_free(void *sc)
+usb2_com_free(void *xsc)
 {
-	/*
-	 * Our softc gets deallocated earlier on.
-	 *
-	 * XXX: we should make sure the TTY device name doesn't get
-	 * recycled before we end up here!
-	 */
-	return;
+	struct usb2_com_softc *sc = xsc;
+
+	mtx_lock(sc->sc_parent_mtx);
+	sc->sc_ttyfreed = 1;
+	usb2_cv_signal(&sc->sc_cv);
+	mtx_unlock(sc->sc_parent_mtx);
 }
