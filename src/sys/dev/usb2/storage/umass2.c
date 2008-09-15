@@ -167,6 +167,8 @@ SYSCTL_INT(_hw_usb2_umass, OID_AUTO, debug, CTLFLAG_RW,
 #define	DPRINTF(...) do { } while (0)
 #endif
 
+#define	UMASS_MAXUNIT 64		/* XXX temporary */
+
 #define	UMASS_BULK_SIZE (1 << 17)
 #define	UMASS_CBI_DIAGNOSTIC_CMDLEN 12	/* bytes */
 #define	UMASS_MAX_CMDLEN MAX(12, CAM_MAX_CDBLEN)	/* bytes */
@@ -1013,11 +1015,11 @@ static void umass_cam_sense_cb(struct umass_softc *sc, union ccb *ccb, uint32_t 
 static void umass_cam_quirk_cb(struct umass_softc *sc, union ccb *ccb, uint32_t residue, uint8_t status);
 static uint8_t umass_scsi_transform(struct umass_softc *sc, uint8_t *cmd_ptr, uint8_t cmd_len);
 static uint8_t umass_rbc_transform(struct umass_softc *sc, uint8_t *cmd_ptr, uint8_t cmd_len);
-
 static uint8_t umass_ufi_transform(struct umass_softc *sc, uint8_t *cmd_ptr, uint8_t cmd_len);
 static uint8_t umass_atapi_transform(struct umass_softc *sc, uint8_t *cmd_ptr, uint8_t cmd_len);
 static uint8_t umass_no_transform(struct umass_softc *sc, uint8_t *cmd, uint8_t cmdlen);
 static uint8_t umass_std_transform(struct umass_softc *sc, union ccb *ccb, uint8_t *cmd, uint8_t cmdlen);
+static int umass_driver_loaded(struct module *mod, int what, void *arg);
 
 #if USB_DEBUG
 static void umass_bbb_dump_cbw(struct umass_softc *sc, umass_bbb_cbw_t *cbw);
@@ -1240,6 +1242,9 @@ static const uint8_t fake_inq_data[SHORT_INQUIRY_LENGTH] = {
 #define	UFI_COMMAND_LENGTH	12	/* UFI commands are always 12 bytes */
 #define	ATAPI_COMMAND_LENGTH	12	/* ATAPI commands are always 12 bytes */
 
+static struct cam_sim *umass_sim[UMASS_MAXUNIT];
+static struct mtx umass_mtx;
+
 static devclass_t umass_devclass;
 
 static device_method_t umass_methods[] = {
@@ -1256,8 +1261,7 @@ static driver_t umass_driver = {
 	.size = sizeof(struct umass_softc),
 };
 
-DRIVER_MODULE(umass, ushub, umass_driver, umass_devclass, NULL, 0);
-
+DRIVER_MODULE(umass, ushub, umass_driver, umass_devclass, umass_driver_loaded, 0);
 MODULE_DEPEND(umass, usb2_core, 1, 1, 1);
 MODULE_DEPEND(umass, cam, 1, 1, 1);
 
@@ -1417,6 +1421,11 @@ umass_attach(device_t dev)
 	if (sc == NULL) {
 		return (ENOMEM);
 	}
+	if (device_get_unit(dev) >= UMASS_MAXUNIT) {
+		device_printf(dev, "Maxunit(%u) limit reached!\n",
+		    UMASS_MAXUNIT);
+		return (ENOMEM);
+	}
 	/*
 	 * NOTE: the softc struct is bzero-ed in device_set_driver.
 	 * We can safely call umass_detach without specifically
@@ -1433,8 +1442,6 @@ umass_attach(device_t dev)
 	    "%s", device_get_nameunit(dev));
 
 	device_set_usb2_desc(dev);
-
-	mtx_init(&sc->sc_mtx, "UMASS lock", NULL, (MTX_DEF | MTX_RECURSE));
 
 	/* get interface index */
 
@@ -1504,7 +1511,7 @@ umass_attach(device_t dev)
 
 		err = usb2_transfer_setup(uaa->device,
 		    &uaa->info.bIfaceIndex, sc->sc_xfer, umass_bbb_config,
-		    UMASS_T_BBB_MAX, sc, &sc->sc_mtx);
+		    UMASS_T_BBB_MAX, sc, &umass_mtx);
 
 		/* skip reset first time */
 		sc->sc_last_xfer_index = UMASS_T_BBB_COMMAND;
@@ -1515,7 +1522,7 @@ umass_attach(device_t dev)
 		    &uaa->info.bIfaceIndex, sc->sc_xfer, umass_cbi_config,
 		    (sc->sc_proto & UMASS_PROTO_CBI_I) ?
 		    UMASS_T_CBI_MAX : (UMASS_T_CBI_MAX - 2), sc,
-		    &sc->sc_mtx);
+		    &umass_mtx);
 
 		/* skip reset first time */
 		sc->sc_last_xfer_index = UMASS_T_CBI_COMMAND;
@@ -1588,15 +1595,13 @@ umass_detach(device_t dev)
 	usb2_transfer_unsetup(sc->sc_xfer, UMASS_T_MAX);
 
 #if (__FreeBSD_version >= 700037)
-	mtx_lock(&sc->sc_mtx);
+	mtx_lock(&umass_mtx);
 #endif
 	umass_cam_detach_sim(sc);
 
 #if (__FreeBSD_version >= 700037)
-	mtx_unlock(&sc->sc_mtx);
+	mtx_unlock(&umass_mtx);
 #endif
-
-	mtx_destroy(&sc->sc_mtx);
 
 	return (0);			/* success */
 }
@@ -1662,7 +1667,7 @@ umass_cancel_ccb(struct umass_softc *sc)
 {
 	union ccb *ccb;
 
-	mtx_assert(&sc->sc_mtx, MA_OWNED);
+	mtx_assert(&umass_mtx, MA_OWNED);
 
 	ccb = sc->sc_transfer.ccb;
 	sc->sc_transfer.ccb = NULL;
@@ -2585,6 +2590,10 @@ umass_cam_attach_sim(struct umass_softc *sc)
 {
 	struct cam_devq *devq;		/* Per device Queue */
 
+	if (umass_sim[sc->sc_unit] != NULL) {
+		sc->sc_sim = umass_sim[sc->sc_unit];
+		goto register_only;
+	}
 	/*
 	 * A HBA is attached to the CAM layer.
 	 *
@@ -2602,7 +2611,7 @@ umass_cam_attach_sim(struct umass_softc *sc)
 	    sc /* priv */ ,
 	    sc->sc_unit /* unit number */ ,
 #if (__FreeBSD_version >= 700037)
-	    &sc->sc_mtx /* mutex */ ,
+	    &umass_mtx /* mutex */ ,
 #endif
 	    1 /* maximum device openings */ ,
 	    0 /* maximum tagged device openings */ ,
@@ -2612,26 +2621,33 @@ umass_cam_attach_sim(struct umass_softc *sc)
 		cam_simq_free(devq);
 		return (ENOMEM);
 	}
+	umass_sim[sc->sc_unit] = sc->sc_sim;
+
+register_only:
+
+	/* update the softc pointer */
+	sc->sc_sim->softc = sc;
+
 #if (__FreeBSD_version >= 700037)
-	mtx_lock(&sc->sc_mtx);
+	mtx_lock(&umass_mtx);
 #endif
 
 #if (__FreeBSD_version >= 700048)
 	if (xpt_bus_register(sc->sc_sim, sc->sc_dev, sc->sc_unit) != CAM_SUCCESS) {
-		mtx_unlock(&sc->sc_mtx);
+		mtx_unlock(&umass_mtx);
 		return (ENOMEM);
 	}
 #else
 	if (xpt_bus_register(sc->sc_sim, sc->sc_unit) != CAM_SUCCESS) {
 #if (__FreeBSD_version >= 700037)
-		mtx_unlock(&sc->sc_mtx);
+		mtx_unlock(&umass_mtx);
 #endif
 		return (ENOMEM);
 	}
 #endif
 
 #if (__FreeBSD_version >= 700037)
-	mtx_unlock(&sc->sc_mtx);
+	mtx_unlock(&umass_mtx);
 #endif
 	return (0);
 }
@@ -2674,14 +2690,14 @@ umass_cam_rescan(struct umass_softc *sc)
 		return;
 	}
 #if (__FreeBSD_version >= 700037)
-	mtx_lock(&sc->sc_mtx);
+	mtx_lock(&umass_mtx);
 #endif
 
 	if (xpt_create_path(&path, xpt_periph, cam_sim_path(sc->sc_sim),
 	    CAM_TARGET_WILDCARD, CAM_LUN_WILDCARD)
 	    != CAM_REQ_CMP) {
 #if (__FreeBSD_version >= 700037)
-		mtx_unlock(&sc->sc_mtx);
+		mtx_unlock(&umass_mtx);
 #endif
 		free(ccb, M_USBDEV);
 		return;
@@ -2693,7 +2709,7 @@ umass_cam_rescan(struct umass_softc *sc)
 	xpt_action(ccb);
 
 #if (__FreeBSD_version >= 700037)
-	mtx_unlock(&sc->sc_mtx);
+	mtx_unlock(&umass_mtx);
 #endif
 
 	/* The scan is in progress now. */
@@ -2736,7 +2752,9 @@ umass_cam_detach_sim(struct umass_softc *sc)
 {
 	if (sc->sc_sim) {
 		if (xpt_bus_deregister(cam_sim_path(sc->sc_sim))) {
+#if 0					/* NOTYET */
 			cam_sim_free(sc->sc_sim, /* free_devq */ TRUE);
+#endif
 		} else {
 			panic("%s: CAM layer is busy!\n",
 			    sc->sc_name);
@@ -2757,7 +2775,7 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 
 	if (sc) {
 #if (__FreeBSD_version < 700037)
-		mtx_lock(&sc->sc_mtx);
+		mtx_lock(&umass_mtx);
 #endif
 	}
 	/*
@@ -3041,7 +3059,7 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 done:
 #if (__FreeBSD_version < 700037)
 	if (sc) {
-		mtx_unlock(&sc->sc_mtx);
+		mtx_unlock(&umass_mtx);
 	}
 #endif
 	return;
@@ -3612,3 +3630,28 @@ umass_dump_buffer(struct umass_softc *sc, uint8_t *buffer, uint32_t buflen,
 }
 
 #endif
+
+static int
+umass_driver_loaded(struct module *mod, int what, void *arg)
+{
+	uint16_t x;
+
+	switch (what) {
+	case MOD_LOAD:
+		mtx_init(&umass_mtx, "UMASS lock", NULL, (MTX_DEF | MTX_RECURSE));
+		break;
+
+	case MOD_UNLOAD:
+		for (x = 0; x != UMASS_MAXUNIT; x++) {
+			/* cleanup */
+			if (umass_sim[x])
+				cam_sim_free(umass_sim[x], /* free_devq */ TRUE);
+		}
+		mtx_destroy(&umass_mtx);
+		break;
+	default:
+		return (EOPNOTSUPP);
+	}
+
+	return (0);
+}

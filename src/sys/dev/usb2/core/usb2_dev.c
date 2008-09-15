@@ -351,7 +351,6 @@ usb2_get_perm(struct usb2_dev_perm *pdst, uint8_t level)
 	    (pdst->iface_index >= USB_IFACE_MAX)) {
 		return (EINVAL);
 	}
-retry:
 	if (level == 1)
 		devloc = USB_BUS_MAX;	/* use root-HUB to access bus */
 	else
@@ -403,21 +402,18 @@ retry:
 		pdst->user_id = psrc->uid;
 		pdst->group_id = psrc->gid;
 		pdst->mode = psrc->mode;
-		error = 0;
 	} else {
-		error = EINVAL;
+		/* access entry at this level and location is not active */
+		pdst->user_id = 0;
+		pdst->group_id = 0;
+		pdst->mode = 0;
 	}
 	mtx_unlock(&usb2_ref_lock);
 
 	if ((level > 0) && (level < 4)) {
 		usb2_unref_device(&loc);
-		if (error) {
-			/* try to find the permission one level down */
-			level--;
-			goto retry;
-		}
 	}
-	return (error);
+	return (0);
 }
 
 /*------------------------------------------------------------------------*
