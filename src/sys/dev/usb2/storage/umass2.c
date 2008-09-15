@@ -167,6 +167,7 @@ SYSCTL_INT(_hw_usb2_umass, OID_AUTO, debug, CTLFLAG_RW,
 #define	DPRINTF(...) do { } while (0)
 #endif
 
+#define	UMASS_GONE ((struct umass_softc *)1)
 #define	UMASS_MAXUNIT 64		/* XXX temporary */
 
 #define	UMASS_BULK_SIZE (1 << 17)
@@ -2754,6 +2755,9 @@ umass_cam_detach_sim(struct umass_softc *sc)
 		if (xpt_bus_deregister(cam_sim_path(sc->sc_sim))) {
 #if 0					/* NOTYET */
 			cam_sim_free(sc->sc_sim, /* free_devq */ TRUE);
+#else
+			/* accessing the softc is not possible after this */
+			sc->sc_sim->softc = UMASS_GONE;
 #endif
 		} else {
 			panic("%s: CAM layer is busy!\n",
@@ -2773,6 +2777,11 @@ umass_cam_action(struct cam_sim *sim, union ccb *ccb)
 {
 	struct umass_softc *sc = (struct umass_softc *)sim->softc;
 
+	if (sc == UMASS_GONE) {
+		ccb->ccb_h.status = CAM_TID_INVALID;
+		xpt_done(ccb);
+		return;
+	}
 	if (sc) {
 #if (__FreeBSD_version < 700037)
 		mtx_lock(&umass_mtx);
@@ -3069,6 +3078,9 @@ static void
 umass_cam_poll(struct cam_sim *sim)
 {
 	struct umass_softc *sc = (struct umass_softc *)sim->softc;
+
+	if (sc == UMASS_GONE)
+		return;
 
 	DPRINTF(sc, UDMASS_SCSI, "CAM poll\n");
 
