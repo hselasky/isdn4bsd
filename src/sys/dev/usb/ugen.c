@@ -519,7 +519,8 @@ ugenclose(struct cdev *dev, int flag, int mode, struct thread *p)
 	}
 	mtx_lock(&sc->sc_mtx);
 
-	if (sce->state & (UGEN_OPEN_DEV | UGEN_OPEN_IN | UGEN_OPEN_OUT)) {
+	if ((!(sce->state & UGEN_CLOSING)) && 
+	    (sce->state & (UGEN_OPEN_DEV | UGEN_OPEN_IN | UGEN_OPEN_OUT))) {
 		/* control endpoint is also ``closed'' here */
 
 		sce->state |= UGEN_CLOSING;
@@ -550,7 +551,8 @@ ugenclose(struct cdev *dev, int flag, int mode, struct thread *p)
 		ugen_free_blocks(&sce->in_queue);
 		ugen_free_blocks(&sce->out_queue);
 
-		sce->state &= ~(UGEN_OPEN_DEV | UGEN_OPEN_IN | UGEN_OPEN_OUT | UGEN_CLOSING);
+		sce->state &= ~(UGEN_OPEN_DEV | UGEN_OPEN_IN | 
+			UGEN_OPEN_OUT);
 
 		temp_xfer[0] = sce->xfer_in[0];
 		temp_xfer[1] = sce->xfer_in[1];
@@ -565,9 +567,12 @@ ugenclose(struct cdev *dev, int flag, int mode, struct thread *p)
 		mtx_unlock(&sc->sc_mtx);
 
 		usbd_transfer_unsetup(temp_xfer, 4);
-	} else {
-		mtx_unlock(&sc->sc_mtx);
+
+		mtx_lock(&sc->sc_mtx);
+
+		sce->state &= ~UGEN_CLOSING;
 	}
+	mtx_unlock(&sc->sc_mtx);
 	return (0);
 }
 
