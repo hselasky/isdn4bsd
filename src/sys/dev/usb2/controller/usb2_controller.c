@@ -146,15 +146,15 @@ usb2_detach(device_t dev)
 
 	mtx_lock(&bus->mtx);
 	if (usb2_proc_msignal(&bus->explore_proc,
-	    &bus->detach_msg[0], &(bus->detach_msg[1]))) {
+	    &bus->detach_msg[0], &bus->detach_msg[1])) {
 		/* ignore */
 	}
-	mtx_unlock(&bus->mtx);
-
 	/* Wait for detach to complete */
 
 	usb2_proc_mwait(&bus->explore_proc,
-	    &bus->detach_msg[0], &(bus->detach_msg[1]));
+	    &bus->detach_msg[0], &bus->detach_msg[1]);
+
+	mtx_unlock(&bus->mtx);
 
 	/* Get rid of USB explore process */
 

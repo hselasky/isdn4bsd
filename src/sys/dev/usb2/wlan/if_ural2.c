@@ -2351,6 +2351,16 @@ ural_vap_create(struct ieee80211com *ic, const char name[IFNAMSIZ], int unit,
 {
 	struct ural_vap *uvp;
 	struct ieee80211vap *vap;
+	struct ural_softc *sc = ic->ic_ifp->if_softc;
+
+	/* Need to sync with config thread: */
+	mtx_lock(&sc->sc_mtx);
+	if (usb2_config_td_sync(&sc->sc_config_td)) {
+		mtx_unlock(&sc->sc_mtx);
+		/* config thread is gone */
+		return (NULL);
+	}
+	mtx_unlock(&sc->sc_mtx);
 
 	if (!TAILQ_EMPTY(&ic->ic_vaps))	/* only one at a time */
 		return NULL;
@@ -2385,6 +2395,14 @@ static void
 ural_vap_delete(struct ieee80211vap *vap)
 {
 	struct ural_vap *uvp = URAL_VAP(vap);
+	struct ural_softc *sc = vap->iv_ic->ic_ifp->if_softc;
+
+	/* Need to sync with config thread: */
+	mtx_lock(&sc->sc_mtx);
+	if (usb2_config_td_sync(&sc->sc_config_td)) {
+		/* ignore */
+	}
+	mtx_unlock(&sc->sc_mtx);
 
 	ieee80211_amrr_cleanup(&uvp->amrr);
 	ieee80211_vap_detach(vap);

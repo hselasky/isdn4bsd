@@ -147,6 +147,7 @@ usb2_process(void *arg)
 
 			continue;
 		}
+		/* end if messages - check if anyone is waiting for sync */
 		if (up->up_dsleep) {
 			up->up_dsleep = 0;
 			usb2_cv_broadcast(&up->up_drain);
@@ -328,7 +329,8 @@ usb2_proc_is_gone(struct usb2_process *up)
  *	usb2_proc_mwait
  *
  * This function will return when the USB process message pointed to
- * by "pm" is no longer on a queue.
+ * by "pm" is no longer on a queue. This function must be called
+ * having "up->up_mtx" locked.
  *------------------------------------------------------------------------*/
 void
 usb2_proc_mwait(struct usb2_process *up, void *_pm0, void *_pm1)
@@ -336,7 +338,8 @@ usb2_proc_mwait(struct usb2_process *up, void *_pm0, void *_pm1)
 	struct usb2_proc_msg *pm0 = _pm0;
 	struct usb2_proc_msg *pm1 = _pm1;
 
-	mtx_lock(up->up_mtx);
+	mtx_assert(up->up_mtx, MA_OWNED);
+
 	if (up->up_curtd == curthread) {
 		/* Just remove the messages from the queue. */
 		if (pm0->pm_qentry.tqe_prev) {
@@ -347,12 +350,15 @@ usb2_proc_mwait(struct usb2_process *up, void *_pm0, void *_pm1)
 			TAILQ_REMOVE(&up->up_qhead, pm1, pm_qentry);
 			pm1->pm_qentry.tqe_prev = NULL;
 		}
-	} else if (pm0->pm_qentry.tqe_prev ||
-	    pm1->pm_qentry.tqe_prev) {
-		up->up_dsleep = 1;
-		usb2_cv_wait(&up->up_drain, up->up_mtx);
-	}
-	mtx_unlock(up->up_mtx);
+	} else
+		while (pm0->pm_qentry.tqe_prev ||
+		    pm1->pm_qentry.tqe_prev) {
+			/* check if config thread is gone */
+			if (up->up_gone)
+				break;
+			up->up_dsleep = 1;
+			usb2_cv_wait(&up->up_drain, up->up_mtx);
+		}
 	return;
 }
 
@@ -390,11 +396,6 @@ usb2_proc_drain(struct usb2_process *up)
 			up->up_csleep = 0;
 			usb2_cv_signal(&up->up_cv);
 		}
-		/* Check if someone is waiting - should not happen */
-
-		if (up->up_dsleep) {
-			printf("WARNING: Someone is waiting for USB process drain!\n");
-		}
 		/* Check if we are still cold booted */
 
 		if (cold) {
@@ -403,6 +404,14 @@ usb2_proc_drain(struct usb2_process *up)
 			break;
 		}
 		usb2_cv_wait(&up->up_cv, up->up_mtx);
+	}
+	/* Check if someone is waiting - should not happen */
+
+	if (up->up_dsleep) {
+		up->up_dsleep = 0;
+		usb2_cv_broadcast(&up->up_drain);
+		DPRINTF("WARNING: Someone is waiting "
+		    "for USB process drain!\n");
 	}
 	mtx_unlock(up->up_mtx);
 	return;

@@ -33,6 +33,8 @@
 #include <dev/usb2/core/usb2_config_td.h>
 #include <dev/usb2/core/usb2_debug.h>
 
+static void usb2_config_td_sync_cb(struct usb2_config_td_softc *sc, struct usb2_config_td_cc *cc, uint16_t ref);
+
 static void
 usb2_config_td_dispatch(struct usb2_proc_msg *pm)
 {
@@ -146,21 +148,23 @@ usb2_config_td_unsetup(struct usb2_config_td *ctd)
  *	usb2_config_td_queue_command
  *
  * This function will enter a command into the config thread queue for
- * execution. The "command_qcount" gives the maximum number of
- * equivalent commands that will be kept on the queue before queueing
- * the next command. "command_ref" is the reference count for the
- * current command which is passed on to the "command_post_func"
+ * execution. The "command_sync" field was previously used to indicate
+ * the queue count which is now fixed at two elements. If the
+ * "command_sync" field is equal to "USB2_CONFIG_TD_SYNC" the command
+ * will be executed synchronously from the config thread.  The
+ * "command_ref" argument is the reference count for the current
+ * command which is passed on to the "command_post_func"
  * function. This parameter can be used to make a command
  * unique. "command_pre_func" is called from this function when we
  * have the final queue element. "command_post_func" is called from
  * the USB config thread when the command reaches the beginning of the
- * USB config thread queue.
+ * USB config thread queue. This function must be called locked.
  *------------------------------------------------------------------------*/
 void
 usb2_config_td_queue_command(struct usb2_config_td *ctd,
     usb2_config_td_command_t *command_pre_func,
     usb2_config_td_command_t *command_post_func,
-    uint16_t command_qcount,
+    uint16_t command_sync,
     uint16_t command_ref)
 {
 	struct usb2_config_td_item *pi;
@@ -227,6 +231,9 @@ usb2_config_td_queue_command(struct usb2_config_td *ctd,
 	if (command_pre_func) {
 		(command_pre_func) (ctd->p_softc, (void *)(pi + 1), command_ref);
 	}
+	if (command_sync == USB2_CONFIG_TD_SYNC) {
+		usb2_proc_mwait(&ctd->usb2_proc, pi_0, pi_1);
+	}
 	return;
 }
 
@@ -277,4 +284,37 @@ usb2_config_td_sleep(struct usb2_config_td *ctd, uint32_t timeout)
 	is_gone = usb2_config_td_is_gone(ctd);
 done:
 	return (is_gone);
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_config_td_sync
+ *
+ * This function will wait until all commands have been executed on
+ * the config thread.  This function must be called locked and can
+ * sleep.
+ *
+ * Return values:
+ *    0: success
+ * Else: config thread is gone
+ *------------------------------------------------------------------------*/
+uint8_t
+usb2_config_td_sync(struct usb2_config_td *ctd)
+{
+	if (usb2_config_td_is_gone(ctd)) {
+		return (1);
+	}
+	usb2_config_td_queue_command(ctd, NULL,
+	    &usb2_config_td_sync_cb, USB2_CONFIG_TD_SYNC, 0);
+
+	if (usb2_config_td_is_gone(ctd)) {
+		return (1);
+	}
+	return (0);
+}
+
+static void
+usb2_config_td_sync_cb(struct usb2_config_td_softc *sc,
+    struct usb2_config_td_cc *cc, uint16_t ref)
+{
+	return;
 }
