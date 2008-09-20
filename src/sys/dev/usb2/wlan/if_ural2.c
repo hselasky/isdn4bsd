@@ -495,6 +495,13 @@ ural_detach(device_t dev)
 	struct ieee80211com *ic;
 	struct ifnet *ifp;
 
+#ifdef USB_WLAN_CLONE_FIX
+	if (sc->sc_clone[0]) {
+		if (if_clone_destroy(sc->sc_clone)) {
+			DPRINTFN(0, "Could not destroy clone!\n");
+		}
+	}
+#endif
 	usb2_config_td_drain(&sc->sc_config_td);
 
 	mtx_lock(&sc->sc_mtx);
@@ -1492,11 +1499,12 @@ ural_cfg_newstate(struct ural_softc *sc,
 	nstate = sc->sc_ns_state;
 	arg = sc->sc_ns_arg;
 
+	if (ostate == IEEE80211_S_INIT) {
+		/* We are leaving INIT. TSF sync should be off. */
+		ural_cfg_disable_tsf_sync(sc);
+	}
 	switch (nstate) {
 	case IEEE80211_S_INIT:
-		if (ostate == IEEE80211_S_RUN) {
-			ural_cfg_disable_tsf_sync(sc);
-		}
 		break;
 
 	case IEEE80211_S_RUN:
@@ -1518,7 +1526,8 @@ ural_cfg_newstate(struct ural_softc *sc,
 }
 
 static int
-ural_newstate_cb(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
+ural_newstate_cb(struct ieee80211vap *vap,
+    enum ieee80211_state nstate, int arg)
 {
 	struct ural_vap *uvp = URAL_VAP(vap);
 	struct ieee80211com *ic = vap->iv_ic;
@@ -1526,14 +1535,17 @@ ural_newstate_cb(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 
 	DPRINTF("setting new state: %d\n", nstate);
 
+	/* Special case - cannot defer this call and cannot block ! */
+	if (nstate == IEEE80211_S_INIT) {
+		/* stop timers */
+		mtx_lock(&sc->sc_mtx);
+		sc->sc_amrr_timer = 0;
+		mtx_unlock(&sc->sc_mtx);
+		return (uvp->newstate(vap, nstate, arg));
+	}
 	mtx_lock(&sc->sc_mtx);
 	if (usb2_config_td_is_gone(&sc->sc_config_td)) {
 		mtx_unlock(&sc->sc_mtx);
-
-		/* Special case which happens at detach. */
-		if (nstate == IEEE80211_S_INIT) {
-			(uvp->newstate) (vap, nstate, arg);
-		}
 		return (0);		/* nothing to do */
 	}
 	/* store next state */
@@ -1553,7 +1565,7 @@ ural_newstate_cb(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 
 	mtx_unlock(&sc->sc_mtx);
 
-	return EINPROGRESS;
+	return (EINPROGRESS);
 }
 
 static void
@@ -2388,7 +2400,17 @@ ural_vap_create(struct ieee80211com *ic, const char name[IFNAMSIZ], int unit,
 
 	/* store current operation mode */
 	ic->ic_opmode = opmode;
-	return vap;
+
+#ifdef USB_WLAN_CLONE_FIX
+	/*
+	 * Store a copy of the clone name so we can destroy it at
+	 * detach!
+	 */
+	mtx_lock(&sc->sc_mtx);
+	snprintf(sc->sc_clone, sizeof(sc->sc_clone), "%s%u", name, unit);
+	mtx_unlock(&sc->sc_mtx);
+#endif
+	return (vap);
 }
 
 static void
@@ -2402,6 +2424,9 @@ ural_vap_delete(struct ieee80211vap *vap)
 	if (usb2_config_td_sync(&sc->sc_config_td)) {
 		/* ignore */
 	}
+#ifdef USB_WLAN_CLONE_FIX
+	sc->sc_clone[0] = 0;		/* clone is gone */
+#endif
 	mtx_unlock(&sc->sc_mtx);
 
 	ieee80211_amrr_cleanup(&uvp->amrr);

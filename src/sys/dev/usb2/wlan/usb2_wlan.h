@@ -27,6 +27,13 @@
 #ifndef _USB2_WLAN_H_
 #define	_USB2_WLAN_H_
 
+/*
+ * XXX: Until further the USB WLAN drivers need to destroy the clones
+ * themselves, because the network layer will not do this. Failing to
+ * destroy the clones will results in panics.
+ */
+#define	USB_WLAN_CLONE_FIX
+
 #include <sys/param.h>
 #include <sys/sockio.h>
 #include <sys/mbuf.h>
@@ -40,6 +47,7 @@
 #include <net/if_dl.h>
 #include <net/if_media.h>
 #include <net/if_types.h>
+#include <net/if_clone.h>
 
 #include <net80211/ieee80211_var.h>
 #include <net80211/ieee80211_radiotap.h>

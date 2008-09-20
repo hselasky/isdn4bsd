@@ -162,10 +162,14 @@ struct rum_softc {
 	uint8_t	sc_bbp17;
 	uint8_t	sc_hw_radio;
 	uint8_t	sc_amrr_timer;
-	uint8_t	sc_name[32];
 	uint8_t	sc_beacon_buf[0x800];
 	uint8_t	sc_myaddr[IEEE80211_ADDR_LEN];
 
 	int8_t	sc_rssi_2ghz_corr;
 	int8_t	sc_rssi_5ghz_corr;
+
+	char	sc_name[32];
+#ifdef USB_WLAN_CLONE_FIX
+	char	sc_clone[IFNAMSIZ];	/* name of clone */
+#endif
 };

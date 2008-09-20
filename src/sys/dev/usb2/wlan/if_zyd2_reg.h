@@ -1274,6 +1274,10 @@ struct zyd_softc {
 
 	uint8_t	sc_amrr_timer;
 
-	uint8_t	sc_name[16];
 	uint8_t	sc_myaddr[IEEE80211_ADDR_LEN];
+
+	char	sc_name[16];
+#ifdef USB_WLAN_CLONE_FIX
+	char	sc_clone[IFNAMSIZ];	/* name of clone */
+#endif
 };
