@@ -60,6 +60,8 @@ __FBSDID("$FreeBSD$");
 #include <dev/if_ndis/if_ndisvar.h>
 
 MODULE_DEPEND(ndis, usb2_core, 1, 1, 1);
+MODULE_DEPEND(ndis, ndisapi, 1, 1, 1);
+MODULE_DEPEND(ndis, if_ndis, 1, 1, 1);
 
 static device_probe_t ndisusb2_probe;
 static device_attach_t ndisusb2_attach;
