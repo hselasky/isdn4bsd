@@ -38,7 +38,7 @@ copyout(const void *kaddr, void *uaddr, size_t len)
 }
 
 int
-suser(struct thread *td)
+priv_check(struct thread *td, int priv)
 {
 	return (EPERM);
 }

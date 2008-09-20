@@ -118,6 +118,7 @@ pci_get_powerstate_desc
 pci_read_config_desc
 pci_set_powerstate_desc
 pci_write_config_desc
+priv_check
 rman_get_bushandle
 rman_get_bustag
 rman_get_rid
@@ -136,7 +137,6 @@ strlen
 strncasecmp
 strncmp
 strstr
-suser
 sx_destroy
 sx_init
 sx_slock

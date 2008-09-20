@@ -25,9 +25,16 @@
 
 struct selinfo;
 
+#define	vaccess(...) EPERM
+#define	VWRITE 1
+#define	VREAD 2
+
+#define	PRIV_ROOT 1
+#define	PRIV_DRIVER 2
+
 int	copyin(const void *uaddr, void *kaddr, size_t len);
 int	copyout(const void *kaddr, void *uaddr, size_t len);
-int	suser(struct thread *td);
+int	priv_check(struct thread *td, int priv);
 int	pause(const char *wmesg, int timo);
 
 int	m_apply(struct mbuf *mbuf, int off, int len, int (*f) (void *arg, void *data, uint32_t len), void *arg);

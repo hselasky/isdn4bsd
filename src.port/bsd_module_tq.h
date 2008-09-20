@@ -30,6 +30,7 @@ struct bsd_tq_frag {
 	TAILQ_ENTRY(bsd_tq_frag) entry;
 	void   *pbuf;
 	uint32_t len;
+#define	BSD_TQ_FRAG_LEN 0x00FFFFFF /* length mask */
 #define	BSD_TQ_FRAG_ERROR 0x80000000 /* set stall / clear stall */
 #define	BSD_TQ_FRAG_SHORT 0x40000000 /* receive short OK / force short TX */
 };

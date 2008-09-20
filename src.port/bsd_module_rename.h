@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Wed Sep 10 21:30:24 CEST 2008
+ * Date: Sat Sep 20 16:35:24 CEST 2008
  */
 #define DELAY fbsd_DELAY
 #define Giant fbsd_Giant
@@ -123,6 +123,7 @@
 #define pci_read_config_desc fbsd_pci_read_config_desc
 #define pci_set_powerstate_desc fbsd_pci_set_powerstate_desc
 #define pci_write_config_desc fbsd_pci_write_config_desc
+#define priv_check fbsd_priv_check
 #define rman_get_bushandle fbsd_rman_get_bushandle
 #define rman_get_bustag fbsd_rman_get_bustag
 #define rman_get_rid fbsd_rman_get_rid
@@ -141,7 +142,6 @@
 #define strncasecmp fbsd_strncasecmp
 #define strncmp fbsd_strncmp
 #define strstr fbsd_strstr
-#define suser fbsd_suser
 #define sx_destroy fbsd_sx_destroy
 #define sx_init fbsd_sx_init
 #define sx_slock fbsd_sx_slock

@@ -100,6 +100,7 @@ typedef unsigned long u_long;
 
 typedef unsigned short uid_t;
 typedef unsigned short gid_t;
+typedef unsigned short mode_t;
 
 struct uio;
 struct mbuf;
