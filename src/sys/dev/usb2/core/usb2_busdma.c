@@ -614,7 +614,6 @@ usb2_pc_load_mem(struct usb2_page_cache *pc, uint32_t size, uint8_t sync)
 			/*
 			 * Try to load memory into DMA.
 			 */
-			mtx_lock(uptag->mtx);
 			err = bus_dmamap_load(
 			    pc->tag, pc->map, pc->buffer, size,
 			    &usb2_pc_alloc_mem_cb, pc, BUS_DMA_WAITOK);
@@ -622,8 +621,6 @@ usb2_pc_load_mem(struct usb2_page_cache *pc, uint32_t size, uint8_t sync)
 				usb2_cv_wait(uptag->cv, uptag->mtx);
 				err = 0;
 			}
-			mtx_unlock(uptag->mtx);
-
 			if (err || uptag->dma_error) {
 				return (1);
 			}

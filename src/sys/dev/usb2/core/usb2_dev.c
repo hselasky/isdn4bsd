@@ -261,11 +261,12 @@ usb2_set_perm(struct usb2_dev_perm *psrc, uint8_t level)
 	uint32_t devloc;
 	int error;
 
-	/* only super-user can set permissions */
-	error = suser(curthread);
+	/* check if the current thread can change USB permissions. */
+	error = priv_check(curthread, PRIV_ROOT);
 	if (error) {
 		return (error);
 	}
+	/* range check device location */
 	if ((psrc->bus_index >= USB_BUS_MAX) ||
 	    (psrc->dev_index >= USB_DEV_MAX) ||
 	    (psrc->iface_index >= USB_IFACE_MAX)) {

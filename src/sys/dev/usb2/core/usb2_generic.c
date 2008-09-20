@@ -869,6 +869,8 @@ usb2_gen_fill_deviceinfo(struct usb2_fifo *f, struct usb2_device_info *di)
 static int
 ugen_check_request(struct usb2_device_request *req)
 {
+	int error;
+
 	/*
 	 * Avoid requests that would damage the bus integrity:
 	 */
@@ -878,8 +880,12 @@ ugen_check_request(struct usb2_device_request *req)
 	    (req->bRequest == UR_SET_CONFIG)) ||
 	    ((req->bmRequestType == UT_WRITE_INTERFACE) &&
 	    (req->bRequest == UR_SET_INTERFACE))) {
-		if (suser(curthread)) {
-			return (EPERM);
+		/*
+		 * These requests can be useful for testing USB drivers.
+		 */
+		error = priv_check(curthread, PRIV_DRIVER);
+		if (error) {
+			return (error);
 		}
 	}
 	/*
@@ -887,8 +893,9 @@ ugen_check_request(struct usb2_device_request *req)
 	 * not update the data toggle value in "struct usb2_pipe" !
 	 */
 	if (req->bmRequestType == UT_WRITE_ENDPOINT) {
-		if (suser(curthread)) {
-			return (EPERM);
+		error = priv_check(curthread, PRIV_DRIVER);
+		if (error) {
+			return (error);
 		}
 	}
 	/* TODO: add more checks to verify the interface index */
@@ -946,8 +953,12 @@ ugen_re_enumerate(struct usb2_fifo *f)
 		/* control endpoint only */
 		return (EINVAL);
 	}
-	if (suser(curthread)) {
-		return (EPERM);
+	/*
+	 * This request can be useful for testing USB drivers:
+	 */
+	error = priv_check(curthread, PRIV_DRIVER);
+	if (error) {
+		return (error);
 	}
 	mtx_lock(f->priv_mtx);
 	error = usb2_req_re_enumerate(udev, f->priv_mtx);
@@ -1738,8 +1749,9 @@ ugen_set_power_mode(struct usb2_fifo *f, int mode)
 	    (udev->parent_hub == NULL)) {
 		return (EINVAL);
 	}
-	if (suser(curthread)) {
-		return (EPERM);
+	err = priv_check(curthread, PRIV_ROOT);
+	if (err) {
+		return (err);
 	}
 	switch (mode) {
 	case USB_POWER_MODE_OFF:
@@ -1805,8 +1817,9 @@ ugen_do_port_feature(struct usb2_fifo *f, uint8_t port_no,
 	struct usb2_hub *hub;
 	int err;
 
-	if (suser(curthread)) {
-		return (EPERM);
+	err = priv_check(curthread, PRIV_ROOT);
+	if (err) {
+		return (err);
 	}
 	if (port_no == 0) {
 		return (EINVAL);
@@ -2115,10 +2128,11 @@ ugen_ctrl_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 
 	case USB_IFACE_DRIVER_DETACH:
 		/* TODO */
-		if (suser(curthread))
-			error = EPERM;
-		else
-			error = EINVAL;
+		error = priv_check(curthread, PRIV_DRIVER);
+		if (error) {
+			break;
+		}
+		error = EINVAL;
 		break;
 
 	case USB_SET_POWER_MODE:
