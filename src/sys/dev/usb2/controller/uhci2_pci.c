@@ -321,7 +321,7 @@ uhci_pci_attach(device_t self)
 		break;
 	}
 
-	err = usb2_config_td_setup(&sc->sc_config_td, sc, &(sc->sc_bus.mtx),
+	err = usb2_config_td_setup(&sc->sc_config_td, sc, &sc->sc_bus.mtx,
 	    NULL, 0, 4);
 	if (err) {
 		device_printf(self, "could not setup config thread!\n");

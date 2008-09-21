@@ -469,7 +469,7 @@ rum_attach(device_t dev)
 		    "err=%s\n", usb2_errstr(error));
 		goto detach;
 	}
-	error = usb2_config_td_setup(&sc->sc_config_td, sc, &(sc->sc_mtx),
+	error = usb2_config_td_setup(&sc->sc_config_td, sc, &sc->sc_mtx,
 	    &rum_end_of_commands,
 	    sizeof(struct usb2_config_td_cc), 24);
 	if (error) {

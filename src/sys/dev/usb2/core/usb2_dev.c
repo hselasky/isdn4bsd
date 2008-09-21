@@ -1234,11 +1234,11 @@ usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td,
 		}
 	}
 	/*
-	 * Magic: Take over the file so that we get all the callbacks
+	 * Take over the file so that we get all the callbacks
 	 * directly and don't have to create another device:
 	 */
-	fp->f_ops = &usb2_ops_f;
-	fp->f_data = ((uint8_t *)0) + devloc;
+	finit(fp, fp->f_flag, DTYPE_VNODE,
+	    ((uint8_t *)0) + devloc, &usb2_ops_f);
 
 	usb2_unref_device(&loc);
 
@@ -1253,6 +1253,7 @@ usb2_fdopen(struct cdev *dev, int xxx_oflags, struct thread *td,
 static int
 usb2_close(struct cdev *dev, int flag, int mode, struct thread *p)
 {
+	DPRINTF("\n");
 	return (0);			/* nothing to do */
 }
 
@@ -1461,7 +1462,9 @@ usb2_close_f(struct file *fp, struct thread *td)
 
 done:
 	/* call old close method */
-	return (fp->f_ops->fo_close) (fp, td);
+	USB_VNOPS_FO_CLOSE(fp, td, &err);
+
+	return (err);
 }
 
 static int

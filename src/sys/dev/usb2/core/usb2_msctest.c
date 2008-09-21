@@ -461,7 +461,7 @@ bbb_command_start(struct bbb_transfer *sc, uint8_t dir, uint8_t lun,
 	usb2_transfer_start(sc->xfer[sc->state]);
 
 	while (usb2_transfer_pending(sc->xfer[sc->state])) {
-		usb2_cv_wait(&sc->cv, &(sc->mtx));
+		usb2_cv_wait(&sc->cv, &sc->mtx);
 	}
 	return (sc->error);
 }

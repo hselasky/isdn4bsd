@@ -153,22 +153,22 @@ uhci_iterate_hw_softc(struct usb2_bus *bus, usb2_bus_mem_sub_cb_t *cb)
 	struct uhci_softc *sc = UHCI_BUS2SC(bus);
 	uint32_t i;
 
-	cb(bus, &sc->sc_hw.pframes_pc, &(sc->sc_hw.pframes_pg),
+	cb(bus, &sc->sc_hw.pframes_pc, &sc->sc_hw.pframes_pg,
 	    sizeof(uint32_t) * UHCI_FRAMELIST_COUNT, UHCI_FRAMELIST_ALIGN);
 
-	cb(bus, &sc->sc_hw.ls_ctl_start_pc, &(sc->sc_hw.ls_ctl_start_pg),
+	cb(bus, &sc->sc_hw.ls_ctl_start_pc, &sc->sc_hw.ls_ctl_start_pg,
 	    sizeof(uhci_qh_t), UHCI_QH_ALIGN);
 
-	cb(bus, &sc->sc_hw.fs_ctl_start_pc, &(sc->sc_hw.fs_ctl_start_pg),
+	cb(bus, &sc->sc_hw.fs_ctl_start_pc, &sc->sc_hw.fs_ctl_start_pg,
 	    sizeof(uhci_qh_t), UHCI_QH_ALIGN);
 
-	cb(bus, &sc->sc_hw.bulk_start_pc, &(sc->sc_hw.bulk_start_pg),
+	cb(bus, &sc->sc_hw.bulk_start_pc, &sc->sc_hw.bulk_start_pg,
 	    sizeof(uhci_qh_t), UHCI_QH_ALIGN);
 
-	cb(bus, &sc->sc_hw.last_qh_pc, &(sc->sc_hw.last_qh_pg),
+	cb(bus, &sc->sc_hw.last_qh_pc, &sc->sc_hw.last_qh_pg,
 	    sizeof(uhci_qh_t), UHCI_QH_ALIGN);
 
-	cb(bus, &sc->sc_hw.last_td_pc, &(sc->sc_hw.last_td_pg),
+	cb(bus, &sc->sc_hw.last_td_pc, &sc->sc_hw.last_td_pg,
 	    sizeof(uhci_td_t), UHCI_TD_ALIGN);
 
 	for (i = 0; i != UHCI_VFRAMELIST_COUNT; i++) {
@@ -3090,23 +3090,13 @@ uhci_xfer_setup(struct usb2_setup_params *parm)
 	}
 	align = (1 << n);
 
-	for (n = 0; n != nfixup; n++) {
-
-		if (usb2_transfer_setup_sub_malloc(
-		    parm, &page_info, &pc, xfer->max_frame_size,
-		    align)) {
-			parm->err = USB_ERR_NOMEM;
-			break;
-		}
-		if (n == 0) {
-			/*
-			 * We depend on some assumptions here, like how
-			 * "sub_malloc" lays out the "usb2_page_cache"
-			 * structures
-			 */
-			xfer->buf_fixup = pc;
-		}
+	if (usb2_transfer_setup_sub_malloc(
+	    parm, &pc, xfer->max_frame_size,
+	    align, nfixup)) {
+		parm->err = USB_ERR_NOMEM;
+		return;
 	}
+	xfer->buf_fixup = pc;
 
 alloc_dma_set:
 
@@ -3115,17 +3105,17 @@ alloc_dma_set:
 	}
 	last_obj = NULL;
 
-	for (n = 0; n != ntd; n++) {
+	if (usb2_transfer_setup_sub_malloc(
+	    parm, &pc, sizeof(uhci_td_t),
+	    UHCI_TD_ALIGN, ntd)) {
+		parm->err = USB_ERR_NOMEM;
+		return;
+	}
+	if (parm->buf) {
+		for (n = 0; n != ntd; n++) {
+			uhci_td_t *td;
 
-		uhci_td_t *td;
-
-		if (usb2_transfer_setup_sub_malloc(
-		    parm, &page_info, &pc, sizeof(*td),
-		    UHCI_TD_ALIGN)) {
-			parm->err = USB_ERR_NOMEM;
-			break;
-		}
-		if (parm->buf) {
+			usb2_get_page(pc + n, 0, &page_info);
 
 			td = page_info.buffer;
 
@@ -3134,49 +3124,49 @@ alloc_dma_set:
 			    (parm->methods == &uhci_device_ctrl_methods) ||
 			    (parm->methods == &uhci_device_intr_methods)) {
 				/* set depth first bit */
-				td->td_self = htole32(page_info.physaddr | UHCI_PTR_TD | UHCI_PTR_VF);
+				td->td_self = htole32(page_info.physaddr |
+				    UHCI_PTR_TD | UHCI_PTR_VF);
 			} else {
-				td->td_self = htole32(page_info.physaddr | UHCI_PTR_TD);
+				td->td_self = htole32(page_info.physaddr |
+				    UHCI_PTR_TD);
 			}
 
 			td->obj_next = last_obj;
-			td->page_cache = pc;
+			td->page_cache = pc + n;
 
 			last_obj = td;
 
-			usb2_pc_cpu_flush(pc);
+			usb2_pc_cpu_flush(pc + n);
 		}
 	}
-
 	xfer->td_start[xfer->flags_int.curr_dma_set] = last_obj;
 
 	last_obj = NULL;
 
-	for (n = 0; n != nqh; n++) {
+	if (usb2_transfer_setup_sub_malloc(
+	    parm, &pc, sizeof(uhci_qh_t),
+	    UHCI_QH_ALIGN, nqh)) {
+		parm->err = USB_ERR_NOMEM;
+		return;
+	}
+	if (parm->buf) {
+		for (n = 0; n != nqh; n++) {
+			uhci_qh_t *qh;
 
-		uhci_qh_t *qh;
-
-		if (usb2_transfer_setup_sub_malloc(
-		    parm, &page_info, &pc, sizeof(*qh),
-		    UHCI_QH_ALIGN)) {
-			parm->err = USB_ERR_NOMEM;
-			break;
-		}
-		if (parm->buf) {
+			usb2_get_page(pc + n, 0, &page_info);
 
 			qh = page_info.buffer;
 
 			/* init QH */
 			qh->qh_self = htole32(page_info.physaddr | UHCI_PTR_QH);
 			qh->obj_next = last_obj;
-			qh->page_cache = pc;
+			qh->page_cache = pc + n;
 
 			last_obj = qh;
 
-			usb2_pc_cpu_flush(pc);
+			usb2_pc_cpu_flush(pc + n);
 		}
 	}
-
 	xfer->qh_start[xfer->flags_int.curr_dma_set] = last_obj;
 
 	if (!xfer->flags_int.curr_dma_set) {

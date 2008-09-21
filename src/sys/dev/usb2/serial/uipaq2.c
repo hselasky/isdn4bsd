@@ -1160,7 +1160,7 @@ uipaq_attach(device_t dev)
 	sc->sc_flag |= (UIPAQ_FLAG_READ_STALL |
 	    UIPAQ_FLAG_WRITE_STALL);
 
-	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &sc->sc_ucom, 1, sc,
 	    &uipaq_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -1177,7 +1177,7 @@ uipaq_detach(device_t dev)
 {
 	struct uipaq_softc *sc = device_get_softc(dev);
 
-	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &sc->sc_ucom, 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer_data, UIPAQ_N_DATA_TRANSFER);
 

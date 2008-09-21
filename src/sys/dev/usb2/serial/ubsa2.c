@@ -362,7 +362,7 @@ ubsa_attach(device_t dev)
 	sc->sc_flag |= (UBSA_FLAG_WRITE_STALL |
 	    UBSA_FLAG_READ_STALL);
 
-	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &sc->sc_ucom, 1, sc,
 	    &ubsa_callback, &Giant);
 	if (error) {
 		DPRINTF("usb2_com_attach failed\n");
@@ -382,7 +382,7 @@ ubsa_detach(device_t dev)
 
 	DPRINTF("sc=%p\n", sc);
 
-	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &sc->sc_ucom, 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UBSA_N_TRANSFER);
 

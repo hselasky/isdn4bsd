@@ -182,9 +182,9 @@ usb2_get_dma_delay(struct usb2_bus *bus)
 /*------------------------------------------------------------------------*
  *	usb2_transfer_setup_sub_malloc
  *
- * This function will allocate DMA'able memory and store the virtual
- * and physical buffer addresses in the structure pointed to by the
- * "info" argument.
+ * This function will allocate one or more DMA'able memory chunks
+ * according to "size", "align" and "count" arguments. "ppc" is
+ * pointed to a linear array of USB page caches afterwards.
  *
  * Returns:
  *    0: Success
@@ -192,36 +192,112 @@ usb2_get_dma_delay(struct usb2_bus *bus)
  *------------------------------------------------------------------------*/
 uint8_t
 usb2_transfer_setup_sub_malloc(struct usb2_setup_params *parm,
-    struct usb2_page_search *info, struct usb2_page_cache **ppc,
-    uint32_t size, uint32_t align)
+    struct usb2_page_cache **ppc, uint32_t size, uint32_t align,
+    uint32_t count)
 {
+	struct usb2_page_cache *pc;
+	struct usb2_page *pg;
+	void *buf;
+	uint32_t n_dma_pc;
+	uint32_t n_obj;
+	uint32_t x;
+	uint32_t y;
+	uint32_t r;
+	uint32_t z;
+
 	USB_ASSERT(align > 1, ("Invalid alignment, 0x%08x!\n",
 	    align));
 	USB_ASSERT(size > 0, ("Invalid size = 0!\n"));
 
+	if (count == 0) {
+		return (0);		/* nothing to allocate */
+	}
+	/*
+	 * Make sure that the size is aligned properly.
+	 */
+	size = -((-size) & (-align));
+
+	/*
+	 * Try multi-allocation chunks to reduce the number of DMA
+	 * allocations, hence DMA allocations are slow.
+	 */
+	if (size >= PAGE_SIZE) {
+		n_dma_pc = count;
+		n_obj = 1;
+	} else {
+		/* compute number of objects per page */
+		n_obj = (PAGE_SIZE / size);
+		/*
+		 * Compute number of DMA chunks, rounded up
+		 * to nearest one:
+		 */
+		n_dma_pc = ((count + n_obj - 1) / n_obj);
+	}
+
 	if (parm->buf == NULL) {
 		/* for the future */
-		parm->dma_page_ptr++;
-		parm->dma_page_cache_ptr++;
+		parm->dma_page_ptr += n_dma_pc;
+		parm->dma_page_cache_ptr += n_dma_pc;
+		parm->dma_page_ptr += count;
+		parm->xfer_page_cache_ptr += count;
 		return (0);
 	}
-	/* need to initialize the page cache */
-	parm->dma_page_cache_ptr->tag_parent =
-	    &parm->curr_xfer->usb2_root->dma_parent_tag;
+	for (x = 0; x != n_dma_pc; x++) {
+		/* need to initialize the page cache */
+		parm->dma_page_cache_ptr[x].tag_parent =
+		    &parm->curr_xfer->usb2_root->dma_parent_tag;
+	}
+	for (x = 0; x != count; x++) {
+		/* need to initialize the page cache */
+		parm->xfer_page_cache_ptr[x].tag_parent =
+		    &parm->curr_xfer->usb2_root->dma_parent_tag;
+	}
 
-	if (usb2_pc_alloc_mem(parm->dma_page_cache_ptr,
-	    parm->dma_page_ptr, size, align)) {
-		return (1);		/* failure */
-	}
-	if (info) {
-		usb2_get_page(parm->dma_page_cache_ptr, 0, info);
-	}
 	if (ppc) {
-		*ppc = parm->dma_page_cache_ptr;
+		*ppc = parm->xfer_page_cache_ptr;
 	}
-	parm->dma_page_ptr++;
-	parm->dma_page_cache_ptr++;
+	r = count;			/* set remainder count */
+	z = n_obj * size;		/* set allocation size */
+	pc = parm->xfer_page_cache_ptr;
+	pg = parm->dma_page_ptr;
 
+	for (x = 0; x != n_dma_pc; x++) {
+
+		if (r < n_obj) {
+			/* compute last remainder */
+			z = r * size;
+			n_obj = r;
+		}
+		if (usb2_pc_alloc_mem(parm->dma_page_cache_ptr,
+		    pg, z, align)) {
+			return (1);	/* failure */
+		}
+		/* Set beginning of current buffer */
+		buf = parm->dma_page_cache_ptr->buffer;
+		/* Make room for one DMA page cache and one page */
+		parm->dma_page_cache_ptr++;
+		pg++;
+
+		for (y = 0; (y != n_obj); y++, r--, pc++, pg++) {
+
+			/* Load sub-chunk into DMA */
+			if (usb2_pc_dmamap_create(pc, size)) {
+				return (1);	/* failure */
+			}
+			pc->buffer = USB_ADD_BYTES(buf, y * size);
+			pc->page_start = pg;
+
+			mtx_lock(pc->tag_parent->mtx);
+			if (usb2_pc_load_mem(pc, size, 1 /* synchronous */ )) {
+				mtx_unlock(pc->tag_parent->mtx);
+				return (1);	/* failure */
+			}
+			mtx_unlock(pc->tag_parent->mtx);
+		}
+	}
+
+	parm->xfer_page_cache_ptr = pc;
+	parm->dma_page_ptr = pg;
 	return (0);
 }
 
@@ -1751,7 +1827,7 @@ usb2_callback_ss_done_defer(struct usb2_xfer *xfer)
 	         * proceed !
 	         */
 		if (usb2_proc_msignal(&info->done_p,
-		    &info->done_m[0], &(info->done_m[1]))) {
+		    &info->done_m[0], &info->done_m[1])) {
 			/* ignore */
 		}
 	} else {
@@ -1793,7 +1869,7 @@ usb2_callback_wrapper(struct usb2_xfer_queue *pq)
 	         * proceed !
 	         */
 		if (usb2_proc_msignal(&info->done_p,
-		    &info->done_m[0], &(info->done_m[1]))) {
+		    &info->done_m[0], &info->done_m[1])) {
 			/* ignore */
 		}
 		return;
@@ -2142,7 +2218,7 @@ usb2_pipe_start(struct usb2_xfer_queue *pq)
 			} else if (udev->default_xfer[1]) {
 				info = udev->default_xfer[1]->usb2_root;
 				if (usb2_proc_msignal(&info->done_p,
-				    &udev->cs_msg[0], &(udev->cs_msg[1]))) {
+				    &udev->cs_msg[0], &udev->cs_msg[1])) {
 					/* ignore */
 				}
 			} else {

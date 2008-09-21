@@ -1284,7 +1284,7 @@ usb2_needs_explore(struct usb2_bus *bus, uint8_t do_probe)
 		bus->do_probe = 1;
 	}
 	if (usb2_proc_msignal(&bus->explore_proc,
-	    &bus->explore_msg[0], &(bus->explore_msg[1]))) {
+	    &bus->explore_msg[0], &bus->explore_msg[1])) {
 		/* ignore */
 	}
 	mtx_unlock(&bus->mtx);

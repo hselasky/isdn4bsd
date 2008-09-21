@@ -348,7 +348,7 @@ umoscom_attach(device_t dev)
 	sc->sc_flags |= (UMOSCOM_FLAG_READ_STALL |
 	    UMOSCOM_FLAG_WRITE_STALL);
 
-	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &sc->sc_ucom, 1, sc,
 	    &umoscom_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -370,7 +370,7 @@ umoscom_detach(device_t dev)
 
 	mtx_unlock(&Giant);
 
-	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &sc->sc_ucom, 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer_data, UMOSCOM_N_DATA_TRANSFER);
 

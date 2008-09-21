@@ -334,7 +334,7 @@ uvscom_attach(device_t dev)
 	sc->sc_flag |= (UVSCOM_FLAG_WRITE_STALL |
 	    UVSCOM_FLAG_READ_STALL);
 
-	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &sc->sc_ucom, 1, sc,
 	    &uvscom_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -363,7 +363,7 @@ uvscom_detach(device_t dev)
 	if (sc->sc_xfer[4]) {
 		usb2_transfer_stop(sc->sc_xfer[4]);
 	}
-	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &sc->sc_ucom, 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UVSCOM_N_TRANSFER);
 

@@ -269,7 +269,7 @@ ucycom_attach(device_t dev)
 		    "transfers failed!\n");
 		goto detach;
 	}
-	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &sc->sc_ucom, 1, sc,
 	    &ucycom_callback, &Giant);
 
 	if (error) {
@@ -293,7 +293,7 @@ ucycom_detach(device_t dev)
 {
 	struct ucycom_softc *sc = device_get_softc(dev);
 
-	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &sc->sc_ucom, 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UCYCOM_ENDPT_MAX);
 

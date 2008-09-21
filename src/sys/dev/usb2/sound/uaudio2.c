@@ -1316,7 +1316,7 @@ uaudio_chan_init(struct uaudio_softc *sc, struct snd_dbuf *b,
     struct pcm_channel *c, int dir)
 {
 	struct uaudio_chan *ch = ((dir == PCMDIR_PLAY) ?
-	    &sc->sc_play_chan : &(sc->sc_rec_chan));
+	    &sc->sc_play_chan : &sc->sc_rec_chan);
 	uint8_t endpoint;
 	uint8_t iface_index;
 	uint8_t alt_index;

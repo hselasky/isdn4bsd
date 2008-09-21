@@ -666,7 +666,7 @@ ukbd_attach(device_t dev)
 		sc->sc_fkeymap[n] = fkey_tab[n];
 	}
 
-	kbd_set_maps(kbd, &sc->sc_keymap, &(sc->sc_accmap),
+	kbd_set_maps(kbd, &sc->sc_keymap, &sc->sc_accmap,
 	    sc->sc_fkeymap, UKBD_NFKEY);
 
 	KBD_FOUND_DEVICE(kbd);

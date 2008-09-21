@@ -75,10 +75,13 @@ __FBSDID("$FreeBSD$");
 
 #if USB_DEBUG
 static int ehcidebug = 0;
+static int ehcinohighspeed = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, ehci, CTLFLAG_RW, 0, "USB ehci");
 SYSCTL_INT(_hw_usb2_ehci, OID_AUTO, debug, CTLFLAG_RW,
-    &ehcidebug, 0, "ehci debug level");
+    &ehcidebug, 0, "Debug level");
+SYSCTL_INT(_hw_usb2_ehci, OID_AUTO, no_hs, CTLFLAG_RW,
+    &ehcinohighspeed, 0, "Disable High Speed USB");
 
 static void ehci_dump_regs(ehci_softc_t *sc);
 static void ehci_dump_sqh(ehci_qh_t *sqh);
@@ -126,10 +129,10 @@ ehci_iterate_hw_softc(struct usb2_bus *bus, usb2_bus_mem_sub_cb_t *cb)
 	struct ehci_softc *sc = EHCI_BUS2SC(bus);
 	uint32_t i;
 
-	cb(bus, &sc->sc_hw.pframes_pc, &(sc->sc_hw.pframes_pg),
+	cb(bus, &sc->sc_hw.pframes_pc, &sc->sc_hw.pframes_pg,
 	    sizeof(uint32_t) * EHCI_FRAMELIST_COUNT, EHCI_FRAMELIST_ALIGN);
 
-	cb(bus, &sc->sc_hw.async_start_pc, &(sc->sc_hw.async_start_pg),
+	cb(bus, &sc->sc_hw.async_start_pc, &sc->sc_hw.async_start_pg,
 	    sizeof(ehci_qh_t), EHCI_QH_ALIGN);
 
 	for (i = 0; i != EHCI_VIRTUAL_FRAMELIST_COUNT; i++) {
@@ -3346,6 +3349,16 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 			break;
 		case UHF_PORT_RESET:
 			DPRINTFN(6, "reset port %d\n", index);
+#if USB_DEBUG
+			if (ehcinohighspeed) {
+				/*
+				 * Connect USB device to companion
+				 * controller.
+				 */
+				ehci_disown(sc, index, 1);
+				break;
+			}
+#endif
 			if (EHCI_PS_IS_LOWSPEED(v)) {
 				/* Low speed device, give up ownership. */
 				ehci_disown(sc, index, 1);
@@ -3641,110 +3654,106 @@ alloc_dma_set:
 	 */
 	last_obj = NULL;
 
-	for (n = 0; n != nitd; n++) {
+	if (usb2_transfer_setup_sub_malloc(
+	    parm, &pc, sizeof(ehci_itd_t),
+	    EHCI_ITD_ALIGN, nitd)) {
+		parm->err = USB_ERR_NOMEM;
+		return;
+	}
+	if (parm->buf) {
+		for (n = 0; n != nitd; n++) {
+			ehci_itd_t *td;
 
-		register ehci_itd_t *td;
-
-		if (usb2_transfer_setup_sub_malloc(
-		    parm, &page_info, &pc, sizeof(*td),
-		    EHCI_ITD_ALIGN)) {
-			parm->err = USB_ERR_NOMEM;
-			break;
-		}
-		if (parm->buf) {
+			usb2_get_page(pc + n, 0, &page_info);
 
 			td = page_info.buffer;
 
 			/* init TD */
 			td->itd_self = htole32(page_info.physaddr | EHCI_LINK_ITD);
 			td->obj_next = last_obj;
-			td->page_cache = pc;
+			td->page_cache = pc + n;
 
 			last_obj = td;
 
-			usb2_pc_cpu_flush(pc);
+			usb2_pc_cpu_flush(pc + n);
 		}
 	}
+	if (usb2_transfer_setup_sub_malloc(
+	    parm, &pc, sizeof(ehci_sitd_t),
+	    EHCI_SITD_ALIGN, nsitd)) {
+		parm->err = USB_ERR_NOMEM;
+		return;
+	}
+	if (parm->buf) {
+		for (n = 0; n != nsitd; n++) {
+			ehci_sitd_t *td;
 
-	for (n = 0; n != nsitd; n++) {
-
-		register ehci_sitd_t *td;
-
-		if (usb2_transfer_setup_sub_malloc(
-		    parm, &page_info, &pc, sizeof(*td),
-		    EHCI_SITD_ALIGN)) {
-			parm->err = USB_ERR_NOMEM;
-			break;
-		}
-		if (parm->buf) {
+			usb2_get_page(pc + n, 0, &page_info);
 
 			td = page_info.buffer;
 
 			/* init TD */
 			td->sitd_self = htole32(page_info.physaddr | EHCI_LINK_SITD);
 			td->obj_next = last_obj;
-			td->page_cache = pc;
+			td->page_cache = pc + n;
 
 			last_obj = td;
 
-			usb2_pc_cpu_flush(pc);
+			usb2_pc_cpu_flush(pc + n);
 		}
 	}
+	if (usb2_transfer_setup_sub_malloc(
+	    parm, &pc, sizeof(ehci_qtd_t),
+	    EHCI_QTD_ALIGN, nqtd)) {
+		parm->err = USB_ERR_NOMEM;
+		return;
+	}
+	if (parm->buf) {
+		for (n = 0; n != nqtd; n++) {
+			ehci_qtd_t *qtd;
 
-	for (n = 0; n != nqtd; n++) {
-
-		register ehci_qtd_t *qtd;
-
-		if (usb2_transfer_setup_sub_malloc(
-		    parm, &page_info, &pc, sizeof(*qtd),
-		    EHCI_QTD_ALIGN)) {
-			parm->err = USB_ERR_NOMEM;
-			break;
-		}
-		if (parm->buf) {
+			usb2_get_page(pc + n, 0, &page_info);
 
 			qtd = page_info.buffer;
 
 			/* init TD */
 			qtd->qtd_self = htole32(page_info.physaddr);
 			qtd->obj_next = last_obj;
-			qtd->page_cache = pc;
+			qtd->page_cache = pc + n;
 
 			last_obj = qtd;
 
-			usb2_pc_cpu_flush(pc);
+			usb2_pc_cpu_flush(pc + n);
 		}
 	}
-
 	xfer->td_start[xfer->flags_int.curr_dma_set] = last_obj;
 
 	last_obj = NULL;
 
-	for (n = 0; n != nqh; n++) {
+	if (usb2_transfer_setup_sub_malloc(
+	    parm, &pc, sizeof(ehci_qh_t),
+	    EHCI_QH_ALIGN, nqh)) {
+		parm->err = USB_ERR_NOMEM;
+		return;
+	}
+	if (parm->buf) {
+		for (n = 0; n != nqh; n++) {
+			ehci_qh_t *qh;
 
-		register ehci_qh_t *qh;
-
-		if (usb2_transfer_setup_sub_malloc(
-		    parm, &page_info, &pc, sizeof(*qh),
-		    EHCI_QH_ALIGN)) {
-			parm->err = USB_ERR_NOMEM;
-			break;
-		}
-		if (parm->buf) {
+			usb2_get_page(pc + n, 0, &page_info);
 
 			qh = page_info.buffer;
 
 			/* init QH */
 			qh->qh_self = htole32(page_info.physaddr | EHCI_LINK_QH);
 			qh->obj_next = last_obj;
-			qh->page_cache = pc;
+			qh->page_cache = pc + n;
 
 			last_obj = qh;
 
-			usb2_pc_cpu_flush(pc);
+			usb2_pc_cpu_flush(pc + n);
 		}
 	}
-
 	xfer->qh_start[xfer->flags_int.curr_dma_set] = last_obj;
 
 	if (!xfer->flags_int.curr_dma_set) {

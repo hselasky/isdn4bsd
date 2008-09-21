@@ -326,7 +326,7 @@ uftdi_attach(device_t dev)
 	    FTDI_SIO_SET_DATA_PARITY_NONE |
 	    FTDI_SIO_SET_DATA_BITS(8));
 
-	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &sc->sc_ucom, 1, sc,
 	    &uftdi_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -343,7 +343,7 @@ uftdi_detach(device_t dev)
 {
 	struct uftdi_softc *sc = device_get_softc(dev);
 
-	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &sc->sc_ucom, 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UFTDI_ENDPT_MAX);
 

@@ -82,6 +82,7 @@ struct ugensa_softc {
 	struct usb2_com_softc sc_ucom[UGENSA_IFACE_MAX];
 	struct ugensa_sub_softc sc_sub[UGENSA_IFACE_MAX];
 
+	struct mtx sc_mtx;
 	uint8_t	sc_niface;
 };
 
@@ -253,6 +254,7 @@ ugensa_attach(device_t dev)
 		return (ENOMEM);
 
 	device_set_usb2_desc(dev);
+	mtx_init(&sc->sc_mtx, "ugensa", NULL, MTX_DEF);
 
 	/* Figure out how many interfaces this device has got */
 	for (cnt = 0; cnt < UGENSA_IFACE_MAX; cnt++) {
@@ -279,7 +281,7 @@ ugensa_attach(device_t dev)
 		iface_index = (UGENSA_IFACE_INDEX + x);
 		error = usb2_transfer_setup(uaa->device,
 		    &iface_index, ssc->sc_xfer, ugensa_xfer_config,
-		    UGENSA_N_TRANSFER, ssc, &Giant);
+		    UGENSA_N_TRANSFER, ssc, &sc->sc_mtx);
 
 		if (error) {
 			device_printf(dev, "allocating USB "
@@ -300,7 +302,7 @@ ugensa_attach(device_t dev)
 	device_printf(dev, "Found %d interfaces.\n", sc->sc_niface);
 
 	error = usb2_com_attach(&sc->sc_super_ucom, sc->sc_ucom, sc->sc_niface, sc,
-	    &ugensa_callback, &Giant);
+	    &ugensa_callback, &sc->sc_mtx);
 	if (error) {
 		DPRINTF("attach failed\n");
 		goto detach;
@@ -323,6 +325,7 @@ ugensa_detach(device_t dev)
 	for (x = 0; x < sc->sc_niface; x++) {
 		usb2_transfer_unsetup(sc->sc_sub[x].sc_xfer, UGENSA_N_TRANSFER);
 	}
+	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
 }

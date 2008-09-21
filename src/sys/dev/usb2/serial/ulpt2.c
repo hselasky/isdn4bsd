@@ -96,6 +96,7 @@ struct ulpt_softc {
 
 	device_t sc_dev;
 	struct usb2_device *sc_udev;
+	struct usb2_fifo *sc_fifo_open[2];
 	struct usb2_xfer *sc_xfer[ULPT_N_TRANSFER];
 
 	int	sc_fflags;		/* current open flags, FREAD and
@@ -125,7 +126,6 @@ static usb2_callback_t ulpt_status_callback;
 
 static void ulpt_reset(struct ulpt_softc *sc);
 static void ulpt_watchdog(void *arg);
-static struct usb2_fifo *ulpt_find_fifo(struct ulpt_softc *sc, uint8_t dir);
 
 static usb2_fifo_close_t ulpt_close;
 static usb2_fifo_cmd_t ulpt_start_read;
@@ -191,30 +191,26 @@ ulpt_reset(struct ulpt_softc *sc)
 	return;
 }
 
-static struct usb2_fifo *
-ulpt_find_fifo(struct ulpt_softc *sc, uint8_t dir)
-{
-	if (usb2_fifo_opened(sc->sc_fifo.fp[dir])) {
-		return (sc->sc_fifo.fp[dir]);
-	}
-	/* else we assume that the other FIFO is opened */
-	return (sc->sc_fifo_noreset.fp[dir]);
-}
-
-
 static void
 ulpt_write_callback(struct usb2_xfer *xfer)
 {
 	struct ulpt_softc *sc = xfer->priv_sc;
-	struct usb2_fifo *f = ulpt_find_fifo(sc, USB_FIFO_TX);
+	struct usb2_fifo *f = sc->sc_fifo_open[USB_FIFO_TX];
 	uint32_t actlen;
+
+	if (f == NULL) {
+		/* should not happen */
+		DPRINTF("no FIFO\n");
+		return;
+	}
+	DPRINTF("state=0x%x\n", USB_GET_STATE(xfer));
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 	case USB_ST_SETUP:
 		if (sc->sc_flags & ULPT_FLAG_WRITE_STALL) {
 			usb2_transfer_start(sc->sc_xfer[3]);
-			return;
+			break;
 		}
 		if (usb2_fifo_get_data(f, xfer->frbuffers,
 		    0, xfer->max_data_length, &actlen, 0)) {
@@ -222,7 +218,7 @@ ulpt_write_callback(struct usb2_xfer *xfer)
 			xfer->frlengths[0] = actlen;
 			usb2_start_hardware(xfer);
 		}
-		return;
+		break;
 
 	default:			/* Error */
 		if (xfer->error != USB_ERR_CANCELLED) {
@@ -230,8 +226,9 @@ ulpt_write_callback(struct usb2_xfer *xfer)
 			sc->sc_flags |= ULPT_FLAG_WRITE_STALL;
 			usb2_transfer_start(sc->sc_xfer[3]);
 		}
-		return;
+		break;
 	}
+	return;
 }
 
 static void
@@ -252,7 +249,14 @@ static void
 ulpt_read_callback(struct usb2_xfer *xfer)
 {
 	struct ulpt_softc *sc = xfer->priv_sc;
-	struct usb2_fifo *f = ulpt_find_fifo(sc, USB_FIFO_RX);
+	struct usb2_fifo *f = sc->sc_fifo_open[USB_FIFO_RX];
+
+	if (f == NULL) {
+		/* should not happen */
+		DPRINTF("no FIFO\n");
+		return;
+	}
+	DPRINTF("state=0x%x\n", USB_GET_STATE(xfer));
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
@@ -278,13 +282,13 @@ ulpt_read_callback(struct usb2_xfer *xfer)
 	case USB_ST_SETUP:
 		if (sc->sc_flags & ULPT_FLAG_READ_STALL) {
 			usb2_transfer_start(sc->sc_xfer[4]);
-			return;
+			break;
 		}
 		if (usb2_fifo_put_bytes_max(f) != 0) {
 			xfer->frlengths[0] = xfer->max_data_length;
 			usb2_start_hardware(xfer);
 		}
-		return;
+		break;
 
 	default:			/* Error */
 		/* disable BULK throttle */
@@ -296,8 +300,9 @@ ulpt_read_callback(struct usb2_xfer *xfer)
 			sc->sc_flags |= ULPT_FLAG_READ_STALL;
 			usb2_transfer_start(sc->sc_xfer[4]);
 		}
-		return;
+		break;
 	}
+	return;
 }
 
 static void
@@ -486,6 +491,8 @@ unlpt_open(struct usb2_fifo *fifo, int fflags, struct thread *td)
 		    ULPT_IFQ_MAXLEN)) {
 			return (ENOMEM);
 		}
+		/* set which FIFO is opened */
+		sc->sc_fifo_open[USB_FIFO_RX] = fifo;
 	}
 	if (fflags & FWRITE) {
 		/* clear stall first */
@@ -497,6 +504,8 @@ unlpt_open(struct usb2_fifo *fifo, int fflags, struct thread *td)
 		    ULPT_IFQ_MAXLEN)) {
 			return (ENOMEM);
 		}
+		/* set which FIFO is opened */
+		sc->sc_fifo_open[USB_FIFO_TX] = fifo;
 	}
 	sc->sc_fflags |= fflags & (FREAD | FWRITE);
 	return (0);

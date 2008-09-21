@@ -289,7 +289,7 @@ udav_attach(device_t dev)
 		    "transfers failed!\n");
 		goto detach;
 	}
-	error = usb2_config_td_setup(&sc->sc_config_td, sc, &(sc->sc_mtx),
+	error = usb2_config_td_setup(&sc->sc_config_td, sc, &sc->sc_mtx,
 	    NULL, sizeof(struct usb2_config_td_cc), 16);
 	if (error) {
 		device_printf(dev, "could not setup config "

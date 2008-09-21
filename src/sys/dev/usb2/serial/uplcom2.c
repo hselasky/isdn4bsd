@@ -427,7 +427,7 @@ uplcom_attach(device_t dev)
 	sc->sc_flag |= (UPLCOM_FLAG_READ_STALL |
 	    UPLCOM_FLAG_WRITE_STALL);
 
-	error = usb2_com_attach(&sc->sc_super_ucom, &(sc->sc_ucom), 1, sc,
+	error = usb2_com_attach(&sc->sc_super_ucom, &sc->sc_ucom, 1, sc,
 	    &uplcom_callback, &Giant);
 	if (error) {
 		goto detach;
@@ -456,7 +456,7 @@ uplcom_detach(device_t dev)
 
 	DPRINTF("sc=%p\n", sc);
 
-	usb2_com_detach(&sc->sc_super_ucom, &(sc->sc_ucom), 1);
+	usb2_com_detach(&sc->sc_super_ucom, &sc->sc_ucom, 1);
 
 	usb2_transfer_unsetup(sc->sc_xfer, UPLCOM_N_TRANSFER);
 

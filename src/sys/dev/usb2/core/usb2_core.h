@@ -50,6 +50,14 @@
 #define	USB_PROC_GET_GID(td) (td)->p_pgid
 #endif
 
+#ifndef USB_VNOPS_FO_CLOSE
+#define	USB_VNOPS_FO_CLOSE(fp, td, perr) do {	\
+    (td)->td_fpop = (fp);			\
+    *(perr) = vnops.fo_close(fp, td);		\
+    (td)->td_fpop = NULL;			\
+} while (0)
+#endif
+
 #ifndef USB_VNOPS_FO_STAT
 #define	USB_VNOPS_FO_STAT(fp, sb, cred, td) \
     vnops.fo_stat(fp, sb, cred, td)
