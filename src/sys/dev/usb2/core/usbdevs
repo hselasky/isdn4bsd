@@ -1,4 +1,4 @@
-$FreeBSD: src/sys/dev/usb/usbdevs,v 1.370 2008/09/09 19:59:51 remko Exp $
+$FreeBSD: src/sys/dev/usb/usbdevs,v 1.372 2008/09/19 09:04:06 kevlo Exp $
 /* $NetBSD: usbdevs,v 1.392 2004/12/29 08:38:44 imp Exp $ */
 
 /*-
@@ -282,6 +282,7 @@ vendor INSYSTEM		0x05ab	In-System Design
 vendor APPLE		0x05ac	Apple Computer
 vendor YCCABLE		0x05ad	Y.C. Cable
 vendor DIGITALPERSONA	0x05ba	DigitalPersona
+vendor 3G		0x05bc	3G Green Green Globe
 vendor RAFI		0x05bd	RAFI
 vendor TYCO		0x05be	Tyco
 vendor KAWASAKI		0x05c1	Kawasaki

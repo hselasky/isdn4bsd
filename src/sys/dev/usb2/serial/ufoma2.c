@@ -948,6 +948,10 @@ ufoma_cfg_set_line_state(struct ufoma_softc *sc)
 {
 	struct usb2_device_request req;
 
+	/* Don't send line state emulation request for OBEX port */
+	if (sc->sc_currentmode == UMCPC_ACM_MODE_OBEX) {
+		return;
+	}
 	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
 	req.bRequest = UCDC_SET_CONTROL_LINE_STATE;
 	USETW(req.wValue, sc->sc_line);
@@ -1006,7 +1010,8 @@ ufoma_cfg_param(struct usb2_com_softc *ucom, struct termios *t)
 	struct usb2_device_request req;
 	struct usb2_cdc_line_state ls;
 
-	if (sc->sc_is_pseudo) {
+	if (sc->sc_is_pseudo ||
+	    (sc->sc_currentmode == UMCPC_ACM_MODE_OBEX)) {
 		return;
 	}
 	DPRINTF("\n");

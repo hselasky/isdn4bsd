@@ -21,6 +21,7 @@ SRCS+= usb2_controller.c
 .if defined(HAS_ATMELARM)
 SRCS+= at91dci_atmelarm.c
 SRCS+= ohci2_atmelarm.c
+SRCS+= uss820dci_atmelarm.c
 .endif
 
 SRCS+= at91dci.c
@@ -32,6 +33,5 @@ SRCS+= ohci2_pci.c
 SRCS+= uhci2.c
 SRCS+= uhci2_pci.c
 SRCS+= uss820dci.c
-SRCS+= uss820dci_pccard.c
 
 .include <bsd.kmod.mk>
