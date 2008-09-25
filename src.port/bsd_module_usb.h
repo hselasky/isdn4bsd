@@ -35,5 +35,6 @@
 #define	USB_PROC_GET_GID(td) GID_OPERATOR
 #define	USB_VNOPS_FO_TRUNCATE(...) EINVAL
 #define	USB_VNOPS_FO_STAT(...) EINVAL
+#define	USB_VNOPS_FO_CLOSE(fd, td, perr) do { *(perr) = 0; } while (0);
 
 typedef int usb2_handle_request_t (device_t dev, const void *req, void **pptr, uint16_t *plen, uint16_t offset, uint8_t is_complete);
