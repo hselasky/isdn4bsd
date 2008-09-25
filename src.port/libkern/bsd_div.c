@@ -51,3 +51,30 @@ __umodsi3(uint32_t rem, uint32_t div)
 
 	return (rem);
 }
+
+extern uint32_t __udivsi3(uint32_t rem, uint32_t div);
+
+uint32_t
+__udivsi3(uint32_t rem, uint32_t div)
+{
+	uint32_t temp;
+	uint8_t c;
+
+	c = 1;
+	while (!(div & 0x80000000)) {
+		div *= 2;
+		c++;
+	}
+
+	temp = 0;
+
+	while (c--) {
+		if (rem >= div) {
+			rem -= div;
+			temp |= 1 << c;
+		}
+		div /= 2;
+	}
+
+	return (temp);
+}
