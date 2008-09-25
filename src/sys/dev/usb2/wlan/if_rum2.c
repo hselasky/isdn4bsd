@@ -502,13 +502,6 @@ rum_detach(device_t dev)
 	struct ieee80211com *ic;
 	struct ifnet *ifp;
 
-#ifdef USB_WLAN_CLONE_FIX
-	if (sc->sc_clone[0]) {
-		if (if_clone_destroy(sc->sc_clone)) {
-			DPRINTFN(0, "Could not destroy clone!\n");
-		}
-	}
-#endif
 	usb2_config_td_drain(&sc->sc_config_td);
 
 	mtx_lock(&sc->sc_mtx);
@@ -2609,15 +2602,6 @@ rum_vap_create(struct ieee80211com *ic,
 	/* store current operation mode */
 	ic->ic_opmode = opmode;
 
-#ifdef USB_WLAN_CLONE_FIX
-	/*
-	 * Store a copy of the clone name so we can destroy it at
-	 * detach!
-	 */
-	mtx_lock(&sc->sc_mtx);
-	snprintf(sc->sc_clone, sizeof(sc->sc_clone), "%s%u", name, unit);
-	mtx_unlock(&sc->sc_mtx);
-#endif
 	return (vap);
 }
 
@@ -2634,9 +2618,6 @@ rum_vap_delete(struct ieee80211vap *vap)
 	if (usb2_config_td_sync(&sc->sc_config_td)) {
 		/* ignore */
 	}
-#ifdef USB_WLAN_CLONE_FIX
-	sc->sc_clone[0] = 0;		/* clone is gone */
-#endif
 	mtx_unlock(&sc->sc_mtx);
 
 	ieee80211_amrr_cleanup(&rvp->amrr);

@@ -917,6 +917,7 @@ at91dci_setup_standard_chain(struct usb2_xfer *xfer)
 	struct at91dci_td *td;
 	uint32_t x;
 	uint8_t ep_no;
+	uint8_t need_sync;
 
 	DPRINTFN(9, "addr=%d endpt=%d sumlen=%d speed=%d\n",
 	    xfer->address, UE_GET_ADDR(xfer->endpoint),
@@ -958,12 +959,16 @@ at91dci_setup_standard_chain(struct usb2_xfer *xfer)
 	if (x != xfer->nframes) {
 		if (xfer->endpoint & UE_DIR_IN) {
 			temp.func = &at91dci_data_tx;
+			need_sync = 1;
 		} else {
 			temp.func = &at91dci_data_rx;
+			need_sync = 0;
 		}
 
 		/* setup "pc" pointer */
 		temp.pc = xfer->frbuffers + x;
+	} else {
+		need_sync = 0;
 	}
 	while (x != xfer->nframes) {
 
@@ -1002,11 +1007,19 @@ at91dci_setup_standard_chain(struct usb2_xfer *xfer)
 	/* always setup a valid "pc" pointer for status and sync */
 	temp.pc = xfer->frbuffers + 0;
 
-	/* check if we should append a status stage */
+	/* check if we need to sync */
+	if (need_sync && xfer->flags_int.control_xfr) {
 
+		/* we need a SYNC point after TX */
+		temp.func = &at91dci_data_tx_sync;
+		temp.len = 0;
+		temp.short_pkt = 0;
+
+		at91dci_setup_standard_chain_sub(&temp);
+	}
+	/* check if we should append a status stage */
 	if (xfer->flags_int.control_xfr &&
 	    !xfer->flags_int.control_act) {
-		uint8_t need_sync;
 
 		/*
 		 * Send a DATA1 message and invert the current
@@ -2375,7 +2388,8 @@ at91dci_xfer_setup(struct usb2_setup_params *parm)
 	 */
 	if (parm->methods == &at91dci_device_ctrl_methods) {
 
-		ntd = xfer->nframes + 1 /* STATUS */ + 1 /* SYNC */ ;
+		ntd = xfer->nframes + 1 /* STATUS */ + 1	/* SYNC 1 */
+		    + 1 /* SYNC 2 */ ;
 
 	} else if (parm->methods == &at91dci_device_bulk_methods) {
 

@@ -169,7 +169,4 @@ struct rum_softc {
 	int8_t	sc_rssi_5ghz_corr;
 
 	char	sc_name[32];
-#ifdef USB_WLAN_CLONE_FIX
-	char	sc_clone[IFNAMSIZ];	/* name of clone */
-#endif
 };

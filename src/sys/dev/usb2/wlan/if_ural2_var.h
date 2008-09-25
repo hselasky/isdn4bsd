@@ -158,7 +158,4 @@ struct ural_softc {
 	uint8_t	sc_myaddr[IEEE80211_ADDR_LEN];
 
 	char	sc_name[32];
-#ifdef USB_WLAN_CLONE_FIX
-	char	sc_clone[IFNAMSIZ];	/* name of clone */
-#endif
 };

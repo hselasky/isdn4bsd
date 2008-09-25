@@ -339,7 +339,7 @@ usb2_dma_tag_create(struct usb2_dma_tag *udt,
 	if (bus_dma_tag_create
 	    ( /* parent    */ udt->tag_parent->tag,
 	     /* alignment */ align,
-	     /* boundary  */ 0,
+	     /* boundary  */ USB_PAGE_SIZE,
 	     /* lowaddr   */ (2ULL << (udt->tag_parent->dma_bits - 1)) - 1,
 	     /* highaddr  */ BUS_SPACE_MAXADDR,
 	     /* filter    */ NULL,
@@ -403,7 +403,6 @@ usb2_pc_common_mem_cb(void *arg, bus_dma_segment_t *segs,
 	struct usb2_page *pg;
 	uint32_t rem;
 	uint8_t owned;
-	uint8_t ext_seg;		/* extend last segment */
 
 	pc = arg;
 	uptag = pc->tag_parent;
@@ -423,12 +422,6 @@ usb2_pc_common_mem_cb(void *arg, bus_dma_segment_t *segs,
 	rem = segs->ds_addr & (USB_PAGE_SIZE - 1);
 	pc->page_offset_buf = rem;
 	pc->page_offset_end += rem;
-	if (nseg < ((pc->page_offset_end +
-	    (USB_PAGE_SIZE - 1)) / USB_PAGE_SIZE)) {
-		ext_seg = 1;
-	} else {
-		ext_seg = 0;
-	}
 	nseg--;
 
 	while (nseg > 0) {
@@ -438,14 +431,6 @@ usb2_pc_common_mem_cb(void *arg, bus_dma_segment_t *segs,
 		pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
 	}
 
-	/*
-	 * XXX The segments we get from BUS-DMA are not aligned,
-	 * XXX so we need to extend the last segment if we are
-	 * XXX unaligned and cross the segment boundary!
-	 */
-	if (ext_seg && pc->ismultiseg) {
-		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
-	}
 done:
 	owned = mtx_owned(uptag->mtx);
 	if (!owned)

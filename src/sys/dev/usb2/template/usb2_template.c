@@ -507,17 +507,13 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 		return (0);		/* we are done */
 	}
 	if (ep->needs_ep_type == UE_CONTROL) {
-		ep->needs_in = 0;
-		ep->needs_out = 0;
 		dir_in = 1;
 		dir_out = 1;
 	} else {
 		if (ep->needs_in) {
-			ep->needs_in = 0;
 			dir_in = 1;
 			dir_out = 0;
 		} else {
-			ep->needs_out = 0;
 			dir_in = 0;
 			dir_out = 1;
 		}
@@ -525,25 +521,25 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 
 	for (n = 1; n != (USB_EP_MAX / 2); n++) {
 
+		/* get HW endpoint profile */
+		(ues->methods->get_hw_ep_profile) (ues->udev, &pf, n);
+		if (pf == NULL) {
+			/* end of profiles */
+			break;
+		}
 		/* check if IN-endpoint is reserved */
-		if (dir_in) {
+		if (dir_in || pf->is_simplex) {
 			if (ues->bmInAlloc[n / 8] & (1 << (n % 8))) {
 				/* mismatch */
 				continue;
 			}
 		}
 		/* check if OUT-endpoint is reserved */
-		if (dir_out) {
+		if (dir_out || pf->is_simplex) {
 			if (ues->bmOutAlloc[n / 8] & (1 << (n % 8))) {
 				/* mismatch */
 				continue;
 			}
-		}
-		/* get HW endpoint profile */
-		(ues->methods->get_hw_ep_profile) (ues->udev, &pf, n);
-		if (pf == NULL) {
-			/* end of profiles */
-			break;
 		}
 		/* check simplex */
 		if (pf->is_simplex == is_simplex) {
@@ -578,16 +574,18 @@ usb2_hw_ep_find_match(struct usb2_hw_ep_scratch *ues,
 		pf = ep->pf;
 
 		/* reserve IN-endpoint */
-		if (dir_in || pf->is_simplex) {
+		if (dir_in) {
 			ues->bmInAlloc[best_n / 8] |=
 			    (1 << (best_n % 8));
 			ep->hw_endpoint_in = best_n | UE_DIR_IN;
+			ep->needs_in = 0;
 		}
 		/* reserve OUT-endpoint */
-		if (dir_out || pf->is_simplex) {
+		if (dir_out) {
 			ues->bmOutAlloc[best_n / 8] |=
 			    (1 << (best_n % 8));
 			ep->hw_endpoint_out = best_n | UE_DIR_OUT;
+			ep->needs_out = 0;
 		}
 		return (0);		/* got a match */
 	}
