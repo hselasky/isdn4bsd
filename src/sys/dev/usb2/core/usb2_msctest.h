@@ -28,5 +28,6 @@
 #define	_USB2_MSCTEST_H_
 
 usb2_error_t usb2_test_autoinstall(struct usb2_device *udev, uint8_t iface_index);
+usb2_error_t usb2_test_huawei(struct usb2_device *udev, uint8_t iface_index);
 
 #endif					/* _USB2_MSCTEST_H_ */

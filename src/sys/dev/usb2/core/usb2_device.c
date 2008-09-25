@@ -29,6 +29,7 @@
 #include <dev/usb2/include/usb2_error.h>
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_ioctl.h>
+#include <dev/usb2/include/usb2_devid.h>
 
 #define	USB_DEBUG_VAR usb2_debug
 
@@ -1579,8 +1580,9 @@ repeat_set_config:
 			    config_index, usb2_errstr(err), udev->port_no,
 			    udev->address);
 
-		} else if ((!config_quirk) &&
-		    ((config_index + 1) < udev->ddesc.bNumConfigurations)) {
+		} else if (config_quirk) {
+			/* user quirk selects configuration index */
+		} else if ((config_index + 1) < udev->ddesc.bNumConfigurations) {
 
 			if ((udev->cdesc->bNumInterface < 2) &&
 			    (usb2_get_no_endpoints(udev->cdesc) == 0)) {
@@ -1600,6 +1602,11 @@ repeat_set_config:
 					config_index++;
 					goto repeat_set_config;
 				}
+			}
+		} else if (UGETW(udev->ddesc.idVendor) == USB_VENDOR_HUAWEI) {
+			if (usb2_test_huawei(udev, 0) == 0) {
+				DPRINTFN(0, "Found Huawei auto-install disk!\n");
+				err = USB_ERR_STALLED;	/* fake an error */
 			}
 		}
 	} else {

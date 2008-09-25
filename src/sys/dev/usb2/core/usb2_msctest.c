@@ -564,3 +564,49 @@ done:
 	free(sc, M_USB);
 	return (err);
 }
+
+/*
+ * Huawei Exxx radio devices have a built in flash disk which is their
+ * default power up configuration. This allows the device to carry its
+ * own installation software.
+ *
+ * Instead of following the USB spec, and create multiple
+ * configuration descriptors for this, the devices expects the driver
+ * to send UF_DEVICE_REMOTE_WAKEUP to endpoint 2 to reset the device,
+ * so it reprobes, now with the radio exposed.
+ */
+
+usb2_error_t
+usb2_test_huawei(struct usb2_device *udev, uint8_t iface_index)
+{
+	struct usb2_device_request req;
+	struct usb2_interface *iface;
+	struct usb2_interface_descriptor *id;
+	usb2_error_t err;
+
+	if (udev == NULL) {
+		return (USB_ERR_INVAL);
+	}
+	iface = usb2_get_iface(udev, iface_index);
+	if (iface == NULL) {
+		return (USB_ERR_INVAL);
+	}
+	id = iface->idesc;
+	if (id == NULL) {
+		return (USB_ERR_INVAL);
+	}
+	if (id->bInterfaceClass != UICLASS_MASS) {
+		return (USB_ERR_INVAL);
+	}
+	/* Bend it like Beckham */
+	req.bmRequestType = UT_WRITE_DEVICE;
+	req.bRequest = UR_SET_FEATURE;
+	USETW(req.wValue, UF_DEVICE_REMOTE_WAKEUP);
+	USETW(req.wIndex, 2);
+	USETW(req.wLength, 0);
+
+	/* We get error at return, but it works */
+	err = usb2_do_request_flags(udev, NULL, &req, NULL, 0, NULL, 1 * USB_MS_HZ);
+
+	return (0);			/* success */
+}
