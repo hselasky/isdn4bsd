@@ -30,7 +30,8 @@
 #include <bsd_module_all.h>
 
 void
-bsd_tq_frag_set_buf_len(struct bsd_tq_frag *frag, void *buf, uint32_t len)
+bsd_tq_frag_set_buf_len(struct bsd_tq_frag *frag, void *buf,
+    uint32_t len)
 {
 	frag->pbuf = buf;
 	frag->len = len;
@@ -38,10 +39,31 @@ bsd_tq_frag_set_buf_len(struct bsd_tq_frag *frag, void *buf, uint32_t len)
 }
 
 void
-bsd_tq_frag_get_buf_len(struct bsd_tq_frag *frag, void **ppbuf, uint32_t *plen)
+bsd_tq_frag_get_buf_len(struct bsd_tq_frag *frag, void **ppbuf,
+    uint32_t *plen)
 {
 	*ppbuf = frag->pbuf;
 	*plen = frag->len;
+	return;
+}
+
+void
+bsd_tq_frag_set_buf_len_arg(struct bsd_tq_frag *frag, void *buf,
+    uint32_t len, void *arg)
+{
+	frag->pbuf = buf;
+	frag->len = len;
+	frag->arg = arg;
+	return;
+}
+
+void
+bsd_tq_frag_get_buf_len_arg(struct bsd_tq_frag *frag, void **ppbuf,
+    uint32_t *plen, void **pparg)
+{
+	*ppbuf = frag->pbuf;
+	*plen = frag->len;
+	*pparg = frag->arg;
 	return;
 }
 

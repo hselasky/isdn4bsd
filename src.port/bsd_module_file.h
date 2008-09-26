@@ -44,6 +44,7 @@ struct selinfo;
 #define	O_DIRECT	0x00010000
 #define	IO_DIRECT	0x0100		/* attempt to bypass buffer cache */
 #define	FOF_OFFSET	1		/* Use the offset in uio argument */
+#define	finit(...) do { } while (0)
 
 enum uio_rw {
 	UIO_READ,
