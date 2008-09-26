@@ -735,8 +735,11 @@ usb2_req_get_string_any(struct usb2_device *udev, struct mtx *mtx, char *buf,
 			*s = '.';
 		}
 
-		/* filter by default ! */
-		if (!isprint(*s)) {
+		/*
+		 * Filter by default - we don't allow greater and less than
+		 * signs because they might confuse the dmesg printouts!
+		 */
+		if ((*s == '<') || (*s == '>') || (!isprint(*s))) {
 			*s = '.';
 		}
 		s++;

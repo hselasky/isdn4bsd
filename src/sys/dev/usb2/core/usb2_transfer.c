@@ -942,10 +942,12 @@ usb2_transfer_setup(struct usb2_device *udev,
 		parm.size[1] = parm.size[0];
 
 		/*
-		 * UHCI need DMA tags for fixup buffers. There
-		 * is a maximum of one tag for each endpoint.
+		 * The number of DMA tags required depends on
+		 * the number of endpoints. The current estimate
+		 * for maximum number of DMA tags per endpoint
+		 * is two.
 		 */
-		parm.dma_tag_max += MIN(n_setup, USB_EP_MAX);
+		parm.dma_tag_max += 2 * MIN(n_setup, USB_EP_MAX);
 
 		/*
 		 * DMA tags for QH, TD, Data and more.

@@ -495,7 +495,7 @@ usb2_pc_alloc_mem(struct usb2_page_cache *pc, struct usb2_page *pg,
 		 * memory, hence we sometimes to a large number of
 		 * small allocations!
 		 */
-		if (size < USB_PAGE_SIZE) {
+		if (size <= (USB_PAGE_SIZE / 2)) {
 			size *= 2;
 		}
 #endif
