@@ -50,6 +50,9 @@
 #if __FreeBSD_version >= 700050
 # include <sys/priv.h>
 #endif
+#if __FreeBSD_version >= 800000 
+#define suser(x) priv_check(x, PRIV_ROOT)
+#endif
 #include <net/if.h>
 
 #include <i4b/include/i4b_debug.h>
