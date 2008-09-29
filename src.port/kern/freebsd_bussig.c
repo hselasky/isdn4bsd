@@ -41,11 +41,13 @@ bsd_bus_event(PROCESS proc, int unit, int what, void *ivars)
 	SigP->what = what;
 	SigP->error = 0;
 
+	DROP_GIANT();
 	/* forward message to the handler */
 	send((void *)&SigP, proc);
-
 	/* wait for reply */
 	SigP = (void *)receive(sigsel);
+	PICKUP_GIANT();
+
 	error = SigP->error;
 	free_buf((void *)&SigP);
 
@@ -82,11 +84,13 @@ usb_handle_control_request(PROCESS proc, int unit, const void *req,
 	SigP->is_complete = is_complete;
 	SigP->error = 0;
 
+	DROP_GIANT();
 	/* forward message to the handler */
 	send((void *)&SigP, proc);
-
 	/* wait for reply */
 	SigP = (void *)receive(sigsel);
+	PICKUP_GIANT();
+
 	error = SigP->error;
 	free_buf((void *)&SigP);
 
