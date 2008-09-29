@@ -228,7 +228,7 @@ cdce_attach(device_t dev)
 	uint8_t alt_index;
 	uint8_t i;
 	uint8_t eaddr[ETHER_ADDR_LEN];
-	char eaddr_str[3 * ETHER_ADDR_LEN];	/* approx */
+	char eaddr_str[5 * ETHER_ADDR_LEN];	/* approx */
 
 	if (sc == NULL) {
 		return (ENOMEM);
