@@ -66,6 +66,8 @@ __FBSDID("$FreeBSD: src/sys/dev/usb/ugen.c,v 1.111 2007/06/28 06:22:40 imp Exp $
 
 #define	UGEN_HW_FRAMES	50		/* number of milliseconds per transfer */
 
+#define	UGEN_DO_CLEAR_STALL 1 /* set to zero to disable clear stall when opening pipes */
+
 struct ugen_frame_ring {
 	uint16_t input_index;
 	uint16_t output_index;
@@ -619,7 +621,7 @@ ugen_open_pipe_write(struct ugen_softc *sc, struct ugen_endpoint *sce)
 					return (EIO);
 				}
 				/* first transfer clears stall */
-				sce->write_stall = 1;
+				sce->write_stall = UGEN_DO_CLEAR_STALL;
 				break;
 
 			case UE_ISOCHRONOUS:
@@ -705,7 +707,7 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 					return (EIO);
 				}
 				/* first transfer clears stall */
-				sce->read_stall = 1;
+				sce->read_stall = UGEN_DO_CLEAR_STALL;
 
 				usbd_transfer_start(sce->xfer_in[0]);
 				PRINTFN(5, ("interrupt open done\n"));
@@ -725,7 +727,7 @@ ugen_open_pipe_read(struct ugen_softc *sc, struct ugen_endpoint *sce)
 					return (EIO);
 				}
 				/* first transfer clears stall */
-				sce->read_stall = 1;
+				sce->read_stall = UGEN_DO_CLEAR_STALL;
 				break;
 
 			case UE_ISOCHRONOUS:
