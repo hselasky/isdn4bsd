@@ -1303,15 +1303,20 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 		    "No free USB device index for new device!\n");
 		return (NULL);
 	}
+	if (depth > 0x10) {
+		device_printf(bus->bdev,
+			"Invalid device depth!\n");
+		return (NULL);
+	}
 	udev = malloc(sizeof(*udev), M_USB, M_WAITOK | M_ZERO);
 	if (udev == NULL) {
 		return (NULL);
 	}
 	/* initialise our SX-lock */
-	sx_init(udev->default_sx, "USB device SX lock");
+	sx_init(udev->default_sx, "0123456789ABCDEF - USB device SX lock" + depth);
 
 	/* initialise our SX-lock */
-	sx_init(udev->default_sx + 1, "USB config SX lock");
+	sx_init(udev->default_sx + 1, "0123456789ABCDEF - USB config SX lock" + depth);
 
 	usb2_cv_init(udev->default_cv, "WCTRL");
 	usb2_cv_init(udev->default_cv + 1, "UGONE");

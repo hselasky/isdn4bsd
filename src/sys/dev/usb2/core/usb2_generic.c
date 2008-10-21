@@ -867,8 +867,9 @@ usb2_gen_fill_deviceinfo(struct usb2_fifo *f, struct usb2_device_info *di)
  * Else: No access
  *------------------------------------------------------------------------*/
 static int
-ugen_check_request(struct usb2_device_request *req)
+ugen_check_request(struct usb2_device *udev, struct usb2_device_request *req)
 {
+	struct usb2_pipe *pipe;
 	int error;
 
 	/*
@@ -889,13 +890,21 @@ ugen_check_request(struct usb2_device_request *req)
 		}
 	}
 	/*
-	 * Clearing the stall this way is not allowed, hence it does
-	 * not update the data toggle value in "struct usb2_pipe" !
+	 * Special case - handle clearing of stall
 	 */
 	if (req->bmRequestType == UT_WRITE_ENDPOINT) {
-		error = priv_check(curthread, PRIV_DRIVER);
-		if (error) {
-			return (error);
+
+		pipe = usb2_get_pipe_by_addr(udev, req->wIndex[0]);
+		if (pipe == NULL) {
+			return (EINVAL);
+		}
+		if (usb2_check_thread_perm(udev, curthread, FREAD | FWRITE,
+		    pipe->iface_index, req->wIndex[0] & UE_ADDR)) {
+			return (EPERM);
+		}
+		if ((req->bRequest == UR_CLEAR_FEATURE) &&
+		    (UGETW(req->wValue) == UF_ENDPOINT_HALT)) {
+			usb2_clear_data_toggle(udev, pipe);
 		}
 	}
 	/* TODO: add more checks to verify the interface index */
@@ -914,7 +923,7 @@ ugen_do_request(struct usb2_fifo *f, struct usb2_ctl_request *ur)
 		/* control endpoint only */
 		return (EINVAL);
 	}
-	if (ugen_check_request(&ur->ucr_request)) {
+	if (ugen_check_request(f->udev, &ur->ucr_request)) {
 		return (EPERM);
 	}
 	len = UGETW(ur->ucr_request.wLength);
@@ -1105,7 +1114,7 @@ ugen_fs_copy_in(struct usb2_fifo *f, uint8_t ep_index)
 				return (error);
 			}
 		}
-		if (ugen_check_request(req)) {
+		if (ugen_check_request(f->udev, req)) {
 			xfer->error = USB_ERR_INVAL;
 			goto complete;
 		}
@@ -1652,14 +1661,22 @@ ugen_fs_ioctl(struct usb2_fifo *f, u_long cmd, void *addr, int fflags)
 static int
 ugen_set_short_xfer(struct usb2_fifo *f, void *addr)
 {
+	uint8_t t;
+
+	if (*(int *)addr)
+		t = 1;
+	else
+		t = 0;
+
+	if (f->flag_short == t) {
+		/* same value like before - accept */
+		return (0);
+	}
 	if (f->xfer[0] || f->xfer[1]) {
 		/* cannot change this during transfer */
 		return (EBUSY);
 	}
-	if (*(int *)addr)
-		f->flag_short = 1;
-	else
-		f->flag_short = 0;
+	f->flag_short = t;
 	return (0);
 }
 
@@ -1688,16 +1705,24 @@ ugen_get_frame_size(struct usb2_fifo *f, void *addr)
 static int
 ugen_set_buffer_size(struct usb2_fifo *f, void *addr)
 {
+	uint32_t t;
+
+	if (*(int *)addr < 1024)
+		t = 1024;
+	else if (*(int *)addr < (256 * 1024))
+		t = *(int *)addr;
+	else
+		t = 256 * 1024;
+
+	if (f->bufsize == t) {
+		/* same value like before - accept */
+		return (0);
+	}
 	if (f->xfer[0] || f->xfer[1]) {
 		/* cannot change this during transfer */
 		return (EBUSY);
 	}
-	if (*(int *)addr < 1024)
-		f->bufsize = 1024;
-	else if (*(int *)addr < (256 * 1024))
-		f->bufsize = *(int *)addr;
-	else
-		f->bufsize = 256 * 1024;
+	f->bufsize = t;
 	return (0);
 }
 

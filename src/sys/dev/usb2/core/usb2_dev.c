@@ -1878,8 +1878,8 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 		/* start write transfer, if not already started */
 		(f->methods->f_start_write) (f);
 	}
-	while (uio->uio_resid > 0) {
-
+	/* we allow writing zero length data */
+	do {
 		if (f->fs_ep_max == 0) {
 			USB_IF_DEQUEUE(&f->free_q, m);
 		} else {
@@ -1931,7 +1931,7 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 			USB_IF_ENQUEUE(&f->used_q, m);
 			(f->methods->f_start_write) (f);
 		}
-	}
+	} while (uio->uio_resid > 0);
 done:
 	mtx_unlock(f->priv_mtx);
 
