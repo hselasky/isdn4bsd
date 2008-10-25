@@ -415,6 +415,7 @@ static driver_t rum_driver = {
 };
 
 DRIVER_MODULE(rum, ushub, rum_driver, rum_devclass, NULL, 0);
+MODULE_DEPEND(rum, usb2_wlan, 1, 1, 1);
 MODULE_DEPEND(rum, usb2_core, 1, 1, 1);
 MODULE_DEPEND(rum, wlan, 1, 1, 1);
 MODULE_DEPEND(rum, wlan_amrr, 1, 1, 1);

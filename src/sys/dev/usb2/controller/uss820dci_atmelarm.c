@@ -75,6 +75,7 @@ static driver_t uss820dci_driver = {
 static devclass_t uss820dci_devclass;
 
 DRIVER_MODULE(uss820, atmelarm, uss820dci_driver, uss820dci_devclass, 0, 0);
+MODULE_DEPEND(uss820, usb2_controller, 1, 1, 1);
 MODULE_DEPEND(uss820, usb2_core, 1, 1, 1);
 
 static const char *const uss820_desc = "USS820 USB Device Controller";

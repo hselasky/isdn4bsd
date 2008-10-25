@@ -1499,4 +1499,5 @@ static driver_t ukbd_driver = {
 };
 
 DRIVER_MODULE(ukbd, ushub, ukbd_driver, ukbd_devclass, ukbd_driver_load, 0);
+MODULE_DEPEND(ukbd, usb2_input, 1, 1, 1);
 MODULE_DEPEND(ukbd, usb2_core, 1, 1, 1);

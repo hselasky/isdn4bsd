@@ -169,8 +169,8 @@ static driver_t ubtbcmfw_driver = {
 	.size = sizeof(struct ubtbcmfw_softc),
 };
 
-DRIVER_MODULE(ubtbcmfw, ushub, ubtbcmfw_driver, ubtbcmfw_devclass,
-    NULL, 0);
+DRIVER_MODULE(ubtbcmfw, ushub, ubtbcmfw_driver, ubtbcmfw_devclass, NULL, 0);
+MODULE_DEPEND(ubtbcmfw, usb2_bluetooth, 1, 1, 1);
 MODULE_DEPEND(ubtbcmfw, usb2_core, 1, 1, 1);
 
 /*

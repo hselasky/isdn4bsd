@@ -907,4 +907,5 @@ static driver_t ums_driver = {
 };
 
 DRIVER_MODULE(ums, ushub, ums_driver, ums_devclass, NULL, 0);
+MODULE_DEPEND(ums, usb2_input, 1, 1, 1);
 MODULE_DEPEND(ums, usb2_core, 1, 1, 1);

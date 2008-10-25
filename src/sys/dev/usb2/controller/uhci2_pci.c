@@ -449,3 +449,5 @@ static devclass_t uhci_devclass;
 
 DRIVER_MODULE(uhci, pci, uhci_driver, uhci_devclass, 0, 0);
 DRIVER_MODULE(uhci, cardbus, uhci_driver, uhci_devclass, 0, 0);
+MODULE_DEPEND(uhci, usb2_controller, 1, 1, 1);
+MODULE_DEPEND(uhci, usb2_core, 1, 1, 1);

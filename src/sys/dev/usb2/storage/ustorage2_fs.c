@@ -231,6 +231,7 @@ static devclass_t ustorage_fs_devclass;
 
 DRIVER_MODULE(ustorage_fs, ushub, ustorage_fs_driver, ustorage_fs_devclass, NULL, 0);
 MODULE_VERSION(ustorage_fs, 0);
+MODULE_DEPEND(ustorage_fs, usb2_storage, 1, 1, 1);
 MODULE_DEPEND(ustorage_fs, usb2_core, 1, 1, 1);
 
 struct usb2_config ustorage_fs_bbb_config[USTORAGE_FS_T_BBB_MAX] = {

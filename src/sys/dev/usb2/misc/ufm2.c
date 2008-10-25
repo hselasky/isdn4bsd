@@ -104,8 +104,9 @@ static driver_t ufm_driver = {
 	.size = sizeof(struct ufm_softc),
 };
 
-MODULE_DEPEND(ufm, usb2_core, 1, 1, 1);
+MODULE_DEPEND(ufm, usb2_misc, 1, 1, 1);
 DRIVER_MODULE(ufm, ushub, ufm_driver, ufm_devclass, NULL, 0);
+MODULE_DEPEND(ufm, usb2_core, 1, 1, 1);
 
 static int
 ufm_probe(device_t dev)

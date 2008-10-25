@@ -228,3 +228,5 @@ static driver_t ohci_driver = {
 static devclass_t ohci_devclass;
 
 DRIVER_MODULE(ohci, atmelarm, ohci_driver, ohci_devclass, 0, 0);
+MODULE_DEPEND(ohci, usb2_controller, 1, 1, 1);
+MODULE_DEPEND(ohci, usb2_core, 1, 1, 1);

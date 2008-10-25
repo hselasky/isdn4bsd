@@ -195,6 +195,7 @@ static driver_t uscanner_driver = {
 };
 
 DRIVER_MODULE(uscanner, ushub, uscanner_driver, uscanner_devclass, NULL, 0);
+MODULE_DEPEND(uscanner, usb2_image, 1, 1, 1);
 MODULE_DEPEND(uscanner, usb2_core, 1, 1, 1);
 
 /*

@@ -1263,6 +1263,7 @@ static driver_t umass_driver = {
 };
 
 DRIVER_MODULE(umass, ushub, umass_driver, umass_devclass, umass_driver_loaded, 0);
+MODULE_DEPEND(umass, usb2_storage, 1, 1, 1);
 MODULE_DEPEND(umass, usb2_core, 1, 1, 1);
 MODULE_DEPEND(umass, cam, 1, 1, 1);
 

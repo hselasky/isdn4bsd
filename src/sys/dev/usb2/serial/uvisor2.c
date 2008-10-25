@@ -254,6 +254,7 @@ static driver_t uvisor_driver = {
 };
 
 DRIVER_MODULE(uvisor, ushub, uvisor_driver, uvisor_devclass, NULL, 0);
+MODULE_DEPEND(uvisor, usb2_serial, 1, 1, 1);
 MODULE_DEPEND(uvisor, usb2_core, 1, 1, 1);
 MODULE_DEPEND(uvisor, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 

@@ -209,6 +209,7 @@ static devclass_t udav_devclass;
 
 DRIVER_MODULE(udav, ushub, udav_driver, udav_devclass, NULL, 0);
 DRIVER_MODULE(miibus, udav, miibus_driver, miibus_devclass, 0, 0);
+MODULE_DEPEND(udav, usb2_ethernet, 1, 1, 1);
 MODULE_DEPEND(udav, usb2_core, 1, 1, 1);
 MODULE_DEPEND(udav, ether, 1, 1, 1);
 MODULE_DEPEND(udav, miibus, 1, 1, 1);

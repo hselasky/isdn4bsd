@@ -184,6 +184,7 @@ static devclass_t cdce_devclass;
 
 DRIVER_MODULE(cdce, ushub, cdce_driver, cdce_devclass, NULL, 0);
 MODULE_VERSION(cdce, 1);
+MODULE_DEPEND(cdce, usb2_ethernet, 1, 1, 1);
 MODULE_DEPEND(cdce, usb2_core, 1, 1, 1);
 MODULE_DEPEND(cdce, ether, 1, 1, 1);
 

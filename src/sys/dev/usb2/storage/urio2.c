@@ -185,6 +185,7 @@ static driver_t urio_driver = {
 };
 
 DRIVER_MODULE(urio, ushub, urio_driver, urio_devclass, NULL, 0);
+MODULE_DEPEND(urio, usb2_storage, 1, 1, 1);
 MODULE_DEPEND(urio, usb2_core, 1, 1, 1);
 
 static int

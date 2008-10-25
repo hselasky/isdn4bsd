@@ -272,6 +272,7 @@ static driver_t atausb2_driver = {
 };
 
 DRIVER_MODULE(atausb, ushub, atausb2_driver, atausb2_devclass, 0, 0);
+MODULE_DEPEND(atausb, usb2_storage, 1, 1, 1);
 MODULE_DEPEND(atausb, usb2_core, 1, 1, 1);
 MODULE_VERSION(atausb, 1);
 

@@ -196,6 +196,7 @@ static driver_t cue_driver = {
 static devclass_t cue_devclass;
 
 DRIVER_MODULE(cue, ushub, cue_driver, cue_devclass, NULL, 0);
+MODULE_DEPEND(cue, usb2_ethernet, 1, 1, 1);
 MODULE_DEPEND(cue, usb2_core, 1, 1, 1);
 MODULE_DEPEND(cue, ether, 1, 1, 1);
 

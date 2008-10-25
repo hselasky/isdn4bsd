@@ -248,6 +248,7 @@ static driver_t udbp_driver = {
 
 DRIVER_MODULE(udbp, ushub, udbp_driver, udbp_devclass, udbp_modload, 0);
 MODULE_DEPEND(udbp, netgraph, NG_ABI_VERSION, NG_ABI_VERSION, NG_ABI_VERSION);
+MODULE_DEPEND(udbp, usb2_misc, 1, 1, 1);
 MODULE_DEPEND(udbp, usb2_core, 1, 1, 1);
 
 static int

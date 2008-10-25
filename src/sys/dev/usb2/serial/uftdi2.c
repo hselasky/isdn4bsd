@@ -220,6 +220,7 @@ static driver_t uftdi_driver = {
 };
 
 DRIVER_MODULE(uftdi, ushub, uftdi_driver, uftdi_devclass, NULL, 0);
+MODULE_DEPEND(uftdi, usb2_serial, 1, 1, 1);
 MODULE_DEPEND(uftdi, usb2_core, 1, 1, 1);
 MODULE_DEPEND(uftdi, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 

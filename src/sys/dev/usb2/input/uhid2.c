@@ -818,4 +818,5 @@ static driver_t uhid_driver = {
 };
 
 DRIVER_MODULE(uhid, ushub, uhid_driver, uhid_devclass, NULL, 0);
+MODULE_DEPEND(uhid, usb2_input, 1, 1, 1);
 MODULE_DEPEND(uhid, usb2_core, 1, 1, 1);

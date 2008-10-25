@@ -249,6 +249,7 @@ static devclass_t rue_devclass;
 
 DRIVER_MODULE(rue, ushub, rue_driver, rue_devclass, NULL, 0);
 DRIVER_MODULE(miibus, rue, miibus_driver, miibus_devclass, 0, 0);
+MODULE_DEPEND(rue, usb2_ethernet, 1, 1, 1);
 MODULE_DEPEND(rue, usb2_core, 1, 1, 1);
 MODULE_DEPEND(rue, ether, 1, 1, 1);
 MODULE_DEPEND(rue, miibus, 1, 1, 1);

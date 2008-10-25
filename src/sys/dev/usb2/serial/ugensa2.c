@@ -170,6 +170,7 @@ static driver_t ugensa_driver = {
 };
 
 DRIVER_MODULE(ugensa, ushub, ugensa_driver, ugensa_devclass, NULL, 0);
+MODULE_DEPEND(ugensa, usb2_serial, 1, 1, 1);
 MODULE_DEPEND(ugensa, usb2_core, 1, 1, 1);
 MODULE_DEPEND(ugensa, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 

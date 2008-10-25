@@ -115,9 +115,9 @@ static const struct usb2_device_id umodem_devs[] = {
 		USB_IFACE_SUBCLASS(UISUBCLASS_ABSTRACT_CONTROL_MODEL),
 	USB_IFACE_PROTOCOL(UIPROTO_CDC_AT)},
 	/* Kyocera AH-K3001V */
-	{USB_VPI(USB_VENDOR_KYOCERA, USB_PRODUCT_KYOCERA_AHK3001V, 0)},
-	{USB_VPI(USB_VENDOR_SIERRA, USB_PRODUCT_SIERRA_MC5720, 0)},
-	{USB_VPI(USB_VENDOR_CURITEL, USB_PRODUCT_CURITEL_PC5740, 0)},
+	{USB_VPI(USB_VENDOR_KYOCERA, USB_PRODUCT_KYOCERA_AHK3001V, 1)},
+	{USB_VPI(USB_VENDOR_SIERRA, USB_PRODUCT_SIERRA_MC5720, 1)},
+	{USB_VPI(USB_VENDOR_CURITEL, USB_PRODUCT_CURITEL_PC5740, 1)},
 };
 
 /*
@@ -276,6 +276,7 @@ static driver_t umodem_driver = {
 };
 
 DRIVER_MODULE(umodem, ushub, umodem_driver, umodem_devclass, NULL, 0);
+MODULE_DEPEND(umodem, usb2_serial, 1, 1, 1);
 MODULE_DEPEND(umodem, usb2_core, 1, 1, 1);
 MODULE_DEPEND(umodem, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 MODULE_VERSION(umodem, UMODEM_MODVER);
@@ -295,6 +296,10 @@ umodem_probe(device_t dev)
 	}
 	error = usb2_lookup_id_by_uaa(umodem_devs, sizeof(umodem_devs), uaa);
 	if (error) {
+		return (error);
+	}
+	if (uaa->driver_info == NULL) {
+		/* some modems do not have any capabilities */
 		return (error);
 	}
 	umodem_get_caps(uaa, &cm, &acm);

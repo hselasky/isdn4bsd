@@ -237,6 +237,7 @@ static driver_t kue_driver = {
 static devclass_t kue_devclass;
 
 DRIVER_MODULE(kue, ushub, kue_driver, kue_devclass, NULL, 0);
+MODULE_DEPEND(kue, usb2_ethernet, 1, 1, 1);
 MODULE_DEPEND(kue, usb2_core, 1, 1, 1);
 MODULE_DEPEND(kue, ether, 1, 1, 1);
 

@@ -294,6 +294,7 @@ static driver_t umoscom_driver = {
 };
 
 DRIVER_MODULE(umoscom, ushub, umoscom_driver, umoscom_devclass, NULL, 0);
+MODULE_DEPEND(umoscom, usb2_serial, 1, 1, 1);
 MODULE_DEPEND(umoscom, usb2_core, 1, 1, 1);
 MODULE_DEPEND(umoscom, ucom, UCOM_MINVER, UCOM_PREFVER, UCOM_MAXVER);
 

@@ -252,3 +252,5 @@ static driver_t musbotg_driver = {
 static devclass_t musbotg_devclass;
 
 DRIVER_MODULE(musbotg, atmelarm, musbotg_driver, musbotg_devclass, 0, 0);
+MODULE_DEPEND(musbotg, usb2_controller, 1, 1, 1);
+MODULE_DEPEND(musbotg, usb2_core, 1, 1, 1);

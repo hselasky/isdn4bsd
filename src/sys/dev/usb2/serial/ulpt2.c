@@ -795,3 +795,4 @@ static driver_t ulpt_driver = {
 
 DRIVER_MODULE(ulpt, ushub, ulpt_driver, ulpt_devclass, NULL, 0);
 MODULE_DEPEND(ulpt, usb2_core, 1, 1, 1);
+MODULE_DEPEND(ulpt, usb2_serial, 1, 1, 1);
