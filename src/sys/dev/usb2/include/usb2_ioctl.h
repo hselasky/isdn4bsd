@@ -108,7 +108,7 @@ struct usb2_device_info {
 	uint8_t	udi_hubport;		/* parent HUB port */
 	uint8_t	udi_power_mode;		/* see "USB_POWER_MODE_XXX" */
 	uint8_t	udi_suspended;		/* set if device is suspended */
-	uint8_t udi_reserved[16];	/* leave space for the future */
+	uint8_t	udi_reserved[16];	/* leave space for the future */
 	char	udi_product[128];
 	char	udi_vendor[128];
 	char	udi_serial[64];
@@ -202,6 +202,20 @@ struct usb2_dev_perm {
 	uint16_t iface_index;
 };
 
+struct usb2_gen_quirk {
+	uint16_t index;			/* Quirk Index */
+	uint16_t vid;			/* Vendor ID */
+	uint16_t pid;			/* Product ID */
+	uint16_t bcdDeviceLow;		/* Low Device Revision */
+	uint16_t bcdDeviceHigh;		/* High Device Revision */
+	uint16_t reserved[2];
+	/*
+	 * String version of quirk including terminating zero. See UQ_XXX in
+	 * "usb2_quirk.h".
+	 */
+	char	quirkname[64 - 14];
+};
+
 /* USB controller */
 #define	USB_REQUEST		_IOWR('U', 1, struct usb2_ctl_request)
 #define	USB_SETDEBUG		_IOW ('U', 2, int)
@@ -277,5 +291,11 @@ struct usb2_dev_perm {
 #define	USB_FS_OPEN		_IOWR('U', 197, struct usb2_fs_open)
 #define	USB_FS_CLOSE		_IOW ('U', 198, struct usb2_fs_close)
 #define	USB_FS_CLEAR_STALL_SYNC _IOW ('U', 199, struct usb2_fs_clear_stall_sync)
+
+/* USB quirk system interface */
+#define	USB_DEV_QUIRK_GET	_IOWR('Q', 0, struct usb2_gen_quirk)
+#define	USB_QUIRK_NAME_GET	_IOWR('Q', 1, struct usb2_gen_quirk)
+#define	USB_DEV_QUIRK_ADD	_IOW ('Q', 2, struct usb2_gen_quirk)
+#define	USB_DEV_QUIRK_REMOVE	_IOW ('Q', 3, struct usb2_gen_quirk)
 
 #endif					/* _USB2_IOCTL_H_ */

@@ -1302,6 +1302,12 @@ usb2_ioctl(struct cdev *dev, u_long cmd, caddr_t data,
 	case USB_GET_ROOT_PERM:
 		err = usb2_get_perm(u.udp, 0);
 		break;
+	case USB_DEV_QUIRK_GET:
+	case USB_QUIRK_NAME_GET:
+	case USB_DEV_QUIRK_ADD:
+	case USB_DEV_QUIRK_REMOVE:
+		err = usb2_quirk_ioctl_p(cmd, data, fflag, td);
+		break;
 	default:
 		err = ENOTTY;
 		break;
