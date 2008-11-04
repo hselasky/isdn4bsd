@@ -1,4 +1,4 @@
-/*	$FreeBSD$	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_ural2_var.h,v 1.1 2008/11/04 02:31:03 alfred Exp $	*/
 
 /*-
  * Copyright (c) 2005

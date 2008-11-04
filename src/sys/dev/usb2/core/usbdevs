@@ -1,4 +1,4 @@
-$FreeBSD: src/sys/dev/usb/usbdevs,v 1.372 2008/09/19 09:04:06 kevlo Exp $
+$FreeBSD: src/sys/dev/usb2/core/usbdevs,v 1.1 2008/11/04 02:31:03 alfred Exp $
 /* $NetBSD: usbdevs,v 1.392 2004/12/29 08:38:44 imp Exp $ */
 
 /*-
@@ -1855,6 +1855,7 @@ product OMNIVISION OV511	0x0511	OV511 Camera
 product OMNIVISION OV511PLUS	0xa511	OV511+ Camera
 
 /* OnSpec Electronic, Inc. */
+product ONSPEC SDS_HOTFIND_D   0x0400  SDS-infrared.com Hotfind-D Infrared Camera
 product ONSPEC MDCFE_B_CF_READER	0xa000	MDCFE-B USB CF Reader
 product ONSPEC CFMS_RW		0xa001	SIIG/Datafab Memory Stick+CF Reader/Writer
 product ONSPEC READER		0xa003	Datafab-based Reader

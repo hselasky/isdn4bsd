@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/template/usb2_template_mtp.c,v 1.1 2008/11/04 02:31:03 alfred Exp $");
 
 /*-
  * Copyright (c) 2008 Hans Petter Selasky <hselasky@freebsd.org>

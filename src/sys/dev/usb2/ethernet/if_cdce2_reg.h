@@ -29,7 +29,7 @@
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: src/sys/dev/usb2/ethernet/if_cdce2_reg.h,v 1.1 2008/11/04 02:31:03 alfred Exp $
  */
 
 #ifndef _USB_IF_CDCEREG_H_

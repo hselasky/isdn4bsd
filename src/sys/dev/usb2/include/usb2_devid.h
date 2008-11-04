@@ -1862,6 +1862,7 @@
 #define	USB_PRODUCT_OMNIVISION_OV511PLUS	0xa511		/* OV511+ Camera */
 
 /* OnSpec Electronic, Inc. */
+#define	USB_PRODUCT_ONSPEC_SDS_HOTFIND_D	0x0400		/* SDS-infrared.com Hotfind-D Infrared Camera */
 #define	USB_PRODUCT_ONSPEC_MDCFE_B_CF_READER	0xa000		/* MDCFE-B USB CF Reader */
 #define	USB_PRODUCT_ONSPEC_CFMS_RW	0xa001		/* SIIG/Datafab Memory Stick+CF Reader/Writer */
 #define	USB_PRODUCT_ONSPEC_READER	0xa003		/* Datafab-based Reader */

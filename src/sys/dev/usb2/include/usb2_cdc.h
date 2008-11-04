@@ -1,5 +1,5 @@
 /*	$NetBSD: usbcdc.h,v 1.9 2004/10/23 13:24:24 augustss Exp $	*/
-/*	$FreeBSD$	*/
+/*	$FreeBSD: src/sys/dev/usb2/include/usb2_cdc.h,v 1.1 2008/11/04 02:31:03 alfred Exp $	*/
 
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc.

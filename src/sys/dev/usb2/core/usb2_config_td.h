@@ -1,4 +1,4 @@
-/* $FreeBSD$ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_config_td.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -30,7 +30,7 @@
 struct usb2_config_td_softc;
 struct usb2_config_td_cc;
 
-#define USB2_CONFIG_TD_SYNC 0xFFFF /* magic value */
+#define	USB2_CONFIG_TD_SYNC 0xFFFF	/* magic value */
 
 typedef void (usb2_config_td_command_t)(struct usb2_config_td_softc *sc, struct usb2_config_td_cc *cc, uint16_t reference);
 typedef void (usb2_config_td_end_of_commands_t)(struct usb2_config_td_softc *sc);

@@ -1,4 +1,4 @@
-/* $FreeBSD$ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_device.c,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -1305,7 +1305,7 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	}
 	if (depth > 0x10) {
 		device_printf(bus->bdev,
-			"Invalid device depth!\n");
+		    "Invalid device depth!\n");
 		return (NULL);
 	}
 	udev = malloc(sizeof(*udev), M_USB, M_WAITOK | M_ZERO);

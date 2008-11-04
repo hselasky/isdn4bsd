@@ -25,7 +25,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ubsa2.c,v 1.1 2008/11/04 02:31:03 alfred Exp $");
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -273,26 +273,6 @@ static const struct usb2_device_id ubsa_devs[] = {
 	{USB_VPI(USB_VENDOR_GOHUBS, USB_PRODUCT_GOHUBS_GOCOM232, 0)},
 	/* Peracom */
 	{USB_VPI(USB_VENDOR_PERACOM, USB_PRODUCT_PERACOM_SERIAL1, 0)},
-	/* Novatel Wireless Merlin cards */
-	{USB_VPI(USB_VENDOR_NOVATEL, USB_PRODUCT_NOVATEL_U740, 0)},
-	/* Dell version of the above */
-	{USB_VPI(USB_VENDOR_DELL, USB_PRODUCT_DELL_U740, 0)},
-	/* Novatel Wireless Merlin v740 */
-	{USB_VPI(USB_VENDOR_NOVATEL, USB_PRODUCT_NOVATEL_V740, 0)},
-	/* Option Vodafone MC3G */
-	{USB_VPI(USB_VENDOR_OPTION, USB_PRODUCT_OPTION_VODAFONEMC3G, 0)},
-	/* Option GlobeTrotter 3G */
-	{USB_VPI(USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3G, 0)},
-	/* Option GlobeTrotter 3G+ */
-	{USB_VPI(USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GPLUS, 0)},
-	/* Option GlobeTrotter Max 3.6 */
-	{USB_VPI(USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GTMAX36, 0)},
-	/* Option GlobeTrotter 3G QUAD */
-	{USB_VPI(USB_VENDOR_OPTION, USB_PRODUCT_OPTION_GT3GQUAD, 0)},
-	/* Sierra Wireless LENOVO UMTS card */
-	{USB_VPI(USB_VENDOR_SIERRA, USB_PRODUCT_SIERRA_MC8755_3, 0)},
-	/* Qualcomm, Inc. ZTE CDMA */
-	{USB_VPI(USB_VENDOR_QUALCOMMINC, USB_PRODUCT_QUALCOMMINC_CDMA_MSM, 0)},
 };
 
 static device_method_t ubsa_methods[] = {

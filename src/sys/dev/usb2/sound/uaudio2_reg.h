@@ -1,5 +1,5 @@
 /*	$NetBSD: uaudioreg.h,v 1.12 2004/11/05 19:08:29 kent Exp $	*/
-/* $FreeBSD$ */
+/* $FreeBSD: src/sys/dev/usb2/sound/uaudio2_reg.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
 
 /*-
  * Copyright (c) 1999 The NetBSD Foundation, Inc.

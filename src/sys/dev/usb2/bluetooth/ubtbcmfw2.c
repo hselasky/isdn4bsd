@@ -28,7 +28,7 @@
  * SUCH DAMAGE.
  *
  * $Id: ubtbcmfw.c,v 1.3 2003/10/10 19:15:08 max Exp $
- * $FreeBSD$
+ * $FreeBSD: src/sys/dev/usb2/bluetooth/ubtbcmfw2.c,v 1.1 2008/11/04 02:31:03 alfred Exp $
  */
 
 #include <dev/usb2/include/usb2_devid.h>

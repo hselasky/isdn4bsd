@@ -28,7 +28,7 @@
  * its contributors.
  */
 
-/*  $FreeBSD$ */
+/*  $FreeBSD: src/sys/dev/usb2/include/ufm2_ioctl.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
 
 #include <sys/ioccom.h>
 

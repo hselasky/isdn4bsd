@@ -1,4 +1,4 @@
-/* $FreeBSD$ */
+/* $FreeBSD: src/sys/dev/usb2/controller/ehci2.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -468,6 +468,12 @@ typedef struct ehci_softc {
 
 	uint16_t sc_intr_stat[EHCI_VIRTUAL_FRAMELIST_COUNT];
 	uint16_t sc_id_vendor;		/* vendor ID for root hub */
+	uint16_t sc_flags;		/* chip specific flags */
+#define	EHCI_SCFLG_SETMODE     0x0001	/* set bridge mode again after init
+					 * (Marvell) */
+#define	EHCI_SCFLG_FORCESPEED  0x0002	/* force speed (Marvell) */
+#define	EHCI_SCFLG_NORESTERM   0x0004	/* don't terminate reset sequence
+					 * (Marvell) */
 
 	uint8_t	sc_offs;		/* offset to operational registers */
 	uint8_t	sc_doorbell_disable;	/* set on doorbell failure */

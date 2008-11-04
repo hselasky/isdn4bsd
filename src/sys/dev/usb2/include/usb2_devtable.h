@@ -4823,6 +4823,12 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    "OV511+ Camera",
 	},
 	{
+	    USB_VENDOR_ONSPEC, USB_PRODUCT_ONSPEC_SDS_HOTFIND_D,
+	    0,
+	    "OnSpec",
+	    "SDS-infrared.com Hotfind-D Infrared Camera",
+	},
+	{
 	    USB_VENDOR_ONSPEC, USB_PRODUCT_ONSPEC_MDCFE_B_CF_READER,
 	    0,
 	    "OnSpec",

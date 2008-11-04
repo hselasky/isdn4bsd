@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.1 2008/11/04 02:31:03 alfred Exp $");
 
 /*-
  * Copyright (c) 1999 MAEKAWA Masahide <bishop@rr.iij4u.or.jp>,
@@ -636,6 +636,10 @@ static const struct umass_devdescr umass_devdescr[] = {
 		UMASS_PROTO_SCSI,
 		NO_GETMAXLUN
 	},
+       { USB_VENDOR_ONSPEC, USB_PRODUCT_ONSPEC_SDS_HOTFIND_D, RID_WILDCARD,
+         UMASS_PROTO_SCSI | UMASS_PROTO_BBB,
+         NO_GETMAXLUN | NO_SYNCHRONIZE_CACHE
+       },
 	{USB_VENDOR_ONSPEC, USB_PRODUCT_ONSPEC_CFMS_RW, RID_WILDCARD,
 		UMASS_PROTO_SCSI,
 		NO_QUIRKS

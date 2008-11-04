@@ -23,7 +23,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2_atmelarm.c,v 1.1 2008/11/04 02:31:03 alfred Exp $");
 
 #include <dev/usb2/include/usb2_mfunc.h>
 #include <dev/usb2/include/usb2_defs.h>

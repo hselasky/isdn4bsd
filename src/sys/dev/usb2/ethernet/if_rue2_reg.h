@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: src/sys/dev/usb2/ethernet/if_rue2_reg.h,v 1.1 2008/11/04 02:31:03 alfred Exp $
  */
 
 #define	RUE_CONFIG_IDX		0	/* config number 1 */
