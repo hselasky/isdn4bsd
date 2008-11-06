@@ -67,7 +67,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/image/uscanner2.c,v 1.1 2008/11/04 02:31:03
 static int uscanner_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, uscanner, CTLFLAG_RW, 0, "USB uscanner");
-SYSCTL_INT(_hw_usb2_uscanner, OID_AUTO, uscanner, CTLFLAG_RW, &uscanner_debug,
+SYSCTL_INT(_hw_usb2_uscanner, OID_AUTO, debug, CTLFLAG_RW, &uscanner_debug,
     0, "uscanner debug level");
 #endif
 
