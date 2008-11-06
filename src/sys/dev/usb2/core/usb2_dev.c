@@ -1777,9 +1777,16 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred,
 				break;
 			}
 			continue;
-		} else {
-			tr_data = 1;
 		}
+		if (f->methods->f_filter_read) {
+			/*
+			 * Sometimes it is convenient to process data at the
+			 * expense of a userland process instead of a kernel
+			 * process.
+			 */
+			(f->methods->f_filter_read) (f, m);
+		}
+		tr_data = 1;
 
 		io_len = MIN(m->cur_data_len, uio->uio_resid);
 
@@ -1914,9 +1921,8 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 				break;
 			}
 			continue;
-		} else {
-			tr_data = 1;
 		}
+		tr_data = 1;
 
 		USB_MBUF_RESET(m);
 
@@ -1933,10 +1939,19 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 		if (err) {
 			USB_IF_ENQUEUE(&f->free_q, m);
 			break;
-		} else {
-			USB_IF_ENQUEUE(&f->used_q, m);
-			(f->methods->f_start_write) (f);
 		}
+		if (f->methods->f_filter_write) {
+			/*
+			 * Sometimes it is convenient to process data at the
+			 * expense of a userland process instead of a kernel
+			 * process.
+			 */
+			(f->methods->f_filter_write) (f, m);
+		}
+		USB_IF_ENQUEUE(&f->used_q, m);
+
+		(f->methods->f_start_write) (f);
+
 	} while (uio->uio_resid > 0);
 done:
 	mtx_unlock(f->priv_mtx);
@@ -2561,30 +2576,15 @@ usb2_fifo_get_data_buffer(struct usb2_fifo *f, void **pptr, uint32_t *plen)
 {
 	struct usb2_mbuf *m;
 
-	USB_IF_DEQUEUE(&f->used_q, m);
+	USB_IF_POLL(&f->used_q, m);
 
 	if (m) {
 		*plen = m->cur_data_len;
 		*pptr = m->cur_data_ptr;
 
-		USB_IF_PREPEND(&f->used_q, m);
 		return (1);
 	}
 	return (0);
-}
-
-void
-usb2_fifo_get_data_next(struct usb2_fifo *f)
-{
-	struct usb2_mbuf *m;
-
-	USB_IF_DEQUEUE(&f->used_q, m);
-
-	if (m) {
-		USB_IF_ENQUEUE(&f->free_q, m);
-		usb2_fifo_wakeup(f);
-	}
-	return;
 }
 
 void
