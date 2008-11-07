@@ -597,6 +597,12 @@ usb2_pc_load_mem(struct usb2_page_cache *pc, uint32_t size, uint8_t sync)
 			uptag = pc->tag_parent;
 
 			/*
+			 * We have to unload the previous loaded DMA
+			 * pages before trying to load a new one!
+			 */
+			bus_dmamap_unload(pc->tag, pc->map);
+
+			/*
 			 * Try to load memory into DMA.
 			 */
 			err = bus_dmamap_load(
@@ -610,6 +616,12 @@ usb2_pc_load_mem(struct usb2_page_cache *pc, uint32_t size, uint8_t sync)
 				return (1);
 			}
 		} else {
+
+			/*
+			 * We have to unload the previous loaded DMA
+			 * pages before trying to load a new one!
+			 */
+			bus_dmamap_unload(pc->tag, pc->map);
 
 			/*
 			 * Try to load memory into DMA. The callback
@@ -639,6 +651,10 @@ usb2_pc_load_mem(struct usb2_page_cache *pc, uint32_t size, uint8_t sync)
 void
 usb2_pc_cpu_invalidate(struct usb2_page_cache *pc)
 {
+	if (pc->page_offset_end == pc->page_offset_buf) {
+		/* nothing has been loaded into this page cache! */
+		return;
+	}
 	bus_dmamap_sync(pc->tag, pc->map,
 	    BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
 	return;
@@ -650,6 +666,10 @@ usb2_pc_cpu_invalidate(struct usb2_page_cache *pc)
 void
 usb2_pc_cpu_flush(struct usb2_page_cache *pc)
 {
+	if (pc->page_offset_end == pc->page_offset_buf) {
+		/* nothing has been loaded into this page cache! */
+		return;
+	}
 	bus_dmamap_sync(pc->tag, pc->map,
 	    BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
 	return;
@@ -953,6 +973,12 @@ usb2_pc_load_mem(struct usb2_page_cache *pc, uint32_t size, uint8_t sync)
 
 	if (size > 0) {
 
+		/*
+		 * We have to unload the previous loaded DMA
+		 * pages before trying to load a new one!
+		 */
+		bus_dmamap_unload(pc->tag, pc->map);
+
 		/* try to load memory into DMA using using no wait option */
 		if (bus_dmamap_load(pc->tag, pc->map, pc->buffer,
 		    size, NULL, BUS_DMA_NOWAIT)) {
@@ -990,6 +1016,10 @@ usb2_pc_cpu_invalidate(struct usb2_page_cache *pc)
 
 	len = pc->page_offset_end - pc->page_offset_buf;
 
+	if (len == 0) {
+		/* nothing has been loaded into this page cache */
+		return;
+	}
 	bus_dmamap_sync(pc->tag, pc->map, 0, len,
 	    BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
 	return;
@@ -1005,6 +1035,10 @@ usb2_pc_cpu_flush(struct usb2_page_cache *pc)
 
 	len = pc->page_offset_end - pc->page_offset_buf;
 
+	if (len == 0) {
+		/* nothing has been loaded into this page cache */
+		return;
+	}
 	bus_dmamap_sync(pc->tag, pc->map, 0, len,
 	    BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
 	return;
