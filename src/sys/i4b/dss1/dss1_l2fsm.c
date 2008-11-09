@@ -932,6 +932,9 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
      }
   )
 
+  /* get control byte */
+  cntl = dss1_get_1(&buf,OFF_CNTL);
+
   /* get default pipe */
   /* lookup pipe */
   /* check TEI value(s) */
@@ -974,9 +977,32 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 	{
 	    PIPE_FOREACH(pipe,&sc->sc_pipe[0])
 	    {
-	        if(pipe->tei == tei)
+	        if ((pipe->tei == tei) &&
+		  (pipe->state != ST_L2_PAUSE))
 		{
 		    goto TEI_found;
+		}
+	    }
+
+	    /*
+	     * Filter away some message types that should not cause
+	     * the system to activate the given TEI value:
+	     */
+	    if (cntl & 1)
+	    {
+	        /* S- and U-frame (s) */
+
+	        switch (cntl & ~CNTL_PF_BIT) {
+		case CNTL_UA:
+		case CNTL_DM:
+		case CNTL_DISC:
+			NDBGL2(L2_PRIM,
+		          "unit=0x%x, invalid frame "
+		          "for activation cntl=0x%02x",
+		          sc->sc_unit, cntl);
+			goto done;
+		default:
+			break;
 		}
 	    }
 
@@ -1003,7 +1029,6 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
     }
   }
 
-  cntl = dss1_get_1(&buf,OFF_CNTL);
   mei = dss1_get_1(&buf,OFF_MEI);
 
   if(cntl & 1)
