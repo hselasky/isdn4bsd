@@ -683,24 +683,26 @@ usb2_req_get_string_any(struct usb2_device *udev, struct mtx *mtx, char *buf,
 		/* should not happen */
 		return (USB_ERR_NORMAL_COMPLETION);
 	}
-	buf[0] = 0;
-
 	if (string_index == 0) {
 		/* this is the language table */
+		buf[0] = 0;
 		return (USB_ERR_INVAL);
 	}
 	if (udev->flags.no_strings) {
+		buf[0] = 0;
 		return (USB_ERR_STALLED);
 	}
 	err = usb2_req_get_string_desc
 	    (udev, mtx, buf, len, udev->langid, string_index);
 	if (err) {
+		buf[0] = 0;
 		return (err);
 	}
 	temp = (uint8_t *)buf;
 
 	if (temp[0] < 2) {
 		/* string length is too short */
+		buf[0] = 0;
 		return (USB_ERR_INVAL);
 	}
 	/* reserve one byte for terminating zero */
@@ -732,7 +734,8 @@ usb2_req_get_string_any(struct usb2_device *udev, struct mtx *mtx, char *buf,
 			*s = c >> 8;
 			swap = 2;
 		} else {
-			*s = '.';
+			/* silently skip bad character */
+			continue;
 		}
 
 		/*
@@ -740,11 +743,12 @@ usb2_req_get_string_any(struct usb2_device *udev, struct mtx *mtx, char *buf,
 		 * signs because they might confuse the dmesg printouts!
 		 */
 		if ((*s == '<') || (*s == '>') || (!isprint(*s))) {
-			*s = '.';
+			/* silently skip bad character */
+			continue;
 		}
 		s++;
 	}
-	*s = 0;
+	*s = 0;				/* zero terminate resulting string */
 	return (USB_ERR_NORMAL_COMPLETION);
 }
 

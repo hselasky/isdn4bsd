@@ -1387,12 +1387,10 @@ usb2_bdma_pre_sync(struct usb2_xfer *xfer)
 
 	while (nframes--) {
 
-		if (pc->page_offset_buf != pc->page_offset_end) {
-			if (pc->isread) {
-				usb2_pc_cpu_invalidate(pc);
-			} else {
-				usb2_pc_cpu_flush(pc);
-			}
+		if (pc->isread) {
+			usb2_pc_cpu_invalidate(pc);
+		} else {
+			usb2_pc_cpu_flush(pc);
 		}
 		pc++;
 	}
@@ -1423,11 +1421,8 @@ usb2_bdma_post_sync(struct usb2_xfer *xfer)
 	pc = xfer->frbuffers;
 
 	while (nframes--) {
-
-		if (pc->page_offset_buf != pc->page_offset_end) {
-			if (pc->isread) {
-				usb2_pc_cpu_invalidate(pc);
-			}
+		if (pc->isread) {
+			usb2_pc_cpu_invalidate(pc);
 		}
 		pc++;
 	}
