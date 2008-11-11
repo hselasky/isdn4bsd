@@ -25,7 +25,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ubsa2.c,v 1.1 2008/11/04 02:31:03 alfred Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ubsa2.c,v 1.2 2008/11/06 17:26:12 imp Exp $");
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
  * All rights reserved.

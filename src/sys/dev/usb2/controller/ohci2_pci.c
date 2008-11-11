@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2_pci.c,v 1.1 2008/11/04 02:31:03 alfred Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2_pci.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $");
 
 /*
  * USB Open Host Controller driver.
@@ -280,7 +280,7 @@ ohci_pci_attach(device_t self)
 		sprintf(sc->sc_vendor, "(0x%04x)", pci_get_vendor(self));
 	}
 
-	err = usb2_config_td_setup(&sc->sc_config_td, sc, &sc->sc_bus.mtx,
+	err = usb2_config_td_setup(&sc->sc_config_td, sc, &sc->sc_bus.bus_mtx,
 	    NULL, 0, 4);
 	if (err) {
 		device_printf(self, "could not setup config thread!\n");

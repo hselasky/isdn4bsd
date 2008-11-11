@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/musb2_otg_atmelarm.c,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/musb2_otg_atmelarm.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -138,7 +138,7 @@ musbotg_attach(device_t dev)
 	device_set_ivars(sc->sc_otg.sc_bus.bdev, &sc->sc_otg.sc_bus);
 
 	err = usb2_config_td_setup(&sc->sc_otg.sc_config_td, sc,
-	    &sc->sc_otg.sc_bus.mtx, NULL, 0, 4);
+	    &sc->sc_otg.sc_bus.bus_mtx, NULL, 0, 4);
 	if (err) {
 		device_printf(dev, "could not setup config thread!\n");
 		goto error;

@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/usb2_bus.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/usb2_bus.h,v 1.2 2008/11/10 20:54:31 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -54,7 +54,7 @@ struct usb2_bus {
 	struct usb2_process explore_proc;
 	struct usb2_bus_msg explore_msg[2];
 	struct usb2_bus_msg detach_msg[2];
-	struct mtx mtx;			/* This mutex protects the USB
+	struct mtx bus_mtx;			/* This mutex protects the USB
 					 * hardware */
 	struct usb2_perm perm;
 	struct usb2_xfer_queue intr_q;

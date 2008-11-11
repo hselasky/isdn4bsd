@@ -1,7 +1,7 @@
 /*	$NetBSD: usb/uvscom.c,v 1.1 2002/03/19 15:08:42 augustss Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/uvscom2.c,v 1.1 2008/11/04 02:31:03 alfred Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/uvscom2.c,v 1.3 2008/11/10 20:54:31 thompsa Exp $");
 
 /*-
  * Copyright (c) 2001-2003, 2005 Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.
@@ -340,9 +340,9 @@ uvscom_attach(device_t dev)
 		goto detach;
 	}
 	/* start interrupt pipe */
-	mtx_lock(sc->sc_xfer[4]->priv_mtx);
+	USB_XFER_LOCK(sc->sc_xfer[4]);
 	usb2_transfer_start(sc->sc_xfer[4]);
-	mtx_unlock(sc->sc_xfer[4]->priv_mtx);
+	USB_XFER_UNLOCK(sc->sc_xfer[4]);
 
 	return (0);
 

@@ -23,7 +23,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2_atmelarm.c,v 1.1 2008/11/04 02:31:03 alfred Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2_atmelarm.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $");
 
 #include <dev/usb2/include/usb2_mfunc.h>
 #include <dev/usb2/include/usb2_defs.h>
@@ -111,7 +111,7 @@ ohci_atmelarm_attach(device_t dev)
 	strlcpy(sc->sc_ohci.sc_vendor, "Atmel", sizeof(sc->sc_ohci.sc_vendor));
 
 	err = usb2_config_td_setup(&sc->sc_ohci.sc_config_td, sc,
-	    &sc->sc_ohci.sc_bus.mtx, NULL, 0, 4);
+	    &sc->sc_ohci.sc_bus.bus_mtx, NULL, 0, 4);
 	if (err) {
 		device_printf(dev, "could not setup config thread!\n");
 		goto error;

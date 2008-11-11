@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/serial/umoscom2.c,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/serial/umoscom2.c,v 1.2 2008/11/06 17:26:12 imp Exp $ */
 /*	$OpenBSD: umoscom.c,v 1.2 2006/10/26 06:02:43 jsg Exp $	*/
 
 /*

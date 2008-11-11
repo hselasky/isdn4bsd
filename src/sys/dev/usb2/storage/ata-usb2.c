@@ -28,7 +28,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/ata-usb2.c,v 1.1 2008/11/04 02:31:03 alfred Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/ata-usb2.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $");
 
 #include <dev/usb2/include/usb2_devid.h>
 #include <dev/usb2/include/usb2_standard.h>
@@ -778,11 +778,11 @@ atausb2_t_bbb_status_callback(struct usb2_xfer *xfer)
 
 		sc->ata_request = NULL;
 
-		mtx_unlock(xfer->priv_mtx);
+		USB_XFER_UNLOCK(xfer);
 
 		ata_interrupt(device_get_softc(request->parent));
 
-		mtx_lock(xfer->priv_mtx);
+		USB_XFER_LOCK(xfer);
 		return;
 
 	case USB_ST_SETUP:
