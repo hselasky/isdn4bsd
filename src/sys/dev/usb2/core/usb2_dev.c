@@ -537,7 +537,11 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 		ploc->rxfifo = NULL;
 		ploc->is_write = 0;
 		ploc->is_read = 0;
+		ploc->is_usbfs = 0;
 	} else {
+		/* initialise "is_usbfs" flag */
+		ploc->is_usbfs = 0;
+
 		/* check for write */
 		if (fflags & FWRITE) {
 			ppf = ploc->udev->fifo;
@@ -548,6 +552,10 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 			    (f->refcount == USB_FIFO_REF_MAX) ||
 			    (f->curr_file != fp)) {
 				goto error;
+			}
+			/* check if USB-FS is active */
+			if (f->fs_ep_max != 0) {
+				ploc->is_usbfs = 1;
 			}
 		} else {
 			ploc->txfifo = NULL;
@@ -564,6 +572,10 @@ usb2_ref_device(struct file *fp, struct usb2_location *ploc, uint32_t devloc)
 			    (f->refcount == USB_FIFO_REF_MAX) ||
 			    (f->curr_file != fp)) {
 				goto error;
+			}
+			/* check if USB-FS is active */
+			if (f->fs_ep_max != 0) {
+				ploc->is_usbfs = 1;
 			}
 		} else {
 			ploc->rxfifo = NULL;
@@ -1594,7 +1606,6 @@ usb2_poll_f(struct file *fp, int events,
 	struct usb2_mbuf *m;
 	int fflags;
 	int revents;
-	uint8_t usbfs_active = 0;
 
 	revents = usb2_ref_device(fp, &loc, 1 /* no uref */ );;
 	if (revents) {
@@ -1602,20 +1613,6 @@ usb2_poll_f(struct file *fp, int events,
 	}
 	fflags = fp->f_flag;
 
-	/* figure out if the USB File System is active */
-
-	if (fflags & FWRITE) {
-		f = loc.txfifo;
-		if (f->fs_ep_max != 0) {
-			usbfs_active = 1;
-		}
-	}
-	if (fflags & FREAD) {
-		f = loc.rxfifo;
-		if (f->fs_ep_max != 0) {
-			usbfs_active = 1;
-		}
-	}
 	/* Figure out who needs service */
 
 	if ((events & (POLLOUT | POLLWRNORM)) &&
@@ -1625,7 +1622,7 @@ usb2_poll_f(struct file *fp, int events,
 
 		mtx_lock(f->priv_mtx);
 
-		if (!usbfs_active) {
+		if (!loc.is_usbfs) {
 			if (f->flag_iserror) {
 				/* we got an error */
 				m = (void *)1;
@@ -1664,7 +1661,7 @@ usb2_poll_f(struct file *fp, int events,
 
 		mtx_lock(f->priv_mtx);
 
-		if (!usbfs_active) {
+		if (!loc.is_usbfs) {
 			if (f->flag_iserror) {
 				/* we have and error */
 				m = (void *)1;
@@ -1693,8 +1690,10 @@ usb2_poll_f(struct file *fp, int events,
 			f->flag_isselect = 1;
 			selrecord(td, &f->selinfo);
 
-			/* start reading data */
-			(f->methods->f_start_read) (f);
+			if (!loc.is_usbfs) {
+				/* start reading data */
+				(f->methods->f_start_read) (f);
+			}
 		}
 
 		mtx_unlock(f->priv_mtx);
@@ -1739,22 +1738,23 @@ usb2_read_f(struct file *fp, struct uio *uio, struct ucred *cred,
 
 	mtx_lock(f->priv_mtx);
 
+	/* check for permanent read error */
 	if (f->flag_iserror) {
 		err = EIO;
 		goto done;
 	}
+	/* check if USB-FS interface is active */
+	if (loc.is_usbfs) {
+		/*
+		 * The queue is used for events that should be
+		 * retrieved using the "USB_FS_COMPLETE" ioctl.
+		 */
+		err = EINVAL;
+		goto done;
+	}
 	while (uio->uio_resid > 0) {
 
-		if (f->fs_ep_max == 0) {
-			USB_IF_DEQUEUE(&f->used_q, m);
-		} else {
-			/*
-			 * The queue is used for events that should be
-			 * retrieved using the "USB_FS_COMPLETE"
-			 * ioctl.
-			 */
-			m = NULL;
-		}
+		USB_IF_DEQUEUE(&f->used_q, m);
 
 		if (m == NULL) {
 
@@ -1883,26 +1883,27 @@ usb2_write_f(struct file *fp, struct uio *uio, struct ucred *cred,
 
 	mtx_lock(f->priv_mtx);
 
+	/* check for permanent write error */
 	if (f->flag_iserror) {
 		err = EIO;
 		goto done;
 	}
-	if ((f->queue_data == NULL) && (f->fs_ep_max == 0)) {
+	/* check if USB-FS interface is active */
+	if (loc.is_usbfs) {
+		/*
+		 * The queue is used for events that should be
+		 * retrieved using the "USB_FS_COMPLETE" ioctl.
+		 */
+		err = EINVAL;
+		goto done;
+	}
+	if (f->queue_data == NULL) {
 		/* start write transfer, if not already started */
 		(f->methods->f_start_write) (f);
 	}
 	/* we allow writing zero length data */
 	do {
-		if (f->fs_ep_max == 0) {
-			USB_IF_DEQUEUE(&f->free_q, m);
-		} else {
-			/*
-			 * The queue is used for events that should be
-			 * retrieved using the "USB_FS_COMPLETE"
-			 * ioctl.
-			 */
-			m = NULL;
-		}
+		USB_IF_DEQUEUE(&f->free_q, m);
 
 		if (m == NULL) {
 

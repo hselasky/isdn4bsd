@@ -209,10 +209,6 @@ ugen_open_pipe_write(struct usb2_fifo *f)
 		/* transfers are already opened */
 		return (0);
 	}
-	if (f->fs_xfer) {
-		/* should not happen */
-		return (EINVAL);
-	}
 	bzero(usb2_config, sizeof(usb2_config));
 
 	usb2_config[1].type = UE_CONTROL;
@@ -280,10 +276,6 @@ ugen_open_pipe_read(struct usb2_fifo *f)
 	if (f->xfer[0] || f->xfer[1]) {
 		/* transfers are already opened */
 		return (0);
-	}
-	if (f->fs_xfer) {
-		/* should not happen */
-		return (EINVAL);
 	}
 	bzero(usb2_config, sizeof(usb2_config));
 
