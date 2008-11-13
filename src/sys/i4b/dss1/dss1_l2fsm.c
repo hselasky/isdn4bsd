@@ -977,32 +977,14 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 	{
 	    PIPE_FOREACH(pipe,&sc->sc_pipe[0])
 	    {
-	        if ((pipe->tei == tei) &&
-		  (pipe->state != ST_L2_PAUSE))
-		{
-		    goto TEI_found;
-		}
-	    }
-
-	    /*
-	     * Filter away some message types that should not cause
-	     * the system to activate the given TEI value:
-	     */
-	    if (cntl & 1)
-	    {
-	        /* S- and U-frame (s) */
-
-	        switch (cntl & ~CNTL_PF_BIT) {
-		case CNTL_UA:
-		case CNTL_DM:
-		case CNTL_DISC:
-			NDBGL2(L2_PRIM,
-		          "unit=0x%x, invalid frame "
-		          "for activation cntl=0x%02x",
-		          sc->sc_unit, cntl);
-			goto done;
-		default:
-			break;
+		/* 
+		 * NOTE: We prefer to associate the TEI with the last
+		 * pipe that had the same TEI value, so that Automatic
+		 * TEI value selection works better. Therefore the
+		 * "pipe->state" is not checked here!
+		 */
+		if (pipe->tei == tei) {
+			goto TEI_found;
 		}
 	    }
 
@@ -1020,6 +1002,28 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
 	    }
 
 	TEI_found:
+
+	    /*
+	     * Filter away some message types that should not cause
+	     * the system to activate the given TEI value:
+	     */
+	    if ((pipe->state == ST_L2_PAUSE) && (cntl & 1))
+	    {
+	        /* S- and U-frame (s) */
+
+	        switch (cntl & ~CNTL_PF_BIT) {
+		case CNTL_UA:
+		case CNTL_DM:
+		case CNTL_DISC:
+			NDBGL2(L2_PRIM,
+		          "unit=0x%x, invalid frame "
+		          "for activation cntl=0x%02x",
+		          sc->sc_unit, cntl);
+			goto done;
+		default:
+			break;
+		}
+	    }
 
 	    /* activate the pipe,
 	     * if not already activated:
