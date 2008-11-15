@@ -404,7 +404,7 @@ struct usb2_location {
 	uint16_t bus_index;		/* bus index */
 	uint8_t	dev_index;		/* device index */
 	uint8_t	iface_index;		/* interface index */
-	uint8_t	ep_index;		/* endpoint index */
+	uint8_t	fifo_index;		/* FIFO index */
 	uint8_t	is_read;		/* set if location has read access */
 	uint8_t	is_write;		/* set if location has write access */
 	uint8_t	is_uref;		/* set if USB refcount decr. needed */

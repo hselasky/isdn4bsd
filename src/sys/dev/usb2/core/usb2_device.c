@@ -677,7 +677,7 @@ usb2_set_alt_interface_index(struct usb2_device *udev,
 	 * Free all generic FIFOs for this interface, except control
 	 * endpoint FIFOs:
 	 */
-	usb2_fifo_free_wrap(udev, iface_index, 2);
+	usb2_fifo_free_wrap(udev, iface_index, 0);
 
 	err = usb2_fill_iface_data(udev, iface_index, alt_index);
 	if (err) {
@@ -2081,13 +2081,14 @@ usb2_notify_addq(const char *type, struct usb2_device *udev)
 /*------------------------------------------------------------------------*
  *	usb2_fifo_free_wrap
  *
- * The function will free the FIFOs.
+ * This function will free the FIFOs.
  *
- * Flag values:
- * 0: Free all FIFOs except control endpoints matching "iface_index".
- * 1: Free all FIFOs matching "iface_index".
- * 2: Free all generic FIFOs except control endpoints matching
- * "iface_index".
+ * Flag values, if "iface_index" is equal to "USB_IFACE_INDEX_ANY".
+ * 0: Free all FIFOs except generic control endpoints.
+ * 1: Free all FIFOs.
+ *
+ * Flag values, if "iface_index" is not equal to "USB_IFACE_INDEX_ANY".
+ * Not used.
  *------------------------------------------------------------------------*/
 static void
 usb2_fifo_free_wrap(struct usb2_device *udev,
@@ -2104,25 +2105,48 @@ usb2_fifo_free_wrap(struct usb2_device *udev,
 		if (f == NULL) {
 			continue;
 		}
-		/* Check if the FIFO is of generic type */
-		if (f->methods == &usb2_ugen_methods) {
-			if ((f->dev_ep_index == 0) &&
-			    ((flag == 0) || (flag == 2))) {
-				/* don't free UGEN control endpoint yet */
+		/* Check if the interface index matches */
+		if (iface_index == f->iface_index) {
+			if (f->methods != &usb2_ugen_methods) {
+				/*
+				 * Don't free any non-generic FIFOs in
+				 * this case.
+				 */
+				continue;
+			}
+			if (f->dev_ep_index == 0) {
+				/*
+				 * Don't free the generic control endpoint
+				 * yet and make sure that any USB-FS
+				 * activity is stopped!
+				 */
+				if (ugen_fs_uninit(f)) {
+					/* ignore any failures */
+					DPRINTFN(10, "udev=%p ugen_fs_uninit() "
+					    "failed! (ignored)\n", udev);
+				}
+				continue;
+			}
+		} else if (iface_index == USB_IFACE_INDEX_ANY) {
+			if ((f->methods == &usb2_ugen_methods) &&
+			    (f->dev_ep_index == 0) && (flag == 0)) {
+				/*
+				 * Don't free the generic control endpoint
+				 * yet, but make sure that any USB-FS
+				 * activity is stopped!
+				 */
+				if (ugen_fs_uninit(f)) {
+					/* ignore any failures */
+					DPRINTFN(10, "udev=%p ugen_fs_uninit() "
+					    "failed! (ignored)\n", udev);
+				}
 				continue;
 			}
 		} else {
-			if (flag == 2) {
-				/* don't free non-generic FIFO */
-				continue;
-			}
+			continue;
 		}
-
-		/* Check if the interface index matches */
-		if ((iface_index == f->iface_index) ||
-		    (iface_index == USB_IFACE_INDEX_ANY)) {
-			usb2_fifo_free(f);
-		}
+		/* free the FIFO */
+		usb2_fifo_free(f);
 	}
 	return;
 }

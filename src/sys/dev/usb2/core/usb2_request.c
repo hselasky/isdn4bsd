@@ -1314,6 +1314,10 @@ usb2_req_get_config(struct usb2_device *udev, struct mtx *mtx, uint8_t *pconf)
 /*------------------------------------------------------------------------*
  *	usb2_req_re_enumerate
  *
+ * NOTE: After this function returns the hardware is in the
+ * unconfigured state! The application is responsible for setting a
+ * new configuration.
+ *
  * Returns:
  *    0: Success
  * Else: Failure
@@ -1369,12 +1373,5 @@ usb2_req_re_enumerate(struct usb2_device *udev, struct mtx *mtx)
 done:
 	/* restore address */
 	udev->address = old_addr;
-
-	if (err == 0) {
-		/* restore configuration */
-		err = usb2_req_set_config(udev, mtx, udev->curr_config_no);
-		/* wait a little bit, just in case */
-		usb2_pause_mtx(mtx, 10);
-	}
 	return (err);
 }

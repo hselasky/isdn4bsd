@@ -66,6 +66,11 @@ struct usb2_fifo_methods {
 	usb2_fifo_open_t *f_open;
 	usb2_fifo_close_t *f_close;
 	usb2_fifo_ioctl_t *f_ioctl;
+	/*
+	 * NOTE: The post-ioctl callback is called after the USB reference
+	 * gets locked in the IOCTL handler:
+	 */
+	usb2_fifo_ioctl_t *f_ioctl_post;
 	usb2_fifo_cmd_t *f_start_read;
 	usb2_fifo_cmd_t *f_stop_read;
 	usb2_fifo_cmd_t *f_start_write;
@@ -102,7 +107,6 @@ struct usb2_fifo {
 	uint32_t bufsize;		/* BULK and INTERRUPT buffer size */
 	uint16_t nframes;		/* for isochronous mode */
 	uint16_t dev_ep_index;		/* our device endpoint index */
-	uint8_t	flag_no_uref;		/* set if FIFO is not control endpoint */
 	uint8_t	flag_sleeping;		/* set if FIFO is sleeping */
 	uint8_t	flag_iscomplete;	/* set if a USB transfer is complete */
 	uint8_t	flag_iserror;		/* set if FIFO error happened */
