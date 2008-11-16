@@ -2114,38 +2114,23 @@ usb2_fifo_free_wrap(struct usb2_device *udev,
 				 */
 				continue;
 			}
-			if (f->dev_ep_index == 0) {
-				/*
-				 * Don't free the generic control endpoint
-				 * yet and make sure that any USB-FS
-				 * activity is stopped!
-				 */
-				if (ugen_fs_uninit(f)) {
-					/* ignore any failures */
-					DPRINTFN(10, "udev=%p ugen_fs_uninit() "
-					    "failed! (ignored)\n", udev);
-				}
+			if ((f->dev_ep_index == 0) &&
+			    (f->fs_xfer == NULL)) {
+				/* no need to free this FIFO */
 				continue;
 			}
 		} else if (iface_index == USB_IFACE_INDEX_ANY) {
 			if ((f->methods == &usb2_ugen_methods) &&
-			    (f->dev_ep_index == 0) && (flag == 0)) {
-				/*
-				 * Don't free the generic control endpoint
-				 * yet, but make sure that any USB-FS
-				 * activity is stopped!
-				 */
-				if (ugen_fs_uninit(f)) {
-					/* ignore any failures */
-					DPRINTFN(10, "udev=%p ugen_fs_uninit() "
-					    "failed! (ignored)\n", udev);
-				}
+			    (f->dev_ep_index == 0) && (flag == 0) &&
+			    (f->fs_xfer == NULL)) {
+				/* no need to free this FIFO */
 				continue;
 			}
 		} else {
+			/* no need to free this FIFO */
 			continue;
 		}
-		/* free the FIFO */
+		/* free this FIFO */
 		usb2_fifo_free(f);
 	}
 	return;
