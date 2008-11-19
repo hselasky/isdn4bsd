@@ -1605,18 +1605,16 @@ repeat_set_config:
 				 * Try to figure out if we have an
 				 * auto-install disk there:
 				 */
-				if (usb2_test_autoinstall(udev, 0) == 0) {
+				if (usb2_test_autoinstall(udev, 0, 0) == 0) {
 					DPRINTFN(0, "Found possible auto-install "
 					    "disk (trying next config)\n");
 					config_index++;
 					goto repeat_set_config;
 				}
 			}
-		} else if (UGETW(udev->ddesc.idVendor) == USB_VENDOR_HUAWEI) {
-			if (usb2_test_huawei(udev, 0) == 0) {
-				DPRINTFN(0, "Found Huawei auto-install disk!\n");
-				err = USB_ERR_STALLED;	/* fake an error */
-			}
+		} else if (usb2_test_huawei(udev, &uaa) == 0) {
+			DPRINTFN(0, "Found Huawei auto-install disk!\n");
+			err = USB_ERR_STALLED;	/* fake an error */
 		}
 	} else {
 		err = 0;		/* set success */

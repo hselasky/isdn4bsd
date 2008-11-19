@@ -44,7 +44,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ehci2.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ehci2.c,v 1.3 2008/11/19 08:56:35 alfred Exp $");
 
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_mfunc.h>

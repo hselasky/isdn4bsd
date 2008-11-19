@@ -28,7 +28,7 @@
  * SUCH DAMAGE.
  *
  * $Id: ng_ubt.c,v 1.16 2003/10/10 19:15:06 max Exp $
- * $FreeBSD: src/sys/dev/usb2/bluetooth/ng_ubt2.c,v 1.1 2008/11/04 02:31:03 alfred Exp $
+ * $FreeBSD: src/sys/dev/usb2/bluetooth/ng_ubt2.c,v 1.2 2008/11/19 08:56:35 alfred Exp $
  */
 
 #include <dev/usb2/include/usb2_devid.h>
