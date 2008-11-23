@@ -273,12 +273,12 @@ bbb_command_callback(struct usb2_xfer *xfer)
 		USETDW(sc->cbw.dCBWDataTransferLength, sc->data_len);
 		sc->cbw.bCBWFlags = ((sc->dir == DIR_IN) ? CBWFLAGS_IN : CBWFLAGS_OUT);
 		sc->cbw.bCBWLUN = sc->lun;
+		sc->cbw.bCDBLength = sc->cmd_len;
 		if (sc->cbw.bCDBLength > sizeof(sc->cbw.CBWCDB)) {
 			sc->cbw.bCDBLength = sizeof(sc->cbw.CBWCDB);
 			DPRINTFN(0, "Truncating long command!\n");
 		}
 		xfer->frlengths[0] = sizeof(sc->cbw);
-		xfer->flags.stall_pipe = 1;
 
 		usb2_set_frame_data(xfer, &sc->cbw, 0);
 		usb2_start_hardware(xfer);
@@ -537,16 +537,14 @@ usb2_test_autoinstall(struct usb2_device *udev, uint8_t iface_index,
 repeat_inquiry:
 
 	sc->cbw.CBWCDB[0] = 0x12;	/* INQUIRY */
+	sc->cbw.CBWCDB[1] = 0;
+	sc->cbw.CBWCDB[2] = 0;
+	sc->cbw.CBWCDB[3] = 0;
+	sc->cbw.CBWCDB[4] = 0x24;	/* length */
+	sc->cbw.CBWCDB[5] = 0;
 	err = bbb_command_start(sc, DIR_IN, 0,
-	    sc->buffer, 256, 6, USB_MS_HZ);
-	if (err == 1) {
-		err = bbb_command_start(sc, DIR_IN, 0,
-		    sc->buffer, 256, 12, USB_MS_HZ);
-		if (err == 1) {
-			err = bbb_command_start(sc, DIR_IN, 0,
-			    sc->buffer, 256, 16, USB_MS_HZ);
-		}
-	}
+	    sc->buffer, 0x24, 6, USB_MS_HZ);
+
 	if ((sc->actlen != 0) && (err == 0)) {
 		sid_type = sc->buffer[0] & 0x1F;
 		if (sid_type == 0x05) {
