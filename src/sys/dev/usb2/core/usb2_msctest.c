@@ -72,8 +72,7 @@ enum {
 	DIR_NONE,
 };
 
-#define	BULK_SIZE 64			/* dummy */
-
+#define	BULK_SIZE		64	/* dummy */
 
 /* Command Block Wrapper */
 struct bbb_cbw {
@@ -171,7 +170,7 @@ static const struct usb2_config bbb_config[ST_MAX] = {
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
 		.mh.bufsize = BULK_SIZE,
-		.mh.flags = {.proxy_buffer = 1,.short_xfer_ok = 1,},
+		.mh.flags = {.proxy_buffer = 1,},
 		.mh.callback = &bbb_data_write_callback,
 		.mh.timeout = 4 * USB_MS_HZ,	/* 4 seconds */
 	},
@@ -279,6 +278,7 @@ bbb_command_callback(struct usb2_xfer *xfer)
 			DPRINTFN(0, "Truncating long command!\n");
 		}
 		xfer->frlengths[0] = sizeof(sc->cbw);
+		xfer->flags.stall_pipe = 1;
 
 		usb2_set_frame_data(xfer, &sc->cbw, 0);
 		usb2_start_hardware(xfer);
@@ -537,12 +537,14 @@ usb2_test_autoinstall(struct usb2_device *udev, uint8_t iface_index,
 repeat_inquiry:
 
 	sc->cbw.CBWCDB[0] = 0x12;	/* INQUIRY */
-
-	err = bbb_command_start(sc, DIR_IN, 0, sc->buffer, 256, 6, USB_MS_HZ);
-	if (err) {
-		err = bbb_command_start(sc, DIR_IN, 0, sc->buffer, 256, 12, USB_MS_HZ);
-		if (err) {
-			err = bbb_command_start(sc, DIR_IN, 0, sc->buffer, 256, 16, USB_MS_HZ);
+	err = bbb_command_start(sc, DIR_IN, 0,
+	    sc->buffer, 256, 6, USB_MS_HZ);
+	if (err == 1) {
+		err = bbb_command_start(sc, DIR_IN, 0,
+		    sc->buffer, 256, 12, USB_MS_HZ);
+		if (err == 1) {
+			err = bbb_command_start(sc, DIR_IN, 0,
+			    sc->buffer, 256, 16, USB_MS_HZ);
 		}
 	}
 	if ((sc->actlen != 0) && (err == 0)) {
@@ -570,7 +572,7 @@ repeat_inquiry:
 			err = 0;
 			goto done;
 		}
-	} else if (--timeout) {
+	} else if ((err != 2) && --timeout) {
 		usb2_pause_mtx(&sc->mtx, USB_MS_HZ);
 		goto repeat_inquiry;
 	}
