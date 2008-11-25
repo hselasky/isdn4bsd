@@ -92,10 +92,9 @@ static uint32_t uaudio_default_rate = 96000;
 static uint8_t uaudio_default_bits = 32;
 static uint8_t uaudio_default_channels = 2;
 
+#define	UAUDIO_MINFRAMES       16	/* must be factor of 8 due HS-USB */
 #define	UAUDIO_NCHANBUFS        2	/* number of outstanding request */
-#define	UAUDIO_NFRAMES         25	/* ms of sound in each request */
 #define	UAUDIO_RECURSE_LIMIT   24	/* rounds */
-#define	UAUDIO_DEFAULT_BUFSZ  ((2 * 96000 * 4 * 2) / (1000 / UAUDIO_NCHANBUFS))	/* bytes */
 
 #define	MAKE_WORD(h,l) (((h) << 8) | (l))
 #define	BIT_TEST(bm,bno) (((bm)[(bno) / 8] >> (7 - ((bno) % 8))) & 1)
@@ -154,6 +153,7 @@ struct uaudio_chan {
 	uint8_t *cur;			/* current position in upper layer
 					 * buffer */
 
+	uint32_t intr_size;		/* in bytes */
 	uint32_t block_size;
 	uint32_t sample_rate;
 	uint32_t format;
@@ -376,13 +376,13 @@ static int32_t umidi_probe(device_t dev);
 static int32_t umidi_detach(device_t dev);
 
 static const struct usb2_config
-	uaudio_cfg_record_full_speed[UAUDIO_NCHANBUFS] = {
+	uaudio_cfg_record[UAUDIO_NCHANBUFS] = {
 	[0] = {
 		.type = UE_ISOCHRONOUS,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
 		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
-		.mh.frames = UAUDIO_NFRAMES,
+		.mh.frames = UAUDIO_MINFRAMES,
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_record_callback,
 	},
@@ -392,43 +392,20 @@ static const struct usb2_config
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
 		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
-		.mh.frames = UAUDIO_NFRAMES,
+		.mh.frames = UAUDIO_MINFRAMES,
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_record_callback,
 	},
 };
 
 static const struct usb2_config
-	uaudio_cfg_record_high_speed[UAUDIO_NCHANBUFS] = {
-	[0] = {
-		.type = UE_ISOCHRONOUS,
-		.endpoint = UE_ADDR_ANY,
-		.direction = UE_DIR_IN,
-		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
-		.mh.frames = (UAUDIO_NFRAMES * 8),
-		.mh.flags = {.short_xfer_ok = 1,},
-		.mh.callback = &uaudio_chan_record_callback,
-	},
-
-	[1] = {
-		.type = UE_ISOCHRONOUS,
-		.endpoint = UE_ADDR_ANY,
-		.direction = UE_DIR_IN,
-		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
-		.mh.frames = (UAUDIO_NFRAMES * 8),
-		.mh.flags = {.short_xfer_ok = 1,},
-		.mh.callback = &uaudio_chan_record_callback,
-	},
-};
-
-static const struct usb2_config
-	uaudio_cfg_play_full_speed[UAUDIO_NCHANBUFS] = {
+	uaudio_cfg_play[UAUDIO_NCHANBUFS] = {
 	[0] = {
 		.type = UE_ISOCHRONOUS,
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
 		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
-		.mh.frames = UAUDIO_NFRAMES,
+		.mh.frames = UAUDIO_MINFRAMES,
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_play_callback,
 	},
@@ -438,30 +415,7 @@ static const struct usb2_config
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_OUT,
 		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
-		.mh.frames = UAUDIO_NFRAMES,
-		.mh.flags = {.short_xfer_ok = 1,},
-		.mh.callback = &uaudio_chan_play_callback,
-	},
-};
-
-static const struct usb2_config
-	uaudio_cfg_play_high_speed[UAUDIO_NCHANBUFS] = {
-	[0] = {
-		.type = UE_ISOCHRONOUS,
-		.endpoint = UE_ADDR_ANY,
-		.direction = UE_DIR_OUT,
-		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
-		.mh.frames = (UAUDIO_NFRAMES * 8),
-		.mh.flags = {.short_xfer_ok = 1,},
-		.mh.callback = &uaudio_chan_play_callback,
-	},
-
-	[1] = {
-		.type = UE_ISOCHRONOUS,
-		.endpoint = UE_ADDR_ANY,
-		.direction = UE_DIR_OUT,
-		.mh.bufsize = 0,	/* use "wMaxPacketSize * frames" */
-		.mh.frames = (UAUDIO_NFRAMES * 8),
+		.mh.frames = UAUDIO_MINFRAMES,
 		.mh.flags = {.short_xfer_ok = 1,},
 		.mh.callback = &uaudio_chan_play_callback,
 	},
@@ -693,10 +647,6 @@ uaudio_attach_sub(device_t dev, kobj_class_t mixer_class, kobj_class_t chan_clas
 	struct uaudio_softc *sc = device_get_softc(device_get_parent(dev));
 	char status[SND_STATUSLEN];
 
-	if (bootverbose) {
-		device_printf(dev, "using a default buffer "
-		    "size of %u bytes\n", UAUDIO_DEFAULT_BUFSZ);
-	}
 	uaudio_mixer_init(sc);
 
 	if (sc->sc_uq_audio_swap_lr) {
@@ -1054,15 +1004,12 @@ uaudio_chan_fill_info_sub(struct uaudio_softc *sc, struct usb2_device *udev,
 					chan->iface_index = curidx;
 					chan->iface_alt_index = alt_index;
 
-					chan->usb2_cfg =
-					    (ep_dir == UE_DIR_IN) ?
-					    ((fps == 1000) ?
-					    uaudio_cfg_record_full_speed :
-					    uaudio_cfg_record_high_speed) :
-					    ((fps == 1000) ?
-					    uaudio_cfg_play_full_speed :
-					    uaudio_cfg_play_high_speed);
-
+					if (ep_dir == UE_DIR_IN)
+						chan->usb2_cfg =
+						    uaudio_cfg_record;
+					else
+						chan->usb2_cfg =
+						    uaudio_cfg_play;
 
 					sample_size = ((chan->p_asf1d->bNrChannels *
 					    chan->p_asf1d->bBitResolution) / 8);
@@ -1135,21 +1082,23 @@ uaudio_chan_play_callback(struct usb2_xfer *xfer)
 {
 	struct uaudio_chan *ch = xfer->priv_sc;
 	uint32_t *p_len = xfer->frlengths;
-	uint32_t total = (sndbuf_getblkcnt(ch->pcm_buf) *
-	    sndbuf_getblksz(ch->pcm_buf)) / 2;
+	uint32_t total;
 	uint32_t blockcount;
 	uint32_t n;
 	uint32_t offset;
 
 	/* allow dynamic sizing of play buffer */
+	total = ch->intr_size;
+
+	/* allow dynamic sizing of play buffer */
 	blockcount = total / ch->bytes_per_frame;
 
-	/* align to 8 units */
-	blockcount &= ~7;
+	/* align units */
+	blockcount -= (blockcount % UAUDIO_MINFRAMES);
 
 	/* range check - min */
 	if (blockcount == 0) {
-		blockcount = 8;
+		blockcount = UAUDIO_MINFRAMES;
 	}
 	/* range check - max */
 	if (blockcount > xfer->max_frame_count) {
@@ -1225,21 +1174,23 @@ uaudio_chan_record_callback(struct usb2_xfer *xfer)
 	uint32_t *p_len = xfer->frlengths;
 	uint32_t n;
 	uint32_t m;
-	uint32_t total = (sndbuf_getblkcnt(ch->pcm_buf) *
-	    sndbuf_getblksz(ch->pcm_buf)) / 2;
+	uint32_t total;
 	uint32_t blockcount;
 	uint32_t offset0;
 	uint32_t offset1;
 
 	/* allow dynamic sizing of play buffer */
+	total = ch->intr_size;
+
+	/* allow dynamic sizing of play buffer */
 	blockcount = total / ch->bytes_per_frame;
 
-	/* align to 8 units */
-	blockcount &= ~7;
+	/* align units */
+	blockcount -= (blockcount % UAUDIO_MINFRAMES);
 
 	/* range check - min */
 	if (blockcount == 0) {
-		blockcount = 8;
+		blockcount = UAUDIO_MINFRAMES;
 	}
 	/* range check - max */
 	if (blockcount > xfer->max_frame_count) {
@@ -1321,21 +1272,30 @@ uaudio_chan_init(struct uaudio_softc *sc, struct snd_dbuf *b,
 {
 	struct uaudio_chan *ch = ((dir == PCMDIR_PLAY) ?
 	    &sc->sc_play_chan : &sc->sc_rec_chan);
+	uint32_t buf_size;
 	uint8_t endpoint;
 	uint8_t iface_index;
 	uint8_t alt_index;
 	usb2_error_t err;
 
-	ch->buf = malloc(UAUDIO_DEFAULT_BUFSZ, M_DEVBUF, M_WAITOK | M_ZERO);
+	/* compute required buffer size */
+	buf_size = (ch->bytes_per_frame * UAUDIO_MINFRAMES);
 
+	/* setup interrupt interval */
+	ch->intr_size = buf_size;
+
+	/* double buffering */
+	buf_size *= 2;
+
+	ch->buf = malloc(buf_size, M_DEVBUF, M_WAITOK | M_ZERO);
 	if (ch->buf == NULL) {
 		goto error;
 	}
-	if (sndbuf_setup(b, ch->buf, UAUDIO_DEFAULT_BUFSZ) != 0) {
+	if (sndbuf_setup(b, ch->buf, buf_size) != 0) {
 		goto error;
 	}
 	ch->start = ch->buf;
-	ch->end = ch->buf + UAUDIO_DEFAULT_BUFSZ;
+	ch->end = ch->buf + buf_size;
 	ch->cur = ch->buf;
 	ch->pcm_ch = c;
 	ch->pcm_mtx = c->lock;
@@ -1432,26 +1392,14 @@ int
 uaudio_chan_set_param_fragments(struct uaudio_chan *ch, uint32_t blocksize,
     uint32_t blockcount)
 {
-	uint32_t max = sndbuf_getmaxsize(ch->pcm_buf);
-
-	RANGE(blocksize, 128, max / 2);
-
-	/*
-	 * Make sure that the blocksize is a factor of the number of bytes
-	 * we insert per isochronous frame.
-	 */
-	blocksize += (ch->bytes_per_frame - blocksize) % ch->bytes_per_frame;
-	if (blocksize > (max / 2)) {
-		/* should not happen */
-		DPRINTFN(0, "blocksize overflow!\n");
-		blocksize = (max / 2);
-	}
-	blockcount = max / blocksize;
-	RANGE(blockcount, 2, 512);
+	/* we only support one size */
+	blocksize = ch->intr_size;
+	blockcount = 2;
 
 	if ((sndbuf_getblksz(ch->pcm_buf) != blocksize) ||
 	    (sndbuf_getblkcnt(ch->pcm_buf) != blockcount)) {
-
+		DPRINTFN(1, "resizing to %u x "
+		    "%u bytes\n", blockcount, blocksize);
 		if (sndbuf_resize(ch->pcm_buf, blockcount, blocksize)) {
 			DPRINTFN(0, "failed to resize sound buffer, count=%u, "
 			    "size=%u\n", blockcount, blocksize);
