@@ -1067,6 +1067,10 @@ uaudio_chan_fill_info_sub(struct uaudio_softc *sc, struct usb2_device *udev,
 					sample_size = ((chan->p_asf1d->bNrChannels *
 					    chan->p_asf1d->bBitResolution) / 8);
 
+					/*
+					 * NOTE: "chan->bytes_per_frame"
+					 * should not be zero!
+					 */
 					chan->bytes_per_frame = ((rate / fps) * sample_size);
 
 					if (sc->sc_sndstat_valid) {
@@ -1432,6 +1436,16 @@ uaudio_chan_set_param_fragments(struct uaudio_chan *ch, uint32_t blocksize,
 
 	RANGE(blocksize, 128, max / 2);
 
+	/*
+	 * Make sure that the blocksize is a factor of the number of bytes
+	 * we insert per isochronous frame.
+	 */
+	blocksize += (ch->bytes_per_frame - blocksize) % ch->bytes_per_frame;
+	if (blocksize > (max / 2)) {
+		/* should not happen */
+		DPRINTFN(0, "blocksize overflow!\n");
+		blocksize = (max / 2);
+	}
 	blockcount = max / blocksize;
 	RANGE(blockcount, 2, 512);
 
