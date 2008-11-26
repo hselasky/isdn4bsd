@@ -1945,6 +1945,19 @@ usb2_get_speed(struct usb2_device *udev)
 	return (udev->speed);
 }
 
+uint32_t
+usb2_get_isoc_fps(struct usb2_device *udev)
+{
+	;				/* indent fix */
+	switch (udev->speed) {
+	case USB_SPEED_LOW:
+	case USB_SPEED_FULL:
+		return (1000);
+	default:
+		return (8000);
+	}
+}
+
 struct usb2_device_descriptor *
 usb2_get_device_descriptor(struct usb2_device *udev)
 {

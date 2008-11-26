@@ -80,17 +80,23 @@
 #include <dev/sound/chip.h>
 #include "feeder_if.h"
 
+static int uaudio_default_rate = 96000;
+static int uaudio_default_bits = 32;
+static int uaudio_default_channels = 2;
+
 #if USB_DEBUG
 static int uaudio_debug = 0;
 
 SYSCTL_NODE(_hw_usb2, OID_AUTO, uaudio, CTLFLAG_RW, 0, "USB uaudio");
 SYSCTL_INT(_hw_usb2_uaudio, OID_AUTO, debug, CTLFLAG_RW,
     &uaudio_debug, 0, "uaudio debug level");
+SYSCTL_INT(_hw_usb2_uaudio, OID_AUTO, default_rate, CTLFLAG_RW,
+    &uaudio_default_rate, 0, "uaudio default sample rate");
+SYSCTL_INT(_hw_usb2_uaudio, OID_AUTO, default_bits, CTLFLAG_RW,
+    &uaudio_default_bits, 0, "uaudio default sample bits");
+SYSCTL_INT(_hw_usb2_uaudio, OID_AUTO, default_channels, CTLFLAG_RW,
+    &uaudio_default_channels, 0, "uaudio default sample channels");
 #endif
-
-static uint32_t uaudio_default_rate = 96000;
-static uint8_t uaudio_default_bits = 32;
-static uint8_t uaudio_default_channels = 2;
 
 #define	UAUDIO_MINFRAMES       16	/* must be factor of 8 due HS-USB */
 #define	UAUDIO_NCHANBUFS        2	/* number of outstanding request */
@@ -1043,15 +1049,26 @@ uaudio_chan_fill_info(struct uaudio_softc *sc, struct usb2_device *udev)
 {
 	uint32_t rate = uaudio_default_rate;
 	uint32_t z;
-	uint16_t fps = (usb2_get_speed(udev) == USB_SPEED_HIGH) ? 8000 : 1000;
+	uint16_t fps = usb2_get_isoc_fps(udev);
 	uint8_t bits = uaudio_default_bits;
 	uint8_t y;
 	uint8_t channels = uaudio_default_channels;
 	uint8_t x;
 
 	bits -= (bits % 8);
+	if ((bits == 0) || (bits > 32)) {
+		/* set a valid value */
+		bits = 32;
+	}
 	rate -= (rate % fps);
-
+	if ((rate == 0) || (rate > 192000)) {
+		/* set a valid value */
+		rate = 192000 - (192000 % fps);
+	}
+	if ((channels == 0) || (channels > 2)) {
+		/* set a valid value */
+		channels = 2;
+	}
 	if (sbuf_new(&sc->sc_sndstat, NULL, 4096, SBUF_AUTOEXTEND)) {
 		sc->sc_sndstat_valid = 1;
 	}
