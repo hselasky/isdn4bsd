@@ -2656,7 +2656,10 @@ uaudio_mixer_fill_info(struct uaudio_softc *sc, struct usb2_device *udev,
 		DPRINTF("invalid Audio Control header\n");
 		goto done;
 	}
-	wTotalLen = UGETW(cd->wTotalLength);
+	/* "wTotalLen" is allowed to be corrupt */
+	wTotalLen = UGETW(acdp->wTotalLength) - acdp->bLength;
+
+	/* get USB audio revision */
 	sc->sc_audio_rev = UGETW(acdp->bcdADC);
 
 	DPRINTFN(3, "found AC header, vers=%03x, len=%d\n",
