@@ -470,6 +470,7 @@ uftdi_read_callback(struct usb2_xfer *xfer)
 {
 	struct uftdi_softc *sc = xfer->priv_sc;
 	uint8_t buf[2];
+	uint8_t ftdi_msr;
 	uint8_t msr;
 	uint8_t lsr;
 
@@ -481,8 +482,18 @@ uftdi_read_callback(struct usb2_xfer *xfer)
 		}
 		usb2_copy_out(xfer->frbuffers, 0, buf, 2);
 
-		msr = FTDI_GET_MSR(buf);
+		ftdi_msr = FTDI_GET_MSR(buf);
 		lsr = FTDI_GET_LSR(buf);
+
+		msr = 0;
+		if (ftdi_msr & FTDI_SIO_CTS_MASK)
+			msr |= SER_CTS;
+		if (ftdi_msr & FTDI_SIO_DSR_MASK)
+			msr |= SER_DSR;
+		if (ftdi_msr & FTDI_SIO_RI_MASK)
+			msr |= SER_RI;
+		if (ftdi_msr & FTDI_SIO_RLSD_MASK)
+			msr |= SER_DCD;
 
 		if ((sc->sc_msr != msr) ||
 		    ((sc->sc_lsr & FTDI_LSR_MASK) != (lsr & FTDI_LSR_MASK))) {
