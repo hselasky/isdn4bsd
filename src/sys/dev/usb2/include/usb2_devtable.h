@@ -3131,6 +3131,12 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    "PhotoSmart C500",
 	},
 	{
+	    USB_VENDOR_HP, USB_PRODUCT_HP_HS2300,
+	    0,
+	    "Hewlett Packard",
+	    "MC8775",
+	},
+	{
 	    USB_VENDOR_HTC, USB_PRODUCT_HTC_WINMOBILE,
 	    0,
 	    "HTC",

@@ -1437,6 +1437,7 @@
 #define	USB_PRODUCT_HP_OJ4215	0x3d11		/* OfficeJet 4215 */
 #define	USB_PRODUCT_HP_HN210E	0x811c		/* Ethernet HN210E */
 #define	USB_PRODUCT_HP2_C500	0x6002		/* PhotoSmart C500 */
+#define	USB_PRODUCT_HP_HS2300	0x1e1d		/* MC8775 */
 
 /* HTC products */
 #define	USB_PRODUCT_HTC_WINMOBILE	0x00ce		/* HTC USB Sync */
