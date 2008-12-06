@@ -653,6 +653,12 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    "NEC Kbd Hub",
 	},
 	{
+	    USB_VENDOR_ALCOR, USB_PRODUCT_ALCOR_TRANSCEND,
+	    0,
+	    "Alcor Micro",
+	    "Transcend JetFlash Drive",
+	},
+	{
 	    USB_VENDOR_ALTEC, USB_PRODUCT_ALTEC_ADA70,
 	    0,
 	    "Altec Lansing",

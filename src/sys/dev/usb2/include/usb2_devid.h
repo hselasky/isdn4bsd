@@ -818,6 +818,7 @@
 #define	USB_PRODUCT_ALCOR_UMCR_9361	0x9361		/* USB Multimedia Card Reader */
 #define	USB_PRODUCT_ALCOR_SM_KBD	0x9410		/* MicroConnectors/StrongMan Keyboard */
 #define	USB_PRODUCT_ALCOR_NEC_KBD_HUB	0x9472		/* NEC Kbd Hub */
+#define	USB_PRODUCT_ALCOR_TRANSCEND	0x6387		/* Transcend JetFlash Drive */
 
 /* Altec Lansing products */
 #define	USB_PRODUCT_ALTEC_ADA70	0x0070		/* ADA70 Speakers */
