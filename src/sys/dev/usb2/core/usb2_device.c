@@ -1454,7 +1454,11 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	if (err) {
 		DPRINTFN(0, "getting device descriptor "
 		    "at addr %d failed!\n", udev->address);
-		goto done;
+		/* XXX try to re-enumerate the device */
+		err = usb2_req_re_enumerate(udev, &Giant);
+		if (err) {
+			goto done;
+		}
 	}
 	DPRINTF("adding unit addr=%d, rev=%02x, class=%d, "
 	    "subclass=%d, protocol=%d, maxpacket=%d, len=%d, speed=%d\n",
