@@ -1588,11 +1588,19 @@ repeat_set_config:
 		err = usb2_set_config_index(udev, config_index);
 		sx_unlock(udev->default_sx + 1);
 		if (err) {
-			DPRINTFN(0, "Failure selecting "
-			    "configuration index %u: %s, port %u, addr %u\n",
-			    config_index, usb2_errstr(err), udev->port_no,
-			    udev->address);
-
+			if (udev->ddesc.bNumConfigurations != 0) {
+				DPRINTFN(0, "Failure selecting "
+				    "configuration index %u: %s, port %u, "
+				    "addr %u (ignored)\n",
+				    config_index, usb2_errstr(err), udev->port_no,
+				    udev->address);
+			}
+			/*
+			 * Some USB devices does not have any
+			 * configurations. Ignore any set config
+			 * failures!
+			 */
+			err = 0;
 		} else if (config_quirk) {
 			/* user quirk selects configuration index */
 		} else if ((config_index + 1) < udev->ddesc.bNumConfigurations) {

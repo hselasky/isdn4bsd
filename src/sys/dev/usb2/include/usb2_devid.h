@@ -813,12 +813,12 @@
 /* Alcor Micro, Inc. products */
 #define	USB_PRODUCT_ALCOR2_KBD_HUB	0x2802		/* Kbd Hub */
 
+#define	USB_PRODUCT_ALCOR_TRANSCEND	0x6387		/* Transcend JetFlash Drive */
 #define	USB_PRODUCT_ALCOR_MA_KBD_HUB	0x9213		/* MacAlly Kbd Hub */
 #define	USB_PRODUCT_ALCOR_AU9814	0x9215		/* AU9814 Hub */
 #define	USB_PRODUCT_ALCOR_UMCR_9361	0x9361		/* USB Multimedia Card Reader */
 #define	USB_PRODUCT_ALCOR_SM_KBD	0x9410		/* MicroConnectors/StrongMan Keyboard */
 #define	USB_PRODUCT_ALCOR_NEC_KBD_HUB	0x9472		/* NEC Kbd Hub */
-#define	USB_PRODUCT_ALCOR_TRANSCEND	0x6387		/* Transcend JetFlash Drive */
 
 /* Altec Lansing products */
 #define	USB_PRODUCT_ALTEC_ADA70	0x0070		/* ADA70 Speakers */
@@ -1431,13 +1431,13 @@
 #define	USB_PRODUCT_HP_568J	0x1116		/* Jornada 568 */
 #define	USB_PRODUCT_HP_930C	0x1204		/* DeskJet 930c */
 #define	USB_PRODUCT_HP_P2000U	0x1801		/* Inkjet P-2000U */
+#define	USB_PRODUCT_HP_HS2300	0x1e1d		/* MC8775 */
 #define	USB_PRODUCT_HP_640C	0x2004		/* DeskJet 640c */
 #define	USB_PRODUCT_HP_4670V	0x3005		/* ScanJet 4670v */
 #define	USB_PRODUCT_HP_P1100	0x3102		/* Photosmart P1100 */
 #define	USB_PRODUCT_HP_OJ4215	0x3d11		/* OfficeJet 4215 */
 #define	USB_PRODUCT_HP_HN210E	0x811c		/* Ethernet HN210E */
 #define	USB_PRODUCT_HP2_C500	0x6002		/* PhotoSmart C500 */
-#define	USB_PRODUCT_HP_HS2300	0x1e1d		/* MC8775 */
 
 /* HTC products */
 #define	USB_PRODUCT_HTC_WINMOBILE	0x00ce		/* HTC USB Sync */

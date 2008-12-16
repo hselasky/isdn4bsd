@@ -623,6 +623,12 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    "Kbd Hub",
 	},
 	{
+	    USB_VENDOR_ALCOR, USB_PRODUCT_ALCOR_TRANSCEND,
+	    0,
+	    "Alcor Micro",
+	    "Transcend JetFlash Drive",
+	},
+	{
 	    USB_VENDOR_ALCOR, USB_PRODUCT_ALCOR_MA_KBD_HUB,
 	    0,
 	    "Alcor Micro",
@@ -651,12 +657,6 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    0,
 	    "Alcor Micro",
 	    "NEC Kbd Hub",
-	},
-	{
-	    USB_VENDOR_ALCOR, USB_PRODUCT_ALCOR_TRANSCEND,
-	    0,
-	    "Alcor Micro",
-	    "Transcend JetFlash Drive",
 	},
 	{
 	    USB_VENDOR_ALTEC, USB_PRODUCT_ALTEC_ADA70,
@@ -3095,6 +3095,12 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    "Inkjet P-2000U",
 	},
 	{
+	    USB_VENDOR_HP, USB_PRODUCT_HP_HS2300,
+	    0,
+	    "Hewlett Packard",
+	    "MC8775",
+	},
+	{
 	    USB_VENDOR_HP, USB_PRODUCT_HP_640C,
 	    0,
 	    "Hewlett Packard",
@@ -3129,12 +3135,6 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    0,
 	    "Hewlett Packard",
 	    "PhotoSmart C500",
-	},
-	{
-	    USB_VENDOR_HP, USB_PRODUCT_HP_HS2300,
-	    0,
-	    "Hewlett Packard",
-	    "MC8775",
 	},
 	{
 	    USB_VENDOR_HTC, USB_PRODUCT_HTC_WINMOBILE,
