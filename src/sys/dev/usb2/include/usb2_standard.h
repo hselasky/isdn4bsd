@@ -54,6 +54,7 @@
 #define	USB_PORT_ROOT_RESET_DELAY 50	/* ms */
 #define	USB_PORT_RESET_RECOVERY	10	/* ms */
 #define	USB_PORT_POWERUP_DELAY	100	/* ms */
+#define	USB_PORT_RESUME_DELAY	20	/* ms */
 #define	USB_SET_ADDRESS_SETTLE	2	/* ms */
 #define	USB_RESUME_DELAY	(20*5)	/* ms */
 #define	USB_RESUME_WAIT		10	/* ms */
@@ -65,6 +66,7 @@
 #define	USB_PORT_ROOT_RESET_DELAY 250	/* ms */
 #define	USB_PORT_RESET_RECOVERY	250	/* ms */
 #define	USB_PORT_POWERUP_DELAY	300	/* ms */
+#define	USB_PORT_RESUME_DELAY	(20*2)	/* ms */
 #define	USB_SET_ADDRESS_SETTLE	10	/* ms */
 #define	USB_RESUME_DELAY	(50*5)	/* ms */
 #define	USB_RESUME_WAIT		50	/* ms */

@@ -1721,24 +1721,21 @@ ugen_set_power_mode(struct usb2_fifo *f, int mode)
 		break;
 
 	case USB_POWER_MODE_ON:
-		/* enable port */
-		err = usb2_req_set_port_feature(udev->parent_hub,
-		    NULL, udev->port_no, UHF_PORT_ENABLE);
-
-		/* FALLTHROUGH */
-
 	case USB_POWER_MODE_SAVE:
+		break;
+
 	case USB_POWER_MODE_RESUME:
-		/* TODO: implement USB power save */
 		err = usb2_req_clear_port_feature(udev->parent_hub,
 		    NULL, udev->port_no, UHF_PORT_SUSPEND);
+		mode = USB_POWER_MODE_SAVE;
 		break;
 
 	case USB_POWER_MODE_SUSPEND:
-		/* TODO: implement USB power save */
 		err = usb2_req_set_port_feature(udev->parent_hub,
 		    NULL, udev->port_no, UHF_PORT_SUSPEND);
+		mode = USB_POWER_MODE_SAVE;
 		break;
+
 	default:
 		return (EINVAL);
 	}
@@ -1747,6 +1744,8 @@ ugen_set_power_mode(struct usb2_fifo *f, int mode)
 		return (ENXIO);		/* I/O failure */
 
 	udev->power_mode = mode;	/* update copy of power mode */
+
+	usb2_bus_power_update(udev->bus);
 
 	return (0);			/* success */
 }

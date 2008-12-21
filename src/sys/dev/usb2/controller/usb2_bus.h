@@ -54,10 +54,13 @@ struct usb2_bus {
 	struct usb2_process explore_proc;
 	struct usb2_bus_msg explore_msg[2];
 	struct usb2_bus_msg detach_msg[2];
-	struct mtx bus_mtx;			/* This mutex protects the USB
-					 * hardware */
+	/*
+	 * This mutex protects the USB hardware:
+	 */
+	struct mtx bus_mtx;
 	struct usb2_perm perm;
 	struct usb2_xfer_queue intr_q;
+	struct usb2_callout power_wdog;	/* power management */
 
 	device_t bdev;			/* filled by HC driver */
 
@@ -67,6 +70,7 @@ struct usb2_bus {
 	struct usb2_bus_methods *methods;	/* filled by HC driver */
 	struct usb2_device *devices[USB_MAX_DEVICES];
 
+	uint32_t hw_power_state;	/* see USB_HW_POWER_XXX */
 	uint32_t uframe_usage[USB_HS_MICRO_FRAMES_MAX];
 	uint32_t transfer_count[4];
 	uint16_t isoc_time_last;	/* in milliseconds */

@@ -142,6 +142,9 @@ usb2_detach(device_t dev)
 		/* was never setup properly */
 		return (0);
 	}
+	/* Stop power watchdog */
+	usb2_callout_drain(&bus->power_wdog);
+
 	/* Let the USB explore process detach all devices. */
 
 	USB_BUS_LOCK(bus);
@@ -192,6 +195,11 @@ usb2_bus_explore(struct usb2_proc_msg *pm)
 		mtx_lock(&Giant);
 
 		/*
+		 * First update the USB power state!
+		 */
+		usb2_bus_powerd(bus);
+
+		/*
 		 * Explore the Root USB HUB. This call can sleep,
 		 * exiting Giant, which is actually Giant.
 		 */
@@ -239,6 +247,23 @@ usb2_bus_detach(struct usb2_proc_msg *pm)
 	USB_BUS_LOCK(bus);
 	/* clear bdev variable last */
 	bus->bdev = NULL;
+	return;
+}
+
+static void
+usb2_power_wdog(void *arg)
+{
+	struct usb2_bus *bus = arg;
+
+	USB_BUS_LOCK_ASSERT(bus, MA_OWNED);
+
+	usb2_callout_reset(&bus->power_wdog,
+	    4 * hz, usb2_power_wdog, arg);
+
+	USB_BUS_UNLOCK(bus);
+
+	usb2_bus_power_update(bus);
+
 	return;
 }
 
@@ -325,6 +350,10 @@ usb2_attach_sub(device_t dev, struct usb2_bus *bus)
 	}
 	/* set softc - we are ready */
 	device_set_softc(dev, bus);
+	/* start watchdog */
+	USB_BUS_LOCK(bus);
+	/* this function will unlock the BUS lock ! */
+	usb2_power_wdog(bus);
 	return;
 }
 
@@ -434,6 +463,9 @@ usb2_bus_mem_alloc_all(struct usb2_bus *bus, bus_dma_tag_t dmat,
 
 	mtx_init(&bus->bus_mtx, "USB bus lock",
 	    NULL, MTX_DEF | MTX_RECURSE);
+
+	usb2_callout_init_mtx(&bus->power_wdog,
+	    &bus->bus_mtx, CALLOUT_RETURNUNLOCKED);
 
 	TAILQ_INIT(&bus->intr_q.head);
 

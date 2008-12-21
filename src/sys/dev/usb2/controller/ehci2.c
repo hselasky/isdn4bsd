@@ -1038,6 +1038,11 @@ _ehci_append_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 {
 	DPRINTFN(11, "%p to %p\n", sqh, last);
 
+	if (sqh->prev != NULL) {
+		/* should not happen */
+		DPRINTFN(0, "QH already linked!\n");
+		return (last);
+	}
 	/* (sc->sc_bus.mtx) must be locked */
 
 	sqh->next = last->next;
@@ -1125,14 +1130,6 @@ _ehci_remove_qh(ehci_qh_t *sqh, ehci_qh_t *last)
 			sqh->next->prev = sqh->prev;
 			usb2_pc_cpu_flush(sqh->next->page_cache);
 		}
-		/*
-		 * set the Terminate-bit in the e_next of the QH, in case
-		 * the transferred packet was short so that the QH still
-		 * points at the last used TD
-		 */
-
-		sqh->qh_qtd.qtd_next = htole32(EHCI_LINK_TERMINATE);
-
 		last = ((last == sqh) ? sqh->prev : last);
 
 		sqh->prev = 0;
@@ -1955,7 +1952,9 @@ ehci_setup_standard_chain(struct usb2_xfer *xfer, ehci_qh_t **qh_last)
 
 	usb2_pc_cpu_flush(qh->page_cache);
 
-	EHCI_APPEND_QH(qh, *qh_last);
+	if (xfer->udev->pwr_save.suspended == 0) {
+		EHCI_APPEND_QH(qh, *qh_last);
+	}
 	return;
 }
 
@@ -3233,7 +3232,32 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 			EOWRITE4(sc, port, v & ~EHCI_PS_PE);
 			break;
 		case UHF_PORT_SUSPEND:
-			EOWRITE4(sc, port, v & ~EHCI_PS_SUSP);
+			if ((v & EHCI_PS_SUSP) && (!(v & EHCI_PS_FPR))) {
+
+				/*
+				 * waking up a High Speed device is rather
+				 * complicated if
+				 */
+				EOWRITE4(sc, port, v | EHCI_PS_FPR);
+
+				/* wait 20ms for resume sequence to complete */
+				if (use_polling) {
+					/* polling */
+					DELAY(20 * 1000);
+				} else {
+					usb2_pause_mtx(&sc->sc_bus.bus_mtx, 20);
+				}
+			}
+			EOWRITE4(sc, port, v & ~(EHCI_PS_SUSP |
+			    EHCI_PS_FPR | (3 << 10) /* High Speed */ ));
+
+			/* settle time */
+			if (use_polling) {
+				/* polling */
+				DELAY(4 * 1000);
+			} else {
+				usb2_pause_mtx(&sc->sc_bus.bus_mtx, 4);
+			}
 			break;
 		case UHF_PORT_POWER:
 			EOWRITE4(sc, port, v & ~EHCI_PS_PP);
@@ -3280,7 +3304,8 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 		    (EHCI_HCS_PPC(v) ? UHD_PWR_INDIVIDUAL : UHD_PWR_NO_SWITCH) |
 		    (EHCI_HCS_P_INDICATOR(EREAD4(sc, EHCI_HCSPARAMS)) ?
 		    UHD_PORT_IND : 0));
-		sc->sc_hub_desc.hubd.bPwrOn2PwrGood = 200;	/* XXX can't find out? */
+		/* XXX can't find out? */
+		sc->sc_hub_desc.hubd.bPwrOn2PwrGood = 200;
 		for (l = 0; l < sc->sc_noport; l++) {
 			/* XXX can't find out? */
 			sc->sc_hub_desc.hubd.DeviceRemovable[l / 8] &= ~(1 << (l % 8));
@@ -3317,7 +3342,7 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 			i |= UPS_CURRENT_CONNECT_STATUS;
 		if (v & EHCI_PS_PE)
 			i |= UPS_PORT_ENABLED;
-		if (v & EHCI_PS_SUSP)
+		if ((v & EHCI_PS_SUSP) && !(v & EHCI_PS_FPR))
 			i |= UPS_SUSPEND;
 		if (v & EHCI_PS_OCA)
 			i |= UPS_OVERCURRENT_INDICATOR;
@@ -3333,6 +3358,8 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 			i |= UPS_C_PORT_ENABLED;
 		if (v & EHCI_PS_OCC)
 			i |= UPS_C_OVERCURRENT_INDICATOR;
+		if (v & EHCI_PS_FPR)
+			i |= UPS_C_SUSPEND;
 		if (sc->sc_isreset)
 			i |= UPS_C_PORT_RESET;
 		USETW(sc->sc_hub_desc.ps.wPortChange, i);
@@ -3856,6 +3883,108 @@ ehci_get_dma_delay(struct usb2_bus *bus, uint32_t *pus)
 	return;
 }
 
+static void
+ehci_device_resume(struct usb2_device *udev)
+{
+	struct ehci_softc *sc = EHCI_BUS2SC(udev->bus);
+	struct usb2_xfer *xfer;
+	struct usb2_pipe_methods *methods;
+
+	DPRINTF("\n");
+
+	USB_BUS_LOCK(udev->bus);
+
+	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
+
+		if (xfer->udev == udev) {
+
+			methods = xfer->pipe->methods;
+
+			if ((methods == &ehci_device_bulk_methods) ||
+			    (methods == &ehci_device_ctrl_methods)) {
+				EHCI_APPEND_QH(xfer->qh_start[xfer->flags_int.curr_dma_set],
+				    sc->sc_async_p_last);
+			}
+			if (methods == &ehci_device_intr_methods) {
+				EHCI_APPEND_QH(xfer->qh_start[xfer->flags_int.curr_dma_set],
+				    sc->sc_intr_p_last[xfer->qh_pos]);
+			}
+		}
+	}
+
+	USB_BUS_UNLOCK(udev->bus);
+
+	return;
+}
+
+static void
+ehci_device_suspend(struct usb2_device *udev)
+{
+	struct ehci_softc *sc = EHCI_BUS2SC(udev->bus);
+	struct usb2_xfer *xfer;
+	struct usb2_pipe_methods *methods;
+
+	DPRINTF("\n");
+
+	USB_BUS_LOCK(udev->bus);
+
+	TAILQ_FOREACH(xfer, &sc->sc_bus.intr_q.head, wait_entry) {
+
+		if (xfer->udev == udev) {
+
+			methods = xfer->pipe->methods;
+
+			if ((methods == &ehci_device_bulk_methods) ||
+			    (methods == &ehci_device_ctrl_methods)) {
+				EHCI_REMOVE_QH(xfer->qh_start[xfer->flags_int.curr_dma_set],
+				    sc->sc_async_p_last);
+			}
+			if (methods == &ehci_device_intr_methods) {
+				EHCI_REMOVE_QH(xfer->qh_start[xfer->flags_int.curr_dma_set],
+				    sc->sc_intr_p_last[xfer->qh_pos]);
+			}
+		}
+	}
+
+	USB_BUS_UNLOCK(udev->bus);
+
+	return;
+}
+
+static void
+ehci_set_hw_power(struct usb2_bus *bus)
+{
+	struct ehci_softc *sc = EHCI_BUS2SC(bus);
+	uint32_t temp;
+	uint32_t flags;
+
+	DPRINTF("\n");
+
+	USB_BUS_LOCK(bus);
+
+	flags = bus->hw_power_state;
+
+	temp = EOREAD4(sc, EHCI_USBCMD);
+
+	temp &= ~(EHCI_CMD_ASE | EHCI_CMD_PSE);
+
+	if (flags & (USB_HW_POWER_CONTROL |
+	    USB_HW_POWER_BULK)) {
+		DPRINTF("Async is active\n");
+		temp |= EHCI_CMD_ASE;
+	}
+	if (flags & (USB_HW_POWER_INTERRUPT |
+	    USB_HW_POWER_ISOC)) {
+		DPRINTF("Periodic is active\n");
+		temp |= EHCI_CMD_PSE;
+	}
+	EOWRITE4(sc, EHCI_USBCMD, temp);
+
+	USB_BUS_UNLOCK(bus);
+
+	return;
+}
+
 struct usb2_bus_methods ehci_bus_methods =
 {
 	.pipe_init = ehci_pipe_init,
@@ -3863,4 +3992,7 @@ struct usb2_bus_methods ehci_bus_methods =
 	.xfer_unsetup = ehci_xfer_unsetup,
 	.do_poll = ehci_do_poll,
 	.get_dma_delay = ehci_get_dma_delay,
+	.device_resume = ehci_device_resume,
+	.device_suspend = ehci_device_suspend,
+	.set_hw_power = ehci_set_hw_power,
 };

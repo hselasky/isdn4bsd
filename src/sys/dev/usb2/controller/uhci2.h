@@ -300,7 +300,7 @@ typedef struct uhci_softc {
 
 	uint8_t	sc_addr;		/* device address */
 	uint8_t	sc_conf;		/* device configuration */
-	uint8_t	sc_isreset;
+	uint8_t	sc_isreset;		/* bits set if a root hub is reset */
 	uint8_t	sc_saved_sof;
 	uint8_t	sc_hub_idata[1];
 

@@ -1189,7 +1189,7 @@ usb2_suspend_resume_sub(struct usb2_device *udev, device_t dev, uint8_t do_suspe
 }
 
 /*------------------------------------------------------------------------*
- *	usb2_suspend_resume_device
+ *	usb2_suspend_resume
  *
  * The following function will suspend or resume the USB device.
  *
@@ -1343,7 +1343,8 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	udev->bus = bus;
 	udev->address = USB_START_ADDR;	/* default value */
 	udev->plugtime = (uint32_t)ticks;
-	udev->power_mode = USB_POWER_MODE_ON;
+	udev->power_mode = USB_POWER_MODE_SAVE;
+	udev->pwr_save.last_xfer_time = ticks;
 
 	/* we are not ready yet */
 	udev->refcount = 1;
@@ -2157,4 +2158,23 @@ usb2_fifo_free_wrap(struct usb2_device *udev,
 		usb2_fifo_free(f);
 	}
 	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_peer_can_wakeup
+ *
+ * Return values:
+ * 0: Peer cannot do resume signalling.
+ * Else: Peer can do resume signalling.
+ *------------------------------------------------------------------------*/
+uint8_t
+usb2_peer_can_wakeup(struct usb2_device *udev)
+{
+	const struct usb2_config_descriptor *cdp;
+
+	cdp = udev->cdesc;
+	if ((cdp != NULL) && (udev->flags.usb2_mode == USB_MODE_HOST)) {
+		return (cdp->bmAttributes & UC_REMOTE_WAKEUP);
+	}
+	return (0);			/* not supported */
 }

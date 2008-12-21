@@ -1397,3 +1397,45 @@ done:
 	udev->address = old_addr;
 	return (err);
 }
+
+/*------------------------------------------------------------------------*
+ *	usb2_req_clear_device_feature
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+usb2_error_t
+usb2_req_clear_device_feature(struct usb2_device *udev, struct mtx *mtx,
+    uint16_t sel)
+{
+	struct usb2_device_request req;
+
+	req.bmRequestType = UT_WRITE_DEVICE;
+	req.bRequest = UR_CLEAR_FEATURE;
+	USETW(req.wValue, sel);
+	USETW(req.wIndex, 0);
+	USETW(req.wLength, 0);
+	return (usb2_do_request(udev, mtx, &req, 0));
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_req_set_device_feature
+ *
+ * Returns:
+ *    0: Success
+ * Else: Failure
+ *------------------------------------------------------------------------*/
+usb2_error_t
+usb2_req_set_device_feature(struct usb2_device *udev, struct mtx *mtx,
+    uint16_t sel)
+{
+	struct usb2_device_request req;
+
+	req.bmRequestType = UT_WRITE_DEVICE;
+	req.bRequest = UR_SET_FEATURE;
+	USETW(req.wValue, sel);
+	USETW(req.wIndex, 0);
+	USETW(req.wLength, 0);
+	return (usb2_do_request(udev, mtx, &req, 0));
+}
