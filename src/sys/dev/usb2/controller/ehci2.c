@@ -3239,15 +3239,15 @@ ehci_root_ctrl_done(struct usb2_xfer *xfer,
 				 * complicated if
 				 */
 				EOWRITE4(sc, port, v | EHCI_PS_FPR);
-
-				/* wait 20ms for resume sequence to complete */
-				if (use_polling) {
-					/* polling */
-					DELAY(20 * 1000);
-				} else {
-					usb2_pause_mtx(&sc->sc_bus.bus_mtx, 20);
-				}
 			}
+			/* wait 20ms for resume sequence to complete */
+			if (use_polling) {
+				/* polling */
+				DELAY(20 * 1000);
+			} else {
+				usb2_pause_mtx(&sc->sc_bus.bus_mtx, 20);
+			}
+
 			EOWRITE4(sc, port, v & ~(EHCI_PS_SUSP |
 			    EHCI_PS_FPR | (3 << 10) /* High Speed */ ));
 

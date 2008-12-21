@@ -1343,7 +1343,12 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	udev->bus = bus;
 	udev->address = USB_START_ADDR;	/* default value */
 	udev->plugtime = (uint32_t)ticks;
-	udev->power_mode = USB_POWER_MODE_SAVE;
+	/*
+	 * We need to force the power mode to "on" because there are plenty
+	 * of USB devices out there that do not work very well with
+	 * automatic suspend and resume!
+	 */
+	udev->power_mode = USB_POWER_MODE_ON;
 	udev->pwr_save.last_xfer_time = ticks;
 
 	/* we are not ready yet */

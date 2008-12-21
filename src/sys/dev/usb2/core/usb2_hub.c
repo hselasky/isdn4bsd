@@ -815,6 +815,10 @@ uhub_attach(device_t dev)
 	usb2_transfer_start(sc->sc_xfer[0]);
 	USB_XFER_UNLOCK(sc->sc_xfer[0]);
 
+	/* Enable automatic power save on all USB HUBs */
+
+	usb2_set_power_mode(udev, USB_POWER_MODE_SAVE);
+
 	return (0);
 
 error:
@@ -1704,7 +1708,8 @@ usb2_dev_resume_peer(struct usb2_device *udev)
 		    &Giant, UF_DEVICE_REMOTE_WAKEUP);
 		if (err) {
 			DPRINTFN(0, "Clearing device "
-			    "remote wakeup failed!\n");
+			    "remote wakeup failed: %s!\n",
+			    usb2_errstr(err));
 		}
 	}
 	return;
@@ -1814,5 +1819,25 @@ repeat:
 		udev = udev->parent_hub;
 		goto repeat;
 	}
+	return;
+}
+
+/*------------------------------------------------------------------------*
+ *	usb2_set_power_mode
+ *
+ * This function will set the power mode, see USB_POWER_MODE_XXX for a
+ * USB device.
+ *------------------------------------------------------------------------*/
+void
+usb2_set_power_mode(struct usb2_device *udev, uint8_t power_mode)
+{
+	/* filter input argument */
+	if (power_mode != USB_POWER_MODE_ON) {
+		power_mode = USB_POWER_MODE_SAVE;
+	}
+	udev->power_mode = power_mode;	/* update copy of power mode */
+
+	usb2_bus_power_update(udev->bus);
+
 	return;
 }

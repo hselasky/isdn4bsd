@@ -1743,9 +1743,8 @@ ugen_set_power_mode(struct usb2_fifo *f, int mode)
 	if (err)
 		return (ENXIO);		/* I/O failure */
 
-	udev->power_mode = mode;	/* update copy of power mode */
-
-	usb2_bus_power_update(udev->bus);
+	/* set new power mode */
+	usb2_set_power_mode(udev, mode);
 
 	return (0);			/* success */
 }

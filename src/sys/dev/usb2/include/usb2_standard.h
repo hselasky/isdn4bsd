@@ -48,6 +48,13 @@
 #define	USB_POWER_DOWN_TIME	200	/* ms */
 #define	USB_PORT_POWER_DOWN_TIME	100	/* ms */
 
+/* Definition of software USB power modes */
+#define	USB_POWER_MODE_OFF 0		/* turn off device */
+#define	USB_POWER_MODE_ON 1		/* always on */
+#define	USB_POWER_MODE_SAVE 2		/* automatic suspend and resume */
+#define	USB_POWER_MODE_SUSPEND 3	/* force suspend */
+#define	USB_POWER_MODE_RESUME 4		/* force resume */
+
 #if 0
 /* These are the values from the USB specification. */
 #define	USB_PORT_RESET_DELAY	10	/* ms */

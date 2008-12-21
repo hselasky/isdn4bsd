@@ -2722,8 +2722,7 @@ uhci_root_ctrl_done(struct usb2_xfer *xfer,
 			break;
 		case UHF_PORT_SUSPEND:
 			x = URWMASK(UREAD2(sc, port));
-			/* clear suspend and resume detect */
-			UWRITE2(sc, port, x & ~(UHCI_PORTSC_SUSP | UHCI_PORTSC_RD));
+			UWRITE2(sc, port, x & ~(UHCI_PORTSC_SUSP));
 			break;
 		case UHF_PORT_RESET:
 			x = URWMASK(UREAD2(sc, port));
@@ -2746,7 +2745,7 @@ uhci_root_ctrl_done(struct usb2_xfer *xfer,
 			std->err = USB_ERR_NORMAL_COMPLETION;
 			goto done;
 		case UHF_C_PORT_SUSPEND:
-			/* nop */
+			sc->sc_isresumed &= ~(1 << index);
 			break;
 		case UHF_PORT_CONNECTION:
 		case UHF_PORT_OVER_CURRENT:
@@ -2808,12 +2807,33 @@ uhci_root_ctrl_done(struct usb2_xfer *xfer,
 			change |= UPS_C_OVERCURRENT_INDICATOR;
 		if (x & UHCI_PORTSC_LSDA)
 			status |= UPS_LOW_SPEED;
-		if ((x & UHCI_PORTSC_PE) && (x & UHCI_PORTSC_RD))
-			change |= UPS_C_SUSPEND;
-		else if (x & UHCI_PORTSC_SUSP)
-			status |= UPS_SUSPEND;
+		if ((x & UHCI_PORTSC_PE) && (x & UHCI_PORTSC_RD)) {
+			/* need to do a write back */
+			UWRITE2(sc, port, URWMASK(x));
 
+			/* wait 20ms for resume sequence to complete */
+			if (use_polling) {
+				/* polling */
+				DELAY(20 * 1000);
+			} else {
+				usb2_pause_mtx(&sc->sc_bus.bus_mtx, 20);
+			}
+
+			/* clear suspend and resume detect */
+			UWRITE2(sc, port, URWMASK(x) & ~(UHCI_PORTSC_RD |
+			    UHCI_PORTSC_SUSP));
+
+			/* wait a little bit */
+			usb2_pause_mtx(&sc->sc_bus.bus_mtx, 2);
+
+			sc->sc_isresumed |= (1 << index);
+
+		} else if (x & UHCI_PORTSC_SUSP) {
+			status |= UPS_SUSPEND;
+		}
 		status |= UPS_PORT_POWER;
+		if (sc->sc_isresumed & (1 << index))
+			change |= UPS_C_SUSPEND;
 		if (sc->sc_isreset)
 			change |= UPS_C_PORT_RESET;
 		USETW(sc->sc_hub_desc.ps.wPortStatus, status);
