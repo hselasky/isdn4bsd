@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_handle_request.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_handle_request.c,v 1.4 2008/12/11 23:17:48 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -52,12 +52,15 @@ enum {
 
 /* function prototypes */
 
-static uint8_t usb2_handle_get_stall(struct usb2_device *udev, uint8_t ea_val);
-static usb2_error_t usb2_handle_remote_wakeup(struct usb2_xfer *xfer, uint8_t is_on);
-static usb2_error_t usb2_handle_request(struct usb2_xfer *xfer);
-static usb2_error_t usb2_handle_set_config(struct usb2_xfer *xfer, uint8_t conf_no);
-static usb2_error_t usb2_handle_set_stall(struct usb2_xfer *xfer, uint8_t ep, uint8_t do_stall);
-static usb2_error_t usb2_handle_iface_request(struct usb2_xfer *xfer, void **ppdata, uint16_t *plen, struct usb2_device_request req, uint16_t off, uint8_t state);
+static uint8_t usb2_handle_get_stall(struct usb2_device *, uint8_t);
+static usb2_error_t	 usb2_handle_remote_wakeup(struct usb2_xfer *, uint8_t);
+static usb2_error_t	 usb2_handle_request(struct usb2_xfer *);
+static usb2_error_t	 usb2_handle_set_config(struct usb2_xfer *, uint8_t);
+static usb2_error_t	 usb2_handle_set_stall(struct usb2_xfer *, uint8_t,
+			    uint8_t);
+static usb2_error_t	 usb2_handle_iface_request(struct usb2_xfer *, void **,
+			    uint16_t *, struct usb2_device_request, uint16_t,
+			    uint8_t);
 
 /*------------------------------------------------------------------------*
  *	usb2_handle_request_callback
@@ -111,7 +114,6 @@ tr_restart:
 	xfer->flags.force_short_xfer = 0;
 	xfer->flags.stall_pipe = 1;	/* cancel previous transfer, if any */
 	usb2_start_hardware(xfer);
-	return;
 }
 
 /*------------------------------------------------------------------------*

@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_parse.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_parse.h,v 1.2 2008/12/11 23:13:02 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -27,9 +27,14 @@
 #ifndef _USB2_PARSE_H_
 #define	_USB2_PARSE_H_
 
-struct usb2_descriptor *usb2_desc_foreach(struct usb2_config_descriptor *cd, struct usb2_descriptor *desc);
-struct usb2_interface_descriptor *usb2_find_idesc(struct usb2_config_descriptor *cd, uint8_t iface_index, uint8_t alt_index);
-struct usb2_endpoint_descriptor *usb2_find_edesc(struct usb2_config_descriptor *cd, uint8_t iface_index, uint8_t alt_index, uint8_t ep_index);
+struct usb2_descriptor *usb2_desc_foreach(struct usb2_config_descriptor *cd,
+	    struct usb2_descriptor *desc);
+struct usb2_interface_descriptor *usb2_find_idesc(
+	    struct usb2_config_descriptor *cd, uint8_t iface_index,
+	    uint8_t alt_index);
+struct usb2_endpoint_descriptor *usb2_find_edesc(
+	    struct usb2_config_descriptor *cd, uint8_t iface_index,
+	    uint8_t alt_index, uint8_t ep_index);
 uint16_t usb2_get_no_endpoints(struct usb2_config_descriptor *cd);
 uint16_t usb2_get_no_alts(struct usb2_config_descriptor *cd, uint8_t ifaceno);
 

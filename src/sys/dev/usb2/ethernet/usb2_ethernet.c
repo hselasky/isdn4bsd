@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/ethernet/usb2_ethernet.c,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/ethernet/usb2_ethernet.c,v 1.2 2008/12/11 23:17:48 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -97,5 +97,4 @@ usb2_ether_cc(struct ifnet *ifp, usb2_ether_mchash_t *fhash,
 			fhash(cc, ifp->if_broadcastaddr);
 		}
 	}
-	return;
 }

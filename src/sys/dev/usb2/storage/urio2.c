@@ -29,7 +29,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/urio2.c,v 1.2 2008/11/19 08:56:35 alfred Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/urio2.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $");
 
 
 /*
@@ -293,7 +293,6 @@ urio_write_clear_stall_callback(struct usb2_xfer *xfer)
 		sc->sc_flags &= ~URIO_FLAG_WRITE_STALL;
 		usb2_transfer_start(xfer_other);
 	}
-	return;
 }
 
 static void
@@ -339,7 +338,6 @@ urio_read_clear_stall_callback(struct usb2_xfer *xfer)
 		sc->sc_flags &= ~URIO_FLAG_READ_STALL;
 		usb2_transfer_start(xfer_other);
 	}
-	return;
 }
 
 static void
@@ -348,7 +346,6 @@ urio_start_read(struct usb2_fifo *fifo)
 	struct urio_softc *sc = fifo->priv_sc0;
 
 	usb2_transfer_start(sc->sc_xfer[URIO_T_RD]);
-	return;
 }
 
 static void
@@ -358,7 +355,6 @@ urio_stop_read(struct usb2_fifo *fifo)
 
 	usb2_transfer_stop(sc->sc_xfer[URIO_T_RD_CS]);
 	usb2_transfer_stop(sc->sc_xfer[URIO_T_RD]);
-	return;
 }
 
 static void
@@ -367,7 +363,6 @@ urio_start_write(struct usb2_fifo *fifo)
 	struct urio_softc *sc = fifo->priv_sc0;
 
 	usb2_transfer_start(sc->sc_xfer[URIO_T_WR]);
-	return;
 }
 
 static void
@@ -377,7 +372,6 @@ urio_stop_write(struct usb2_fifo *fifo)
 
 	usb2_transfer_stop(sc->sc_xfer[URIO_T_WR_CS]);
 	usb2_transfer_stop(sc->sc_xfer[URIO_T_WR]);
-	return;
 }
 
 static int
@@ -419,7 +413,6 @@ urio_close(struct usb2_fifo *fifo, int fflags, struct thread *td)
 	if (fflags & (FREAD | FWRITE)) {
 		usb2_fifo_free_buffer(fifo);
 	}
-	return;
 }
 
 static int

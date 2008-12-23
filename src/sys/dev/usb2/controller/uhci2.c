@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/uhci2.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/uhci2.c,v 1.4 2008/12/11 23:17:48 thompsa Exp $");
 
 /*
  * USB Universal Host Controller driver.
@@ -139,13 +139,13 @@ extern struct usb2_pipe_methods uhci_root_ctrl_methods;
 extern struct usb2_pipe_methods uhci_root_intr_methods;
 
 static usb2_config_td_command_t uhci_root_ctrl_task;
-static void uhci_root_ctrl_poll(struct uhci_softc *sc);
-static void uhci_do_poll(struct usb2_bus *bus);
-static void uhci_device_done(struct usb2_xfer *xfer, usb2_error_t error);
-static void uhci_transfer_intr_enqueue(struct usb2_xfer *xfer);
-static void uhci_root_intr_check(void *arg);
-static void uhci_timeout(void *arg);
-static uint8_t uhci_check_transfer(struct usb2_xfer *xfer);
+static void	uhci_root_ctrl_poll(struct uhci_softc *);
+static void	uhci_do_poll(struct usb2_bus *);
+static void	uhci_device_done(struct usb2_xfer *, usb2_error_t);
+static void	uhci_transfer_intr_enqueue(struct usb2_xfer *);
+static void	uhci_root_intr_check(void *);
+static void	uhci_timeout(void *);
+static uint8_t	uhci_check_transfer(struct usb2_xfer *);
 
 void
 uhci_iterate_hw_softc(struct usb2_bus *bus, usb2_bus_mem_sub_cb_t *cb)
@@ -182,7 +182,6 @@ uhci_iterate_hw_softc(struct usb2_bus *bus, usb2_bus_mem_sub_cb_t *cb)
 		    sc->sc_hw.intr_start_pg + i,
 		    sizeof(uhci_qh_t), UHCI_QH_ALIGN);
 	}
-	return;
 }
 
 static void
@@ -194,8 +193,6 @@ uhci_mem_layout_init(struct uhci_mem_layout *ml, struct usb2_xfer *xfer)
 	ml->buf_offset = 0;
 
 	ml->max_frame_size = xfer->max_frame_size;
-
-	return;
 }
 
 static void
@@ -255,8 +252,6 @@ uhci_mem_layout_fixup(struct uhci_mem_layout *ml, struct uhci_td *td)
 	/* prepare next data location */
 
 	ml->buf_offset += td->len;
-
-	return;
 }
 
 void
@@ -326,7 +321,6 @@ done_2:
 	UWRITE4(sc, UHCI_FLBASEADDR, buf_res.physaddr);
 	UWRITE2(sc, UHCI_FRNUM, sc->sc_saved_frnum);
 	UWRITE1(sc, UHCI_SOF, sc->sc_saved_sof);
-	return;
 }
 
 static void
@@ -651,7 +645,6 @@ uhci_suspend(uhci_softc_t *sc)
 	usb2_pause_mtx(&sc->sc_bus.bus_mtx, USB_RESUME_WAIT);
 
 	USB_BUS_UNLOCK(&sc->sc_bus);
-	return;
 }
 
 void
@@ -684,8 +677,6 @@ uhci_resume(uhci_softc_t *sc)
 
 	/* catch lost interrupts */
 	uhci_do_poll(&sc->sc_bus);
-
-	return;
 }
 
 #if USB_DEBUG
@@ -703,7 +694,6 @@ uhci_dumpregs(uhci_softc_t *sc)
 	    UREAD1(sc, UHCI_SOF),
 	    UREAD2(sc, UHCI_PORTSC1),
 	    UREAD2(sc, UHCI_PORTSC2));
-	return;
 }
 
 static uint8_t
@@ -792,7 +782,6 @@ uhci_dump_all(uhci_softc_t *sc)
 	uhci_dump_qh(sc->sc_fs_ctl_p_last);
 	uhci_dump_qh(sc->sc_bulk_p_last);
 	uhci_dump_qh(sc->sc_last_qh_p);
-	return;
 }
 
 static void
@@ -820,8 +809,6 @@ uhci_dump_qhs(uhci_qh_t *sqh)
 		uhci_dump_tds(sqh->e_next);
 	else
 		DPRINTF("No TD\n");
-
-	return;
 }
 
 static void
@@ -834,7 +821,6 @@ uhci_dump_tds(uhci_td_t *td)
 			break;
 		}
 	}
-	return;
 }
 
 #endif
@@ -867,7 +853,6 @@ uhci_add_loop(uhci_softc_t *sc)
 		qh_lst->qh_h_next = qh_rec->qh_self;
 		usb2_pc_cpu_flush(qh_lst->page_cache);
 	}
-	return;
 }
 
 static void
@@ -887,7 +872,6 @@ uhci_rem_loop(uhci_softc_t *sc)
 		qh_lst->qh_h_next = htole32(UHCI_PTR_T);
 		usb2_pc_cpu_flush(qh_lst->page_cache);
 	}
-	return;
 }
 
 static void
@@ -904,7 +888,6 @@ uhci_transfer_intr_enqueue(struct usb2_xfer *xfer)
 	if (xfer->timeout != 0) {
 		usb2_transfer_timeout_ms(xfer, &uhci_timeout, xfer->timeout);
 	}
-	return;
 }
 
 #define	UHCI_APPEND_TD(std,last) (last) = _uhci_append_td(std,last)
@@ -1083,8 +1066,6 @@ uhci_isoc_done(uhci_softc_t *sc, struct usb2_xfer *xfer)
 	}
 
 	xfer->aframes = xfer->nframes;
-
-	return;
 }
 
 static usb2_error_t
@@ -1250,7 +1231,6 @@ uhci_non_isoc_done(struct usb2_xfer *xfer)
 	}
 done:
 	uhci_device_done(xfer, err);
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -1307,7 +1287,6 @@ uhci_check_transfer_sub(struct usb2_xfer *xfer)
 	usb2_pc_cpu_flush(qh->page_cache);
 
 	DPRINTFN(13, "xfer=%p following alt next\n", xfer);
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -1428,7 +1407,6 @@ repeat:
 			goto repeat;
 		}
 	}
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -1504,7 +1482,6 @@ uhci_interrupt(uhci_softc_t *sc)
 
 done:
 	USB_BUS_UNLOCK(&sc->sc_bus);
-	return;
 }
 
 /*
@@ -1524,8 +1501,6 @@ uhci_timeout(void *arg)
 	uhci_device_done(xfer, USB_ERR_TIMEOUT);
 
 	USB_BUS_UNLOCK(&sc->sc_bus);
-
-	return;
 }
 
 static void
@@ -1537,7 +1512,6 @@ uhci_do_poll(struct usb2_bus *bus)
 	uhci_interrupt_poll(sc);
 	uhci_root_ctrl_poll(sc);
 	USB_BUS_UNLOCK(&sc->sc_bus);
-	return;
 }
 
 static void
@@ -1681,8 +1655,6 @@ restart:
 	}
 	temp->td = td;
 	temp->td_next = td_next;
-
-	return;
 }
 
 static uhci_td_t *
@@ -1894,7 +1866,6 @@ uhci_device_done(struct usb2_xfer *xfer, usb2_error_t error)
 	}
 	/* dequeue transfer and start next transfer */
 	usb2_transfer_done(xfer, error);
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -1910,7 +1881,6 @@ static void
 uhci_device_bulk_close(struct usb2_xfer *xfer)
 {
 	uhci_device_done(xfer, USB_ERR_CANCELLED);
-	return;
 }
 
 static void
@@ -1945,7 +1915,6 @@ uhci_device_bulk_start(struct usb2_xfer *xfer)
 
 	/* put transfer on interrupt queue */
 	uhci_transfer_intr_enqueue(xfer);
-	return;
 }
 
 struct usb2_pipe_methods uhci_device_bulk_methods =
@@ -1971,7 +1940,6 @@ static void
 uhci_device_ctrl_close(struct usb2_xfer *xfer)
 {
 	uhci_device_done(xfer, USB_ERR_CANCELLED);
-	return;
 }
 
 static void
@@ -2011,7 +1979,6 @@ uhci_device_ctrl_start(struct usb2_xfer *xfer)
 	}
 	/* put transfer on interrupt queue */
 	uhci_transfer_intr_enqueue(xfer);
-	return;
 }
 
 struct usb2_pipe_methods uhci_device_ctrl_methods =
@@ -2058,7 +2025,6 @@ uhci_device_intr_open(struct usb2_xfer *xfer)
 
 	DPRINTFN(3, "best=%d interval=%d\n",
 	    best, xfer->interval);
-	return;
 }
 
 static void
@@ -2069,7 +2035,6 @@ uhci_device_intr_close(struct usb2_xfer *xfer)
 	sc->sc_intr_stat[xfer->qh_pos]--;
 
 	uhci_device_done(xfer, USB_ERR_CANCELLED);
-	return;
 }
 
 static void
@@ -2105,7 +2070,6 @@ uhci_device_intr_start(struct usb2_xfer *xfer)
 
 	/* put transfer on interrupt queue */
 	uhci_transfer_intr_enqueue(xfer);
-	return;
 }
 
 struct usb2_pipe_methods uhci_device_intr_methods =
@@ -2148,14 +2112,12 @@ uhci_device_isoc_open(struct usb2_xfer *xfer)
 			usb2_pc_cpu_flush(td->page_cache);
 		}
 	}
-	return;
 }
 
 static void
 uhci_device_isoc_close(struct usb2_xfer *xfer)
 {
 	uhci_device_done(xfer, USB_ERR_CANCELLED);
-	return;
 }
 
 static void
@@ -2311,8 +2273,6 @@ uhci_device_isoc_enter(struct usb2_xfer *xfer)
 	/* update isoc_next */
 	xfer->pipe->isoc_next = (pp_last - &sc->sc_isoc_p_last[0]) &
 	    (UHCI_VFRAMELIST_COUNT - 1);
-
-	return;
 }
 
 static void
@@ -2320,7 +2280,6 @@ uhci_device_isoc_start(struct usb2_xfer *xfer)
 {
 	/* put transfer on interrupt queue */
 	uhci_transfer_intr_enqueue(xfer);
-	return;
 }
 
 struct usb2_pipe_methods uhci_device_isoc_methods =
@@ -2355,7 +2314,6 @@ uhci_root_ctrl_close(struct usb2_xfer *xfer)
 		sc->sc_root_ctrl.xfer = NULL;
 	}
 	uhci_device_done(xfer, USB_ERR_CANCELLED);
-	return;
 }
 
 /* data structures and routines
@@ -2549,8 +2507,6 @@ uhci_root_ctrl_start(struct usb2_xfer *xfer)
 
 	usb2_config_td_queue_command
 	    (&sc->sc_config_td, NULL, &uhci_root_ctrl_task, 0, 0);
-
-	return;
 }
 
 static void
@@ -2558,7 +2514,6 @@ uhci_root_ctrl_task(struct uhci_softc *sc,
     struct uhci_config_copy *cc, uint16_t refcount)
 {
 	uhci_root_ctrl_poll(sc);
-	return;
 }
 
 static void
@@ -2896,7 +2851,6 @@ uhci_root_ctrl_poll(struct uhci_softc *sc)
 {
 	usb2_sw_transfer(&sc->sc_root_ctrl,
 	    &uhci_root_ctrl_done);
-	return;
 }
 
 struct usb2_pipe_methods uhci_root_ctrl_methods =
@@ -2927,7 +2881,6 @@ uhci_root_intr_close(struct usb2_xfer *xfer)
 		sc->sc_root_intr.xfer = NULL;
 	}
 	uhci_device_done(xfer, USB_ERR_CANCELLED);
-	return;
 }
 
 static void
@@ -2945,7 +2898,6 @@ uhci_root_intr_start(struct usb2_xfer *xfer)
 
 	usb2_transfer_timeout_ms(xfer,
 	    &uhci_root_intr_check, xfer->interval);
-	return;
 }
 
 static void
@@ -3004,7 +2956,6 @@ uhci_root_intr_check(void *arg)
 		    &uhci_root_intr_done);
 	}
 	USB_BUS_UNLOCK(&sc->sc_bus);
-	return;
 }
 
 struct usb2_pipe_methods uhci_root_intr_methods =
@@ -3216,7 +3167,6 @@ alloc_dma_set:
 		xfer->flags_int.curr_dma_set = 1;
 		goto alloc_dma_set;
 	}
-	return;
 }
 
 static void
@@ -3269,7 +3219,6 @@ uhci_pipe_init(struct usb2_device *udev, struct usb2_endpoint_descriptor *edesc,
 			break;
 		}
 	}
-	return;
 }
 
 static void
@@ -3286,7 +3235,6 @@ uhci_get_dma_delay(struct usb2_bus *bus, uint32_t *pus)
 	 * transfer descriptor(s) and QH
 	 */
 	*pus = (1125);			/* microseconds */
-	return;
 }
 
 static void

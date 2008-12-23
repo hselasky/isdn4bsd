@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_mbuf.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_mbuf.h,v 1.2 2008/12/11 23:13:02 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -95,6 +95,7 @@ struct usb2_ifqueue {
   } while (0)
 
 /* prototypes */
-void   *usb2_alloc_mbufs(struct malloc_type *type, struct usb2_ifqueue *ifq, uint32_t block_size, uint16_t nblocks);
+void   *usb2_alloc_mbufs(struct malloc_type *type, struct usb2_ifqueue *ifq,
+	    uint32_t block_size, uint16_t nblocks);
 
 #endif					/* _USB2_MBUF_H_ */

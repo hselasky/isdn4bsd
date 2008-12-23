@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/musb2_otg_atmelarm.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/musb2_otg_atmelarm.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -59,7 +59,6 @@ musbotg_vbus_interrupt(struct musbotg_super_softc *sc)
 
 	(sc->sc_otg.sc_bus.methods->vbus_interrupt)
 	    (&sc->sc_otg.sc_bus, vbus_val);
-	return;
 }
 
 static void
@@ -69,8 +68,6 @@ musbotg_clocks_on(void *arg)
 	struct musbotg_super_softc *sc = arg;
 
 #endif
-
-	return;
 }
 
 static void
@@ -80,8 +77,6 @@ musbotg_clocks_off(void *arg)
 	struct musbotg_super_softc *sc = arg;
 
 #endif
-
-	return;
 }
 
 static int

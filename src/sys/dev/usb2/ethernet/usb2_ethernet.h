@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/ethernet/usb2_ethernet.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/ethernet/usb2_ethernet.h,v 1.2 2008/12/11 23:13:02 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -61,7 +61,8 @@ struct usb2_ether_cc {
 
 typedef void (usb2_ether_mchash_t)(struct usb2_ether_cc *cc, const uint8_t *ptr);
 
-struct mbuf *usb2_ether_get_mbuf(void);
-void	usb2_ether_cc(struct ifnet *ifp, usb2_ether_mchash_t *fhash, struct usb2_ether_cc *cc);
+struct mbuf	*usb2_ether_get_mbuf(void);
+void		usb2_ether_cc(struct ifnet *ifp, usb2_ether_mchash_t *fhash,
+		    struct usb2_ether_cc *cc);
 
 #endif					/* _USB2_ETHERNET_H_ */

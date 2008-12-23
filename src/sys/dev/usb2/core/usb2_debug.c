@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_debug.c,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_debug.c,v 1.2 2008/12/11 23:17:48 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -56,7 +56,6 @@ usb2_dump_iface(struct usb2_interface *iface)
 	}
 	printf(" iface=%p idesc=%p altindex=%d\n",
 	    iface, iface->idesc, iface->alt_index);
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -77,7 +76,6 @@ usb2_dump_device(struct usb2_device *udev)
 	    udev->bus,
 	    udev->address, udev->curr_config_no, udev->depth, udev->speed,
 	    udev->flags.self_powered, udev->power, udev->langid);
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -95,7 +93,6 @@ usb2_dump_queue(struct usb2_pipe *pipe)
 		printf(" %p", xfer);
 	}
 	printf("\n");
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -121,7 +118,6 @@ usb2_dump_pipe(struct usb2_pipe *pipe)
 	} else {
 		printf("usb2_dump_pipe: pipe=NULL\n");
 	}
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -149,5 +145,4 @@ usb2_dump_xfer(struct usb2_xfer *xfer)
 	    xfer->udev->address, xfer->pipe,
 	    xfer->pipe->edesc->bEndpointAddress,
 	    xfer->pipe->edesc->bmAttributes);
-	return;
 }

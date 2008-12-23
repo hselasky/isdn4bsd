@@ -29,7 +29,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/misc/ufm2.c,v 1.1 2008/11/04 02:31:03 alfred Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/misc/ufm2.c,v 1.2 2008/12/11 23:13:02 thompsa Exp $");
 
 
 #include <dev/usb2/include/usb2_devid.h>
@@ -82,12 +82,13 @@ static struct usb2_fifo_methods ufm_fifo_methods = {
 	.basename[0] = "ufm",
 };
 
-static int ufm_do_req(struct ufm_softc *sc, uint8_t request, uint16_t value, uint16_t index, uint8_t *retbuf);
-static int ufm_set_freq(struct ufm_softc *sc, void *addr);
-static int ufm_get_freq(struct ufm_softc *sc, void *addr);
-static int ufm_start(struct ufm_softc *sc, void *addr);
-static int ufm_stop(struct ufm_softc *sc, void *addr);
-static int ufm_get_stat(struct ufm_softc *sc, void *addr);
+static int	ufm_do_req(struct ufm_softc *, uint8_t, uint16_t, uint16_t,
+		    uint8_t *);
+static int	ufm_set_freq(struct ufm_softc *, void *);
+static int	ufm_get_freq(struct ufm_softc *, void *);
+static int	ufm_start(struct ufm_softc *, void *);
+static int	ufm_stop(struct ufm_softc *, void *);
+static int	ufm_get_stat(struct ufm_softc *, void *);
 
 static devclass_t ufm_devclass;
 

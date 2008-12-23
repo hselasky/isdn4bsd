@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_error.c,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_error.c,v 1.2 2008/12/11 23:13:02 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -39,6 +39,5 @@ USB_MAKE_DEBUG_TABLE(USB_ERR);
 const char *
 usb2_errstr(usb2_error_t err)
 {
-	return ((err < USB_ERR_MAX) ?
-	    USB_ERR[err] : "USB_ERR_UNKNOWN");
+	return ((err < USB_ERR_MAX) ? USB_ERR[err] : "USB_ERR_UNKNOWN");
 }

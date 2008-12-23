@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_lookup.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_lookup.h,v 1.2 2008/12/11 23:13:02 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -113,7 +113,10 @@ struct usb2_device_id {
 #define	USB_GET_DRIVER_INFO(did)		\
   (((const uint8_t *)((did)->driver_info)) - ((const uint8_t *)0))
 
-const struct usb2_device_id *usb2_lookup_id_by_info(const struct usb2_device_id *id, uint32_t sizeof_id, const struct usb2_lookup_info *info);
-int	usb2_lookup_id_by_uaa(const struct usb2_device_id *id, uint32_t sizeof_id, struct usb2_attach_arg *uaa);
+const struct usb2_device_id *usb2_lookup_id_by_info(
+	    const struct usb2_device_id *id, uint32_t sizeof_id,
+	    const struct usb2_lookup_info *info);
+int	usb2_lookup_id_by_uaa(const struct usb2_device_id *id,
+	    uint32_t sizeof_id, struct usb2_attach_arg *uaa);
 
 #endif					/* _USB2_LOOKUP_H_ */

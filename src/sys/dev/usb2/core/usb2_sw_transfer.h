@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_sw_transfer.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_sw_transfer.h,v 1.2 2008/12/11 23:13:02 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -56,6 +56,7 @@ struct usb2_sw_transfer {
 
 /* prototypes */
 
-void	usb2_sw_transfer(struct usb2_sw_transfer *std, usb2_sw_transfer_func_t *func);
+void	usb2_sw_transfer(struct usb2_sw_transfer *std,
+	    usb2_sw_transfer_func_t *func);
 
 #endif					/* _USB2_SW_TRANSFER_H_ */

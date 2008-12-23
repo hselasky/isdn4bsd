@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_sw_transfer.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_sw_transfer.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -167,5 +167,4 @@ done:
 	DPRINTF("done err=%s\n", usb2_errstr(std->err));
 	std->state = USB_SW_TR_PRE_CALLBACK;
 	(func) (xfer, std);
-	return;
 }

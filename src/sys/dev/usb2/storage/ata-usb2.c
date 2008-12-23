@@ -28,7 +28,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/ata-usb2.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/ata-usb2.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $");
 
 #include <dev/usb2/include/usb2_devid.h>
 #include <dev/usb2/include/usb2_standard.h>
@@ -467,7 +467,6 @@ atausb2_transfer_start(struct atausb2_softc *sc, uint8_t xfer_no)
 	} else {
 		atausb2_cancel_request(sc);
 	}
-	return;
 }
 
 static void
@@ -508,7 +507,6 @@ atausb2_t_bbb_reset2_callback(struct usb2_xfer *xfer)
 {
 	atausb2_t_bbb_data_clear_stall_callback(xfer, ATAUSB_T_BBB_RESET3,
 	    ATAUSB_T_BBB_DATA_READ);
-	return;
 }
 
 static void
@@ -516,7 +514,6 @@ atausb2_t_bbb_reset3_callback(struct usb2_xfer *xfer)
 {
 	atausb2_t_bbb_data_clear_stall_callback(xfer, ATAUSB_T_BBB_COMMAND,
 	    ATAUSB_T_BBB_DATA_WRITE);
-	return;
 }
 
 static void
@@ -650,7 +647,6 @@ atausb2_t_bbb_data_rd_cs_callback(struct usb2_xfer *xfer)
 {
 	atausb2_t_bbb_data_clear_stall_callback(xfer, ATAUSB_T_BBB_STATUS,
 	    ATAUSB_T_BBB_DATA_READ);
-	return;
 }
 
 static void
@@ -704,7 +700,6 @@ atausb2_t_bbb_data_wr_cs_callback(struct usb2_xfer *xfer)
 {
 	atausb2_t_bbb_data_clear_stall_callback(xfer, ATAUSB_T_BBB_STATUS,
 	    ATAUSB_T_BBB_DATA_WRITE);
-	return;
 }
 
 static void
@@ -824,7 +819,6 @@ atausb2_cancel_request(struct atausb2_softc *sc)
 
 		mtx_lock(&sc->locked_mtx);
 	}
-	return;
 }
 
 static void
@@ -841,8 +835,6 @@ atausb2_tr_error(struct usb2_xfer *xfer)
 		}
 	}
 	atausb2_cancel_request(sc);
-
-	return;
 }
 
 /*
@@ -1048,7 +1040,6 @@ ata_usbchannel_setmode(device_t parent, device_t dev)
 		atadev->mode = ATA_USB2;
 	else
 		atadev->mode = ATA_USB1;
-	return;
 }
 
 static int

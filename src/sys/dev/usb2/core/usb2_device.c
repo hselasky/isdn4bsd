@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_device.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_device.c,v 1.6 2008/12/11 23:17:48 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -56,18 +56,24 @@
 
 /* function prototypes */
 
-static void usb2_fill_pipe_data(struct usb2_device *udev, uint8_t iface_index, struct usb2_endpoint_descriptor *edesc, struct usb2_pipe *pipe);
-static void usb2_free_pipe_data(struct usb2_device *udev, uint8_t iface_index, uint8_t iface_mask);
-static void usb2_free_iface_data(struct usb2_device *udev);
-static void usb2_detach_device_sub(struct usb2_device *udev, device_t *ppdev, uint8_t free_subdev);
-static uint8_t usb2_probe_and_attach_sub(struct usb2_device *udev, struct usb2_attach_arg *uaa);
-static void usb2_init_attach_arg(struct usb2_device *udev, struct usb2_attach_arg *uaa);
-static void usb2_suspend_resume_sub(struct usb2_device *udev, device_t dev, uint8_t do_suspend);
-static void usb2_clear_stall_proc(struct usb2_proc_msg *_pm);
-static void usb2_check_strings(struct usb2_device *udev);
-static usb2_error_t usb2_fill_iface_data(struct usb2_device *udev, uint8_t iface_index, uint8_t alt_index);
-static void usb2_notify_addq(const char *type, struct usb2_device *udev);
-static void usb2_fifo_free_wrap(struct usb2_device *udev, uint8_t iface_index, uint8_t flag);
+static void	usb2_fill_pipe_data(struct usb2_device *, uint8_t,
+		    struct usb2_endpoint_descriptor *, struct usb2_pipe *);
+static void	usb2_free_pipe_data(struct usb2_device *, uint8_t, uint8_t);
+static void	usb2_free_iface_data(struct usb2_device *);
+static void	usb2_detach_device_sub(struct usb2_device *, device_t *,
+		    uint8_t);
+static uint8_t	usb2_probe_and_attach_sub(struct usb2_device *,
+		    struct usb2_attach_arg *);
+static void	usb2_init_attach_arg(struct usb2_device *,
+		    struct usb2_attach_arg *);
+static void	usb2_suspend_resume_sub(struct usb2_device *, device_t,
+		    uint8_t);
+static void	usb2_clear_stall_proc(struct usb2_proc_msg *_pm);
+static void	usb2_check_strings(struct usb2_device *);
+static usb2_error_t usb2_fill_iface_data(struct usb2_device *, uint8_t,
+		    uint8_t);
+static void	usb2_notify_addq(const char *type, struct usb2_device *);
+static void	usb2_fifo_free_wrap(struct usb2_device *, uint8_t, uint8_t);
 
 /* static structures */
 
@@ -300,7 +306,6 @@ usb2_fill_pipe_data(struct usb2_device *udev, uint8_t iface_index,
 		(udev->bus->methods->clear_stall) (udev, pipe);
 		USB_BUS_UNLOCK(udev->bus);
 	}
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -327,7 +332,6 @@ usb2_free_pipe_data(struct usb2_device *udev,
 		}
 		pipe++;
 	}
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -474,7 +478,6 @@ usb2_free_iface_data(struct usb2_device *udev)
 	/* set unconfigured state */
 	udev->curr_config_no = USB_UNCONFIG_NO;
 	udev->curr_config_index = USB_UNCONFIG_INDEX;
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -857,7 +860,6 @@ usb2_detach_device_sub(struct usb2_device *udev, device_t *ppdev,
 error:
 	/* Detach is not allowed to fail in the USB world */
 	panic("An USB driver would not detach!\n");
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -917,7 +919,6 @@ usb2_detach_device(struct usb2_device *udev, uint8_t iface_index,
 	if (do_unlock) {
 		sx_unlock(udev->default_sx + 1);
 	}
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -1021,7 +1022,6 @@ usb2_set_parent_iface(struct usb2_device *udev, uint8_t iface_index,
 	if (iface) {
 		iface->parent_iface_index = parent_index;
 	}
-	return;
 }
 
 static void
@@ -1042,8 +1042,6 @@ usb2_init_attach_arg(struct usb2_device *udev,
 	uaa->info.bDeviceProtocol = udev->ddesc.bDeviceProtocol;
 	uaa->info.bConfigIndex = udev->curr_config_index;
 	uaa->info.bConfigNum = udev->curr_config_no;
-
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -1185,7 +1183,6 @@ usb2_suspend_resume_sub(struct usb2_device *udev, device_t dev, uint8_t do_suspe
 		device_printf(dev, "%s failed!\n",
 		    do_suspend ? "Suspend" : "Resume");
 	}
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -1256,7 +1253,6 @@ usb2_clear_stall_proc(struct usb2_proc_msg *_pm)
 	/* Change lock */
 	mtx_unlock(udev->default_mtx);
 	USB_BUS_LOCK(udev->bus);
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -1560,6 +1556,7 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	if (udev->flags.usb2_mode == USB_MODE_HOST) {
 		uint8_t config_index;
 		uint8_t config_quirk;
+		uint8_t set_config_failed = 0;
 
 		/*
 		 * Most USB devices should attach to config index 0 by
@@ -1595,6 +1592,14 @@ repeat_set_config:
 		sx_unlock(udev->default_sx + 1);
 		if (err) {
 			if (udev->ddesc.bNumConfigurations != 0) {
+				if (!set_config_failed) {
+					set_config_failed = 1;
+					/* XXX try to re-enumerate the device */
+					err = usb2_req_re_enumerate(
+					    udev, &Giant);
+					if (err == 0)
+					    goto repeat_set_config;
+				}
 				DPRINTFN(0, "Failure selecting "
 				    "configuration index %u: %s, port %u, "
 				    "addr %u (ignored)\n",
@@ -1602,7 +1607,7 @@ repeat_set_config:
 				    udev->address);
 			}
 			/*
-			 * Some USB devices does not have any
+			 * Some USB devices do not have any
 			 * configurations. Ignore any set config
 			 * failures!
 			 */
@@ -1630,7 +1635,7 @@ repeat_set_config:
 					goto repeat_set_config;
 				}
 			}
-		} else if (usb2_test_huawei(udev, &uaa) == 0) {
+		} else if (usb2_test_huawei_autoinst_p(udev, &uaa) == 0) {
 			DPRINTFN(0, "Found Huawei auto-install disk!\n");
 			err = USB_ERR_STALLED;	/* fake an error */
 		}
@@ -1743,8 +1748,6 @@ usb2_free_device(struct usb2_device *udev)
 
 	/* free device */
 	free(udev, M_USB);
-
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -1856,7 +1859,6 @@ usb2_devinfo(struct usb2_device *udev, char *dst_ptr, uint16_t dst_len)
 		    (bcdDevice >> 8), bcdDevice & 0xFF,
 		    udev->address);
 	}
-	return;
 }
 
 #if USB_VERBOSE
@@ -1954,7 +1956,6 @@ usb2_check_strings(struct usb2_device *udev)
 		snprintf(udev->product,
 		    sizeof(udev->product), "product 0x%04x", product_id);
 	}
-	return;
 }
 
 uint8_t
@@ -2104,7 +2105,6 @@ usb2_notify_addq(const char *type, struct usb2_device *udev)
 		    device_get_nameunit(device_get_parent(udev->bus->bdev)));
 	}
 	devctl_queue_data(data);
-	return;
 }
 
 /*------------------------------------------------------------------------*
@@ -2162,7 +2162,6 @@ usb2_fifo_free_wrap(struct usb2_device *udev,
 		/* free this FIFO */
 		usb2_fifo_free(f);
 	}
-	return;
 }
 
 /*------------------------------------------------------------------------*
