@@ -54,6 +54,7 @@ struct usb2_bus {
 	struct usb2_process explore_proc;
 	struct usb2_bus_msg explore_msg[2];
 	struct usb2_bus_msg detach_msg[2];
+	struct usb2_bus_msg attach_msg[2];
 	/*
 	 * This mutex protects the USB hardware:
 	 */
