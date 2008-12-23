@@ -623,6 +623,12 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    "Kbd Hub",
 	},
 	{
+	    USB_VENDOR_ALCOR, USB_PRODUCT_ALCOR_TRANSCEND,
+	    0,
+	    "Alcor Micro",
+	    "Transcend JetFlash Drive",
+	},
+	{
 	    USB_VENDOR_ALCOR, USB_PRODUCT_ALCOR_MA_KBD_HUB,
 	    0,
 	    "Alcor Micro",

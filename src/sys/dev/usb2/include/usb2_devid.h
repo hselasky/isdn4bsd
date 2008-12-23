@@ -815,6 +815,7 @@
 /* Alcor Micro, Inc. products */
 #define	USB_PRODUCT_ALCOR2_KBD_HUB	0x2802		/* Kbd Hub */
 
+#define	USB_PRODUCT_ALCOR_TRANSCEND	0x6387		/* Transcend JetFlash Drive */
 #define	USB_PRODUCT_ALCOR_MA_KBD_HUB	0x9213		/* MacAlly Kbd Hub */
 #define	USB_PRODUCT_ALCOR_AU9814	0x9215		/* AU9814 Hub */
 #define	USB_PRODUCT_ALCOR_UMCR_9361	0x9361		/* USB Multimedia Card Reader */
