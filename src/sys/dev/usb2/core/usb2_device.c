@@ -1697,6 +1697,11 @@ usb2_free_device(struct usb2_device *udev)
 
 	bus = udev->bus;
 
+	printf("ugen%u.%u: <%s> at %s (disconnected)\n",
+	    device_get_unit(bus->bdev),
+	    udev->device_index, udev->manufacturer,
+	    device_get_nameunit(bus->bdev));
+
 	/*
 	 * Destroy UGEN symlink, if any
 	 */
