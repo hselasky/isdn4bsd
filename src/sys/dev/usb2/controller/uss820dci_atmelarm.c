@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/uss820dci_atmelarm.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/uss820dci_atmelarm.c,v 1.3 2008/12/23 17:36:25 thompsa Exp $");
 
 /*-
  * Copyright (c) 2008 Hans Petter Selasky <hselasky@freebsd.org>
@@ -140,6 +140,7 @@ uss820_atmelarm_attach(device_t dev)
 	}
 	/* get all DMA memory */
 
+	sc->sc_bus.parent = dev;
 	if (usb2_bus_mem_alloc_all(&sc->sc_bus,
 	    USB_GET_DMA_TAG(dev), NULL)) {
 		return (ENOMEM);

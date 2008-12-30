@@ -57,7 +57,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_rue2.c,v 1.2 2008/12/11 23:17:48 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_rue2.c,v 1.3 2008/12/23 19:59:21 thompsa Exp $");
 
 /*
  * RealTek RTL8150 USB to fast ethernet controller driver.
@@ -651,8 +651,7 @@ rue_attach(device_t dev)
 
 	mtx_init(&sc->sc_mtx, "rue lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	usb2_callout_init_mtx(&sc->sc_watchdog,
-	    &sc->sc_mtx, CALLOUT_RETURNUNLOCKED);
+	usb2_callout_init_mtx(&sc->sc_watchdog, &sc->sc_mtx, 0);
 
 	iface_index = RUE_IFACE_IDX;
 	error = usb2_transfer_setup(uaa->device, &iface_index,
@@ -679,10 +678,8 @@ rue_attach(device_t dev)
 	usb2_config_td_queue_command
 	    (&sc->sc_config_td, NULL, &rue_cfg_first_time_setup, 0, 0);
 
-	/* start watchdog (will exit mutex) */
-
 	rue_watchdog(sc);
-
+	mtx_unlock(&sc->sc_mtx);
 	return (0);			/* success */
 
 detach:
@@ -1299,8 +1296,6 @@ rue_watchdog(void *arg)
 
 	usb2_callout_reset(&sc->sc_watchdog,
 	    hz, &rue_watchdog, sc);
-
-	mtx_unlock(&sc->sc_mtx);
 }
 
 /*

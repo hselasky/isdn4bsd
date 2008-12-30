@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/input/ums2.c,v 1.2 2008/12/11 23:17:48 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/input/ums2.c,v 1.3 2008/12/23 19:59:21 thompsa Exp $");
 
 /*
  * HID spec: http://www.usb.org/developers/devclass_docs/HID1_11.pdf
@@ -153,8 +153,6 @@ ums_put_queue_timeout(void *__sc)
 	mtx_assert(&sc->sc_mtx, MA_OWNED);
 
 	ums_put_queue(sc, 0, 0, 0, 0, 0);
-
-	mtx_unlock(&sc->sc_mtx);
 }
 
 static void
@@ -415,8 +413,7 @@ ums_attach(device_t dev)
 
 	mtx_init(&sc->sc_mtx, "ums lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	usb2_callout_init_mtx(&sc->sc_callout,
-	    &sc->sc_mtx, CALLOUT_RETURNUNLOCKED);
+	usb2_callout_init_mtx(&sc->sc_callout, &sc->sc_mtx, 0);
 
 	/*
          * Force the report (non-boot) protocol.

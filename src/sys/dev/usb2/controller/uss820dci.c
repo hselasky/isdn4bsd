@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/uss820dci.c,v 1.4 2008/12/11 23:17:48 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/uss820dci.c,v 1.5 2008/12/23 19:59:21 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky <hselasky@freebsd.org>
  * All rights reserved.
@@ -950,16 +950,13 @@ static void
 uss820dci_timeout(void *arg)
 {
 	struct usb2_xfer *xfer = arg;
-	struct uss820dci_softc *sc = xfer->usb2_sc;
 
 	DPRINTF("xfer=%p\n", xfer);
 
-	USB_BUS_LOCK_ASSERT(&sc->sc_bus, MA_OWNED);
+	USB_BUS_LOCK_ASSERT(xfer->udev->bus, MA_OWNED);
 
 	/* transfer is transferred */
 	uss820dci_device_done(xfer, USB_ERR_TIMEOUT);
-
-	USB_BUS_UNLOCK(&sc->sc_bus);
 }
 
 static void

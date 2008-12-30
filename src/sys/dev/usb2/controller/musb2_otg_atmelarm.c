@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/musb2_otg_atmelarm.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/musb2_otg_atmelarm.c,v 1.4 2008/12/23 17:36:25 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -104,6 +104,7 @@ musbotg_attach(device_t dev)
 
 	/* get all DMA memory */
 
+	sc->sc_otg.sc_bus.parent = dev;
 	if (usb2_bus_mem_alloc_all(&sc->sc_otg.sc_bus,
 	    USB_GET_DMA_TAG(dev), NULL)) {
 		return (ENOMEM);

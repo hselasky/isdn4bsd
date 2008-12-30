@@ -1,6 +1,6 @@
 /*	$NetBSD: if_udav.c,v 1.2 2003/09/04 15:17:38 tsutsui Exp $	*/
 /*	$nabe: if_udav.c,v 1.3 2003/08/21 16:57:19 nabe Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.4 2008/12/23 19:59:21 thompsa Exp $	*/
 /*-
  * Copyright (c) 2003
  *     Shingo WATANABE <nabe@nabechan.org>.  All rights reserved.
@@ -49,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.4 2008/12/23 19:59:21 thompsa Exp $");
 
 #include <dev/usb2/include/usb2_devid.h>
 #include <dev/usb2/include/usb2_standard.h>
@@ -282,8 +282,7 @@ udav_attach(device_t dev)
 
 	mtx_init(&sc->sc_mtx, "udav lock", NULL, MTX_DEF | MTX_RECURSE);
 
-	usb2_callout_init_mtx(&sc->sc_watchdog,
-	    &sc->sc_mtx, CALLOUT_RETURNUNLOCKED);
+	usb2_callout_init_mtx(&sc->sc_watchdog, &sc->sc_mtx, 0);
 
 	iface_index = UDAV_IFACE_INDEX;
 	error = usb2_transfer_setup(uaa->device, &iface_index,
@@ -309,10 +308,8 @@ udav_attach(device_t dev)
 	usb2_config_td_queue_command
 	    (&sc->sc_config_td, NULL, &udav_cfg_first_time_setup, 0, 0);
 
-	/* start watchdog (will exit mutex) */
-
 	udav_watchdog(sc);
-
+	mtx_unlock(&sc->sc_mtx);
 	return (0);			/* success */
 
 detach:
@@ -1080,8 +1077,6 @@ udav_watchdog(void *arg)
 
 	usb2_callout_reset(&sc->sc_watchdog,
 	    hz, &udav_watchdog, sc);
-
-	mtx_unlock(&sc->sc_mtx);
 }
 
 /*

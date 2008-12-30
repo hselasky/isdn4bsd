@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2_pci.c,v 1.2 2008/11/10 20:54:31 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2_pci.c,v 1.3 2008/12/23 17:36:25 thompsa Exp $");
 
 /*
  * USB Open Host Controller driver.
@@ -202,6 +202,7 @@ ohci_pci_attach(device_t self)
 	}
 	/* get all DMA memory */
 
+	sc->sc_bus.parent = self;
 	if (usb2_bus_mem_alloc_all(&sc->sc_bus, USB_GET_DMA_TAG(self),
 	    &ohci_iterate_hw_softc)) {
 		return ENOMEM;

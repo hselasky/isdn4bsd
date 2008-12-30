@@ -1,4 +1,4 @@
-/*	$FreeBSD: src/sys/dev/usb2/wlan/if_ural2.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_ural2.c,v 1.4 2008/12/23 19:59:21 thompsa Exp $	*/
 
 /*-
  * Copyright (c) 2005, 2006
@@ -28,7 +28,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_ural2.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_ural2.c,v 1.4 2008/12/23 19:59:21 thompsa Exp $");
 
 /*-
  * Ralink Technology RT2500USB chipset driver
@@ -467,8 +467,7 @@ ural_attach(device_t dev)
 	sc->sc_udev = uaa->device;
 	sc->sc_unit = device_get_unit(dev);
 
-	usb2_callout_init_mtx(&sc->sc_watchdog,
-	    &sc->sc_mtx, CALLOUT_RETURNUNLOCKED);
+	usb2_callout_init_mtx(&sc->sc_watchdog, &sc->sc_mtx, 0);
 
 	iface_index = RAL_IFACE_INDEX;
 	error = usb2_transfer_setup(uaa->device,
@@ -495,10 +494,8 @@ ural_attach(device_t dev)
 	usb2_config_td_queue_command
 	    (&sc->sc_config_td, NULL, &ural_cfg_first_time_setup, 0, 0);
 
-	/* start watchdog (will exit mutex) */
-
 	ural_watchdog(sc);
-
+	mtx_unlock(&sc->sc_mtx);
 	return (0);			/* success */
 
 detach:
@@ -1408,8 +1405,6 @@ ural_watchdog(void *arg)
 	}
 	usb2_callout_reset(&sc->sc_watchdog,
 	    hz, &ural_watchdog, sc);
-
-	mtx_unlock(&sc->sc_mtx);
 }
 
 /*========================================================================*

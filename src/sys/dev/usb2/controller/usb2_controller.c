@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/usb2_controller.c,v 1.4 2008/12/11 23:17:48 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/usb2_controller.c,v 1.5 2008/12/23 17:36:25 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -495,7 +495,7 @@ usb2_bus_mem_alloc_all(struct usb2_bus *bus, bus_dma_tag_t dmat,
 
 	bus->devices_max = USB_MAX_DEVICES;
 
-	mtx_init(&bus->bus_mtx, "USB bus lock",
+	mtx_init(&bus->bus_mtx, device_get_nameunit(bus->parent),
 	    NULL, MTX_DEF | MTX_RECURSE);
 
 	usb2_callout_init_mtx(&bus->power_wdog,

@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ehci2_pci.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ehci2_pci.c,v 1.4 2008/12/23 17:36:25 thompsa Exp $");
 
 /*
  * USB Enhanced Host Controller Driver, a.k.a. USB 2.0 controller.
@@ -234,6 +234,7 @@ ehci_pci_attach(device_t self)
 	}
 	/* get all DMA memory */
 
+	sc->sc_bus.parent = self;
 	if (usb2_bus_mem_alloc_all(&sc->sc_bus,
 	    USB_GET_DMA_TAG(self), &ehci_iterate_hw_softc)) {
 		return ENOMEM;
