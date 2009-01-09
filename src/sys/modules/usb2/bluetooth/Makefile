@@ -1,5 +1,5 @@
 #
-# $FreeBSD$
+# $FreeBSD: src/sys/modules/usb2/bluetooth/Makefile,v 1.1 2008/11/04 02:31:03 alfred Exp $
 #
 
 S=     ${.CURDIR}/../../..

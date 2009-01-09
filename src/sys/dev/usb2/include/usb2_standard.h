@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/include/usb2_standard.h,v 1.2 2008/11/25 08:04:40 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/include/usb2_standard.h,v 1.3 2009/01/04 00:12:01 alfred Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  * Copyright (c) 1998 The NetBSD Foundation, Inc. All rights reserved.

@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_device.c,v 1.6 2008/12/11 23:17:48 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_device.c,v 1.7 2009/01/04 00:12:01 alfred Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -1290,19 +1290,20 @@ usb2_alloc_device(device_t parent_dev, struct usb2_bus *bus,
 	 * Find an unused device index. In USB Host mode this is the
 	 * same as the device address.
 	 *
-	 * NOTE: Index 1 is reserved for the Root HUB.
+	 * Device index zero is not used and device index 1 should
+	 * always be the root hub.
 	 */
-	for (device_index = USB_ROOT_HUB_ADDR; device_index !=
-	    USB_MAX_DEVICES; device_index++) {
-		if (bus->devices[device_index] == NULL)
-			break;
-	}
+	for (device_index = USB_ROOT_HUB_ADDR;
+	    (device_index != bus->devices_max) &&
+	    (bus->devices[device_index] != NULL);
+	    device_index++) /* nop */;
 
-	if (device_index == USB_MAX_DEVICES) {
+	if (device_index == bus->devices_max) {
 		device_printf(bus->bdev,
 		    "No free USB device index for new device!\n");
 		return (NULL);
 	}
+
 	if (depth > 0x10) {
 		device_printf(bus->bdev,
 		    "Invalid device depth!\n");
@@ -1741,7 +1742,17 @@ usb2_free_device(struct usb2_device *udev)
 	/* unsetup any leftover default USB transfers */
 	usb2_transfer_unsetup(udev->default_xfer, USB_DEFAULT_XFER_MAX);
 
+	/* template unsetup, if any */
 	(usb2_temp_unsetup_p) (udev);
+
+	/* 
+	 * Make sure that our clear-stall messages are not queued
+	 * anywhere:
+	 */
+	USB_BUS_LOCK(udev->bus);
+	usb2_proc_mwait(&udev->bus->non_giant_callback_proc,
+	    &udev->cs_msg[0], &udev->cs_msg[1]);
+	USB_BUS_UNLOCK(udev->bus);
 
 	sx_destroy(udev->default_sx);
 	sx_destroy(udev->default_sx + 1);

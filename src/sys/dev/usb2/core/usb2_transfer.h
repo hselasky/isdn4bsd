@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_transfer.h,v 1.3 2008/12/11 23:13:02 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_transfer.h,v 1.4 2009/01/04 00:12:01 alfred Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -33,7 +33,7 @@
  */
 struct usb2_done_msg {
 	struct usb2_proc_msg hdr;
-	struct usb2_xfer_root *usb2_root;
+	struct usb2_xfer_root *xroot;
 };
 
 /*
@@ -46,17 +46,17 @@ struct usb2_xfer_root {
 	struct usb2_xfer_queue done_q;
 	struct usb2_done_msg done_m[2];
 	struct cv cv_drain;
-
 	struct usb2_dma_parent_tag dma_parent_tag;
 
-	struct usb2_process done_p;
+	struct usb2_process *done_p;	/* pointer to callback process */
 	void   *memory_base;
-	struct mtx *priv_mtx;
+	struct mtx *xfer_mtx;	/* cannot be changed during operation */
 	struct usb2_page_cache *dma_page_cache_start;
 	struct usb2_page_cache *dma_page_cache_end;
 	struct usb2_page_cache *xfer_page_cache_start;
 	struct usb2_page_cache *xfer_page_cache_end;
-	struct usb2_bus *bus;
+	struct usb2_bus *bus;		/* pointer to USB bus (cached) */
+	struct usb2_device *udev;	/* pointer to USB device */
 
 	uint32_t memory_size;
 	uint32_t setup_refcount;

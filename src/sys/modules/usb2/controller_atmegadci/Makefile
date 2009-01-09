@@ -1,7 +1,7 @@
 #
-# $FreeBSD: src/sys/modules/usb2/controller_ohci/Makefile,v 1.1 2008/11/04 02:31:03 alfred Exp $
+# $FreeBSD: $
 #
-# Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
+# Copyright (c) 2009 Hans Petter Selasky. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -29,14 +29,13 @@ S=${.CURDIR}/../../..
 
 .PATH: $S/dev/usb2/controller
 
-KMOD=usb2_controller_ohci
+KMOD=usb2_controller_atmegadci
 SRCS= 
 SRCS+= bus_if.h usb2_if.h device_if.h vnode_if.h 
 SRCS+= opt_usb.h pci_if.h opt_bus.h card_if.h
-SRCS+= ohci2.c
-SRCS+= ohci2_pci.c
+SRCS+= atmegadci.c
 .if defined(HAS_ATMELARM)
-SRCS+= ohci2_atmelarm.c
+SRCS+= atmegadci_atmelarm.c
 .endif
 
 .include <bsd.kmod.mk>

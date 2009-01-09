@@ -1,5 +1,5 @@
 #
-# $FreeBSD$
+# $FreeBSD: src/sys/modules/usb2/serial_3g/Makefile,v 1.1 2009/01/04 00:12:01 alfred Exp $
 #
 # Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
 #

@@ -1,5 +1,5 @@
 /*	$NetBSD: uaudio.c,v 1.91 2004/11/05 17:46:14 kent Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/sound/uaudio2.c,v 1.4 2008/12/11 23:17:48 thompsa Exp $ */
+/*	$FreeBSD: src/sys/dev/usb2/sound/uaudio2.c,v 1.5 2009/01/04 00:12:01 alfred Exp $ */
 
 /*-
  * Copyright (c) 1999 The NetBSD Foundation, Inc.
@@ -2921,6 +2921,8 @@ uaudio_mixer_write_cfg_callback(struct usb2_xfer *xfer)
 	uint8_t chan;
 	uint8_t buf[2];
 
+	DPRINTF("\n");
+
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 tr_transferred:
@@ -2980,11 +2982,14 @@ tr_setup:
 		if (repeat) {
 			goto tr_setup;
 		}
-		return;
+		break;
 
 	default:			/* Error */
 		DPRINTF("error=%s\n", usb2_errstr(xfer->error));
-
+		if (xfer->error == USB_ERR_CANCELLED) {
+			/* do nothing - we are detaching */
+			break;
+		}
 		goto tr_transferred;
 	}
 }

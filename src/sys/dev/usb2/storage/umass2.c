@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.4 2008/12/11 23:17:48 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.5 2009/01/04 00:12:01 alfred Exp $");
 
 /*-
  * Copyright (c) 1999 MAEKAWA Masahide <bishop@rr.iij4u.or.jp>,
@@ -27,7 +27,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.4 2008/12/11 23:17:48 
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.4 2008/12/11 23:17:48 thompsa Exp $
+ *	$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.5 2009/01/04 00:12:01 alfred Exp $
  *	$NetBSD: umass.c,v 1.28 2000/04/02 23:46:53 augustss Exp $
  */
 
@@ -915,6 +915,10 @@ static const struct umass_devdescr umass_devdescr[] = {
 	{USB_VENDOR_ZORAN, USB_PRODUCT_ZORAN_EX20DSC, RID_WILDCARD,
 		UMASS_PROTO_ATAPI | UMASS_PROTO_CBI,
 		NO_QUIRKS
+	},
+	{USB_VENDOR_MEIZU, USB_PRODUCT_MEIZU_M6_SL, RID_WILDCARD,
+		UMASS_PROTO_SCSI | UMASS_PROTO_BBB,
+		NO_INQUIRY | NO_SYNCHRONIZE_CACHE
 	},
 	{VID_EOT, PID_EOT, RID_EOT, 0, 0}
 };

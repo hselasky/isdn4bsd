@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/usb2_bus.h,v 1.3 2008/12/23 17:36:25 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/usb2_bus.h,v 1.4 2009/01/04 00:12:01 alfred Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -52,9 +52,18 @@ struct usb2_bus {
 	struct usb2_bus_stat stats_err;
 	struct usb2_bus_stat stats_ok;
 	struct usb2_process explore_proc;
+	struct usb2_process roothub_proc;
+	/*
+	 * There are two callback processes. One for Giant locked
+	 * callbacks. One for non-Giant locked callbacks. This should
+	 * avoid congestion and reduce response time in most cases.
+	 */
+	struct usb2_process giant_callback_proc;
+	struct usb2_process non_giant_callback_proc;
 	struct usb2_bus_msg explore_msg[2];
 	struct usb2_bus_msg detach_msg[2];
 	struct usb2_bus_msg attach_msg[2];
+	struct usb2_bus_msg roothub_msg[2];
 	/*
 	 * This mutex protects the USB hardware:
 	 */
@@ -70,7 +79,7 @@ struct usb2_bus {
 	struct usb2_dma_tag dma_tags[USB_BUS_DMA_TAG_MAX];
 
 	struct usb2_bus_methods *methods;	/* filled by HC driver */
-	struct usb2_device *devices[USB_MAX_DEVICES];
+	struct usb2_device **devices;
 
 	uint32_t hw_power_state;	/* see USB_HW_POWER_XXX */
 	uint32_t uframe_usage[USB_HS_MICRO_FRAMES_MAX];

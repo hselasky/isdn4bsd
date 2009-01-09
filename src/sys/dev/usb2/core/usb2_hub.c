@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_hub.c,v 1.4 2008/12/11 23:17:48 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_hub.c,v 1.5 2009/01/04 00:12:01 alfred Exp $ */
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc. All rights reserved.
  * Copyright (c) 1998 Lennart Augustsson. All rights reserved.
@@ -1429,7 +1429,7 @@ usb2_transfer_power_ref(struct usb2_xfer *xfer, int val)
 	uint8_t needs_hw_power;
 	uint8_t xfer_type;
 
-	udev = xfer->udev;
+	udev = xfer->xroot->udev;
 
 	if (udev->device_index == USB_ROOT_HUB_ADDR) {
 		/* no power save for root HUB */
@@ -1521,7 +1521,7 @@ usb2_bus_powerd(struct usb2_bus *bus)
 	 * and we simply skip it.
 	 */
 	for (x = USB_ROOT_HUB_ADDR + 1;
-	    x != USB_MAX_DEVICES; x++) {
+	    x != bus->devices_max; x++) {
 
 		udev = bus->devices[x];
 		if (udev == NULL)
@@ -1565,7 +1565,7 @@ usb2_bus_powerd(struct usb2_bus *bus)
 	/* Re-loop all the devices to get the actual state */
 
 	for (x = USB_ROOT_HUB_ADDR + 1;
-	    x != USB_MAX_DEVICES; x++) {
+	    x != bus->devices_max; x++) {
 
 		udev = bus->devices[x];
 		if (udev == NULL)
@@ -1823,7 +1823,8 @@ void
 usb2_set_power_mode(struct usb2_device *udev, uint8_t power_mode)
 {
 	/* filter input argument */
-	if (power_mode != USB_POWER_MODE_ON) {
+	if ((power_mode != USB_POWER_MODE_ON) &&
+	    (power_mode != USB_POWER_MODE_OFF)) {
 		power_mode = USB_POWER_MODE_SAVE;
 	}
 	udev->power_mode = power_mode;	/* update copy of power mode */

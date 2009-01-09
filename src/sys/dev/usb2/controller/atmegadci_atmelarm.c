@@ -1,6 +1,8 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_msctest.h,v 1.4 2009/01/04 00:12:01 alfred Exp $ */
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD: $");
+
 /*-
- * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2009 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,11 +25,3 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
-#ifndef _USB2_MSCTEST_H_
-#define	_USB2_MSCTEST_H_
-
-usb2_error_t usb2_test_autoinstall(struct usb2_device *udev,
-	    uint8_t iface_index, uint8_t do_eject);
-
-#endif					/* _USB2_MSCTEST_H_ */

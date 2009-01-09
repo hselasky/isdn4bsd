@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/storage/ustorage2_fs.c,v 1.2 2008/12/11 23:17:48 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/storage/ustorage2_fs.c,v 1.3 2009/01/04 00:12:01 alfred Exp $ */
 /*-
  * Copyright (C) 2003-2005 Alan Stern
  * Copyright (C) 2008 Hans Petter Selasky
