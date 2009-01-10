@@ -73,7 +73,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ubsa2.c,v 1.5 2008/12/11 23:17:48 th
 #include <dev/usb2/core/usb2_core.h>
 #include <dev/usb2/core/usb2_debug.h>
 #include <dev/usb2/core/usb2_process.h>
-#include <dev/usb2/core/usb2_config_td.h>
 #include <dev/usb2/core/usb2_request.h>
 #include <dev/usb2/core/usb2_lookup.h>
 #include <dev/usb2/core/usb2_util.h>

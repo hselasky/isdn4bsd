@@ -95,7 +95,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/serial/uplcom2.c,v 1.5 2009/01/04 00:12:01 
 #include <dev/usb2/core/usb2_core.h>
 #include <dev/usb2/core/usb2_debug.h>
 #include <dev/usb2/core/usb2_process.h>
-#include <dev/usb2/core/usb2_config_td.h>
 #include <dev/usb2/core/usb2_request.h>
 #include <dev/usb2/core/usb2_lookup.h>
 #include <dev/usb2/core/usb2_util.h>
