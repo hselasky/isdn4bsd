@@ -1,9 +1,8 @@
 /*	$NetBSD: umodem.c,v 1.45 2002/09/23 05:51:23 simonb Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ufoma2.c,v 1.5 2009/01/08 05:10:03 takawata Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ufoma2.c,v 1.6 2009/01/12 20:13:14 takawata Exp $");
 #define UFOMA_HANDSFREE
-
 /*-
  * Copyright (c) 2005, Takanori Watanabe
  * Copyright (c) 2003, M. Warner Losh <imp@freebsd.org>.
@@ -485,7 +484,9 @@ ufoma_attach(device_t dev)
 	SYSCTL_ADD_PROC(sctx, SYSCTL_CHILDREN(soid), OID_AUTO, "openmode",
 			CTLFLAG_RW|CTLTYPE_STRING, sc, 0, ufoma_sysctl_open,
 			"A", "Mode to transit when port is opened");
-
+	SYSCTL_ADD_UINT(sctx, SYSCTL_CHILDREN(soid), OID_AUTO, "comunit",
+			CTLFLAG_RD, &(sc->sc_ucom.sc_unit), 0, 
+			"Unit number as USB serial");
 
 	return (0);			/* success */
 
@@ -757,7 +758,7 @@ ufoma_intr_callback(struct usb2_xfer *xfer)
 			if (sc->sc_num_msg != 0xFF) {
 				sc->sc_num_msg++;
 			}
-			usb2_transfer_start(sc->sc_ctrl_xfer[3]);
+			usb2_transfer_start(sc->sc_ctrl_xfer[2]);
 			break;
 
 		case UCDC_N_SERIAL_STATE:

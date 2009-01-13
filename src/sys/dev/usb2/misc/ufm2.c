@@ -29,7 +29,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/misc/ufm2.c,v 1.2 2008/12/11 23:13:02 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/misc/ufm2.c,v 1.3 2009/01/11 19:41:38 thompsa Exp $");
 
 
 #include <dev/usb2/include/usb2_devid.h>
@@ -43,7 +43,6 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/misc/ufm2.c,v 1.2 2008/12/11 23:13:02 thomp
 #include <dev/usb2/core/usb2_core.h>
 #include <dev/usb2/core/usb2_debug.h>
 #include <dev/usb2/core/usb2_process.h>
-#include <dev/usb2/core/usb2_config_td.h>
 #include <dev/usb2/core/usb2_request.h>
 #include <dev/usb2/core/usb2_lookup.h>
 #include <dev/usb2/core/usb2_util.h>
