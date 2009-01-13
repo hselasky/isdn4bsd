@@ -47,6 +47,9 @@ int	m_apply(struct mbuf *mbuf, int off, int len, int (*f) (void *arg, void *data
 #define	htole16(x) ((uint16_t)(x))
 #define	le16toh(x) ((uint16_t)(x))
 
+#define	be32toh(x) ((uint32_t)(x))
+#define	htobe32(x) ((uint32_t)(x))
+
 struct selinfo {
 	uint8_t	dummy;
 };

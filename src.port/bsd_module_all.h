@@ -26,8 +26,6 @@
 #ifndef _BSD_MODULE_ALL_H_
 #define	_BSD_MODULE_ALL_H_
 
-#include <ose.h>
-
 #include <bsd_module_rename.h>
 
 #define	__FreeBSD_version 800000

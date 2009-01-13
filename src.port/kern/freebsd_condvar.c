@@ -93,7 +93,9 @@ cv_timedwait_sub(struct cv *cv, struct mtx *mtx, uint32_t timo)
 		mtx_unlock(mtx);
 
 		DROP_GIANT();
+#if 0
 		wait_sem(&(cv->cv_sem));
+#endif
 		PICKUP_GIANT();
 
 		mtx_lock(mtx);
@@ -160,7 +162,9 @@ cv_signal(struct cv *cv)
 	cv->cv_signalled = 1;
 	mtx_unlock(&cv_mtx);
 	if (waiters) {
+#if 0
 		signal_sem(&(cv->cv_sem));
+#endif
 	}
 	return;
 }
@@ -176,7 +180,9 @@ cv_broadcast(struct cv *cv)
 	cv->cv_signal_all = 1;
 	mtx_unlock(&cv_mtx);
 	while (waiters--) {
+#if 0
 		signal_sem(&(cv->cv_sem));
+#endif
 	}
 	return;
 }

@@ -26,8 +26,10 @@
 /*
  * The functions in this file transform BSD bus events into signals.
  */
+#if 0
 extern SIGSELECT BsdEventBusId;
 extern SIGSELECT UsbEventHandleControlRequestId;
+#endif
 
 enum {
 	BSD_BUS_PROBE,
@@ -49,7 +51,9 @@ enum {
 };
 
 struct bsd_bus_event {
+#if 0
 	union SIGNAL hdr;
+#endif
 	void   *ivars;			/* pointer to driver dependent data */
 	int	unit;			/* 0,1,2,3 ... */
 	int	what;			/* BSD_BUS_XXX */
@@ -58,7 +62,9 @@ struct bsd_bus_event {
 };
 
 struct usb_control_request {
+#if 0
 	union SIGNAL hdr;
+#endif
 	int	unit;			/* 0,1,2,3 ... */
 	const void *req;		/* pointer to setup header */
 	void  **pptr;			/* pointer to data buffer */
@@ -69,6 +75,8 @@ struct usb_control_request {
 					 * USB_CONTROL_XXX */
 };
 
+#if 0
 int	bsd_bus_event(PROCESS proc, int unit, int what, void *ivars);
 int	usb_handle_control_request(PROCESS proc, int unit, const void *req, void **pptr, uint16_t *plen, uint16_t offset, uint8_t is_complete);
+#endif
 void	usb_driver_loaded(void);

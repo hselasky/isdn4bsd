@@ -47,7 +47,9 @@ int
 pause(const char *wmesg, int timo)
 {
 	DROP_GIANT();
+#if 0
 	delay((OSTIME) timo);
+#endif
 	PICKUP_GIANT();
 	return (0);
 }

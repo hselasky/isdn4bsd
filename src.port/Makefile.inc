@@ -30,6 +30,7 @@ SRCS+=bsd_div.c
 SRCS+=bsd_memset.c
 SRCS+=bsd_strcmp.c
 SRCS+=bsd_strcasecmp.c
+SRCS+=atmegadci.c
 SRCS+=at91dci.c
 # SRCS+=at91dci_atmelarm.c
 SRCS+=ehci2.c

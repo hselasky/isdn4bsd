@@ -36,7 +36,9 @@ void	cv_broadcast(struct cv *cvp);
 const char *cv_wmesg(struct cv *cvp);
 
 struct cv {
+#if 0
 	SEMAPHORE cv_sem;
+#endif
 	struct callout cv_co;
 	struct mtx *cv_mtx;
 	const char *cv_desc;

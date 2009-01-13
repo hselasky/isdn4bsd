@@ -39,7 +39,9 @@ static void mtx_sysuninit(void *arg);
 SYSINIT(Giant_sysinit, SI_SUB_LOCK, SI_ORDER_MIDDLE, mtx_sysinit, &Giant);
 SYSUNINIT(Giant_sysuninit, SI_SUB_LOCK, SI_ORDER_MIDDLE, mtx_sysuninit, &Giant);
 
+#if 0
 static SEMAPHORE atomic_sem = {1};
+#endif
 static volatile uint32_t atomic_recurse = 0;
 static volatile struct thread *atomic_thread = MTX_NO_THREAD;
 
@@ -54,7 +56,9 @@ atomic_lock(void)
 		}
 		return;
 	}
+#if 0
 	wait_sem(&atomic_sem);
+#endif
 
 	if (atomic_thread != MTX_NO_THREAD) {
 		panic("atomic_lock: Failure on "
@@ -73,7 +77,9 @@ atomic_unlock(void)
 			    "%p!\n", atomic_thread);
 		}
 		atomic_thread = MTX_NO_THREAD;
+#if 0
 		signal_sem(&atomic_sem);
+#endif
 	} else {
 		atomic_recurse--;
 	}
