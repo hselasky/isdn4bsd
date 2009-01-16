@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_sw_transfer.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_sw_transfer.c,v 1.4 2009/01/13 19:04:12 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *

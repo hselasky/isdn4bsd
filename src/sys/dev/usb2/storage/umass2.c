@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.5 2009/01/04 00:12:01 alfred Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.7 2009/01/13 19:05:20 thompsa Exp $");
 
 /*-
  * Copyright (c) 1999 MAEKAWA Masahide <bishop@rr.iij4u.or.jp>,
@@ -27,7 +27,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.5 2009/01/04 00:12:01 
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.5 2009/01/04 00:12:01 alfred Exp $
+ *	$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.7 2009/01/13 19:05:20 thompsa Exp $
  *	$NetBSD: umass.c,v 1.28 2000/04/02 23:46:53 augustss Exp $
  */
 

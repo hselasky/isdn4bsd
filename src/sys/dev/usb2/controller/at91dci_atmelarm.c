@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/at91dci_atmelarm.c,v 1.4 2008/12/23 17:36:25 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/at91dci_atmelarm.c,v 1.7 2009/01/13 19:03:33 thompsa Exp $");
 
 /*-
  * Copyright (c) 2007-2008 Hans Petter Selasky. All rights reserved.

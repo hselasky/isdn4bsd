@@ -1,4 +1,4 @@
-/*	$FreeBSD: src/sys/dev/usb2/wlan/if_rum2_var.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ 	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_rumvar.h,v 1.2 2009/01/15 02:35:40 thompsa Exp $ 	*/
 
 /*-
  * Copyright (c) 2005, 2006 Damien Bergamini <damien.bergamini@free.fr>
@@ -16,8 +16,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-
-#define	RUM_N_TRANSFER 4
 
 struct rum_node {
 	struct ieee80211_node ni;
@@ -111,6 +109,14 @@ struct rum_ifq {
 	struct mbuf *ifq_head;
 	struct mbuf *ifq_tail;
 	uint16_t ifq_len;
+};
+
+enum {
+	RUM_BULK_DT_WR,
+	RUM_BULK_DT_RD,
+	RUM_BULK_CS_WR,
+	RUM_BULK_CS_RD,
+	RUM_N_TRANSFER = 4,
 };
 
 struct rum_softc {

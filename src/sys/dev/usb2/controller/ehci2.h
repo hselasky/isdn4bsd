@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/ehci2.h,v 1.3 2009/01/04 00:12:01 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/ehci2.h,v 1.5 2009/01/13 19:03:01 thompsa Exp $ */
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
  * All rights reserved.

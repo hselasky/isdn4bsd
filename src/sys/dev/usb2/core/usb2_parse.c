@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_parse.c,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_parse.c,v 1.2 2009/01/13 19:04:37 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *

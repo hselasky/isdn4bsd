@@ -29,7 +29,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- * $FreeBSD: src/sys/dev/usb2/ethernet/if_cue2_reg.h,v 1.1 2008/11/04 02:31:03 alfred Exp $
+ * $FreeBSD: src/sys/dev/usb2/ethernet/if_cuereg.h,v 1.2 2009/01/15 02:35:40 thompsa Exp $
  */
 
 /*
@@ -113,7 +113,13 @@
 #define	CUE_IFACE_IDX		0
 
 /* The interrupt endpoint is currently unused by the KLSI part. */
-#define	CUE_ENDPT_MAX		4
+enum {
+	CUE_BULK_DT_WR,
+	CUE_BULK_DT_RD,
+	CUE_BULK_CS_WR,
+	CUE_BULK_CS_RD,
+	CUE_N_TRANSFER = 4,
+};
 
 struct cue_softc {
 	void   *sc_evilhack;		/* XXX this pointer must be first */
@@ -125,7 +131,7 @@ struct cue_softc {
 	struct ifnet *sc_ifp;
 	device_t sc_dev;
 	struct usb2_device *sc_udev;
-	struct usb2_xfer *sc_xfer[CUE_ENDPT_MAX];
+	struct usb2_xfer *sc_xfer[CUE_N_TRANSFER];
 
 	uint32_t sc_unit;
 

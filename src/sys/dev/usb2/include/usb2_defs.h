@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/include/usb2_defs.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/include/usb2_defs.h,v 1.3 2009/01/13 19:02:50 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *

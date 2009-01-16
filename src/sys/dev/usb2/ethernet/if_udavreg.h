@@ -1,6 +1,6 @@
 /*	$NetBSD: if_udavreg.h,v 1.2 2003/09/04 15:17:39 tsutsui Exp $	*/
 /*	$nabe: if_udavreg.h,v 1.2 2003/08/21 16:26:40 nabe Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2_reg.h,v 1.1 2008/11/04 02:31:03 alfred Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/ethernet/if_udavreg.h,v 1.2 2009/01/15 02:35:40 thompsa Exp $	*/
 /*-
  * Copyright (c) 2003
  *     Shingo WATANABE <nabe@nabechan.org>.  All rights reserved.
@@ -33,8 +33,6 @@
 
 #define	UDAV_IFACE_INDEX	0
 #define	UDAV_CONFIG_INDEX	0	/* config number 1 */
-
-#define	UDAV_ENDPT_MAX		6	/* units */
 
 /* Packet length */
 #define	UDAV_MIN_FRAME_LEN	60
@@ -136,6 +134,16 @@
 #define	GET_MII(sc)	((sc)->sc_miibus ?				\
 			    device_get_softc((sc)->sc_miibus) : NULL)
 
+enum {
+	UDAV_BULK_DT_WR,
+	UDAV_BULK_DT_RD,
+	UDAV_BULK_CS_WR,
+	UDAV_BULK_CS_RD,
+	UDAV_INTR_DT_RD,
+	UDAV_INTR_CS_RD,
+	UDAV_N_TRANSFER = 6,
+};
+
 struct udav_softc {
 	void   *sc_evilhack;		/* XXX this pointer must be first */
 
@@ -145,7 +153,7 @@ struct udav_softc {
 
 	struct ifnet *sc_ifp;
 	struct usb2_device *sc_udev;
-	struct usb2_xfer *sc_xfer[UDAV_ENDPT_MAX];
+	struct usb2_xfer *sc_xfer[UDAV_N_TRANSFER];
 	device_t sc_miibus;
 	device_t sc_dev;
 

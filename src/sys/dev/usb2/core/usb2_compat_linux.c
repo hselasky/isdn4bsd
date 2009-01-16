@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_compat_linux.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_compat_linux.c,v 1.4 2009/01/13 19:04:58 thompsa Exp $ */
 /*-
  * Copyright (c) 2007 Luigi Rizzo - Universita` di Pisa. All rights reserved.
  * Copyright (c) 2007 Hans Petter Selasky. All rights reserved.

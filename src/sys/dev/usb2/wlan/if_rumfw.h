@@ -1,4 +1,4 @@
-/*	$FreeBSD: src/sys/dev/usb2/wlan/if_rum2_fw.h,v 1.1 2008/11/04 02:31:03 alfred Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_rumfw.h,v 1.1 2009/01/13 21:18:14 thompsa Exp $	*/
 
 /*-
  * Copyright (c) 2005-2006, Ralink Technology, Corp.

@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/uss820dci.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/uss820dci.h,v 1.3 2009/01/13 19:03:01 thompsa Exp $ */
 /*-
  * Copyright (c) 2007 Hans Petter Selasky <hselasky@freebsd.org>
  * All rights reserved.

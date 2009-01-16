@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2.c,v 1.5 2009/01/04 00:12:01 alfred Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2.c,v 1.8 2009/01/13 19:03:12 thompsa Exp $");
 
 /*
  * USB Open Host Controller driver.

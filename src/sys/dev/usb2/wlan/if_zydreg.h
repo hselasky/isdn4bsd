@@ -1,6 +1,6 @@
 /*	$OpenBSD: if_zydreg.h,v 1.19 2006/11/30 19:28:07 damien Exp $	*/
 /*	$NetBSD: if_zydreg.h,v 1.2 2007/06/16 11:18:45 kiyohara Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2_reg.h,v 1.2 2009/01/04 00:12:01 alfred Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_zydreg.h,v 1.2 2009/01/15 02:35:40 thompsa Exp $	*/
 
 /*-
  * Copyright (c) 2006 by Damien Bergamini <damien.bergamini@free.fr>
@@ -1210,18 +1210,6 @@ struct zyd_rf {
 	uint8_t	width;
 };
 
-enum {
-	ZYD_TR_BULK_DT_WR,
-	ZYD_TR_BULK_DT_RD,
-	ZYD_TR_BULK_CS_WR,
-	ZYD_TR_BULK_CS_RD,
-	ZYD_TR_INTR_DT_WR,
-	ZYD_TR_INTR_DT_RD,
-	ZYD_TR_INTR_CS_WR,
-	ZYD_TR_INTR_CS_RD,
-	ZYD_N_TRANSFER,
-};
-
 struct zyd_ifq {
 	struct mbuf *ifq_head;
 	struct mbuf *ifq_tail;
@@ -1282,6 +1270,18 @@ struct zyd_config_copy {
 
 	uint8_t	ic_myaddr[IEEE80211_ADDR_LEN];
 	uint8_t	if_broadcastaddr[IEEE80211_ADDR_LEN];
+};
+
+enum {
+	ZYD_BULK_DT_WR,
+	ZYD_BULK_DT_RD,
+	ZYD_BULK_CS_WR,
+	ZYD_BULK_CS_RD,
+	ZYD_INTR_DT_WR,
+	ZYD_INTR_DT_RD,
+	ZYD_INTR_CS_WR,
+	ZYD_INTR_CS_RD,
+	ZYD_N_TRANSFER = 8,
 };
 
 struct zyd_softc {

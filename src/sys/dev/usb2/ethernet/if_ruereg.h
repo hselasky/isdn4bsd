@@ -23,13 +23,11 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: src/sys/dev/usb2/ethernet/if_rue2_reg.h,v 1.1 2008/11/04 02:31:03 alfred Exp $
+ * $FreeBSD: src/sys/dev/usb2/ethernet/if_ruereg.h,v 1.2 2009/01/15 02:35:40 thompsa Exp $
  */
 
 #define	RUE_CONFIG_IDX		0	/* config number 1 */
 #define	RUE_IFACE_IDX		0
-
-#define	RUE_ENDPT_MAX		6
 
 #define	RUE_INTR_PKTLEN		0x8
 
@@ -165,6 +163,16 @@ struct rue_type {
 	uint16_t rue_did;
 };
 
+enum {
+	RUE_BULK_DT_WR,
+	RUE_BULK_DT_RD,
+	RUE_BULK_CS_WR,
+	RUE_BULK_CS_RD,
+	RUE_INTR_DT_RD,
+	RUE_INTR_CS_RD,
+	RUE_N_TRANSFER = 6,
+};
+
 struct rue_softc {
 	void   *sc_evilhack;		/* XXX this pointer must be first */
 
@@ -174,7 +182,7 @@ struct rue_softc {
 
 	struct ifnet *sc_ifp;
 	struct usb2_device *sc_udev;
-	struct usb2_xfer *sc_xfer[RUE_ENDPT_MAX];
+	struct usb2_xfer *sc_xfer[RUE_N_TRANSFER];
 	device_t sc_miibus;
 	device_t sc_dev;
 
