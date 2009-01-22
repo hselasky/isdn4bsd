@@ -3320,7 +3320,13 @@ uhci_set_hw_power(struct usb2_bus *bus)
 
 	flags = bus->hw_power_state;
 
+	/*
+	 * WARNING: Some FULL speed USB devices require periodic SOF messages!
+	 * If any USB devices are connected through the UHCI, power
+	 * save will be disabled!
+	 */
 	if (flags & (USB_HW_POWER_CONTROL |
+	    USB_HW_POWER_NON_ROOT_HUB |
 	    USB_HW_POWER_BULK |
 	    USB_HW_POWER_INTERRUPT |
 	    USB_HW_POWER_ISOC)) {
