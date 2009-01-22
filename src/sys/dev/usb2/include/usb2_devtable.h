@@ -4607,6 +4607,12 @@ const struct usb_knowndev usb_knowndevs[] = {
 	    "USB-IDE",
 	},
 	{
+	    USB_VENDOR_MYSON, USB_PRODUCT_MYSON_STARREADER,
+	    0,
+	    "Myson Technology",
+	    "USB flash card adapter",
+	},
+	{
 	    USB_VENDOR_NATIONAL, USB_PRODUCT_NATIONAL_BEARPAW1200,
 	    0,
 	    "National Semiconductor",

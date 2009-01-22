@@ -1804,6 +1804,7 @@
 
 /* Myson products */
 #define	USB_PRODUCT_MYSON_HEDEN	0x8818		/* USB-IDE */
+#define	USB_PRODUCT_MYSON_STARREADER	0x9920		/* USB flash card adapter */
 
 /* National Semiconductor */
 #define	USB_PRODUCT_NATIONAL_BEARPAW1200	0x1000		/* BearPaw 1200 */
