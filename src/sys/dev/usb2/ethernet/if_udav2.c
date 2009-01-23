@@ -1,6 +1,6 @@
 /*	$NetBSD: if_udav.c,v 1.2 2003/09/04 15:17:38 tsutsui Exp $	*/
 /*	$nabe: if_udav.c,v 1.3 2003/08/21 16:57:19 nabe Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.6 2009/01/15 02:35:40 thompsa Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.7 2009/01/18 05:35:58 thompsa Exp $	*/
 /*-
  * Copyright (c) 2003
  *     Shingo WATANABE <nabe@nabechan.org>.  All rights reserved.
@@ -49,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.6 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.7 2009/01/18 05:35:58 thompsa Exp $");
 
 #include <dev/usb2/include/usb2_devid.h>
 #include <dev/usb2/include/usb2_standard.h>
@@ -344,7 +344,6 @@ udav_cfg_first_time_setup(struct udav_softc *sc,
 		    sc->sc_name);
 		goto done;
 	}
-	sc->sc_evilhack = ifp;
 
 	ifp->if_softc = sc;
 	if_initname(ifp, "udav", sc->sc_unit);

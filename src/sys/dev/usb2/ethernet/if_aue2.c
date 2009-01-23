@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_aue2.c,v 1.7 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_aue2.c,v 1.8 2009/01/18 05:35:58 thompsa Exp $");
 
 /*
  * ADMtek AN986 Pegasus and AN8511 Pegasus II USB to ethernet driver.
@@ -834,7 +834,6 @@ aue_cfg_first_time_setup(struct aue_softc *sc,
 		    sc->sc_name);
 		goto done;
 	}
-	sc->sc_evilhack = ifp;
 
 	ifp->if_softc = sc;
 	if_initname(ifp, "aue", sc->sc_unit);

@@ -22,7 +22,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_rum2.c,v 1.6 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_rum2.c,v 1.7 2009/01/18 05:35:58 thompsa Exp $");
 
 /*-
  * Ralink Technology RT2501USB/RT2601USB chipset driver
@@ -789,7 +789,6 @@ rum_cfg_first_time_setup(struct rum_softc *sc,
 		DPRINTFN(0, "could not if_alloc()!\n");
 		goto done;
 	}
-	sc->sc_evilhack = ifp;
 	sc->sc_ifp = ifp;
 	ic = ifp->if_l2com;
 

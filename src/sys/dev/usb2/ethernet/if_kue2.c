@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_kue2.c,v 1.6 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_kue2.c,v 1.7 2009/01/18 05:35:58 thompsa Exp $");
 
 /*
  * Kawasaki LSI KL5KUSB101B USB to ethernet adapter driver.
@@ -536,7 +536,6 @@ kue_cfg_first_time_setup(struct kue_softc *sc,
 		    sc->sc_unit);
 		goto done;
 	}
-	sc->sc_evilhack = ifp;
 
 	ifp->if_softc = sc;
 	if_initname(ifp, "kue", sc->sc_unit);

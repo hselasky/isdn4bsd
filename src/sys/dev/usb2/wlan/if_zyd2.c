@@ -1,6 +1,6 @@
 /*	$OpenBSD: if_zyd.c,v 1.52 2007/02/11 00:08:04 jsg Exp $	*/
 /*	$NetBSD: if_zyd.c,v 1.7 2007/06/21 04:04:29 kiyohara Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2.c,v 1.9 2009/01/15 02:35:40 thompsa Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2.c,v 1.10 2009/01/18 05:35:58 thompsa Exp $	*/
 
 /*-
  * Copyright (c) 2006 by Damien Bergamini <damien.bergamini@free.fr>
@@ -20,7 +20,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2.c,v 1.9 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2.c,v 1.10 2009/01/18 05:35:58 thompsa Exp $");
 
 /*
  * ZyDAS ZD1211/ZD1211B USB WLAN driver
@@ -2078,7 +2078,6 @@ zyd_cfg_first_time_setup(struct zyd_softc *sc,
 		    sc->sc_name);
 		goto done;
 	}
-	sc->sc_evilhack = ifp;
 	sc->sc_ifp = ifp;
 	ic = ifp->if_l2com;
 

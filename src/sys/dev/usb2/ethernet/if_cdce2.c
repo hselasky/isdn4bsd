@@ -40,7 +40,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_cdce2.c,v 1.5 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_cdce2.c,v 1.6 2009/01/18 05:35:58 thompsa Exp $");
 
 #include <dev/usb2/include/usb2_devid.h>
 #include <dev/usb2/include/usb2_standard.h>
@@ -444,7 +444,6 @@ alloc_transfers:
 		device_printf(dev, "cannot if_alloc()\n");
 		goto detach;
 	}
-	sc->sc_evilhack = ifp;
 
 	ifp->if_softc = sc;
 	if_initname(ifp, "cdce", sc->sc_unit);

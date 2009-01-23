@@ -1,6 +1,6 @@
 /*	$NetBSD: if_udavreg.h,v 1.2 2003/09/04 15:17:39 tsutsui Exp $	*/
 /*	$nabe: if_udavreg.h,v 1.2 2003/08/21 16:26:40 nabe Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/ethernet/if_udavreg.h,v 1.2 2009/01/15 02:35:40 thompsa Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/ethernet/if_udavreg.h,v 1.3 2009/01/18 05:35:58 thompsa Exp $	*/
 /*-
  * Copyright (c) 2003
  *     Shingo WATANABE <nabe@nabechan.org>.  All rights reserved.
@@ -145,13 +145,12 @@ enum {
 };
 
 struct udav_softc {
-	void   *sc_evilhack;		/* XXX this pointer must be first */
+	struct ifnet *sc_ifp;
 
 	struct usb2_config_td sc_config_td;
 	struct usb2_callout sc_watchdog;
 	struct mtx sc_mtx;
 
-	struct ifnet *sc_ifp;
 	struct usb2_device *sc_udev;
 	struct usb2_xfer *sc_xfer[UDAV_N_TRANSFER];
 	device_t sc_miibus;

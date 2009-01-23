@@ -29,7 +29,7 @@
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * $FreeBSD: src/sys/dev/usb2/ethernet/if_cdcereg.h,v 1.2 2009/01/15 02:35:40 thompsa Exp $
+ * $FreeBSD: src/sys/dev/usb2/ethernet/if_cdcereg.h,v 1.3 2009/01/18 05:35:58 thompsa Exp $
  */
 
 #ifndef _USB_IF_CDCEREG_H_
@@ -61,7 +61,7 @@ enum {
 };
 
 struct cdce_softc {
-	void   *sc_evilhack;		/* XXX this pointer must be first */
+	struct ifnet *sc_ifp;
 
 	union cdce_eth_tx sc_tx;
 	union cdce_eth_rx sc_rx;
@@ -70,7 +70,6 @@ struct cdce_softc {
 	struct cdce_mq sc_rx_mq;
 	struct cdce_mq sc_tx_mq;
 
-	struct ifnet *sc_ifp;
 	struct usb2_xfer *sc_xfer[CDCE_N_TRANSFER];
 	struct usb2_device *sc_udev;
 	device_t sc_dev;

@@ -1,6 +1,6 @@
 /*	$OpenBSD: if_zydreg.h,v 1.19 2006/11/30 19:28:07 damien Exp $	*/
 /*	$NetBSD: if_zydreg.h,v 1.2 2007/06/16 11:18:45 kiyohara Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/wlan/if_zydreg.h,v 1.2 2009/01/15 02:35:40 thompsa Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_zydreg.h,v 1.3 2009/01/18 05:35:58 thompsa Exp $	*/
 
 /*-
  * Copyright (c) 2006 by Damien Bergamini <damien.bergamini@free.fr>
@@ -1285,7 +1285,7 @@ enum {
 };
 
 struct zyd_softc {
-	void   *sc_evilhack;		/* XXX this pointer must be first */
+	struct ifnet *sc_ifp;
 
 	struct zyd_rf sc_rf;
 	struct usb2_callout sc_watchdog;
@@ -1299,7 +1299,6 @@ struct zyd_softc {
 	struct zyd_ifq sc_tx_queue;
 	struct cv sc_intr_cv;
 
-	struct ifnet *sc_ifp;
 	struct usb2_device *sc_udev;
 	struct usb2_xfer *sc_xfer[ZYD_N_TRANSFER];
 	const struct ieee80211_rate_table *sc_rates;
