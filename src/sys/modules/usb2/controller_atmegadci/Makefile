@@ -1,5 +1,5 @@
 #
-# $FreeBSD: $
+# $FreeBSD: src/sys/modules/usb2/controller_atmegadci/Makefile,v 1.1 2009/01/13 18:49:35 thompsa Exp $
 #
 # Copyright (c) 2009 Hans Petter Selasky. All rights reserved.
 #

@@ -16,7 +16,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $FreeBSD: src/sys/dev/usb2/serial/u3g2.c,v 1.4 2009/01/15 02:35:40 thompsa Exp $
+ * $FreeBSD: src/sys/dev/usb2/serial/u3g2.c,v 1.5 2009/01/26 17:47:32 thompsa Exp $
  */
 
 /*

@@ -28,7 +28,7 @@
  * SUCH DAMAGE.
  *
  * $Id: ng_ubt_var.h,v 1.2 2003/03/22 23:44:36 max Exp $
- * $FreeBSD: src/sys/dev/usb2/bluetooth/ng_ubt2_var.h,v 1.2 2009/01/20 22:17:05 emax Exp $
+ * $FreeBSD: src/sys/dev/usb2/bluetooth/ng_ubt2_var.h,v 1.3 2009/01/26 20:59:41 emax Exp $
  */
 
 #ifndef _NG_UBT_VAR_H_
@@ -38,7 +38,7 @@
 #define	UBT_DEBUG(level, sc, fmt, ...)				\
 do {								\
 	if ((sc)->sc_debug >= (level))				\
-		printf("%s:%s:%d: " fmt, (sc)->sc_name,		\
+		device_printf((sc)->sc_dev, "%s:%d: " fmt, 	\
 			__FUNCTION__, __LINE__,## __VA_ARGS__);	\
 } while (0)
 
@@ -47,8 +47,8 @@ do {								\
 #define	UBT_WARN(...)		UBT_DEBUG(NG_UBT_WARN_LEVEL, __VA_ARGS__)
 #define	UBT_INFO(...)		UBT_DEBUG(NG_UBT_INFO_LEVEL, __VA_ARGS__)
 
-#define UBT_LOCK(sc)	mtx_lock(&(sc)->sc_mtx)
-#define UBT_UNLOCK(sc)	mtx_unlock(&(sc)->sc_mtx)
+#define UBT_NG_LOCK(sc)		mtx_lock(&(sc)->sc_ng_mtx)
+#define UBT_NG_UNLOCK(sc)	mtx_unlock(&(sc)->sc_ng_mtx)
 
 /* Bluetooth USB control request type */
 #define	UBT_HCI_REQUEST		0x20
@@ -62,9 +62,6 @@ enum {
 	UBT_IF_0_BULK_DT_RD,
 	UBT_IF_0_INTR_DT_RD,
 	UBT_IF_0_CTRL_DT_WR,
-	UBT_IF_0_BULK_CS_WR,
-	UBT_IF_0_BULK_CS_RD,
-	UBT_IF_0_INTR_CS_RD,
 	
 	/* Interface #1 transfers */
 	UBT_IF_1_ISOC_DT_RD1,
@@ -77,17 +74,10 @@ enum {
 
 /* USB device softc structure */
 struct ubt_softc {
-	uint8_t			sc_name[16];
+	device_t		sc_dev;		/* for debug printf */
 
 	/* State */
 	ng_ubt_node_debug_ep	sc_debug;	/* debug level */
-
-	int			sc_flags;	/* device flags */
-#define	UBT_FLAG_READ_STALL	(1 << 0)	/* read transfer has stalled */
-#define	UBT_FLAG_WRITE_STALL	(1 << 1)	/* write transfer has stalled */
-#define	UBT_FLAG_INTR_STALL	(1 << 2)	/* inter transfer has stalled */
-#define	UBT_FLAG_READY		(1 << 4)	/* set when we are ready */
-#define	UBT_FLAG_SHUTDOWN	(1 << 5)	/* set when we are shutdown */
 
 	ng_ubt_node_stat_ep	sc_stat;	/* statistic */
 #define	UBT_STAT_PCKTS_SENT(sc)		(sc)->sc_stat.pckts_sent ++
@@ -99,8 +89,10 @@ struct ubt_softc {
 #define	UBT_STAT_RESET(sc)	bzero(&(sc)->sc_stat, sizeof((sc)->sc_stat))
 
 	/* USB device specific */
-	struct mtx		sc_mtx;
+	struct mtx		sc_if_mtx;	/* interfaces lock */
 	struct usb2_xfer	*sc_xfer[UBT_N_TRANSFER];
+
+	struct mtx		sc_ng_mtx;	/* lock for shared NG data */
 
 	/* HCI commands */
 	struct ng_bt_mbufq	sc_cmdq;	/* HCI command queue */
@@ -120,6 +112,17 @@ struct ubt_softc {
 	/* Netgraph specific */
 	node_p			sc_node;	/* pointer back to node */
 	hook_p			sc_hook;	/* upstream hook */
+
+	/* Glue */
+	int			sc_task_flags;	/* task flags */
+#define UBT_FLAG_T_PENDING	(1 << 0)	/* task pending */
+#define UBT_FLAG_T_STOP_ALL	(1 << 1)	/* stop all xfers */
+#define UBT_FLAG_T_START_ALL	(1 << 2)	/* start all read and isoc
+						   write xfers */
+#define UBT_FLAG_T_START_CTRL	(1 << 3)	/* start control xfer (write) */
+#define UBT_FLAG_T_START_BULK	(1 << 4)	/* start bulk xfer (write) */
+
+	struct task		sc_task;
 };
 typedef struct ubt_softc	ubt_softc_t;
 typedef struct ubt_softc *	ubt_softc_p;

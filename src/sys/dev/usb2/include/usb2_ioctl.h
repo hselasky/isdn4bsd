@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/include/usb2_ioctl.h,v 1.3 2009/01/04 00:12:01 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/include/usb2_ioctl.h,v 1.4 2009/01/26 17:45:50 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  * Copyright (c) 1998 The NetBSD Foundation, Inc. All rights reserved.

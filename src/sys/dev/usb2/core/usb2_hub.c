@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_hub.c,v 1.11 2009/01/13 19:04:58 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_hub.c,v 1.12 2009/01/26 17:49:58 thompsa Exp $ */
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc. All rights reserved.
  * Copyright (c) 1998 Lennart Augustsson. All rights reserved.

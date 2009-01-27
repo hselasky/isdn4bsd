@@ -28,24 +28,30 @@
  * SUCH DAMAGE.
  *
  * $Id: ng_ubt.c,v 1.16 2003/10/10 19:15:06 max Exp $
- * $FreeBSD: src/sys/dev/usb2/bluetooth/ng_ubt2.c,v 1.6 2009/01/20 23:25:27 emax Exp $
+ * $FreeBSD: src/sys/dev/usb2/bluetooth/ng_ubt2.c,v 1.7 2009/01/26 20:59:41 emax Exp $
  */
 
 /*
  * NOTE: ng_ubt2 driver has a split personality. On one side it is
- * a USB2 device driver and on the other it is a Netgraph node. This
+ * a USB device driver and on the other it is a Netgraph node. This
  * driver will *NOT* create traditional /dev/ enties, only Netgraph 
  * node.
  *
- * NOTE ON LOCKS USED: ng_ubt2 drives uses 1 lock
+ * NOTE ON LOCKS USED: ng_ubt2 drives uses 2 locks (mutexes)
  *
- * The "sc_mtx" lock protects both USB and Netgraph data. The "sc_mtx"
- * lock should not be grabbed for a long time.
+ * 1) sc_if_mtx - lock for device's interface #0 and #1. This lock is used
+ *    by USB for any USB request going over device's interface #0 and #1,
+ *    i.e. interrupt, control, bulk and isoc. transfers.
+ * 
+ * 2) sc_ng_mtx - this lock is used to protect shared (between USB, Netgraph
+ *    and Taskqueue) data, such as outgoing mbuf queues, task flags and hook
+ *    pointer. This lock *SHOULD NOT* be grabbed for a long time. In fact,
+ *    think of it as a spin lock.
  *
- * NOTE ON LOCKING STRATEGY: ng_ubt2 driver operates in 2 different contexts.
+ * NOTE ON LOCKING STRATEGY: ng_ubt2 driver operates in 3 different contexts.
  *
  * 1) USB context. This is where all the USB related stuff happens. All
- *    callbacks run in this context. All callbacks are called (by USB2) with
+ *    callbacks run in this context. All callbacks are called (by USB) with
  *    appropriate interface lock held. It is (generally) allowed to grab
  *    any additional locks.
  *
@@ -53,8 +59,37 @@
  *    Since we mark node as WRITER, the Netgraph node will be "locked" (from
  *    Netgraph point of view). Any variable that is only modified from the
  *    Netgraph context does not require any additonal locking. It is generally
- *    *NOT* allowed to grab *ANY* additional lock. Whatever you do, *DO NOT*
- *    grab any long-sleep lock in the Netgraph context. 
+ *    *NOT* allowed to grab *ANY* additional locks. Whatever you do, *DO NOT*
+ *    grab any lock in the Netgraph context that could cause de-scheduling of
+ *    the Netgraph thread for significant amount of time. In fact, the only
+ *    lock that is allowed in the Netgraph context is the sc_ng_mtx lock.
+ *    Also make sure that any code that is called from the Netgraph context
+ *    follows the rule above.
+ *
+ * 3) Taskqueue context. This is where ubt_task runs. Since we are generally
+ *    NOT allowed to grab any lock that could cause de-scheduling in the
+ *    Netgraph context, and, USB requires us to grab interface lock before
+ *    doing things with transfers, it is safer to transition from the Netgraph
+ *    context to the Taskqueue context before we can call into USB subsystem.
+ *
+ * So, to put everything together, the rules are as follows.
+ *	It is OK to call from the USB context or the Taskqueue context into
+ * the Netgraph context (i.e. call NG_SEND_xxx functions). In other words
+ * it is allowed to call into the Netgraph context with locks held.
+ *	Is it *NOT* OK to call from the Netgraph context into the USB context,
+ * because USB requires us to grab interface locks, and, it is safer to
+ * avoid it. So, to make things safer we set task flags to indicate which
+ * actions we want to perform and schedule ubt_task which would run in the
+ * Taskqueue context.
+ *	Is is OK to call from the Taskqueue context into the USB context,
+ * and, ubt_task does just that (i.e. grabs appropriate interface locks
+ * before calling into USB).
+ *	Access to the outgoing queues, task flags and hook pointer is
+ * controlled by the sc_ng_mtx lock. It is an unavoidable evil. Again,
+ * sc_ng_mtx should really be a spin lock (and it is very likely to an
+ * equivalent of spin lock due to adaptive nature of freebsd mutexes).
+ *	All USB callbacks accept softc pointer as a private data. USB ensures
+ * that this pointer is valid.
  */
 
 #include <dev/usb2/include/usb2_devid.h>
@@ -74,6 +109,7 @@
 #include <dev/usb2/core/usb2_transfer.h>
 
 #include <sys/mbuf.h>
+#include <sys/taskqueue.h>
 
 #include <netgraph/ng_message.h>
 #include <netgraph/netgraph.h>
@@ -89,6 +125,11 @@ static int		ubt_modevent(module_t, int, void *);
 static device_probe_t	ubt_probe;
 static device_attach_t	ubt_attach;
 static device_detach_t	ubt_detach;
+
+static void		ubt_task_schedule(ubt_softc_p, int);
+static task_fn_t	ubt_task;
+
+#define	ubt_xfer_start(sc, i)	usb2_transfer_start((sc)->sc_xfer[(i)])
 
 /* Netgraph methods */
 static ng_constructor_t	ng_ubt_constructor;
@@ -201,15 +242,13 @@ static struct ng_type	typestruct =
 /* USB methods */
 static usb2_callback_t	ubt_ctrl_write_callback;
 static usb2_callback_t	ubt_intr_read_callback;
-static usb2_callback_t	ubt_intr_read_clear_stall_callback;
 static usb2_callback_t	ubt_bulk_read_callback;
-static usb2_callback_t	ubt_bulk_read_clear_stall_callback;
 static usb2_callback_t	ubt_bulk_write_callback;
-static usb2_callback_t	ubt_bulk_write_clear_stall_callback;
 static usb2_callback_t	ubt_isoc_read_callback;
 static usb2_callback_t	ubt_isoc_write_callback;
 
-static int	ubt_isoc_read_one_frame(struct usb2_xfer *, int);
+static int		ubt_fwd_mbuf_up(ubt_softc_p, struct mbuf **);
+static int		ubt_isoc_read_one_frame(struct usb2_xfer *, int);
 
 /*
  * USB config
@@ -237,9 +276,9 @@ static const struct usb2_config		ubt_config[UBT_N_TRANSFER] =
 		.type =		UE_BULK,
 		.endpoint =	UE_ADDR_ANY,
 		.direction =	UE_DIR_OUT,
-		.if_index =	0,
+		.if_index = 	0,
 		.mh.bufsize =	UBT_BULK_WRITE_BUFFER_SIZE,
-		.mh.flags =	{ .pipe_bof = 1, },
+		.mh.flags =	{ .pipe_bof = 1, .force_short_xfer = 1, },
 		.mh.callback =	&ubt_bulk_write_callback,
 	},
 	/* Incoming bulk transfer - ACL packets */
@@ -247,7 +286,7 @@ static const struct usb2_config		ubt_config[UBT_N_TRANSFER] =
 		.type =		UE_BULK,
 		.endpoint =	UE_ADDR_ANY,
 		.direction =	UE_DIR_IN,
-		.if_index =	0,
+		.if_index = 	0,
 		.mh.bufsize =	UBT_BULK_READ_BUFFER_SIZE,
 		.mh.flags =	{ .pipe_bof = 1, .short_xfer_ok = 1, },
 		.mh.callback =	&ubt_bulk_read_callback,
@@ -257,7 +296,7 @@ static const struct usb2_config		ubt_config[UBT_N_TRANSFER] =
 		.type =		UE_INTERRUPT,
 		.endpoint =	UE_ADDR_ANY,
 		.direction =	UE_DIR_IN,
-		.if_index =	0,
+		.if_index = 	0,
 		.mh.flags =	{ .pipe_bof = 1, .short_xfer_ok = 1, },
 		.mh.bufsize =	UBT_INTR_BUFFER_SIZE,
 		.mh.callback =	&ubt_intr_read_callback,
@@ -267,46 +306,10 @@ static const struct usb2_config		ubt_config[UBT_N_TRANSFER] =
 		.type =		UE_CONTROL,
 		.endpoint =	0x00,	/* control pipe */
 		.direction =	UE_DIR_ANY,
-		.if_index =	0,
+		.if_index = 	0,
 		.mh.bufsize =	UBT_CTRL_BUFFER_SIZE,
 		.mh.callback =	&ubt_ctrl_write_callback,
 		.mh.timeout =	5000,	/* 5 seconds */
-	},
-	/* Outgoing control transfer to clear stall on outgoing bulk transfer */
-	[UBT_IF_0_BULK_CS_WR] = {
-		.type =		UE_CONTROL,
-		.endpoint =	0x00,	/* control pipe */
-		.direction =	UE_DIR_ANY,
-		.if_index =	0,
-		.mh.bufsize =	sizeof(struct usb2_device_request),
-		.mh.callback =	&ubt_bulk_write_clear_stall_callback,
-		.mh.timeout =	1000,	/* 1 second */
-		.mh.interval =	50,	/* 50ms */
-	},
-	/* Outgoing control transfer to clear stall on incoming bulk transfer */
-	[UBT_IF_0_BULK_CS_RD] = {
-		.type =		UE_CONTROL,
-		.endpoint =	0x00,	/* control pipe */
-		.direction =	UE_DIR_ANY,
-		.if_index =	0,
-		.mh.bufsize =	sizeof(struct usb2_device_request),
-		.mh.callback =	&ubt_bulk_read_clear_stall_callback,
-		.mh.timeout =	1000,	/* 1 second */
-		.mh.interval =	50,	/* 50ms */
-	},
-	/*
-	 * Outgoing control transfer to clear stall on incoming
-	 * interrupt transfer
-	 */
-	[UBT_IF_0_INTR_CS_RD] = {
-		.type =		UE_CONTROL,
-		.endpoint =	0x00,	/* control pipe */
-		.direction =	UE_DIR_ANY,
-		.if_index =	0,
-		.mh.bufsize =	sizeof(struct usb2_device_request),
-		.mh.callback =	&ubt_intr_read_clear_stall_callback,
-		.mh.timeout =	1000,	/* 1 second */
-		.mh.interval =	50,	/* 50ms */
 	},
 
 	/*
@@ -318,7 +321,7 @@ static const struct usb2_config		ubt_config[UBT_N_TRANSFER] =
 		.type =		UE_ISOCHRONOUS,
 		.endpoint =	UE_ADDR_ANY,
 		.direction =	UE_DIR_IN,
-		.if_index =	1,
+		.if_index = 	1,
 		.mh.bufsize =	0,	/* use "wMaxPacketSize * frames" */
 		.mh.frames =	UBT_ISOC_NFRAMES,
 		.mh.flags =	{ .short_xfer_ok = 1, },
@@ -329,7 +332,7 @@ static const struct usb2_config		ubt_config[UBT_N_TRANSFER] =
 		.type =		UE_ISOCHRONOUS,
 		.endpoint =	UE_ADDR_ANY,
 		.direction =	UE_DIR_IN,
-		.if_index =	1,
+		.if_index = 	1,
 		.mh.bufsize =	0,	/* use "wMaxPacketSize * frames" */
 		.mh.frames =	UBT_ISOC_NFRAMES,
 		.mh.flags =	{ .short_xfer_ok = 1, },
@@ -340,7 +343,7 @@ static const struct usb2_config		ubt_config[UBT_N_TRANSFER] =
 		.type =		UE_ISOCHRONOUS,
 		.endpoint =	UE_ADDR_ANY,
 		.direction =	UE_DIR_OUT,
-		.if_index =	1,
+		.if_index = 	1,
 		.mh.bufsize =	0,	/* use "wMaxPacketSize * frames" */
 		.mh.frames =	UBT_ISOC_NFRAMES,
 		.mh.flags =	{ .short_xfer_ok = 1, },
@@ -351,7 +354,7 @@ static const struct usb2_config		ubt_config[UBT_N_TRANSFER] =
 		.type =		UE_ISOCHRONOUS,
 		.endpoint =	UE_ADDR_ANY,
 		.direction =	UE_DIR_OUT,
-		.if_index =	1,
+		.if_index = 	1,
 		.mh.bufsize =	0,	/* use "wMaxPacketSize * frames" */
 		.mh.frames =	UBT_ISOC_NFRAMES,
 		.mh.flags =	{ .short_xfer_ok = 1, },
@@ -368,13 +371,16 @@ static const struct usb2_config		ubt_config[UBT_N_TRANSFER] =
  *
  * where VENDOR_ID and PRODUCT_ID are hex numbers.
  */
-static const struct usb2_device_id ubt_ignore_devs[] = {
+
+static const struct usb2_device_id ubt_ignore_devs[] = 
+{
 	/* AVM USB Bluetooth-Adapter BlueFritz! v1.0 */
 	{ USB_VPI(USB_VENDOR_AVM, 0x2200, 0) },
 };
 
 /* List of supported bluetooth devices */
-static const struct usb2_device_id ubt_devs[] = {
+static const struct usb2_device_id ubt_devs[] =
+{
 	/* Generic Bluetooth class devices */
 	{ USB_IFACE_CLASS(UDCLASS_WIRELESS),
 	  USB_IFACE_SUBCLASS(UDSUBCLASS_RF),
@@ -420,27 +426,25 @@ ubt_attach(device_t dev)
 	struct usb2_endpoint_descriptor	*ed;
 	uint16_t			wMaxPacketSize;
 	uint8_t				alt_index, i, j;
-	uint8_t				iface_index[2];
+	uint8_t				iface_index[2] = { 0, 1 };
 
 	device_set_usb2_desc(dev);
 
-	snprintf(sc->sc_name, sizeof(sc->sc_name),
-		"%s", device_get_nameunit(dev));
+	sc->sc_dev = dev;
+	sc->sc_debug = NG_UBT_WARN_LEVEL;
 
 	/* 
 	 * Create Netgraph node
 	 */
 
-	sc->sc_hook = NULL;
-
 	if (ng_make_node_common(&typestruct, &sc->sc_node) != 0) {
-		device_printf(dev, "could not create Netgraph node\n");
+		UBT_ALERT(sc, "could not create Netgraph node\n");
 		return (ENXIO);
 	}
 
 	/* Name Netgraph node */
-	if (ng_name_node(sc->sc_node, sc->sc_name) != 0) {
-		device_printf(dev, "could not name Netgraph node\n");
+	if (ng_name_node(sc->sc_node, device_get_nameunit(dev)) != 0) {
+		UBT_ALERT(sc, "could not name Netgraph node\n");
 		NG_NODE_UNREF(sc->sc_node);
 		return (ENXIO);
 	}
@@ -451,24 +455,21 @@ ubt_attach(device_t dev)
 	 * Initialize device softc structure
 	 */
 
-	/* state */
-	sc->sc_debug = NG_UBT_WARN_LEVEL;
-
-	UBT_STAT_RESET(sc);
-
 	/* initialize locks */
-	mtx_init(&sc->sc_mtx, "UBT", NULL, MTX_DEF | MTX_RECURSE);
+	mtx_init(&sc->sc_ng_mtx, "ubt ng", NULL, MTX_DEF);
+	mtx_init(&sc->sc_if_mtx, "ubt if", NULL, MTX_DEF | MTX_RECURSE);
 
 	/* initialize packet queues */
 	NG_BT_MBUFQ_INIT(&sc->sc_cmdq, UBT_DEFAULT_QLEN);
 	NG_BT_MBUFQ_INIT(&sc->sc_aclq, UBT_DEFAULT_QLEN);
 	NG_BT_MBUFQ_INIT(&sc->sc_scoq, UBT_DEFAULT_QLEN);
 
+	/* initialize glue task */
+	TASK_INIT(&sc->sc_task, 0, ubt_task, sc);
+
 	/*
 	 * Configure Bluetooth USB device. Discover all required USB
 	 * interfaces and endpoints.
-	 *
-	 * Device is expected to be a full-speed device.
 	 *
 	 * USB device must present two interfaces:
 	 * 1) Interface 0 that has 3 endpoints
@@ -485,15 +486,8 @@ ubt_attach(device_t dev)
 	 */
 
 	/*
-	 * Interface 0
-	 */
-
-	iface_index[0] = 0;
-
-	/*
-	 * Interface 1
-	 * (search alternate settings, and find the descriptor with the largest
-	 *  wMaxPacketSize)
+	 * For interface #1 search alternate settings, and find
+	 * the descriptor with the largest wMaxPacketSize
 	 */
 
 	wMaxPacketSize = 0;
@@ -527,29 +521,24 @@ ubt_attach(device_t dev)
 		j ++;
 	}
 
-	/* Set alt configuration only if we found it */
+	/* Set alt configuration on interface #1 only if we found it */
 	if (wMaxPacketSize > 0 &&
 	    usb2_set_alt_interface_index(uaa->device, 1, alt_index)) {
-		device_printf(dev, "could not set alternate setting %d " \
+		UBT_ALERT(sc, "could not set alternate setting %d " \
 			"for interface 1!\n", alt_index);
 		goto detach;
 	}
 
-	iface_index[1] = 1;
-	if (usb2_transfer_setup(uaa->device, iface_index,
-			sc->sc_xfer, ubt_config, UBT_N_TRANSFER,
-			sc->sc_node, &sc->sc_mtx)) {
-		device_printf(dev, "could not allocate transfers\n");
+	/* Setup transfers for both interfaces */
+	if (usb2_transfer_setup(uaa->device, iface_index, sc->sc_xfer,
+			ubt_config, UBT_N_TRANSFER, sc, &sc->sc_if_mtx)) {
+		UBT_ALERT(sc, "could not allocate transfers\n");
 		goto detach;
 	}
 
 	/* Claim all interfaces on the device */
 	for (i = 1; usb2_get_iface(uaa->device, i) != NULL; i ++)
 		usb2_set_parent_iface(uaa->device, i, uaa->info.bIfaceIndex);
-
-	UBT_LOCK(sc);
-	sc->sc_flags |= UBT_FLAG_READY;
-	UBT_UNLOCK(sc);
 
 	return (0); /* success */
 
@@ -569,73 +558,32 @@ ubt_detach(device_t dev)
 {
 	struct ubt_softc	*sc = device_get_softc(dev);
 	node_p			node = sc->sc_node;
-	uint8_t			i;
-
-	UBT_LOCK(sc);
-	sc->sc_flags &= ~UBT_FLAG_READY;
-	UBT_UNLOCK(sc);
-
-	/* make sure that all USB transfers are stopped! */
-	for (i = 0; i != UBT_N_TRANSFER; i++)
-		usb2_transfer_drain(sc->sc_xfer[i]);
 
 	/* Destroy Netgraph node */
 	if (node != NULL) {
 		sc->sc_node = NULL;
-
 		NG_NODE_REALLY_DIE(node);
 		ng_rmnode_self(node);
-
-		/* Need to wait until Netgraph has shutdown the node! */
-		UBT_LOCK(sc);
-		while (!(sc->sc_flags & UBT_FLAG_SHUTDOWN))
-			usb2_pause_mtx(&sc->sc_mtx, 100);
-		UBT_UNLOCK(sc);
 	}
+
+	/* Make sure ubt_task in gone */
+	taskqueue_drain(taskqueue_swi, &sc->sc_task);
+
 	/* Free USB transfers, if any */
 	usb2_transfer_unsetup(sc->sc_xfer, UBT_N_TRANSFER);
 
-	if (node != NULL)
-		NG_NODE_UNREF(node);
-
 	/* Destroy queues */
-	UBT_LOCK(sc);
+	UBT_NG_LOCK(sc);
 	NG_BT_MBUFQ_DESTROY(&sc->sc_cmdq);
 	NG_BT_MBUFQ_DESTROY(&sc->sc_aclq);
 	NG_BT_MBUFQ_DESTROY(&sc->sc_scoq);
-	UBT_UNLOCK(sc);
+	UBT_NG_UNLOCK(sc);
 
-	mtx_destroy(&sc->sc_mtx);
+	mtx_destroy(&sc->sc_if_mtx);
+	mtx_destroy(&sc->sc_ng_mtx);
 
 	return (0);
 } /* ubt_detach */
-
-/*
- * The following function will get the UBT softc pointer by the USB
- * transfer pointer. This function returns NULL when the NODE is no
- * longer accessible.
- */
-static struct ubt_softc *
-ubt_get_node_private(struct usb2_xfer *xfer)
-{
-	node_p node = xfer->priv_sc;
-
-	switch (USB_GET_STATE(xfer)) {
-	case USB_ST_TRANSFERRED:
-	case USB_ST_SETUP:
-		/* 
-		 * Due to atomicity inside the USB stack we know that
-		 * the node private is still in this state!
-		 */
-		return (NG_NODE_PRIVATE(node));
-
-	default:		/* error case */
-		if (xfer->error == USB_ERR_CANCELLED)
-			return (NULL);	/* node is gone */
-		else
-			return (NG_NODE_PRIVATE(node));
-	}
-}
 
 /* 
  * Called when outgoing control request (HCI command) has completed, i.e.
@@ -646,29 +594,27 @@ ubt_get_node_private(struct usb2_xfer *xfer)
 static void
 ubt_ctrl_write_callback(struct usb2_xfer *xfer)
 {
-	struct ubt_softc		*sc;
+	struct ubt_softc		*sc = xfer->priv_sc;
 	struct usb2_device_request	req;
 	struct mbuf			*m;
 
-	sc = ubt_get_node_private(xfer);
-
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		UBT_INFO(sc, "sent %d bytes to control pipe\n",
-		    xfer->actlen);
-
+		UBT_INFO(sc, "sent %d bytes to control pipe\n", xfer->actlen);
 		UBT_STAT_BYTES_SENT(sc, xfer->actlen);
 		UBT_STAT_PCKTS_SENT(sc);
-
 		/* FALLTHROUGH */
 
 	case USB_ST_SETUP:
 send_next:
 		/* Get next command mbuf, if any */
+		UBT_NG_LOCK(sc);
 		NG_BT_MBUFQ_DEQUEUE(&sc->sc_cmdq, m);
+		UBT_NG_UNLOCK(sc);
+
 		if (m == NULL) {
 			UBT_INFO(sc, "HCI command queue is empty\n");
-			break;
+			break;	/* transfer complete */
 		}
 
 		/* Initialize a USB control request and then schedule it */
@@ -700,6 +646,8 @@ send_next:
 			UBT_STAT_OERROR(sc);
 			goto send_next;
 		}
+
+		/* transfer cancelled */
 		break;
 	}
 } /* ubt_ctrl_write_callback */
@@ -713,12 +661,9 @@ send_next:
 static void
 ubt_intr_read_callback(struct usb2_xfer *xfer)
 {
-	struct ubt_softc	*sc;
+	struct ubt_softc	*sc = xfer->priv_sc;
 	struct mbuf		*m;
 	ng_hci_event_pkt_t	*hdr;
-	int			error;
-
-	sc = ubt_get_node_private(xfer);
 
 	m = NULL;
 
@@ -776,10 +721,7 @@ ubt_intr_read_callback(struct usb2_xfer *xfer)
 		UBT_STAT_PCKTS_RECV(sc);
 		UBT_STAT_BYTES_RECV(sc, m->m_pkthdr.len);
 
-		NG_SEND_DATA_ONLY(error, sc->sc_hook, m);
-		if (error != 0)
-			UBT_STAT_IERROR(sc);
-
+		ubt_fwd_mbuf_up(sc, &m);
 		/* m == NULL at this point */
 		/* FALLTHROUGH */
 
@@ -787,12 +729,8 @@ ubt_intr_read_callback(struct usb2_xfer *xfer)
 submit_next:
 		NG_FREE_M(m); /* checks for m != NULL */
 
-		if (sc->sc_flags & UBT_FLAG_INTR_STALL)
-			usb2_transfer_start(sc->sc_xfer[UBT_IF_0_INTR_CS_RD]);
-		else {
-			xfer->frlengths[0] = xfer->max_data_length;
-			usb2_start_hardware(xfer);
-		}
+		xfer->frlengths[0] = xfer->max_data_length;
+		usb2_start_hardware(xfer);
 		break;
 
 	default: /* Error */
@@ -801,36 +739,13 @@ submit_next:
 				usb2_errstr(xfer->error));
 
 			/* Try to clear stall first */
-			sc->sc_flags |= UBT_FLAG_INTR_STALL;
-			usb2_transfer_start(sc->sc_xfer[UBT_IF_0_INTR_CS_RD]);
+			xfer->flags.stall_pipe = 1;
+			goto submit_next;
 		}
+			/* transfer cancelled */
 		break;
 	}
 } /* ubt_intr_read_callback */
-
-/*
- * Called when outgoing control transfer initiated to clear stall on
- * interrupt pipe has completed.
- * USB context.
- */
-
-static void
-ubt_intr_read_clear_stall_callback(struct usb2_xfer *xfer)
-{
-	struct ubt_softc	*sc;
-	struct usb2_xfer	*xfer_other;
-
-	sc = ubt_get_node_private(xfer);
-	if (sc == NULL)
-		return;
-
-	xfer_other = sc->sc_xfer[UBT_IF_0_INTR_DT_RD];
-	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF("stall cleared\n");
-		sc->sc_flags &= ~UBT_FLAG_INTR_STALL;
-		usb2_transfer_start(xfer_other);
-	}
-} /* ubt_intr_read_clear_stall_callback */
 
 /*
  * Called when incoming bulk transfer (ACL packet) has completed, i.e.
@@ -841,13 +756,10 @@ ubt_intr_read_clear_stall_callback(struct usb2_xfer *xfer)
 static void
 ubt_bulk_read_callback(struct usb2_xfer *xfer)
 {
-	struct ubt_softc	*sc;
+	struct ubt_softc	*sc = xfer->priv_sc;
 	struct mbuf		*m;
 	ng_hci_acldata_pkt_t	*hdr;
 	uint16_t		len;
-	int			error;
-
-	sc = ubt_get_node_private(xfer);
 
 	m = NULL;
 
@@ -905,10 +817,7 @@ ubt_bulk_read_callback(struct usb2_xfer *xfer)
 		UBT_STAT_PCKTS_RECV(sc);
 		UBT_STAT_BYTES_RECV(sc, m->m_pkthdr.len);
 
-		NG_SEND_DATA_ONLY(error, sc->sc_hook, m);
-		if (error != 0)
-			UBT_STAT_IERROR(sc);
-
+		ubt_fwd_mbuf_up(sc, &m);
 		/* m == NULL at this point */
 		/* FALLTHOUGH */
 
@@ -916,12 +825,8 @@ ubt_bulk_read_callback(struct usb2_xfer *xfer)
 submit_next:
 		NG_FREE_M(m); /* checks for m != NULL */
 
-		if (sc->sc_flags & UBT_FLAG_READ_STALL)
-			usb2_transfer_start(sc->sc_xfer[UBT_IF_0_BULK_CS_RD]);
-		else {
-			xfer->frlengths[0] = xfer->max_data_length;
-			usb2_start_hardware(xfer);
-		}
+		xfer->frlengths[0] = xfer->max_data_length;
+		usb2_start_hardware(xfer);
 		break;
 
 	default: /* Error */
@@ -930,36 +835,13 @@ submit_next:
 				usb2_errstr(xfer->error));
 
 			/* Try to clear stall first */
-			sc->sc_flags |= UBT_FLAG_READ_STALL;
-			usb2_transfer_start(sc->sc_xfer[UBT_IF_0_BULK_CS_RD]);
+			xfer->flags.stall_pipe = 1;
+			goto submit_next;
 		}
+			/* transfer cancelled */
 		break;
 	}
 } /* ubt_bulk_read_callback */
-
-/*
- * Called when outgoing control transfer initiated to clear stall on
- * incoming bulk pipe has completed.
- * USB context.
- */
-
-static void
-ubt_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
-{
-	struct ubt_softc	*sc;
-	struct usb2_xfer	*xfer_other;
-
-	sc = ubt_get_node_private(xfer);
-	if (sc == NULL)
-		return;
-
-	xfer_other = sc->sc_xfer[UBT_IF_0_BULK_DT_RD];
-	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF("stall cleared\n");
-		sc->sc_flags &= ~UBT_FLAG_READ_STALL;
-		usb2_transfer_start(xfer_other);
-	}
-} /* ubt_bulk_read_clear_stall_callback */
 
 /*
  * Called when outgoing bulk transfer (ACL packet) has completed, i.e.
@@ -970,27 +852,26 @@ ubt_bulk_read_clear_stall_callback(struct usb2_xfer *xfer)
 static void
 ubt_bulk_write_callback(struct usb2_xfer *xfer)
 {
-	struct ubt_softc	*sc;
+	struct ubt_softc	*sc = xfer->priv_sc;
 	struct mbuf		*m;
-
-	sc = ubt_get_node_private(xfer);
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		UBT_INFO(sc, "sent %d bytes to bulk-out pipe\n",
-		    xfer->actlen);
-
+		UBT_INFO(sc, "sent %d bytes to bulk-out pipe\n", xfer->actlen);
 		UBT_STAT_BYTES_SENT(sc, xfer->actlen);
 		UBT_STAT_PCKTS_SENT(sc);
-
 		/* FALLTHROUGH */
 
 	case USB_ST_SETUP:
+send_next:
 		/* Get next mbuf, if any */
+		UBT_NG_LOCK(sc);
 		NG_BT_MBUFQ_DEQUEUE(&sc->sc_aclq, m);
+		UBT_NG_UNLOCK(sc);
+
 		if (m == NULL) {
 			UBT_INFO(sc, "ACL data queue is empty\n");
-			break;
+			break; /* transfer completed */
 		}
 
 		/*
@@ -1017,36 +898,13 @@ ubt_bulk_write_callback(struct usb2_xfer *xfer)
 			UBT_STAT_OERROR(sc);
 
 			/* try to clear stall first */
-			sc->sc_flags |= UBT_FLAG_WRITE_STALL;
-			usb2_transfer_start(sc->sc_xfer[UBT_IF_0_BULK_CS_WR]);
+			xfer->flags.stall_pipe = 1;
+			goto send_next;
 		}
+			/* transfer cancelled */
 		break;
 	}
 } /* ubt_bulk_write_callback */
-
-/*
- * Called when outgoing control transfer initiated to clear stall on
- * outgoing bulk pipe has completed.
- * USB context.
- */
-
-static void
-ubt_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
-{
-	struct ubt_softc	*sc;
-	struct usb2_xfer	*xfer_other;
-
-	sc = ubt_get_node_private(xfer);
-	if (sc == NULL)
-		return;
-
-	xfer_other = sc->sc_xfer[UBT_IF_0_BULK_DT_WR];
-	if (usb2_clear_stall_callback(xfer, xfer_other)) {
-		DPRINTF("stall cleared\n");
-		sc->sc_flags &= ~UBT_FLAG_WRITE_STALL;
-		usb2_transfer_start(xfer_other);
-	}
-} /* ubt_bulk_write_clear_stall_callback */
 
 /*
  * Called when incoming isoc transfer (SCO packet) has completed, i.e.
@@ -1057,10 +915,8 @@ ubt_bulk_write_clear_stall_callback(struct usb2_xfer *xfer)
 static void
 ubt_isoc_read_callback(struct usb2_xfer *xfer)
 {
-	struct ubt_softc	*sc;
+	struct ubt_softc	*sc = xfer->priv_sc;
 	int			n;
-
-	sc = ubt_get_node_private(xfer);
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
@@ -1081,8 +937,9 @@ read_next:
                 if (xfer->error != USB_ERR_CANCELLED) {
                         UBT_STAT_IERROR(sc);
                         goto read_next;
-			/* NOT REACHED */
                 }
+
+		/* transfer cancelled */
 		break;
 	}
 } /* ubt_isoc_read_callback */
@@ -1098,7 +955,7 @@ ubt_isoc_read_one_frame(struct usb2_xfer *xfer, int frame_no)
 {
 	struct ubt_softc	*sc = xfer->priv_sc;
 	struct mbuf		*m;
-	int			len, want, got, error;
+	int			len, want, got;
 
 	/* Get existing SCO reassembly buffer */
 	m = sc->sc_isoc_in_buffer;
@@ -1160,10 +1017,7 @@ ubt_isoc_read_one_frame(struct usb2_xfer *xfer, int frame_no)
 		UBT_STAT_PCKTS_RECV(sc);
 		UBT_STAT_BYTES_RECV(sc, m->m_pkthdr.len);
 
-		NG_SEND_DATA_ONLY(error, sc->sc_hook, m);
-		if (error != 0)
-			UBT_STAT_IERROR(sc);
-
+		ubt_fwd_mbuf_up(sc, &m);
 		/* m == NULL at this point */
 	}
 
@@ -1182,20 +1036,15 @@ ubt_isoc_read_one_frame(struct usb2_xfer *xfer, int frame_no)
 static void
 ubt_isoc_write_callback(struct usb2_xfer *xfer)
 {
-	struct ubt_softc	*sc;
+	struct ubt_softc	*sc = xfer->priv_sc;
 	struct mbuf		*m;
 	int			n, space, offset;
 
-	sc = ubt_get_node_private(xfer);
-
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		UBT_INFO(sc, "sent %d bytes to isoc-out pipe\n",
-		    xfer->actlen);
-
+		UBT_INFO(sc, "sent %d bytes to isoc-out pipe\n", xfer->actlen);
 		UBT_STAT_BYTES_SENT(sc, xfer->actlen);
 		UBT_STAT_PCKTS_SENT(sc);
-
 		/* FALLTHROUGH */
 
 	case USB_ST_SETUP:
@@ -1206,7 +1055,10 @@ send_next:
 
 		while (space > 0) {
 			if (m == NULL) {
+				UBT_NG_LOCK(sc);
 				NG_BT_MBUFQ_DEQUEUE(&sc->sc_scoq, m);
+				UBT_NG_UNLOCK(sc);
+
 				if (m == NULL)
 					break;
 			}
@@ -1226,7 +1078,9 @@ send_next:
 
 		/* Put whatever is left from mbuf back on queue */
 		if (m != NULL) {
+			UBT_NG_LOCK(sc);
 			NG_BT_MBUFQ_PREPEND(&sc->sc_scoq, m);
+			UBT_NG_UNLOCK(sc);
 		}
 
 		/*
@@ -1249,11 +1103,178 @@ send_next:
 		if (xfer->error != USB_ERR_CANCELLED) {
 			UBT_STAT_OERROR(sc);
 			goto send_next;
-			/* NOT REACHED */
 		}
+
+		/* transfer cancelled */
 		break;
 	}
 }
+
+/*
+ * Utility function to forward provided mbuf upstream (i.e. up the stack).
+ * Modifies value of the mbuf pointer (sets it to NULL).
+ * Save to call from any context.
+ */
+
+static int
+ubt_fwd_mbuf_up(ubt_softc_p sc, struct mbuf **m)
+{
+	hook_p	hook;
+	int	error;
+
+	/*
+	 * Close the race with Netgraph hook newhook/disconnect methods.
+	 * Save the hook pointer atomically. Two cases are possible:
+	 *
+	 * 1) The hook pointer is NULL. It means disconnect method got
+	 *    there first. In this case we are done.
+	 *
+	 * 2) The hook pointer is not NULL. It means that hook pointer
+	 *    could be either in valid or invalid (i.e. in the process
+	 *    of disconnect) state. In any case grab an extra reference
+	 *    to protect the hook pointer.
+	 *
+	 * It is ok to pass hook in invalid state to NG_SEND_DATA_ONLY() as
+	 * it checks for it. Drop extra reference after NG_SEND_DATA_ONLY().
+	 */
+
+	UBT_NG_LOCK(sc);
+	if ((hook = sc->sc_hook) != NULL)
+		NG_HOOK_REF(hook);
+	UBT_NG_UNLOCK(sc);
+
+	if (hook == NULL) {
+		NG_FREE_M(*m);
+		return (ENETDOWN);
+	}
+
+	NG_SEND_DATA_ONLY(error, hook, *m);
+	NG_HOOK_UNREF(hook);
+
+	if (error != 0)
+		UBT_STAT_IERROR(sc);
+
+	return (error);
+} /* ubt_fwd_mbuf_up */
+
+/****************************************************************************
+ ****************************************************************************
+ **                                 Glue 
+ ****************************************************************************
+ ****************************************************************************/
+
+/*
+ * Schedule glue task. Should be called with sc_ng_mtx held. 
+ * Netgraph context.
+ */
+
+static void
+ubt_task_schedule(ubt_softc_p sc, int action)
+{
+	mtx_assert(&sc->sc_ng_mtx, MA_OWNED);
+
+	/*
+	 * Try to handle corner case when "start all" and "stop all"
+	 * actions can both be set before task is executed.
+	 *
+	 * The rules are
+	 *
+	 * sc_task_flags	action		new sc_task_flags
+	 * ------------------------------------------------------
+	 * 0			start		start
+	 * 0			stop		stop
+	 * start		start		start
+	 * start		stop		stop
+	 * stop			start		stop|start
+	 * stop			stop		stop
+	 * stop|start		start		stop|start
+	 * stop|start		stop		stop
+	 */
+
+	if (action != 0) {
+		if ((action & UBT_FLAG_T_STOP_ALL) != 0)
+			sc->sc_task_flags &= ~UBT_FLAG_T_START_ALL;
+
+		sc->sc_task_flags |= action;
+	}
+
+	if (sc->sc_task_flags & UBT_FLAG_T_PENDING)
+		return;
+
+	if (taskqueue_enqueue(taskqueue_swi, &sc->sc_task) == 0) {
+		sc->sc_task_flags |= UBT_FLAG_T_PENDING;
+		return;
+	}
+
+	/* XXX: i think this should never happen */
+} /* ubt_task_schedule */
+
+/*
+ * Glue task. Examines sc_task_flags and does things depending on it.
+ * Taskqueue context.
+ */
+
+static void
+ubt_task(void *context, int pending)
+{
+	ubt_softc_p	sc = context;
+	int		task_flags, i;
+
+	UBT_NG_LOCK(sc);
+	task_flags = sc->sc_task_flags;
+	sc->sc_task_flags = 0;
+	UBT_NG_UNLOCK(sc);
+
+	/*
+	 * Stop all USB transfers synchronously.
+	 * Stop interface #0 and #1 transfers at the same time and in the
+	 * same loop. usb2_transfer_drain() will do appropriate locking.
+	 */
+
+	if (task_flags & UBT_FLAG_T_STOP_ALL)
+		for (i = 0; i < UBT_N_TRANSFER; i ++)
+			usb2_transfer_drain(sc->sc_xfer[i]);
+
+	/* Start incoming interrupt and bulk, and all isoc. USB transfers */
+	if (task_flags & UBT_FLAG_T_START_ALL) {
+		/*
+		 * Interface #0
+		 */
+
+		mtx_lock(&sc->sc_if_mtx);
+
+		ubt_xfer_start(sc, UBT_IF_0_INTR_DT_RD);
+		ubt_xfer_start(sc, UBT_IF_0_BULK_DT_RD);
+
+		/*
+		 * Interface #1
+		 * Start both read and write isoc. transfers by default.
+		 * Get them going all the time even if we have nothing
+		 * to send to avoid any delays.
+		 */
+
+		ubt_xfer_start(sc, UBT_IF_1_ISOC_DT_RD1);
+		ubt_xfer_start(sc, UBT_IF_1_ISOC_DT_RD2);
+		ubt_xfer_start(sc, UBT_IF_1_ISOC_DT_WR1);
+		ubt_xfer_start(sc, UBT_IF_1_ISOC_DT_WR2);
+
+		mtx_unlock(&sc->sc_if_mtx);
+	}
+
+ 	/* Start outgoing control transfer */
+	if (task_flags & UBT_FLAG_T_START_CTRL) {
+		mtx_lock(&sc->sc_if_mtx);
+		ubt_xfer_start(sc, UBT_IF_0_CTRL_DT_WR);
+		mtx_unlock(&sc->sc_if_mtx);
+	}
+
+	/* Start outgoing bulk transfer */
+	if (task_flags & UBT_FLAG_T_START_BULK) {
+		mtx_lock(&sc->sc_if_mtx);
+		ubt_xfer_start(sc, UBT_IF_0_BULK_DT_WR);
+		mtx_unlock(&sc->sc_if_mtx);
+	}
+} /* ubt_task */
 
 /****************************************************************************
  ****************************************************************************
@@ -1280,18 +1301,13 @@ ng_ubt_constructor(node_p node)
 static int
 ng_ubt_shutdown(node_p node)
 {
-	struct ubt_softc *sc = NG_NODE_PRIVATE(node);
-
 	if (node->nd_flags & NGF_REALLY_DIE) {
 		/*
                  * We came here because the USB device is being
 		 * detached, so stop being persistant.
                  */
-		UBT_LOCK(sc);
-		sc->sc_flags |= UBT_FLAG_SHUTDOWN;
-		UBT_UNLOCK(sc);
-
 		NG_NODE_SET_PRIVATE(node, NULL);
+		NG_NODE_UNREF(node);
 	} else
 		NG_NODE_REVIVE(node); /* tell ng_rmnode we are persisant */
 
@@ -1311,10 +1327,15 @@ ng_ubt_newhook(node_p node, hook_p hook, char const *name)
 	if (strcmp(name, NG_UBT_HOOK) != 0)
 		return (EINVAL);
 
-	if (sc->sc_hook != NULL)
+	UBT_NG_LOCK(sc);
+	if (sc->sc_hook != NULL) {
+		UBT_NG_UNLOCK(sc);
+
 		return (EISCONN);
+	}
 
 	sc->sc_hook = hook;
+	UBT_NG_UNLOCK(sc);
 
 	return (0);
 } /* ng_ubt_newhook */
@@ -1331,19 +1352,9 @@ ng_ubt_connect(hook_p hook)
 
 	NG_HOOK_FORCE_QUEUE(NG_HOOK_PEER(hook));
 
-	if (!(sc->sc_flags & UBT_FLAG_READY)) {
-		/* called too early */
-		return (EINVAL);
-	}
-
-	UBT_LOCK(sc);
-	usb2_transfer_start(sc->sc_xfer[UBT_IF_0_INTR_DT_RD]);
-	usb2_transfer_start(sc->sc_xfer[UBT_IF_0_BULK_DT_RD]);
-	usb2_transfer_start(sc->sc_xfer[UBT_IF_1_ISOC_DT_RD1]);
-	usb2_transfer_start(sc->sc_xfer[UBT_IF_1_ISOC_DT_RD2]);
-	usb2_transfer_start(sc->sc_xfer[UBT_IF_1_ISOC_DT_WR1]);
-	usb2_transfer_start(sc->sc_xfer[UBT_IF_1_ISOC_DT_WR2]);
-	UBT_UNLOCK(sc);
+	UBT_NG_LOCK(sc);
+	ubt_task_schedule(sc, UBT_FLAG_T_START_ALL);
+	UBT_NG_UNLOCK(sc);
 
 	return (0);
 } /* ng_ubt_connect */
@@ -1356,39 +1367,27 @@ ng_ubt_connect(hook_p hook)
 static int
 ng_ubt_disconnect(hook_p hook)
 {
-	node_p			node = NG_HOOK_NODE(hook);
-	struct ubt_softc	*sc;
-	uint8_t			i;
+	struct ubt_softc	*sc = NG_NODE_PRIVATE(NG_HOOK_NODE(hook));
 
-	if (NG_NODE_NOT_VALID(node))
-		return (0);
+	UBT_NG_LOCK(sc);
 
-	sc = NG_NODE_PRIVATE(node);
+	if (hook != sc->sc_hook) {
+		UBT_NG_UNLOCK(sc);
 
-	if (hook != sc->sc_hook)
 		return (EINVAL);
-
-	UBT_LOCK(sc);
-
-	/*
-	 * Netgraph cannot sleep!
-	 *
-	 * Asynchronously stop all USB transfers like an atomic
-	 * operation. If an USB transfer is pending the USB transfer
-	 * will be cancelled and not complete! This operation is
-	 * atomic within the "sc->sc_mtx" mutex.
-	 */
-	for (i = 0; i != UBT_N_TRANSFER; i++)
-		usb2_transfer_stop(sc->sc_xfer[i]);
+	}
 
 	sc->sc_hook = NULL;
+
+	/* Kick off task to stop all USB xfers */
+	ubt_task_schedule(sc, UBT_FLAG_T_STOP_ALL);
 
 	/* Drain queues */
 	NG_BT_MBUFQ_DRAIN(&sc->sc_cmdq);
 	NG_BT_MBUFQ_DRAIN(&sc->sc_aclq);
 	NG_BT_MBUFQ_DRAIN(&sc->sc_scoq);
 
-	UBT_UNLOCK(sc);
+	UBT_NG_UNLOCK(sc);
 
 	return (0);
 } /* ng_ubt_disconnect */
@@ -1419,16 +1418,14 @@ ng_ubt_rcvmsg(node_p node, item_p item, hook_p lasthook)
 			}
 
 			snprintf(rsp->data, NG_TEXTRESPONSE,
-				"Refs: %d\n" \
 				"Hook: %s\n" \
-				"Flags: %#x\n" \
+				"Task flags: %#x\n" \
 				"Debug: %d\n" \
 				"CMD queue: [have:%d,max:%d]\n" \
 				"ACL queue: [have:%d,max:%d]\n" \
 				"SCO queue: [have:%d,max:%d]",
-				node->nd_refs,
-				(sc->sc_hook != NULL) ? NG_UBT_HOOK:"",
-				sc->sc_flags,
+				(sc->sc_hook != NULL) ? NG_UBT_HOOK : "",
+				sc->sc_task_flags,
 				sc->sc_debug,
 				sc->sc_cmdq.len,
 				sc->sc_cmdq.maxlen,
@@ -1579,8 +1576,7 @@ ng_ubt_rcvdata(hook_p hook, item_p item)
 	struct ubt_softc	*sc = NG_NODE_PRIVATE(NG_HOOK_NODE(hook));
 	struct mbuf		*m;
 	struct ng_bt_mbufq	*q;
-	int			error = 0;
-	uint8_t			xfer_action;
+	int			action, error = 0;
 
 	if (hook != sc->sc_hook) {
 		error = EINVAL;
@@ -1610,7 +1606,7 @@ ng_ubt_rcvdata(hook_p hook, item_p item)
 				UBT_CTRL_BUFFER_SIZE, m->m_pkthdr.len);
 
 		q = &sc->sc_cmdq;
-		xfer_action = UBT_IF_0_CTRL_DT_WR;
+		action = UBT_FLAG_T_START_CTRL;
 		break;
 
 	case NG_HCI_ACL_DATA_PKT:
@@ -1620,12 +1616,12 @@ ng_ubt_rcvdata(hook_p hook, item_p item)
 				UBT_BULK_WRITE_BUFFER_SIZE, m->m_pkthdr.len);
 
 		q = &sc->sc_aclq;
-		xfer_action = UBT_IF_0_BULK_DT_WR;
+		action = UBT_FLAG_T_START_BULK;
 		break;
 
 	case NG_HCI_SCO_DATA_PKT:
 		q = &sc->sc_scoq;
-		xfer_action = 255;
+		action = 0;
 		break;
 
 	default:
@@ -1638,10 +1634,10 @@ ng_ubt_rcvdata(hook_p hook, item_p item)
 		/* NOT REACHED */
 	}
 
-	UBT_LOCK(sc);
+	UBT_NG_LOCK(sc);
 	if (NG_BT_MBUFQ_FULL(q)) {
 		NG_BT_MBUFQ_DROP(q);
-		UBT_UNLOCK(sc);
+		UBT_NG_UNLOCK(sc);
 		
 		UBT_ERR(sc, "Dropping HCI frame 0x%02x, len=%d. Queue full\n",
 			*mtod(m, uint8_t *), m->m_pkthdr.len);
@@ -1651,9 +1647,8 @@ ng_ubt_rcvdata(hook_p hook, item_p item)
 		/* Loose HCI packet type, enqueue mbuf and kick off task */
 		m_adj(m, sizeof(uint8_t));
 		NG_BT_MBUFQ_ENQUEUE(q, m);
-		if (xfer_action != 255)
-			usb2_transfer_start(sc->sc_xfer[xfer_action]);
-		UBT_UNLOCK(sc);
+		ubt_task_schedule(sc, action);
+		UBT_NG_UNLOCK(sc);
 	}
 done:
 	NG_FREE_ITEM(item);
@@ -1719,3 +1714,4 @@ MODULE_DEPEND(ng_ubt, netgraph, NG_ABI_VERSION, NG_ABI_VERSION, NG_ABI_VERSION);
 MODULE_DEPEND(ng_ubt, ng_hci, NG_BLUETOOTH_VERSION, NG_BLUETOOTH_VERSION, NG_BLUETOOTH_VERSION);
 MODULE_DEPEND(ng_ubt, usb2_bluetooth, 1, 1, 1);
 MODULE_DEPEND(ng_ubt, usb2_core, 1, 1, 1);
+

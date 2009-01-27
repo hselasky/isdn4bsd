@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/quirk/usb2_quirk.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/quirk/usb2_quirk.c,v 1.4 2009/01/26 17:42:02 thompsa Exp $ */
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc. All rights reserved.
  * Copyright (c) 1998 Lennart Augustsson. All rights reserved.
