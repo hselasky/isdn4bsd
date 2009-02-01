@@ -29,7 +29,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/misc/udbp2.c,v 1.3 2008/12/11 23:17:48 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/misc/udbp2.c,v 1.5 2009/02/01 01:07:15 thompsa Exp $");
 
 /* Driver for arbitrary double bulk pipe devices.
  * The driver assumes that there will be the same driver on the other side.
@@ -320,9 +320,6 @@ udbp_attach(device_t dev)
 	struct udbp_softc *sc = device_get_softc(dev);
 	int error;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	snprintf(sc->sc_name, sizeof(sc->sc_name),

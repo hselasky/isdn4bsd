@@ -36,7 +36,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2_pci.c,v 1.6 2009/01/13 19:03:01 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ohci2_pci.c,v 1.7 2009/02/01 00:51:25 thompsa Exp $");
 
 /*
  * USB Open Host Controller driver.
@@ -195,10 +195,6 @@ ohci_pci_attach(device_t self)
 	int rid;
 	int err;
 
-	if (sc == NULL) {
-		device_printf(self, "Could not allocate sc\n");
-		return (ENXIO);
-	}
 	/* initialise some bus fields */
 	sc->sc_bus.parent = self;
 	sc->sc_bus.devices = sc->sc_devices;

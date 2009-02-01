@@ -70,7 +70,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ubser2.c,v 1.6 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ubser2.c,v 1.7 2009/02/01 00:51:25 thompsa Exp $");
 
 /*
  * BWCT serial adapter driver
@@ -256,9 +256,6 @@ ubser_attach(device_t dev)
 	uint8_t n;
 	int error;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	snprintf(sc->sc_name, sizeof(sc->sc_name), "%s",

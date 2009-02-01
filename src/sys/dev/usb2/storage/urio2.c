@@ -29,7 +29,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/urio2.c,v 1.4 2009/01/11 19:41:38 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/urio2.c,v 1.5 2009/02/01 00:51:25 thompsa Exp $");
 
 
 /*
@@ -212,9 +212,6 @@ urio_attach(device_t dev)
 	struct urio_softc *sc = device_get_softc(dev);
 	int error;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	sc->sc_udev = uaa->device;

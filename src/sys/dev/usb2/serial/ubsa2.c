@@ -25,7 +25,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ubsa2.c,v 1.8 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ubsa2.c,v 1.9 2009/02/01 00:51:25 thompsa Exp $");
 /*-
  * Copyright (c) 2001 The NetBSD Foundation, Inc.
  * All rights reserved.
@@ -329,9 +329,6 @@ ubsa_attach(device_t dev)
 
 	DPRINTF("sc=%p\n", sc);
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	sc->sc_udev = uaa->device;

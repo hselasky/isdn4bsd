@@ -1,7 +1,7 @@
 /*	$NetBSD: usb/uvscom.c,v 1.1 2002/03/19 15:08:42 augustss Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/uvscom2.c,v 1.9 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/uvscom2.c,v 1.10 2009/02/01 00:51:25 thompsa Exp $");
 
 /*-
  * Copyright (c) 2001-2003, 2005 Shunsuke Akiyama <akiyama@jp.FreeBSD.org>.
@@ -315,9 +315,6 @@ uvscom_attach(device_t dev)
 	struct uvscom_softc *sc = device_get_softc(dev);
 	int error;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	sc->sc_udev = uaa->device;

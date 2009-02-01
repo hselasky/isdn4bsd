@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_hub.c,v 1.12 2009/01/26 17:49:58 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_hub.c,v 1.13 2009/02/01 00:51:25 thompsa Exp $ */
 /*-
  * Copyright (c) 1998 The NetBSD Foundation, Inc. All rights reserved.
  * Copyright (c) 1998 Lennart Augustsson. All rights reserved.
@@ -649,9 +649,6 @@ uhub_attach(device_t dev)
 	uint8_t iface_index;
 	usb2_error_t err;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	sc->sc_udev = udev;
 	sc->sc_dev = dev;
 

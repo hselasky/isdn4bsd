@@ -28,7 +28,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/ata-usb2.c,v 1.4 2009/01/13 19:03:12 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/ata-usb2.c,v 1.5 2009/02/01 00:51:25 thompsa Exp $");
 
 #include <dev/usb2/include/usb2_devid.h>
 #include <dev/usb2/include/usb2_standard.h>
@@ -328,9 +328,6 @@ atausb2_attach(device_t dev)
 	uint8_t has_intr;
 	int err;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	sc->dev = dev;

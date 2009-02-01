@@ -22,7 +22,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_rum2.c,v 1.7 2009/01/18 05:35:58 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_rum2.c,v 1.8 2009/02/01 00:51:25 thompsa Exp $");
 
 /*-
  * Ralink Technology RT2501USB/RT2601USB chipset driver
@@ -461,9 +461,6 @@ rum_attach(device_t dev)
 	int error;
 	uint8_t iface_index;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	mtx_init(&sc->sc_mtx, "rum lock", MTX_NETWORK_LOCK,

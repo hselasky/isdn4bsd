@@ -1,5 +1,5 @@
 /*	$NetBSD: uaudio.c,v 1.91 2004/11/05 17:46:14 kent Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/sound/uaudio2.c,v 1.6 2009/01/13 19:01:46 thompsa Exp $ */
+/*	$FreeBSD: src/sys/dev/usb2/sound/uaudio2.c,v 1.7 2009/02/01 00:51:25 thompsa Exp $ */
 
 /*-
  * Copyright (c) 1999 The NetBSD Foundation, Inc.
@@ -562,9 +562,6 @@ uaudio_attach(device_t dev)
 	struct usb2_interface_descriptor *id;
 	device_t child;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	sc->sc_play_chan.priv_sc = sc;
 	sc->sc_rec_chan.priv_sc = sc;
 	sc->sc_udev = uaa->device;

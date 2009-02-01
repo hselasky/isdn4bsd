@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/serial/umoscom2.c,v 1.6 2009/01/15 02:35:40 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/serial/umoscom2.c,v 1.7 2009/02/01 00:51:25 thompsa Exp $ */
 /*	$OpenBSD: umoscom.c,v 1.2 2006/10/26 06:02:43 jsg Exp $	*/
 
 /*
@@ -335,9 +335,6 @@ umoscom_attach(device_t dev)
 	int error;
 	uint8_t iface_index;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	sc->sc_udev = uaa->device;
 	sc->sc_mcr = 0x08;		/* enable interrupts */
 

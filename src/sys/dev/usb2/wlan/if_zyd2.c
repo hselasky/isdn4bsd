@@ -1,6 +1,6 @@
 /*	$OpenBSD: if_zyd.c,v 1.52 2007/02/11 00:08:04 jsg Exp $	*/
 /*	$NetBSD: if_zyd.c,v 1.7 2007/06/21 04:04:29 kiyohara Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2.c,v 1.10 2009/01/18 05:35:58 thompsa Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2.c,v 1.11 2009/02/01 00:51:25 thompsa Exp $	*/
 
 /*-
  * Copyright (c) 2006 by Damien Bergamini <damien.bergamini@free.fr>
@@ -20,7 +20,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2.c,v 1.10 2009/01/18 05:35:58 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2.c,v 1.11 2009/02/01 00:51:25 thompsa Exp $");
 
 /*
  * ZyDAS ZD1211/ZD1211B USB WLAN driver
@@ -1069,9 +1069,6 @@ zyd_attach(device_t dev)
 	int error;
 	uint8_t iface_index;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	if (uaa->info.bcdDevice < 0x4330) {
 		device_printf(dev, "device version mismatch: 0x%X "
 		    "(only >= 43.30 supported)\n",

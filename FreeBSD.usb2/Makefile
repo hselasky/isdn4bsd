@@ -1,4 +1,4 @@
-DATE=September 2008
+DATE=February 2009
 
 .if !defined(S)
 S       = /usr/src
@@ -59,12 +59,12 @@ install:
 	cp -v ${.CURDIR}/../src/sys/dev/usb2/include/*h ${INCLUDE}/dev/usb2/include/
 
 	@echo ""
-	cd ${.CURDIR}/../../libusb20 && make clean cleandepend depend all install
-	cd ${.CURDIR}/../../usbconfig && make clean cleandepend depend all install
+	cd ${.CURDIR}/../src/lib/libusb20 && make WARNS=4 clean cleandepend depend all install
+	cd ${.CURDIR}/../src/lib/libusbhid && make WARNS=4 clean cleandepend depend all install
+	cd ${.CURDIR}/../src/usr.sbin/usbconfig && make BINDIR=/usr/sbin clean cleandepend depend all install
+	cd ${.CURDIR}/../src/usr.bin/usbhidctl && make BINDIR=/usr/bin clean cleandepend depend all install
+	cd ${.CURDIR}/../src/usr.bin/usbhidaction && make BINDIR=/usr/bin clean cleandepend depend all install
 
-	@echo ""
-	@echo "KNOWN ISSUE: usb2_sound does not compile "
-	@echo "without additional patches to the kernel. "
 	@echo ""
 	@echo "NOTE: -k option is used here. Please check "
 	@echo "any compile failures."
@@ -82,19 +82,30 @@ install:
 	@echo ""
 	@echo "usb2_core_load=YES"
 	@echo "usb2_controller_load=YES"
+	@echo "usb2_controller_ehci_load=YES"
+	@echo "usb2_controller_ohci_load=YES"
+	@echo "usb2_controller_uhci_load=YES"
 	@echo "usb2_input_load=YES"
-	@echo "usb2_ethernet_load=YES"
-	@echo "usb2_wlan_load=YES"
-	@echo "usb2_serial_load=YES"
+	@echo "usb2_input_kbd_load=YES"
+	@echo "usb2_input_ms_load=YES"
 	@echo "EOF"
 	@echo ""
 	@echo "USB utilities installed: usbconfig"
 	@echo ""
-	@echo "3) Need libusb-0.1.12_2 support? Then please override "
-	@echo "bsd.c in libusb-0.1 distro with: ${.CURDIR}/../../libusb10/bsd.c"
+	@echo "3) Need libusb-0.1.12_2 support? Please see: http://wiki.freebsd.org/USB"
 	@echo ""
 	@echo "Have fun! --hps"
 	@echo ""
 
 clean:
 	rm -f temp.tar
+
+install_usr:
+	@echo "Installing header files ..."
+	cp -v ${.CURDIR}/../src/sys/dev/usb2/include/*h ${INCLUDE}/dev/usb2/include/
+
+	cd ${.CURDIR}/../src/lib/libusb20 && make WARNS=4 clean cleandepend depend all install
+	cd ${.CURDIR}/../src/lib/libusbhid && make WARNS=4 clean cleandepend depend all install
+	cd ${.CURDIR}/../src/usr.sbin/usbconfig && make BINDIR=/usr/sbin clean cleandepend depend all install
+	cd ${.CURDIR}/../src/usr.bin/usbhidctl && make BINDIR=/usr/bin clean cleandepend depend all install
+	cd ${.CURDIR}/../src/usr.bin/usbhidaction && make BINDIR=/usr/bin clean cleandepend depend all install

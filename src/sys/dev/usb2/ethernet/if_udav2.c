@@ -1,6 +1,6 @@
 /*	$NetBSD: if_udav.c,v 1.2 2003/09/04 15:17:38 tsutsui Exp $	*/
 /*	$nabe: if_udav.c,v 1.3 2003/08/21 16:57:19 nabe Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.7 2009/01/18 05:35:58 thompsa Exp $	*/
+/*	$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.8 2009/02/01 00:51:25 thompsa Exp $	*/
 /*-
  * Copyright (c) 2003
  *     Shingo WATANABE <nabe@nabechan.org>.  All rights reserved.
@@ -49,7 +49,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.7 2009/01/18 05:35:58 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_udav2.c,v 1.8 2009/02/01 00:51:25 thompsa Exp $");
 
 #include <dev/usb2/include/usb2_devid.h>
 #include <dev/usb2/include/usb2_standard.h>
@@ -267,9 +267,6 @@ udav_attach(device_t dev)
 	int32_t error;
 	uint8_t iface_index;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	sc->sc_udev = uaa->device;
 	sc->sc_dev = dev;
 	sc->sc_unit = device_get_unit(dev);

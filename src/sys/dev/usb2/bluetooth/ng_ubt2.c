@@ -28,7 +28,7 @@
  * SUCH DAMAGE.
  *
  * $Id: ng_ubt.c,v 1.16 2003/10/10 19:15:06 max Exp $
- * $FreeBSD: src/sys/dev/usb2/bluetooth/ng_ubt2.c,v 1.7 2009/01/26 20:59:41 emax Exp $
+ * $FreeBSD: src/sys/dev/usb2/bluetooth/ng_ubt2.c,v 1.8 2009/01/28 20:04:39 emax Exp $
  */
 
 /*
@@ -404,6 +404,9 @@ ubt_probe(device_t dev)
 		return (ENXIO);
 
 	if (uaa->info.bIfaceIndex != 0)
+		return (ENXIO);
+
+	if (uaa->use_generic == 0)
 		return (ENXIO);
 
 	if (usb2_lookup_id_by_uaa(ubt_ignore_devs,

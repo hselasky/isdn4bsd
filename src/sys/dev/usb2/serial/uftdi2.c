@@ -37,7 +37,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/uftdi2.c,v 1.7 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/uftdi2.c,v 1.8 2009/02/01 00:51:25 thompsa Exp $");
 
 /*
  * NOTE: all function names beginning like "uftdi_cfg_" can only
@@ -287,9 +287,6 @@ uftdi_attach(device_t dev)
 	struct uftdi_softc *sc = device_get_softc(dev);
 	int error;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	sc->sc_udev = uaa->device;
 	sc->sc_dev = dev;
 	sc->sc_unit = device_get_unit(dev);

@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/serial/ugensa2.c,v 1.9 2009/01/15 02:35:40 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/serial/ugensa2.c,v 1.10 2009/02/01 00:51:25 thompsa Exp $ */
 /*	$NetBSD: ugensa.c,v 1.9.2.1 2007/03/24 14:55:50 yamt Exp $	*/
 
 /*
@@ -214,9 +214,6 @@ ugensa_attach(device_t dev)
 	int32_t error;
 	uint8_t iface_index;
 	int x, cnt;
-
-	if (sc == NULL)
-		return (ENOMEM);
 
 	device_set_usb2_desc(dev);
 	mtx_init(&sc->sc_mtx, "ugensa", NULL, MTX_DEF);

@@ -1,7 +1,7 @@
 /*	$NetBSD: umodem.c,v 1.45 2002/09/23 05:51:23 simonb Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ufoma2.c,v 1.9 2009/01/22 05:05:56 takawata Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/ufoma2.c,v 1.10 2009/02/01 00:51:25 thompsa Exp $");
 #define UFOMA_HANDSFREE
 /*-
  * Copyright (c) 2005, Takanori Watanabe
@@ -407,9 +407,6 @@ ufoma_attach(device_t dev)
 	uint8_t elements;
 	int32_t error;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	sc->sc_udev = uaa->device;
 	sc->sc_dev = dev;
 	sc->sc_unit = device_get_unit(dev);

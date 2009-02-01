@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.8 2009/01/26 17:43:58 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.9 2009/02/01 00:51:25 thompsa Exp $");
 
 /*-
  * Copyright (c) 1999 MAEKAWA Masahide <bishop@rr.iij4u.or.jp>,
@@ -27,7 +27,7 @@ __FBSDID("$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.8 2009/01/26 17:43:58 
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.8 2009/01/26 17:43:58 thompsa Exp $
+ *	$FreeBSD: src/sys/dev/usb2/storage/umass2.c,v 1.9 2009/02/01 00:51:25 thompsa Exp $
  *	$NetBSD: umass.c,v 1.28 2000/04/02 23:46:53 augustss Exp $
  */
 
@@ -1444,9 +1444,6 @@ umass_attach(device_t dev)
 	struct usb2_interface_descriptor *id;
 	int32_t err;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	if (device_get_unit(dev) >= UMASS_MAXUNIT) {
 		device_printf(dev, "Maxunit(%u) limit reached!\n",
 		    UMASS_MAXUNIT);

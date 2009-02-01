@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/input/ukbd2.c,v 1.5 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/input/ukbd2.c,v 1.6 2009/02/01 00:51:25 thompsa Exp $");
 
 
 /*-
@@ -625,9 +625,6 @@ ukbd_attach(device_t dev)
 	usb2_error_t err;
 	uint16_t n;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	mtx_assert(&Giant, MA_OWNED);
 
 	kbd_init_struct(kbd, UKBD_DRIVER_NAME, KB_OTHER, unit, 0, 0, 0);

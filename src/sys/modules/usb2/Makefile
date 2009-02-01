@@ -1,5 +1,5 @@
 #
-# $FreeBSD: src/sys/modules/usb2/Makefile,v 1.5 2009/01/04 00:12:01 alfred Exp $
+# $FreeBSD: src/sys/modules/usb2/Makefile,v 1.7 2009/01/28 11:04:27 glebius Exp $
 #
 # Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
 #
@@ -30,7 +30,9 @@ SUBDIR += bluetooth
 SUBDIR += bluetooth_ng
 SUBDIR += bluetooth_fw
 SUBDIR += controller
+.if ${MACHINE_ARCH} == "arm"
 SUBDIR += controller_at91dci
+.endif
 SUBDIR += controller_ehci
 SUBDIR += controller_musb
 SUBDIR += controller_ohci
@@ -87,4 +89,3 @@ SUBDIR += wlan_rum
 SUBDIR += wlan_zyd
 
 .include <bsd.subdir.mk>
-

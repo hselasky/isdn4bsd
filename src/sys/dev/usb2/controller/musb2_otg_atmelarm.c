@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/musb2_otg_atmelarm.c,v 1.7 2009/01/13 19:03:33 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/musb2_otg_atmelarm.c,v 1.8 2009/02/01 00:51:25 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -90,11 +90,7 @@ musbotg_attach(device_t dev)
 	int err;
 	int rid;
 
-	if (sc == NULL) {
-		return (ENXIO);
-	}
 	/* setup MUSB OTG USB controller interface softc */
-
 	sc->sc_otg.sc_clocks_on = &musbotg_clocks_on;
 	sc->sc_otg.sc_clocks_off = &musbotg_clocks_off;
 	sc->sc_otg.sc_clocks_arg = sc;

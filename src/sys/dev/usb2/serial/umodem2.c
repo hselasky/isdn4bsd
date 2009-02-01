@@ -1,7 +1,7 @@
 /*	$NetBSD: umodem.c,v 1.45 2002/09/23 05:51:23 simonb Exp $	*/
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/umodem2.c,v 1.5 2009/01/13 19:03:47 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/umodem2.c,v 1.6 2009/02/01 00:51:25 thompsa Exp $");
 
 /*-
  * Copyright (c) 2003, M. Warner Losh <imp@freebsd.org>.
@@ -322,9 +322,6 @@ umodem_attach(device_t dev)
 	uint8_t i;
 	int error;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	sc->sc_ctrl_iface_no = uaa->info.bIfaceNum;

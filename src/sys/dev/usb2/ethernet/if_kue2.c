@@ -31,7 +31,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_kue2.c,v 1.7 2009/01/18 05:35:58 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/ethernet/if_kue2.c,v 1.8 2009/02/01 00:51:25 thompsa Exp $");
 
 /*
  * Kawasaki LSI KL5KUSB101B USB to ethernet adapter driver.
@@ -459,9 +459,6 @@ kue_attach(device_t dev)
 	int32_t error;
 	uint8_t iface_index;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	sc->sc_udev = uaa->device;
 	sc->sc_dev = dev;
 	sc->sc_unit = device_get_unit(dev);

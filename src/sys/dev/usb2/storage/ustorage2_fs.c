@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/storage/ustorage2_fs.c,v 1.3 2009/01/04 00:12:01 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/storage/ustorage2_fs.c,v 1.4 2009/02/01 00:51:25 thompsa Exp $ */
 /*-
  * Copyright (C) 2003-2005 Alan Stern
  * Copyright (C) 2008 Hans Petter Selasky
@@ -318,9 +318,6 @@ ustorage_fs_attach(device_t dev)
 	struct usb2_interface_descriptor *id;
 	int err;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	/*
 	 * NOTE: the softc struct is bzero-ed in device_set_driver.
 	 * We can safely call ustorage_fs_detach without specifically

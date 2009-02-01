@@ -1,5 +1,5 @@
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/at91dci_atmelarm.c,v 1.7 2009/01/13 19:03:33 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/at91dci_atmelarm.c,v 1.8 2009/02/01 00:51:25 thompsa Exp $");
 
 /*-
  * Copyright (c) 2007-2008 Hans Petter Selasky. All rights reserved.
@@ -131,9 +131,6 @@ at91_udp_attach(device_t dev)
 	int err;
 	int rid;
 
-	if (sc == NULL) {
-		return (ENXIO);
-	}
 	/* setup AT9100 USB device controller interface softc */
 
 	sc->sc_dci.sc_clocks_on = &at91_udp_clocks_on;

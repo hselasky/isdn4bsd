@@ -1,5 +1,5 @@
 /*	$NetBSD: uvisor.c,v 1.9 2001/01/23 14:04:14 augustss Exp $	*/
-/*      $FreeBSD: src/sys/dev/usb2/serial/uvisor2.c,v 1.6 2009/01/15 02:35:40 thompsa Exp $ */
+/*      $FreeBSD: src/sys/dev/usb2/serial/uvisor2.c,v 1.7 2009/02/01 00:51:25 thompsa Exp $ */
 
 /* Also already merged from NetBSD:
  *	$NetBSD: uvisor.c,v 1.12 2001/11/13 06:24:57 lukem Exp $
@@ -321,9 +321,6 @@ uvisor_attach(device_t dev)
 	DPRINTF("sc=%p\n", sc);
 	bcopy(uvisor_config, uvisor_config_copy,
 	    sizeof(uvisor_config_copy));
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	sc->sc_udev = uaa->device;

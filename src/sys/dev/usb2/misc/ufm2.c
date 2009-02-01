@@ -29,7 +29,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/misc/ufm2.c,v 1.3 2009/01/11 19:41:38 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/misc/ufm2.c,v 1.4 2009/02/01 00:51:25 thompsa Exp $");
 
 
 #include <dev/usb2/include/usb2_devid.h>
@@ -130,9 +130,6 @@ ufm_attach(device_t dev)
 	struct ufm_softc *sc = device_get_softc(dev);
 	int error;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	sc->sc_udev = uaa->device;
 	sc->sc_unit = device_get_unit(dev);
 

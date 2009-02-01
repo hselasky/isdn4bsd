@@ -63,7 +63,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/uchcom2.c,v 1.7 2009/01/15 02:35:40 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/serial/uchcom2.c,v 1.8 2009/02/01 00:51:25 thompsa Exp $");
 
 /*
  * driver for WinChipHead CH341/340, the worst USB-serial chip in the world.
@@ -342,9 +342,6 @@ uchcom_attach(device_t dev)
 
 	DPRINTFN(11, "\n");
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	sc->sc_udev = uaa->device;

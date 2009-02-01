@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_compat_linux.c,v 1.4 2009/01/13 19:04:58 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_compat_linux.c,v 1.5 2009/02/01 00:51:25 thompsa Exp $ */
 /*-
  * Copyright (c) 2007 Luigi Rizzo - Universita` di Pisa. All rights reserved.
  * Copyright (c) 2007 Hans Petter Selasky. All rights reserved.
@@ -246,9 +246,6 @@ usb_linux_attach(device_t dev)
 	struct usb_device *p_dev;
 	const struct usb_device_id *id = NULL;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	mtx_lock(&Giant);
 	LIST_FOREACH(udrv, &usb_linux_driver_list, linux_driver_list) {
 		id = usb_linux_lookup_id(udrv->id_table, uaa);

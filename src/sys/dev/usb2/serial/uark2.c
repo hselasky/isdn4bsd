@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $FreeBSD: src/sys/dev/usb2/serial/uark2.c,v 1.6 2009/01/15 02:35:40 thompsa Exp $
+ * $FreeBSD: src/sys/dev/usb2/serial/uark2.c,v 1.7 2009/02/01 00:51:25 thompsa Exp $
  */
 
 /*
@@ -209,9 +209,6 @@ uark_attach(device_t dev)
 	int32_t error;
 	uint8_t iface_index;
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	device_set_usb2_desc(dev);
 
 	sc->sc_udev = uaa->device;

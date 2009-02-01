@@ -16,7 +16,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $FreeBSD: src/sys/dev/usb2/serial/u3g2.c,v 1.5 2009/01/26 17:47:32 thompsa Exp $
+ * $FreeBSD: src/sys/dev/usb2/serial/u3g2.c,v 1.6 2009/02/01 00:51:25 thompsa Exp $
  */
 
 /*
@@ -391,9 +391,6 @@ u3g_attach(device_t dev)
 
 	DPRINTF("sc=%p\n", sc);
 
-	if (sc == NULL) {
-		return (ENOMEM);
-	}
 	/* copy in USB config */
 	for (n = 0; n != U3G_N_TRANSFER; n++) 
 		u3g_config_tmp[n] = u3g_config[n];
