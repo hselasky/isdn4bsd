@@ -88,7 +88,7 @@ struct u3g_speeds_s {
 enum {
 	U3G_BULK_WR,
 	U3G_BULK_RD,
-	U3G_N_TRANSFER = 2,
+	U3G_N_TRANSFER,
 };
 
 struct u3g_softc {

@@ -1587,7 +1587,7 @@ umass_attach(device_t dev)
 	 * some devices need a delay after that the configuration value is
 	 * set to function properly:
 	 */
-	usb2_pause_mtx(&Giant, USB_MS_HZ);
+	usb2_pause_mtx(&Giant, hz);
 
 	/* register the SIM */
 	err = umass_cam_attach_sim(sc);

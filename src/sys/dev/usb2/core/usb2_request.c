@@ -371,7 +371,7 @@ usb2_do_request_flags(struct usb2_device *udev, struct mtx *mtx,
 					if (temp > 0) {
 						usb2_pause_mtx(
 						    xfer->xroot->xfer_mtx,
-						    temp);
+						    USB_MS_TO_TICKS(temp));
 					}
 #endif
 					xfer->flags.manual_status = 0;
@@ -520,11 +520,11 @@ usb2_req_reset_port(struct usb2_device *udev, struct mtx *mtx, uint8_t port)
 	while (1) {
 #if USB_DEBUG
 		/* wait for the device to recover from reset */
-		usb2_pause_mtx(mtx, pr_poll_delay);
+		usb2_pause_mtx(mtx, USB_MS_TO_TICKS(pr_poll_delay));
 		n += pr_poll_delay;
 #else
 		/* wait for the device to recover from reset */
-		usb2_pause_mtx(mtx, USB_PORT_RESET_DELAY);
+		usb2_pause_mtx(mtx, USB_MS_TO_TICKS(USB_PORT_RESET_DELAY));
 		n += USB_PORT_RESET_DELAY;
 #endif
 		err = usb2_req_get_port_status(udev, mtx, &ps, port);
@@ -559,10 +559,10 @@ usb2_req_reset_port(struct usb2_device *udev, struct mtx *mtx, uint8_t port)
 	}
 #if USB_DEBUG
 	/* wait for the device to recover from reset */
-	usb2_pause_mtx(mtx, pr_recovery_delay);
+	usb2_pause_mtx(mtx, USB_MS_TO_TICKS(pr_recovery_delay));
 #else
 	/* wait for the device to recover from reset */
-	usb2_pause_mtx(mtx, USB_PORT_RESET_RECOVERY);
+	usb2_pause_mtx(mtx, USB_MS_TO_TICKS(USB_PORT_RESET_RECOVERY));
 #endif
 
 done:
@@ -624,7 +624,7 @@ usb2_req_get_desc(struct usb2_device *udev, struct mtx *mtx, void *desc,
 			}
 			retries--;
 
-			usb2_pause_mtx(mtx, 200);
+			usb2_pause_mtx(mtx, hz / 5);
 
 			continue;
 		}
@@ -1369,7 +1369,7 @@ retry:
 	udev->address = old_addr;
 
 	/* allow device time to set new address */
-	usb2_pause_mtx(mtx, USB_SET_ADDRESS_SETTLE);
+	usb2_pause_mtx(mtx, USB_MS_TO_TICKS(USB_SET_ADDRESS_SETTLE));
 
 	/* get the device descriptor */
 	err = usb2_req_get_desc(udev, mtx, &udev->ddesc,
@@ -1389,7 +1389,7 @@ retry:
 done:
 	if (err && do_retry) {
 		/* give the USB firmware some time to load */
-		usb2_pause_mtx(mtx, 500);
+		usb2_pause_mtx(mtx, hz / 2);
 		/* no more retries after this retry */
 		do_retry = 0;
 		/* try again */

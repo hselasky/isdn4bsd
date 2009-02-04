@@ -36,4 +36,12 @@ SRCS+= opt_usb.h pci_if.h opt_bus.h card_if.h
 SRCS+= ehci2.c
 SRCS+= ehci2_pci.c
 
+.if defined(HAS_MARVELL_EHCI)
+SRCS+= ehci2_mbus.c
+.endif
+
+.if defined(HAS_IXP4XX_EHCI)
+SRCS+= ehci2_ixp4xx.c
+.endif
+
 .include <bsd.kmod.mk>

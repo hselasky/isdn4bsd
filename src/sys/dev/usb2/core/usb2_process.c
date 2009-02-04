@@ -176,8 +176,9 @@ usb2_process(void *arg)
  *    0: success
  * Else: failure
  *------------------------------------------------------------------------*/
-uint8_t
-usb2_proc_setup(struct usb2_process *up, struct mtx *p_mtx, uint8_t prio)
+int
+usb2_proc_create(struct usb2_process *up, struct mtx *p_mtx,
+    const char *pmesg, uint8_t prio)
 {
 	up->up_mtx = p_mtx;
 	up->up_prio = prio;
@@ -188,7 +189,7 @@ usb2_proc_setup(struct usb2_process *up, struct mtx *p_mtx, uint8_t prio)
 	usb2_cv_init(&up->up_drain, "dmsg");
 
 	if (USB_THREAD_CREATE(&usb2_process, up,
-	    &up->up_ptr, "usbproc")) {
+	    &up->up_ptr, pmesg)) {
 		DPRINTFN(0, "Unable to create USB process.");
 		up->up_ptr = NULL;
 		goto error;
@@ -197,7 +198,13 @@ usb2_proc_setup(struct usb2_process *up, struct mtx *p_mtx, uint8_t prio)
 
 error:
 	usb2_proc_unsetup(up);
-	return (1);
+	return (ENOMEM);
+}
+
+uint8_t
+usb2_proc_setup(struct usb2_process *up, struct mtx *p_mtx, uint8_t prio)
+{
+	return (usb2_proc_create(up, p_mtx, "usbproc", prio) ? 1 : 0);
 }
 
 /*------------------------------------------------------------------------*
@@ -223,6 +230,12 @@ usb2_proc_unsetup(struct usb2_process *up)
 
 	/* make sure that we do not enter here again */
 	up->up_mtx = NULL;
+}
+
+void
+usb2_proc_free(struct usb2_process *up)
+{
+	usb2_proc_unsetup(up);
 }
 
 /*------------------------------------------------------------------------*

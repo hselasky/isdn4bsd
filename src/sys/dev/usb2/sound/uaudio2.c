@@ -725,9 +725,7 @@ repeat:
 
 	if (error) {
 		device_printf(dev, "Waiting for sound application to exit!\n");
-		mtx_lock(&Giant);
-		usb2_pause_mtx(&Giant, 2000);
-		mtx_unlock(&Giant);
+		usb2_pause_mtx(NULL, 2 * hz);
 		goto repeat;		/* try again */
 	}
 	return (0);			/* success */
