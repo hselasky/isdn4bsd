@@ -148,12 +148,7 @@ struct usb2_com_softc {
 	struct usb2_com_cfg_task	sc_start_task[2];
 	struct usb2_com_cfg_task	sc_open_task[2];
 	struct usb2_com_cfg_task	sc_close_task[2];
-	struct usb2_com_cfg_task	sc_break_on_task[2];
-	struct usb2_com_cfg_task	sc_dtr_on_task[2];
-	struct usb2_com_cfg_task	sc_rts_on_task[2];
-	struct usb2_com_cfg_task	sc_break_off_task[2];
-	struct usb2_com_cfg_task	sc_dtr_off_task[2];
-	struct usb2_com_cfg_task	sc_rts_off_task[2];
+	struct usb2_com_cfg_task	sc_line_state_task[2];
 	struct usb2_com_cfg_task	sc_status_task[2];
 	struct usb2_com_param_task	sc_param_task[2];
 	struct cv sc_cv;
@@ -177,6 +172,13 @@ struct usb2_com_softc {
 	uint8_t	sc_msr;
 	uint8_t	sc_mcr;
 	uint8_t	sc_ttyfreed;		/* set when TTY has been freed */
+	/* programmed line state bits */
+	uint8_t sc_pls_set;		/* set bits */
+	uint8_t sc_pls_clr;		/* cleared bits */
+	uint8_t sc_pls_curr;		/* last state */
+#define	UCOM_LS_DTR	0x01
+#define	UCOM_LS_RTS	0x02
+#define	UCOM_LS_BREAK	0x04
 };
 
 int	usb2_com_attach(struct usb2_com_super_softc *,
