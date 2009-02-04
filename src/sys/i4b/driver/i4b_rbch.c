@@ -119,6 +119,8 @@ i4b_rbch_attach(void *dummy)
 
 		sc = &rbch_softc[i];
 
+		sc->sc_unit = i;
+
 		dev = make_dev(&i4b_rbch__cdevsw, i,
 			       UID_ROOT, GID_WHEEL, 0600, "i4brbch%d", i);
 
@@ -130,7 +132,6 @@ i4b_rbch_attach(void *dummy)
 #if I4B_ACCOUNTING
 		I4B_ACCOUNTING_INIT(&sc->sc_accounting);
 #endif
-		sc->sc_unit = i;
 		sc->sc_flags = ST_IDLE;
 
 #if 0
@@ -166,7 +167,7 @@ i4b_rbch_open(struct cdev *dev, int flag, int fmt, struct thread *td)
 
 	SC_UNLOCK(f);
 
-	NDBGL4(L4_RBCHDBG, "unit %d, open", minor(dev));
+	NDBGL4(L4_RBCHDBG, "unit %d, open", sc->sc_unit);
 
 	return(error);
 }
@@ -178,7 +179,7 @@ static int
 i4b_rbch_close(struct cdev *dev, int flag, int fmt, struct thread *td)
 {
 	struct rbch_softc *sc = dev->si_drv1;
-	int unit = minor(dev);
+	int unit = sc->sc_unit;
 
 	SC_LOCK(f,sc->sc_fifo_translator);
 
@@ -204,7 +205,7 @@ static int
 i4b_rbch_read(struct cdev *dev, struct uio *uio, int ioflag)
 {
 	struct rbch_softc *sc = dev->si_drv1;
-	int unit = minor(dev);
+	int unit = sc->sc_unit;
 	struct mbuf *m;
 	int error = 0;
 
@@ -282,7 +283,7 @@ static int
 i4b_rbch_write(struct cdev *dev, struct uio * uio, int ioflag)
 {
 	struct rbch_softc *sc = dev->si_drv1;
-	int unit = minor(dev);
+	int unit = sc->sc_unit;
 	struct mbuf *m;
 	int error = 0;
 
@@ -372,7 +373,7 @@ static int
 i4b_rbch_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *td)
 {
 	struct rbch_softc *sc = dev->si_drv1;
-	int unit = minor(dev);
+	int unit = sc->sc_unit;
 	int error = 0;
 
 	SC_LOCK(f,sc->sc_fifo_translator);

@@ -96,6 +96,8 @@ typedef struct {
 	u_int16_t		tone_freq_1;
 	u_int16_t		tone_freq_2;
 
+	u_int16_t		unit;
+
 	u_int16_t		tone_duration;
 	struct selinfo		selp1;		/* select / poll */
 
@@ -671,7 +673,8 @@ i4b_tel_write(struct cdev *dev, struct uio * uio, int ioflag)
 static int
 i4b_tel_dwrite(struct cdev *dev, struct uio * uio, int ioflag)
 {
-	int unit = minor(dev);
+	tel_sc_t *sc = dev->si_drv1;
+	int unit = sc->unit;
 	int error;
 
 #define CMDBUFSIZ 80 
@@ -1679,6 +1682,8 @@ i4b_tel_attach(void *dummy)
 	
 	for(i=0; i < NI4BTEL; i++)
 	{
+		sc->unit = i;
+
 		/* normal i4btel device */
 		dev = make_dev(&i4b_tel_cdevsw, i,
 			       UID_ROOT, GID_WHEEL,

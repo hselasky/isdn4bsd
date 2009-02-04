@@ -77,9 +77,6 @@ SYSINIT(i4bctlattach, SI_SUB_PSEUDO, SI_ORDER_ANY, i4bctlattach, NULL);
 static int
 i4bctlopen(struct cdev *dev, int flag, int fmt, struct thread *td)
 {
-	if(minor(dev))
-		return (ENXIO);
-
 	if(openflag)
 		return (EBUSY);
 	
@@ -109,11 +106,6 @@ i4bctlioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 	i4b_ec_debug_t *ec_dbg = (void *)data;
 	i4b_controller_t *cntl = 0;
 	int error = 0;
-
-	if(minor(dev))
-	{
-		return(ENODEV);
-	}
 
 	/* lookup cntl in general */
 	if ((IOCPARM_LEN(cmd) == sizeof(*dbg)) ||

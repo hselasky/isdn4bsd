@@ -67,13 +67,37 @@ ihfc_cdevsw = {
 #define fifo_translator(dev) (*((fifo_translator_t **)&((dev)->si_drv2)))
 #define fifo_transmit(ft)    (((ihfc_fifo_t *)((ft)->L5_fifo))+transmit)
 #define fifo_receive(ft)     (((ihfc_fifo_t *)((ft)->L5_fifo))+receive)
-#define channel(dev)         ((minor(dev) >> 16) % IHFC_DEVICES)
+#define channel(dev)         ihfc_find_channel(dev)
 
 /* maximum frame length */
 #define IHFC_MAX_FRAME  (BCH_MAX_DATALEN - 3)
 	/* -3: Make room for 2 CRC + 1 STAT */
 
 #define IHFC_DEVICES (IHFC_CHANNELS/2)
+
+/* TODO: Optimise this routine! */
+
+static uint32_t
+ihfc_find_channel(struct cdev *cdev)
+{
+	struct i4b_controller *cntl = i4b_controller(cdev);
+	ihfc_sc_t *sc = cntl->L1_sc;
+	ihfc_fifo_t *f = cntl->L1_fifo;
+	uint32_t channel;
+
+	for(channel = 0; 
+	    channel != cntl->L1_channel_end;
+	    channel++, f += 2)
+	{
+		if(sc->sc_test_dev[FIFO_NO(f)/2] == cdev)
+			break;
+	}
+
+	if (channel == cntl->L1_channel_end)
+		channel = 0;
+
+	return (channel);
+}
 
 /*---------------------------------------------------------------------------*
  * :setup local devices, /dev/ihfcX.Y
