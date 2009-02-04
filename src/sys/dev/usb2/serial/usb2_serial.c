@@ -101,7 +101,7 @@ static usb2_proc_callback_t usb2_com_cfg_param;
 
 static uint8_t	usb2_com_units_alloc(uint32_t, uint32_t *);
 static void	usb2_com_units_free(uint32_t, uint32_t);
-static int	usb2_com_attach_tty(struct usb2_com_softc *);
+static int	usb2_com_attach_tty(struct usb2_com_softc *, uint32_t);
 static void	usb2_com_detach_tty(struct usb2_com_softc *);
 static void	usb2_com_queue_command(struct usb2_com_softc *,
 		    usb2_proc_callback_t *, struct termios *pt,
@@ -249,7 +249,7 @@ usb2_com_attach(struct usb2_com_super_softc *ssc, struct usb2_com_softc *sc,
 		sc->sc_parent = parent;
 		sc->sc_callback = callback;
 
-		error = usb2_com_attach_tty(sc);
+		error = usb2_com_attach_tty(sc, sub_units);
 		if (error) {
 			usb2_com_detach(ssc, sc - n, n);
 			usb2_com_units_free(root_unit + n, sub_units - n);
@@ -287,7 +287,7 @@ usb2_com_detach(struct usb2_com_super_softc *ssc, struct usb2_com_softc *sc,
 }
 
 static int
-usb2_com_attach_tty(struct usb2_com_softc *sc)
+usb2_com_attach_tty(struct usb2_com_softc *sc, uint32_t sub_units)
 {
 	struct tty *tp;
 	int error = 0;
@@ -309,8 +309,18 @@ usb2_com_attach_tty(struct usb2_com_softc *sc)
 	}
 	if (buf[0] == 0) {
 		/* Use default TTY name */
-		if (snprintf(buf, sizeof(buf), "U%u", sc->sc_unit)) {
-			/* ignore */
+		if (sub_units > 1) {
+			/* multiple modems in one */
+			if (snprintf(buf, sizeof(buf), "U%u.%u",
+			    sc->sc_unit - sc->sc_local_unit,
+			    sc->sc_local_unit)) {
+				/* ignore */
+			}
+		} else {
+			/* single modem */
+			if (snprintf(buf, sizeof(buf), "U%u", sc->sc_unit)) {
+				/* ignore */
+			}
 		}
 	}
 	tty_makedev(tp, NULL, "%s", buf);
