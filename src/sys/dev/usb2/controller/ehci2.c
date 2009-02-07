@@ -1145,6 +1145,9 @@ ehci_non_isoc_done_sub(struct usb2_xfer *xfer)
 	td = xfer->td_transfer_cache;
 	td_alt_next = td->alt_next;
 
+	if (xfer->aframes != xfer->nframes) {
+		xfer->frlengths[xfer->aframes] = 0;
+	}
 	while (1) {
 
 		usb2_pc_cpu_invalidate(td->page_cache);
@@ -1153,8 +1156,8 @@ ehci_non_isoc_done_sub(struct usb2_xfer *xfer)
 		len = EHCI_QTD_GET_BYTES(status);
 
 		/*
-	         * Verify the status length and subtract
-	         * the remainder from "frlengths[]":
+	         * Verify the status length and
+		 * add the length to "frlengths[]":
 	         */
 		if (len > td->len) {
 			/* should not happen */
@@ -1162,7 +1165,7 @@ ehci_non_isoc_done_sub(struct usb2_xfer *xfer)
 			    "0x%04x/0x%04x bytes\n", len, td->len);
 			status |= EHCI_QTD_HALTED;
 		} else if (xfer->aframes != xfer->nframes) {
-			xfer->frlengths[xfer->aframes] -= len;
+			xfer->frlengths[xfer->aframes] += td->len - len;
 		}
 		/* Check for last transfer */
 		if (((void *)td) == xfer->td_transfer_last) {

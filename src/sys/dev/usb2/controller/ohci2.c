@@ -838,6 +838,9 @@ ohci_non_isoc_done_sub(struct usb2_xfer *xfer)
 	td_alt_next = td->alt_next;
 	td_flags = 0;
 
+	if (xfer->aframes != xfer->nframes) {
+		xfer->frlengths[xfer->aframes] = 0;
+	}
 	while (1) {
 
 		usb2_pc_cpu_invalidate(td->page_cache);
@@ -861,10 +864,15 @@ ohci_non_isoc_done_sub(struct usb2_xfer *xfer)
 				cc = OHCI_CC_STALL;
 			} else if (xfer->aframes != xfer->nframes) {
 				/*
-				 * subtract remaining length from
-				 * "frlengths[]"
+				 * Sum up total transfer length
+				 * in "frlengths[]":
 				 */
-				xfer->frlengths[xfer->aframes] -= temp;
+				xfer->frlengths[xfer->aframes] += td->len - temp;
+			}
+		} else{
+			if (xfer->aframes != xfer->nframes) {
+				/* transfer was complete */
+				xfer->frlengths[xfer->aframes] += td->len;
 			}
 		}
 		/* Check for last transfer */
