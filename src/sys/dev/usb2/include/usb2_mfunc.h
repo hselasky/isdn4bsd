@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/include/usb2_mfunc.h,v 1.1 2008/11/04 02:31:03 alfred Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/include/usb2_mfunc.h,v 1.2 2009/02/03 05:50:36 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
@@ -28,14 +28,6 @@
 
 #ifndef _USB2_MFUNC_H_
 #define	_USB2_MFUNC_H_
-
-#define	USB_MAKE_001(n,ENUM) ENUM,
-#define	USB_MAKE_ENUM(m) \
-enum { m(USB_MAKE_001,) m##_MAX }
-
-#define	USB_MAKE_002(n,ENUM) #ENUM,
-#define	USB_MAKE_DEBUG_TABLE(m) \
-static const char * m[m##_MAX] = { m(USB_MAKE_002,) }
 
 #define	USB_LOG2(n) (	    \
 ((x) <= (1<<0x00)) ? 0x00 : \

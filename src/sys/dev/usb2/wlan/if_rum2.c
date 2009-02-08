@@ -22,7 +22,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_rum2.c,v 1.8 2009/02/01 00:51:25 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_rum2.c,v 1.9 2009/02/06 15:03:17 kevlo Exp $");
 
 /*-
  * Ralink Technology RT2501USB/RT2601USB chipset driver
@@ -188,6 +188,7 @@ static const struct usb2_device_id rum_devs[] = {
 	{USB_VPI(USB_VENDOR_HUAWEI3COM, USB_PRODUCT_HUAWEI3COM_WUB320G, 0)},
 	{USB_VPI(USB_VENDOR_MELCO, USB_PRODUCT_MELCO_G54HP, 0)},
 	{USB_VPI(USB_VENDOR_MELCO, USB_PRODUCT_MELCO_SG54HP, 0)},
+	{USB_VPI(USB_VENDOR_MELCO, USB_PRODUCT_MELCO_SG54HG, 0)},
 	{USB_VPI(USB_VENDOR_MSI, USB_PRODUCT_MSI_RT2573_1, 0)},
 	{USB_VPI(USB_VENDOR_MSI, USB_PRODUCT_MSI_RT2573_2, 0)},
 	{USB_VPI(USB_VENDOR_MSI, USB_PRODUCT_MSI_RT2573_3, 0)},

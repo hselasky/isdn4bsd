@@ -26,7 +26,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/uhci2.c,v 1.10 2009/01/26 17:55:07 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/uhci2.c,v 1.11 2009/02/07 06:27:16 thompsa Exp $");
 
 /*
  * USB Universal Host Controller driver.
@@ -406,8 +406,6 @@ uhci_init(uhci_softc_t *sc)
 	uint16_t x;
 	uint16_t y;
 
-	USB_BUS_LOCK(&sc->sc_bus);
-
 	DPRINTF("start\n");
 
 #if USB_DEBUG
@@ -597,12 +595,12 @@ uhci_init(uhci_softc_t *sc)
 	/* set up the bus struct */
 	sc->sc_bus.methods = &uhci_bus_methods;
 
+	USB_BUS_LOCK(&sc->sc_bus);
 	/* reset the controller */
 	uhci_reset(sc);
 
 	/* start the controller */
 	uhci_start(sc);
-
 	USB_BUS_UNLOCK(&sc->sc_bus);
 
 	/* catch lost interrupts */
