@@ -1888,8 +1888,13 @@ ehci_setup_standard_chain(struct usbd_xfer *xfer, ehci_qh_t **qh_last)
 	    EHCI_QH_SET_MPL(xfer->max_packet_size));
 
 	if (usbd_get_speed(xfer->udev) == USB_SPEED_HIGH) {
-		qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) |
-		    EHCI_QH_DTC | EHCI_QH_SET_NRL(8));
+		if (methods != &ehci_device_intr_methods) {
+			qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) |
+			    EHCI_QH_DTC | EHCI_QH_SET_NRL(8));
+		} else {
+			qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) |
+			    EHCI_QH_DTC);
+		}
 	} else {
 
 		if (usbd_get_speed(xfer->udev) == USB_SPEED_FULL) {

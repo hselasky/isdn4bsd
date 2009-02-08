@@ -1896,8 +1896,17 @@ ehci_setup_standard_chain(struct usb2_xfer *xfer, ehci_qh_t **qh_last)
 	    EHCI_QH_SET_MPL(xfer->max_packet_size));
 
 	if (usb2_get_speed(xfer->xroot->udev) == USB_SPEED_HIGH) {
-		qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) |
-		    EHCI_QH_DTC | EHCI_QH_SET_NRL(8));
+		if (methods != &ehci_device_intr_methods) {
+			qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) |
+			    EHCI_QH_DTC | EHCI_QH_SET_NRL(8));
+		} else {
+			/* 
+			 * Nak-Reload count must be zero for interrupt
+			 * endpoints See EHCI pdf file, section 4.9
+			 */
+			qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) |
+			    EHCI_QH_DTC);
+		}
 	} else {
 
 		if (usb2_get_speed(xfer->xroot->udev) == USB_SPEED_FULL) {
