@@ -862,6 +862,9 @@ ohci_non_isoc_done_sub(struct usbd_xfer *xfer)
 	td_alt_next = td->alt_next;
 	td_flags = 0;
 
+	if (xfer->aframes != xfer->nframes) {
+		xfer->frlengths[xfer->aframes] = 0;
+	}
 	while (1) {
 
 		usbd_pc_cpu_invalidate(td->page_cache);
@@ -888,7 +891,15 @@ ohci_non_isoc_done_sub(struct usbd_xfer *xfer)
 				 * subtract remaining length from
 				 * "frlengths[]"
 				 */
-				xfer->frlengths[xfer->aframes] -= temp;
+				xfer->frlengths[xfer->aframes] += td->len - temp;
+			}
+		} else {
+			if (xfer->aframes != xfer->nframes) {
+				/*
+				 * subtract remaining length from
+				 * "frlengths[]"
+				 */
+				xfer->frlengths[xfer->aframes] += td->len;
 			}
 		}
 		/* Check for last transfer */
