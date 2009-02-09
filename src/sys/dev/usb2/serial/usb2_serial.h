@@ -181,6 +181,9 @@ struct usb2_com_softc {
 #define	UCOM_LS_BREAK	0x04
 };
 
+#define	usb2_com_cfg_do_request(udev,com,req,ptr,flags,timo) \
+    usb2_do_request_proc(udev,&(com)->sc_super->sc_tq,req,ptr,flags,NULL,timo)
+
 int	usb2_com_attach(struct usb2_com_super_softc *,
 	    struct usb2_com_softc *, uint32_t, void *,
 	    const struct usb2_com_callback *callback, struct mtx *);
@@ -192,7 +195,4 @@ uint8_t	usb2_com_get_data(struct usb2_com_softc *, struct usb2_page_cache *,
 void	usb2_com_put_data(struct usb2_com_softc *, struct usb2_page_cache *,
 	    uint32_t, uint32_t);
 uint8_t	usb2_com_cfg_is_gone(struct usb2_com_softc *);
-usb2_error_t	usb2_com_cfg_do_request(struct usb2_device *,
-	    struct usb2_com_softc *, struct usb2_device_request *, void *,
-	    unsigned int, unsigned int);
 #endif					/* _USB2_SERIAL_H_ */

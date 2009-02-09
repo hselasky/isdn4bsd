@@ -89,12 +89,11 @@ struct usb2_ether {
 	struct sysctl_ctx_list	ue_sysctl_ctx;
 	struct ifqueue		ue_rxq;
 	struct usb2_callout	ue_watchdog;
-	struct usb2_ether_cfg_task	ue_attach_task[2];
+	struct usb2_ether_cfg_task	ue_sync_task[2];
 	struct usb2_ether_cfg_task	ue_media_task[2];
 	struct usb2_ether_cfg_task	ue_multi_task[2];
 	struct usb2_ether_cfg_task	ue_promisc_task[2];
 	struct usb2_ether_cfg_task	ue_tick_task[2];
-	struct usb2_ether_cfg_task	ue_start_stop_task[2];
 
 	int			ue_unit;
 
@@ -102,10 +101,10 @@ struct usb2_ether {
 	uint8_t			ue_eaddr[ETHER_ADDR_LEN];
 };
 
+#define	usb2_ether_do_request(ue,req,data,timo) \
+    usb2_do_request_proc((ue)->ue_udev,&(ue)->ue_tq,req,data,0,NULL,timo)
+
 uint8_t		usb2_ether_pause(struct usb2_ether *, unsigned int);
-usb2_error_t	usb2_ether_do_request(struct usb2_ether *, 
-		    struct usb2_device_request *, void *,
-		    unsigned int timeout);
 struct ifnet	*usb2_ether_getifp(struct usb2_ether *);
 struct mii_data *usb2_ether_getmii(struct usb2_ether *);
 void		*usb2_ether_getsc(struct usb2_ether *);

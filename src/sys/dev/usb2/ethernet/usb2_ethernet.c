@@ -155,8 +155,8 @@ usb2_ether_ifattach(struct usb2_ether *ue)
 	/* fork rest of the attach code */
 	UE_LOCK(ue);
 	ue_queue_command(ue, ue_attach_post_task,
-	    &ue->ue_attach_task[0].hdr,
-	    &ue->ue_attach_task[1].hdr);
+	    &ue->ue_sync_task[0].hdr,
+	    &ue->ue_sync_task[1].hdr);
 	UE_UNLOCK(ue);
 
 error:
@@ -293,8 +293,8 @@ usb2_ether_ifshutdown(struct usb2_ether *ue)
 	UE_LOCK(ue);
 	if (ifp->if_drv_flags & IFF_DRV_RUNNING)
 		ue_queue_command(ue, ue_stop_task,
-		    &ue->ue_start_stop_task[0].hdr,
-		    &ue->ue_start_stop_task[1].hdr);
+		    &ue->ue_sync_task[0].hdr,
+		    &ue->ue_sync_task[1].hdr);
 	UE_UNLOCK(ue);
 }
 
@@ -304,36 +304,6 @@ usb2_ether_is_gone(struct usb2_ether *ue)
 	return (usb2_proc_is_gone(&ue->ue_tq));
 }
 
-/* factored out code */
-usb2_error_t
-usb2_ether_do_request(struct usb2_ether *ue, 
-    struct usb2_device_request *req, void *data, 
-    unsigned int timeout)
-{
-	uint16_t len;
-	usb2_error_t err;
-
-	/* get request data length */
-	len = UGETW(req->wLength);
-
-	/* check if the device is being detached */
-	if (usb2_proc_is_gone(&ue->ue_tq)) {
-		err = USB_ERR_IOERROR;
-		goto done;
-	}
-
-	/* do the USB request */
-	err = usb2_do_request_flags(ue->ue_udev, ue->ue_mtx, 
-	    req, data, 0, NULL, timeout);
-
-done:
-	/* on failure we zero the data */
-	if (err && len && (req->bmRequestType & UE_DIR_IN))
-		memset(data, 0, len);
-
-	return (err);
-}
-
 static void
 ue_init(void *arg)
 {
@@ -341,8 +311,8 @@ ue_init(void *arg)
 
 	UE_LOCK(ue);
 	ue_queue_command(ue, ue_start_task,
-	    &ue->ue_start_stop_task[0].hdr, 
-	    &ue->ue_start_stop_task[1].hdr);
+	    &ue->ue_sync_task[0].hdr, 
+	    &ue->ue_sync_task[1].hdr);
 	UE_UNLOCK(ue);
 }
 
@@ -486,12 +456,12 @@ usb2_ether_ioctl(struct ifnet *ifp, u_long command, caddr_t data)
 				    &ue->ue_promisc_task[1].hdr);
 			else
 				ue_queue_command(ue, ue_start_task,
-				    &ue->ue_start_stop_task[0].hdr, 
-				    &ue->ue_start_stop_task[1].hdr);
+				    &ue->ue_sync_task[0].hdr, 
+				    &ue->ue_sync_task[1].hdr);
 		} else {
 			ue_queue_command(ue, ue_stop_task,
-			    &ue->ue_start_stop_task[0].hdr, 
-			    &ue->ue_start_stop_task[1].hdr);
+			    &ue->ue_sync_task[0].hdr, 
+			    &ue->ue_sync_task[1].hdr);
 		}
 		UE_UNLOCK(ue);
 		break;

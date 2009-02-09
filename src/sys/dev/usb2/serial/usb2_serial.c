@@ -1125,39 +1125,3 @@ usb2_com_free(void *xsc)
 	usb2_cv_signal(&sc->sc_cv);
 	mtx_unlock(sc->sc_mtx);
 }
-
-/* factored out code */
-usb2_error_t
-usb2_com_cfg_do_request(struct usb2_device *udev,
-    struct usb2_com_softc *sc, struct usb2_device_request *req,
-    void *data, unsigned int flags, unsigned int timeout)
-{
-	struct usb2_com_super_softc *ssc = sc->sc_super;
-	uint16_t len;
-	uint16_t actlen;
-	usb2_error_t err;
-
-	/* get request data length */
-	len = UGETW(req->wLength);
-
-	/* check if the device is being detached */
-	if (usb2_proc_is_gone(&ssc->sc_tq)) {
-		err = USB_ERR_IOERROR;
-		goto done;
-	}
-
-	/* do the USB request */
-	err = usb2_do_request_flags(udev, sc->sc_mtx, 
-	    req, data, flags, &actlen, timeout);
-
-done:
-	if ((req->bmRequestType & UE_DIR_IN) && (len != 0)) {
-		/* on failure we zero the data */
-		/* on short packet we zero the rest of the buffer */
-		if (err)
-			memset(data, 0, len);
-		else if (len != actlen)
-			memset(((uint8_t *)data) + actlen, 0, len - actlen);
-	}
-	return (err);
-}

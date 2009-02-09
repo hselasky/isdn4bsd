@@ -8,7 +8,7 @@
 MAINTAINER=hselasky@c2i.net
 
 I4B_DIR=${.CURDIR}/../src/sys/i4b
-USB_DIR=${.CURDIR}/../src/sys/dev/usb2
+USB_DIR=${.CURDIR}/../src/sys/dev/usb2/core
 
 .PATH:  ${I4B_DIR}/driver ${I4B_DIR}/layer4 \
 	${I4B_DIR}/layer1/ihfc3 ${I4B_DIR}/dss1 \
@@ -46,7 +46,8 @@ i4b_tel.c i4b_ipr.c i4b_rbch.c i4b_trace.c \
 i4b_ctl.c i4b_i4bdrv.c i4b_capidrv.c i4b_mbuf.c \
 i4b_l4mgmt.c i4b_l4.c i4b_ihfc2_drv.c i4b_ihfc2_pnp.c \
 i4b_ihfc2_dev.c i4b_ihfc2_l1if.c i4b_hdlc.c dss1_l2fsm.c \
-i4b_l1.c i4b_echo_cancel.c i4b_dtmf.c i4b_convert_xlaw.c
+i4b_l1.c i4b_echo_cancel.c i4b_dtmf.c i4b_convert_xlaw.c \
+usb2_config_td.c
 
 SRCS+=  i4b_ihfc2_end.c
 .include <bsd.kmod.mk>

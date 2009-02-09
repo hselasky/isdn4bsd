@@ -88,7 +88,7 @@ usb2_config_td_setup(struct usb2_config_td *ctd, void *priv_sc,
 	if (ctd->p_msgs == NULL) {
 		return (1);
 	}
-	if (usb2_proc_setup(&ctd->usb2_proc, priv_mtx, USB_PRI_MED)) {
+	if (usb2_proc_create(&ctd->usb2_proc, priv_mtx, "i4b", USB_PRI_MED)) {
 		free(ctd->p_msgs, M_USBDEV);
 		ctd->p_msgs = NULL;
 		return (1);
@@ -135,7 +135,7 @@ usb2_config_td_unsetup(struct usb2_config_td *ctd)
 	usb2_config_td_drain(ctd);
 
 	if (ctd->p_msgs) {
-		usb2_proc_unsetup(&ctd->usb2_proc);
+		usb2_proc_free(&ctd->usb2_proc);
 		free(ctd->p_msgs, M_USBDEV);
 		ctd->p_msgs = NULL;
 	}
