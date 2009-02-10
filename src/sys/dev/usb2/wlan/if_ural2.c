@@ -105,6 +105,7 @@ static usb2_proc_callback_t ural_promisctask;
 static usb2_proc_callback_t ural_amrr_task;
 static usb2_proc_callback_t ural_init_task;
 static usb2_proc_callback_t ural_stop_task;
+static usb2_proc_callback_t ural_flush_task;
 
 static struct ieee80211vap *ural_vap_create(struct ieee80211com *,
 			    const char name[IFNAMSIZ], int unit, int opmode,
@@ -597,9 +598,31 @@ ural_vap_create(struct ieee80211com *ic,
 }
 
 static void
+ural_flush_task(struct usb2_proc_msg *pm)
+{
+	struct ural_task *task = (struct ural_task *)pm;
+	struct ural_softc *sc = task->sc;
+	struct ifnet *ifp = sc->sc_ifp;
+	struct ieee80211com *ic = ifp->if_l2com;
+	struct ieee80211vap *vap = TAILQ_FIRST(&ic->ic_vaps);
+	struct ural_vap *uvp = URAL_VAP(vap);
+
+	/* callout it stopped */
+	usb2_callout_stop(&uvp->amrr_ch);
+}
+
+static void
 ural_vap_delete(struct ieee80211vap *vap)
 {
 	struct ural_vap *uvp = URAL_VAP(vap);
+	struct ural_softc *sc = uvp->sc;
+
+	RAL_LOCK(sc);
+	/* wait for any pending tasks to complete */
+	ural_queue_command(sc, ural_flush_task,
+	    &sc->sc_synctask[0].hdr,
+	    &sc->sc_synctask[1].hdr);
+	RAL_UNLOCK(sc);
 
 	usb2_callout_drain(&uvp->amrr_ch);
 	ieee80211_amrr_cleanup(&uvp->amrr);
@@ -687,9 +710,16 @@ ural_task(struct usb2_proc_msg *pm)
 
 	ostate = vap->iv_state;
 
+	/* callout is stopped */
+	usb2_callout_stop(&uvp->amrr_ch);
+
 	switch (sc->sc_state) {
 	case IEEE80211_S_INIT:
 		if (ostate == IEEE80211_S_RUN) {
+			/*
+			 * BUG: this code is not executed like it
+			 * should --hps
+			 */
 			/* abort TSF synchronization */
 			ural_write(sc, RAL_TXRX_CSR19, 0);
 
@@ -793,8 +823,6 @@ ural_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		ieee80211_state_name[nstate]);
 
 	RAL_LOCK(sc);
-	usb2_callout_stop(&uvp->amrr_ch);
-
 	/* do it in a process context */
 	sc->sc_state = nstate;
 	sc->sc_arg = arg;
@@ -2269,7 +2297,9 @@ ural_amrr_start(struct ural_softc *sc, struct ieee80211_node *ni)
 
 	ieee80211_amrr_node_init(&uvp->amrr, &URAL_NODE(ni)->amn, ni);
 
-	usb2_callout_reset(&uvp->amrr_ch, hz, ural_amrr_timeout, uvp);
+	/* XXX WLAN race --hps */
+	if (sc->sc_state != IEEE80211_S_INIT)
+	    usb2_callout_reset(&uvp->amrr_ch, hz, ural_amrr_timeout, uvp);
 }
 
 static void
@@ -2278,8 +2308,15 @@ ural_amrr_timeout(void *arg)
 	struct ural_vap *uvp = arg;
 	struct ural_softc *sc = uvp->sc;
 
+	/* XXX WLAN race --hps */
+	if (sc->sc_state == IEEE80211_S_INIT)
+		return;
+
 	ural_queue_command(sc, ural_amrr_task,
 	    &uvp->amrr_task[0].hdr, &uvp->amrr_task[1].hdr);
+
+	/* to avoid sync-issues we need to reset the callout here */
+	usb2_callout_reset(&uvp->amrr_ch, hz, ural_amrr_timeout, uvp);
 }
 
 static void
@@ -2290,7 +2327,6 @@ ural_amrr_task(struct usb2_proc_msg *pm)
 	struct ifnet *ifp = sc->sc_ifp;
 	struct ieee80211com *ic = ifp->if_l2com;
 	struct ieee80211vap *vap = TAILQ_FIRST(&ic->ic_vaps);
-	struct ural_vap *uvp = URAL_VAP(vap);
 	struct ieee80211_node *ni = vap->iv_bss;
 	int ok, fail;
 
@@ -2301,13 +2337,15 @@ ural_amrr_task(struct usb2_proc_msg *pm)
 	     sc->sta[8];		/* TX ok w/ retry */
 	fail = sc->sta[9];		/* TX retry-fail count */
 
+	/* XXX WLAN race --hps */
+	if (sc->sc_state == IEEE80211_S_INIT)
+		return;
+
 	ieee80211_amrr_tx_update(&URAL_NODE(ni)->amn,
 	    ok+fail, ok, sc->sta[8] + fail);
 	(void) ieee80211_amrr_choose(ni, &URAL_NODE(ni)->amn);
 
 	ifp->if_oerrors += fail;	/* count TX retry-fail as Tx errors */
-
-	usb2_callout_reset(&uvp->amrr_ch, hz, ural_amrr_timeout, uvp);
 }
 
 static void
@@ -2335,9 +2373,9 @@ ural_queue_command(struct ural_softc *sc, usb2_proc_callback_t *fn,
 	task->sc = sc;
 
 	/*
-	 * Init and stop must be synchronous!
+	 * Init, stop and flush must be synchronous!
 	 */
-	if ((fn == ural_init_task) || (fn == ural_stop_task))
+	if ((fn == ural_init_task) || (fn == ural_stop_task) ||
+	    (fn == ural_stop_task))
 		usb2_proc_mwait(&sc->sc_tq, t0, t1);
 }
-

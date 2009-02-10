@@ -91,6 +91,7 @@ static usb2_proc_callback_t zyd_scantask;
 static usb2_proc_callback_t zyd_multitask;
 static usb2_proc_callback_t zyd_init_task;
 static usb2_proc_callback_t zyd_stop_task;
+static usb2_proc_callback_t zyd_flush_task;
 
 static struct ieee80211vap *zyd_vap_create(struct ieee80211com *,
 		    const char name[IFNAMSIZ], int unit, int opmode,
@@ -469,6 +470,7 @@ zyd_vap_create(struct ieee80211com *ic,
 	const uint8_t bssid[IEEE80211_ADDR_LEN],
 	const uint8_t mac[IEEE80211_ADDR_LEN])
 {
+	struct zyd_softc *sc = ic->ic_ifp->if_softc;
 	struct zyd_vap *zvp;
 	struct ieee80211vap *vap;
 
@@ -487,6 +489,7 @@ zyd_vap_create(struct ieee80211com *ic,
 	zvp->newstate = vap->iv_newstate;
 	vap->iv_newstate = zyd_newstate;
 
+	zvp->sc = sc;
 	ieee80211_amrr_init(&zvp->amrr, vap,
 	    IEEE80211_AMRR_MIN_SUCCESS_THRESHOLD,
 	    IEEE80211_AMRR_MAX_SUCCESS_THRESHOLD,
@@ -500,9 +503,23 @@ zyd_vap_create(struct ieee80211com *ic,
 }
 
 static void
+zyd_flush_task(struct usb2_proc_msg *_pm)
+{
+	/* nothing to do */
+}
+
+static void
 zyd_vap_delete(struct ieee80211vap *vap)
 {
 	struct zyd_vap *zvp = ZYD_VAP(vap);
+	struct zyd_softc *sc = zvp->sc;
+
+	ZYD_LOCK(sc);
+	/* wait for any pending tasks to complete */
+	zyd_queue_command(sc, zyd_flush_task,
+	   &sc->sc_synctask[0].hdr,
+	   &sc->sc_synctask[1].hdr);
+	ZYD_UNLOCK(sc);
 
 	ieee80211_amrr_cleanup(&zvp->amrr);
 	ieee80211_vap_detach(vap);
@@ -3092,7 +3109,8 @@ zyd_queue_command(struct zyd_softc *sc, usb2_proc_callback_t *fn,
         /*
          * Init and stop must be synchronous!
          */
-        if ((fn == zyd_init_task) || (fn == zyd_stop_task))
+        if ((fn == zyd_init_task) || (fn == zyd_stop_task) ||
+	    (fn == zyd_flush_task))
                 usb2_proc_mwait(&sc->sc_tq, t0, t1);
 }
 

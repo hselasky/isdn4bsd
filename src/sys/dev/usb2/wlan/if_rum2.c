@@ -126,6 +126,7 @@ static usb2_proc_callback_t rum_promisctask;
 static usb2_proc_callback_t rum_amrr_task;
 static usb2_proc_callback_t rum_init_task;
 static usb2_proc_callback_t rum_stop_task;
+static usb2_proc_callback_t rum_flush_task;
 
 static struct ieee80211vap *rum_vap_create(struct ieee80211com *,
 			    const char name[IFNAMSIZ], int unit, int opmode,
@@ -611,9 +612,31 @@ rum_vap_create(struct ieee80211com *ic,
 }
 
 static void
+rum_flush_task(struct usb2_proc_msg *pm)
+{
+	struct rum_task *task = (struct rum_task *)pm;
+	struct rum_softc *sc = task->sc;
+	struct ifnet *ifp = sc->sc_ifp;
+	struct ieee80211com *ic = ifp->if_l2com;
+	struct ieee80211vap *vap = TAILQ_FIRST(&ic->ic_vaps);
+	struct rum_vap *rvp = RUM_VAP(vap);
+
+  	/* callout it stopped */
+	usb2_callout_stop(&rvp->amrr_ch);
+}
+
+static void
 rum_vap_delete(struct ieee80211vap *vap)
 {
 	struct rum_vap *rvp = RUM_VAP(vap);
+	struct rum_softc *sc = rvp->sc;
+
+	RUM_LOCK(sc);
+	/* wait for any pending tasks to complete */
+	rum_queue_command(sc, rum_flush_task,
+	    &sc->sc_synctask[0].hdr,
+	    &sc->sc_synctask[1].hdr);
+	RUM_UNLOCK(sc);
 
 	usb2_callout_drain(&rvp->amrr_ch);
 	ieee80211_amrr_cleanup(&rvp->amrr);
@@ -701,9 +724,16 @@ rum_task(struct usb2_proc_msg *pm)
 
 	ostate = vap->iv_state;
 
+	/* callout it stopped */
+	usb2_callout_stop(&rvp->amrr_ch);
+
 	switch (sc->sc_state) {
 	case IEEE80211_S_INIT:
 		if (ostate == IEEE80211_S_RUN) {
+			/*
+			 * BUG: this code is not executed like it
+			 * should --hps
+			 */
 			/* abort TSF synchronization */
 			tmp = rum_read(sc, RT2573_TXRX_CSR9);
 			rum_write(sc, RT2573_TXRX_CSR9, tmp & ~0x00ffffff);
@@ -759,8 +789,6 @@ rum_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 		ieee80211_state_name[nstate]);
 
 	RUM_LOCK(sc);
-	usb2_callout_stop(&rvp->amrr_ch);
-
 	/* do it in a process context */
 	sc->sc_state = nstate;
 	sc->sc_arg = arg;
@@ -1413,8 +1441,8 @@ rum_read_multi(struct rum_softc *sc, uint16_t reg, void *buf, int len)
 	error = rum_do_request(sc, &req, buf);
 	if (error != 0) {
 		device_printf(sc->sc_dev,
-		    "could not multi read MAC register: %s\n",
-		    usb2_errstr(error));
+		    "could not multi read MAC register(0x%04x): %s\n",
+		    reg, usb2_errstr(error));
 	}
 }
 
@@ -1441,8 +1469,8 @@ rum_write_multi(struct rum_softc *sc, uint16_t reg, void *buf, size_t len)
 	error = rum_do_request(sc, &req, buf);
 	if (error != 0) {
 		device_printf(sc->sc_dev,
-		    "could not multi write MAC register: %s\n",
-		    usb2_errstr(error));
+		    "could not multi write MAC register(0x%04x): %s\n",
+		    reg, usb2_errstr(error));
 	}
 }
 
@@ -2183,7 +2211,9 @@ rum_amrr_start(struct rum_softc *sc, struct ieee80211_node *ni)
 
 	ieee80211_amrr_node_init(&rvp->amrr, &RUM_NODE(ni)->amn, ni);
 
-	usb2_callout_reset(&rvp->amrr_ch, hz, rum_amrr_timeout, rvp);
+	/* XXX WLAN race --hps */
+	if (sc->sc_state != IEEE80211_S_INIT)
+		usb2_callout_reset(&rvp->amrr_ch, hz, rum_amrr_timeout, rvp);
 }
 
 static void
@@ -2192,8 +2222,15 @@ rum_amrr_timeout(void *arg)
 	struct rum_vap *rvp = arg;
 	struct rum_softc *sc = rvp->sc;
 
+	/* XXX WLAN race --hps */
+	if (sc->sc_state == IEEE80211_S_INIT)
+		return;
+
 	rum_queue_command(sc, rum_amrr_task,
 	    &rvp->amrr_task[0].hdr, &rvp->amrr_task[1].hdr);
+
+	/* to avoid sync-issues we need to reset the callout here */
+	usb2_callout_reset(&rvp->amrr_ch, hz, rum_amrr_timeout, rvp);
 }
 
 static void
@@ -2204,7 +2241,6 @@ rum_amrr_task(struct usb2_proc_msg *pm)
 	struct ifnet *ifp = sc->sc_ifp;
 	struct ieee80211com *ic = ifp->if_l2com;
 	struct ieee80211vap *vap = TAILQ_FIRST(&ic->ic_vaps);
-	struct rum_vap *rvp = RUM_VAP(vap);
 	struct ieee80211_node *ni = vap->iv_bss;
 	int ok, fail;
 
@@ -2215,13 +2251,15 @@ rum_amrr_task(struct usb2_proc_msg *pm)
 	    (le32toh(sc->sta[5]) & 0xffff);	/* TX ok w/ retry */
 	fail = (le32toh(sc->sta[5]) >> 16);	/* TX retry-fail count */
 
+	/* XXX WLAN race --hps */
+	if (sc->sc_state == IEEE80211_S_INIT)
+		return;
+
 	ieee80211_amrr_tx_update(&RUM_NODE(ni)->amn,
 	    ok+fail, ok, (le32toh(sc->sta[5]) & 0xffff) + fail);
 	(void) ieee80211_amrr_choose(ni, &RUM_NODE(ni)->amn);
 
 	ifp->if_oerrors += fail;	/* count TX retry-fail as Tx errors */
-
-	usb2_callout_reset(&rvp->amrr_ch, hz, rum_amrr_timeout, rvp);
 }
 
 /* ARGUSED */
@@ -2388,9 +2426,10 @@ rum_queue_command(struct rum_softc *sc, usb2_proc_callback_t *fn,
 	task->sc = sc;
 
         /*
-         * Init and stop must be synchronous!
+         * Init, stop and flush must be synchronous!
          */
-        if ((fn == rum_init_task) || (fn == rum_stop_task))
+        if ((fn == rum_init_task) || (fn == rum_stop_task) || 
+	    (fn == rum_flush_task))
                 usb2_proc_mwait(&sc->sc_tq, t0, t1);
 }
 
