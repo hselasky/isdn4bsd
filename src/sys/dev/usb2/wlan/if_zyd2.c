@@ -441,7 +441,7 @@ zyd_detach(device_t dev)
 {
 	struct zyd_softc *sc = device_get_softc(dev);
 	struct ifnet *ifp = sc->sc_ifp;
-	struct ieee80211com *ic = ifp->if_l2com;
+	struct ieee80211com *ic;
 
 	/* wait for any post attach or other command to complete */
 	usb2_proc_drain(&sc->sc_tq);
@@ -454,6 +454,7 @@ zyd_detach(device_t dev)
 	zyd_unsetup_tx_list(sc);
 
 	if (ifp) {
+		ic = ifp->if_l2com;
 		bpfdetach(ifp);
 		ieee80211_ifdetach(ic);
 		if_free(ifp);

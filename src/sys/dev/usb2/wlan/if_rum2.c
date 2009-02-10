@@ -548,7 +548,7 @@ rum_detach(device_t self)
 {
 	struct rum_softc *sc = device_get_softc(self);
 	struct ifnet *ifp = sc->sc_ifp;
-	struct ieee80211com *ic = ifp->if_l2com;
+	struct ieee80211com *ic;
 
 	/* wait for any post attach or other command to complete */
 	usb2_proc_drain(&sc->sc_tq);
@@ -563,6 +563,7 @@ rum_detach(device_t self)
 	RUM_UNLOCK(sc);
 
 	if (ifp) {
+		ic = ifp->if_l2com;
 		bpfdetach(ifp);
 		ieee80211_ifdetach(ic);
 		if_free(ifp);
@@ -1480,9 +1481,10 @@ rum_bbp_write(struct rum_softc *sc, uint8_t reg, uint8_t val)
 	uint32_t tmp;
 	int ntries;
 
-	for (ntries = 0; ntries < 5; ntries++) {
+	for (ntries = 0; ntries != 5; ntries++) {
 		if (!(rum_read(sc, RT2573_PHY_CSR3) & RT2573_BBP_BUSY))
 			break;
+		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
 	}
 	if (ntries == 5) {
 		device_printf(sc->sc_dev, "could not write to BBP\n");
@@ -1499,9 +1501,10 @@ rum_bbp_read(struct rum_softc *sc, uint8_t reg)
 	uint32_t val;
 	int ntries;
 
-	for (ntries = 0; ntries < 5; ntries++) {
+	for (ntries = 0; ntries != 5; ntries++) {
 		if (!(rum_read(sc, RT2573_PHY_CSR3) & RT2573_BBP_BUSY))
 			break;
+		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
 	}
 	if (ntries == 5) {
 		device_printf(sc->sc_dev, "could not read BBP\n");
@@ -1511,11 +1514,11 @@ rum_bbp_read(struct rum_softc *sc, uint8_t reg)
 	val = RT2573_BBP_BUSY | RT2573_BBP_READ | reg << 8;
 	rum_write(sc, RT2573_PHY_CSR3, val);
 
-	for (ntries = 0; ntries < 100; ntries++) {
+	for (ntries = 0; ntries != 10; ntries++) {
 		val = rum_read(sc, RT2573_PHY_CSR3);
 		if (!(val & RT2573_BBP_BUSY))
 			return val & 0xff;
-		DELAY(1);
+		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
 	}
 
 	device_printf(sc->sc_dev, "could not read BBP\n");
@@ -1528,9 +1531,10 @@ rum_rf_write(struct rum_softc *sc, uint8_t reg, uint32_t val)
 	uint32_t tmp;
 	int ntries;
 
-	for (ntries = 0; ntries < 5; ntries++) {
+	for (ntries = 0; ntries != 5; ntries++) {
 		if (!(rum_read(sc, RT2573_PHY_CSR4) & RT2573_RF_BUSY))
 			break;
+		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
 	}
 	if (ntries == 5) {
 		device_printf(sc->sc_dev, "could not write to RF\n");
@@ -1726,7 +1730,7 @@ rum_set_chan(struct rum_softc *sc, struct ieee80211_channel *c)
 	rum_rf_write(sc, RT2573_RF3, rfprog[i].r3 | power << 7);
 	rum_rf_write(sc, RT2573_RF4, rfprog[i].r4 | sc->rffreq << 10);
 
-	DELAY(10);
+	usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
 
 	/* enable smart mode for MIMO-capable RFs */
 	bbp3 = rum_bbp_read(sc, 3);
@@ -1938,11 +1942,11 @@ rum_bbp_init(struct rum_softc *sc)
 	int i, ntries;
 
 	/* wait for BBP to be ready */
-	for (ntries = 0; ntries < 100; ntries++) {
+	for (ntries = 0; ntries != 100; ntries++) {
 		const uint8_t val = rum_bbp_read(sc, 0);
 		if (val != 0 && val != 0xff)
 			break;
-		DELAY(1000);
+		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
 	}
 	if (ntries == 100) {
 		device_printf(sc->sc_dev, "timeout waiting for BBP\n");
@@ -1989,11 +1993,11 @@ rum_init_task(struct usb2_proc_msg *pm)
 	rum_write(sc, RT2573_MAC_CSR1, 0);
 
 	/* wait for BBP/RF to wakeup */
-	for (ntries = 0; ntries < 1000; ntries++) {
+	for (ntries = 0; ntries != 1000; ntries++) {
 		if (rum_read(sc, RT2573_MAC_CSR12) & 8)
 			break;
 		rum_write(sc, RT2573_MAC_CSR12, 4);	/* force wakeup */
-		DELAY(1000);
+		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
 	}
 	if (ntries == 1000) {
 		device_printf(sc->sc_dev,
@@ -2212,7 +2216,7 @@ rum_amrr_start(struct rum_softc *sc, struct ieee80211_node *ni)
 	ieee80211_amrr_node_init(&rvp->amrr, &RUM_NODE(ni)->amn, ni);
 
 	/* XXX WLAN race --hps */
-	if (sc->sc_state != IEEE80211_S_INIT)
+	if (sc->sc_state == IEEE80211_S_RUN)
 		usb2_callout_reset(&rvp->amrr_ch, hz, rum_amrr_timeout, rvp);
 }
 
@@ -2223,7 +2227,7 @@ rum_amrr_timeout(void *arg)
 	struct rum_softc *sc = rvp->sc;
 
 	/* XXX WLAN race --hps */
-	if (sc->sc_state == IEEE80211_S_INIT)
+	if (sc->sc_state != IEEE80211_S_RUN)
 		return;
 
 	rum_queue_command(sc, rum_amrr_task,
@@ -2252,7 +2256,7 @@ rum_amrr_task(struct usb2_proc_msg *pm)
 	fail = (le32toh(sc->sta[5]) >> 16);	/* TX retry-fail count */
 
 	/* XXX WLAN race --hps */
-	if (sc->sc_state == IEEE80211_S_INIT)
+	if (sc->sc_state != IEEE80211_S_RUN)
 		return;
 
 	ieee80211_amrr_tx_update(&RUM_NODE(ni)->amn,
