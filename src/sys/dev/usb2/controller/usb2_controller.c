@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/usb2_controller.c,v 1.9 2009/01/13 19:03:23 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/usb2_controller.c,v 1.10 2009/02/09 21:47:39 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *

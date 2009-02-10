@@ -44,7 +44,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ehci2.c,v 1.10 2009/02/07 15:51:32 thompsa Exp $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/controller/ehci2.c,v 1.12 2009/02/09 21:47:39 thompsa Exp $");
 
 #include <dev/usb2/include/usb2_standard.h>
 #include <dev/usb2/include/usb2_mfunc.h>
@@ -1896,17 +1896,10 @@ ehci_setup_standard_chain(struct usb2_xfer *xfer, ehci_qh_t **qh_last)
 	    EHCI_QH_SET_MPL(xfer->max_packet_size));
 
 	if (usb2_get_speed(xfer->xroot->udev) == USB_SPEED_HIGH) {
-		if (methods != &ehci_device_intr_methods) {
-			qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) |
-			    EHCI_QH_DTC | EHCI_QH_SET_NRL(8));
-		} else {
-			/* 
-			 * Nak-Reload count must be zero for interrupt
-			 * endpoints See EHCI pdf file, section 4.9
-			 */
-			qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) |
-			    EHCI_QH_DTC);
-		}
+		qh_endp |= (EHCI_QH_SET_EPS(EHCI_QH_SPEED_HIGH) |
+		    EHCI_QH_DTC);
+		if (methods != &ehci_device_intr_methods)
+			qh_endp |= EHCI_QH_SET_NRL(8);
 	} else {
 
 		if (usb2_get_speed(xfer->xroot->udev) == USB_SPEED_FULL) {

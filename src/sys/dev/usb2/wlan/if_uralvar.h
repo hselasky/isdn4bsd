@@ -1,4 +1,4 @@
-/*	$FreeBSD: user/thompsa/usb/sys/dev/usb2/wlan/if_uralvar.h 188355 2009-02-09 00:58:16Z thompsa $	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_uralvar.h,v 1.6 2009/02/09 22:18:11 thompsa Exp $	*/
 
 /*-
  * Copyright (c) 2005

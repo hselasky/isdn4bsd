@@ -1,6 +1,6 @@
 /*	$OpenBSD: if_zyd.c,v 1.52 2007/02/11 00:08:04 jsg Exp $	*/
 /*	$NetBSD: if_zyd.c,v 1.7 2007/06/21 04:04:29 kiyohara Exp $	*/
-/*	$FreeBSD: user/thompsa/usb/sys/dev/usb2/wlan/if_zyd2.c 188355 2009-02-09 00:58:16Z thompsa $	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2.c,v 1.14 2009/02/09 22:18:11 thompsa Exp $	*/
 
 /*-
  * Copyright (c) 2006 by Damien Bergamini <damien.bergamini@free.fr>
@@ -20,7 +20,7 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: user/thompsa/usb/sys/dev/usb2/wlan/if_zyd2.c 188355 2009-02-09 00:58:16Z thompsa $");
+__FBSDID("$FreeBSD: src/sys/dev/usb2/wlan/if_zyd2.c,v 1.14 2009/02/09 22:18:11 thompsa Exp $");
 
 /*
  * ZyDAS ZD1211/ZD1211B USB WLAN driver.

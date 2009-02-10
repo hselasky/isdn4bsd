@@ -1,5 +1,5 @@
 /*	$NetBSD: uaudio.c,v 1.91 2004/11/05 17:46:14 kent Exp $	*/
-/*	$FreeBSD: src/sys/dev/usb2/sound/uaudio2.c,v 1.7 2009/02/01 00:51:25 thompsa Exp $ */
+/*	$FreeBSD: src/sys/dev/usb2/sound/uaudio2.c,v 1.8 2009/02/09 22:11:02 thompsa Exp $ */
 
 /*-
  * Copyright (c) 1999 The NetBSD Foundation, Inc.

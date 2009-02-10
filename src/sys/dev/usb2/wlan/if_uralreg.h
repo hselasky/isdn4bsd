@@ -1,4 +1,4 @@
-/*	$FreeBSD: user/thompsa/usb/sys/dev/usb2/wlan/if_uralreg.h 187756 2009-01-27 01:32:13Z thompsa $	*/
+/*	$FreeBSD: src/sys/dev/usb2/wlan/if_uralreg.h,v 1.2 2009/02/09 22:12:47 thompsa Exp $	*/
 
 /*-
  * Copyright (c) 2005, 2006

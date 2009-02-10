@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/core/usb2_busdma.c,v 1.7 2009/01/13 19:03:12 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/core/usb2_busdma.c,v 1.8 2009/02/08 22:54:58 imp Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *

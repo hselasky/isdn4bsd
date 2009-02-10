@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/ethernet/usb2_ethernet.c,v 1.2 2008/12/11 23:17:48 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/ethernet/usb2_ethernet.c,v 1.3 2009/02/09 22:02:38 thompsa Exp $ */
 /*-
  * Copyright (c) 2009 Andrew Thompson (thompsa@FreeBSD.org)
  *

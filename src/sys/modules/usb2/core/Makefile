@@ -1,5 +1,5 @@
 #
-# $FreeBSD: src/sys/modules/usb2/core/Makefile,v 1.1 2008/11/04 02:31:03 alfred Exp $
+# $FreeBSD: src/sys/modules/usb2/core/Makefile,v 1.2 2009/02/09 22:23:01 thompsa Exp $
 #
 # Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
 #

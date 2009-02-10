@@ -1,4 +1,4 @@
-/* $FreeBSD: src/sys/dev/usb2/controller/musb2_otg.c,v 1.10 2009/01/13 19:03:33 thompsa Exp $ */
+/* $FreeBSD: src/sys/dev/usb2/controller/musb2_otg.c,v 1.11 2009/02/09 21:47:39 thompsa Exp $ */
 /*-
  * Copyright (c) 2008 Hans Petter Selasky. All rights reserved.
  *
