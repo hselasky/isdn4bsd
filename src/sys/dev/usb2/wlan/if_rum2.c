@@ -54,9 +54,6 @@ SYSCTL_INT(_hw_usb2_rum, OID_AUTO, debug, CTLFLAG_RW, &rum_debug, 0,
     "Debug level");
 #endif
 
-#define	rum_do_request(sc,req,data) \
-  usb2_do_request_proc((sc)->sc_udev, &(sc)->sc_tq, req, data, 0, NULL, 5000)
-
 static const struct usb2_device_id rum_devs[] = {
     { USB_VP(USB_VENDOR_ABOCOM,		USB_PRODUCT_ABOCOM_HWU54DM) },
     { USB_VP(USB_VENDOR_ABOCOM,		USB_PRODUCT_ABOCOM_RT2573_2) },
@@ -128,6 +125,8 @@ static usb2_proc_callback_t rum_init_task;
 static usb2_proc_callback_t rum_stop_task;
 static usb2_proc_callback_t rum_flush_task;
 
+static void		rum_do_request(struct rum_softc *sc,
+			    struct usb2_device_request *req, void *data);
 static struct ieee80211vap *rum_vap_create(struct ieee80211com *,
 			    const char name[IFNAMSIZ], int unit, int opmode,
 			    int flags, const uint8_t bssid[IEEE80211_ADDR_LEN],
@@ -173,6 +172,8 @@ static void		rum_enable_tsf_sync(struct rum_softc *);
 static void		rum_update_slot(struct ifnet *);
 static void		rum_set_bssid(struct rum_softc *, const uint8_t *);
 static void		rum_set_macaddr(struct rum_softc *, const uint8_t *);
+static void		rum_update_mcast(struct ifnet *);
+static void		rum_update_promisc(struct ifnet *);
 static const char	*rum_get_rf(int);
 static void		rum_read_eeprom(struct rum_softc *);
 static int		rum_bbp_init(struct rum_softc *);
@@ -515,6 +516,8 @@ rum_attach_post(struct usb2_proc_msg *pm)
 	ieee80211_init_channels(ic, NULL, &bands);
 
 	ieee80211_ifattach(ic);
+	ic->ic_update_mcast = rum_update_mcast;
+	ic->ic_update_promisc = rum_update_promisc;
 	ic->ic_newassoc = rum_newassoc;
 	ic->ic_raw_xmit = rum_raw_xmit;
 	ic->ic_node_alloc = rum_node_alloc;
@@ -573,6 +576,31 @@ rum_detach(device_t self)
 	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
+}
+
+static void
+rum_do_request(struct rum_softc *sc,
+    struct usb2_device_request *req, void *data)
+{
+	usb2_error_t err;
+
+	/*
+	 * Occasionally the RUM chip will just generate control
+	 * request timeouts. Probably a USB driver bug in the
+	 * firmware! Try to workaround the problem.
+	 */
+ retry:
+	err = usb2_do_request_proc(sc->sc_udev, &sc->sc_tq, 
+	   req, data, 0, NULL, 250 /* ms */);
+
+	if (err) {
+		if (!usb2_proc_is_gone(&sc->sc_tq)) {
+			DPRINTFN(1, "Control request failed! (ignored)\n");
+			rum_pause(sc, hz / 100);
+			goto retry;
+		}
+	}
+	return;
 }
 
 static struct ieee80211vap *
@@ -1403,7 +1431,6 @@ static void
 rum_eeprom_read(struct rum_softc *sc, uint16_t addr, void *buf, int len)
 {
 	struct usb2_device_request req;
-	usb2_error_t error;
 
 	req.bmRequestType = UT_READ_VENDOR_DEVICE;
 	req.bRequest = RT2573_READ_EEPROM;
@@ -1411,11 +1438,7 @@ rum_eeprom_read(struct rum_softc *sc, uint16_t addr, void *buf, int len)
 	USETW(req.wIndex, addr);
 	USETW(req.wLength, len);
 
-	error = rum_do_request(sc, &req, buf);
-	if (error != 0) {
-		device_printf(sc->sc_dev, "could not read EEPROM: %s\n",
-		    usb2_errstr(error));
-	}
+	rum_do_request(sc, &req, buf);
 }
 
 static uint32_t
@@ -1432,7 +1455,6 @@ static void
 rum_read_multi(struct rum_softc *sc, uint16_t reg, void *buf, int len)
 {
 	struct usb2_device_request req;
-	usb2_error_t error;
 
 	req.bmRequestType = UT_READ_VENDOR_DEVICE;
 	req.bRequest = RT2573_READ_MULTI_MAC;
@@ -1440,12 +1462,7 @@ rum_read_multi(struct rum_softc *sc, uint16_t reg, void *buf, int len)
 	USETW(req.wIndex, reg);
 	USETW(req.wLength, len);
 
-	error = rum_do_request(sc, &req, buf);
-	if (error != 0) {
-		device_printf(sc->sc_dev,
-		    "could not multi read MAC register(0x%04x): %s\n",
-		    reg, usb2_errstr(error));
-	}
+	rum_do_request(sc, &req, buf);
 }
 
 static void
@@ -1460,7 +1477,6 @@ static void
 rum_write_multi(struct rum_softc *sc, uint16_t reg, void *buf, size_t len)
 {
 	struct usb2_device_request req;
-	usb2_error_t error;
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = RT2573_WRITE_MULTI_MAC;
@@ -1468,12 +1484,7 @@ rum_write_multi(struct rum_softc *sc, uint16_t reg, void *buf, size_t len)
 	USETW(req.wIndex, reg);
 	USETW(req.wLength, len);
 
-	error = rum_do_request(sc, &req, buf);
-	if (error != 0) {
-		device_printf(sc->sc_dev,
-		    "could not multi write MAC register(0x%04x): %s\n",
-		    reg, usb2_errstr(error));
-	}
+	rum_do_request(sc, &req, buf);
 }
 
 static void
@@ -1849,6 +1860,27 @@ rum_promisctask(struct usb2_proc_msg *pm)
 	    "entering" : "leaving");
 }
 
+static void
+rum_update_mcast(struct ifnet *ifp)
+{
+	/* not supported */
+}
+
+static void
+rum_update_promisc(struct ifnet *ifp)
+{
+	struct rum_softc *sc = ifp->if_softc;
+
+	if ((ifp->if_drv_flags & IFF_DRV_RUNNING) == 0)
+		return;
+
+	RUM_LOCK(sc);
+	rum_queue_command(sc, rum_promisctask,
+	    &sc->sc_promisctask[0].hdr,
+	    &sc->sc_promisctask[1].hdr);
+	RUM_UNLOCK(sc);
+}
+
 static const char *
 rum_get_rf(int rev)
 {
@@ -2116,7 +2148,6 @@ rum_load_microcode(struct rum_softc *sc, const uint8_t *ucode, size_t size)
 {
 	struct usb2_device_request req;
 	uint16_t reg = RT2573_MCU_CODE_BASE;
-	usb2_error_t error;
 
 	/*
 	 * TODO: If the firmware is already loaded,
@@ -2133,12 +2164,8 @@ rum_load_microcode(struct rum_softc *sc, const uint8_t *ucode, size_t size)
 	USETW(req.wIndex, 0);
 	USETW(req.wLength, 0);
 
-	error = rum_do_request(sc, &req, NULL);
-	if (error != 0) {
-		device_printf(sc->sc_dev, "could not run firmware: %s\n",
-		    usb2_errstr(error));
-	}
-	return error;
+	rum_do_request(sc, &req, NULL);
+	return (0);
 }
 
 static int

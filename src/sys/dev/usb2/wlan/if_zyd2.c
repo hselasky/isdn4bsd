@@ -419,7 +419,12 @@ zyd_attach_post(struct usb2_proc_msg *pm)
 
 	ic->ic_vap_create = zyd_vap_create;
 	ic->ic_vap_delete = zyd_vap_delete;
+	/*
+	 * The same callback function is used for multicast a
+	 * promiscious mode:
+	 */
 	ic->ic_update_mcast = zyd_update_mcast;
+	ic->ic_update_promisc = zyd_update_mcast;
 
 	bpfattach(ifp, DLT_IEEE802_11_RADIO,
 	    sizeof(struct ieee80211_frame) + sizeof(sc->sc_txtap));
@@ -2748,9 +2753,9 @@ zyd_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 		ZYD_LOCK(sc);
 		if (ifp->if_flags & IFF_UP) {
 			if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
-				if ((ifp->if_flags ^ sc->sc_if_flags) &
-				    (IFF_ALLMULTI | IFF_PROMISC))
-					zyd_set_multi(sc);
+				zyd_queue_command(sc, zyd_multitask,
+				    &sc->sc_mcasttask[0].hdr,
+				    &sc->sc_mcasttask[1].hdr);
 			} else {
 				zyd_queue_command(sc, zyd_init_task,
 				    &sc->sc_synctask[0].hdr,
@@ -2764,7 +2769,6 @@ zyd_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 				    &sc->sc_synctask[1].hdr);
 			}
 		}
-		sc->sc_if_flags = ifp->if_flags;
 		ZYD_UNLOCK(sc);
 		if (startall)
 			ieee80211_start_all(ic);

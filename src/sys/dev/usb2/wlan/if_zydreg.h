@@ -1274,7 +1274,6 @@ struct zyd_softc {
 #define	ZYD_FLAG_FWLOADED		(1 << 0)
 #define	ZYD_FLAG_INITONCE		(1 << 1)
 #define	ZYD_FLAG_INITDONE		(1 << 2)
-	int			sc_if_flags;
 
 	struct zyd_task		sc_synctask[2];
 	struct zyd_task		sc_mcasttask[2];

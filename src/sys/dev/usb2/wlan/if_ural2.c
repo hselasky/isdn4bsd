@@ -55,9 +55,6 @@ SYSCTL_INT(_hw_usb2_ural, OID_AUTO, debug, CTLFLAG_RW, &ural_debug, 0,
     "Debug level");
 #endif
 
-#define	ural_do_request(sc,req,data) \
-    usb2_do_request_proc((sc)->sc_udev, &(sc)->sc_tq, req, data, 0, NULL, 5000)
-
 #define URAL_RSSI(rssi)					\
 	((rssi) > (RAL_NOISE_FLOOR + RAL_RSSI_CORR) ?	\
 	 ((rssi) - (RAL_NOISE_FLOOR + RAL_RSSI_CORR)) : 0)
@@ -107,6 +104,8 @@ static usb2_proc_callback_t ural_init_task;
 static usb2_proc_callback_t ural_stop_task;
 static usb2_proc_callback_t ural_flush_task;
 
+static void		ural_do_request(struct ural_softc *sc,
+			    struct usb2_device_request *req, void *data);
 static struct ieee80211vap *ural_vap_create(struct ieee80211com *,
 			    const char name[IFNAMSIZ], int unit, int opmode,
 			    int flags, const uint8_t bssid[IEEE80211_ADDR_LEN],
@@ -155,6 +154,8 @@ static void		ural_set_basicrates(struct ural_softc *,
 			    const struct ieee80211_channel *);
 static void		ural_set_bssid(struct ural_softc *, const uint8_t *);
 static void		ural_set_macaddr(struct ural_softc *, uint8_t *);
+static void		ural_update_mcast(struct ifnet *);
+static void		ural_update_promisc(struct ifnet *);
 static const char	*ural_get_rf(int);
 static void		ural_read_eeprom(struct ural_softc *);
 static int		ural_bbp_init(struct ural_softc *);
@@ -501,6 +502,8 @@ ural_attach_post(struct usb2_proc_msg *pm)
 	ieee80211_init_channels(ic, NULL, &bands);
 
 	ieee80211_ifattach(ic);
+	ic->ic_update_mcast = ural_update_mcast;
+	ic->ic_update_promisc = ural_update_promisc;
 	ic->ic_newassoc = ural_newassoc;
 	ic->ic_raw_xmit = ural_raw_xmit;
 	ic->ic_node_alloc = ural_node_alloc;
@@ -559,6 +562,25 @@ ural_detach(device_t self)
 	mtx_destroy(&sc->sc_mtx);
 
 	return (0);
+}
+
+static void
+ural_do_request(struct ural_softc *sc,
+    struct usb2_device_request *req, void *data)
+{
+	usb2_error_t err;
+
+ retry:
+	err = usb2_do_request_proc(sc->sc_udev, &sc->sc_tq, 
+	   req, data, 0, NULL, 250 /* ms */);
+
+	if (err) {
+		if (!usb2_proc_is_gone(&sc->sc_tq)) {
+			DPRINTFN(1, "Control request failed! (ignored)\n");
+			ural_pause(sc, hz / 100);
+			goto retry;
+		}
+	}
 }
 
 static struct ieee80211vap *
@@ -1476,7 +1498,6 @@ static void
 ural_set_testmode(struct ural_softc *sc)
 {
 	struct usb2_device_request req;
-	usb2_error_t error;
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = RAL_VENDOR_REQUEST;
@@ -1484,18 +1505,13 @@ ural_set_testmode(struct ural_softc *sc)
 	USETW(req.wIndex, 1);
 	USETW(req.wLength, 0);
 
-	error = ural_do_request(sc, &req, NULL);
-	if (error != 0) {
-		device_printf(sc->sc_dev, "could not set test mode: %s\n",
-		    usb2_errstr(error));
-	}
+	ural_do_request(sc, &req, NULL);
 }
 
 static void
 ural_eeprom_read(struct ural_softc *sc, uint16_t addr, void *buf, int len)
 {
 	struct usb2_device_request req;
-	usb2_error_t error;
 
 	req.bmRequestType = UT_READ_VENDOR_DEVICE;
 	req.bRequest = RAL_READ_EEPROM;
@@ -1503,18 +1519,13 @@ ural_eeprom_read(struct ural_softc *sc, uint16_t addr, void *buf, int len)
 	USETW(req.wIndex, addr);
 	USETW(req.wLength, len);
 
-	error = ural_do_request(sc, &req, buf);
-	if (error != 0) {
-		device_printf(sc->sc_dev, "could not read EEPROM: %s\n",
-		    usb2_errstr(error));
-	}
+	ural_do_request(sc, &req, buf);
 }
 
 static uint16_t
 ural_read(struct ural_softc *sc, uint16_t reg)
 {
 	struct usb2_device_request req;
-	usb2_error_t error;
 	uint16_t val;
 
 	req.bmRequestType = UT_READ_VENDOR_DEVICE;
@@ -1523,12 +1534,7 @@ ural_read(struct ural_softc *sc, uint16_t reg)
 	USETW(req.wIndex, reg);
 	USETW(req.wLength, sizeof (uint16_t));
 
-	error = ural_do_request(sc, &req, &val);
-	if (error != 0) {
-		device_printf(sc->sc_dev, "could not read MAC register: %s\n",
-		    usb2_errstr(error));
-		return 0;
-	}
+	ural_do_request(sc, &req, &val);
 
 	return le16toh(val);
 }
@@ -1537,7 +1543,6 @@ static void
 ural_read_multi(struct ural_softc *sc, uint16_t reg, void *buf, int len)
 {
 	struct usb2_device_request req;
-	usb2_error_t error;
 
 	req.bmRequestType = UT_READ_VENDOR_DEVICE;
 	req.bRequest = RAL_READ_MULTI_MAC;
@@ -1545,18 +1550,13 @@ ural_read_multi(struct ural_softc *sc, uint16_t reg, void *buf, int len)
 	USETW(req.wIndex, reg);
 	USETW(req.wLength, len);
 
-	error = ural_do_request(sc, &req, buf);
-	if (error != 0) {
-		device_printf(sc->sc_dev, "could not read MAC register: %s\n",
-		    usb2_errstr(error));
-	}
+	ural_do_request(sc, &req, buf);
 }
 
 static void
 ural_write(struct ural_softc *sc, uint16_t reg, uint16_t val)
 {
 	struct usb2_device_request req;
-	usb2_error_t error;
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = RAL_WRITE_MAC;
@@ -1564,18 +1564,13 @@ ural_write(struct ural_softc *sc, uint16_t reg, uint16_t val)
 	USETW(req.wIndex, reg);
 	USETW(req.wLength, 0);
 
-	error = ural_do_request(sc, &req, NULL);
-	if (error != 0) {
-		device_printf(sc->sc_dev, "could not write MAC register: %s\n",
-		    usb2_errstr(error));
-	}
+	ural_do_request(sc, &req, NULL);
 }
 
 static void
 ural_write_multi(struct ural_softc *sc, uint16_t reg, void *buf, int len)
 {
 	struct usb2_device_request req;
-	usb2_error_t error;
 
 	req.bmRequestType = UT_WRITE_VENDOR_DEVICE;
 	req.bRequest = RAL_WRITE_MULTI_MAC;
@@ -1583,11 +1578,7 @@ ural_write_multi(struct ural_softc *sc, uint16_t reg, void *buf, int len)
 	USETW(req.wIndex, reg);
 	USETW(req.wLength, len);
 
-	error = ural_do_request(sc, &req, buf);
-	if (error != 0) {
-		device_printf(sc->sc_dev, "could not write MAC register: %s\n",
-		    usb2_errstr(error));
-	}
+	ural_do_request(sc, &req, buf);
 }
 
 static void
@@ -1998,6 +1989,27 @@ ural_promisctask(struct usb2_proc_msg *pm)
 
 	DPRINTF("%s promiscuous mode\n", (ifp->if_flags & IFF_PROMISC) ?
 	    "entering" : "leaving");
+}
+
+static void
+ural_update_mcast(struct ifnet *ifp)
+{
+	/* not supported */
+}
+
+static void
+ural_update_promisc(struct ifnet *ifp)
+{
+	struct ural_softc *sc = ifp->if_softc;
+
+	if ((ifp->if_drv_flags & IFF_DRV_RUNNING) == 0)
+		return;
+
+	RAL_LOCK(sc);
+	ural_queue_command(sc, ural_promisctask,
+	    &sc->sc_promisctask[0].hdr,
+	    &sc->sc_promisctask[1].hdr);
+	RAL_UNLOCK(sc);
 }
 
 static const char *
