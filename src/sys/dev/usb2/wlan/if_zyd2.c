@@ -105,7 +105,7 @@ static struct ieee80211_node *zyd_node_alloc(struct ieee80211vap *,
 			    const uint8_t mac[IEEE80211_ADDR_LEN]);
 static int	zyd_newstate(struct ieee80211vap *, enum ieee80211_state, int);
 static int	zyd_cmd(struct zyd_softc *, uint16_t, const void *, int,
-		    void *, int, u_int);
+		    void *, int, unsigned int);
 static int	zyd_read16(struct zyd_softc *, uint16_t, uint16_t *);
 static int	zyd_read32(struct zyd_softc *, uint16_t, uint32_t *);
 static int	zyd_write16(struct zyd_softc *, uint16_t, uint16_t);
@@ -371,6 +371,10 @@ zyd_attach_post(struct usb2_proc_msg *pm)
 		return;
 	}
 
+	/* XXX WLAN race --hps */
+	if (usb2_proc_is_gone(&sc->sc_tq))
+		return;
+
 	ZYD_UNLOCK(sc);
 
 	ifp = sc->sc_ifp = if_alloc(IFT_IEEE80211);
@@ -612,10 +616,15 @@ zyd_task(struct usb2_proc_msg *pm)
 	struct ieee80211com *ic = ifp->if_l2com;
 	struct ieee80211vap *vap = TAILQ_FIRST(&ic->ic_vaps);
 	struct ieee80211_node *ni = vap->iv_bss;
+	enum ieee80211_state nstate;
 	struct zyd_vap *zvp = ZYD_VAP(vap);
+	int arg;
 	int error;
 
-	switch (sc->sc_state) {
+	nstate = sc->sc_state;
+	arg = sc->sc_arg;
+
+	switch (nstate) {
 	case IEEE80211_S_AUTH:
 		zyd_set_chan(sc, ic->ic_curchan);
 		break;
@@ -638,11 +647,17 @@ zyd_task(struct usb2_proc_msg *pm)
 		break;
 	}
 fail:
+	/* sanity checks */
+	if (nstate == IEEE80211_S_INIT)
+		return;
+	if (nstate != sc->sc_state)
+		return;
+
 	ZYD_UNLOCK(sc);
 	IEEE80211_LOCK(ic);
-	zvp->newstate(vap, sc->sc_state, sc->sc_arg);
+	zvp->newstate(vap, nstate, arg);
 	if (vap->iv_newstate_cb != NULL)
-		vap->iv_newstate_cb(vap, sc->sc_state, sc->sc_arg);
+		vap->iv_newstate_cb(vap, nstate, arg);
 	IEEE80211_UNLOCK(ic);
 	ZYD_LOCK(sc);
 }
@@ -662,18 +677,16 @@ zyd_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 	/* do it in a process context */
 	sc->sc_state = nstate;
 	sc->sc_arg = arg;
+	zyd_queue_command(sc, zyd_task,
+	    &sc->sc_task[0].hdr,
+	    &sc->sc_task[1].hdr);
 	ZYD_UNLOCK(sc);
 
 	if (nstate == IEEE80211_S_INIT) {
 		zvp->newstate(vap, nstate, arg);
 		return (0);
-	} else {
-		ZYD_LOCK(sc);
-		zyd_queue_command(sc, zyd_task, &sc->sc_task[0].hdr,
-		    &sc->sc_task[1].hdr);
-		ZYD_UNLOCK(sc);
-		return (EINPROGRESS);
 	}
+	return (EINPROGRESS);
 }
 
 /*
@@ -829,7 +842,7 @@ tr_setup:
 
 static int
 zyd_cmd(struct zyd_softc *sc, uint16_t code, const void *idata, int ilen,
-    void *odata, int olen, u_int flags)
+    void *odata, int olen, unsigned int flags)
 {
 	struct zyd_cmd cmd;
 	struct zyd_rq rq;
@@ -1279,7 +1292,7 @@ zyd_al2230_bandedge6(struct zyd_rf *rf, struct ieee80211_channel *c)
 	struct ifnet *ifp = sc->sc_ifp;
 	struct ieee80211com *ic = ifp->if_l2com;
 	struct zyd_phy_pair r[] = ZYD_AL2230_PHY_BANDEDGE6;
-	u_int chan = ieee80211_chan2ieee(ic, c);
+	unsigned int chan = ieee80211_chan2ieee(ic, c);
 
 	if (chan == 1 || chan == 11)
 		r[0].val = 0x12;
@@ -2104,7 +2117,7 @@ zyd_set_chan(struct zyd_softc *sc, struct ieee80211_channel *c)
 	struct ieee80211com *ic = ifp->if_l2com;
 	struct zyd_rf *rf = &sc->sc_rf;
 	uint32_t tmp;
-	u_int chan;
+	unsigned int chan;
 
 	chan = ieee80211_chan2ieee(ic, c);
 	if (chan == 0 || chan == IEEE80211_CHAN_ANY) {
@@ -2885,6 +2898,7 @@ zyd_init_task(struct usb2_proc_msg *pm)
 	zyd_write32_m(sc, ZYD_CR_INTERRUPT, ZYD_HWINT_MASK);
 
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
+	usb2_transfer_set_stall(sc->sc_xfer[ZYD_BULK_WR]);
 	usb2_transfer_start(sc->sc_xfer[ZYD_BULK_RD]);
 	usb2_transfer_start(sc->sc_xfer[ZYD_INTR_RD]);
 

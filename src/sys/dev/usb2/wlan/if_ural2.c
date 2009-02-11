@@ -454,6 +454,11 @@ ural_attach_post(struct usb2_proc_msg *pm)
 
 	/* retrieve MAC address and various other things from EEPROM */
 	ural_read_eeprom(sc);
+
+	/* XXX WLAN race --hps */
+	if (usb2_proc_is_gone(&sc->sc_tq))
+		return;
+
 	RAL_UNLOCK(sc);
 
 	device_printf(sc->sc_dev, "MAC/BBP RT2570 (rev 0x%02x), RF %s\n",
@@ -571,7 +576,7 @@ ural_do_request(struct ural_softc *sc,
 	usb2_error_t err;
 
 	err = usb2_do_request_proc(sc->sc_udev, &sc->sc_tq, 
-	   req, data, 0, NULL, 250 /* ms */);
+	   req, data, 0, NULL, 1000 /* ms */);
 
 	if (err) {
 		DPRINTFN(1, "Control request failed! (ignored)\n");
@@ -721,21 +726,21 @@ ural_task(struct usb2_proc_msg *pm)
 	struct ural_vap *uvp = URAL_VAP(vap);
 	const struct ieee80211_txparam *tp;
 	enum ieee80211_state ostate;
+	enum ieee80211_state nstate;
 	struct ieee80211_node *ni;
 	struct mbuf *m;
+	int arg;
 
 	ostate = vap->iv_state;
+	nstate = sc->sc_state;
+	arg = sc->sc_arg;
 
 	/* callout is stopped */
 	usb2_callout_stop(&uvp->amrr_ch);
 
-	switch (sc->sc_state) {
+	switch (nstate) {
 	case IEEE80211_S_INIT:
 		if (ostate == IEEE80211_S_RUN) {
-			/*
-			 * BUG: this code is not executed like it
-			 * should --hps
-			 */
 			/* abort TSF synchronization */
 			ural_write(sc, RAL_TXRX_CSR19, 0);
 
@@ -788,11 +793,17 @@ ural_task(struct usb2_proc_msg *pm)
 		break;
 	}
 
+	/* sanity checks */
+	if (nstate == IEEE80211_S_INIT)
+		return;
+	if (nstate != sc->sc_state)
+		return;
+
 	RAL_UNLOCK(sc);
 	IEEE80211_LOCK(ic);
-	uvp->newstate(vap, sc->sc_state, sc->sc_arg);
+	uvp->newstate(vap, nstate, arg);
 	if (vap->iv_newstate_cb != NULL)
-		vap->iv_newstate_cb(vap, sc->sc_state, sc->sc_arg);
+		vap->iv_newstate_cb(vap, nstate, arg);
 	IEEE80211_UNLOCK(ic);
 	RAL_LOCK(sc);
 }
@@ -842,20 +853,17 @@ ural_newstate(struct ieee80211vap *vap, enum ieee80211_state nstate, int arg)
 	/* do it in a process context */
 	sc->sc_state = nstate;
 	sc->sc_arg = arg;
+	ural_queue_command(sc, ural_task,
+	    &sc->sc_task[0].hdr,
+	    &sc->sc_task[1].hdr);
 	RAL_UNLOCK(sc);
 
 	if (nstate == IEEE80211_S_INIT) {
 		uvp->newstate(vap, nstate, arg);
 		return 0;
-	} else {
-		RAL_LOCK(sc);
-		ural_queue_command(sc, ural_task, &sc->sc_task[0].hdr,
-		    &sc->sc_task[1].hdr);
-		RAL_UNLOCK(sc);
-		return EINPROGRESS;
 	}
+	return (EINPROGRESS);
 }
-
 
 static void
 ural_bulk_write_callback(struct usb2_xfer *xfer)
@@ -1726,7 +1734,7 @@ ural_set_chan(struct ural_softc *sc, struct ieee80211_channel *c)
 	struct ifnet *ifp = sc->sc_ifp;
 	struct ieee80211com *ic = ifp->if_l2com;
 	uint8_t power, tmp;
-	u_int i, chan;
+	unsigned int i, chan;
 
 	chan = ieee80211_chan2ieee(ic, c);
 	if (chan == 0 || chan == IEEE80211_CHAN_ANY)
@@ -2215,6 +2223,7 @@ ural_init_task(struct usb2_proc_msg *pm)
 	ural_write(sc, RAL_TXRX_CSR2, tmp);
 
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
+	usb2_transfer_set_stall(sc->sc_xfer[URAL_BULK_WR]);
 	usb2_transfer_start(sc->sc_xfer[URAL_BULK_RD]);
 	return;
 
