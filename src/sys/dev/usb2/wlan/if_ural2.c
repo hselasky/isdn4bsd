@@ -166,6 +166,7 @@ static int		ural_raw_xmit(struct ieee80211_node *, struct mbuf *,
 static void		ural_amrr_start(struct ural_softc *,
 			    struct ieee80211_node *);
 static void		ural_amrr_timeout(void *);
+static uint8_t		ural_pause(struct ural_softc *sc, unsigned int timeout);
 static void		ural_queue_command(struct ural_softc *,
 			    usb2_proc_callback_t *, struct usb2_proc_msg *,
 			    struct usb2_proc_msg *);
@@ -1595,12 +1596,13 @@ ural_bbp_write(struct ural_softc *sc, uint8_t reg, uint8_t val)
 	uint16_t tmp;
 	int ntries;
 
-	for (ntries = 0; ntries != 5; ntries++) {
+	for (ntries = 0; ntries != 100; ntries++) {
 		if (!(ural_read(sc, RAL_PHY_CSR8) & RAL_BBP_BUSY))
 			break;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (ural_pause(sc, hz / 100))
+			break;
 	}
-	if (ntries == 5) {
+	if (ntries == 100) {
 		device_printf(sc->sc_dev, "could not write to BBP\n");
 		return;
 	}
@@ -1618,12 +1620,13 @@ ural_bbp_read(struct ural_softc *sc, uint8_t reg)
 	val = RAL_BBP_WRITE | reg << 8;
 	ural_write(sc, RAL_PHY_CSR7, val);
 
-	for (ntries = 0; ntries != 5; ntries++) {
+	for (ntries = 0; ntries != 100; ntries++) {
 		if (!(ural_read(sc, RAL_PHY_CSR8) & RAL_BBP_BUSY))
 			break;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (ural_pause(sc, hz / 100))
+			break;
 	}
-	if (ntries == 5) {
+	if (ntries == 100) {
 		device_printf(sc->sc_dev, "could not read BBP\n");
 		return 0;
 	}
@@ -1637,12 +1640,13 @@ ural_rf_write(struct ural_softc *sc, uint8_t reg, uint32_t val)
 	uint32_t tmp;
 	int ntries;
 
-	for (ntries = 0; ntries != 5; ntries++) {
+	for (ntries = 0; ntries != 100; ntries++) {
 		if (!(ural_read(sc, RAL_PHY_CSR10) & RAL_RF_LOBUSY))
 			break;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (ural_pause(sc, hz / 100))
+			break;
 	}
-	if (ntries == 5) {
+	if (ntries == 100) {
 		device_printf(sc->sc_dev, "could not write to RF\n");
 		return;
 	}
@@ -1816,7 +1820,7 @@ ural_set_chan(struct ural_softc *sc, struct ieee80211_channel *c)
 		/* clear CRC errors */
 		ural_read(sc, RAL_STA_CSR0);
 
-		usb2_pause_mtx(&sc->sc_mtx, hz / 100);
+		(void)ural_pause(sc, hz / 100);
 
 		ural_disable_rf_tune(sc);
 	}
@@ -1824,6 +1828,9 @@ ural_set_chan(struct ural_softc *sc, struct ieee80211_channel *c)
 	/* XXX doesn't belong here */
 	/* update basic rate set */
 	ural_set_basicrates(sc, c);
+
+	/* give the hardware some time to do the switchover */
+	(void)ural_pause(sc, hz / 100);
 }
 
 /*
@@ -2042,7 +2049,8 @@ ural_bbp_init(struct ural_softc *sc)
 	for (ntries = 0; ntries != 100; ntries++) {
 		if (ural_bbp_read(sc, RAL_BBP_VERSION) != 0)
 			break;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (ural_pause(sc, hz / 100))
+			break;
 	}
 	if (ntries == 100) {
 		device_printf(sc->sc_dev, "timeout waiting for BBP\n");
@@ -2143,7 +2151,8 @@ ural_init_task(struct usb2_proc_msg *pm)
 		if ((tmp & (RAL_BBP_AWAKE | RAL_RF_AWAKE)) ==
 		    (RAL_BBP_AWAKE | RAL_RF_AWAKE))
 			break;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (ural_pause(sc, hz / 100))
+			break;
 	}
 	if (ntries == 100) {
 		device_printf(sc->sc_dev,
@@ -2238,7 +2247,11 @@ ural_stop_task(struct usb2_proc_msg *pm)
 	ural_write(sc, RAL_TXRX_CSR2, RAL_DISABLE_RX);
 	/* reset ASIC and BBP (but won't reset MAC registers!) */
 	ural_write(sc, RAL_MAC_CSR1, RAL_RESET_ASIC | RAL_RESET_BBP);
+	/* wait a little */
+	(void)ural_pause(sc, hz / 10);
 	ural_write(sc, RAL_MAC_CSR1, 0);
+	/* wait a little */
+	(void)ural_pause(sc, hz / 10);
 }
 
 static int
@@ -2353,6 +2366,16 @@ ural_amrr_task(struct usb2_proc_msg *pm)
 	ifp->if_oerrors += fail;	/* count TX retry-fail as Tx errors */
 }
 
+static uint8_t
+ural_pause(struct ural_softc *sc, unsigned int timeout)
+{
+	if (usb2_proc_is_gone(&sc->sc_tq))
+		return (1);
+
+	usb2_pause_mtx(&sc->sc_mtx, timeout);
+	return (0);
+}
+
 static void
 ural_queue_command(struct ural_softc *sc, usb2_proc_callback_t *fn,
     struct usb2_proc_msg *t0, struct usb2_proc_msg *t1)
@@ -2361,10 +2384,6 @@ ural_queue_command(struct ural_softc *sc, usb2_proc_callback_t *fn,
 
 	RAL_LOCK_ASSERT(sc, MA_OWNED);
 
-	if (usb2_proc_is_gone(&sc->sc_tq)) {
-		DPRINTF("proc is gone\n");
-		return;         /* nothing to do */
-	}
 	/*
 	 * NOTE: The task cannot get executed before we drop the
 	 * "sc_mtx" mutex. It is safe to update fields in the message

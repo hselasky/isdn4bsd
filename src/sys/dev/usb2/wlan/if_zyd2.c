@@ -3091,10 +3091,6 @@ zyd_queue_command(struct zyd_softc *sc, usb2_proc_callback_t *fn,
 
 	ZYD_LOCK_ASSERT(sc, MA_OWNED);
 
-	if (usb2_proc_is_gone(&sc->sc_tq)) {
-		DPRINTF(sc, ZYD_DEBUG_STATE, "proc is gone\n");
-		return;         /* nothing to do */
-	}
 	/*
 	 * NOTE: The task cannot get executed before we drop the
 	 * "sc_mtx" mutex. It is safe to update fields in the message

@@ -177,7 +177,7 @@ static const char	*rum_get_rf(int);
 static void		rum_read_eeprom(struct rum_softc *);
 static int		rum_bbp_init(struct rum_softc *);
 static void		rum_init(void *);
-static int		rum_load_microcode(struct rum_softc *, const u_char *,
+static int		rum_load_microcode(struct rum_softc *, const uint8_t *,
 			    size_t);
 static int		rum_prepare_beacon(struct rum_softc *,
 			    struct ieee80211vap *);
@@ -193,6 +193,7 @@ static int		rum_get_rssi(struct rum_softc *, uint8_t);
 static void		rum_amrr_start(struct rum_softc *,
 			    struct ieee80211_node *);
 static void		rum_amrr_timeout(void *);
+static uint8_t		rum_pause(struct rum_softc *, unsigned int);
 static void		rum_queue_command(struct rum_softc *,
 			    usb2_proc_callback_t *, struct usb2_proc_msg *,
 			    struct usb2_proc_msg *);
@@ -447,12 +448,13 @@ rum_attach_post(struct usb2_proc_msg *pm)
 	uint8_t bands;
 
 	/* retrieve RT2573 rev. no */
-	for (ntries = 0; ntries != 1000; ntries++) {
+	for (ntries = 0; ntries != 100; ntries++) {
 		if ((tmp = rum_read(sc, RT2573_MAC_CSR0)) != 0)
 			break;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (rum_pause(sc, hz / 100))
+			break;
 	}
-	if (ntries == 1000) {
+	if (ntries == 100) {
 		device_printf(sc->sc_dev, "timeout waiting for chip to settle\n");
 		return;
 	}
@@ -465,7 +467,6 @@ rum_attach_post(struct usb2_proc_msg *pm)
 
 	error = rum_load_microcode(sc, rt2573_ucode, sizeof(rt2573_ucode));
 	if (error != 0) {
-		RUM_UNLOCK(sc);
 		device_printf(sc->sc_dev, "could not load 8051 microcode\n");
 		return;
 	}
@@ -1481,12 +1482,13 @@ rum_bbp_write(struct rum_softc *sc, uint8_t reg, uint8_t val)
 	uint32_t tmp;
 	int ntries;
 
-	for (ntries = 0; ntries != 5; ntries++) {
+	for (ntries = 0; ntries != 100; ntries++) {
 		if (!(rum_read(sc, RT2573_PHY_CSR3) & RT2573_BBP_BUSY))
 			break;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (rum_pause(sc, hz / 100))
+			break;
 	}
-	if (ntries == 5) {
+	if (ntries == 100) {
 		device_printf(sc->sc_dev, "could not write to BBP\n");
 		return;
 	}
@@ -1501,12 +1503,13 @@ rum_bbp_read(struct rum_softc *sc, uint8_t reg)
 	uint32_t val;
 	int ntries;
 
-	for (ntries = 0; ntries != 5; ntries++) {
+	for (ntries = 0; ntries != 100; ntries++) {
 		if (!(rum_read(sc, RT2573_PHY_CSR3) & RT2573_BBP_BUSY))
 			break;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (rum_pause(sc, hz / 100))
+			break;
 	}
-	if (ntries == 5) {
+	if (ntries == 100) {
 		device_printf(sc->sc_dev, "could not read BBP\n");
 		return 0;
 	}
@@ -1514,11 +1517,12 @@ rum_bbp_read(struct rum_softc *sc, uint8_t reg)
 	val = RT2573_BBP_BUSY | RT2573_BBP_READ | reg << 8;
 	rum_write(sc, RT2573_PHY_CSR3, val);
 
-	for (ntries = 0; ntries != 10; ntries++) {
+	for (ntries = 0; ntries != 100; ntries++) {
 		val = rum_read(sc, RT2573_PHY_CSR3);
 		if (!(val & RT2573_BBP_BUSY))
 			return val & 0xff;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (rum_pause(sc, hz / 100))
+			break;
 	}
 
 	device_printf(sc->sc_dev, "could not read BBP\n");
@@ -1531,12 +1535,13 @@ rum_rf_write(struct rum_softc *sc, uint8_t reg, uint32_t val)
 	uint32_t tmp;
 	int ntries;
 
-	for (ntries = 0; ntries != 5; ntries++) {
+	for (ntries = 0; ntries != 100; ntries++) {
 		if (!(rum_read(sc, RT2573_PHY_CSR4) & RT2573_RF_BUSY))
 			break;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (rum_pause(sc, hz / 100))
+			break;
 	}
-	if (ntries == 5) {
+	if (ntries == 100) {
 		device_printf(sc->sc_dev, "could not write to RF\n");
 		return;
 	}
@@ -1683,7 +1688,8 @@ rum_set_chan(struct rum_softc *sc, struct ieee80211_channel *c)
 	const struct rfprog *rfprog;
 	uint8_t bbp3, bbp94 = RT2573_BBPR94_DEFAULT;
 	int8_t power;
-	u_int i, chan;
+	unsigned int i;
+	unsigned int chan;
 
 	chan = ieee80211_chan2ieee(ic, c);
 	if (chan == 0 || chan == IEEE80211_CHAN_ANY)
@@ -1730,7 +1736,7 @@ rum_set_chan(struct rum_softc *sc, struct ieee80211_channel *c)
 	rum_rf_write(sc, RT2573_RF3, rfprog[i].r3 | power << 7);
 	rum_rf_write(sc, RT2573_RF4, rfprog[i].r4 | sc->rffreq << 10);
 
-	usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+	(void)rum_pause(sc, hz / 100);
 
 	/* enable smart mode for MIMO-capable RFs */
 	bbp3 = rum_bbp_read(sc, 3);
@@ -1743,6 +1749,9 @@ rum_set_chan(struct rum_softc *sc, struct ieee80211_channel *c)
 
 	if (bbp94 != RT2573_BBPR94_DEFAULT)
 		rum_bbp_write(sc, 94, bbp94);
+
+	/* give the chip some extra time to do the switchover */
+	(void)rum_pause(sc, hz / 100);
 }
 
 /*
@@ -1946,7 +1955,8 @@ rum_bbp_init(struct rum_softc *sc)
 		const uint8_t val = rum_bbp_read(sc, 0);
 		if (val != 0 && val != 0xff)
 			break;
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (rum_pause(sc, hz / 100))
+			break;
 	}
 	if (ntries == 100) {
 		device_printf(sc->sc_dev, "timeout waiting for BBP\n");
@@ -1993,13 +2003,14 @@ rum_init_task(struct usb2_proc_msg *pm)
 	rum_write(sc, RT2573_MAC_CSR1, 0);
 
 	/* wait for BBP/RF to wakeup */
-	for (ntries = 0; ntries != 1000; ntries++) {
+	for (ntries = 0; ntries != 100; ntries++) {
 		if (rum_read(sc, RT2573_MAC_CSR12) & 8)
 			break;
 		rum_write(sc, RT2573_MAC_CSR12, 4);	/* force wakeup */
-		usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+		if (rum_pause(sc, hz / 100))
+			break;
 	}
-	if (ntries == 1000) {
+	if (ntries == 100) {
 		device_printf(sc->sc_dev,
 		    "timeout waiting for BBP/RF to wakeup\n");
 		goto fail;
@@ -2101,11 +2112,16 @@ rum_stop_task(struct usb2_proc_msg *pm)
 }
 
 static int
-rum_load_microcode(struct rum_softc *sc, const u_char *ucode, size_t size)
+rum_load_microcode(struct rum_softc *sc, const uint8_t *ucode, size_t size)
 {
 	struct usb2_device_request req;
 	uint16_t reg = RT2573_MCU_CODE_BASE;
 	usb2_error_t error;
+
+	/*
+	 * TODO: If the firmware is already loaded,
+	 * then we need to return from here!
+	 */
 
 	/* copy firmware image into NIC */
 	for (; size >= 4; reg += 4, ucode += 4, size -= 4)
@@ -2405,6 +2421,16 @@ rum_get_rssi(struct rum_softc *sc, uint8_t raw)
 	return rssi;
 }
 
+static uint8_t
+rum_pause(struct rum_softc *sc, unsigned int timeout)
+{
+	if (usb2_proc_is_gone(&sc->sc_tq))
+		return (1);
+
+	usb2_pause_mtx(&sc->sc_mtx, timeout);
+	return (0);
+}
+
 static void
 rum_queue_command(struct rum_softc *sc, usb2_proc_callback_t *fn,
     struct usb2_proc_msg *t0, struct usb2_proc_msg *t1)
@@ -2413,10 +2439,6 @@ rum_queue_command(struct rum_softc *sc, usb2_proc_callback_t *fn,
 
 	RUM_LOCK_ASSERT(sc, MA_OWNED);
 
-	if (usb2_proc_is_gone(&sc->sc_tq)) {
-		DPRINTF("proc is gone\n");
-		return;         /* nothing to do */
-	}
 	/*
 	 * NOTE: The task cannot get executed before we drop the
 	 * "sc_mtx" mutex. It is safe to update fields in the message
