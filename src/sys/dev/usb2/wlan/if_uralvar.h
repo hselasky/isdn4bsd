@@ -122,7 +122,6 @@ struct ural_softc {
 	struct ural_tx_data		tx_data[RAL_TX_LIST_COUNT];
 	ural_txdhead			tx_q;
 	ural_txdhead			tx_free;
-	int				tx_nfree;
 	struct ural_rx_desc		sc_rx_desc;
 
 	struct mtx			sc_mtx;

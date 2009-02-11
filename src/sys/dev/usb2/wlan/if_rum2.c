@@ -690,7 +690,6 @@ rum_tx_free(struct rum_tx_data *data, int txerr)
 		data->ni = NULL;
 	}
 	STAILQ_INSERT_TAIL(&sc->tx_free, data, next);
-	sc->tx_nfree++;
 }
 
 static void
@@ -699,7 +698,6 @@ rum_setup_tx_list(struct rum_softc *sc)
 	struct rum_tx_data *data;
 	int i;
 
-	sc->tx_nfree = 0;
 	STAILQ_INIT(&sc->tx_q);
 	STAILQ_INIT(&sc->tx_free);
 
@@ -708,7 +706,6 @@ rum_setup_tx_list(struct rum_softc *sc)
 
 		data->sc = sc;
 		STAILQ_INSERT_TAIL(&sc->tx_free, data, next);
-		sc->tx_nfree++;
 	}
 }
 
@@ -719,7 +716,6 @@ rum_unsetup_tx_list(struct rum_softc *sc)
 	int i;
 
 	/* make sure any subsequent use of the queues will fail */
-	sc->tx_nfree = 0;
 	STAILQ_INIT(&sc->tx_q);
 	STAILQ_INIT(&sc->tx_free);
 
@@ -857,7 +853,6 @@ rum_bulk_write_callback(struct usb2_xfer *xfer)
 		xfer->priv_fifo = NULL;
 
 		ifp->if_opackets++;
-		ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
 		/* FALLTHROUGH */
 	case USB_ST_SETUP:
@@ -1135,11 +1130,14 @@ rum_sendprot(struct rum_softc *sc,
 	}
 	if (mprot == NULL) {
 		/* XXX stat + msg */
-		return ENOBUFS;
+		return (ENOBUFS);
 	}
 	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
+		m_freem(mprot);
+		return (ENOBUFS);
+	}
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 
 	data->m = mprot;
 	data->ni = ieee80211_ref_node(ni);
@@ -1168,8 +1166,11 @@ rum_tx_mgt(struct rum_softc *sc, struct mbuf *m0, struct ieee80211_node *ni)
 	RUM_LOCK_ASSERT(sc, MA_OWNED);
 
 	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
+		m_freem(m0);
+		return (ENOBUFS);
+	}
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 
 	wh = mtod(m0, struct ieee80211_frame *);
 	if (wh->i_fc[1] & IEEE80211_FC1_WEP) {
@@ -1209,7 +1210,7 @@ rum_tx_mgt(struct rum_softc *sc, struct mbuf *m0, struct ieee80211_node *ni)
 	STAILQ_INSERT_TAIL(&sc->tx_q, data, next);
 	usb2_transfer_start(sc->sc_xfer[RUM_BULK_WR]);
 
-	return 0;
+	return (0);
 }
 
 static int
@@ -1224,8 +1225,11 @@ rum_tx_raw(struct rum_softc *sc, struct mbuf *m0, struct ieee80211_node *ni,
 	KASSERT(params != NULL, ("no raw xmit params"));
 
 	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
+		m_freem(m0);
+		return (ENOBUFS);
+	}
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 
 	rate = params->ibp_rate0 & IEEE80211_RATE_VAL;
 	/* XXX validate */
@@ -1319,8 +1323,11 @@ rum_tx_data(struct rum_softc *sc, struct mbuf *m0, struct ieee80211_node *ni)
 	}
 
 	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
+		m_freem(m0);
+		return (ENOBUFS);
+	}
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 
 	data->m = m0;
 	data->ni = ni;
@@ -1351,6 +1358,7 @@ rum_start(struct ifnet *ifp)
 {
 	struct rum_softc *sc = ifp->if_softc;
 	struct ieee80211_node *ni;
+	struct rum_tx_data *data;
 	struct mbuf *m;
 
 	RUM_LOCK(sc);
@@ -1362,15 +1370,19 @@ rum_start(struct ifnet *ifp)
 		IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 		if (m == NULL)
 			break;
-		if (sc->tx_nfree == 0) {
-			IFQ_DRV_PREPEND(&ifp->if_snd, m);
-			ifp->if_drv_flags |= IFF_DRV_OACTIVE;
-			break;
-		}
 		ni = (struct ieee80211_node *) m->m_pkthdr.rcvif;
+		data = STAILQ_FIRST(&sc->tx_free);
+		if ((data == NULL) || (STAILQ_NEXT(data, next) == NULL)) {
+			/* last slot is reserved for mgt frame */
+			m_freem(m);
+			ieee80211_free_node(ni);
+			ifp->if_oerrors++;
+			continue;
+		}
 		m = ieee80211_encap(ni, m);
 		if (m == NULL) {
 			ieee80211_free_node(ni);
+			ifp->if_oerrors++;
 			continue;
 		}
 		if (rum_tx_data(sc, m, ni) != 0) {
@@ -2084,7 +2096,6 @@ rum_init_task(struct usb2_proc_msg *pm)
 	}
 	rum_write(sc, RT2573_TXRX_CSR0, tmp);
 
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
 	usb2_transfer_start(sc->sc_xfer[RUM_BULK_RD]);
 	return;
@@ -2120,7 +2131,7 @@ rum_stop_task(struct usb2_proc_msg *pm)
 
 	RUM_LOCK_ASSERT(sc, MA_OWNED);
 
-	ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | IFF_DRV_OACTIVE);
+	ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 
 	RUM_UNLOCK(sc);
 
@@ -2211,13 +2222,6 @@ rum_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 		m_freem(m);
 		ieee80211_free_node(ni);
 		return ENETDOWN;
-	}
-	if (sc->tx_nfree == 0) {
-		ifp->if_drv_flags |= IFF_DRV_OACTIVE;
-		RUM_UNLOCK(sc);
-		m_freem(m);
-		ieee80211_free_node(ni);
-		return EIO;
 	}
 
 	ifp->if_opackets++;

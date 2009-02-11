@@ -670,7 +670,6 @@ ural_tx_free(struct ural_tx_data *data, int txerr)
 		data->ni = NULL;
 	}
 	STAILQ_INSERT_TAIL(&sc->tx_free, data, next);
-	sc->tx_nfree++;
 }
 
 static void
@@ -679,7 +678,6 @@ ural_setup_tx_list(struct ural_softc *sc)
 	struct ural_tx_data *data;
 	int i;
 
-	sc->tx_nfree = 0;
 	STAILQ_INIT(&sc->tx_q);
 	STAILQ_INIT(&sc->tx_free);
 
@@ -688,7 +686,6 @@ ural_setup_tx_list(struct ural_softc *sc)
 
 		data->sc = sc;
 		STAILQ_INSERT_TAIL(&sc->tx_free, data, next);
-		sc->tx_nfree++;
 	}
 }
 
@@ -699,7 +696,6 @@ ural_unsetup_tx_list(struct ural_softc *sc)
 	int i;
 
 	/* make sure any subsequent use of the queues will fail */
-	sc->tx_nfree = 0;
 	STAILQ_INIT(&sc->tx_q);
 	STAILQ_INIT(&sc->tx_free);
 
@@ -886,7 +882,6 @@ ural_bulk_write_callback(struct usb2_xfer *xfer)
 		xfer->priv_fifo = NULL;
 
 		ifp->if_opackets++;
-		ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
 		/* FALLTHROUGH */
 	case USB_ST_SETUP:
@@ -1138,19 +1133,16 @@ ural_tx_bcn(struct ural_softc *sc, struct mbuf *m0, struct ieee80211_node *ni)
 {
 	struct ieee80211vap *vap = ni->ni_vap;
 	struct ieee80211com *ic = ni->ni_ic;
-	struct ifnet *ifp = sc->sc_ifp;
 	const struct ieee80211_txparam *tp;
 	struct ural_tx_data *data;
 
-	if (sc->tx_nfree == 0) {
-		ifp->if_drv_flags |= IFF_DRV_OACTIVE;
+	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
 		m_freem(m0);
 		ieee80211_free_node(ni);
-		return EIO;
+		return (EIO);
 	}
-	data = STAILQ_FIRST(&sc->tx_free);
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 	tp = &vap->iv_txparms[ieee80211_chan2mode(ic->ic_bsschan)];
 
 	data->m = m0;
@@ -1185,8 +1177,11 @@ ural_tx_mgt(struct ural_softc *sc, struct mbuf *m0, struct ieee80211_node *ni)
 	RAL_LOCK_ASSERT(sc, MA_OWNED);
 
 	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
+		m_freem(m0);
+		return (ENOBUFS);
+	}
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 
 	tp = &vap->iv_txparms[ieee80211_chan2mode(ic->ic_curchan)];
 
@@ -1268,8 +1263,11 @@ ural_sendprot(struct ural_softc *sc,
 		return ENOBUFS;
 	}
 	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
+		m_freem(mprot);
+		return (ENOBUFS);
+	}
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 
 	data->m = mprot;
 	data->ni = ieee80211_ref_node(ni);
@@ -1295,8 +1293,11 @@ ural_tx_raw(struct ural_softc *sc, struct mbuf *m0, struct ieee80211_node *ni,
 	KASSERT(params != NULL, ("no raw xmit params"));
 
 	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
+		m_freem(m0);
+		return (ENOBUFS);
+	}
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 
 	rate = params->ibp_rate0 & IEEE80211_RATE_VAL;
 	/* XXX validate */
@@ -1388,8 +1389,11 @@ ural_tx_data(struct ural_softc *sc, struct mbuf *m0, struct ieee80211_node *ni)
 	}
 
 	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
+		m_freem(m0);
+		return (ENOBUFS);
+	}
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 
 	data->m = m0;
 	data->ni = ni;
@@ -1420,6 +1424,7 @@ ural_start(struct ifnet *ifp)
 {
 	struct ural_softc *sc = ifp->if_softc;
 	struct ieee80211_node *ni;
+	struct ural_tx_data *data;
 	struct mbuf *m;
 
 	RAL_LOCK(sc);
@@ -1431,15 +1436,20 @@ ural_start(struct ifnet *ifp)
 		IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 		if (m == NULL)
 			break;
-		if (sc->tx_nfree == 0) {
-			IFQ_DRV_PREPEND(&ifp->if_snd, m);
-			ifp->if_drv_flags |= IFF_DRV_OACTIVE;
-			break;
-		}
+
 		ni = (struct ieee80211_node *) m->m_pkthdr.rcvif;
+		data = STAILQ_FIRST(&sc->tx_free);
+		if ((data == NULL) || (STAILQ_NEXT(data, next) == NULL)) {
+			/* last slot is reserved for mgt frame */
+			m_freem(m);
+			ieee80211_free_node(ni);
+			ifp->if_oerrors++;
+			continue;
+		}
 		m = ieee80211_encap(ni, m);
 		if (m == NULL) {
 			ieee80211_free_node(ni);
+			ifp->if_oerrors++;
 			continue;
 		}
 		if (ural_tx_data(sc, m, ni) != 0) {
@@ -2208,7 +2218,6 @@ ural_init_task(struct usb2_proc_msg *pm)
 	}
 	ural_write(sc, RAL_TXRX_CSR2, tmp);
 
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
 	usb2_transfer_start(sc->sc_xfer[URAL_BULK_RD]);
 	return;
@@ -2243,7 +2252,7 @@ ural_stop_task(struct usb2_proc_msg *pm)
 
 	RAL_LOCK_ASSERT(sc, MA_OWNED);
 
-	ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | IFF_DRV_OACTIVE);
+	ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 
 	/*
 	 * Drain all the transfers, if not already drained:
@@ -2282,14 +2291,6 @@ ural_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 		ieee80211_free_node(ni);
 		return ENETDOWN;
 	}
-	if (sc->tx_nfree == 0) {
-		ifp->if_drv_flags |= IFF_DRV_OACTIVE;
-		RAL_UNLOCK(sc);
-		m_freem(m);
-		ieee80211_free_node(ni);
-		return EIO;
-	}
-
 	ifp->if_opackets++;
 
 	if (params == NULL) {

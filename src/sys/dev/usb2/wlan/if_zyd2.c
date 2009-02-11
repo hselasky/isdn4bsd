@@ -548,7 +548,6 @@ zyd_tx_free(struct zyd_tx_data *data, int txerr)
 		data->ni = NULL;
 	}
 	STAILQ_INSERT_TAIL(&sc->tx_free, data, next);
-	sc->tx_nfree++;
 }
 
 static void
@@ -557,7 +556,6 @@ zyd_setup_tx_list(struct zyd_softc *sc)
 	struct zyd_tx_data *data;
 	int i;
 
-	sc->tx_nfree = 0;
 	STAILQ_INIT(&sc->tx_q);
 	STAILQ_INIT(&sc->tx_free);
 
@@ -566,7 +564,6 @@ zyd_setup_tx_list(struct zyd_softc *sc)
 
 		data->sc = sc;
 		STAILQ_INSERT_TAIL(&sc->tx_free, data, next);
-		sc->tx_nfree++;
 	}
 }
 
@@ -577,7 +574,6 @@ zyd_unsetup_tx_list(struct zyd_softc *sc)
 	int i;
 
 	/* make sure any subsequent use of the queues will fail */
-	sc->tx_nfree = 0;
 	STAILQ_INIT(&sc->tx_q);
 	STAILQ_INIT(&sc->tx_free);
 
@@ -2400,8 +2396,11 @@ zyd_tx_mgt(struct zyd_softc *sc, struct mbuf *m0, struct ieee80211_node *ni)
 	uint16_t pktlen;
 
 	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
+		m_freem(m0);
+		return (ENOBUFS);
+	}
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 	desc = &data->desc;
 
 	rate = IEEE80211_IS_CHAN_5GHZ(ic->ic_curchan) ? 12 : 2;
@@ -2510,7 +2509,6 @@ zyd_bulk_write_callback(struct usb2_xfer *xfer)
 		xfer->priv_fifo = NULL;
 
 		ifp->if_opackets++;
-		ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 
 		/* FALLTHROUGH */
 	case USB_ST_SETUP:
@@ -2583,8 +2581,11 @@ zyd_tx_data(struct zyd_softc *sc, struct mbuf *m0, struct ieee80211_node *ni)
 
 	wh = mtod(m0, struct ieee80211_frame *);
 	data = STAILQ_FIRST(&sc->tx_free);
+	if (data == NULL) {
+		m_freem(m0);
+		return (ENOBUFS);
+	}
 	STAILQ_REMOVE_HEAD(&sc->tx_free, next);
-	sc->tx_nfree--;
 	desc = &data->desc;
 
 	desc->flags = ZYD_TX_FLAG_BACKOFF;
@@ -2673,6 +2674,7 @@ zyd_start(struct ifnet *ifp)
 {
 	struct zyd_softc *sc = ifp->if_softc;
 	struct ieee80211_node *ni;
+	struct zyd_tx_data *data;
 	struct mbuf *m;
 
 	ZYD_LOCK(sc);
@@ -2680,12 +2682,16 @@ zyd_start(struct ifnet *ifp)
 		IFQ_DRV_DEQUEUE(&ifp->if_snd, m);
 		if (m == NULL)
 			break;
-		if (sc->tx_nfree == 0) {
-			IFQ_DRV_PREPEND(&ifp->if_snd, m);
-			ifp->if_drv_flags |= IFF_DRV_OACTIVE;
-			break;
-		}
+
 		ni = (struct ieee80211_node *)m->m_pkthdr.rcvif;
+		data = STAILQ_FIRST(&sc->tx_free);
+		if ((data == NULL) || (STAILQ_NEXT(data, next) == NULL)) {
+			/* last slot is reserved for mgt frame */
+			m_freem(m);
+			ieee80211_free_node(ni);
+			ifp->if_oerrors++;
+			continue;
+		}
 		m = ieee80211_encap(ni, m);
 		if (m == NULL) {
 			ieee80211_free_node(ni);
@@ -2717,14 +2723,6 @@ zyd_raw_xmit(struct ieee80211_node *ni, struct mbuf *m,
 		ieee80211_free_node(ni);
 		return (ENETDOWN);
 	}
-	if (sc->tx_nfree == 0) {
-		ifp->if_drv_flags |= IFF_DRV_OACTIVE;
-		ZYD_UNLOCK(sc);
-		m_freem(m);
-		ieee80211_free_node(ni);
-		return (ENOBUFS);		/* XXX */
-	}
-
 	/*
 	 * Legacy path; interpret frame contents to decide
 	 * precisely how to send the frame.
@@ -2886,7 +2884,6 @@ zyd_init_task(struct usb2_proc_msg *pm)
 	/* enable interrupts */
 	zyd_write32_m(sc, ZYD_CR_INTERRUPT, ZYD_HWINT_MASK);
 
-	ifp->if_drv_flags &= ~IFF_DRV_OACTIVE;
 	ifp->if_drv_flags |= IFF_DRV_RUNNING;
 	usb2_transfer_start(sc->sc_xfer[ZYD_BULK_RD]);
 	usb2_transfer_start(sc->sc_xfer[ZYD_INTR_RD]);
@@ -2924,7 +2921,7 @@ zyd_stop_task(struct usb2_proc_msg *pm)
 
 	ZYD_LOCK_ASSERT(sc, MA_OWNED);
 
-	ifp->if_drv_flags &= ~(IFF_DRV_RUNNING | IFF_DRV_OACTIVE);
+	ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 
 	/*
 	 * Drain all the transfers, if not already drained:

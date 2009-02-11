@@ -1319,7 +1319,6 @@ struct zyd_softc {
 	struct zyd_tx_data	tx_data[ZYD_TX_LIST_CNT];
 	zyd_txdhead		tx_q;
 	zyd_txdhead		tx_free;
-	int			tx_nfree;
 	struct zyd_rx_desc	sc_rx_desc;
 	struct zyd_rx_data	sc_rx_data[ZYD_MAX_RXFRAMECNT];
 	int			sc_rx_count;

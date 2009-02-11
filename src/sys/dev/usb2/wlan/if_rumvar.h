@@ -119,7 +119,6 @@ struct rum_softc {
 	struct rum_tx_data		tx_data[RUM_TX_LIST_COUNT];
 	rum_txdhead			tx_q;
 	rum_txdhead			tx_free;
-	int				tx_nfree;
 	struct rum_rx_desc		sc_rx_desc;
 
 	struct mtx			sc_mtx;
