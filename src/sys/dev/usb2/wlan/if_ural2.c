@@ -570,16 +570,12 @@ ural_do_request(struct ural_softc *sc,
 {
 	usb2_error_t err;
 
- retry:
 	err = usb2_do_request_proc(sc->sc_udev, &sc->sc_tq, 
 	   req, data, 0, NULL, 250 /* ms */);
 
 	if (err) {
-		if (!usb2_proc_is_gone(&sc->sc_tq)) {
-			DPRINTFN(1, "Control request failed! (ignored)\n");
-			ural_pause(sc, hz / 100);
-			goto retry;
-		}
+		DPRINTFN(1, "Control request failed! (ignored)\n");
+		ural_pause(sc, hz / 100);
 	}
 }
 

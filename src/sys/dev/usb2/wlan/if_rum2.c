@@ -584,21 +584,12 @@ rum_do_request(struct rum_softc *sc,
 {
 	usb2_error_t err;
 
-	/*
-	 * Occasionally the RUM chip will just generate control
-	 * request timeouts. Probably a USB driver bug in the
-	 * firmware! Try to workaround the problem.
-	 */
- retry:
 	err = usb2_do_request_proc(sc->sc_udev, &sc->sc_tq, 
 	   req, data, 0, NULL, 250 /* ms */);
 
 	if (err) {
-		if (!usb2_proc_is_gone(&sc->sc_tq)) {
-			DPRINTFN(1, "Control request failed! (ignored)\n");
-			rum_pause(sc, hz / 100);
-			goto retry;
-		}
+		DPRINTFN(1, "Control request failed! (ignored)\n");
+		rum_pause(sc, hz / 100);
 	}
 	return;
 }
