@@ -325,7 +325,8 @@ zyd_attach(device_t dev)
 	mtx_init(&sc->sc_mtx, device_get_nameunit(sc->sc_dev),
 	    MTX_NETWORK_LOCK, MTX_DEF);
 
-	STAILQ_INIT(&sc->sc_rqh);
+	cv_init(&sc->sc_cmd_cv, "wtxdone");
+	cv_init(&sc->sc_intr_cv, "zydcmd");
 
 	iface_index = ZYD_IFACE_INDEX;
 	error = usb2_transfer_setup(uaa->device,
@@ -468,6 +469,9 @@ zyd_detach(device_t dev)
 		ieee80211_ifdetach(ic);
 		if_free(ifp);
 	}
+
+	cv_destroy(&sc->sc_cmd_cv);
+	cv_destroy(&sc->sc_intr_cv);
 
 	mtx_destroy(&sc->sc_mtx);
 
@@ -744,11 +748,13 @@ zyd_intr_read_callback(struct usb2_xfer *xfer)
 			datalen = xfer->actlen - sizeof(cmd->code);
 			datalen -= 2;	/* XXX: padding? */
 
-			STAILQ_FOREACH(rqp, &sc->sc_rqh, rq) {
+			rqp = sc->sc_curr_rq;
+			if (rqp != NULL) {
 				int i, cnt;
 
 				if (rqp->olen != datalen)
-					continue;
+					break;
+
 				cnt = rqp->olen / sizeof(struct zyd_pair);
 				for (i = 0; i < cnt; i++) {
 					if (*(((const uint16_t *)rqp->idata) + i) !=
@@ -756,16 +762,15 @@ zyd_intr_read_callback(struct usb2_xfer *xfer)
 						break;
 				}
 				if (i != cnt)
-					continue;
+					break;
 				/* copy answer into caller-supplied buffer */
 				bcopy(cmd->data, rqp->odata, rqp->olen);
 				DPRINTF(sc, ZYD_DEBUG_CMD,
 				    "command %p complete, data = %*D \n",
 				    rqp, rqp->olen, rqp->odata, ":");
-				wakeup(rqp);	/* wakeup caller */
-				break;
-			}
-			if (rqp == NULL) {
+				/* wakeup caller */
+				cv_signal(&sc->sc_intr_cv);
+			} else {
 				device_printf(sc->sc_dev,
 				    "unexpected IORD notification %*D\n",
 				    datalen, cmd->data, ":");
@@ -805,25 +810,26 @@ zyd_intr_write_callback(struct usb2_xfer *xfer)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		rqp = xfer->priv_fifo;
+		rqp = sc->sc_curr_rq;
 		DPRINTF(sc, ZYD_DEBUG_CMD, "command %p transferred\n", rqp);
-		if ((rqp->flags & ZYD_CMD_FLAG_READ) == 0)
-			wakeup(rqp);	/* wakeup caller */
+		if (rqp != NULL) {
+			if ((rqp->flags & ZYD_CMD_FLAG_READ) == 0)
+				cv_signal(&sc->sc_intr_cv);	/* wakeup caller */
+		}
 
 		/* FALLTHROUGH */
 	case USB_ST_SETUP:
 tr_setup:
-		STAILQ_FOREACH(rqp, &sc->sc_rqh, rq) {
+		rqp = sc->sc_curr_rq;
+		if (rqp != NULL) {
 			if (rqp->flags & ZYD_CMD_FLAG_SENT)
-				continue;
+				break;
 
 			usb2_copy_in(xfer->frbuffers, 0, rqp->cmd, rqp->ilen);
 
 			xfer->frlengths[0] = rqp->ilen;
-			xfer->priv_fifo = rqp;
 			rqp->flags |= ZYD_CMD_FLAG_SENT;
 			usb2_start_hardware(xfer);
-			break;
 		}
 		break;
 
@@ -844,38 +850,42 @@ static int
 zyd_cmd(struct zyd_softc *sc, uint16_t code, const void *idata, int ilen,
     void *odata, int olen, unsigned int flags)
 {
-	struct zyd_cmd cmd;
-	struct zyd_rq rq;
 	int error;
 
-	if (ilen > sizeof(cmd.data))
+	if (ilen > sizeof(sc->sc_cmd.data))
 		return (EINVAL);
 
 	if (usb2_proc_is_gone(&sc->sc_tq))
 		return (ENXIO);
 
-	cmd.code = htole16(code);
-	bcopy(idata, cmd.data, ilen);
+	sc->sc_cmd.code = htole16(code);
+	bcopy(idata, sc->sc_cmd.data, ilen);
 	DPRINTF(sc, ZYD_DEBUG_CMD, "sending cmd %p = %*D\n",
-	    &rq, ilen, idata, ":");
+	    &sc->sc_rq, ilen, idata, ":");
 
-	rq.cmd = &cmd;
-	rq.idata = idata;
-	rq.odata = odata;
-	rq.ilen = sizeof(uint16_t) + ilen;
-	rq.olen = olen;
-	rq.flags = flags;
-	STAILQ_INSERT_TAIL(&sc->sc_rqh, &rq, rq);
+	sc->sc_rq.cmd = &sc->sc_cmd;
+	sc->sc_rq.idata = idata;
+	sc->sc_rq.odata = odata;
+	sc->sc_rq.ilen = sizeof(uint16_t) + ilen;
+	sc->sc_rq.olen = olen;
+	sc->sc_rq.flags = flags;
+
+	/* set our hint */
+	sc->sc_curr_rq = &sc->sc_rq;
+
 	usb2_transfer_start(sc->sc_xfer[ZYD_INTR_RD]);
 	usb2_transfer_start(sc->sc_xfer[ZYD_INTR_WR]);
 
 	/* wait at most one second for command reply */
-	error = mtx_sleep(&rq, &sc->sc_mtx, 0 , "zydcmd", hz);
+	error = cv_timedwait(&sc->sc_intr_cv, &sc->sc_mtx, hz);
 	if (error)
 		device_printf(sc->sc_dev, "command timeout\n");
-	STAILQ_REMOVE(&sc->sc_rqh, &rq, zyd_rq, rq);
+
+	/* clear our hint */
+	sc->sc_curr_rq = NULL;
+
 	DPRINTF(sc, ZYD_DEBUG_CMD, "finsihed cmd %p, error = %d \n",
-	    &rq, error);
+	    &sc->sc_rq, error);
 
 	return (error);
 }
@@ -2511,6 +2521,10 @@ zyd_bulk_write_callback(struct usb2_xfer *xfer)
 	struct zyd_tx_data *data;
 	struct mbuf *m;
 
+	/* wakeup any waiting command, if any */
+	if (sc->sc_last_task != NULL)
+		cv_signal(&sc->sc_cmd_cv);
+
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 		DPRINTF(sc, ZYD_DEBUG_ANY, "transfer complete, %u bytes\n",
@@ -2526,6 +2540,10 @@ zyd_bulk_write_callback(struct usb2_xfer *xfer)
 		/* FALLTHROUGH */
 	case USB_ST_SETUP:
 tr_setup:
+		/* wait for command to complete, if any */
+		if (sc->sc_last_task != NULL)
+			break;
+
 		data = STAILQ_FIRST(&sc->tx_q);
 		if (data) {
 			STAILQ_REMOVE_HEAD(&sc->tx_q, next);
@@ -3099,6 +3117,30 @@ zyd_scantask(struct usb2_proc_msg *pm)
 }
 
 static void
+zyd_command_wrapper(struct usb2_proc_msg *pm)
+{
+	struct zyd_task *task = (struct zyd_task *)pm;
+	struct zyd_softc *sc = task->sc;
+	struct ifnet *ifp;
+
+	/* wait for pending transfer, if any */
+	while (usb2_transfer_pending(sc->sc_xfer[ZYD_BULK_WR]))
+		cv_wait(&sc->sc_cmd_cv, &sc->sc_mtx);
+
+	/* execute task */
+	task->func(pm);
+
+	/* check if this is the last task executed */
+	if (sc->sc_last_task == task) {
+		sc->sc_last_task = NULL;
+		ifp = sc->sc_ifp;
+		/* re-start TX, if any */
+		if ((ifp != NULL) && (ifp->if_drv_flags & IFF_DRV_RUNNING))
+			usb2_transfer_start(sc->sc_xfer[ZYD_BULK_WR]);
+	}
+}
+
+static void
 zyd_queue_command(struct zyd_softc *sc, usb2_proc_callback_t *fn,
     struct usb2_proc_msg *t0, struct usb2_proc_msg *t1)
 {
@@ -3115,15 +3157,19 @@ zyd_queue_command(struct zyd_softc *sc, usb2_proc_callback_t *fn,
 	  usb2_proc_msignal(&sc->sc_tq, t0, t1);
 
 	/* Setup callback and softc pointers */
-	task->hdr.pm_callback = fn;
+	task->hdr.pm_callback = zyd_command_wrapper;
+	task->func = fn;
 	task->sc = sc;
 
-        /*
-         * Init and stop must be synchronous!
-         */
-        if ((fn == zyd_init_task) || (fn == zyd_stop_task) ||
+	/* Make sure that any TX operation will stop */
+	sc->sc_last_task = task;
+
+	/*
+	 * Init and stop must be synchronous!
+	 */
+	if ((fn == zyd_init_task) || (fn == zyd_stop_task) ||
 	    (fn == zyd_flush_task))
-                usb2_proc_mwait(&sc->sc_tq, t0, t1);
+		usb2_proc_mwait(&sc->sc_tq, t0, t1);
 }
 
 static device_method_t zyd_methods[] = {

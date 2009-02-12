@@ -1165,6 +1165,7 @@ struct zyd_mac_pair {
 
 struct zyd_task {
 	struct usb2_proc_msg	hdr;
+	usb2_proc_callback_t	*func;
 	struct zyd_softc	*sc;
 };
 
@@ -1267,6 +1268,8 @@ struct zyd_softc {
 	struct usb2_process	sc_tq;
 
 	struct usb2_xfer	*sc_xfer[ZYD_N_TRANSFER];
+	struct zyd_task		*sc_last_task;
+	struct zyd_rq		*sc_curr_rq;
 
 	enum ieee80211_state	sc_state;
 	int			sc_arg;
@@ -1285,9 +1288,8 @@ struct zyd_softc {
 	struct zyd_task		sc_task[2];
 
 	struct zyd_rf		sc_rf;
-
-	STAILQ_HEAD(, zyd_rq)	sc_rtx;
-	STAILQ_HEAD(, zyd_rq)	sc_rqh;
+	struct zyd_cmd		sc_cmd;
+	struct zyd_rq		sc_rq;
 
 	uint8_t			sc_bssid[IEEE80211_ADDR_LEN];
 	uint16_t		sc_fwbase;
@@ -1315,6 +1317,7 @@ struct zyd_softc {
 	uint8_t			sc_ofdm54_cal[14];
 
 	struct mtx		sc_mtx;
+	struct cv		sc_cmd_cv;
 	struct cv		sc_intr_cv;
 	struct zyd_tx_data	tx_data[ZYD_TX_LIST_CNT];
 	zyd_txdhead		tx_q;

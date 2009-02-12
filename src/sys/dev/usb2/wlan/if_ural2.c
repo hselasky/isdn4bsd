@@ -95,6 +95,7 @@ static const struct usb2_device_id ural_devs[] = {
 static usb2_callback_t ural_bulk_read_callback;
 static usb2_callback_t ural_bulk_write_callback;
 
+static usb2_proc_callback_t ural_command_wrapper;
 static usb2_proc_callback_t ural_attach_post;
 static usb2_proc_callback_t ural_task;
 static usb2_proc_callback_t ural_scantask;
@@ -411,6 +412,8 @@ ural_attach(device_t self)
 	mtx_init(&sc->sc_mtx, device_get_nameunit(self),
 	    MTX_NETWORK_LOCK, MTX_DEF);
 
+	cv_init(&sc->sc_cmd_cv, "wtxdone");
+
 	iface_index = RAL_IFACE_INDEX;
 	error = usb2_transfer_setup(uaa->device,
 	    &iface_index, sc->sc_xfer, ural_config,
@@ -563,6 +566,8 @@ ural_detach(device_t self)
 		ieee80211_ifdetach(ic);
 		if_free(ifp);
 	}
+
+	cv_destroy(&sc->sc_cmd_cv);
 
 	mtx_destroy(&sc->sc_mtx);
 
@@ -876,6 +881,10 @@ ural_bulk_write_callback(struct usb2_xfer *xfer)
 	struct mbuf *m;
 	unsigned int len;
 
+	/* wakeup waiting command, if any */
+	if (sc->sc_last_task != NULL)
+		cv_signal(&sc->sc_cmd_cv);
+
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
 		DPRINTFN(11, "transfer complete, %d bytes\n", xfer->actlen);
@@ -890,6 +899,10 @@ ural_bulk_write_callback(struct usb2_xfer *xfer)
 		/* FALLTHROUGH */
 	case USB_ST_SETUP:
 tr_setup:
+		/* wait for command to complete, if any */
+		if (sc->sc_last_task != NULL)
+			break;
+
 		data = STAILQ_FIRST(&sc->tx_q);
 		if (data) {
 			STAILQ_REMOVE_HEAD(&sc->tx_q, next);
@@ -2395,6 +2408,30 @@ ural_pause(struct ural_softc *sc, unsigned int timeout)
 }
 
 static void
+ural_command_wrapper(struct usb2_proc_msg *pm)
+{
+	struct ural_task *task = (struct ural_task *)pm;
+	struct ural_softc *sc = task->sc;
+	struct ifnet *ifp;
+
+	/* wait for pending transfer, if any */
+	while (usb2_transfer_pending(sc->sc_xfer[URAL_BULK_WR]))
+		cv_wait(&sc->sc_cmd_cv, &sc->sc_mtx);
+
+	/* execute task */
+	task->func(pm);
+
+	/* check if this is the last task executed */
+	if (sc->sc_last_task == task) {
+		sc->sc_last_task = NULL;
+		ifp = sc->sc_ifp;
+		/* re-start TX, if any */
+		if ((ifp != NULL) && (ifp->if_drv_flags & IFF_DRV_RUNNING))
+			usb2_transfer_start(sc->sc_xfer[URAL_BULK_WR]);
+	}
+}
+
+static void
 ural_queue_command(struct ural_softc *sc, usb2_proc_callback_t *fn,
     struct usb2_proc_msg *t0, struct usb2_proc_msg *t1)
 {
@@ -2411,8 +2448,12 @@ ural_queue_command(struct ural_softc *sc, usb2_proc_callback_t *fn,
 	  usb2_proc_msignal(&sc->sc_tq, t0, t1);
 
 	/* Setup callback and softc pointers */
-	task->hdr.pm_callback = fn;
+	task->hdr.pm_callback = ural_command_wrapper;
+	task->func = fn;
 	task->sc = sc;
+
+	/* Make sure that any TX operation will stop */
+	sc->sc_last_task = task;
 
 	/*
 	 * Init, stop and flush must be synchronous!
