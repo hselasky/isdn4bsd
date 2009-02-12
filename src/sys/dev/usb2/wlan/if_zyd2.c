@@ -3127,6 +3127,9 @@ zyd_command_wrapper(struct usb2_proc_msg *pm)
 	while (usb2_transfer_pending(sc->sc_xfer[ZYD_BULK_WR]))
 		cv_wait(&sc->sc_cmd_cv, &sc->sc_mtx);
 
+	/* make sure any hardware FIFOs are emptied */
+	usb2_pause_mtx(&sc->sc_mtx, hz / 1000);
+
 	/* execute task */
 	task->func(pm);
 

@@ -579,13 +579,15 @@ ural_do_request(struct ural_softc *sc,
     struct usb2_device_request *req, void *data)
 {
 	usb2_error_t err;
-
+retry:
 	err = usb2_do_request_proc(sc->sc_udev, &sc->sc_tq, 
-	   req, data, 0, NULL, 1000 /* ms */);
+	   req, data, 0, NULL, 250 /* ms */);
 
 	if (err) {
-		DPRINTFN(1, "Control request failed! (ignored)\n");
-		ural_pause(sc, hz / 100);
+		DPRINTFN(1, "Control request failed, "
+		    "%s! (ignored)\n", usb2_errstr(err));
+		if ((sc->sc_ifp != NULL) && (!ural_pause(sc, hz / 100)))
+			goto retry;
 	}
 }
 
@@ -2417,6 +2419,9 @@ ural_command_wrapper(struct usb2_proc_msg *pm)
 	/* wait for pending transfer, if any */
 	while (usb2_transfer_pending(sc->sc_xfer[URAL_BULK_WR]))
 		cv_wait(&sc->sc_cmd_cv, &sc->sc_mtx);
+
+	/* make sure any hardware FIFOs are emptied */
+	ural_pause(sc, hz / 1000);
 
 	/* execute task */
 	task->func(pm);
