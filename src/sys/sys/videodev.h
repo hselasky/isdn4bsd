@@ -44,7 +44,12 @@
 #include <sys/stdint.h>
 #include <sys/time.h>
 
-#if !defined(__user)
+#ifndef V4L2_UNION
+/* Default is nameless union */
+#define	V4L2_UNION
+#endif
+
+#ifndef __user
 #define	__user
 #endif
 
@@ -337,7 +342,7 @@ struct v4l2_frmsizeenum {
 	union {				/* Frame size */
 		struct v4l2_frmsize_discrete discrete;
 		struct v4l2_frmsize_stepwise stepwise;
-	}	u;
+	}	V4L2_UNION;
 
 	uint32_t reserved[2];		/* Reserved space for future use */
 };
@@ -368,7 +373,7 @@ struct v4l2_frmivalenum {
 	union {				/* Frame interval */
 		struct v4l2_fract discrete;
 		struct v4l2_frmival_stepwise stepwise;
-	}	u;
+	}	V4L2_UNION;
 
 	uint32_t reserved[2];		/* Reserved space for future use */
 };
@@ -694,7 +699,7 @@ struct v4l2_ext_control {
 		int32_t	value;
 		int64_t	value64;
 		void   *reserved;
-	}	u;
+	}	V4L2_UNION;
 } __packed;
 
 struct v4l2_ext_controls {
@@ -1129,7 +1134,7 @@ struct v4l2_encoder_cmd {
 		struct {
 			uint32_t data[8];
 		}	raw;
-	}	u;
+	}	V4L2_UNION;
 };
 
 #endif

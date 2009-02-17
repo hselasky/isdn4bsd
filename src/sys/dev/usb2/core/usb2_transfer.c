@@ -887,18 +887,14 @@ usb2_transfer_setup(struct usb2_device *udev,
 			parm.size[0] += ((-parm.size[0]) & (USB_HOST_ALIGN - 1));
 
 			if (buf) {
-
 				/*
 				 * Common initialization of the
 				 * "usb2_xfer" structure.
 				 */
 				xfer = USB_ADD_BYTES(buf, parm.size[0]);
-
-				ppxfer[n] = xfer;
 				xfer->address = udev->address;
 				xfer->priv_sc = priv_sc;
 				xfer->xroot = info;
-				info->setup_refcount++;
 
 				usb2_callout_init_mtx(&xfer->timeout_handle,
 				    &udev->bus->bus_mtx, 0);
@@ -915,9 +911,22 @@ usb2_transfer_setup(struct usb2_device *udev,
 				refcount++;
 			}
 
-			parm.size[0] += sizeof(xfer[0]);
-
+			/* set transfer pipe pointer */
 			xfer->pipe = pipe;
+
+			parm.size[0] += sizeof(xfer[0]);
+			parm.methods = xfer->pipe->methods;
+			parm.curr_xfer = xfer;
+
+			/*
+			 * Call the Host or Device controller transfer
+			 * setup routine:
+			 */
+			(udev->bus->methods->xfer_setup) (&parm);
+
+			/* check for error */
+			if (parm.err)
+				goto done;
 
 			if (buf) {
 				/*
@@ -930,18 +939,19 @@ usb2_transfer_setup(struct usb2_device *udev,
 				 * want more information.
 				 */
 				xfer->pipe->refcount++;
-			}
-			parm.methods = xfer->pipe->methods;
-			parm.curr_xfer = xfer;
 
-			/*
-			 * Call the Host or Device controller transfer setup
-			 * routine:
-			 */
-			(udev->bus->methods->xfer_setup) (&parm);
+				/*
+				 * Whenever we set ppxfer[] then we
+				 * also need to increment the
+				 * "setup_refcount":
+				 */
+				info->setup_refcount++;
 
-			if (parm.err) {
-				goto done;
+				/*
+				 * Transfer is successfully setup and
+				 * can be used:
+				 */
+				ppxfer[n] = xfer;
 			}
 		}
 
@@ -1121,72 +1131,60 @@ usb2_transfer_unsetup(struct usb2_xfer **pxfer, uint16_t n_setup)
 	while (n_setup--) {
 		xfer = pxfer[n_setup];
 
-		if (xfer) {
-			if (xfer->pipe) {
-				USB_XFER_LOCK(xfer);
-				USB_BUS_LOCK(xfer->xroot->bus);
+		if (xfer == NULL)
+			continue;
 
-				/*
-				 * HINT: when you start/stop a transfer, it
-				 * might be a good idea to directly use the
-				 * "pxfer[]" structure:
-				 *
-				 * usb2_transfer_start(sc->pxfer[0]);
-				 * usb2_transfer_stop(sc->pxfer[0]);
-				 *
-				 * That way, if your code has many parts that
-				 * will not stop running under the same
-				 * lock, in other words "xfer_mtx", the
-				 * usb2_transfer_start and
-				 * usb2_transfer_stop functions will simply
-				 * return when they detect a NULL pointer
-				 * argument.
-				 *
-				 * To avoid any races we clear the "pxfer[]"
-				 * pointer while holding the private mutex
-				 * of the driver:
-				 */
-				pxfer[n_setup] = NULL;
+		info = xfer->xroot;
 
-				USB_BUS_UNLOCK(xfer->xroot->bus);
-				USB_XFER_UNLOCK(xfer);
+		USB_XFER_LOCK(xfer);
+		USB_BUS_LOCK(info->bus);
 
-				usb2_transfer_drain(xfer);
+		/*
+		 * HINT: when you start/stop a transfer, it might be a
+		 * good idea to directly use the "pxfer[]" structure:
+		 *
+		 * usb2_transfer_start(sc->pxfer[0]);
+		 * usb2_transfer_stop(sc->pxfer[0]);
+		 *
+		 * That way, if your code has many parts that will not
+		 * stop running under the same lock, in other words
+		 * "xfer_mtx", the usb2_transfer_start and
+		 * usb2_transfer_stop functions will simply return
+		 * when they detect a NULL pointer argument.
+		 *
+		 * To avoid any races we clear the "pxfer[]" pointer
+		 * while holding the private mutex of the driver:
+		 */
+		pxfer[n_setup] = NULL;
 
-				if (xfer->flags_int.bdma_enable) {
-					needs_delay = 1;
-				}
-				/*
-				 * NOTE: default pipe does not have an
-				 * interface, even if pipe->iface_index == 0
-				 */
-				xfer->pipe->refcount--;
+		USB_BUS_UNLOCK(info->bus);
+		USB_XFER_UNLOCK(xfer);
 
-			} else {
-				/* clear the transfer pointer */
-				pxfer[n_setup] = NULL;
-			}
+		usb2_transfer_drain(xfer);
 
-			usb2_callout_drain(&xfer->timeout_handle);
+		if (xfer->flags_int.bdma_enable)
+			needs_delay = 1;
 
-			if (xfer->xroot) {
-				info = xfer->xroot;
+		/*
+		 * NOTE: default pipe does not have an
+		 * interface, even if pipe->iface_index == 0
+		 */
+		xfer->pipe->refcount--;
 
-				USB_BUS_LOCK(info->bus);
+		usb2_callout_drain(&xfer->timeout_handle);
 
-				USB_ASSERT(info->setup_refcount != 0,
-				    ("Invalid setup "
-				    "reference count!\n"));
+		USB_BUS_LOCK(info->bus);
 
-				info->setup_refcount--;
+		USB_ASSERT(info->setup_refcount != 0, ("Invalid setup "
+		    "reference count!\n"));
 
-				if (info->setup_refcount == 0) {
-					usb2_transfer_unsetup_sub(info,
-					    needs_delay);
-				} else {
-					USB_BUS_UNLOCK(info->bus);
-				}
-			}
+		info->setup_refcount--;
+
+		if (info->setup_refcount == 0) {
+			usb2_transfer_unsetup_sub(info,
+			    needs_delay);
+		} else {
+			USB_BUS_UNLOCK(info->bus);
 		}
 	}
 }
@@ -2707,120 +2705,14 @@ usb2_clear_stall_callback(struct usb2_xfer *xfer1,
 	return (1);			/* Clear Stall Finished */
 }
 
-#if (USB_NO_POLL == 0)
-
-/*------------------------------------------------------------------------*
- *	usb2_callout_poll
- *------------------------------------------------------------------------*/
-static void
-usb2_callout_poll(struct usb2_xfer *xfer)
-{
-	struct usb2_callout *co;
-	void (*cb) (void *);
-	void *arg;
-	struct mtx *mtx;
-	uint32_t delta;
-
-	if (xfer == NULL) {
-		return;
-	}
-	co = &xfer->timeout_handle;
-
-#if __FreeBSD_version >= 800000
-	mtx = (void *)(co->co.c_lock);
-#else
-	mtx = co->co.c_mtx;
-#endif
-	mtx_lock(mtx);
-
-	if (usb2_callout_pending(co)) {
-		delta = ticks - co->co.c_time;
-		if (!(delta & 0x80000000)) {
-
-			cb = co->co.c_func;
-			arg = co->co.c_arg;
-
-			/* timed out */
-			usb2_callout_stop(co);
-
-			(cb) (arg);
-		}
-	}
-	mtx_unlock(mtx);
-}
-
-
-/*------------------------------------------------------------------------*
- *	usb2_do_poll
- *
- * This function is called from keyboard driver when in polling
- * mode.
- *------------------------------------------------------------------------*/
 void
 usb2_do_poll(struct usb2_xfer **ppxfer, uint16_t max)
 {
-	struct usb2_xfer *xfer;
-	struct usb2_xfer_root *xroot;
-	struct usb2_device *udev;
-	struct usb2_proc_msg *pm;
-	uint32_t to;
-	uint16_t n;
-
-	/* compute system tick delay */
-	to = ((uint32_t)(1000000)) / ((uint32_t)(hz));
-	DELAY(to);
-	atomic_add_int((volatile int *)&ticks, 1);
-
-	for (n = 0; n != max; n++) {
-		xfer = ppxfer[n];
-		if (xfer) {
-			xroot = xfer->xroot;
-			udev = xroot->udev;
-
-			/*
-			 * Poll hardware - signal that we are polling by
-			 * locking the private mutex:
-			 */
-			USB_XFER_LOCK(xfer);
-			(udev->bus->methods->do_poll) (udev->bus);
-			USB_XFER_UNLOCK(xfer);
-
-			/* poll clear stall start */
-			USB_BUS_LOCK(xfer->xroot->bus);
-			pm = &udev->cs_msg[0].hdr;
-			(pm->pm_callback) (pm);
-			USB_BUS_UNLOCK(xfer->xroot->bus);
-
-			if (udev->default_xfer[1]) {
-
-				/* poll timeout */
-				usb2_callout_poll(udev->default_xfer[1]);
-
-				/* poll clear stall done thread */
-				USB_BUS_LOCK(xfer->xroot->bus);
-				pm = &udev->default_xfer[1]->
-				    xroot->done_m[0].hdr;
-				(pm->pm_callback) (pm);
-				USB_BUS_UNLOCK(xfer->xroot->bus);
-			}
-			/* poll timeout */
-			usb2_callout_poll(xfer);
-
-			/* poll done thread */
-			USB_BUS_LOCK(xfer->xroot->bus);
-			pm = &xroot->done_m[0].hdr;
-			(pm->pm_callback) (pm);
-			USB_BUS_UNLOCK(xfer->xroot->bus);
-		}
+	static uint8_t once = 0;
+	/* polling is currently not supported */
+	if (!once) {
+		once = 1;
+		printf("usb2_do_poll: USB polling is "
+		    "not supported!\n");
 	}
 }
-
-#else
-
-void
-usb2_do_poll(struct usb2_xfer **ppxfer, uint16_t max)
-{
-	/* polling not supported */
-}
-
-#endif
