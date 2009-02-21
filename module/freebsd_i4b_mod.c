@@ -372,14 +372,3 @@ i4b_lkmentry(struct lkm_table *lkmtp, int cmd, int ver)
     DISPATCH(lkmtp, cmd, ver, load, unload, lkm_nofunc)
 }
 
-/*
- * entry point when statically compiled into kernel
- */
-void
-i4b_load(void)
-{
-    if (load(NULL, 0)) {
-
-    }
-    return;
-}
