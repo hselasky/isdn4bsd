@@ -32,11 +32,7 @@ CFLAGS+=  -Wall -I${.CURDIR}/../src/sys
 OSNAME!=  uname
 CPUNAME!= uname -m
 
-.if (${CPUNAME} == "amd64")
-CFLAGS+=-DFREEBSD_NO_ISA
-.endif
-
-.if (${CPUNAME} == "sparc64")
+.if (${CPUNAME} != "i386")
 CFLAGS+=-DFREEBSD_NO_ISA
 .endif
 
