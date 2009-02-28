@@ -55,15 +55,15 @@
 # ifdef IHFC_USB_ENABLED
 #  define usb2_config_td_cc ihfc_config_copy
 #  define usb2_config_td_softc ihfc_sc
-#  include <dev/usb2/include/usb2_standard.h>
-#  include <dev/usb2/include/usb2_mfunc.h>
-#  include <dev/usb2/include/usb2_error.h>
-#  include <dev/usb2/core/usb2_core.h>
-#  include <dev/usb2/core/usb2_mbuf.h>
-#  include <dev/usb2/core/usb2_busdma.h>
-#  include <dev/usb2/core/usb2_process.h>
-#  include <dev/usb2/core/usb2_config_td.h>
-#  include <dev/usb2/core/usb2_util.h>
+#  include <dev/usb/usb_revision.h>
+#  include <dev/usb/usb_error.h>
+#  include <dev/usb/usb.h>
+#  include <dev/usb/usb_core.h>
+#  include <dev/usb/usb_mbuf.h>
+#  include <dev/usb/usb_busdma.h>
+#  include <dev/usb/usb_process.h>
+#  include <i4b/layer1/ihfc3/usb2_config_td.h>
+#  include <dev/usb/usb_util.h>
 # endif
 
 # ifdef __FreeBSD__
