@@ -97,7 +97,7 @@ static driver_t ihfc_pnp_driver =
 DRIVER_MODULE(ihfcpnp, isa , ihfc_pnp_driver, ihfc_devclass, 0, 0);
 DRIVER_MODULE(ihfcpnp, pci , ihfc_pnp_driver, ihfc_devclass, 0, 0);
 #ifdef IHFC_USB_ENABLED
-DRIVER_MODULE(ihfcpnp, ushub, ihfc_pnp_driver, ihfc_devclass, 0, 0);
+DRIVER_MODULE(ihfcpnp, uhub, ihfc_pnp_driver, ihfc_devclass, 0, 0);
 #endif
 MODULE_DEPEND(ihfcpnp, isa, 1,1,1);
 MODULE_DEPEND(ihfcpnp, pci, 1,1,1);
