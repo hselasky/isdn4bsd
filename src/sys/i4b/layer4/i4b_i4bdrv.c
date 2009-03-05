@@ -51,7 +51,7 @@
 # include <sys/priv.h>
 #endif
 #if __FreeBSD_version >= 800000 
-#define suser(x) priv_check(x, PRIV_ROOT)
+#define suser(x) priv_check(x, PRIV_DRIVER)
 #endif
 #include <net/if.h>
 
