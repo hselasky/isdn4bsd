@@ -3,7 +3,7 @@ SRCS+=freebsd_bussig.c
 SRCS+=freebsd_tq.c
 .endif
 .if defined(SIMULATOR)
-SRCS+=freebsd_simulator.c
+SRCS+=simulator_main.c
 .endif
 SRCS+=freebsd_atmelarm.c
 SRCS+=freebsd_bus.c

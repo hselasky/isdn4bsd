@@ -25,10 +25,11 @@ MAN=  # no manual page at the moment
 SRCS= 
 CFLAGS += -O -O2 -g -ffreestanding -Wall \
  -include ./bsd_module_all.h \
- -nostdlib -nostdinc -I . -I ${SYSDIR}
+ -nostdlib -nostdinc -I . -I ${SYSDIR} -I /usr/include
 
 .if defined(SIMULATOR)
-CFLAGS += -lc_r -lpthread
+CFLAGS += -DSIMULATOR
+LDFLAGS += -lc -lc_r -lpthread
 .endif
 
 .include "Makefile.inc"
