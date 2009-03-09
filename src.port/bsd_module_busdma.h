@@ -66,4 +66,6 @@ void	bus_dmamem_free(bus_dma_tag_t dmat, void *vaddr, bus_dmamap_t map);
 
 #define	BUS_SPACE_MAXADDR 0xFFFFFFFF	/* 32-bit */
 
+#define	BUS_DMA_KEEP_PG_OFFSET 0x400
+
 #endif					/* _BSD_MODULE_BUSDMA_H_ */

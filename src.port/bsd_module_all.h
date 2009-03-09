@@ -78,8 +78,8 @@ typedef unsigned int off_t;
 typedef unsigned long long int uint64_t;
 typedef signed long long int int64_t;
 
-typedef unsigned int uint32_t;
-typedef signed int int32_t;
+typedef unsigned long int uint32_t;
+typedef signed long int int32_t;
 
 typedef unsigned short uint16_t;
 typedef signed short int16_t;
@@ -134,5 +134,10 @@ void	panic(const char *fmt,...)__printflike(1, 2);
 /* delay */
 
 void	DELAY(uint32_t us);
+
+/* root mount */
+
+#define	root_mount_hold(...) NULL
+#define	root_mount_rel(...) do { } while(0)
 
 #endif					/* _BSD_MODULE_ALL_H_ */

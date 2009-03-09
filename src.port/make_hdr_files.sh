@@ -9,7 +9,8 @@ pre_scan()
 {
 	while read F
 	do
-		find ../src ../src.port -name "$F"
+		[ -f .sysdir ] && (find `cat .sysdir` -name "$F")
+		find ../src.port -name "$F"
 	done
 }
 
@@ -104,3 +105,4 @@ sort module_rename_list | uniq \
 rm -f temp0 temp1
 
 echo "Done."
+
