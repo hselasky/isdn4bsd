@@ -23,8 +23,8 @@
  * SUCH DAMAGE.
  */
 
-#define off_t my_off_t
-#define mode_t my_mode_t
+#define	off_t my_off_t
+#define	mode_t my_mode_t
 #undef __printflike
 #undef __aligned
 
@@ -32,6 +32,11 @@
 #include </usr/include/sys/fcntl.h>
 #include </usr/include/sys/ttycom.h>
 #include </usr/include/sys/termios.h>
+
+int     (*UsbInterruptFilterPtr) (void *);
+void    (*UsbInterruptHandlerPtr) (void *);
+void   *UsbInterruptHandlerArg;
+uint8_t *UsbIoBase = 0;
 
 static int f;
 static struct termios t;
@@ -42,7 +47,7 @@ inb(uint8_t reg)
 	uint8_t tmp[2];
 
 	tmp[0] = 0x8A;
-	tmp[1] = reg & 0x7F;
+	tmp[1] = reg;
 
 	if (write(f, tmp, 2) != 2)
 		exit(1);
@@ -66,7 +71,7 @@ outb(uint8_t reg, uint8_t data)
 	uint8_t tmp[3];
 
 	tmp[0] = 0x85;
-	tmp[1] = reg & 0x7F;
+	tmp[1] = reg;
 	tmp[2] = data;
 
 	if (write(f, tmp, 3) != 3)
@@ -118,13 +123,61 @@ uint32_t
 bus_space_read_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset)
 {
 	printf("cannot read 32-bit\n");
+	return (0);
 }
+
+#undef malloc
+#undef free
+
+extern void *malloc(int size);
+extern void free(void *arg);
+
+void   *
+malloc_wrap(int size, struct malloc_type *type, int flags)
+{
+	void *retval;
+
+	mtx_lock(&Atomic);
+	retval = malloc(size);
+	mtx_unlock(&Atomic);
+
+	return (retval);
+}
+
+void
+free_wrap(void *addr, struct malloc_type *type)
+{
+	mtx_lock(&Atomic);
+	free(addr);
+	mtx_unlock(&Atomic);
+}
+
+struct timezone;
+
+struct timeval {
+	uint32_t tv_sec;
+	uint32_t tv_usec;
+};
+
+extern int gettimeofday(struct timeval *tp, struct timezone *tzp);
+
+uint32_t
+fbsd_get_timer_us(void)
+{
+	struct timeval tv;
+
+	mtx_lock(&Atomic);
+	gettimeofday(&tv, NULL);
+	mtx_unlock(&Atomic);
+	return ((tv.tv_sec * 1000000) + tv.tv_usec);
+}
+
+extern int bsd_load_module(void);
 
 int
 main()
 {
 	uint8_t tmp[8];
-	uint32_t count;
 
 	f = open("/dev/cuaU0", O_RDWR);
 	if (f < 0)
@@ -153,8 +206,16 @@ main()
 	if (write(f, tmp, 8) != 8)
 		exit(1);
 
-	printf("0x%02, 0x%02x\n",
-	    inb(0xCC), inb(0xCD));
+
+	bsd_load_module();
+
+	while (1) {
+
+		if (UsbInterruptHandlerPtr != NULL) {
+			UsbInterruptHandlerPtr(UsbInterruptHandlerArg);
+		}
+		usleep(5000);
+	}
 
 	return (0);
 }

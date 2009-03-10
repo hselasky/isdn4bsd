@@ -29,6 +29,9 @@ void   *malloc(int size, struct malloc_type *type, int flags);
 void	free(void *addr, struct malloc_type *type);
 struct malloc_type *malloc_desc2type(const char *desc);
 
+void   *malloc_wrap(int size, struct malloc_type *type, int flags);
+void	free_wrap(void *addr, struct malloc_type *type);
+
 #define	MALLOC_DECLARE(...)
 #define	MALLOC_DEFINE(...)
 

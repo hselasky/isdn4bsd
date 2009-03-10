@@ -23,13 +23,18 @@ SYSDIR="${.CURDIR}/../src/sys"
 PROG= usb2kernel
 MAN=  # no manual page at the moment
 SRCS= 
-CFLAGS += -O -O2 -g -ffreestanding -Wall \
+# CFLAGS += -ffreestanding -nostdlib
+
+CFLAGS += -O -O2 -g -Wall \
  -include ./bsd_module_all.h \
- -nostdlib -nostdinc -I . -I ${SYSDIR} -I /usr/include
+ -nostdinc -I . -I ${SYSDIR} -I /usr/include
 
 .if defined(SIMULATOR)
 CFLAGS += -DSIMULATOR
-LDFLAGS += -lc -lc_r -lpthread
+CFLAGS += -DUSB_HW_DRIVER_NAME=\"atmegadci\"
+LDFLAGS += -lpthread
+.else
+CFLAGS += -DUSB_HW_DRIVER_NAME=\"musbotg\"
 .endif
 
 .include "Makefile.inc"

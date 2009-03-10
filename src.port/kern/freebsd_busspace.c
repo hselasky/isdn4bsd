@@ -30,7 +30,7 @@ bus_space_read_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offse
 {
 #if defined(SIMULATOR)
 	while (count--) {
-		*data++ = bus_space_read_1(t, h, offset);
+		*datap++ = bus_space_read_1(t, h, offset);
 	}
 #else
 	volatile uint8_t *ptr = (h + offset);
@@ -56,7 +56,7 @@ bus_space_read_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offse
 {
 #if defined(SIMULATOR)
 	while (count--) {
-		*data++ = bus_space_read_2(t, h, offset);
+		*datap++ = bus_space_read_2(t, h, offset);
 	}
 #else
 	volatile uint16_t *ptr = (void *)(h + offset);
@@ -82,7 +82,7 @@ bus_space_read_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offse
 {
 #if defined(SIMULATOR)
 	while (count--) {
-		*data++ = bus_space_read_4(t, h, offset);
+		*datap++ = bus_space_read_4(t, h, offset);
 	}
 #else
 	volatile uint32_t *ptr = (void *)(h + offset);

@@ -45,6 +45,7 @@ cv_module_uninit(void *arg)
 
 SYSUNINIT(cv_module_uninit, SI_SUB_LOCK, SI_ORDER_MIDDLE, cv_module_uninit, NULL);
 
+#ifndef SIMULATOR
 static void
 cv_timeout_cb(void *arg)
 {
@@ -55,27 +56,94 @@ cv_timeout_cb(void *arg)
 	return;
 }
 
+#endif
+
 void
 cv_init(struct cv *cv, const char *desc)
 {
-	bzero(cv, sizeof(*cv));
-	callout_init_mtx(&(cv->cv_co), &cv_mtx, 0);
+	memset(cv, 0, sizeof(*cv));
 	cv->cv_desc = desc;
+#ifdef SIMULATOR
+	if (pthread_cond_init(&(cv->pthread_cond), NULL)) {
+		panic("%s\n", desc);
+	}
+#else
+	callout_init_mtx(&(cv->cv_co), &cv_mtx, 0);
+#endif
 	return;
 }
 
 void
 cv_destroy(struct cv *cv)
 {
+#ifdef SIMULATOR
+	if (pthread_cond_destroy(&(cv->pthread_cond))) {
+		panic("%s\n", cv->cv_desc);
+	}
+#else
 	callout_drain(&(cv->cv_co));
+#endif
 	return;
 }
 
 int
 cv_timedwait_sub(struct cv *cv, struct mtx *mtx, uint32_t timo)
 {
+	int err;
+	uint32_t rlevel;
+	uint64_t timeout;
+
 	mtx_assert(mtx, MA_OWNED);
 
+#ifdef SIMULATOR
+
+	mtx->owner_td = MTX_NO_THREAD;
+	rlevel = mtx->mtx_recurse;
+	mtx->mtx_recurse = 0;
+
+	DROP_GIANT();
+
+	if (timo != 0xFFFFFFFF) {
+		struct timespec ts[2];
+
+		timeout = (1000000000ULL / hz) * (uint64_t)timo;
+
+		ts[0].tv_nsec = timeout % 1000000000ULL;
+		ts[0].tv_sec = timeout / 1000000000ULL;
+
+		if (clock_gettime(0 /* CLOCK_REALTIME */ , ts + 1)) {
+			panic("%s\n", cv->cv_desc);
+		}
+		ts[0].tv_sec += ts[1].tv_sec;
+		ts[0].tv_nsec += ts[1].tv_nsec;
+
+		if (ts[0].tv_nsec >= 1000000000) {
+			ts[0].tv_sec++;
+			ts[0].tv_nsec -= 1000000000;
+		}
+		err = pthread_cond_timedwait(&(cv->pthread_cond), &(mtx->pthread_mtx), ts);
+	} else {
+
+		err = pthread_cond_wait(&(cv->pthread_cond), &(mtx->pthread_mtx));
+	}
+
+	mtx->owner_td = curthread;
+	mtx->mtx_recurse = rlevel;
+
+	mtx_unlock(mtx);
+
+	PICKUP_GIANT();
+
+	mtx_lock(mtx);
+
+
+#ifdef PTHREAD_SETS_ERRNO
+	if (err) {
+		err = errno;
+	}
+#endif
+	return (err);
+#else
 	mtx_lock(&cv_mtx);
 
 	while (1) {
@@ -123,6 +191,7 @@ cv_timedwait_sub(struct cv *cv, struct mtx *mtx, uint32_t timo)
 
 	mtx_unlock(&cv_mtx);
 	return (0);
+#endif
 }
 
 void
@@ -155,6 +224,9 @@ cv_timedwait_sig(struct cv *cv, struct mtx *mtx, uint32_t timo)
 void
 cv_signal(struct cv *cv)
 {
+#ifdef SIMULATOR
+	pthread_cond_signal(&(cv->pthread_cond));
+#else
 	uint16_t waiters;
 
 	mtx_lock(&cv_mtx);
@@ -166,12 +238,16 @@ cv_signal(struct cv *cv)
 		signal_sem(&(cv->cv_sem));
 #endif
 	}
+#endif
 	return;
 }
 
 void
 cv_broadcast(struct cv *cv)
 {
+#ifdef SIMULATOR
+	pthread_cond_broadcast(&(cv->pthread_cond));
+#else
 	uint16_t waiters;
 
 	mtx_lock(&cv_mtx);
@@ -184,6 +260,7 @@ cv_broadcast(struct cv *cv)
 		signal_sem(&(cv->cv_sem));
 #endif
 	}
+#endif
 	return;
 }
 

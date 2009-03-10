@@ -24,7 +24,17 @@
  */
 
 struct cv;
+struct timespec;
 
+#ifdef SIMULATOR
+extern int pthread_cond_wait(void **, void **mutex);
+extern int pthread_cond_timedwait(void **, void **mutex, const struct timespec *abstime);
+extern int pthread_cond_broadcast(void *cond);
+extern int pthread_cond_signal(void **cond);
+extern int pthread_cond_init(void **, void *);
+extern int pthread_cond_destroy(void **);
+
+#endif
 void	cv_init(struct cv *cvp, const char *desc);
 void	cv_destroy(struct cv *cvp);
 void	cv_wait(struct cv *cvp, struct mtx *mtx);
@@ -39,11 +49,15 @@ struct cv {
 #if 0
 	SEMAPHORE cv_sem;
 #endif
-	struct callout cv_co;
-	struct mtx *cv_mtx;
 	const char *cv_desc;
+	struct mtx *cv_mtx;
+#ifdef SIMULATOR
+	void   *pthread_cond;
+#else
+	struct callout cv_co;
 	uint16_t cv_waiters;
 	uint8_t	cv_signal_all;
 	uint8_t	cv_signalled;
 	uint8_t	cv_timeout;
+#endif
 };

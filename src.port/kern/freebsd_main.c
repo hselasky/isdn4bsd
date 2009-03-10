@@ -122,6 +122,8 @@ do_sysinit(const struct sysinit **ppstart,
 int
 bsd_load_module(void)
 {
+	mtx_init(&Atomic, "Atomic", NULL, MTX_DEF);
+
 	do_sysinit(sysinit_load, sysinit_load +
 	    (sizeof(sysinit_load) / sizeof(sysinit_load[0])),
 	    0, 0 - 1);
@@ -137,6 +139,8 @@ bsd_unload_module(void)
 	do_sysinit(sysinit_unload, sysinit_unload +
 	    (sizeof(sysinit_unload) / sizeof(sysinit_unload[0])),
 	    0, 0 - 1);
+
+	mtx_destroy(&Atomic);
 
 	printf("BSD Module Unload Complete\n");
 

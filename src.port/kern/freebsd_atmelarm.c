@@ -64,9 +64,11 @@ atmelarm_alloc_resource(device_t parent, device_t child,
     struct resource *res, int type, int *rid, uint32_t start,
     uint32_t end, uint32_t count, uint32_t flags)
 {
+	;				/* style fix */
+
 	switch (type) {
 #ifdef MUSB2_DMA_ENABLED
-		case SYS_RES_DRQ:
+	case SYS_RES_DRQ:
 		start = musbotg_get_dma_chan(device_get_unit(child), rid[0]);
 		if (start != 0) {
 			res->r_start = start;
@@ -147,7 +149,8 @@ atmelarm_mod_load(struct module *mod, int event, void *arg)
 		case MOD_LOAD:
 		atmelarm_root = device_add_child(NULL, "atmelarm", -1);
 		if (atmelarm_root) {
-			atmelarm_usb = device_add_child(atmelarm_root, "musbotg", -1);
+#ifdef USB_HW_DRIVER_NAME
+			atmelarm_usb = device_add_child(atmelarm_root, USB_HW_DRIVER_NAME, -1);
 			if (atmelarm_usb) {
 				if (device_probe_and_attach(atmelarm_usb)) {
 					/* ignore */
@@ -155,6 +158,8 @@ atmelarm_mod_load(struct module *mod, int event, void *arg)
 					    "WARNING: Probe and attach failed!\n");
 				}
 			}
+#endif
+
 		}
 		break;
 

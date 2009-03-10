@@ -25,6 +25,20 @@
 
 struct mtx;
 
+#ifdef SIMULATOR
+
+extern int pthread_mutexattr_init(void **);
+extern int pthread_mutexattr_settype(void **, int);
+
+#define	PTHREAD_MUTEX_RECURSIVE 2
+#define	PTHREAD_MUTEX_NORMAL 3
+extern int pthread_mutex_init(void **, void **);
+extern int pthread_mutex_lock(void **);
+extern int pthread_mutex_unlock(void **);
+extern int pthread_mutex_destroy(void **);
+
+#endif
+
 void	mtx_init(struct mtx *mutex, const char *name, const char *type, int opts);
 void	mtx_destroy(struct mtx *mutex);
 void	mtx_lock(struct mtx *mutex);
@@ -38,6 +52,10 @@ void	atomic_sub_int(uint32_t *p, uint32_t v);
 int	atomic_cmpset_int(volatile uint32_t *dst, uint32_t exp, uint32_t src);
 
 extern struct mtx Giant;
+extern struct mtx Atomic;
+
+
+#define	MTX_NO_THREAD ((void *)(0-1))	/* NULL is interrupt handler */
 
 #define	MTX_DEF         0x00000000	/* DEFAULT (sleep) lock */
 #define	MTX_SPIN        0x00000001	/* Spin lock (disables interrupts) */
@@ -62,6 +80,9 @@ struct mtx {
 	const char *name;
 	void   *owner_td;
 	uint8_t	init;			/* set if initialised */
+#ifdef SIMULATOR
+	void   *pthread_mtx;
+#endif
 };
 
 #define	DROP_GIANT() do {			\

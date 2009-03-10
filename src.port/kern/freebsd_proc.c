@@ -25,12 +25,18 @@
 
 #include <bsd_module_all.h>
 
+extern int pthread_create(struct proc **proc, const void *attr, kproc_func_t *func, void *arg);
+extern void pthread_exit(void *value_ptr);
+extern struct thread *pthread_self(void);
+
+#ifndef SIMULATOR
 static void
-kproc_start(void)
+kproc_start(void *arg)
 {
 #if 0
 	kproc_func_t *func;
 	void *arg;
+
 	func = (void *)get_envp(current_process(), "bsd_func_ptr");
 	arg = (void *)get_envp(current_process(), "bsd_func_arg");
 	(func) (arg);
@@ -41,12 +47,15 @@ kproc_start(void)
 	return;
 }
 
+#endif
+
 int
 kproc_create(kproc_func_t *func, void *arg, struct proc **proc,
     int flags, int pages, const char *fmt,...)
 {
 #if 0
 	PROCESS p;
+
 	p = create_process(OS_PRI_PROC,
 	    "USBPROC", &kproc_start, 4096, 15, (OSTIME) 0,
 	    (PROCESS) 0, (struct OS_redir_entry *)NULL,
@@ -59,7 +68,11 @@ kproc_create(kproc_func_t *func, void *arg, struct proc **proc,
 
 	start(p);
 #endif
-
+#ifdef SIMULATOR
+	if (pthread_create(proc, NULL, func, arg)) {
+		printf("Failed creating process %s\n", fmt);
+	}
+#endif
 	return (0);
 }
 
@@ -68,6 +81,9 @@ kproc_exit(int error)
 {
 #if 0
 	kill_proc(current_process());
+#endif
+#ifdef SIMULATOR
+	pthread_exit(NULL);
 #endif
 	return;
 }
@@ -84,6 +100,9 @@ curthread_sub(void)
 {
 #if 0
 	return ((void *)current_process());
+#endif
+#ifdef SIMULATOR
+	return (pthread_self());
 #endif
 	return (NULL);
 }

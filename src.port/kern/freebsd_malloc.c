@@ -36,8 +36,11 @@ malloc(int size, struct malloc_type *type, int flags)
 	}
 	DROP_GIANT();
 
+#ifdef SIMULATOR
+	temp = malloc_wrap(size, type, flags);
+#else
 	temp = heap_alloc_shared(size, __FILE__, __LINE__);
-
+#endif
 	printf("malloc: %u bytes = %p\n", size, temp);
 
 	if ((flags & M_ZERO) && (temp != NULL)) {
@@ -54,7 +57,11 @@ malloc(int size, struct malloc_type *type, int flags)
 void
 free(void *addr, struct malloc_type *type)
 {
+#ifdef SIMULATOR
+	free_wrap(addr, type);
+#else
 	heap_free_shared(addr);
+#endif
 	return;
 }
 

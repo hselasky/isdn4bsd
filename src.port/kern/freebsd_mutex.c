@@ -29,9 +29,8 @@
 
 #include <bsd_module_all.h>
 
-#define	MTX_NO_THREAD ((void *)(0-1))	/* NULL is interrupt handler */
-
 struct mtx Giant;
+struct mtx Atomic;
 
 static void mtx_sysinit(void *arg);
 static void mtx_sysuninit(void *arg);
@@ -41,7 +40,9 @@ SYSUNINIT(Giant_sysuninit, SI_SUB_LOCK, SI_ORDER_MIDDLE, mtx_sysuninit, &Giant);
 
 #if 0
 static SEMAPHORE atomic_sem = {1};
+
 #endif
+#ifndef SIMULATOR
 static volatile uint32_t atomic_recurse = 0;
 static volatile struct thread *atomic_thread = MTX_NO_THREAD;
 
@@ -85,6 +86,21 @@ atomic_unlock(void)
 	}
 	return;
 }
+
+#else
+static void
+atomic_lock(void)
+{
+	mtx_lock(&Atomic);
+}
+
+static void
+atomic_unlock(void)
+{
+	mtx_unlock(&Atomic);
+}
+
+#endif
 
 void
 atomic_add_int(uint32_t *p, uint32_t v)
@@ -159,7 +175,7 @@ void
 mtx_init(struct mtx *mtx, const char *name,
     const char *type, int opts)
 {
-	bzero(mtx, sizeof(*mtx));
+	memset(mtx, 0, sizeof(*mtx));
 
 	if (name == NULL) {
 		name = "unknown lock";
@@ -171,6 +187,19 @@ mtx_init(struct mtx *mtx, const char *name,
 	mtx->init = 1;
 	mtx->owner_td = MTX_NO_THREAD;
 
+#ifdef SIMULATOR
+	void *attr;
+
+	if (pthread_mutexattr_init(&attr)) {
+		panic("%s\n", name);
+	}
+	if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE)) {
+		panic("%s\n", name);
+	}
+	if (pthread_mutex_init(&(mtx->pthread_mtx), &attr)) {
+		panic("%s\n", name);
+	}
+#endif
 	return;
 }
 
@@ -181,6 +210,19 @@ mtx_lock(struct mtx *mtx)
 	printf("mtx_lock %s %u\n", mtx->name, mtx->mtx_recurse);
 #endif
 
+#ifdef SIMULATOR
+	if (pthread_mutex_lock(&(mtx->pthread_mtx))) {
+		panic("%s\n", mtx->name);
+	}
+	if (mtx_owned(mtx)) {
+		mtx->mtx_recurse++;
+
+		if (pthread_mutex_unlock(&(mtx->pthread_mtx))) {
+			panic("%s\n", mtx->name);
+		}
+		return;
+	}
+#else
 	atomic_lock();
 
 	if (mtx_owned(mtx)) {
@@ -188,6 +230,7 @@ mtx_lock(struct mtx *mtx)
 		atomic_unlock();
 		return;
 	}
+#endif
 	if (mtx->owner_td != MTX_NO_THREAD) {
 		panic("Something is sleeping with "
 		    "mutex '%s' locked!\n", mtx->name ?
@@ -204,6 +247,9 @@ mtx_trylock(struct mtx *mtx)
 	printf("mtx_trylock %s %u\n", mtx->name, mtx->mtx_recurse);
 #endif
 
+#ifdef SIMULATOR
+	panic("mtx_trylock() is not supported\n");
+#else
 	atomic_lock();
 
 	if (mtx_owned(mtx)) {
@@ -215,6 +261,7 @@ mtx_trylock(struct mtx *mtx)
 		atomic_unlock();
 		return (0);
 	}
+#endif
 	mtx->owner_td = (void *)curthread;
 	return (1);
 }
@@ -226,6 +273,20 @@ mtx_unlock(struct mtx *mtx)
 	printf("mtx_unlock %s %u\n", mtx->name, mtx->mtx_recurse);
 #endif
 
+#ifdef SIMULATOR
+
+	if (!mtx_owned(mtx)) {
+		panic("Mutex '%s' is not locked\n", mtx->name);
+	}
+	if (mtx->mtx_recurse == 0) {
+		mtx->owner_td = MTX_NO_THREAD;
+		if (pthread_mutex_unlock(&(mtx->pthread_mtx))) {
+			panic("%s\n", mtx->name);
+		}
+	} else {
+		mtx->mtx_recurse--;
+	}
+#else
 	atomic_lock();
 
 	if (!mtx_owned(mtx)) {
@@ -240,6 +301,7 @@ mtx_unlock(struct mtx *mtx)
 	}
 
 	atomic_unlock();
+#endif
 	return;
 }
 
@@ -250,6 +312,11 @@ mtx_destroy(struct mtx *mtx)
 		mtx_unlock(mtx);
 	}
 	mtx->init = 0;
+
+#ifdef SIMULATOR
+	pthread_mutex_destroy(&(mtx->pthread_mtx));
+#endif
+
 	return;
 }
 

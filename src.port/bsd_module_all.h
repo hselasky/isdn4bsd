@@ -78,8 +78,8 @@ typedef unsigned int off_t;
 typedef unsigned long long int uint64_t;
 typedef signed long long int int64_t;
 
-typedef unsigned long int uint32_t;
-typedef signed long int int32_t;
+typedef unsigned /* long */ int uint32_t;
+typedef	signed /* long */ int int32_t;
 
 typedef unsigned short uint16_t;
 typedef signed short int16_t;
@@ -139,5 +139,15 @@ void	DELAY(uint32_t us);
 
 #define	root_mount_hold(...) NULL
 #define	root_mount_rel(...) do { } while(0)
+
+#ifdef SIMULATOR
+#define	CLOCK_REALTIME 0
+extern int clock_gettime(int, struct timespec *);
+struct timespec {
+	uint32_t tv_sec;
+	uint32_t tv_nsec;
+};
+
+#endif
 
 #endif					/* _BSD_MODULE_ALL_H_ */

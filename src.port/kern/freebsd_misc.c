@@ -50,6 +50,9 @@ pause(const char *wmesg, int timo)
 #if 0
 	delay((OSTIME) timo);
 #endif
+#ifdef SIMULATOR
+	usleep((1000000 / hz) * timo);
+#endif
 	PICKUP_GIANT();
 	return (0);
 }
