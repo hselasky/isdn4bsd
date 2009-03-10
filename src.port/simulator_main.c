@@ -214,7 +214,7 @@ main()
 		if (UsbInterruptHandlerPtr != NULL) {
 			UsbInterruptHandlerPtr(UsbInterruptHandlerArg);
 		}
-		usleep(5000);
+		usleep(1000);
 	}
 
 	return (0);
