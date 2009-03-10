@@ -9,7 +9,7 @@ pre_scan()
 {
 	while read F
 	do
-		[ -f .sysdir ] && (find `cat .sysdir` -name "$F")
+		[ ! -z "$1" ] && (find $1/dev/usb -name "$F")
 		find ../src.port -name "$F"
 	done
 }
@@ -87,7 +87,7 @@ mkautogen > bsd_module_sysuninit.h
 
 echo -n "Scanning "
 
-cat Makefile.inc | sed -e "s/^SRCS..//g" | grep -v "^#" | pre_scan | scan
+cat Makefile.inc | sed -e "s/^SRCS..//g" | grep -v "^#" | pre_scan "`cat .sysdir`" | scan
 
 echo " done"
 

@@ -1,7 +1,7 @@
 /*
  * This file contains automatically generated module data.
  * Please do not edit.
- * Date: Tue Mar 10 16:50:11 CET 2009
+ * Date: Tue Mar 10 17:46:51 CET 2009
  */
 DRIVER_MODULE(atmelarm, atmelarm, atmelarm_driver, atmelarm_devclass, atmelarm_mod_load, 0)
 DRIVER_MODULE(atmegadci, atmelarm, atmegadci_driver, atmegadci_devclass, 0, 0)

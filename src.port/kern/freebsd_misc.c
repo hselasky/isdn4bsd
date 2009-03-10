@@ -43,6 +43,8 @@ priv_check(struct thread *td, int priv)
 	return (EPERM);
 }
 
+extern int usleep(uint32_t us);
+
 int
 pause(const char *wmesg, int timo)
 {

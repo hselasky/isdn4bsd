@@ -10,6 +10,11 @@ SYSDIR="${.CURDIR}/../src/sys"
 .endif
 .endif
 
+#
+# Enable simulator build by default
+#
+SIMULATOR=YES
+
 .PATH: \
 	${SYSDIR}/dev/usb \
 	${SYSDIR}/dev/usb/template \
