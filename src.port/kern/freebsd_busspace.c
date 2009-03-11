@@ -25,14 +25,11 @@
 
 #include <bsd_module_all.h>
 
+#ifndef SIMULATOR
+
 void
 bus_space_read_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint8_t *datap, bus_size_t count)
 {
-#if defined(SIMULATOR)
-	while (count--) {
-		*datap++ = bus_space_read_1(t, h, offset);
-	}
-#else
 	volatile uint8_t *ptr = (h + offset);
 
 	while (count >= 4) {
@@ -47,18 +44,12 @@ bus_space_read_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offse
 	while (count--) {
 		*datap++ = *ptr;
 	}
-#endif
 	return;
 }
 
 void
 bus_space_read_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint16_t *datap, bus_size_t count)
 {
-#if defined(SIMULATOR)
-	while (count--) {
-		*datap++ = bus_space_read_2(t, h, offset);
-	}
-#else
 	volatile uint16_t *ptr = (void *)(h + offset);
 
 	while (count >= 4) {
@@ -73,18 +64,12 @@ bus_space_read_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offse
 	while (count--) {
 		*datap++ = *ptr;
 	}
-#endif
 	return;
 }
 
 void
 bus_space_read_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint32_t *datap, bus_size_t count)
 {
-#if defined(SIMULATOR)
-	while (count--) {
-		*datap++ = bus_space_read_4(t, h, offset);
-	}
-#else
 	volatile uint32_t *ptr = (void *)(h + offset);
 	uint32_t rem;
 
@@ -126,18 +111,12 @@ bus_space_read_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offse
 	while (rem--) {
 		*datap++ = *ptr;
 	}
-#endif
 	return;
 }
 
 void
 bus_space_write_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint8_t *datap, bus_size_t count)
 {
-#if defined(SIMULATOR)
-	while (count--) {
-		bus_space_write_1(t, h, offset, *datap++);
-	}
-#else
 	volatile uint8_t *ptr = (h + offset);
 
 	while (count >= 4) {
@@ -152,18 +131,12 @@ bus_space_write_multi_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offs
 	while (count--) {
 		*ptr = *datap++;
 	}
-#endif
 	return;
 }
 
 void
 bus_space_write_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint16_t *datap, bus_size_t count)
 {
-#if defined(SIMULATOR)
-	while (count--) {
-		bus_space_write_2(t, h, offset, *datap++);
-	}
-#else
 	volatile uint16_t *ptr = (void *)(h + offset);
 
 	while (count >= 4) {
@@ -178,18 +151,12 @@ bus_space_write_multi_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offs
 	while (count--) {
 		*ptr = *datap++;
 	}
-#endif
 	return;
 }
 
 void
 bus_space_write_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint32_t *datap, bus_size_t count)
 {
-#if defined(SIMULATOR)
-	while (count--) {
-		bus_space_write_4(t, h, offset, *datap++);
-	}
-#else
 	volatile uint32_t *ptr = (void *)(h + offset);
 	uint32_t rem;
 
@@ -234,9 +201,10 @@ bus_space_write_multi_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offs
 	while (rem--) {
 		*ptr = *datap++;
 	}
-#endif
 	return;
 }
+
+#endif
 
 void
 bus_space_barrier(bus_space_tag_t space, bus_space_handle_t handle,

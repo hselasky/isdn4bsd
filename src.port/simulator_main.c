@@ -25,6 +25,10 @@
 
 #define	off_t my_off_t
 #define	mode_t my_mode_t
+#define	gid_t my_gid_t
+#define	uid_t my_uid_t
+#define	size_t my_size_t
+
 #undef __printflike
 #undef __aligned
 
@@ -32,6 +36,11 @@
 #include </usr/include/sys/fcntl.h>
 #include </usr/include/sys/ttycom.h>
 #include </usr/include/sys/termios.h>
+
+extern int ioctl(int f, int cmd, void *arg);
+extern int read(int f, void *arg, int len);
+extern int write(int f, void *arg, int len);
+extern int usleep(int delay);
 
 int     (*UsbInterruptFilterPtr) (void *);
 void    (*UsbInterruptHandlerPtr) (void *);
@@ -42,87 +51,204 @@ static int f;
 static struct termios t;
 
 static uint8_t
-inb(uint8_t reg)
+cmpdata(const uint8_t *ptr, uint32_t len, uint8_t val)
 {
-	uint8_t tmp[2];
-
-	tmp[0] = 0x8A;
-	tmp[1] = reg;
-
-	if (write(f, tmp, 2) != 2)
-		exit(1);
-
-	if (ioctl(f, TIOCDRAIN, NULL) < 0)
-		exit(1);
-
-	while (read(f, tmp, 1) == 1) {
-		if (tmp[0] == 0x8A) {
-			if (read(f, tmp, 1) == 1)
-				return (tmp[0]);
-		}
+	while (len--) {
+		if (ptr[len] != val)
+			return (0);
 	}
-	exit(1);
-	return (0);
+	return (1);
 }
 
-static void
-outb(uint8_t reg, uint8_t data)
+void
+bus_space_read_multi_1(bus_space_tag_t t, bus_space_handle_t h,
+    bus_size_t offset, uint8_t *datap, bus_size_t count)
 {
 	uint8_t tmp[3];
+	bus_size_t mcount;
+	int err;
 
-	tmp[0] = 0x85;
-	tmp[1] = reg;
-	tmp[2] = data;
+	while (count > 0) {
 
-	if (write(f, tmp, 3) != 3)
-		exit(1);
+		mcount = 4;
+		if (mcount > count) {
+			mcount = count;
+		}
+		count -= mcount;
 
-	if (ioctl(f, TIOCDRAIN, NULL) < 0)
-		exit(1);
+		tmp[0] = 0x8B;
+		tmp[1] = h - (uint8_t *)0 + offset;
+		tmp[2] = mcount;
 
-	while (read(f, tmp, 1) == 1) {
-		if (tmp[0] == 0x85)
-			return;
+		if (write(f, tmp, 3) != 3)
+			panic("Failure\n");
+
+		if (ioctl(f, TIOCDRAIN, NULL) < 0)
+			panic("Failure\n");
+
+		while (read(f, tmp, 1) == 1) {
+			if (tmp[0] == 0x8B)
+				break;
+		}
+
+		if ((err = read(f, datap, mcount)) != mcount) {
+			if (err < 0)
+				panic("Failure\n");
+
+			datap += err;
+			mcount -= err;
+		}
+		datap += mcount;
 	}
-	exit(1);
+}
+
+void
+bus_space_read_multi_2(bus_space_tag_t t, bus_space_handle_t h,
+    bus_size_t offset, uint16_t *datap, bus_size_t count)
+{
+	panic("read_multi_2: Not supported\n");
+}
+
+void
+bus_space_read_multi_4(bus_space_tag_t t, bus_space_handle_t h,
+    bus_size_t offset, uint32_t *datap, bus_size_t count)
+{
+	panic("read_multi_4: Not supported\n");
+}
+
+void
+bus_space_write_multi_1(bus_space_tag_t t, bus_space_handle_t h,
+    bus_size_t offset, uint8_t *datap, bus_size_t count)
+{
+	uint8_t tmp[3];
+	bus_size_t mcount;
+	uint8_t cmd;
+
+	while (count > 0) {
+
+		mcount = 4;
+		if (mcount > count) {
+			mcount = count;
+		}
+		count -= mcount;
+
+		if (cmpdata(datap, mcount, 0x00))
+			cmd = 0x87;
+		else if (cmpdata(datap, mcount, 0xFF))
+			cmd = 0x88;
+		else
+			cmd = 0x86;
+
+		tmp[0] = cmd;
+		tmp[1] = h - (uint8_t *)0 + offset;
+		tmp[2] = mcount;
+
+		if (write(f, tmp, 3) != 3)
+			panic("Failure\n");
+
+		if (cmd == 0x86) {
+			if (write(f, datap, mcount) != mcount)
+				panic("Failure\n");
+		}
+		if (ioctl(f, TIOCDRAIN, NULL) < 0)
+			panic("Failure\n");
+
+		while (read(f, tmp, 1) == 1) {
+			if (tmp[0] == cmd)
+				break;
+		}
+
+		datap += mcount;
+	}
+}
+
+void
+bus_space_write_multi_2(bus_space_tag_t t, bus_space_handle_t h,
+    bus_size_t offset, uint16_t *datap, bus_size_t count)
+{
+	panic("write_multi_2: Not supported\n");
+}
+
+void
+bus_space_write_multi_4(bus_space_tag_t t, bus_space_handle_t h,
+    bus_size_t offset, uint32_t *datap, bus_size_t count)
+{
+	panic("write_multi_4: Not supported\n");
 }
 
 void
 bus_space_write_1(bus_space_tag_t t, bus_space_handle_t h,
     bus_size_t offset, uint8_t data)
 {
-	outb(h - (uint8_t *)0 + offset, data);
+	uint8_t tmp[3];
+
+	tmp[0] = 0x85;
+	tmp[1] = h - (uint8_t *)0 + offset;
+	tmp[2] = data;
+
+	if (write(f, tmp, 3) != 3)
+		panic("Failure\n");
+
+	if (ioctl(f, TIOCDRAIN, NULL) < 0)
+		panic("Failure\n");
+
+	while (read(f, tmp, 1) == 1) {
+		if (tmp[0] == 0x85)
+			return;
+	}
+	panic("Failure\n");
 }
 
 void
 bus_space_write_2(bus_space_tag_t t, bus_space_handle_t h,
     bus_size_t offset, uint16_t data)
 {
-	printf("cannot write 16-bit\n");
+	panic("write_2: Not supported\n");
 }
 
 void
 bus_space_write_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset, uint32_t data)
 {
-	printf("cannot write 32-bit\n");
+	panic("write_4: Not supported\n");
 }
 
 uint8_t
 bus_space_read_1(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset)
 {
-	return (inb(h - (uint8_t *)0 + offset));
+	uint8_t tmp[2];
+
+	tmp[0] = 0x8A;
+	tmp[1] = h - (uint8_t *)0 + offset;
+
+	if (write(f, tmp, 2) != 2)
+		panic("Failure\n");
+
+	if (ioctl(f, TIOCDRAIN, NULL) < 0)
+		panic("Failure\n");
+
+	while (read(f, tmp, 1) == 1) {
+		if (tmp[0] == 0x8A) {
+			if (read(f, tmp, 1) == 1)
+				return (tmp[0]);
+			else
+				panic("Failure\n");
+		}
+	}
+	panic("Failure\n");
+	return (0);
 }
+
 uint16_t
 bus_space_read_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset)
 {
-	printf("cannot read 16-bit\n");
+	panic("read_2: Not supported\n");
 	return (0);
 }
 
 uint32_t
 bus_space_read_4(bus_space_tag_t t, bus_space_handle_t h, bus_size_t offset)
 {
-	printf("cannot read 32-bit\n");
+	panic("read_4: Not supported\n");
 	return (0);
 }
 
@@ -177,35 +303,30 @@ extern int bsd_load_module(void);
 int
 main()
 {
-	uint8_t tmp[8];
+	uint8_t tmp[1];
+	uint32_t count;
 
 	f = open("/dev/cuaU0", O_RDWR);
 	if (f < 0)
-		exit(1);
+		panic("Failure\n");
 
 	if (ioctl(f, TIOCGETA, &t) < 0)
-		exit(1);
+		panic("Failure\n");
 
 	cfmakeraw(&t);
 
-	t.c_ispeed = 19200;
-	t.c_ospeed = 19200;
+	t.c_ispeed = 38400;
+	t.c_ospeed = 38400;
 
 	if (ioctl(f, TIOCSETA, &t) < 0)
-		exit(1);
+		panic("Failure\n");
 
 	tmp[0] = 0x80;
-	tmp[1] = 0x80;
-	tmp[2] = 0x80;
-	tmp[3] = 0x80;
-	tmp[4] = 0x80;
-	tmp[5] = 0x80;
-	tmp[6] = 0x80;
-	tmp[7] = 0x80;
 
-	if (write(f, tmp, 8) != 8)
-		exit(1);
-
+	for (count = 0; count != 20; count++) {
+		if (write(f, tmp, 1) != 1)
+			panic("Failure\n");
+	}
 
 	bsd_load_module();
 
