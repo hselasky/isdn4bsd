@@ -114,6 +114,12 @@ vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
 	char c;
 	uint8_t escape;
 
+	if (sizeof(void *) != 4) {
+		/* TODO: 64-bit is broken */
+		buf[0] = 0;
+		return (0);
+	}
+
 	if (size == 0) {
 		return (0);
 	}
