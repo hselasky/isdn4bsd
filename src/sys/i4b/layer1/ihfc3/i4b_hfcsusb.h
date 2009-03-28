@@ -1349,18 +1349,18 @@ hfcsusb2_usb[] =
     .type      = UE_CONTROL,
     .endpoint  = 0x00, /* Control pipe */
     .direction = UE_DIR_ANY,
-    .mh.bufsize   = sizeof(struct usb2_device_request), /* bytes */
-    .mh.callback  = &hfcsusb2_callback_chip_write,
-    .mh.timeout   = 1000, /* ms */
+    .bufsize   = sizeof(struct usb2_device_request), /* bytes */
+    .callback  = &hfcsusb2_callback_chip_write,
+    .timeout   = 1000, /* ms */
   },
 
   [HFCSUSB_CONF_XFER_READ] = {
     .type      = UE_CONTROL,
     .endpoint  = 0x00, /* Control pipe */
     .direction = UE_DIR_ANY,
-    .mh.bufsize   = sizeof(struct usb2_device_request)+1, /* bytes */
-    .mh.callback  = &hfcsusb2_callback_chip_read,
-    .mh.timeout   = 1000, /* ms */
+    .bufsize   = sizeof(struct usb2_device_request)+1, /* bytes */
+    .callback  = &hfcsusb2_callback_chip_read,
+    .timeout   = 1000, /* ms */
   },
 
 #define HFCSUSB_XFER(index, pipe_no, fifo)\
@@ -1368,37 +1368,37 @@ hfcsusb2_usb[] =
     .type      = UE_ISOCHRONOUS,\
     .endpoint  = pipe_no, /* ISOC Out */\
     .direction = UE_DIR_OUT,\
-    .mh.flags     = { .short_xfer_ok = 1 },\
-    .mh.frames    = HFCSUSB_TX_FRAMES,\
-    .mh.bufsize   = HFCSUSB_TX_BUFSIZE,\
-    .mh.callback  = &hfcsusb2_callback_isoc_tx,\
+    .flags     = { .short_xfer_ok = 1 },\
+    .frames    = HFCSUSB_TX_FRAMES,\
+    .bufsize   = HFCSUSB_TX_BUFSIZE,\
+    .callback  = &hfcsusb2_callback_isoc_tx,\
   },\
   [index+1] = {\
     .type      = UE_ISOCHRONOUS,\
     .endpoint  = pipe_no, /* ISOC Out */\
     .direction = UE_DIR_OUT,\
-    .mh.flags     = { .short_xfer_ok = 1 },\
-    .mh.frames    = HFCSUSB_TX_FRAMES,\
-    .mh.bufsize   = HFCSUSB_TX_BUFSIZE,\
-    .mh.callback  = &hfcsusb2_callback_isoc_tx,\
+    .flags     = { .short_xfer_ok = 1 },\
+    .frames    = HFCSUSB_TX_FRAMES,\
+    .bufsize   = HFCSUSB_TX_BUFSIZE,\
+    .callback  = &hfcsusb2_callback_isoc_tx,\
   },\
   [index+2] = {\
     .type      = UE_ISOCHRONOUS,\
     .endpoint  = pipe_no, /* ISOC In */\
     .direction = UE_DIR_IN,\
-    .mh.flags     = { .short_xfer_ok = 1 },\
-    .mh.frames    = HFCSUSB_RX_FRAMES,\
-    .mh.bufsize   = HFCSUSB_RX_BUFSIZE,\
-    .mh.callback  = &hfcsusb2_callback_isoc_rx,\
+    .flags     = { .short_xfer_ok = 1 },\
+    .frames    = HFCSUSB_RX_FRAMES,\
+    .bufsize   = HFCSUSB_RX_BUFSIZE,\
+    .callback  = &hfcsusb2_callback_isoc_rx,\
   },\
   [index+3] = {\
     .type      = UE_ISOCHRONOUS,\
     .endpoint  = pipe_no, /* ISOC In */\
     .direction = UE_DIR_IN,\
-    .mh.flags     = { .short_xfer_ok = 1 },\
-    .mh.frames    = HFCSUSB_RX_FRAMES,\
-    .mh.bufsize   = HFCSUSB_RX_BUFSIZE,\
-    .mh.callback  = &hfcsusb2_callback_isoc_rx,\
+    .flags     = { .short_xfer_ok = 1 },\
+    .frames    = HFCSUSB_RX_FRAMES,\
+    .bufsize   = HFCSUSB_RX_BUFSIZE,\
+    .callback  = &hfcsusb2_callback_isoc_rx,\
   },\
   /**/
 

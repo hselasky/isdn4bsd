@@ -33,6 +33,10 @@
 
 static void usb2_config_td_sync_cb(struct usb2_config_td_softc *sc, struct usb2_config_td_cc *cc, uint16_t ref);
 
+#ifndef USB_ADD_BYTES
+#define USB_ADD_BYTES(p,x) ((void *)(((uint8_t *)p) + x))
+#endif
+
 static void
 usb2_config_td_dispatch(struct usb2_proc_msg *pm)
 {

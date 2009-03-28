@@ -1185,102 +1185,102 @@ wibusb2_usb[] =
     .type      = UE_BULK,
     .endpoint  = 0x01, /* Bulk Out */
     .direction = UE_DIR_OUT,
-    .mh.bufsize   = (4*2), /* bytes */
-    .mh.callback  = &wibusb2_callback_chip_write,
-    .mh.flags     = { },
-    .mh.timeout   = 1000, /* 1 second */
+    .bufsize   = (4*2), /* bytes */
+    .callback  = &wibusb2_callback_chip_write,
+    .flags     = { },
+    .timeout   = 1000, /* 1 second */
   },
 
   [WIBUSB_CONF_XFER_READ] = {
     .type      = UE_BULK,
     .endpoint  = 0x02, /* Bulk In  */
     .direction = UE_DIR_IN,
-    .mh.bufsize   = (4*2), /* bytes */
-    .mh.callback  = &wibusb2_callback_chip_read,
-    .mh.flags     = { },
-    .mh.timeout   = 1000, /* 1 second */
+    .bufsize   = (4*2), /* bytes */
+    .callback  = &wibusb2_callback_chip_read,
+    .flags     = { },
+    .timeout   = 1000, /* 1 second */
   },
 
   [2] = {
     .type      = UE_INTERRUPT,
     .endpoint  = 0x03, /* Interrupt In */
     .direction = UE_DIR_IN,
-    .mh.flags     = { .short_xfer_ok = 1 },
-    .mh.bufsize   = sizeof(wibusb2_error_t), /* bytes */
-    .mh.callback  = &wibusb2_callback_interrupt,
+    .flags     = { .short_xfer_ok = 1 },
+    .bufsize   = sizeof(wibusb2_error_t), /* bytes */
+    .callback  = &wibusb2_callback_interrupt,
   },
 
   [3] = {
     .type      = UE_ISOCHRONOUS,
     .endpoint  = 0x04, /* ISOC Out */
     .direction = UE_DIR_OUT,
-    .mh.flags     = { .short_xfer_ok = 1 },
-    .mh.frames    = WIBUSB_TX_FRAMES,
-    .mh.bufsize   = WIBUSB_TX_BUFSIZE,
-    .mh.callback  = &wibusb2_callback_isoc_tx,
+    .flags     = { .short_xfer_ok = 1 },
+    .frames    = WIBUSB_TX_FRAMES,
+    .bufsize   = WIBUSB_TX_BUFSIZE,
+    .callback  = &wibusb2_callback_isoc_tx,
   },
 
   [4] = {
     .type      = UE_ISOCHRONOUS,
     .endpoint  = 0x04, /* ISOC Out */
     .direction = UE_DIR_OUT,
-    .mh.flags     = { .short_xfer_ok = 1 },
-    .mh.frames    = WIBUSB_TX_FRAMES,
-    .mh.bufsize   = WIBUSB_TX_BUFSIZE,
-    .mh.callback  = &wibusb2_callback_isoc_tx,
+    .flags     = { .short_xfer_ok = 1 },
+    .frames    = WIBUSB_TX_FRAMES,
+    .bufsize   = WIBUSB_TX_BUFSIZE,
+    .callback  = &wibusb2_callback_isoc_tx,
   },
 
   [5] = {
     .type      = UE_ISOCHRONOUS,
     .endpoint  = 0x05, /* ISOC In */
     .direction = UE_DIR_IN,
-    .mh.flags     = { .short_xfer_ok = 1 },
-    .mh.frames    = WIBUSB_RX_FRAMES,
-    .mh.bufsize   = WIBUSB_RX_BUFSIZE,
-    .mh.callback  = &wibusb2_callback_isoc_rx,
+    .flags     = { .short_xfer_ok = 1 },
+    .frames    = WIBUSB_RX_FRAMES,
+    .bufsize   = WIBUSB_RX_BUFSIZE,
+    .callback  = &wibusb2_callback_isoc_rx,
   },
 
   [6] = {
     .type      = UE_ISOCHRONOUS,
     .endpoint  = 0x05, /* ISOC In */
     .direction = UE_DIR_IN,
-    .mh.flags     = { .short_xfer_ok = 1 },
-    .mh.frames    = WIBUSB_RX_FRAMES,
-    .mh.bufsize   = WIBUSB_RX_BUFSIZE,
-    .mh.callback  = &wibusb2_callback_isoc_rx,
+    .flags     = { .short_xfer_ok = 1 },
+    .frames    = WIBUSB_RX_FRAMES,
+    .bufsize   = WIBUSB_RX_BUFSIZE,
+    .callback  = &wibusb2_callback_isoc_rx,
   },
 
   [7] = {
     .type      = UE_CONTROL,
     .endpoint  = 0,
     .direction = UE_DIR_ANY,
-    .mh.timeout   = 1000, /* 1 second */
-    .mh.interval  = 50, /* 50 milliseconds */
-    .mh.flags     = { },
-    .mh.bufsize   = sizeof(struct usb2_device_request),
-    .mh.callback  = &wibusb2_clear_stall_callback_chip_write,
+    .timeout   = 1000, /* 1 second */
+    .interval  = 50, /* 50 milliseconds */
+    .flags     = { },
+    .bufsize   = sizeof(struct usb2_device_request),
+    .callback  = &wibusb2_clear_stall_callback_chip_write,
   },
 
   [8] = {
     .type      = UE_CONTROL,
     .endpoint  = 0,
     .direction = UE_DIR_ANY,
-    .mh.timeout   = 1000, /* 1 second */
-    .mh.interval  = 50, /* 50 milliseconds */
-    .mh.flags     = { },
-    .mh.bufsize   = sizeof(struct usb2_device_request),
-    .mh.callback  = &wibusb2_clear_stall_callback_chip_read,
+    .timeout   = 1000, /* 1 second */
+    .interval  = 50, /* 50 milliseconds */
+    .flags     = { },
+    .bufsize   = sizeof(struct usb2_device_request),
+    .callback  = &wibusb2_clear_stall_callback_chip_read,
   },
 
   [9] = {
     .type      = UE_CONTROL,
     .endpoint  = 0,
     .direction = UE_DIR_ANY,
-    .mh.timeout   = 1000, /* 1 second */
-    .mh.interval  = 50, /* 50 milliseconds */
-    .mh.flags     = { },
-    .mh.bufsize   = sizeof(struct usb2_device_request),
-    .mh.callback  = &wibusb2_clear_stall_callback_interrupt,
+    .timeout   = 1000, /* 1 second */
+    .interval  = 50, /* 50 milliseconds */
+    .flags     = { },
+    .bufsize   = sizeof(struct usb2_device_request),
+    .callback  = &wibusb2_clear_stall_callback_interrupt,
   },
 };
 

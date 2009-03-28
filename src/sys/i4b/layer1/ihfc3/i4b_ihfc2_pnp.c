@@ -558,7 +558,7 @@ const   struct resource_tab *ptr;
 	 */
 	usb2_dma_tag_setup(&(sc->sc_hw_dma_parent_tag),
 	   &(sc->sc_hw_dma_tag), USB_GET_DMA_TAG(dev),
-	   sc->sc_mtx_p, NULL, NULL, 32, 1);
+	   sc->sc_mtx_p, NULL, 32, 1);
 
 	sc->sc_hw_page_cache.tag_parent = 
 	  &(sc->sc_hw_dma_parent_tag);
@@ -1199,7 +1199,7 @@ ihfc_pnp_probe(device_t dev)
 		if (uaa->info.bIfaceIndex != 0) {
 			return (ENXIO);
 		}
-		vid = usb2_get_devid(dev);
+		vid = (uaa->info.idVendor << 16) | uaa->info.idProduct;
 	  }
 #endif
 	}
