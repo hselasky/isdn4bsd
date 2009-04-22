@@ -159,7 +159,7 @@ enum ipr_states {
 
 static int i4biprioctl(struct ifnet *ifp, u_long cmd, caddr_t data);
 
-static int i4biproutput(struct ifnet *ifp, struct mbuf *m, struct sockaddr *dst, struct rtentry *rtp);
+static int i4biproutput(struct ifnet *ifp, struct mbuf *m, struct sockaddr *dst, void *xxx);
 static void iprclearqueues(struct ipr_softc *sc);
 
 /*===========================================================================*
@@ -209,7 +209,7 @@ i4biprattach(void *dummy)
 
 		ifp->if_mtu = I4BIPRMTU;
 		ifp->if_ioctl = i4biprioctl;
-		ifp->if_output = i4biproutput;
+		ifp->if_output = (void *)i4biproutput;
 		ifp->if_snd.ifq_maxlen = I4BIPRMAXQLEN; /* not used */
 
 		sc->sc_sendq.ifq_maxlen = I4BIPRMAXQLEN;
@@ -251,7 +251,7 @@ SYSINIT(i4biprattach, SI_SUB_PSEUDO, SI_ORDER_ANY, i4biprattach, NULL);
  *---------------------------------------------------------------------------*/
 static int
 i4biproutput(struct ifnet *ifp, struct mbuf *m, struct sockaddr *dst,
-	     struct rtentry *rtp)
+	     void *xxx)
 {
 	struct ipr_softc *sc;
 	struct _ifqueue *ifq;
