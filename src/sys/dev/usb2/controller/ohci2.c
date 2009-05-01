@@ -1338,7 +1338,7 @@ restart:
 		if (average == 0) {
 
 			td->td_cbp = 0;
-			td->td_be = ~0;
+			td->td_be = 0;	/* must be zero aswell */
 			td->len = 0;
 
 		} else {
