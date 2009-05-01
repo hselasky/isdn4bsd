@@ -2082,6 +2082,8 @@ ehci_isoc_hs_done(ehci_softc_t *sc, struct usb2_xfer *xfer)
 		usb2_pc_cpu_invalidate(td->page_cache);
 		status = ehci32toh(sc, td->itd_status[td_no]);
 
+		DPRINTFN(2, "Status=0x%08x\n", status);
+
 		len = EHCI_ITD_GET_LEN(status);
 
 		if (*plen >= len) {
