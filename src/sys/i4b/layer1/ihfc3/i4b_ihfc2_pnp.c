@@ -1190,7 +1190,7 @@ ihfc_pnp_probe(device_t dev)
 		id_end   = &ihfc_usb_id_end[0];
 
 		uaa = device_get_ivars(dev);
-		if (uaa->usb2_mode != USB_MODE_HOST) {
+		if (uaa->usb_mode != USB_MODE_HOST) {
 			return (ENXIO);
 		}
 		if (uaa->info.bConfigIndex != 0) {
