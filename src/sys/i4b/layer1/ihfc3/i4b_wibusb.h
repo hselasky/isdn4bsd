@@ -114,7 +114,7 @@ wibusb2_cfg_write_1(ihfc_sc_t *sc, uint8_t reg, uint8_t data)
 
 	IHFC_MSG("0x%02x->0x%02x\n", data, reg);
 
-	usb2_transfer_start(sc->sc_resources.usb2_xfer[WIBUSB_CONF_XFER_WRITE]);
+	usb2_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE]);
 
 	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "write reg", 0)) {
 
@@ -134,7 +134,7 @@ wibusb2_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
 	    goto done;
         }
 
-	usb2_transfer_start(sc->sc_resources.usb2_xfer[WIBUSB_CONF_XFER_WRITE]);
+	usb2_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE]);
 
 	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "write reg", 0)) {
 
@@ -144,7 +144,7 @@ wibusb2_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
 	    goto done;
         }
 
-	usb2_transfer_start(sc->sc_resources.usb2_xfer[WIBUSB_CONF_XFER_READ]);
+	usb2_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_READ]);
 
 	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "read reg", 0)) {
 
@@ -158,7 +158,7 @@ static void
 wibusb2_clear_stall_callback_chip_write USB_CALLBACK_T(xfer)
 {
 	ihfc_sc_t *sc  = xfer->priv_sc;
-	struct usb2_xfer *xfer_other = sc->sc_resources.usb2_xfer[WIBUSB_CONF_XFER_WRITE];
+	struct usb_xfer *xfer_other = sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
 	    IHFC_MSG("stall cleared\n");
@@ -194,7 +194,7 @@ wibusb2_callback_chip_write USB_CALLBACK_T(xfer)
 	xfer->frlengths[0] = 2; /* bytes */
 
 	if (sc->sc_default.o_BULK_WRITE_STALL) {
-	    usb2_transfer_start(sc->sc_resources.usb2_xfer[7]);
+	    usb2_transfer_start(sc->sc_resources.usb_xfer[7]);
 	} else {
 	    usb2_start_hardware(xfer);
 	}
@@ -211,7 +211,7 @@ static void
 wibusb2_clear_stall_callback_chip_read USB_CALLBACK_T(xfer)
 {
 	ihfc_sc_t *sc  = xfer->priv_sc;
-	struct usb2_xfer *xfer_other = sc->sc_resources.usb2_xfer[WIBUSB_CONF_XFER_READ];
+	struct usb_xfer *xfer_other = sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_READ];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
 	    IHFC_MSG("stall cleared\n");
@@ -246,7 +246,7 @@ wibusb2_callback_chip_read USB_CALLBACK_T(xfer)
 	xfer->frlengths[0] = 2; /* bytes */
 
 	if (sc->sc_default.o_BULK_READ_STALL) {
-	    usb2_transfer_start(sc->sc_resources.usb2_xfer[8]);
+	    usb2_transfer_start(sc->sc_resources.usb_xfer[8]);
 	} else {
 	    usb2_start_hardware(xfer);
 	}
@@ -865,7 +865,7 @@ static void
 wibusb2_clear_stall_callback_interrupt USB_CALLBACK_T(xfer)
 {
 	ihfc_sc_t *sc  = xfer->priv_sc;
-	struct usb2_xfer *xfer_other = sc->sc_resources.usb2_xfer[2];
+	struct usb_xfer *xfer_other = sc->sc_resources.usb_xfer[2];
 
 	if (usb2_clear_stall_callback(xfer, xfer_other)) {
 	    IHFC_MSG("stall cleared\n");
@@ -909,7 +909,7 @@ wibusb2_callback_interrupt USB_CALLBACK_T(xfer)
 	xfer->frlengths[0] = sizeof(stat);
 
 	if (sc->sc_default.o_INTR_READ_STALL) {
-	    usb2_transfer_start(sc->sc_resources.usb2_xfer[9]);
+	    usb2_transfer_start(sc->sc_resources.usb_xfer[9]);
 	} else {
 	    usb2_start_hardware(xfer);
 	}
@@ -972,7 +972,7 @@ wibusb2_chip_reset CHIP_RESET_T(sc,error)
 	 * appear during reset
 	 * (e.g. statemachine change)
 	 */
-	usb2_transfer_start(sc->sc_resources.usb2_xfer[2]);
+	usb2_transfer_start(sc->sc_resources.usb_xfer[2]);
 
 	/*
 	 * setup some defaults
@@ -1056,29 +1056,29 @@ wibusb2_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	  {
 	    /* start pipes (rx) */
 
-	    usb2_transfer_start(sc->sc_resources.usb2_xfer[5]);
-	    usb2_transfer_start(sc->sc_resources.usb2_xfer[6]);
+	    usb2_transfer_start(sc->sc_resources.usb_xfer[5]);
+	    usb2_transfer_start(sc->sc_resources.usb_xfer[6]);
 
 	    if(GROUP_TX(sc) &&
 	       sc->sc_state[0].state.active)
 	    {
 		/* start pipes (tx) */
 
-		usb2_transfer_start(sc->sc_resources.usb2_xfer[3]);
-		usb2_transfer_start(sc->sc_resources.usb2_xfer[4]);
+		usb2_transfer_start(sc->sc_resources.usb_xfer[3]);
+		usb2_transfer_start(sc->sc_resources.usb_xfer[4]);
 	    }
 	    else
 	    {
-	        usb2_transfer_stop(sc->sc_resources.usb2_xfer[3]);
-		usb2_transfer_stop(sc->sc_resources.usb2_xfer[4]);
+	        usb2_transfer_stop(sc->sc_resources.usb_xfer[3]);
+		usb2_transfer_stop(sc->sc_resources.usb_xfer[4]);
 	    }
 	  }
 	  else
 	  {
-	    usb2_transfer_stop(sc->sc_resources.usb2_xfer[3]);
-	    usb2_transfer_stop(sc->sc_resources.usb2_xfer[4]);
-	    usb2_transfer_stop(sc->sc_resources.usb2_xfer[5]);
-	    usb2_transfer_stop(sc->sc_resources.usb2_xfer[6]);
+	    usb2_transfer_stop(sc->sc_resources.usb_xfer[3]);
+	    usb2_transfer_stop(sc->sc_resources.usb_xfer[4]);
+	    usb2_transfer_stop(sc->sc_resources.usb_xfer[5]);
+	    usb2_transfer_stop(sc->sc_resources.usb_xfer[6]);
 	  }
 	}
 	else
@@ -1168,7 +1168,7 @@ wibusb2_register_list[] =
   { 0, 0 }
 };
 
-static const struct usb2_config
+static const struct usb_config
 wibusb2_usb[] =
 {
   /*
@@ -1257,7 +1257,7 @@ wibusb2_usb[] =
     .timeout   = 1000, /* 1 second */
     .interval  = 50, /* 50 milliseconds */
     .flags     = { },
-    .bufsize   = sizeof(struct usb2_device_request),
+    .bufsize   = sizeof(struct usb_device_request),
     .callback  = &wibusb2_clear_stall_callback_chip_write,
   },
 
@@ -1268,7 +1268,7 @@ wibusb2_usb[] =
     .timeout   = 1000, /* 1 second */
     .interval  = 50, /* 50 milliseconds */
     .flags     = { },
-    .bufsize   = sizeof(struct usb2_device_request),
+    .bufsize   = sizeof(struct usb_device_request),
     .callback  = &wibusb2_clear_stall_callback_chip_read,
   },
 
@@ -1279,7 +1279,7 @@ wibusb2_usb[] =
     .timeout   = 1000, /* 1 second */
     .interval  = 50, /* 50 milliseconds */
     .flags     = { },
-    .bufsize   = sizeof(struct usb2_device_request),
+    .bufsize   = sizeof(struct usb_device_request),
     .callback  = &wibusb2_clear_stall_callback_interrupt,
   },
 };

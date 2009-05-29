@@ -384,7 +384,7 @@ ihfc_alloc_all_resources(register ihfc_sc_t *sc, device_t dev,
 	__typeof(sc->sc_default.o_RES_start[0])
 	  o_RES = sc->sc_default.o_RES_start[0];
 
-	struct usb2_page_search buf_res;
+	struct usb_page_search buf_res;
 
 	struct sc_default  *def = &sc->sc_default;
 	struct resource_id *rid = &sc->sc_resources.rid[0];
@@ -630,8 +630,8 @@ const   struct resource_tab *ptr;
 	 */
 	if(def->usb)
 	{
-		struct usb2_attach_arg   *uaa      = device_get_ivars(dev);
-		struct usb2_device      *udev     = uaa->device;
+		struct usb_attach_arg   *uaa      = device_get_ivars(dev);
+		struct usb_device      *udev     = uaa->device;
 		int			 err;
 
 		/* hence USB doesn't announce
@@ -675,7 +675,7 @@ const   struct resource_tab *ptr;
 
 		/* setup transfers */
 		err = usb2_transfer_setup(udev, &(def->usb2_iface_no), 
-					  &sc->sc_resources.usb2_xfer[0],
+					  &sc->sc_resources.usb_xfer[0],
 					  &def->usb[0], def->usb2_length,
 					  sc, sc->sc_mtx_p);
 		if(err)
@@ -782,7 +782,7 @@ ihfc_unsetup_resource(device_t dev)
 	/*
 	 * USB unsetup
 	 */
-	usb2_transfer_unsetup(&sc->sc_resources.usb2_xfer[0], IHFC_NUSB);
+	usb2_transfer_unsetup(&sc->sc_resources.usb_xfer[0], IHFC_NUSB);
 
 	usb2_config_td_unsetup(&(sc->sc_config_td));
 #endif
@@ -1183,7 +1183,7 @@ ihfc_pnp_probe(device_t dev)
 #ifdef IHFC_USB_ENABLED
 	  if(name == 'u')
 	  {
-		struct usb2_attach_arg *uaa;
+		struct usb_attach_arg *uaa;
 
 		/* Probe USB */
 		id       = &ihfc_usb_id_start[0];

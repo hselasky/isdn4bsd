@@ -40,7 +40,7 @@ typedef void (usb2_config_td_end_of_commands_t)(struct usb2_config_td_softc *sc)
  * using the USB config thread system.
  */
 struct usb2_config_td_item {
-	struct usb2_proc_msg hdr;
+	struct usb_proc_msg hdr;
 	struct usb2_config_td *p_ctd;
 	usb2_config_td_command_t *command_func;
 	uint16_t command_ref;
@@ -50,7 +50,7 @@ struct usb2_config_td_item {
  * The following structure defines an USB config thread.
  */
 struct usb2_config_td {
-	struct usb2_process usb2_proc;
+	struct usb_process usb2_proc;
 	struct usb2_config_td_softc *p_softc;
 	usb2_config_td_end_of_commands_t *p_end_of_commands;
 	void   *p_msgs;

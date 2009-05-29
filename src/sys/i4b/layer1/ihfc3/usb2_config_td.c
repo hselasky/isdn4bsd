@@ -38,7 +38,7 @@ static void usb2_config_td_sync_cb(struct usb2_config_td_softc *sc, struct usb2_
 #endif
 
 static void
-usb2_config_td_dispatch(struct usb2_proc_msg *pm)
+usb2_config_td_dispatch(struct usb_proc_msg *pm)
 {
 	struct usb2_config_td_item *pi = (void *)pm;
 	struct usb2_config_td *ctd = pi->p_ctd;

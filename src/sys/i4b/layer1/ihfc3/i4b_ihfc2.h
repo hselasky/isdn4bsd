@@ -96,10 +96,10 @@
 # define isdn_link_t		int
 # define drvr_link_t		int
 # define vm_paddr_t	      u_int
-# define usb2_xfer		{ }
+# define usb_xfer		{ }
 # define device_t		int
 # define resource		{ }
-  struct usb2_callout              { };
+  struct usb_callout              { };
   struct ifqueue		{ };
 # define mtx			{ }
 # define tv			{ }
@@ -819,7 +819,7 @@ struct sc_resources {
 	 * IHFC_NRES.
 	 */
 #ifdef IHFC_USB_ENABLED
-	struct usb2_xfer * usb2_xfer[IHFC_NUSB];
+	struct usb_xfer * usb_xfer[IHFC_NUSB];
 #endif
 
 	i4b_controller_t * i4b_controller;
@@ -976,7 +976,7 @@ struct sc_default {
   const char *                  desc;
 
 #ifdef IHFC_USB_ENABLED
-  const struct usb2_config *    usb;
+  const struct usb_config *    usb;
 #endif
 
   const struct fsm_table *    d_fsm_table;
@@ -1133,7 +1133,7 @@ ihfc_fifo_program_t *
 	 struct buffer *buf)
 
 # define USB_CALLBACK_T(xfer)			\
-	(struct usb2_xfer *xfer)
+	(struct usb_xfer *xfer)
 } __packed;
 
 /* when making an embedded product, one can set
@@ -2496,7 +2496,7 @@ struct sc_state {
 
   i4b_controller_t *i4b_controller;
 
-  struct usb2_callout T3callout;	/* T3 callout */
+  struct usb_callout T3callout;	/* T3 callout */
   struct fsm_state state;	/* last known state */
 };
 
@@ -2543,10 +2543,10 @@ struct ihfc_sc {
 			 */
 
 	struct mtx *		sc_mtx_p;	/* pointer to driver mutex */
-	struct usb2_page	sc_hw_page;
-	struct usb2_page_cache	sc_hw_page_cache;
-	struct usb2_dma_parent_tag	sc_hw_dma_parent_tag;
-	struct usb2_dma_tag	sc_hw_dma_tag;
+	struct usb_page	sc_hw_page;
+	struct usb_page_cache	sc_hw_page_cache;
+	struct usb_dma_parent_tag	sc_hw_dma_parent_tag;
+	struct usb_dma_tag	sc_hw_dma_tag;
 
 	struct sc_resources	sc_resources;
 	struct sc_reg_temp	sc_reg_temp;
@@ -2576,8 +2576,8 @@ struct ihfc_sc {
 	u_int8_t		sc_intr_status[(IHFC_CHANNELS+SC_INTR_BITS-1)/SC_INTR_BITS];
 	u_int8_t		sc_intr_status_end[0];
 
-	struct usb2_callout	sc_pollout_timr;      /* T50 ms  */
-	struct usb2_callout	sc_pollout_timr_wait; /* T125 us */
+	struct usb_callout	sc_pollout_timr;      /* T50 ms  */
+	struct usb_callout	sc_pollout_timr_wait; /* T125 us */
 
 	u_int8_t		sc_buffer[1024];
   

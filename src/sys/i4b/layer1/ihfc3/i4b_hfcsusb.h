@@ -128,7 +128,7 @@ hfcsusb2_cfg_write_1(ihfc_sc_t *sc, uint8_t reg, uint8_t data)
 
 	IHFC_MSG("0x%02x->0x%02x\n", data, reg);
 
-	usb2_transfer_start(sc->sc_resources.usb2_xfer[HFCSUSB_CONF_XFER_WRITE]);
+	usb2_transfer_start(sc->sc_resources.usb_xfer[HFCSUSB_CONF_XFER_WRITE]);
 
 	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "write reg", 0)) {
 
@@ -147,7 +147,7 @@ hfcsusb2_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
 	    goto done;
         }
 
-	usb2_transfer_start(sc->sc_resources.usb2_xfer[HFCSUSB_CONF_XFER_READ]);
+	usb2_transfer_start(sc->sc_resources.usb_xfer[HFCSUSB_CONF_XFER_READ]);
 
 	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "read reg", 0)) {
 
@@ -162,7 +162,7 @@ static void
 hfcsusb2_callback_chip_read USB_CALLBACK_T(xfer)
 {
 	ihfc_sc_t              *sc  = xfer->priv_sc;
-	struct usb2_device_request   req;
+	struct usb_device_request   req;
 	uint8_t		       buf[1];
 
   switch (USB_GET_STATE(xfer)) {
@@ -209,7 +209,7 @@ static void
 hfcsusb2_callback_chip_write USB_CALLBACK_T(xfer)
 {
 	ihfc_sc_t             *sc  = xfer->priv_sc;
-	struct usb2_device_request  req;
+	struct usb_device_request  req;
 
   switch (USB_GET_STATE(xfer)) {
   case USB_ST_TRANSFERRED: 
@@ -322,31 +322,31 @@ hfcsusb2_chip_reset CHIP_RESET_T(sc,error)
 	/*
 	 * setup fifo pointers
 	 */
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0x0]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x0]->priv_fifo 
 	  = &sc->sc_fifo[d1t];
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0x1]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x1]->priv_fifo 
 	  = &sc->sc_fifo[d1t]; 
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0x2]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x2]->priv_fifo 
 	  = &sc->sc_fifo[d1r]; 
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0x3]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x3]->priv_fifo 
 	  = &sc->sc_fifo[d1r]; 
 
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0x4]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x4]->priv_fifo 
 	  = &sc->sc_fifo[b1t]; 
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0x5]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x5]->priv_fifo 
 	  = &sc->sc_fifo[b1t]; 
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0x6]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x6]->priv_fifo 
 	  = &sc->sc_fifo[b1r]; 
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0x7]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x7]->priv_fifo 
 	  = &sc->sc_fifo[b1r]; 
 
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0x8]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x8]->priv_fifo 
 	  = &sc->sc_fifo[b2t]; 
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0x9]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x9]->priv_fifo 
 	  = &sc->sc_fifo[b2t]; 
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0xA]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0xA]->priv_fifo 
 	  = &sc->sc_fifo[b2r]; 
-	sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START+0xB]->priv_fifo 
+	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0xB]->priv_fifo 
 	  = &sc->sc_fifo[b2r]; 
 
 	/*
@@ -434,7 +434,7 @@ hfcsusb2_callback_isoc_tx_d_hdlc USB_CALLBACK_T(xfer)
   case USB_ST_TRANSFERRED: tr_transferred:
   case USB_ST_SETUP: 
 
-	if(xfer != sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_DCHAN])
+	if(xfer != sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_DCHAN])
 	{
 		/* wrong xfer */
 		goto done;
@@ -1197,9 +1197,9 @@ hfcsusb2_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	if ((f == IHFC_CONFIG_WRITE_UPDATE) ||
 	    (f == IHFC_CONFIG_WRITE_RELOAD))
 	{
-	  __typeof(sc->sc_resources.usb2_xfer[0])
-	    *xfer = &sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_START],
-	    *xfer_end = &sc->sc_resources.usb2_xfer[HFCSUSB_FIFO_XFER_END];
+	  __typeof(sc->sc_resources.usb_xfer[0])
+	    *xfer = &sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START],
+	    *xfer_end = &sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_END];
 
 	  usb2_config_td_queue_command
 	    (&(sc->sc_config_td), NULL,
@@ -1335,7 +1335,7 @@ hfcsusb2_register_list[] =
   { 0, 0 }
 };
 
-static const struct usb2_config
+static const struct usb_config
 hfcsusb2_usb[] =
 {
   /*
@@ -1349,7 +1349,7 @@ hfcsusb2_usb[] =
     .type      = UE_CONTROL,
     .endpoint  = 0x00, /* Control pipe */
     .direction = UE_DIR_ANY,
-    .bufsize   = sizeof(struct usb2_device_request), /* bytes */
+    .bufsize   = sizeof(struct usb_device_request), /* bytes */
     .callback  = &hfcsusb2_callback_chip_write,
     .timeout   = 1000, /* ms */
   },
@@ -1358,7 +1358,7 @@ hfcsusb2_usb[] =
     .type      = UE_CONTROL,
     .endpoint  = 0x00, /* Control pipe */
     .direction = UE_DIR_ANY,
-    .bufsize   = sizeof(struct usb2_device_request)+1, /* bytes */
+    .bufsize   = sizeof(struct usb_device_request)+1, /* bytes */
     .callback  = &hfcsusb2_callback_chip_read,
     .timeout   = 1000, /* ms */
   },

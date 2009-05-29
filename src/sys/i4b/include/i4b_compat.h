@@ -35,7 +35,9 @@
 #   define usb_callout_reset(c,t,f,d) callout_reset(&(c)->co,t,f,d)
 #   define usb_callout_stop(c) callout_stop(&(c)->co)
 #   define usb_callout_pending(c) callout_pending(&(c)->co)
-    struct usb_callout { struct callout co; };
+#   ifndef usb2_callout_init_mtx
+     struct usb_callout { struct callout co; };
+#   endif
 #  endif
 # else
 #  include <ncurses.h>
