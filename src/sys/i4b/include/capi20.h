@@ -2032,7 +2032,7 @@ capi_message_decoded_header(struct capi_message_decoded *mp, u_int16_t wApp,
 			    u_int16_t wCmd, u_int16_t wNum, u_int32_t dwCid)
 {
 	/* set default value */
-	bzero(mp, sizeof(*mp));
+	memset(mp, 0, sizeof(*mp));
   
 	/* fill out header */
 	mp->head.wApp = wApp;
@@ -2289,11 +2289,11 @@ capi_decode(void *ptr, u_int16_t len, void *ie)
 	      if(temp > len)
 	      {
 		  /* part of array is zero ! */
-		  bzero(ADD_BYTES(ie,len), temp-len);
+		  memset(ADD_BYTES(ie,len), 0, temp-len);
 		  temp = len;
 	      }
 
-	      bcopy(ptr, ie, temp);
+	      memcpy(ie, ptr, temp);
 
 	      ie = ADD_BYTES(ie, temp);
 	      ptr = ADD_BYTES(ptr, temp);
@@ -2468,7 +2468,7 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 
 	      if(what != IE_STRUCT_DECODED)
 	      {
-		  bcopy(var, ptr, temp);
+		memcpy(ptr, var, temp);
 	      }
 	      ptr = ADD_BYTES(ptr, temp);
 	      len -= temp;
@@ -2485,7 +2485,7 @@ capi_encode(void *ptr, u_int16_t len, void *ie)
 
 	      ie = ADD_BYTES(ie, 2);
 
-	      bcopy(ie, ptr, temp);
+	      memcpy(ptr, ie, temp);
 	      ie = ADD_BYTES(ie, temp);
 	      ptr = ADD_BYTES(ptr, temp);
 	      len -= temp;
@@ -2953,7 +2953,7 @@ static __inline u_int16_t ALERT_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -2989,7 +2989,7 @@ static __inline void capi_fill_ALERT_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3018,7 +3018,7 @@ static __inline u_int16_t ALERT_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3040,7 +3040,7 @@ static __inline void capi_fill_ALERT_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3086,7 +3086,7 @@ static __inline u_int16_t CONNECT_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3156,7 +3156,7 @@ static __inline void capi_fill_CONNECT_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3222,7 +3222,7 @@ static __inline u_int16_t CONNECT_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3284,7 +3284,7 @@ static __inline void capi_fill_CONNECT_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3326,7 +3326,7 @@ static __inline u_int16_t CONNECT_ACTIVE_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3348,7 +3348,7 @@ static __inline void capi_fill_CONNECT_ACTIVE_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3370,7 +3370,7 @@ static __inline u_int16_t CONNECT_ACTIVE_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3392,7 +3392,7 @@ static __inline void capi_fill_CONNECT_ACTIVE_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3421,7 +3421,7 @@ static __inline u_int16_t DISCONNECT_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3457,7 +3457,7 @@ static __inline void capi_fill_DISCONNECT_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3486,7 +3486,7 @@ static __inline u_int16_t DISCONNECT_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3508,7 +3508,7 @@ static __inline void capi_fill_DISCONNECT_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3535,7 +3535,7 @@ static __inline u_int16_t LISTEN_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3567,7 +3567,7 @@ static __inline void capi_fill_LISTEN_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3594,7 +3594,7 @@ static __inline u_int16_t LISTEN_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3616,7 +3616,7 @@ static __inline void capi_fill_LISTEN_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3646,7 +3646,7 @@ static __inline u_int16_t INFO_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3684,7 +3684,7 @@ static __inline void capi_fill_INFO_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3714,7 +3714,7 @@ static __inline u_int16_t INFO_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3736,7 +3736,7 @@ static __inline void capi_fill_INFO_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3767,7 +3767,7 @@ static __inline u_int16_t SELECT_B_PROTOCOL_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3807,7 +3807,7 @@ static __inline void capi_fill_SELECT_B_PROTOCOL_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3838,7 +3838,7 @@ static __inline u_int16_t SELECT_B_PROTOCOL_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3860,7 +3860,7 @@ static __inline void capi_fill_SELECT_B_PROTOCOL_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3884,7 +3884,7 @@ static __inline u_int16_t FACILITY_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3910,7 +3910,7 @@ static __inline void capi_fill_FACILITY_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3936,7 +3936,7 @@ static __inline u_int16_t FACILITY_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3964,7 +3964,7 @@ static __inline void capi_fill_FACILITY_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -3991,7 +3991,7 @@ static __inline u_int16_t CONNECT_B3_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4015,7 +4015,7 @@ static __inline void capi_fill_CONNECT_B3_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4040,7 +4040,7 @@ static __inline u_int16_t CONNECT_B3_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4066,7 +4066,7 @@ static __inline void capi_fill_CONNECT_B3_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4090,7 +4090,7 @@ static __inline u_int16_t CONNECT_B3_ACTIVE_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4112,7 +4112,7 @@ static __inline void capi_fill_CONNECT_B3_ACTIVE_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4134,7 +4134,7 @@ static __inline u_int16_t CONNECT_B3_ACTIVE_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4156,7 +4156,7 @@ static __inline void capi_fill_CONNECT_B3_ACTIVE_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4179,7 +4179,7 @@ static __inline u_int16_t DISCONNECT_B3_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4203,7 +4203,7 @@ static __inline void capi_fill_DISCONNECT_B3_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4226,7 +4226,7 @@ static __inline u_int16_t DISCONNECT_B3_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4248,7 +4248,7 @@ static __inline void capi_fill_DISCONNECT_B3_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4275,7 +4275,7 @@ static __inline u_int16_t DATA_B3_REQ
 {
 #if 0
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
 #else
 #if ((CAPI_HEADER(1+ NO,)(0)) != 5)
 #error "This code needs to be updated!"
@@ -4314,7 +4314,7 @@ static __inline void capi_fill_DATA_B3_REQ
 {
 #if 0
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
 #else
 #if ((CAPI_HEADER(1+ NO,)(0)) != 5)
 #error "This code needs to be updated!"
@@ -4350,7 +4350,7 @@ static __inline u_int16_t DATA_B3_RESP
 {
 #if 0
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
 #else
 #if ((CAPI_HEADER(1+ NO,)(0)) != 5)
 #error "This code needs to be updated!"
@@ -4383,7 +4383,7 @@ static __inline void capi_fill_DATA_B3_RESP
 {
 #if 0
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
 #else
 #if ((CAPI_HEADER(1+ NO,)(0)) != 5)
 #error "This code needs to be updated!"
@@ -4415,7 +4415,7 @@ static __inline u_int16_t RESET_B3_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4439,7 +4439,7 @@ static __inline void capi_fill_RESET_B3_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4462,7 +4462,7 @@ static __inline u_int16_t RESET_B3_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4484,7 +4484,7 @@ static __inline void capi_fill_RESET_B3_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4506,7 +4506,7 @@ static __inline u_int16_t CONNECT_B3_T90_ACTIVE_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4528,7 +4528,7 @@ static __inline void capi_fill_CONNECT_B3_T90_ACTIVE_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4550,7 +4550,7 @@ static __inline u_int16_t CONNECT_B3_T90_ACTIVE_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4572,7 +4572,7 @@ static __inline void capi_fill_CONNECT_B3_T90_ACTIVE_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4598,7 +4598,7 @@ static __inline u_int16_t MANUFACTURER_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4628,7 +4628,7 @@ static __inline void capi_fill_MANUFACTURER_REQ
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4658,7 +4658,7 @@ static __inline u_int16_t MANUFACTURER_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
@@ -4688,7 +4688,7 @@ static __inline void capi_fill_MANUFACTURER_RESP
 )
 {
   /* set default value */
-  bzero(mp, sizeof(*mp));
+  memset(mp, 0, sizeof(*mp));
   
   /* fill out header */
   mp->head.wApp = wApp;
