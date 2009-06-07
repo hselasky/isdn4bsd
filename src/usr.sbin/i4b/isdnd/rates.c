@@ -369,14 +369,14 @@ readrates(char *filename)
 
 	if(fp)
 	  fclose(fp);
-	return;
+	return (GOOD);
 
  rate_error:
 	if(fp)
 	  fclose(fp);
 
 	exit(1);
-	return;
+	return (ERROR);
 }
 
 #ifndef PARSE_DEBUG_MAIN
@@ -396,7 +396,6 @@ get_current_rate(cfg_entry_t *cep, int logit)
 				log(LL_CHD, "%05d %s rate %d sec/unit (cmdl)",
 					cep->cdid, cep->name, unit_length);
 			return(unit_length);
-			break;
 
 		case ULSRC_CONF:	/* get it from config file      */
 			if(logit)
@@ -434,7 +433,6 @@ get_current_rate(cfg_entry_t *cep, int logit)
 					cep->cdid, cep->name, UNITLENGTH_DEFAULT);
 
 			return(UNITLENGTH_DEFAULT);
-			break;
 
 		case ULSRC_DYN:	/* dynamically calculated from AOC */
 			if((rt = getrate(cep->ratetype)) != -1)
@@ -449,7 +447,6 @@ get_current_rate(cfg_entry_t *cep, int logit)
 					cep->cdid, cep->name, UNITLENGTH_DEFAULT);
 
 			return(UNITLENGTH_DEFAULT);
-			break;
 
 		default:
 			if(logit)
@@ -457,7 +454,6 @@ get_current_rate(cfg_entry_t *cep, int logit)
 					cep->cdid, cep->name, UNITLENGTH_DEFAULT);
 
 			return(UNITLENGTH_DEFAULT);
-			break;
 	}
 }
 #endif /* PARSE_DEBUG_MAIN */
