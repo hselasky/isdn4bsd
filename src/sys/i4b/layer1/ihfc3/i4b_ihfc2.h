@@ -49,21 +49,22 @@
 # include <sys/socket.h>
 # include <sys/proc.h>		/* thread + msleep stuff */
 # include <machine/bus.h>
+# include <sys/callout.h>
 
 # include <net/if.h>
 
 # ifdef IHFC_USB_ENABLED
 #  define usb2_config_td_cc ihfc_config_copy
 #  define usb2_config_td_softc ihfc_sc
-#  include <dev/usb/usb_revision.h>
-#  include <dev/usb/usb_error.h>
 #  include <dev/usb/usb.h>
-#  include <dev/usb/usb_core.h>
-#  include <dev/usb/usb_mbuf.h>
-#  include <dev/usb/usb_busdma.h>
+#  include <dev/usb/usbdi.h>
+#  include <dev/usb/usbdi_util.h>
 #  include <dev/usb/usb_process.h>
-#  include <i4b/layer1/ihfc3/usb2_config_td.h>
+#  include <dev/usb/usb_debug.h>
 #  include <dev/usb/usb_util.h>
+#  include <dev/usb/usb_busdma.h>
+
+#  include <i4b/layer1/ihfc3/usb2_config_td.h>
 # endif
 
 # ifdef __FreeBSD__
@@ -1132,8 +1133,6 @@ ihfc_fifo_program_t *
 	(struct fifo_translator *ft,		\
 	 struct buffer *buf)
 
-# define USB_CALLBACK_T(xfer)			\
-	(struct usb_xfer *xfer)
 } __packed;
 
 /* when making an embedded product, one can set

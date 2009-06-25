@@ -556,7 +556,7 @@ const   struct resource_tab *ptr;
 	/*
 	 * Initialise the DMA tags
 	 */
-	usb2_dma_tag_setup(&(sc->sc_hw_dma_parent_tag),
+	usb_dma_tag_setup(&(sc->sc_hw_dma_parent_tag),
 	   &(sc->sc_hw_dma_tag), USB_GET_DMA_TAG(dev),
 	   sc->sc_mtx_p, NULL, 32, 1);
 
@@ -575,7 +575,7 @@ const   struct resource_tab *ptr;
 		{
 		    sc->sc_resources.mwba_size [0] = (1<<15);
 
-		    if (usb2_pc_alloc_mem(&(sc->sc_hw_page_cache),
+		    if (usb_pc_alloc_mem(&(sc->sc_hw_page_cache),
 			  &(sc->sc_hw_page), (1<<15), (1<<15)))
 		    {
 			IHFC_ADD_ERR(error,
@@ -584,7 +584,7 @@ const   struct resource_tab *ptr;
 		    }
 		    else
 		    {
-		        usb2_get_page(&(sc->sc_hw_page_cache), 0, &buf_res);
+		        usbd_get_page(&(sc->sc_hw_page_cache), 0, &buf_res);
 			sc->sc_resources.mwba_phys_start[0] = buf_res.physaddr;
 			sc->sc_resources.mwba_start[0] = buf_res.buffer;
 		    }
@@ -603,7 +603,7 @@ const   struct resource_tab *ptr;
 		{
 		    sc->sc_resources.mwba_size [0] = (1<<14);
 
-		    if (usb2_pc_alloc_mem(&(sc->sc_hw_page_cache),
+		    if (usb_pc_alloc_mem(&(sc->sc_hw_page_cache),
 			  &(sc->sc_hw_page), (1<<14), (1<<14)))
 		    {
 			IHFC_ADD_ERR(error,
@@ -612,7 +612,7 @@ const   struct resource_tab *ptr;
 		    }
 		    else
 		    {
-		        usb2_get_page(&(sc->sc_hw_page_cache), 0, &buf_res);
+		        usbd_get_page(&(sc->sc_hw_page_cache), 0, &buf_res);
 			sc->sc_resources.mwba_phys_start[0] = buf_res.physaddr;
 			sc->sc_resources.mwba_start[0] = buf_res.buffer;
 
@@ -668,22 +668,22 @@ const   struct resource_tab *ptr;
 		/*
 		 * set wanted alternate setting
 		 */
-		err = usb2_set_alt_interface_index
+		err = usbd_set_alt_interface_index
 		  (udev, def->usb2_iface_no, def->usb2_alt_iface_no);
 
-		if(err) goto usb2_err;
+		if(err) goto usbd_err;
 
 		/* setup transfers */
-		err = usb2_transfer_setup(udev, &(def->usb2_iface_no), 
+		err = usbd_transfer_setup(udev, &(def->usb2_iface_no), 
 					  &sc->sc_resources.usb_xfer[0],
 					  &def->usb[0], def->usb2_length,
 					  sc, sc->sc_mtx_p);
 		if(err)
 		{
-		  usb2_err:
+		  usbd_err:
 		    /* get USB error string
 		     */
-		    IHFC_ADD_ERR(error, "%s", usb2_errstr(err));
+		    IHFC_ADD_ERR(error, "%s", usbd_errstr(err));
 		    goto done;
 		}
 	}
@@ -782,7 +782,7 @@ ihfc_unsetup_resource(device_t dev)
 	/*
 	 * USB unsetup
 	 */
-	usb2_transfer_unsetup(&sc->sc_resources.usb_xfer[0], IHFC_NUSB);
+	usbd_transfer_unsetup(&sc->sc_resources.usb_xfer[0], IHFC_NUSB);
 
 	usb2_config_td_unsetup(&(sc->sc_config_td));
 #endif
@@ -792,10 +792,10 @@ ihfc_unsetup_resource(device_t dev)
 	 */
 	if(sc->sc_resources.mwba_start[0])
         {
-		usb2_pc_free_mem(&(sc->sc_hw_page_cache));
+		usb_pc_free_mem(&(sc->sc_hw_page_cache));
 	}
 
-	usb2_dma_tag_unsetup(&(sc->sc_hw_dma_parent_tag));
+	usb_dma_tag_unsetup(&(sc->sc_hw_dma_parent_tag));
 
 	bzero(&sc->sc_resources,sizeof(sc->sc_resources));
 	return;
@@ -824,15 +824,15 @@ ihfc_unsetup(device_t dev, const u_int8_t *error, u_int8_t level)
 	   * Stop timeouts if running
 	   */
 
-	  usb2_callout_stop(&sc->sc_pollout_timr);
-	  usb2_callout_stop(&sc->sc_pollout_timr_wait);
+	  usb_callout_stop(&sc->sc_pollout_timr);
+	  usb_callout_stop(&sc->sc_pollout_timr_wait);
 
 	  for(n = 0; 
 	      n < sc->sc_default.d_sub_controllers;
 	      n++)
 	  {
 	      struct sc_state *st = &sc->sc_state[n];
-	      usb2_callout_stop(&st->T3callout);
+	      usb_callout_stop(&st->T3callout);
 	  }
 	  mtx_unlock(sc->sc_mtx_p);
 	case 0:
@@ -1046,8 +1046,8 @@ ihfc_pnp_probe_sub(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	/* initialize callouts after that 
 	 * one has got a mutex:
 	 */
-	usb2_callout_init_mtx(&sc->sc_pollout_timr_wait, sc->sc_mtx_p, 0);
-	usb2_callout_init_mtx(&sc->sc_pollout_timr, sc->sc_mtx_p, 0);
+	usb_callout_init_mtx(&sc->sc_pollout_timr_wait, sc->sc_mtx_p, 0);
+	usb_callout_init_mtx(&sc->sc_pollout_timr, sc->sc_mtx_p, 0);
 
 	for(n = 0; 
 	    n < sc->sc_default.d_sub_controllers;
@@ -1070,7 +1070,7 @@ ihfc_pnp_probe_sub(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	     */
 	    st->i4b_controller = cntl;
 
-	    usb2_callout_init_mtx(&st->T3callout, sc->sc_mtx_p, 0);
+	    usb_callout_init_mtx(&st->T3callout, sc->sc_mtx_p, 0);
 
 	    st->i4b_option_value = sc->sc_default.i4b_option_value;
 

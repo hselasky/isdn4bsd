@@ -26,10 +26,7 @@
 
 #define	USB_DEBUG_VAR usb2_debug
 
-#include <dev/usb/usb_core.h>
-#include <dev/usb/usb_process.h>
-#include <i4b/layer1/ihfc3/usb2_config_td.h>
-#include <dev/usb/usb_debug.h>
+#include <i4b/layer1/ihfc3/i4b_ihfc2.h>
 
 static void usb2_config_td_sync_cb(struct usb2_config_td_softc *sc, struct usb2_config_td_cc *cc, uint16_t ref);
 
@@ -42,8 +39,6 @@ usb2_config_td_dispatch(struct usb_proc_msg *pm)
 {
 	struct usb2_config_td_item *pi = (void *)pm;
 	struct usb2_config_td *ctd = pi->p_ctd;
-
-	DPRINTF("\n");
 
 	(pi->command_func) (ctd->p_softc, (void *)(pi + 1), pi->command_ref);
 
@@ -74,10 +69,7 @@ usb2_config_td_setup(struct usb2_config_td *ctd, void *priv_sc,
 	struct usb2_config_td_item *pi;
 	uint16_t n;
 
-	DPRINTF(" size=%u, count=%u \n", item_size, item_count);
-
 	if (item_count >= 256) {
-		DPRINTFN(0, "too many items!\n");
 		return (1);
 	}
 	ctd->p_softc = priv_sc;
@@ -90,7 +82,7 @@ usb2_config_td_setup(struct usb2_config_td *ctd, void *priv_sc,
 	if (ctd->p_msgs == NULL) {
 		return (1);
 	}
-	if (usb2_proc_create(&ctd->usb2_proc, priv_mtx, "i4b", USB_PRI_MED)) {
+	if (usb_proc_create(&ctd->usb2_proc, priv_mtx, "i4b", USB_PRI_MED)) {
 		free(ctd->p_msgs, M_USBDEV);
 		ctd->p_msgs = NULL;
 		return (1);
@@ -117,9 +109,8 @@ usb2_config_td_setup(struct usb2_config_td *ctd, void *priv_sc,
 void
 usb2_config_td_drain(struct usb2_config_td *ctd)
 {
-	DPRINTF("\n");
 	if (ctd->p_msgs) {
-		usb2_proc_drain(&ctd->usb2_proc);
+		usb_proc_drain(&ctd->usb2_proc);
 	}
 }
 
@@ -132,12 +123,10 @@ usb2_config_td_drain(struct usb2_config_td *ctd)
 void
 usb2_config_td_unsetup(struct usb2_config_td *ctd)
 {
-	DPRINTF("\n");
-
 	usb2_config_td_drain(ctd);
 
 	if (ctd->p_msgs) {
-		usb2_proc_free(&ctd->usb2_proc);
+		usb_proc_free(&ctd->usb2_proc);
 		free(ctd->p_msgs, M_USBDEV);
 		ctd->p_msgs = NULL;
 	}
@@ -172,11 +161,9 @@ usb2_config_td_queue_command(struct usb2_config_td *ctd,
 	uint16_t n;
 
 	if (usb2_config_td_is_gone(ctd)) {
-		DPRINTF("gone\n");
 		/* nothing more to do */
 		return;
 	}
-	DPRINTF("\n");
 
 	pi = USB_ADD_BYTES(ctd->p_msgs, 0);
 	for (n = 0;; n += 2) {
@@ -212,7 +199,7 @@ usb2_config_td_queue_command(struct usb2_config_td *ctd,
 	 * We have two message structures. One of them will get
 	 * queued:
 	 */
-	pi = usb2_proc_msignal(&ctd->usb2_proc, pi_0, pi_1);
+	pi = usb_proc_msignal(&ctd->usb2_proc, pi_0, pi_1);
 
 	/*
 	 * The job of the post-command function is to finish the command in
@@ -231,7 +218,7 @@ usb2_config_td_queue_command(struct usb2_config_td *ctd,
 		(command_pre_func) (ctd->p_softc, (void *)(pi + 1), command_ref);
 	}
 	if (command_sync == USB2_CONFIG_TD_SYNC) {
-		usb2_proc_mwait(&ctd->usb2_proc, pi_0, pi_1);
+		usb_proc_mwait(&ctd->usb2_proc, pi_0, pi_1);
 	}
 }
 
@@ -245,7 +232,7 @@ usb2_config_td_queue_command(struct usb2_config_td *ctd,
 uint8_t
 usb2_config_td_is_gone(struct usb2_config_td *ctd)
 {
-	return (usb2_proc_is_gone(&ctd->usb2_proc));
+	return (usb_proc_is_gone(&ctd->usb2_proc));
 }
 
 /*------------------------------------------------------------------------*

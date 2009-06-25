@@ -114,7 +114,7 @@ wibusb2_cfg_write_1(ihfc_sc_t *sc, uint8_t reg, uint8_t data)
 
 	IHFC_MSG("0x%02x->0x%02x\n", data, reg);
 
-	usb2_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE]);
+	usbd_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE]);
 
 	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "write reg", 0)) {
 
@@ -134,7 +134,7 @@ wibusb2_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
 	    goto done;
         }
 
-	usb2_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE]);
+	usbd_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE]);
 
 	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "write reg", 0)) {
 
@@ -144,7 +144,7 @@ wibusb2_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
 	    goto done;
         }
 
-	usb2_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_READ]);
+	usbd_transfer_start(sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_READ]);
 
 	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "read reg", 0)) {
 
@@ -155,23 +155,25 @@ wibusb2_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
 #endif
 
 static void
-wibusb2_clear_stall_callback_chip_write USB_CALLBACK_T(xfer)
+wibusbd_clear_stall_callback_chip_write(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t *sc  = xfer->priv_sc;
-	struct usb_xfer *xfer_other = sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE];
+	ihfc_sc_t *sc  = usbd_xfer_softc(xfer);
+	struct usb_xfer *xfer_other = 
+	    sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_WRITE];
 
-	if (usb2_clear_stall_callback(xfer, xfer_other)) {
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
 	    IHFC_MSG("stall cleared\n");
 	    sc->sc_default.o_BULK_WRITE_STALL = 0;
-	    usb2_transfer_start(xfer_other);
+	    usbd_transfer_start(xfer_other);
 	}
 	return;
 }
 
 static void
-wibusb2_callback_chip_write USB_CALLBACK_T(xfer)
+wibusb2_callback_chip_write(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t	*sc  = xfer->priv_sc;
+	ihfc_sc_t	*sc  = usbd_xfer_softc(xfer);
+	struct usb_page_cache *pc = usbd_xfer_get_frame(xfer, 0);
 	uint8_t		buf[2];
 
   switch (USB_GET_STATE(xfer)) {
@@ -189,14 +191,14 @@ wibusb2_callback_chip_write USB_CALLBACK_T(xfer)
 	buf[0] = sc->sc_reg_temp.reg; /* register */
 	buf[1] = sc->sc_reg_temp.data; /* data */
 
-	usb2_copy_in(xfer->frbuffers + 0, 0, buf, sizeof(buf));
+	usbd_copy_in(pc, 0, buf, sizeof(buf));
 
-	xfer->frlengths[0] = 2; /* bytes */
+	usbd_xfer_set_frame_len(xfer, 0, 2);
 
 	if (sc->sc_default.o_BULK_WRITE_STALL) {
-	    usb2_transfer_start(sc->sc_resources.usb_xfer[7]);
+	    usbd_transfer_start(sc->sc_resources.usb_xfer[7]);
 	} else {
-	    usb2_start_hardware(xfer);
+	    usbd_transfer_submit(xfer);
 	}
 	return;
 
@@ -208,29 +210,30 @@ wibusb2_callback_chip_write USB_CALLBACK_T(xfer)
 }
 
 static void
-wibusb2_clear_stall_callback_chip_read USB_CALLBACK_T(xfer)
+wibusbd_clear_stall_callback_chip_read(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t *sc  = xfer->priv_sc;
+	ihfc_sc_t *sc  = usbd_xfer_softc(xfer);
 	struct usb_xfer *xfer_other = sc->sc_resources.usb_xfer[WIBUSB_CONF_XFER_READ];
 
-	if (usb2_clear_stall_callback(xfer, xfer_other)) {
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
 	    IHFC_MSG("stall cleared\n");
 	    sc->sc_default.o_BULK_READ_STALL = 0;
-	    usb2_transfer_start(xfer_other);
+	    usbd_transfer_start(xfer_other);
 	}
 	return;
 }
 
 static void
-wibusb2_callback_chip_read USB_CALLBACK_T(xfer)
+wibusb2_callback_chip_read(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t	*sc  = xfer->priv_sc;
+	ihfc_sc_t	*sc  = usbd_xfer_softc(xfer);
+	struct usb_page_cache *pc = usbd_xfer_get_frame(xfer, 0);
 	uint8_t		buf[2];
 
   switch (USB_GET_STATE(xfer)) {
   case USB_ST_TRANSFERRED:
 
-	usb2_copy_out(xfer->frbuffers + 0, 0, buf, sizeof(buf));
+	usbd_copy_out(pc, 0, buf, sizeof(buf));
 
 	IHFC_MSG("ReadReg:0x%02x, Val:0x%02x\n",
 		 buf[0], buf[1]);
@@ -243,12 +246,12 @@ wibusb2_callback_chip_read USB_CALLBACK_T(xfer)
 
   case USB_ST_SETUP: 
 	/* setup data length */
-	xfer->frlengths[0] = 2; /* bytes */
+	usbd_xfer_set_frame_len(xfer, 0, 2);
 
 	if (sc->sc_default.o_BULK_READ_STALL) {
-	    usb2_transfer_start(sc->sc_resources.usb_xfer[8]);
+	    usbd_transfer_start(sc->sc_resources.usb_xfer[8]);
 	} else {
-	    usb2_start_hardware(xfer);
+	    usbd_transfer_submit(xfer);
 	}
 	return;
 
@@ -372,12 +375,12 @@ wibusb2_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
  */
 
 static void
-wibusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
+wibusb2_callback_isoc_rx(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t *sc = xfer->priv_sc;
-
-	uint32_t *frlengths = xfer->frlengths;
-	uint32_t *frlengths_end = frlengths + WIBUSB_RX_FRAMES;
+	ihfc_sc_t *sc = usbd_xfer_softc(xfer);
+	struct usb_page_cache *pc = usbd_xfer_get_frame(xfer, 0);
+ 	int i;
+	int frlen;
 
 	u_int8_t
 	  *fifo_ptr = sc->sc_temp_ptr,
@@ -389,8 +392,8 @@ wibusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
   switch (USB_GET_STATE(xfer)) {
   case USB_ST_TRANSFERRED: 
 
-	usb2_copy_out(xfer->frbuffers + 0, 0, 
-		      fifo_ptr, WIBUSB_RX_BUFSIZE);
+	usbd_copy_out(pc, 0, 
+	    fifo_ptr, WIBUSB_RX_BUFSIZE);
 
 #if WIBUSB_RX_FRAMESIZE < (8+16+16)
 #error "WIBUSB_RX_FRAMESIZE too small"
@@ -400,9 +403,7 @@ wibusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
 	b1_start = b1_end = tmp + (WIBUSB_RX_FRAMES*(8));
 	b2_start = b2_end = tmp + (WIBUSB_RX_FRAMES*(8 + 16));
 
-	for(;
-	    frlengths < frlengths_end;
-	    frlengths++)
+	for (i = 0; i != WIBUSB_RX_FRAMES; i++)
 	{
 #define break illegal
 #define goto illegal
@@ -426,7 +427,9 @@ wibusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
 #ifdef WIBUSB_DEBUG_STAT
 		printf(" frlen=%d ", *frlengths);
 #endif
-		if(*frlengths < 4) continue;
+		frlen = usbd_xfer_frame_len(xfer, i);
+
+		if(frlen < 4) continue;
 
 		/*
 		 * tmp[0] == Status
@@ -501,9 +504,6 @@ wibusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
 #undef break
 #undef goto
 	}
-
-	/* restore frlengths */
-	frlengths -= WIBUSB_RX_FRAMES;
 
 	/* restore fifo_ptr */
 	fifo_ptr -= WIBUSB_RX_BUFSIZE;
@@ -641,45 +641,32 @@ wibusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
 	(sc->sc_fifo[b2r].filter)(sc, &sc->sc_fifo[b2r]);
 
   case USB_ST_SETUP: tr_setup:
-	/* setup framelengths and
-	 * start USB hardware;
-	 * Reuse xfer->buffer and
-	 * xfer->nframes
-	 *
-	 * xfer->nframes == WIBUSB_RX_FRAMES;
+	/* 
+	 * Setup framelengths and
+	 * start USB hardware.
 	 */
-
-	for(;
-	    frlengths < frlengths_end;
-	    frlengths++)
-	{
-	  *frlengths = WIBUSB_RX_FRAMESIZE;
+	for (i = 0; i != WIBUSB_RX_FRAMES; i++) {
+		usbd_xfer_set_frame_len(xfer, i, WIBUSB_RX_FRAMESIZE);
 	}
 
-	/* restore frlengths */
-	frlengths -= WIBUSB_RX_FRAMES;
+	usbd_xfer_set_frames(xfer, WIBUSB_RX_FRAMES);
 
-	usb2_start_hardware(xfer);
+	usbd_transfer_submit(xfer);
 	return;
 
   default: /* Error */
-	if (xfer->error == USB_ERR_CANCELLED) {
+	if (error == USB_ERR_CANCELLED) {
 		return;
 	}
 	goto tr_setup;
   }
 }
 
-/*
- * NOTE: The current USB driver does not use a fixed frame size. That
- * means all frames are back to back in xfer->buffer!
- * *(xfer->frlengths +x) gives the size of frame ``x''.
- */
-
 static void
-wibusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
+wibusb2_callback_isoc_tx(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t *sc = xfer->priv_sc;
+	ihfc_sc_t *sc = usbd_xfer_softc(xfer);
+	struct usb_page_cache *pc = usbd_xfer_get_frame(xfer, 0);
 
 	u_int8_t
 	  *d1_start, d_average,
@@ -808,7 +795,7 @@ wibusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 		}
 
 		/* store frame length */
-		*(xfer->frlengths + x)     = p_average;
+		usbd_xfer_set_frame_len(xfer, x, p_average);
 
 		/* D-channel: copy 4 bytes */
 		((u_int32_p_t *)(tmp +1))->data = ((u_int32_p_t *)(d1_start))->data;
@@ -838,14 +825,15 @@ wibusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 			       (tmp     ) += p_average; /* */
    	}
 
-	usb2_copy_in(xfer->frbuffers + 0, 0, sc->sc_temp_ptr,
+	usbd_copy_in(pc, 0, sc->sc_temp_ptr,
 		     tmp - (uint8_t *)(sc->sc_temp_ptr));
 
-	usb2_start_hardware(xfer);
+	usbd_xfer_set_frames(xfer, WIBUSB_TX_FRAMES);
+	usbd_transfer_submit(xfer);
 	return;
 
   default: /* Error */
-	if (xfer->error == USB_ERR_CANCELLED) {
+	if (error == USB_ERR_CANCELLED) {
 		return;
 	}
 
@@ -862,34 +850,38 @@ typedef struct {
 } __packed wibusb2_error_t;
 
 static void
-wibusb2_clear_stall_callback_interrupt USB_CALLBACK_T(xfer)
+wibusbd_clear_stall_callback_interrupt(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t *sc  = xfer->priv_sc;
+	ihfc_sc_t *sc  = usbd_xfer_softc(xfer);
 	struct usb_xfer *xfer_other = sc->sc_resources.usb_xfer[2];
 
-	if (usb2_clear_stall_callback(xfer, xfer_other)) {
+	if (usbd_clear_stall_callback(xfer, xfer_other)) {
 	    IHFC_MSG("stall cleared\n");
 	    sc->sc_default.o_INTR_READ_STALL = 0;
-	    usb2_transfer_start(xfer_other);
+	    usbd_transfer_start(xfer_other);
 	}
 	return;
 }
 
 static void
-wibusb2_callback_interrupt USB_CALLBACK_T(xfer)
+wibusb2_callback_interrupt(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t *sc = xfer->priv_sc;
+	ihfc_sc_t *sc = usbd_xfer_softc(xfer);
+	struct usb_page_cache *pc = usbd_xfer_get_frame(xfer, 0);
 	wibusb2_error_t stat;
+	int actlen;
+
+	usbd_xfer_status(xfer, &actlen, NULL, NULL, NULL);
 
   switch (USB_GET_STATE(xfer)) {
   case USB_ST_TRANSFERRED: 
-	IHFC_MSG("actlen=%d\n", xfer->actlen);
+	IHFC_MSG("actlen=%d\n", actlen);
 
-	if (xfer->actlen < sizeof(stat)) {
+	if (actlen < sizeof(stat)) {
 	    goto tr_setup;
 	}
 
-	usb2_copy_out(xfer->frbuffers + 0, 0, &stat, sizeof(stat));
+	usbd_copy_out(pc, 0, &stat, sizeof(stat));
 
 	/* if(stat.w_ista & 0x80)
 	 * check for statemachine change
@@ -904,19 +896,20 @@ wibusb2_callback_interrupt USB_CALLBACK_T(xfer)
 	/* clear all status bits */
 	stat.w_ista = 0x00;
 
-  case USB_ST_SETUP: tr_setup:
+  case USB_ST_SETUP:
+  tr_setup:
 	/* setup data length */
-	xfer->frlengths[0] = sizeof(stat);
+	usbd_xfer_set_frame_len(xfer, 0, sizeof(stat));
 
 	if (sc->sc_default.o_INTR_READ_STALL) {
-	    usb2_transfer_start(sc->sc_resources.usb_xfer[9]);
+	    usbd_transfer_start(sc->sc_resources.usb_xfer[9]);
 	} else {
-	    usb2_start_hardware(xfer);
+	    usbd_transfer_submit(xfer);
 	}
 	return;
 
   default: /* Error */
-	if (xfer->error == USB_ERR_CANCELLED) {
+	if (error == USB_ERR_CANCELLED) {
 	    return;
 	}
 	sc->sc_default.o_INTR_READ_STALL = 1;
@@ -926,7 +919,7 @@ wibusb2_callback_interrupt USB_CALLBACK_T(xfer)
 
 static void
 wibusb2_cfg_reset(struct ihfc_sc *sc,
-		 struct ihfc_config_copy *cc, uint16_t refcount)
+	struct ihfc_config_copy *cc, uint16_t refcount)
 {
 	/* perform reset
 	 *
@@ -972,7 +965,7 @@ wibusb2_chip_reset CHIP_RESET_T(sc,error)
 	 * appear during reset
 	 * (e.g. statemachine change)
 	 */
-	usb2_transfer_start(sc->sc_resources.usb_xfer[2]);
+	usbd_transfer_start(sc->sc_resources.usb_xfer[2]);
 
 	/*
 	 * setup some defaults
@@ -1056,29 +1049,29 @@ wibusb2_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	  {
 	    /* start pipes (rx) */
 
-	    usb2_transfer_start(sc->sc_resources.usb_xfer[5]);
-	    usb2_transfer_start(sc->sc_resources.usb_xfer[6]);
+	    usbd_transfer_start(sc->sc_resources.usb_xfer[5]);
+	    usbd_transfer_start(sc->sc_resources.usb_xfer[6]);
 
 	    if(GROUP_TX(sc) &&
 	       sc->sc_state[0].state.active)
 	    {
 		/* start pipes (tx) */
 
-		usb2_transfer_start(sc->sc_resources.usb_xfer[3]);
-		usb2_transfer_start(sc->sc_resources.usb_xfer[4]);
+		usbd_transfer_start(sc->sc_resources.usb_xfer[3]);
+		usbd_transfer_start(sc->sc_resources.usb_xfer[4]);
 	    }
 	    else
 	    {
-	        usb2_transfer_stop(sc->sc_resources.usb_xfer[3]);
-		usb2_transfer_stop(sc->sc_resources.usb_xfer[4]);
+	        usbd_transfer_stop(sc->sc_resources.usb_xfer[3]);
+		usbd_transfer_stop(sc->sc_resources.usb_xfer[4]);
 	    }
 	  }
 	  else
 	  {
-	    usb2_transfer_stop(sc->sc_resources.usb_xfer[3]);
-	    usb2_transfer_stop(sc->sc_resources.usb_xfer[4]);
-	    usb2_transfer_stop(sc->sc_resources.usb_xfer[5]);
-	    usb2_transfer_stop(sc->sc_resources.usb_xfer[6]);
+	    usbd_transfer_stop(sc->sc_resources.usb_xfer[3]);
+	    usbd_transfer_stop(sc->sc_resources.usb_xfer[4]);
+	    usbd_transfer_stop(sc->sc_resources.usb_xfer[5]);
+	    usbd_transfer_stop(sc->sc_resources.usb_xfer[6]);
 	  }
 	}
 	else
@@ -1258,7 +1251,7 @@ wibusb2_usb[] =
     .interval  = 50, /* 50 milliseconds */
     .flags     = { },
     .bufsize   = sizeof(struct usb_device_request),
-    .callback  = &wibusb2_clear_stall_callback_chip_write,
+    .callback  = &wibusbd_clear_stall_callback_chip_write,
   },
 
   [8] = {
@@ -1269,7 +1262,7 @@ wibusb2_usb[] =
     .interval  = 50, /* 50 milliseconds */
     .flags     = { },
     .bufsize   = sizeof(struct usb_device_request),
-    .callback  = &wibusb2_clear_stall_callback_chip_read,
+    .callback  = &wibusbd_clear_stall_callback_chip_read,
   },
 
   [9] = {
@@ -1280,7 +1273,7 @@ wibusb2_usb[] =
     .interval  = 50, /* 50 milliseconds */
     .flags     = { },
     .bufsize   = sizeof(struct usb_device_request),
-    .callback  = &wibusb2_clear_stall_callback_interrupt,
+    .callback  = &wibusbd_clear_stall_callback_interrupt,
   },
 };
 

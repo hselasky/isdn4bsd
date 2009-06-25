@@ -508,7 +508,7 @@ ihfc_fsm_update(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag)
 	     */
 	    if((st->L1_auto_activate_ptr[0]) &&
 	       (!fsm_state.active) &&
-	       (!usb2_callout_pending(&st->T3callout)))
+	       (!usb_callout_pending(&st->T3callout)))
 	    {
 	        flag = 3;
 	    }
@@ -580,9 +580,9 @@ ihfc_fsm_update(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag)
 	        fsm_write(sc,f,0);
 	    }
 
-	    if(!usb2_callout_pending(&st->T3callout))
+	    if(!usb_callout_pending(&st->T3callout))
 	    {
-	        usb2_callout_reset(&st->T3callout, IHFC_T3_DELAY, 
+	        usb_callout_reset(&st->T3callout, IHFC_T3_DELAY, 
 				&fsm_T3_expire, st->i4b_controller);
 	    }
 	}
@@ -887,18 +887,18 @@ __ihfc_chip_interrupt(ihfc_sc_t *sc)
 		}
 
 		/* delay 1 millisecond (command delay) */
-		if(!usb2_callout_pending(&sc->sc_pollout_timr_wait))
+		if(!usb_callout_pending(&sc->sc_pollout_timr_wait))
 		{
-		    usb2_callout_reset(&sc->sc_pollout_timr_wait,
+		    usb_callout_reset(&sc->sc_pollout_timr_wait,
 				    SC_T125_WAIT_DELAY,
 				    (void *)(void *)&__ihfc_chip_interrupt, sc);
 		}
 	      }
 
 	      /* delay 50 millisecond (data delay) */
-	      if(!usb2_callout_pending(&sc->sc_pollout_timr))
+	      if(!usb_callout_pending(&sc->sc_pollout_timr))
 	      {
-		usb2_callout_reset(&sc->sc_pollout_timr,
+		usb_callout_reset(&sc->sc_pollout_timr,
 				sc->sc_default.d_interrupt_delay,
 				(void *)(void *)&__ihfc_chip_interrupt, sc);
 	      }

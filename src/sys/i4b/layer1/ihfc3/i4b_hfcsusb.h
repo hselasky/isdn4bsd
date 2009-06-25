@@ -128,7 +128,7 @@ hfcsusb2_cfg_write_1(ihfc_sc_t *sc, uint8_t reg, uint8_t data)
 
 	IHFC_MSG("0x%02x->0x%02x\n", data, reg);
 
-	usb2_transfer_start(sc->sc_resources.usb_xfer[HFCSUSB_CONF_XFER_WRITE]);
+	usbd_transfer_start(sc->sc_resources.usb_xfer[HFCSUSB_CONF_XFER_WRITE]);
 
 	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "write reg", 0)) {
 
@@ -147,7 +147,7 @@ hfcsusb2_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
 	    goto done;
         }
 
-	usb2_transfer_start(sc->sc_resources.usb_xfer[HFCSUSB_CONF_XFER_READ]);
+	usbd_transfer_start(sc->sc_resources.usb_xfer[HFCSUSB_CONF_XFER_READ]);
 
 	if (msleep(&(sc->sc_reg_temp), sc->sc_mtx_p, 0, "read reg", 0)) {
 
@@ -159,16 +159,18 @@ hfcsusb2_cfg_read_1(ihfc_sc_t *sc, uint8_t reg)
 /* driver */
 
 static void
-hfcsusb2_callback_chip_read USB_CALLBACK_T(xfer)
+hfcsusb2_callback_chip_read(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t              *sc  = xfer->priv_sc;
+	ihfc_sc_t              *sc  = usbd_xfer_softc(xfer);
+	struct usb_page_cache *pc0 = usbd_xfer_get_frame(xfer, 0);
+	struct usb_page_cache *pc1 = usbd_xfer_get_frame(xfer, 1);
 	struct usb_device_request   req;
 	uint8_t		       buf[1];
 
   switch (USB_GET_STATE(xfer)) {
   case USB_ST_TRANSFERRED: 
 
-	usb2_copy_out(xfer->frbuffers + 1, 0, buf, sizeof(buf));
+	usbd_copy_out(pc1, 0, buf, sizeof(buf));
 
 	IHFC_MSG("ReadReg:0x%02x, Val:0x%02x\n",
 		 sc->sc_reg_temp.reg, buf[0]);
@@ -189,13 +191,14 @@ hfcsusb2_callback_chip_read USB_CALLBACK_T(xfer)
 	req.wLength[1]    = 0x00; /* length (0x0001 for read) */
 
 	/* setup data lengths */
-	xfer->frlengths[0] = sizeof(req);
-	xfer->frlengths[1] = 1;
+	usbd_xfer_set_frame_len(xfer, 0, sizeof(req));
+	usbd_xfer_set_frame_len(xfer, 1, 1);
+	usbd_xfer_set_frames(xfer, 2);
 
-	usb2_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+	usbd_copy_in(pc0, 0, &req, sizeof(req));
 
 	/* start hardware */
-	usb2_start_hardware(xfer);
+	usbd_transfer_submit(xfer);
 
 	return;
 
@@ -206,9 +209,10 @@ hfcsusb2_callback_chip_read USB_CALLBACK_T(xfer)
 }
 
 static void
-hfcsusb2_callback_chip_write USB_CALLBACK_T(xfer)
+hfcsusb2_callback_chip_write(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t             *sc  = xfer->priv_sc;
+	ihfc_sc_t             *sc  = usbd_xfer_softc(xfer);
+	struct usb_page_cache *pc = usbd_xfer_get_frame(xfer, 0);
 	struct usb_device_request  req;
 
   switch (USB_GET_STATE(xfer)) {
@@ -227,13 +231,14 @@ hfcsusb2_callback_chip_write USB_CALLBACK_T(xfer)
 	req.wLength[1]    = 0x00; /* length (0x0000 for write) */
 
 	/* setup data length */
-	xfer->frlengths[0] = sizeof(req);
-	xfer->frlengths[1] = 0;
+	usbd_xfer_set_frame_len(xfer, 0, sizeof(req));
+	usbd_xfer_set_frame_len(xfer, 1, 0);
+	usbd_xfer_set_frames(xfer, 1);
 
-	usb2_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
+	usbd_copy_in(pc, 0, &req, sizeof(req));
 
 	/* start hardware */
-	usb2_start_hardware(xfer);
+	usbd_transfer_submit(xfer);
 
 	return;
 
@@ -322,32 +327,32 @@ hfcsusb2_chip_reset CHIP_RESET_T(sc,error)
 	/*
 	 * setup fifo pointers
 	 */
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x0]->priv_fifo 
-	  = &sc->sc_fifo[d1t];
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x1]->priv_fifo 
-	  = &sc->sc_fifo[d1t]; 
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x2]->priv_fifo 
-	  = &sc->sc_fifo[d1r]; 
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x3]->priv_fifo 
-	  = &sc->sc_fifo[d1r]; 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x0],
+			   &sc->sc_fifo[d1t]);
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x1],
+			   &sc->sc_fifo[d1t]); 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x2],
+			   &sc->sc_fifo[d1r]); 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x3],
+			   &sc->sc_fifo[d1r]); 
 
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x4]->priv_fifo 
-	  = &sc->sc_fifo[b1t]; 
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x5]->priv_fifo 
-	  = &sc->sc_fifo[b1t]; 
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x6]->priv_fifo 
-	  = &sc->sc_fifo[b1r]; 
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x7]->priv_fifo 
-	  = &sc->sc_fifo[b1r]; 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x4],
+			   &sc->sc_fifo[b1t]); 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x5],
+			   &sc->sc_fifo[b1t]); 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x6],
+			   &sc->sc_fifo[b1r]); 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x7],
+			   &sc->sc_fifo[b1r]); 
 
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x8]->priv_fifo 
-	  = &sc->sc_fifo[b2t]; 
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x9]->priv_fifo 
-	  = &sc->sc_fifo[b2t]; 
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0xA]->priv_fifo 
-	  = &sc->sc_fifo[b2r]; 
-	sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0xB]->priv_fifo 
-	  = &sc->sc_fifo[b2r]; 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x8],
+			   &sc->sc_fifo[b2t]); 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0x9],
+			   &sc->sc_fifo[b2t]); 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0xA],
+			   &sc->sc_fifo[b2r]); 
+	usbd_xfer_set_priv(sc->sc_resources.usb_xfer[HFCSUSB_FIFO_XFER_START+0xB],
+			   &sc->sc_fifo[b2r]); 
 
 	/*
 	 * setup some defaults
@@ -411,16 +416,15 @@ hfcsusb2_cfg_read_f_usage(struct ihfc_sc *sc,
 }
 
 static void
-hfcsusb2_callback_isoc_tx_d_hdlc USB_CALLBACK_T(xfer)
+hfcsusb2_callback_isoc_tx_d_hdlc(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t  *sc = xfer->priv_sc;
-	ihfc_fifo_t *f = xfer->priv_fifo;
+	ihfc_sc_t  *sc = usbd_xfer_softc(xfer);
+	struct usb_page_cache *pc = usbd_xfer_get_frame(xfer, 0);
+	ihfc_fifo_t *f = usbd_xfer_get_priv(xfer);
+	int frlen;
+	int i;
 #define FRAME_NUMBER    25 /* frames */
 #define FRAME_SIZE    0x08 /*bytes*/
-
-	/* get pointers to store frame lengths */
-	uint32_t *frlengths = xfer->frlengths;
-	uint32_t *frlengths_end = frlengths + FRAME_NUMBER;
 
 	u_int8_t 
 	  *d1_start, *tmp, len, average = FRAME_SIZE,
@@ -521,9 +525,7 @@ hfcsusb2_callback_isoc_tx_d_hdlc USB_CALLBACK_T(xfer)
 	tmp = sc->sc_temp_ptr;
 
 	/* build ``USB frames'' */
-	for(;
-	    frlengths < frlengths_end;
-	    frlengths++)
+	for (i = 0; i != FRAME_NUMBER; i++)
 	{
 	  if(len > average)
 	  {
@@ -546,7 +548,9 @@ hfcsusb2_callback_isoc_tx_d_hdlc USB_CALLBACK_T(xfer)
 	  d1_start              += average;
 
 	  /* update tmp and store total frame length */
-	  tmp                   += (*frlengths = (average +1));
+	  tmp                   += (frlen = (average +1));
+
+	  usbd_xfer_set_frame_len(xfer, i, frlen);
 	}
 
 	if(f->state & ST_FRAME_END)
@@ -567,12 +571,11 @@ hfcsusb2_callback_isoc_tx_d_hdlc USB_CALLBACK_T(xfer)
 	  tmp += (average +1);
 	}
 
-	usb2_copy_in(xfer->frbuffers + 0, 0, sc->sc_temp_ptr,
+	usbd_copy_in(pc, 0, sc->sc_temp_ptr,
 		     tmp - ((uint8_t *)(sc->sc_temp_ptr)));
 
-	xfer->nframes = FRAME_NUMBER;
-
-	usb2_start_hardware(xfer);
+	usbd_xfer_set_frames(xfer, FRAME_NUMBER);
+	usbd_transfer_submit(xfer);
 
  done:
 	return;
@@ -581,7 +584,7 @@ hfcsusb2_callback_isoc_tx_d_hdlc USB_CALLBACK_T(xfer)
 #undef FRAME_NUMBER
 
   default: /* Error */
-	if (xfer->error == USB_ERR_CANCELLED) {
+	if (error == USB_ERR_CANCELLED) {
 		return;
 	}
 	goto tr_transferred;
@@ -655,10 +658,14 @@ hfcsusb2_callback_isoc_tx_d_hdlc USB_CALLBACK_T(xfer)
  */
 
 static void
-hfcsusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
+hfcsusb2_callback_isoc_tx(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t  *sc = xfer->priv_sc;
-	ihfc_fifo_t *f = xfer->priv_fifo;
+	ihfc_sc_t  *sc = usbd_xfer_softc(xfer);
+	struct usb_page_cache *pc = usbd_xfer_get_frame(xfer, 0);
+	ihfc_fifo_t *f = usbd_xfer_get_priv(xfer);
+	int i;
+	int i_adj;
+	int frlen;
 
 	uint16_t
 	  Z_chip_written;
@@ -668,14 +675,12 @@ hfcsusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 	  average = 8; /* default */
 
 	/* get pointers to store frame lengths */
-	
-	uint32_t *frlengths = xfer->frlengths;
-	uint32_t *frlengths_end = frlengths + (HFCSUSB_TX_FRAMES);
-	uint32_t *frlengths_adj = frlengths + (HFCSUSB_TX_ADJUST);
+
+	i_adj = HFCSUSB_TX_ADJUST;
 
 	if(PROT_IS_HDLC(&(f->prot_curr)))
 	{
-	  hfcsusb2_callback_isoc_tx_d_hdlc(xfer);
+	  hfcsusb2_callback_isoc_tx_d_hdlc(xfer, error);
 	  goto done;
 	}
 
@@ -700,7 +705,7 @@ hfcsusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 	   */
 	  if(f->F_drvr & 3)
 	  {
-	    frlengths_adj = frlengths-1;
+	    i_adj = -1;
 	    goto no_adjust;
 	  }
 	}
@@ -713,7 +718,7 @@ hfcsusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 	   * should send out +/- 1 byte
 	   */
 	  if (f->F_drvr & 1) {
-	      frlengths_adj = frlengths-1;
+	      i_adj = -1;
 	      goto no_adjust;
 	  }
 	}
@@ -797,8 +802,8 @@ hfcsusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 	  /* increase adjustment to +/- 4 bytes
 	   * [after expansion].
 	   */
-	  if (frlengths_adj >= frlengths) {
-	      frlengths_adj = frlengths + (4*HFCSUSB_TX_ADJUST);
+	  if (i_adj >= 0) {
+	      i_adj = (4*HFCSUSB_TX_ADJUST);
 	  }
 
 	  /* 0                    1                    2
@@ -839,9 +844,7 @@ hfcsusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 	tmp = sc->sc_temp_ptr;
 
 	/* build ``USB frames'' */
-	for(;
-	    frlengths < frlengths_end;
-	    frlengths++)
+	for (i = 0; i != HFCSUSB_TX_FRAMES; i++)
 	{
 	  /* NOTE:
 	   * ``(u_int32_t *)tmp + 1'' is not the same as
@@ -856,7 +859,7 @@ hfcsusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 	  ((u_int32_p_t *)(tmp +5))->data = ((u_int32_p_t *)(d1_start +4))->data;
 	                 *(tmp +9) = *(d1_start +8);
 
-	  if(frlengths == frlengths_adj)
+	  if(i == i_adj)
 	  {
 	    /* restore average */
 	    if(average < 8)
@@ -869,38 +872,38 @@ hfcsusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 	  d1_start              += average;
 
 	  /* update tmp and store total frame length */
-	  tmp                   += (*frlengths = (average +1));
+	  tmp                   += (frlen = (average +1));
+
+	  usbd_xfer_set_frame_len(xfer, i, frlen);
 
 	  /* check end of data */
 	  if(d1_start > d1_end)
 	  {
 	    /* adjust frame length */
-	    *frlengths             -= (d1_start - d1_end);
+	    usbd_xfer_set_frame_len(xfer, i, frlen - (d1_start - d1_end));
 
 	    /* send zero-length frame(s)
 	     * when out of data
 	     */
-	    while(++frlengths < frlengths_end)
-	    {
-	      *frlengths = 0;
+	    while (++i != HFCSUSB_TX_FRAMES) {
+		usbd_xfer_set_frame_len(xfer, i, 0);
 	    }
-
 	    break;
 	  }
 	}
 
-	usb2_copy_in(xfer->frbuffers + 0, 0, sc->sc_temp_ptr,
+	usbd_copy_in(pc, 0, sc->sc_temp_ptr,
 		     tmp - ((uint8_t *)(sc->sc_temp_ptr)));
 
-	xfer->nframes = HFCSUSB_TX_FRAMES; 
+	usbd_xfer_set_frames(xfer, HFCSUSB_TX_FRAMES);
 
-	usb2_start_hardware(xfer);
+	usbd_transfer_submit(xfer);
 
 	/* the completion-time of the last transfer
 	 * gives you the start time of the next
 	 * transfer!
 	 */
-	f->Z_read_time = (xfer->isoc_time_complete * 8);
+	f->Z_read_time = (usbd_xfer_get_timestamp(xfer) * 8);
 	f->Z_chip_written = 16; /* Approximation on the number
 				 * of bytes left in the FIFO
 				 * at "Z_read_time". This number
@@ -911,7 +914,7 @@ hfcsusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 	return;
 
   default: /* Error */
-	if (xfer->error == USB_ERR_CANCELLED) {
+	if (error == USB_ERR_CANCELLED) {
 		return;
 	}
 	goto tr_setup;
@@ -919,36 +922,33 @@ hfcsusb2_callback_isoc_tx USB_CALLBACK_T(xfer)
 }
 
 static void
-hfcsusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
+hfcsusb2_callback_isoc_rx(struct usb_xfer *xfer, usb_error_t error)
 {
-	ihfc_sc_t  *sc = xfer->priv_sc;
-	ihfc_fifo_t *f = xfer->priv_fifo;
+	ihfc_sc_t  *sc = usbd_xfer_softc(xfer);
+	struct usb_page_cache *pc = usbd_xfer_get_frame(xfer, 0);
+	ihfc_fifo_t *f = usbd_xfer_get_priv(xfer);
+	int i;
 
 	u_int8_t
 	  *d1_start, *d1_end, *tmp, *tmp_end, len;
-
-	uint32_t *frlengths = xfer->frlengths;
-	uint32_t *frlengths_end  =  frlengths + HFCSUSB_RX_FRAMES;
 
   switch (USB_GET_STATE(xfer)) {
   case USB_ST_TRANSFERRED: 
 
 	/* store "Z_read_time", which is used by echo-cancelling */
 
-	f->Z_read_time = (xfer->isoc_time_complete * 8);
+	f->Z_read_time = (usbd_xfer_get_timestamp(xfer) * 8);
 
 	/* get start of 1st buffer */
 	tmp = sc->sc_temp_ptr;
 
-	usb2_copy_out(xfer->frbuffers + 0, 0, 
+	usbd_copy_out(pc, 0, 
 		      tmp, HFCSUSB_RX_BUFSIZE);
 
 	/* get start of 2nd buffer */
 	d1_start = d1_end = tmp + (HFCSUSB_RX_FRAMES*HFCSUSB_RX_FRAMESIZE);
 
-	for(;
-	    frlengths < frlengths_end;
-	    frlengths++)
+	for (i = 0; i != HFCSUSB_RX_FRAMES; i++)
 	{
 #define break illegal
 #define goto illegal
@@ -959,7 +959,7 @@ hfcsusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
 
 		/* get frame length */
 
-		len = *frlengths;
+		len = usbd_xfer_frame_len(xfer, i);
 
 #ifdef HFCSUSB_DEBUG
 		printf("len=%d ", len);
@@ -1003,7 +1003,7 @@ hfcsusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
 
 #if ( (16*1024) - (3*2*2*HFCSUSB_RX_FRAMESIZE*HFCSUSB_RX_FRAMES) \
       - (4*0x100) ) < HFCSUSB_RX_FRAMESIZE
-#error "No room for optimization bytes past end of xfer->buffer!"
+#error "No room for optimization bytes!"
 #endif
 
 #if HFCSUSB_RX_FRAMESIZE != 12
@@ -1030,9 +1030,6 @@ hfcsusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
 #undef break
 #undef goto
 	}
-
-	/* restore frlengths */
-	frlengths -= HFCSUSB_RX_FRAMES;
 
 	/*
 	 * Compress D-channel data (4:1)
@@ -1078,20 +1075,15 @@ hfcsusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
 
 	/* setup transfer */
 
-	xfer->nframes = HFCSUSB_RX_FRAMES;
-
-	for(;
-	    frlengths < frlengths_end;
-	    frlengths++)
-	{
-	  *frlengths = HFCSUSB_RX_FRAMESIZE;
+	for (i = 0; i != HFCSUSB_RX_FRAMES; i++) {
+		usbd_xfer_set_frame_len(xfer, i, HFCSUSB_RX_FRAMESIZE);
 	}
-
-	usb2_start_hardware(xfer);
+	usbd_xfer_set_frames(xfer, HFCSUSB_RX_FRAMES);
+	usbd_transfer_submit(xfer);
 	return;
 
   default: /* Error */
-	if (xfer->error == USB_ERR_CANCELLED) {
+	if (error == USB_ERR_CANCELLED) {
 		return;
 	}
 	goto tr_setup;
@@ -1101,7 +1093,7 @@ hfcsusb2_callback_isoc_rx USB_CALLBACK_T(xfer)
 
 static void
 hfcsusb2_cfg_chip_config_write_f(struct ihfc_sc *sc,
-				struct ihfc_config_copy *cc, uint16_t refcount)
+    struct ihfc_config_copy *cc, uint16_t refcount)
 {
 	ihfc_fifo_t *f;
 	ihfc_fifo_t *f_other;
@@ -1220,19 +1212,19 @@ hfcsusb2_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	      xfer < xfer_end;
 	      xfer++)
 	  {
-	    ihfc_fifo_t *f = xfer[0]->priv_fifo;
+	    ihfc_fifo_t *f = usbd_xfer_get_priv(xfer[0]);
 
 	    if((f->prot_curr.protocol_1 != P_DISABLE) &&
 	       ((FIFO_NO(f) == d1r) || 
 		sc->sc_state[0].state.active))
 	    {
 	      /* start pipe */
-	      usb2_transfer_start(xfer[0]);
+	      usbd_transfer_start(xfer[0]);
 	    }
 	    else
 	    {
 	      /* stop pipe */
-	      usb2_transfer_stop(xfer[0]);
+	      usbd_transfer_stop(xfer[0]);
 	    }
 	  }
 	}
