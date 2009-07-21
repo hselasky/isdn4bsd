@@ -228,7 +228,7 @@ hfcsusb_callback_chip_write USBD_CALLBACK_T(xfer)
 
 	/* setup data length */
 	xfer->frlengths[0] = sizeof(req);
-	xfer->frlengths[1] = 0;
+	xfer->nframes = 1;
 
 	usbd_copy_in(xfer->frbuffers + 0, 0, &req, sizeof(req));
 

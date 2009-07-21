@@ -232,7 +232,6 @@ hfcsusb2_callback_chip_write(struct usb_xfer *xfer, usb_error_t error)
 
 	/* setup data length */
 	usbd_xfer_set_frame_len(xfer, 0, sizeof(req));
-	usbd_xfer_set_frame_len(xfer, 1, 0);
 	usbd_xfer_set_frames(xfer, 1);
 
 	usbd_copy_in(pc, 0, &req, sizeof(req));
