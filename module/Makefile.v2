@@ -27,8 +27,6 @@ CFLAGS+=-DFREEBSD_NO_ISA
 
 SRCS=
 
-CFLAGS+= -DIHFC_USB_ENABLED
-
 SRCS+= bus_if.h device_if.h vnode_if.h opt_bus.h pci_if.h isa_if.h
 SRCS+= freebsd_fix.c opt_usb.h
 SRCS+= usb_if.h

@@ -34,6 +34,10 @@
 #ifndef _I4B_IHFC2_H_
 #define _I4B_IHFC2_H_
 
+#ifdef __FreeBSD__
+#define	IHFC_USB_ENABLED
+#endif
+
 #ifdef _KERNEL
 
 # include <sys/types.h>
