@@ -344,9 +344,9 @@ install: ${DIFF} ${PACKAGE} help backup update_config
 
 # patch 3
 	cat ${S}/include/Makefile \
-	| sed -e s/" dev\/usb i4b\/include "//g \
-	| sed -e s/" dev\/usb2 i4b\/include "//g \
-	| sed -e s/" dev\/usb2 "//g \
+	| sed -e s/" dev\/usb i4b\/include "/" "/g \
+	| sed -e s/" dev\/usb2 i4b\/include "/" "/g \
+	| sed -e s/" dev\/usb2 "/" "/g \
 	| sed -e s/" dev\/usb "/" dev\/usb i4b\/include "/g \
 	> ${TEMP}
 	cat ${TEMP} > ${S}/include/Makefile
