@@ -343,7 +343,7 @@ install: ${DIFF} ${PACKAGE} help backup update_config
 
 # patch 2 (obsolete)
 
-# patch 3
+# patch 3.1
 	cat ${S}/include/Makefile \
 	| sed -e s/" dev\/usb i4b\/include "/" "/g \
 	| sed -e s/" dev\/usb2 i4b\/include "/" "/g \
@@ -351,6 +351,12 @@ install: ${DIFF} ${PACKAGE} help backup update_config
 	| sed -e s/" dev\/usb "/" dev\/usb i4b\/include "/g \
 	> ${TEMP}
 	cat ${TEMP} > ${S}/include/Makefile
+
+# patch 3.2
+	cat ${S}/sys/conf/options | grep -v "opt_i4b.h" > ${TEMP}
+	echo "" >> ${TEMP}
+	echo "IPR_VJ	opt_i4b.h" >> ${TEMP}
+	cat ${TEMP} > ${S}/sys/conf/options
 
 # patch 5
 .if !exists(${S}/sys/net/if_spppfr.c)
