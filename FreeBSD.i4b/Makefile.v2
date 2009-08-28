@@ -111,6 +111,7 @@ ${N}i4b/layer1/i4b_convert_xlaw.c       optional i4b \
 ${N}i4b/layer1/i4b_hdlc.c               optional i4b \
 ${N}\# \
 ${N}\# ISDN4BSD driver files \
+${N}i4b/layer1/ihfc3/usb2_config_td.c	optional ihfc \
 ${N}i4b/layer1/ihfc3/i4b_ihfc2_l1if.c   optional ihfc \
 ${N}i4b/layer1/ihfc3/i4b_ihfc2_pnp.c    optional ihfc \
 ${N}i4b/layer1/ihfc3/i4b_ihfc2_drv.c    optional ihfc \
