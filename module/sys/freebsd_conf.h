@@ -122,6 +122,7 @@ typedef int  d_mmap_t    (struct cdev *dev, vm_offset_t offset, vm_paddr_t *padd
 typedef void d_purge_t   (struct cdev *dev);
 typedef int  d_spare2_t  (struct cdev *dev);
 
+#undef D_TYPEMASK	/* XXX NetBSD v5.x */
 #define	D_TYPEMASK	0xffff
 
 /*
