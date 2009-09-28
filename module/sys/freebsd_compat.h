@@ -130,6 +130,10 @@ typedef u_int64_t  vm_ooffset_t;
 typedef u_int64_t  vm_paddr_t;
 typedef u_int64_t  vm_pindex_t;
 
+#if (__NetBSD_Version__ >= 500000000)
+typedef char *caddr_t;
+#endif
+
 #  if (__NetBSD_Version__ >= 300000000)
 #   ifdef PCI_MACHDEP_ENUMERATE_BUS
 #    define pci_enumerate_bus PCI_MACHDEP_ENUMERATE_BUS
