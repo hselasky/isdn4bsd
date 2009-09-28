@@ -63,6 +63,7 @@ __m_length(struct mbuf *m0, struct mbuf **last)
     return (len);
 }
 
+#if (__NetBSD_Version__ < 500000000)
 void
 if_initname(struct ifnet *ifp, const char *name, int unit)
 {
@@ -74,9 +75,8 @@ if_initname(struct ifnet *ifp, const char *name, int unit)
     else
 #endif
       snprintf(ifp->if_xname, sizeof(ifp->if_xname), "%s%d", name, unit);
-
-    return;
 }
+#endif
 
 #if 0
 int
