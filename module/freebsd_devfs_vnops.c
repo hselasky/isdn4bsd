@@ -54,16 +54,17 @@ static __vnodeop_t **devfs_vnodeop_p;
 
 #if (__NetBSD_Version__ >= 500000000)
 #define get_a_p(ap) (curlwp)
-#define cn_proc cn_lwp->l_proc
+#define get_cn_proc(cnp) (curlwp)
 #define BSD_VOP_ACCESS(a,b,c,d0,d1) \
   VOP_ACCESS(a,b,c)
 #elif (__NetBSD_Version__ >= 400000000)
 #define get_a_p(ap) ((ap)->a_l->l_proc)
-#define cn_proc cn_lwp->l_proc
+#define get_cn_proc(cnp) ((cnp)->cn_lwp->l_proc)
 #define BSD_VOP_ACCESS(a,b,c,d0,d1) \
   VOP_ACCESS(a,b,c,d1)
 #else
 #define get_a_p(ap) ((ap)->a_p)
+#define get_cn_proc(cnp) ((cnp)->cn_proc)
 #define BSD_VOP_ACCESS(a,b,c,d0,d1) \
   VOP_ACCESS(a,b,c,d0)
 #endif
@@ -973,7 +974,7 @@ __devfs_lookup(struct vop_lookup_args *ap)
 	struct devfs_dirent *dd;
 	struct devfs_mount *dmp;
 	struct cdev *cdev;
-	struct proc *td = cnp->cn_proc;
+	struct proc *td = get_cn_proc(cnp);
 	int error;
 	int flags = cnp->cn_flags;
 	int nameiop = cnp->cn_nameiop;
@@ -1001,7 +1002,11 @@ __devfs_lookup(struct vop_lookup_args *ap)
 	    goto done;
 	}
 
+#if (__NetBSD_Version__ >= 500000000)
+	if((flags & ISDOTDOT) && (dvp->v_vflag & VV_ROOT))
+#else
 	if((flags & ISDOTDOT) && (dvp->v_flag & VROOT))
+#endif
 	{
 	    error = EIO;
 	    goto done;
@@ -1229,7 +1234,7 @@ devfs_mknod(struct vop_mknod_args *ap)
 
 	cnp = ap->a_cnp;
 	vpp = ap->a_vpp;
-	td = cnp->cn_proc;
+	td = get_cn_proc(cnp);
 	dd = dvp->v_data;
 
 	error = ENOENT;
@@ -1537,7 +1542,7 @@ devfs_symlink(struct vop_symlink_args *ap)
 	VOP_UNLOCK(ap->a_tdvp, 0);
 #endif
 
-	td = ap->a_cnp->cn_proc;
+	td = get_cn_proc(ap->a_cnp);
 	__KASSERT(td == curthread, ("%s: td != curthread", __FUNCTION__));
 	error = suser(td);
 	if(error)
