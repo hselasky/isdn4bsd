@@ -87,6 +87,7 @@ atomic_unlock()
 	return;
 }
 
+#if (__NetBSD_Version__ < 500000000)
 void
 atomic_add_int(u_int *p, u_int v)
 {
@@ -119,6 +120,7 @@ atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src)
     atomic_unlock();
     return ret;
 }
+#endif
 
 static __inline u_int8_t
 mtx_lock_held(struct mtx *mtx)

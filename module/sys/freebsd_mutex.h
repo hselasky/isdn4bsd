@@ -74,9 +74,14 @@ extern int
   msleep(void *ident, struct mtx *mtx, int priority,
 	 const char *wmesg, int timeout);
 
+#if (__NetBSD_Version__ < 500000000)
 extern void  atomic_add_int(u_int *p, u_int v);
 extern void atomic_sub_int(u_int *p, u_int v);
 extern int  atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src);
+#else
+#include <sys/atomic.h>
+#endif
+
 extern void atomic_lock(void);
 extern void atomic_unlock(void);
 
