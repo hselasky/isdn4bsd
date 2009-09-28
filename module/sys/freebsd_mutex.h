@@ -80,6 +80,10 @@ extern void atomic_sub_int(u_int *p, u_int v);
 extern int  atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src);
 #else
 #include <sys/atomic.h>
+#include <sys/rwlock.h>
+struct lock {
+	krwlock_t lock;
+};
 #endif
 
 extern void atomic_lock(void);
