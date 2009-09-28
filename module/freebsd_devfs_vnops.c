@@ -1687,6 +1687,7 @@ _devfs_create(struct vop_create_args *ap)
 	return EOPNOTSUPP;
 }
 
+#if (__NetBSD_Version__ < 500000000)
 static int
 devfs_lease(struct vop_lease_args *ap)
 {
@@ -1695,6 +1696,7 @@ devfs_lease(struct vop_lease_args *ap)
 #endif
 	return EOPNOTSUPP;
 }
+#endif
 
 static int
 devfs_fcntl(struct vop_fcntl_args *ap)
@@ -1925,7 +1927,9 @@ devfs_vnodeop_entries[] =
    */
 
   { &vop_create_desc       , (vop_t)&_devfs_create },
+#if (__NetBSD_Version__ < 500000000)
   { &vop_lease_desc        , (vop_t)&devfs_lease },
+#endif
   { &vop_fcntl_desc        , (vop_t)&devfs_fcntl },
   { &vop_mmap_desc         , (vop_t)&devfs_mmap },
   { &vop_seek_desc         , (vop_t)&devfs_seek },

@@ -208,7 +208,7 @@ i4biprattach(void *dummy)
 #endif
 
 		ifp->if_mtu = I4BIPRMTU;
-		ifp->if_ioctl = i4biprioctl;
+		ifp->if_ioctl = (void *)i4biprioctl;
 		ifp->if_output = (void *)i4biproutput;
 		ifp->if_snd.ifq_maxlen = I4BIPRMAXQLEN; /* not used */
 
