@@ -385,6 +385,6 @@ void
 lockinit(struct lock *lock, int pri, const char *desc, int x, int y)
 {
 	memset(lock, 0, sizeof(*lock));
-	rw_init(&lock->lock->vl_lock);
+	rw_init(&lock->lock.vl_lock);
 }
 #endif

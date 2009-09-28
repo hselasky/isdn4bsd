@@ -1652,7 +1652,7 @@ usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
 		goto done_4;
 	}
 	if (bus_dmamem_map(utag->tag, utag->p_seg, seg_count, size,
-	    &ptr, BUS_DMA_WAITOK | BUS_DMA_COHERENT)) {
+	   (void *)&ptr, BUS_DMA_WAITOK | BUS_DMA_COHERENT)) {
 		goto done_3;
 	}
 	if (bus_dmamap_create(utag->tag, size, utag->n_seg, (align == 1) ?
