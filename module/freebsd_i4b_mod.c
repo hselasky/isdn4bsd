@@ -291,11 +291,8 @@ load(struct lkm_table *p, int cmd)
         if(!strcmp(dev->dv_cfdriver->cd_name, "pci"))
 	{
 #if (__NetBSD_Version__ >= 300000000)
-#if (__NetBSD_Version__ >= 500000000)
-	    static const int wildcard[PCICF_NLOCS] = { -1, -1 };
-#else
-	    static const int wildcard[2] = { -1, -1 };
-#endif
+	    static const int wildcard[16] = { -1, -1 };
+
 	    pci_enumerate_bus((void *)dev, &wildcard[0], &_pci_pci_probe, 0);
 #else
 	    pci_enumerate_bus((void *)dev, &_pci_pci_probe, 0);
