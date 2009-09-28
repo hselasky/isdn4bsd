@@ -94,7 +94,6 @@ atomic_add_int(u_int *p, u_int v)
     atomic_lock();
     p[0] += v;
     atomic_unlock();
-    return;
 }
 
 void
@@ -103,8 +102,8 @@ atomic_sub_int(u_int *p, u_int v)
     atomic_lock();
     p[0] -= v;
     atomic_unlock();
-    return;
 }
+#endif
 
 int
 atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src)
@@ -120,7 +119,6 @@ atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src)
     atomic_unlock();
     return ret;
 }
-#endif
 
 static __inline u_int8_t
 mtx_lock_held(struct mtx *mtx)
@@ -375,3 +373,18 @@ msleep(void *ident, struct mtx *mtx, int priority,
 
     return error;
 }
+
+#if (__NetBSD_Version__ >= 500000000)
+int
+__lockmgr(struct lock *lock, int what, void *dummy, struct thread *td)
+{
+	return (vlockmgr(&lock->lock, what));
+}
+
+void
+lockinit(struct lock *lock, int pri, const char *desc, int x, int y)
+{
+	memset(lock, 0, sizeof(*lock));
+	rw_init(&lock->lock->vl_lock);
+}
+#endif

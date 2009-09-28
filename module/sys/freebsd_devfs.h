@@ -237,8 +237,13 @@ extern const char *
 #define IO_DIRECT 0
 #endif
 
+#if (__NetBSD_Version__ >= 500000000)
+#define VI_LOCK(vp) mutex_enter(&(vp)->v_interlock)
+#define VI_UNLOCK(vp) mutex_exit(&(vp)->v_interlock)
+#else
 #define VI_LOCK(vp) simple_lock(&(vp)->v_interlock)
 #define VI_UNLOCK(vp) simple_unlock(&(vp)->v_interlock)
+#endif
 
 #define FIODTYPE        _IOR('f', 122, int)     /* get d_flags type part */
 struct fiodgname_arg {

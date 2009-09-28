@@ -1184,7 +1184,7 @@ devfs_lookup(struct vop_lookup_args *ap)
 	int error;
 
 	dmp = VFSTODEVFS(ap->a_dvp->v_mount);
-	__lockmgr(&dmp->dm_lock, LK_SHARED, NULL, curthread);
+	__lockmgr(&dmp->dm_lock, LK_EXCLUSIVE, NULL, curthread);
 	error = __devfs_lookup(ap);
 	__lockmgr(&dmp->dm_lock, LK_RELEASE, NULL, curthread);
 	return error;
@@ -1329,7 +1329,7 @@ devfs_readdir(struct vop_readdir_args *ap)
 	}
 
 	dmp = VFSTODEVFS(ap->a_vp->v_mount);
-	__lockmgr(&dmp->dm_lock, LK_SHARED, 0, curthread);
+	__lockmgr(&dmp->dm_lock, LK_EXCLUSIVE, 0, curthread);
 	devfs_populate(dmp);
 	error = 0;
 	de = ap->a_vp->v_data;
@@ -1611,7 +1611,11 @@ devfs_lock(struct vop_lock_args *ap)
 	printf("%s\n", __FUNCTION__);
 #endif
 	struct vnode *vp = ap->a_vp;
+#if (__NetBSD_Version__ >= 500000000)
+	return (vlockmgr(&vp->v_lock, ap->a_flags));
+#else
 	return (lockmgr(&vp->v_lock, ap->a_flags, &vp->v_interlock));
+#endif
 }
 
 static int
@@ -1621,8 +1625,12 @@ devfs_unlock(struct vop_unlock_args *ap)
 	printf("%s\n", __FUNCTION__);
 #endif
 	struct vnode *vp = ap->a_vp;
+#if (__NetBSD_Version__ >= 500000000)
+	return (vlockmgr(&vp->v_lock, ap->a_flags | LK_RELEASE));
+#else
 	return (lockmgr(&vp->v_lock, ap->a_flags | LK_RELEASE,
 			&vp->v_interlock));
+#endif
 }
 
 static int
@@ -1632,8 +1640,11 @@ devfs_islocked(struct vop_islocked_args *ap)
 	printf("%s\n", __FUNCTION__);
 #endif
 	struct vnode *vp = ap->a_vp;
-
+#if (__NetBSD_Version__ >= 500000000)
+	return (vlockstatus(&vp->v_lock));
+#else
 	return (lockstatus(&vp->v_lock));
+#endif
 }
 
 static int

@@ -105,11 +105,13 @@ do {				\
 } while (0)
 #  endif
 
+# if (__NetBSD_Version__ < 500000000)
 #  if defined(LOCKDEBUG)
 #   define __lockmgr(l, f, i, p) _lockmgr((l), (f), (i), __FILE__, __LINE__)
 #  else
 #   define __lockmgr(l, f, i, p) lockmgr(l, f, i)
 #  endif
+# endif
 
 #  define thread proc
 #  define curthread curproc

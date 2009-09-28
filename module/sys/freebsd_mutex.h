@@ -77,15 +77,17 @@ extern int
 #if (__NetBSD_Version__ < 500000000)
 extern void  atomic_add_int(u_int *p, u_int v);
 extern void atomic_sub_int(u_int *p, u_int v);
-extern int  atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src);
 #else
 #include <sys/atomic.h>
-#include <sys/rwlock.h>
+#include <sys/vnode.h>
 struct lock {
-	krwlock_t lock;
+	struct vnlock lock;
 };
+extern int __lockmgr(struct lock *lock, int what, void *dummy, struct thread *td);
+extern void lockinit(struct lock *lock, int pri, const char *desc, int x, int y);
 #endif
 
+extern int  atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src);
 extern void atomic_lock(void);
 extern void atomic_unlock(void);
 
