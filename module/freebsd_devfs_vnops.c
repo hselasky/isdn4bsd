@@ -53,8 +53,8 @@ typedef int (__vnodeop_t)(void *);
 static __vnodeop_t **devfs_vnodeop_p;
 
 #if (__NetBSD_Version__ >= 500000000)
-#define get_a_p(ap) (curlwp)
-#define get_cn_proc(cnp) (curlwp)
+#define get_a_p(ap) (curthread)
+#define get_cn_proc(cnp) (curthread)
 #define BSD_VOP_ACCESS(a,b,c,d0,d1) \
   VOP_ACCESS(a,b,c)
 #elif (__NetBSD_Version__ >= 400000000)
@@ -244,7 +244,11 @@ devfs_open(struct vop_open_args *ap)
 	/* XXX: Special casing of ttys for deadfs.  Probably redundant. */
 	if(dsw->d_flags & D_TTY)
 	{
+#if (__NetBSD_Version__ >= 500000000)
+	    vp->v_vflag |= VV_ISTTY;
+#else
 	    vp->v_flag |= VISTTY;
+#endif
 	}
 
 	dev->si_file_flags &= ~(O_NONBLOCK | O_DIRECT);
