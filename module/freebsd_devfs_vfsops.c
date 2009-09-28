@@ -139,7 +139,7 @@ devfs_mount(struct mount *mp, const char *path, void *data,
 
 #if (__NetBSD_Version__ >= 500000000)
 	error = set_statvfs_info(path, UIO_USERSPACE, "devfs", UIO_SYSSPACE,
-	    mp->mnt_op->vfs_name, mp, l);
+	    mp->mnt_op->vfs_name, mp, curlwp);
 #elif (__NetBSD_Version__ >= 400000000)
 	error = set_statfs_info
 	  (path, UIO_USERSPACE, "devfs", UIO_SYSSPACE, mp, l);
@@ -276,7 +276,7 @@ devfs_start(struct mount *a, int b, struct proc *c)
 
 #if (__NetBSD_Version__ >= 500000000)
 static int
-devfs_quotactl(struct mount *a, int b, uid_t c, void *)
+devfs_quotactl(struct mount *a, int b, uid_t c, void *d)
 #elif (__NetBSD_Version__ < 300000000)
 static int
 devfs_quotactl(struct mount *a, int b, uid_t c, caddr_t d,

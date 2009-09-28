@@ -52,12 +52,18 @@ typedef int (__vnodeop_t)(void *);
 
 static __vnodeop_t **devfs_vnodeop_p;
 
-#if (__NetBSD_Version__ >= 400000000)
-#define a_p a_l->l_proc
+#if (__NetBSD_Version__ >= 500000000)
+#define get_a_p(ap) (curlwp)
+#define cn_proc cn_lwp->l_proc
+#define BSD_VOP_ACCESS(a,b,c,d0,d1) \
+  VOP_ACCESS(a,b,c)
+#elif (__NetBSD_Version__ >= 400000000)
+#define get_a_p(ap) ((ap)->a_l->l_proc)
 #define cn_proc cn_lwp->l_proc
 #define BSD_VOP_ACCESS(a,b,c,d0,d1) \
   VOP_ACCESS(a,b,c,d1)
 #else
+#define get_a_p(ap) ((ap)->a_p)
 #define BSD_VOP_ACCESS(a,b,c,d0,d1) \
   VOP_ACCESS(a,b,c,d0)
 #endif
@@ -207,7 +213,7 @@ devfs_open(struct vop_open_args *ap)
 	printf("%s\n", __FUNCTION__);
 #endif
 	struct vnode *vp = ap->a_vp;
-	struct proc *td = ap->a_p;
+	struct proc *td = get_a_p(ap);
 	struct __cdevsw *dsw;
 	struct cdev *dev;
 	int error;
@@ -497,7 +503,7 @@ devfs_ioctl(struct vop_ioctl_args *ap)
 	        mtx_lock(&Giant);
 	    }
 
-	    error = dsw->d_ioctl(dev, cmd, data, ap->a_fflag, ap->a_p);
+	    error = dsw->d_ioctl(dev, cmd, data, ap->a_fflag, get_a_p(ap));
 
 	    if(dsw->d_flags & D_NEEDGIANT)
 	    {
@@ -544,7 +550,7 @@ devfs_poll(struct vop_poll_args *ap)
 	        mtx_lock(&Giant);
 	    }
 
-	    error = dsw->d_poll(dev, ap->a_events, ap->a_p);
+	    error = dsw->d_poll(dev, ap->a_events, get_a_p(ap));
 
 	    if(dsw->d_flags & D_NEEDGIANT)
 	    {
@@ -628,7 +634,7 @@ devfs_close(struct vop_close_args *ap)
 	        mtx_lock(&Giant);
 	    }
 
-	    error = dsw->d_close(dev, ap->a_fflag, S_IFCHR, ap->a_p);
+	    error = dsw->d_close(dev, ap->a_fflag, S_IFCHR, get_a_p(ap));
 
 	    if(dsw->d_flags & D_NEEDGIANT)
 	    {
@@ -686,12 +692,12 @@ devfs_access(struct vop_access_args *ap)
 	}
 
 	/* We do, however, allow access to the controlling terminal */
-	if(!(ap->a_p->p_flag & P_CONTROLT))
+	if(!(get_a_p(ap)->p_flag & P_CONTROLT))
 	{
 	    goto done;
 	}
 
-	if(ap->a_p->p_session->s_ttyvp == de->de_vnode)
+	if(get_a_p(ap)->p_session->s_ttyvp == de->de_vnode)
 	{
 	    error = 0;
 	}
@@ -846,7 +852,7 @@ devfs_setattr(struct vop_setattr_args *ap)
 	    if(((kauth_cred_getuid(ap->a_cred) != de->de_uid) || 
 		(uid != de->de_uid) ||
 		((gid != de->de_gid) && !groupmember(gid, ap->a_cred))) &&
-	       (error = suser(ap->a_p)))
+	       (error = suser(get_a_p(ap))))
 	    {
 	        goto done;
 	    }
@@ -858,7 +864,7 @@ devfs_setattr(struct vop_setattr_args *ap)
 	if(vap->va_mode != (mode_t)VNOVAL)
 	{
 	    if((kauth_cred_getuid(ap->a_cred) != de->de_uid) &&
-	       (error = suser(ap->a_p)))
+	       (error = suser(get_a_p(ap))))
 	    {
 	        goto done;
 	    }
@@ -870,7 +876,7 @@ devfs_setattr(struct vop_setattr_args *ap)
 	   (vap->va_mtime.tv_sec != VNOVAL))
 	{
 	    if(((vap->va_vaflags & VA_UTIMES_NULL) == 0) &&
-	       (error = BSD_VOP_ACCESS(vp, VWRITE, ap->a_cred, ap->a_p, ap->a_l)))
+	       (error = BSD_VOP_ACCESS(vp, VWRITE, ap->a_cred, get_a_p(ap), ap->a_l)))
 	    {
 	        goto done;
 	    }
