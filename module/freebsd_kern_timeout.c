@@ -61,7 +61,11 @@ usb_callout_init_mtx(struct usb_callout *c, struct mtx *mtx, u_int32_t flags)
     c->flags = (flags & CALLOUT_RETURNUNLOCKED);
 
 #ifdef __NetBSD__
+#if (__NetBSD_Version__ >= 500000000)
+    callout_init(&c->c_old, 0);
+#else
     callout_init(&c->c_old);
+#endif
 #elif defined(__OpenBSD__)
 #else
 #error "Unknown operating system"
