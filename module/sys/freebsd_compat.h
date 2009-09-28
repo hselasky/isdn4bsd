@@ -210,6 +210,13 @@ extern void i4b_load(void);
     } while (0)
 #  endif
 # endif
+# if (__NetBSD_Version__ >= 500000000)
+#  ifndef selwakeup
+#   define selwakeup(a) do {\
+      selnotify(a,0,0);	\
+    } while (0)
+#  endif
+# endif
 #  ifndef selwakeuppri
 #   define selwakeuppri(sel, pri) selwakeup(sel)
 #  endif
