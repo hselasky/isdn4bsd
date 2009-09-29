@@ -92,7 +92,7 @@ struct __device {
     u_int16_t dev_res_alloc_count;
     void *    dev_aux;
 
-    u_int8_t  dev_aux_data[1024];
+    u_int64_t  dev_aux_data[1024 / 8];
 
     void    (*dev_intr_func)(void *);
     void *    dev_intr_arg;
