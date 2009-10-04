@@ -1430,38 +1430,34 @@ devfs_reclaim(struct vop_reclaim_args *ap)
 	struct devfs_dirent *de;
 	struct cdev *dev;
 
-	de = vp->v_data;
-	if(de != NULL)
-	{
-	    de->de_vnode = NULL;
-	}
-	vp->v_data = NULL;
 	cache_purge(vp);
-#if 0
-	vnode_destroy_vobject(vp);
-#endif
 
+	de = vp->v_data;
+	vp->v_data = NULL;
+
+	if (de == NULL)
+		goto done;
+
+	de->de_vnode = NULL;
 	dev = de->de_dev; /* XXX */
 	de->de_dev = NULL;
 
-	if(dev == NULL)
-	{
-	    goto done;
-	}
+	if (dev == NULL)
+		goto done;
 
 	dev_lock();
-	if(de != NULL)
-	{
-	    LIST_REMOVE(de, de_alias);
-	}
+	LIST_REMOVE(de, de_alias);
 	dev->si_usecount -= vp->v_usecount;
 	dev_unlock();
 	dev_rel(dev);
-
- done:
 #if (__NetBSD_Version__ >= 500000000)
-	genfs_node_destroy(vp);
+	/*
+	 * XXX to avoid specfs hooks to be run we need to set the
+	 * vnode type to VNON!
+	 */
+	vp->v_type = VNON;
 #endif
+ done:
 	return (0);
 }
 
@@ -1630,7 +1626,13 @@ devfs_lock(struct vop_lock_args *ap)
 #endif
 	struct vnode *vp = ap->a_vp;
 #if (__NetBSD_Version__ >= 500000000)
-	return (vlockmgr(&vp->v_lock, ap->a_flags));
+	int flags = ap->a_flags;
+
+	if (flags & LK_INTERLOCK) {
+		mutex_exit(&vp->v_interlock);
+		flags &= ~LK_INTERLOCK;
+	}
+	return (vlockmgr(&vp->v_lock, flags));
 #else
 	return (lockmgr(&vp->v_lock, ap->a_flags, &vp->v_interlock));
 #endif
@@ -1673,9 +1675,10 @@ devfs_inactive(struct vop_inactive_args *ap)
 #endif
 	struct vnode *vp = ap->a_vp;
 	VOP_UNLOCK(vp, 0);
-	vgone(vp);
 #if (__NetBSD_Version__ >= 500000000)
-	*ap->a_recycle = 0;
+	*ap->a_recycle = 1;	/* node is gone */
+#else
+	vgone(vp);
 #endif
 	return 0;
 }
