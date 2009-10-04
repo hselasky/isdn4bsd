@@ -51,7 +51,11 @@ main(int argc, char **argv)
         usage();
     }
 
+#if (__NetBSD_Version__ >= 500000000)
+    error = mount("devfs", argv[1], 0, NULL, 0);
+#else
     error = mount("devfs", argv[1], 0, NULL);
+#endif
     if(error)
     {
         err(1, "could not mount at \"%s\"!\n", argv[1]);
