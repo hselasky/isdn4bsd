@@ -1459,6 +1459,9 @@ devfs_reclaim(struct vop_reclaim_args *ap)
 	dev_rel(dev);
 
  done:
+#if (__NetBSD_Version__ >= 500000000)
+	genfs_node_destroy(vp);
+#endif
 	return (0);
 }
 
@@ -1671,6 +1674,9 @@ devfs_inactive(struct vop_inactive_args *ap)
 	struct vnode *vp = ap->a_vp;
 	VOP_UNLOCK(vp, 0);
 	vgone(vp);
+#if (__NetBSD_Version__ >= 500000000)
+	*ap->a_recycle = 0;
+#endif
 	return 0;
 }
 
