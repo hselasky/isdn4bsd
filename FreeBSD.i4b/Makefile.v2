@@ -416,9 +416,11 @@ install: ${DIFF} ${PACKAGE} help backup update_config
 #
 # Final install
 #
-	cd ${S}/lib/libcapi20 && make cleandepend clean depend all install
+	cd ${S}/lib/libcapi20 && make cleandepend clean
+	cd ${S}/lib/libcapi20 && make depend all install
 
-	cd ${S}/usr.sbin/i4b && make cleandepend clean depend all install
+	cd ${S}/usr.sbin/i4b && make cleandepend clean
+	cd ${S}/usr.sbin/i4b && make depend all install
 
 	man ihfc
 
