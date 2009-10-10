@@ -346,7 +346,7 @@ set_isppp_auth(cfg_entry_t *cep)
 	}
 
 #ifdef __FreeBSD__
-	spr.cmd = (int)SPPPIOGDEFS;
+	spr.cmd = (int)(long)SPPPIOGDEFS;
 	ifr.ifr_data = (caddr_t)&spr;
 
 	if (ioctl(s, SIOCGIFGENERIC, &ifr) == -1) {
@@ -401,7 +401,7 @@ set_isppp_auth(cfg_entry_t *cep)
 		}
 	}
 
-	spr.cmd = (int)SPPPIOSDEFS;
+	spr.cmd = (int)(long)SPPPIOSDEFS;
 
 	if (ioctl(s, SIOCSIFGENERIC, &ifr) == -1) {
 		log(LL_ERR, "ERROR setting new PPP authentication parameters "

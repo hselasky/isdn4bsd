@@ -807,6 +807,8 @@ int set_channel_state(int controller, int channel, int state);
 int ret_channel_state(int controller, int channel);
 void ev_disconnect_from_user(cfg_entry_t *cep);
 int isvalidtime(cfg_entry_t *cep);
+int add_number_prefix(char *number, int type_of_number);
+int number_matches(msg_connect_ind_t *mp, cfg_entry_t *cep);
 
 /* alias.c */
 
