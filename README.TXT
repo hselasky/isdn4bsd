@@ -20,10 +20,12 @@ SUPPORTED OPERATING SYSTEMS
  - FreeBSD-6-current
  - FreeBSD-7-current
  - FreeBSD-8-current
+ - FreeBSD-9-current
 
  - NetBSD 2.x.x
  - NetBSD 3.x.x
  - NetBSD 4.x.x
+ - NetBSD 5.x.x
 
 
 FEATURES
