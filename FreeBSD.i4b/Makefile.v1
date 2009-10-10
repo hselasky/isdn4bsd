@@ -552,7 +552,7 @@ install: ${DIFF} ${PACKAGE} help backup update_config update_sound_c
 
 # patch 3
 	cat ${S}/include/Makefile \
-	| sed -e s/" dev\/usb i4b\/include "/" "/g \
+	| sed -e s/" dev\/usb i4b\/include "/" dev\/usb "/g \
 	| sed -e s/" dev\/usb2 i4b\/include "/" "/g \
 	| sed -e s/" dev\/usb2 "/" "/g \
 	| sed -e s/" dev\/usb "/" dev\/usb i4b\/include "/g \
