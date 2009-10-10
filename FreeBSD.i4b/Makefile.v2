@@ -1,5 +1,5 @@
 VERSION=1_7_4
-DATE=June 2009
+DATE=October 2009
 
 FILTER= grep -v "/temp"   | \
 	grep -v "~"      | \
@@ -372,7 +372,6 @@ install: ${DIFF} ${PACKAGE} help backup update_config
 # hook in some directories
 #
 	cat ${S}/etc/mtree/BSD.include.dist \
-	| grep -v "^	" \
 	| sed -e s/"^\.\. *$$"/${BSD_INCLUDE_DIST_APPEND_2}/g \
 	| tr "ше" "\n\t" \
 	| cat - \
