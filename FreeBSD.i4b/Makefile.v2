@@ -148,6 +148,9 @@ ${N}\# 2. Make sure that the following lines are  \
 ${N}\#    in your kernel configuration file, \
 ${N}\#    for example \"${CONF_DIR}/custom\": \
 ${N}\# \
+${N}\# 2.1. You can also install I4B like a kernel module:\
+${N}\#    See the ../module directory for more information. \
+${N}\# \
 ${N}\# I4B section \
 ${N}\# \
 ${N}options IPR_VJ \
