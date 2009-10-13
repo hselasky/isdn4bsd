@@ -30,7 +30,9 @@
 #ifndef _YEALINK_H_
 #define	_YEALINK_H_
 
+#define	YEALINK_MINFRAMES		25
 #define	YEALINK_CONFIG_INDEX		0
+#define	YEALINK_IFACE_INDEX		0
 #define	YEALINK_INTR_BUF_SIZE		128	/* bytes */
 #define	YEALINK_PKT_LEN			16	/* bytes */
 #define	YEALINK_CMD_INIT                0x8e
@@ -94,11 +96,11 @@ struct yealink_status {
 } __packed;
 
 #define	YEALINK_SEG(t, a, am, b, bm, c, cm, d, dm, e, em, f, fm, g, gm)	\
-	{ t, { .s = { {a, am}, {b, bm}, {c, cm}, {d, dm},		\
+	{ t, .u = { .s = { {a, am}, {b, bm}, {c, cm}, {d, dm},		\
 		      {e, em}, {g, gm}, {f, fm} } } }
 
 #define	YEALINK_SYM(t, h, hm, n)		\
-	{ t, { .p = { h, hm, n } } }
+	{ t, .u = { .p = { h, hm, n } } }
 
 struct yealink_lcd_map {
 	char	type;

@@ -54,7 +54,83 @@
  *   - Olivier Vandorpe, for providing the usbb2k-api.
  */
 
+#include <sys/stdint.h>
+#include <sys/stddef.h>
+#include <sys/param.h>
+#include <sys/queue.h>
+#include <sys/types.h>
+#include <sys/systm.h>
+#include <sys/kernel.h>
+#include <sys/bus.h>
+#include <sys/linker_set.h>
+#include <sys/module.h>
+#include <sys/lock.h>
+#include <sys/mutex.h>
+#include <sys/condvar.h>
+#include <sys/sysctl.h>
+#include <sys/sx.h>
+#include <sys/unistd.h>
+#include <sys/callout.h>
+#include <sys/malloc.h>
+#include <sys/priv.h>
+
+#include <dev/usb/usb.h>
+#include <dev/usb/usb_ioctl.h>
+#include <dev/usb/usbdi.h>
+
+#define	USB_DEBUG_VAR yealink_debug
+
+#include <dev/usb/usb_core.h>
+#include <dev/usb/usb_process.h>
+#include <dev/usb/usb_device.h>
+#include <dev/usb/usb_request.h>
+#include <dev/usb/usb_debug.h>
+#include <dev/usb/usb_hub.h>
+#include <dev/usb/usb_util.h>
+#include <dev/usb/usb_busdma.h>
+#include <dev/usb/usb_transfer.h>
+#include <dev/usb/usb_dynamic.h>
+
+#include <dev/usb/usb_controller.h>
+#include <dev/usb/usb_bus.h>
+
+#if 0
 #include <i4b/layer1/yealink/yealink.h>
+#else
+#include <yealink.h>
+#endif
+
+#ifdef USB_DEBUG
+static int yealink_debug = 0;
+
+SYSCTL_NODE(_hw_usb, OID_AUTO, yealink, CTLFLAG_RW, 0, "USB VoIP");
+SYSCTL_INT(_hw_usb_yealink, OID_AUTO, debug, CTLFLAG_RW, &yealink_debug, 0,
+    "Debug level");
+#endif
+
+static device_probe_t yealink_probe;
+static device_attach_t yealink_attach;
+static device_detach_t yealink_detach;
+
+static devclass_t yealink_devclass;
+
+static device_method_t yealink_methods[] = {
+	DEVMETHOD(device_probe, yealink_probe),
+	DEVMETHOD(device_attach, yealink_attach),
+	DEVMETHOD(device_detach, yealink_detach),
+	{0, 0}
+};
+
+static driver_t yealink_driver = {
+	.name = "yealink",
+	.methods = yealink_methods,
+	.size = sizeof(struct yealink_softc)
+};
+
+DRIVER_MODULE(yealink, uhub, yealink_driver, yealink_devclass, NULL, 0);
+MODULE_DEPEND(yealink, usb, 1, 1, 1);
+
+/* static structures */
 
 static const struct yealink_lcd_map yealink_lcd_map[YEALINK_LCD_LINE5_OFFSET] = {
 	YEALINK_SEG('1', 0, 0, 22, 2, 22, 2, 0, 0, 0, 0, 0, 0, 0, 0),
@@ -128,14 +204,7 @@ static const uint8_t yealink_digitmap[10] = {
 };
 
 static const struct usb_device_id yealink_devs_table[] = {
-	{
-		.match_flag_vendor = 1,
-		.match_flag_product = 1,
-		.match_flag_int_class = 1,
-		.idVendor = 0x6993,
-		.idProduct = 0xb001,
-		.bInterfaceClass = USB_CLASS_HID,
-	},
+	{USB_VPI(0x6993, 0xb001, 0)},
 };
 
 static usb_callback_t yealink_ctrl_callback;
@@ -149,6 +218,7 @@ static const struct usb_config yealink_config[YEALINK_XFER_MAX] = {
 		.endpoint = 0x00,	/* Control pipe */
 		.direction = UE_DIR_ANY,
 		.bufsize = sizeof(struct yealink_ctrl),
+		.flags = {.ext_buffer = 1,},
 		.callback = &yealink_ctrl_callback,
 		.timeout = 1000,	/* 1 second */
 		.if_index = 0,
@@ -159,7 +229,7 @@ static const struct usb_config yealink_config[YEALINK_XFER_MAX] = {
 		.endpoint = UE_ADDR_ANY,
 		.direction = UE_DIR_IN,
 		.bufsize = sizeof(struct yealink_intr),
-		.flags = {.short_xfer_ok = 1,},
+		.flags = {.ext_buffer = 1,.short_xfer_ok = 1,},
 		.callback = &yealink_intr_callback,
 		.if_index = 0,
 	},
@@ -193,7 +263,7 @@ static const struct usb_config yealink_config[YEALINK_XFER_MAX] = {
 		.bufsize = 0,		/* use "wMaxPacketSize * frames" */
 		.frames = YEALINK_MINFRAMES,
 		.callback = &yealink_isoc_write_callback,
-		.if_index = 1,
+		.if_index = 2,
 	},
 
 	[YEALINK_XFER_ISOC_OUT_1] = {
@@ -203,7 +273,7 @@ static const struct usb_config yealink_config[YEALINK_XFER_MAX] = {
 		.bufsize = 0,		/* use "wMaxPacketSize * frames" */
 		.frames = YEALINK_MINFRAMES,
 		.callback = &yealink_isoc_write_callback,
-		.if_index = 1,
+		.if_index = 2,
 	},
 };
 
@@ -261,6 +331,7 @@ static char
 yealink_p1k_to_ascii(uint8_t scancode)
 {
 	;				/* indent fix */
+#if 0
 	switch (scancode) {		/* Phone keys: */
 	case 0x23:
 		return (KEY_LEFT);	/* IN */
@@ -302,6 +373,7 @@ yealink_p1k_to_ascii(uint8_t scancode)
 		return (KEY_LEFTSHIFT |
 		    KEY_3 << 8);	/* # */
 	}
+#endif
 	return (0);
 }
 
@@ -320,7 +392,8 @@ yealink_cmd(struct yealink_softc *sc, struct yealink_ctl_packet *p)
 	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
 	req.bRequest = UR_SET_CONFIG;
 	USETW(req.wValue, 0x0200);
-	USETW(req.wIndex, 0x0003);
+	req.wIndex[0] = sc->sc_iface_no;
+	req.wIndex[1] = 0;
 	USETW(req.wLength, sizeof(*p));
 
 	usbd_do_request_flags(sc->sc_udev, NULL,
@@ -339,7 +412,7 @@ yealink_set_ringtone(struct yealink_softc *sc, const uint8_t *buf, uint8_t size)
 
 	memset(&pkt, 0, sizeof(pkt));
 
-	pkt.cmd = CMD_RING_VOLUME;
+	pkt.cmd = YEALINK_CMD_RING_VOLUME;
 	pkt.size = 1;
 	pkt.data[0] = buf[0];
 	yealink_cmd(sc, &pkt);
@@ -347,10 +420,10 @@ yealink_set_ringtone(struct yealink_softc *sc, const uint8_t *buf, uint8_t size)
 	buf++;
 	size--;
 
-	pkg.cmd = CMD_RING_NOTE;
+	pkt.cmd = YEALINK_CMD_RING_NOTE;
 
-	offset = 0
-	    while (offset != size) {
+	offset = 0;
+	while (offset != size) {
 
 		len = size - offset;
 		if (len > sizeof(pkt.data))
@@ -378,9 +451,10 @@ yealink_do_idle_tasks(struct yealink_softc *sc)
 
 	sc->sc_ctrl.data.cmd = YEALINK_CMD_KEYPRESS;
 	sc->sc_ctrl.data.size = 1;
-	sc->sc_ctrl.data.sum = 0 - 1 - YEALINK_CMD_KEYPRESS;
+	sc->sc_ctrl.data.sum =
+	    (uint8_t)(0 - 1 - YEALINK_CMD_KEYPRESS);
 
-	if (offset >= sizeof(sc->sc_statusJ)) {
+	if (offset >= sizeof(sc->sc_status)) {
 		sc->sc_curr_offset = 0;
 		return (0);
 	}
@@ -395,6 +469,8 @@ yealink_do_idle_tasks(struct yealink_softc *sc)
 
 do_update:
 
+	printf("Update %d\n", offset);
+
 	/* update shadow register(s) */
 	sc->sc_shadow.raw[offset] = val;
 	sc->sc_ctrl.data.data[0] = val;
@@ -402,15 +478,18 @@ do_update:
 	switch (offset) {
 	case 24:
 		sc->sc_ctrl.data.cmd = YEALINK_CMD_LED;
-		sc->sc_ctrl.data.sum = 0 - 1 - YEALINK_CMD_LED - val;
+		sc->sc_ctrl.data.sum = 
+		  (uint8_t)(0 - 1 - YEALINK_CMD_LED - val);
 		break;
 	case 25:
 		sc->sc_ctrl.data.cmd = YEALINK_CMD_DIALTONE;
-		sc->sc_ctrl.data.sum = 0 - 1 - YEALINK_CMD_DIALTONE - val;
+		sc->sc_ctrl.data.sum = 
+		  (uint8_t)(0 - 1 - YEALINK_CMD_DIALTONE - val);
 		break;
 	case 26:
 		sc->sc_ctrl.data.cmd = YEALINK_CMD_RINGTONE;
-		sc->sc_ctrl.data.sum = 0 - 1 - YEALINK_CMD_RINGTONE - val;
+		sc->sc_ctrl.data.sum = 
+		  (uint8_t)(0 - 1 - YEALINK_CMD_RINGTONE - val);
 		break;
 	case 27:
 		val--;
@@ -418,7 +497,8 @@ do_update:
 		sc->sc_ctrl.data.cmd = YEALINK_CMD_SCANCODE;
 		sc->sc_ctrl.data.offset[1] = val;
 		sc->sc_ctrl.data.data[0] = 0;
-		sc->sc_ctrl.data.sum = 0 - 1 - YEALINK_CMD_SCANCODE - val;
+		sc->sc_ctrl.data.sum = 
+		  (uint8_t)(0 - 1 - YEALINK_CMD_SCANCODE - val);
 		break;
 	default:
 		len = sizeof(sc->sc_status.lcd) - offset;
@@ -428,7 +508,8 @@ do_update:
 		sc->sc_ctrl.data.cmd = YEALINK_CMD_LCD;
 		sc->sc_ctrl.data.offset[1] = offset;	/* big endian */
 		sc->sc_ctrl.data.size = len;
-		sc->sc_ctrl.data.sum = 0 - YEALINK_CMD_LCD - offset - val - len;
+		sc->sc_ctrl.data.sum = 
+		  (uint8_t)(0 - YEALINK_CMD_LCD - offset - val - len);
 
 		for (i = 1; i < len; i++) {
 			offset++;
@@ -445,8 +526,13 @@ do_update:
 static void
 yealink_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 {
+	struct yealink_softc *sc;
 	int actlen;
 	uint8_t val;
+
+	sc = usbd_xfer_softc(xfer);
+
+	DPRINTFN(0, "\n");
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
@@ -458,16 +544,17 @@ yealink_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 
 			switch (sc->sc_intr.data.cmd) {
 			case YEALINK_CMD_KEYPRESS:
-				DPRINTFN(0, "Keypress 0x%02x", val);
+				DPRINTFN(0, "Keypress 0x%02x\n", val);
 				sc->sc_status.keynum = val;
 				break;
 
 			case YEALINK_CMD_SCANCODE:
-				DPRINTFN(0, "Scancode 0x%02x", val);
+				DPRINTFN(0, "Scancode 0x%02x\n", val);
 				yealink_p1k_to_ascii(val);
 				break;
 			default:
-				DPRINTFN(1, "Unexpected response 0x%02x\n", val);
+				DPRINTFN(1, "Unexpected "
+				 "response 0x%02x\n", val);
 				break;
 			}
 		}
@@ -478,12 +565,15 @@ yealink_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 	case USB_ST_SETUP:
 tr_setup:
 		/* setup USB transfer */
-		usbd_xfer_set_frame_data(xfer, 0, &sc->sc_intr, YEALINK_INTR_BUF_SIZE);
+		usbd_xfer_set_frame_data(xfer, 0,
+&sc->sc_intr, YEALINK_INTR_BUF_SIZE);
 		usbd_xfer_set_frames(xfer, 1);
 		usbd_transfer_submit(xfer);
 		break;
 
 	default:			/* Error */
+		DPRINTF("error=%s\n", usbd_errstr(error));
+
 		if (error != USB_ERR_CANCELLED) {
 			usbd_xfer_set_stall(xfer);
 			goto tr_setup;
@@ -495,7 +585,10 @@ tr_setup:
 static void
 yealink_ctrl_callback(struct usb_xfer *xfer, usb_error_t error)
 {
+	struct yealink_softc *sc;
 	uint8_t i;
+
+	sc = usbd_xfer_softc(xfer);
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
@@ -504,7 +597,7 @@ yealink_ctrl_callback(struct usb_xfer *xfer, usb_error_t error)
 		case YEALINK_CMD_SCANCODE:
 			/* get data on interrupt endpoint */
 			usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_INTR]);
-			return;
+			//return;
 		default:
 			break;
 		}
@@ -515,9 +608,10 @@ tr_setup:
 			memset(&sc->sc_ctrl.data, 0, sizeof(sc->sc_ctrl.data));
 			sc->sc_ctrl.data.cmd = YEALINK_CMD_INIT;
 			sc->sc_ctrl.data.size = 10;
-			sc->sc_ctrl.data.sum = 0 - YEALINK_CMD_INIT - 10;
+			sc->sc_ctrl.data.sum = 
+			  (uint8_t)(0 - YEALINK_CMD_INIT - 10);
 			sc->sc_curr_offset = 0;
-			sc->sc_was_opened = 0;
+			sc->sc_was_opened--;
 
 			/* make sure all data is re-loaded */
 			for (i = 0; i != sizeof(sc->sc_status); i++)
@@ -541,13 +635,17 @@ tr_setup:
 		USETW(sc->sc_ctrl.req.wLength, YEALINK_PKT_LEN);
 
 		/* setup USB transfer */
-		usbd_xfer_set_frame_data(xfer, 0, &sc->sc_ctrl.req, sizeof(sc->sc_ctrl.req));
-		usbd_xfer_set_frame_data(xfer, 1, &sc->sc_ctrl.data, sizeof(sc->sc_ctrl.data));
+		usbd_xfer_set_frame_data(xfer, 0, 
+			 &sc->sc_ctrl.req, sizeof(sc->sc_ctrl.req));
+		usbd_xfer_set_frame_data(xfer, 1, 
+			 &sc->sc_ctrl.data, sizeof(sc->sc_ctrl.data));
 		usbd_xfer_set_frames(xfer, 2);
 		usbd_transfer_submit(xfer);
 		break;
 
 	default:			/* Error */
+		DPRINTF("error=%s\n", usbd_errstr(error));
+
 		if (error != USB_ERR_CANCELLED) {
 			goto tr_setup;
 		}
@@ -555,6 +653,21 @@ tr_setup:
 	}
 }
 
+static void
+yealink_isoc_read_callback(struct usb_xfer *xfer, usb_error_t error)
+{
+
+
+}
+
+static void
+yealink_isoc_write_callback(struct usb_xfer *xfer, usb_error_t error)
+{
+
+
+}
+
+#if 0
 static void
 yealink_store_line(struct yealink_softc *sc, const char *buf,
     uint8_t count, uint8_t pos, uint8_t len)
@@ -567,6 +680,7 @@ yealink_store_line(struct yealink_softc *sc, const char *buf,
 		yealink_set_char(sc, pos, buf[i]);
 
 }
+#endif
 
 static void
 yealink_set_icon(struct yealink_softc *sc, const char *buf,
@@ -585,9 +699,9 @@ yealink_set_icon(struct yealink_softc *sc, const char *buf,
 }
 
 static int
-yealink_probe(device_t self)
+yealink_probe(device_t dev)
 {
-	struct usb_attach_arg *uaa = device_get_ivars(self);
+	struct usb_attach_arg *uaa = device_get_ivars(dev);
 
 	if (uaa->usb_mode != USB_MODE_HOST) {
 		return (ENXIO);
@@ -595,22 +709,76 @@ yealink_probe(device_t self)
 	if (uaa->info.bConfigIndex != YEALINK_CONFIG_INDEX) {
 		return (ENXIO);
 	}
+	if (uaa->info.bIfaceIndex != YEALINK_IFACE_INDEX) {
+		return (ENXIO);
+	}
+	if (usbd_get_speed(uaa->device) != USB_SPEED_FULL) {
+		return (ENXIO);
+	}
 	return (usbd_lookup_id_by_uaa(yealink_devs_table,
 	    sizeof(yealink_devs_table), uaa));
 }
 
 static int
-yealink_attach(device_t self)
+yealink_attach(device_t dev)
 {
-	struct usb_attach_arg *uaa = device_get_ivars(self);
+	struct usb_attach_arg *uaa = device_get_ivars(dev);
+	struct yealink_softc *sc = device_get_softc(dev);
+	struct usb_interface *iface = NULL;
+	struct usb_interface_descriptor *idesc = NULL;
+	struct usb_endpoint_descriptor *ed = NULL;
 	uint8_t i;
+	uint8_t iface_index[3];
 
-	device_set_usb_desc(dev);
+	//device_set_usb_desc(dev);
+
+	device_set_desc(dev, "VoIP adapter");
 
 	mtx_init(&sc->sc_mtx, "yealink", NULL, MTX_DEF);
 
 	sc->sc_udev = uaa->device;
-	sc->sc_iface_no = uaa->info.bIfaceNum;
+
+	iface_index[0] = 0;
+	iface_index[1] = 0;
+	iface_index[2] = 0;
+
+	/* claim all interfaces */
+
+	for (i = 0;; i++) {
+		if (i == iface_index[0])
+			continue;
+		iface = usbd_get_iface(uaa->device, i);
+		if (iface == NULL)
+			break;
+		idesc = usbd_get_interface_descriptor(iface);
+		if (idesc == NULL)
+			continue;
+
+		usbd_set_parent_iface(uaa->device, i, iface_index[0]);
+
+		if (idesc->bInterfaceClass == UICLASS_AUDIO) {
+			if (idesc->bInterfaceSubClass == UISUBCLASS_AUDIOSTREAM) {
+				usbd_set_alt_interface_index(uaa->device, i, 1);
+				ed = usbd_find_descriptor(uaa->device,
+				    NULL, i, UDESC_ENDPOINT, 0xFF, 0, 0);
+				if (ed != NULL) {
+					if (ed->bEndpointAddress & UE_DIR_IN)
+						iface_index[1] = i;
+					else
+						iface_index[2] = i;
+				}
+			}
+			if (idesc->bInterfaceSubClass == UISUBCLASS_AUDIOCONTROL) {
+				/* Nothing to do */
+			}
+		}
+		if (idesc->bInterfaceClass == UICLASS_HID) {
+			iface_index[0] = i;
+			sc->sc_iface_no = idesc->bInterfaceNumber;
+		}
+	}
+
+	DPRINTF("iface_no=%d\n", sc->sc_iface_no);
 
 	for (i = 0; i != YEALINK_LCD_LINE5_OFFSET; i++) {
 		yealink_set_char(sc, i, ' ');
@@ -618,22 +786,51 @@ yealink_attach(device_t self)
 
 	yealink_set_ringtone(sc, yealink_ringtone, sizeof(yealink_ringtone));
 
-	if (usbd_transfer_setup(sc->sc_udev, &iface_index, sc->sc_xfer,
+	if (usbd_transfer_setup(sc->sc_udev, iface_index, sc->sc_xfer,
 	    yealink_config, YEALINK_XFER_MAX, sc, &sc->sc_mtx)) {
 		DPRINTF("could not allocate USB transfers!\n");
 		goto error;
 	}
+
+	pause("III", 1*hz);
+
+	mtx_lock(&sc->sc_mtx);
+	sc->sc_was_opened = 1;
+	usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_CTRL]);
+	//usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_INTR]);
+	mtx_unlock(&sc->sc_mtx);
+
+#if 0
+	for (i = 0; i != YEALINK_LCD_LINE5_OFFSET; i++) {
+	  if (yealink_lcd_map[i].type == '.') {
+		yealink_set_char(sc, i, 'x');
+		pause("III", 1*hz);
+		//yealink_set_char(sc, i, ' ');
+		printf("XXX %d\n", i);
+	  }
+	}
+#endif
+	//yealink_set_icon(sc, "RINGTONE", sizeof("RINGTONE")-1, 'x');
+	//yealink_set_icon(sc, "D", sizeof("D")-1, 'x');
+	//yealink_set_icon(sc, "M", sizeof("M")-1, 'x');
+	    //yealink_set_icon(sc, "DIALTONE", sizeof("DIALTONE")-1, 'x');
+	    //yealink_set_icon(sc, "IN", sizeof("IN")-1, 'x');
+	yealink_set_icon(sc, "LED", sizeof("LED")-1, 'x');
+	    //yealink_set_char(sc, YEALINK_LCD_LINE3_OFFSET, '9');
+
 	return (0);
 
 error:
-	yealink_detach(self);
+	yealink_detach(dev);
 
 	return (ENXIO);
 }
 
 static int
-yealink_detach(device_t self)
+yealink_detach(device_t dev)
 {
+	struct yealink_softc *sc = device_get_softc(dev);
+
 	usbd_transfer_unsetup(sc->sc_xfer, YEALINK_XFER_MAX);
 
 	mtx_destroy(&sc->sc_mtx);
