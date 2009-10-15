@@ -27,8 +27,10 @@
 #ifndef _DSS1_LITE_H_
 #define	_DSS1_LITE_H_
 
-#define	DL_TEI 0
-#define	DL_NUM_MAX 0x7F
+#define	DL_TEI 0x01
+#define	DL_NUM_MAX 0x80
+#define	DL_WIN_MAX 0x10
+
 #define	DL_ST_FREE 0xFF
 #define	DL_STATUS_COUNT_MAX 8		/* timeouts ~ 8*8 = 64 seconds */
 
@@ -85,23 +87,39 @@ struct dss1_lite_methods {
 	dss1_lite_set_ring_t *set_ring;
 };
 
+struct dss1_lite_ifq {
+	struct mbuf *ifq_head;
+	struct mbuf *ifq_tail;
+	uint8_t	ifq_len;
+	uint8_t	ifq_maxlen;
+};
+
 struct dss1_lite {
 
 	struct callout dl_timer;
+	struct dss1_lite_ifq dl_outq;
+	struct dss1_lite_ifq dl_inq;
 
 	const struct dss1_lite_methods *dl_methods;
 	void   *dl_softc;
 	struct mtx *dl_pmtx;
 	const struct dss1_lite_state *dl_pstate;	/* current state */
-	uint8_t	dl_state_index;
+	struct mbuf *dl_tx_mbuf[DL_WIN_MAX];
 
-	uint8_t	dl_ipend;		/* Set if iframe is pending */
-	uint8_t	dl_rx_num;
+	int	dl_timeout_tick;
+
+	uint8_t	dl_timeout_active;
+	uint8_t	dl_tx_in;
+	uint8_t	dl_tx_out;
 	uint8_t	dl_tx_num;
+	uint8_t	dl_rx_num;
+	uint8_t	dl_state_index;
 	uint8_t	dl_no_rc;		/* Set if no release complete */
-	uint8_t	dl_no_ho;		/* Set if no hook on */
 	uint8_t	dl_status_count;
 	uint8_t	dl_channel;		/* Data channel */
+	uint8_t	dl_curr_callref;
+	uint8_t	dl_next_callref;
+	uint8_t	dl_is_nt_mode;
 };
 
 #endif					/* _DSS1_LITE_H_ */
