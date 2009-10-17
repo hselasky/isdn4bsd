@@ -43,7 +43,6 @@
 #include <sys/mutex.h>
 #include <sys/condvar.h>
 #include <sys/unistd.h>
-#include <sys/callout.h>
 #include <sys/malloc.h>
 #include <sys/mbuf.h>
 
@@ -82,6 +81,276 @@ static const struct dss1_lite_state dss1_lite_in_states[0 - DL_ST_IN_U0 + DL_ST_
 };
 
 static uint8_t dss1_lite_send_mbuf(struct dss1_lite *pst, struct mbuf *m);
+static uint8_t dss1_lite_send_message(struct dss1_lite *pst, uint8_t msg_type, uint32_t mask);
+
+static uint8_t
+dss1_lite_want_dialtone(struct dss1_lite *pst)
+{
+	return (pst->dl_is_nt_mode &&
+	    (!pst->dl_ctrl->no_layer1_dialtone) &&
+	    (pst->dl_channel_bprot == BPROT_NONE));
+}
+
+static uint8_t
+dss1_lite_send_setup(struct dss1_lite *pst,
+    uint8_t sending_complete)
+{
+	return (dss1_lite_send_message(pst, 0x05 /* SETUP */ ,
+	    (IE_HEADER_MASK | IE_BEARER_CAP_MASK | IE_CHANNEL_ID_MASK |
+	    IE_KEYPAD_MASK | IE_CALLING_PARTY_MASK | IE_USERUSER_MASK |
+	    IE_DISPLAY_MASK) |
+	    (sending_complete ? IE_SENDING_COMPLETE_MASK : 0)));
+}
+
+static uint8_t
+dss1_lite_send_setup_acknowledge(struct dss1_lite *pst)
+{
+	uint8_t send_chan_id = pst->dl_is_nt_mode;
+	uint8_t send_progress = dss1_lite_want_dialtone(pst);
+
+	return (dss1_lite_send_message(pst, 0x0d /* SETUP_ACKNOWLEDGE */ ,
+	    (IE_HEADER_MASK | (send_progress ? IE_PROGRESS_MASK : 0) |
+	    (send_chan_id ? IE_CHANNEL_ID_MASK : 0))));
+}
+
+static uint8_t
+dss1_lite_send_alert(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x01 /* ALERT */ , IE_HEADER_MASK));
+}
+
+/*
+ * NOTE: If one sends the channel-ID to some PBXs while in TE-mode,
+ * and the call is incoming, the PBX might reject the message and send
+ * an error to the "up-link"
+ */
+
+static uint8_t
+dss1_lite_send_call_proceeding(struct dss1_lite *pst)
+{
+	uint8_t send_chan_id = pst->dl_is_nt_mode;
+	uint8_t send_progress = dss1_lite_want_dialtone(pst);
+
+	return (dss1_lite_send_message(pst, 0x02 /* CALL_PROCEEDING */ ,
+	    IE_HEADER_MASK |
+	    (send_progress ? IE_PROGRESS_MASK : 0) |
+	    (send_chan_id ? IE_CHANNEL_ID_MASK : 0)));
+}
+
+static uint8_t
+dss1_lite_send_information(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x7b /* INFORMATION */ ,
+	    IE_HEADER_MASK | IE_CALLED_PARTY_MASK));
+}
+
+static uint8_t
+dss1_lite_send_connect(struct dss1_lite *pst)
+{
+	uint8_t send_date_time = pst->dl_is_nt_mode;
+
+	return (dss1_lite_send_message(pst, 0x07 /* CONNECT */ ,
+	    IE_HEADER_MASK | (send_date_time ? IE_DATE_TIME_MASK : 0)));
+}
+
+static uint8_t
+dss1_lite_send_connect_acknowledge(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x0f /* CONNECT_ACKNOWLEDGE */ ,
+	    IE_HEADER_MASK));
+}
+
+static uint8_t
+dss1_lite_send_disconnect(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x45 /* DISCONNECT */ ,
+	    IE_HEADER_MASK | IE_CAUSE_MASK));
+}
+
+static uint8_t
+dss1_lite_send_release(struct dss1_lite *pst, uint8_t send_cause_flag)
+{
+	return (dss1_lite_send_message(pst, 0x4d /* RELEASE */ ,
+	    send_cause_flag ? IE_HEADER_MASK | IE_CAUSE_MASK : IE_HEADER_MASK));
+}
+
+/*
+ * NOTE: Some ISDN phones require the "cause" information element when
+ * sending RELEASE_COMPLETE
+ */
+static uint8_t
+dss1_lite_send_release_complete(struct dss1_lite *pst, uint8_t send_cause_flag)
+{
+	return (dss1_lite_send_message(pst, 0x5a /* RELEASE_COMPLETE */ ,
+	    send_cause_flag ? (IE_HEADER_MASK | IE_CAUSE_MASK) : IE_HEADER_MASK));
+}
+
+static uint8_t
+dss1_lite_send_status(struct dss1_lite *pst, uint8_t q850cause)
+{
+	uint8_t retval;
+
+	pst->dl_cause_out = q850cause;
+	retval = dss1_lite_send_message(pst, 0x7d /* STATUS */ ,
+	    IE_HEADER_MASK | IE_CAUSE_MASK | IE_CALLSTATE_MASK);
+	pst->dl_cause_out = 0;
+	return (retval);
+}
+
+static uint8_t
+dss1_lite_send_status_enquiry(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x75 /* STATUS_ENQUIRY */ , IE_HEADER_MASK));
+}
+
+static uint8_t
+dss1_lite_send_progress(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x03 /* PROGRESS */ ,
+	    IE_HEADER_MASK | IE_PROGRESS_MASK));
+}
+
+static uint8_t
+dss1_lite_send_hold(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x24 /* HOLD */ ,
+	    IE_HEADER_MASK));
+}
+
+static uint8_t
+dss1_lite_send_hold_acknowledge(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x28 /* HOLD_ACKNOWLEDGE */ , IE_HEADER_MASK));
+}
+
+static uint8_t
+dss1_lite_send_hold_reject(struct dss1_lite *pst, uint8_t q850cause)
+{
+	uint8_t retval;
+
+	pst->dl_cause_out = q850cause;
+	retval = dss1_lite_send_message(pst, 0x30 /* HOLD_REJECT */ ,
+	    IE_HEADER_MASK | IE_CAUSE_MASK);
+	pst->dl_cause_out = 0;
+	return (retval);
+}
+
+static uint8_t
+dss1_lite_send_retrieve(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x31 /* RETRIEVE */ ,
+	    IE_HEADER_MASK));
+}
+
+static uint8_t
+dss1_lite_send_retrieve_acknowledge(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x33 /* RETRIEVE_ACKNOWLEDGE */ ,
+	    IE_HEADER_MASK | IE_CHANNEL_ID_MASK));
+}
+
+static uint8_t
+dss1_lite_send_retrieve_reject(struct dss1_lite *pst, uint8_t q850cause)
+{
+	uint8_t retval;
+
+	pst->dl_cause_out = q850cause;
+	retval = dss1_lite_send_message(pst, 0x37 /* RETRIEVE_REJECT */ ,
+	    IE_HEADER_MASK | IE_CAUSE_MASK);
+	pst->dl_cause_out = 0;
+	return (retval);
+}
+
+static uint8_t
+dss1_lite_send_deflect_call(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x62 /* FACILITY */ ,
+	    IE_HEADER_MASK | IE_DEFLECT_MASK));
+}
+
+static uint8_t
+dss1_lite_send_mcid_call(struct dss1_lite *pst)
+{
+	return (dss1_lite_send_message(pst, 0x62 /* FACILITY */ ,
+	    IE_HEADER_MASK | IE_MCID_MASK));
+}
+
+static void
+dss1_lite_string_filter(char *ptr)
+{
+	char temp;
+
+	while (1) {
+		temp = *ptr;
+		if (temp == 0)
+			break;
+
+		/*
+		 * If you don't understand why this filter is here, then you
+		 * should never write PBX software
+		 */
+		if (((temp >= 'a') && (temp <= 'z')) ||
+		    ((temp >= 'A') && (temp <= 'Z')) ||
+		    ((temp >= '0') && (temp <= '9')) ||
+		    (temp == '*') || (temp == '#')) {
+
+			/* allow */
+
+		} else {
+			/* disallow */
+
+			*ptr = '_';
+		}
+		ptr++;
+	}
+}
+
+static struct mbuf *
+dss1_lite_alloc_mbuf(uint16_t len)
+{
+	struct mbuf *m;
+
+	/* check for maximum size */
+	if (len > MCLBYTES)
+		return (NULL);
+
+	/* get mbuf with pkthdr */
+	MGETHDR(m, M_NOWAIT, MT_DATA);
+
+	/* did we actually get the mbuf ? */
+
+	if (m == NULL)
+		return (NULL);
+
+	if (len >= MHLEN) {
+		MCLGET(m, M_NOWAIT);
+
+		if (!(m->m_flags & M_EXT)) {
+			m_freem(m);
+			return (NULL);
+		}
+	}
+	m->m_pkthdr.len = len;
+	m->m_len = len;
+
+	return (m);
+}
+
+static uint8_t
+dss1_lite_peek_mbuf(struct mbuf *m, uint16_t offset)
+{
+	if (offset >= m->m_len)
+		return (0);
+	else
+		return (((uint8_t *)m->m_data)[offset]);
+}
+
+static void
+dss1_lite_poke_mbuf(struct mbuf *m, uint16_t offset, uint8_t data)
+{
+	if (offset < m->m_len)
+		((uint8_t *)m->m_data)[offset] = data;
+}
 
 static uint8_t
 dss1_lite_has_call(struct dss1_lite *pst)
@@ -160,10 +429,9 @@ dss1_lite_set_state(struct dss1_lite *pst, uint8_t state)
 			dss1_lite_send_status_enquiry(pst);
 		}
 	} else {
-		if (pst->dl_no_rc == 0) {
-			dss1_lite_send_release_complete(pst);
-		} else {
-			pst->dl_no_rc = 0;
+		if (pst->dl_need_release) {
+			pst->dl_need_release = 0;
+			dss1_lite_send_release_complete(pst, 1);
 		}
 		if (pst->dl_ringing != 0) {
 			pst->dl_ringing = 0;
@@ -174,44 +442,43 @@ dss1_lite_set_state(struct dss1_lite *pst, uint8_t state)
 	return (1);			/* valid state transition */
 }
 
-void
+static void
 dss1_lite_receive_status(struct dss1_lite *pst, uint8_t state)
 {
 	uint8_t next_state;
 
-	if (dss1_lite_has_call(pst) &&
-	    dss1_lite_has_status_check(pst)) {
+	if (dss1_lite_has_status_check(pst) == 0)
+		return;
 
-		next_state = dss1_lite_get_state(pst);
+	next_state = dss1_lite_get_state(pst);
 
-		switch (next_state) {
-		case DL_ST_OUT_UA:
-		case DL_ST_IN_UA:
-			if (state == 0x0A) {
-				dss1_lite_set_state(pst, next_state);
-			}
-			break;
-
-		case DL_ST_OUT_UC:
-		case DL_ST_IN_UC:
-			if ((state == 0x0B) || (state == 0x0C)) {
-				dss1_lite_set_state(pst, next_state);
-			}
-			break;
-
-		default:
-			/*
-			 * NOTE: there are more callstates than
-			 * 0x0..0xA, 0x19 ...
-			 */
-			if (((state == 0x19) ||
-			    ((state >= 0x01) && (state <= 0x09))) &&
-			    (pst->dl_status_count < DL_STATUS_COUNT_MAX)) {
-				pst->dl_status_count++;
-				dss1_lite_set_state(pst, next_state);
-			}
-			break;
+	switch (next_state) {
+	case DL_ST_OUT_UA:
+	case DL_ST_IN_UA:
+		if (state == 0x0A) {
+			dss1_lite_set_state(pst, next_state);
 		}
+		break;
+
+	case DL_ST_OUT_UC:
+	case DL_ST_IN_UC:
+		if ((state == 0x0B) || (state == 0x0C)) {
+			dss1_lite_set_state(pst, next_state);
+		}
+		break;
+
+	default:
+		/*
+		 * NOTE: there are more callstates than
+		 * 0x0..0xA, 0x19 ...
+		 */
+		if (((state == 0x19) ||
+		    ((state >= 0x01) && (state <= 0x09))) &&
+		    (pst->dl_status_count < DL_STATUS_COUNT_MAX)) {
+			pst->dl_status_count++;
+			dss1_lite_set_state(pst, next_state);
+		}
+		break;
 	}
 }
 
@@ -222,7 +489,7 @@ dss1_lite_send_ctrl(struct dss1_lite *pst, uint8_t sapi, uint8_t cntl)
 	uint8_t *ptr;
 	uint8_t len = (cntl & 2) ? /* U-frame */ 3 : /* S-frame */ 4;
 
-	m = dss1_lite_get_mbuf(len);
+	m = dss1_lite_alloc_mbuf(len);
 	if (m == NULL)
 		return (0);
 
@@ -243,23 +510,7 @@ dss1_lite_send_ctrl(struct dss1_lite *pst, uint8_t sapi, uint8_t cntl)
 	return (dss1_lite_send_mbuf(pst, m));
 }
 
-uint8_t
-dss1_lite_peek_mbuf(struct mbuf *m, uint16_t offset)
-{
-	if (offset >= m->m_len)
-		return (0);
-	else
-		return (((uint8_t *)m->m_data)[offset]);
-}
-
-void
-dss1_lite_poke_mbuf(struct mbuf *m, uint16_t offset, uint8_t data)
-{
-	if (offset < m->m_len)
-		((uint8_t *)m->m_data)[offset] = data;
-}
-
-uint16_t
+static uint16_t
 dss1_lite_find_ie_mbuf(struct mbuf *m, uint16_t offset, uint8_t ie)
 {
 	uint8_t temp;
@@ -290,7 +541,177 @@ dss1_lite_find_ie_mbuf(struct mbuf *m, uint16_t offset, uint8_t ie)
 	return (0);			/* the end */
 }
 
-void
+static void
+dss1_lite_decode_channel_id(struct dss1_lite *pst,
+    struct mbuf *m, uint16_t offset)
+{
+	uint8_t temp;
+	uint8_t exclusive;
+	uint8_t iid;
+
+	if (pst->dl_channel_allocated)
+		return;
+
+	temp = dss1_lite_peek_mbuf(m, offset + 2);
+
+	/*
+	 * Exclusive is set if no other channel is acceptable:
+	 */
+	exclusive = (temp & 0x08) || (pst->dl_is_nt_mode == 0);
+
+	/*
+	 * Interface identifier is set if there is an interface
+	 * identifier byte:
+	 */
+	iid = (temp & 0x40) ? 1 : 0;
+
+	if (temp & 0x20) {
+		/* Primary Rate */
+		if (temp & 0x04) {
+			if (exclusive)
+				pst->dl_channel_id = CHAN_D1;
+		} else {
+			switch (temp & 0x03) {
+			case 0:
+				pst->dl_channel_id = CHAN_NOT_ANY;
+				break;
+			case 1:
+				/* time-slot follows */
+				temp = dss1_lite_peek_mbuf(m, offset + iid + 3);
+
+				if ((temp & 0x2F) == 0x03) {
+
+					temp = dss1_lite_peek_mbuf(m, offset + iid + 4);
+
+					if (exclusive) {
+						int channel_id = (temp & 0x7F);
+
+						L1_COMMAND_REQ(sc->sc_cntl,
+						    CMR_DECODE_CHANNEL, &channel_id);
+
+						pst->dl_channel_id = channel_id;
+					}
+				}
+				break;
+			case 3:
+				pst->dl_channel_id = CHAN_ANY;
+				break;
+			default:
+				/* not supported */
+				break;
+			}
+		}
+	} else {
+		/* Basic Rate */
+		if (temp & 0x04) {
+			if (exclusive)
+				pst->dl_channel_id = CHAN_D1;
+		} else {
+
+			switch (temp & 0x03) {
+			case IE_CHAN_ID_NO:
+				pst->dl_channel_id = CHAN_NOT_ANY;
+				break;
+			case IE_CHAN_ID_ANY:
+				pst->dl_channel_id = CHAN_ANY;
+				break;
+			case IE_CHAN_ID_B1:
+				if (exclusive)
+					pst->dl_channel_id = CHAN_B1;
+				break;
+			default:
+				if (exclusive)
+					pst->dl_channel_id = CHAN_B2;
+				break;
+			}
+
+		}
+	}
+}
+
+static void
+dss1_lite_decode_bearer_cap(struct dss1_lite *pst,
+    struct mbuf *m, uint16_t offset)
+{
+	uint8_t temp;
+
+	if (dss1_lite_is_incoming(pst) == 0)
+		return;			/* invalid */
+
+	temp = dss1_lite_peek_mbuf(m, offset + 2);
+
+	switch (temp) {
+	case 0x88:			/* unrestricted digital info */
+		pst->dl_channel_bprot = BPROT_DIGITAL;
+		break;
+	default:
+		pst->dl_channel_bprot = BPROT_TELEPHONY;
+		break;
+	}
+
+	temp = dss1_lite_peek_mbuf(m, offset + 4) & 0x1F;
+
+	switch (temp) {
+	case 0x02:
+		pst->dl_channel_bsubprot = BSUBPROT_G711_ULAW;
+		break;
+
+	case 0x03:
+		pst->dl_channel_bsubprot = BSUBPROT_G711_ALAW;
+		break;
+	default:
+		pst->dl_channel_bsubprot = BSUBPROT_UNKNOWN;
+		break;
+	}
+}
+
+static void
+dss1_lite_decode_called_party(struct dss1_lite *pst,
+    struct mbuf *m, uint16_t offset)
+{
+	uint8_t temp;
+	uint8_t len;
+	uint8_t i;
+
+	len = dss1_lite_peek_mbuf(m, offset + 1);
+	temp = dss1_lite_peek_mbuf(m, offset + 2);
+
+	/* type of number (destination) */
+	switch ((temp & 0x70) >> 4) {
+	case 1:
+		pst->dl_part.ton = TON_INTERNAT;
+		break;
+	case 2:
+		pst->dl_part.ton = TON_NATIONAL;
+		break;
+	default:
+		pst->dl_part.ton = TON_OTHER;
+		break;
+	}
+
+	pst->dl_part.subaddr[0] = 0;
+	pst->dl_part.prs_ind = PRS_ALLOWED;
+
+	if (len != 0)
+		len--;
+
+	if (len > (sizeof(pst->dl_part.telno) - 1))
+		len = (sizeof(pst->dl_part.telno) - 1);
+
+	for (i = 0; i != len; i++) {
+		temp = dss1_lite_peek_mbuf(m, offset + 3 + i);
+		if (temp == 0)
+			temp = '_';
+		pst->dl_part.telno[i] =
+
+	}
+
+	pst->dl_part.telno[i] = 0;
+
+	dss1_lite_string_filter(pst->dl_part.telno);
+}
+
+static void
 dss1_lite_decode_mbuf(struct dss1_lite *pst, struct mbuf *m)
 {
 	uint16_t offset;
@@ -298,7 +719,7 @@ dss1_lite_decode_mbuf(struct dss1_lite *pst, struct mbuf *m)
 	uint8_t tei;
 	uint8_t sapi;
 	uint8_t cntl;
-	uint8_t rx_nr;
+	uint8_t tx_nr;
 	uint8_t proto;
 	uint8_t reflen;
 	uint8_t callref;
@@ -363,14 +784,32 @@ i_frame:
 	if (callref != pst->dl_curr_callref)
 		goto check_nr;
 
-	if (pst->dl_is_nt_mode == 0) {
-		/* try to pickup the channel ID */
-		offset = dss1_lite_find_ie_mbuf(m, 0x08, 0x18 /* channel ID */ );
-		if (offset != 0) {
-			temp = dss1_lite_mbuf_peek(m, offset + 2);
-			pst->dl_channel = temp & 0x03;
-		}
+	/* try to pickup sending complete */
+	offset = dss1_lite_find_ie_mbuf(m, 0x08, IEI_SENDCOMPL);
+	if (offset != 0) {
+		pst->dl_sending_complete = 1;
 	}
+	/* try to pickup the channel ID */
+	offset = dss1_lite_find_ie_mbuf(m, 0x08, IEI_CHANNELID);
+	if (offset != 0) {
+		dss1_lite_decode_channel_id(pst, m, offset);
+	}
+	/* try to pickup the bearer capability */
+	offset = dss1_lite_find_ie_mbuf(m, 0x08, IEI_BEARERCAP);
+	if (offset != 0) {
+		dss1_lite_decode_bearer_cap(pst, m, offset);
+	}
+	/* try to pickup the destination number */
+	offset = dss1_lite_find_ie_mbuf(m, 0x08, IEI_CALLEDPN);
+	if (offset != 0) {
+		dss1_lite_decode_called_party(pst, m, offset);
+	} else {
+		pst->dl_part.telno[0] = 0;
+		pst->dl_part.subaddr[0] = 0;
+		pst->dl_part.ton = TON_OTHER;
+		pst->dl_part.prs_ind = PRS_ALLOWED;
+	}
+
 	switch (event) {
 	case 0x01:			/* ALERT */
 		break;
@@ -380,7 +819,22 @@ i_frame:
 		break;
 	case 0x05:			/* SETUP */
 		if (dss1_lite_set_state(pst, DL_ST_IN_U0) != 0)
-			dss1_lite_send_alerting(pst);
+			if (pst->dl_is_nt_mode) {
+				pst->dl_methods->set_ring(pst, 1);
+				pst->dl_ringing = 1;
+				dss1_lite_alert_request(pst);
+			} else {
+				if (pst->dl_part.telno[0])
+					pst->dl_methods->set_dtmf(pst, pst->dl_part.telno);
+
+				if (pst->dl_sending_complete) {
+					if (dss1_lite_set_state(pst, DL_ST_IN_U6))
+						dss1_lite_send_call_proceeding(pst);
+				} else {
+					if (dss1_lite_set_state(pst, DL_ST_IN_U0_ACK))
+						dss1_lite_send_setup_acknowledge(pst);
+				}
+			}
 		break;
 	case 0x07:			/* CONNECT */
 		if ((dss1_lite_get_state(pst) != DL_ST_OUT_UA) &&
@@ -413,15 +867,24 @@ i_frame:
 		dss1_lite_set_state(pst, DL_ST_FREE);
 		break;
 	case 0x5a:			/* RELEASE COMPLETE */
-		pst->dl_no_rc = 1;
+		pst->dl_need_release = 0;
 		dss1_lite_set_state(pst, DL_ST_FREE);
 		break;
+	case 0x75:			/* STATUS_ENQUIRY */
+		dss1_lite_send_status(pst, CAUSE_Q850_STENQRSP);
+		break;
 	case 0x7b:			/* INFORMATION */
+		if ((dss1_lite_get_state(pst) == DL_ST_IN_U0) &&
+		    (dss1_lite_set_state(pst, DL_ST_IN_U0_ACK) != 0)) {
+			if ((pst->dl_is_nt_mode == 0) && (pst->dl_part.telno[0] != 0)) {
+				pst->dl_methods->set_dtmf(pst, pst->dl_part.telno);
+			}
+		}
 		break;
 	case 0x7d:			/* STATUS */
 		offset = dss1_lite_find_ie_mbuf(m, 0x08, 0x14 /* callstate */ );
 		if (offset != 0) {
-			temp = dss1_lite_mbuf_peek(m, offset + 2);
+			temp = dss1_lite_peek_mbuf(m, offset + 2);
 			dss1_lite_receive_status(pst, temp & 0x3F);
 		}
 		break;
@@ -467,34 +930,13 @@ done:
 }
 
 uint8_t
-dss1_lite_send_setup(struct dss1_lite *pst)
+dss1_lite_proceed_request(struct dss1_lite *pst)
 {
 	uint8_t retval;
 
-	/* goto overlap sending state */
-
-	if ((dss1_lite_has_call(pst) == 0) &&
-	    (dss1_lite_set_state(pst, DL_ST_OUT_U2) != 0)) {
-		send setup req to peer();
-
-		retval = 1;
-	} else {
-		retval = 0;
-	}
-	return (retval);
-}
-
-uint8_t
-dss1_lite_send_proceeding(struct dss1_lite *pst)
-{
-	uint8_t retval;
-
-	if (dss1_lite_has_call(pst) &&
-	    (dss1_lite_get_state(pst) != DL_ST_IN_U6) &&
+	if ((dss1_lite_get_state(pst) != DL_ST_IN_U6) &&
 	    (dss1_lite_set_state(pst, DL_ST_IN_U6) != 0)) {
-		send proc req to peer();
-
-		retval = 1;
+		retval = dss1_lite_send_call_proceeding(pst);
 	} else {
 		retval = 0;
 	}
@@ -502,22 +944,15 @@ dss1_lite_send_proceeding(struct dss1_lite *pst)
 }
 
 uint8_t
-dss1_lite_send_alerting(struct dss1_lite *pst)
+dss1_lite_alert_request(struct dss1_lite *pst)
 {
 	uint8_t retval;
 
-	dss1_lite_send_proceeding(pst);
+	dss1_lite_proceed_request(pst);
 
-	if (dss1_lite_has_call(pst) &&
-	    (dss1_lite_get_state(pst) != DL_ST_IN_U7) &&
+	if ((dss1_lite_get_state(pst) != DL_ST_IN_U7) &&
 	    (dss1_lite_set_state(pst, DL_ST_IN_U7) != 0)) {
-
-		pst->dl_methods->set_ring(pst, 1);
-		pst->dl_ringing = 1;
-
-		send alert req to peer();
-
-		retval = 1;
+		retval = dss1_lite_send_alert(pst);
 	} else {
 		retval = 0;
 	}
@@ -525,21 +960,49 @@ dss1_lite_send_alerting(struct dss1_lite *pst)
 }
 
 uint8_t
-dss1_lite_send_accept(struct dss1_lite *pst)
+dss1_lite_deflect_request(struct dss1_lite *pst)
+{
+	if (pst->dl_is_nt_mode)
+		return (0);
+
+	return (dss1_lite_send_deflect_call(pst));
+}
+
+uint8_t
+dss1_lite_mcid_request(struct dss1_lite *pst)
+{
+	if (pst->dl_is_nt_mode)
+		return (0);
+
+	return (dss1_lite_send_mcid_call(pst));
+}
+
+uint8_t
+dss1_lite_setup_accept_resp(struct dss1_lite *pst)
 {
 	uint8_t retval;
 
-	dss1_lite_send_proceeding(pst);
+	dss1_lite_proceed_request(pst);
 
-	if (dss1_lite_has_call(pst) &&
-	    (dss1_lite_get_state(pst) != DL_ST_IN_U8) &&
+	if ((dss1_lite_get_state(pst) != DL_ST_IN_U8) &&
 	    (dss1_lite_set_state(pst, DL_ST_IN_U8) != 0)) {
 
-		pst->dl_methods->set_ring(pst, 0);
-		pst->dl_ringing = 0;
+		if (pst->dl_is_nt_mode) {
+			pst->dl_methods->set_ring(pst, 0);
+			pst->dl_ringing = 0;
+		}
+		dss1_lite_send_connect(pst);
 
-		send accept req to peer();
+		pst->dl_cause_out = 0;
+		pst->dl_need_release = 1;
 
+		if (pst->dl_is_nt_mode) {
+			/*
+			 * NOTE: some terminals might not respond with
+			 * CONNECT ACKNOWLEDGE after CONNECT
+			 */
+			dss1_lite_set_state(pst, DL_ST_IN_UA);
+		}
 		retval = 1;
 	} else {
 		retval = 0;
@@ -548,17 +1011,18 @@ dss1_lite_send_accept(struct dss1_lite *pst)
 }
 
 uint8_t
-dss1_lite_send_disconnect(struct dss1_lite *pst)
+dss1_lite_disconnect_request(struct dss1_lite *pst)
 {
 	uint8_t retval;
 
-	dss1_lite_send_proceeding(pst);
+	dss1_lite_proceed_request(pst);
 
 	if (dss1_lite_has_call(pst)) {
 		if (dss1_lite_is_incoming(pst)) {
 			if ((dss1_lite_get_state(pst) != DL_ST_IN_UC) &&
 			    (dss1_lite_set_state(pst, DL_ST_IN_UC) != 0)) {
-				send disconnect req to peer();
+
+				dss1_lite_send_disconnect(pst);
 
 				retval = 1;
 			} else {
@@ -567,7 +1031,8 @@ dss1_lite_send_disconnect(struct dss1_lite *pst)
 		} else {
 			if ((dss1_lite_get_state(pst) != DL_ST_OUT_UC) &&
 			    (dss1_lite_set_state(pst, DL_ST_OUT_UC) != 0)) {
-				send disconnect req to peer();
+
+				dss1_lite_send_disconnect(pst);
 
 				retval = 1;
 			} else {
@@ -583,10 +1048,21 @@ dss1_lite_hook_off(struct dss1_lite *pst)
 {
 	uint8_t retval;
 
+	if (pst->dl_is_nt_mode == 0)
+		return (0);		/* wrong mode */
+
 	if (dss1_lite_has_call(pst)) {
-		retval = dss1_lite_send_accept(pst);
+		retval = dss1_lite_setup_accept_resp(pst);
 	} else {
-		retval = dss1_lite_send_setup(pst);
+		/* goto overlap sending state */
+		if (dss1_lite_set_state(pst, DL_ST_OUT_U2) != 0) {
+			retval = dss1_lite_send_setup(pst, 0);
+
+			pst->dl_need_release = 1;
+			pst->dl_cause_out = 0;
+		} else {
+			retval = 0;
+		}
 	}
 	return (retval);
 }
@@ -595,6 +1071,9 @@ uint8_t
 dss1_lite_hook_on(struct dss1_lite *pst)
 {
 	uint8_t retval;
+
+	if (pst->dl_is_nt_mode == 0)
+		return (0);		/* wrong mode */
 
 	retval = dss1_lite_set_state(pst, DL_ST_FREE);
 
@@ -608,40 +1087,23 @@ dss1_lite_r_key_event(struct dss1_lite *pst)
 }
 
 uint8_t
-dss1_lite_dtmf_event(struct dss1_lite *pst, char dtmf)
+dss1_lite_dtmf_event(struct dss1_lite *pst, const char *pdtmf)
 {
 	uint8_t retval;
 
 	if ((dss1_lite_has_call(pst) != 0) &&
 	    (dss1_lite_get_state(pst) == DL_ST_OUT_U2)) {
-		send dtmf event to peer();
 
-		retval = 1;
+		strlcpy(pst->dl_part.telno, pdtmf, sizeof(pst->dl_part.telno));
+
+		retval = dss1_lite_send_information(pst);
 	} else {
 		retval = 0;
 	}
 	return (retval);
 }
 
-void
-dss1_lite_start_timer(struct dss1_lite *pst, uint8_t do_start)
-{
-	uint8_t llat;
-
-	llat = (pst->dl_tx_in != pst->dl_tx_out) || (pst->dl_inq.ifq_len != 0);
-
-	if ((pst->dl_llat == 0) && (llat != 0)) {
-		callout_stop(&pst->dl_timer);
-		do_start = 1;
-	}
-	if (do_start != 0) {
-		pst->dl_llat = llat;
-		callout_reset(&pst->dl_timer, llat ? (hz / 40) : (2 * hz),
-		    (void *)dss1_lite_event_timer, pst);
-	}
-}
-
-uint8_t
+static uint8_t
 dss1_lite_queue_mbuf(struct dss1_lite *pst, struct mbuf *m)
 {
 	uint8_t retval;
@@ -669,6 +1131,9 @@ dss1_lite_peer_put_mbuf(struct dss1_lite *pst)
 	struct mbuf *m;
 	fifo_translator_t *ft = pst->dl_fifo_translator;
 	int delta;
+	int len;
+
+	len = 0;
 
 	while (1) {
 		_IF_DEQUEUE(&pst->dl_outq, m);
@@ -677,12 +1142,12 @@ dss1_lite_peer_put_mbuf(struct dss1_lite *pst)
 		if (ft == NULL) {
 			m_freem(m);
 		} else {
-			bytes += m->m_len;
+			len += m->m_len;
 			L5_PUT_MBUF(ft, m);
 		}
 	}
 
-	delta = ((bytes * hz) / DL_BPS_MAX);
+	delta = ((len * hz) / DL_BPS_MAX);
 	if (delta < 0)
 		delta = 0;
 	else if (delta > (8 * hz))
@@ -716,7 +1181,7 @@ dss1_lite_peer_get_mbuf(struct dss1_lite *pst)
 				len += m_new->m_len;
 			} while ((m_new = m_new->m_next));
 
-			m_new = dss1_lite_get_mbuf(len);
+			m_new = dss1_lite_alloc_mbuf(len);
 			if (m_new == NULL) {
 				m_freem(m);
 				continue;
@@ -745,7 +1210,7 @@ dss1_lite_process(struct dss1_lite *pst)
 	if (pst->dl_timeout_active) {
 		delta = pst->dl_timeout_tick - ticks;
 		if ((delta < 0) || (delta > (128 * hz))) {
-			dss1_lite_set_state(pst, pst->pstate->next_state);
+			dss1_lite_set_state(pst, pst->dl_pstate->next_state);
 		}
 	}
 	delta = pst->dl_tx_end_tick - ticks;
@@ -792,8 +1257,6 @@ dss1_lite_process(struct dss1_lite *pst)
 	}
 
 	dss1_lite_peer_put_mbuf(pst);
-
-	dss1_lite_start_timer(pst, 1);
 }
 
 static uint8_t
@@ -818,8 +1281,6 @@ dss1_lite_send_mbuf(struct dss1_lite *pst, struct mbuf *m)
 		retval = dss1_lite_queue_mbuf(pst, m);
 	}
 
-	dss1_lite_start_timer(pst, 0);
-
 	return (retval);
 }
 
@@ -835,7 +1296,7 @@ dss1_lite_ie_header(struct dss1_lite *pst, uint8_t *ptr)
 
 		*ptr++ = PD_Q931;
 		*ptr++ = 1;		/* callref length */
-		*ptr++ = pst->dl_callref;
+		*ptr++ = pst->dl_curr_callref;
 		*ptr++ = pst->dl_message_type;
 	}
 	return (8);			/* bytes */
@@ -857,12 +1318,12 @@ dss1_lite_ie_bearer_cap(struct dss1_lite *pst, uint8_t *ptr)
 
 		*ptr++ = IEI_BEARERCAP;	/* bearer capability */
 
-		switch (cd->channel_bprot) {
+		switch (pst->dl_channel_bprot) {
 		case BPROT_TELEPHONY:	/* telephony */
 			*ptr++ = 3;
 			*ptr++ = IT_CAP_SPEECH;
 			*ptr++ = IT_RATE_64K;
-			switch (cd->channel_bsubprot) {
+			switch (pst->dl_channel_bsubprot) {
 			case BSUBPROT_G711_ALAW:
 				*ptr++ = IT_UL1_G711A;
 				break;
@@ -883,7 +1344,7 @@ dss1_lite_ie_bearer_cap(struct dss1_lite *pst, uint8_t *ptr)
 			break;
 		}
 	}
-	switch (cd->channel_bprot) {
+	switch (pst->dl_channel_bprot) {
 	case BPROT_TELEPHONY:		/* telephony */
 		return (5);		/* bytes */
 	case BPROT_DIGITAL:		/* HDLC */
@@ -1098,7 +1559,7 @@ dss1_lite_ie_cause(struct dss1_lite *pst, uint8_t *ptr)
 		*ptr++ = IEI_CAUSE;	/* cause ie */
 		*ptr++ = 2;
 		*ptr++ = pst->dl_is_nt_mode ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
-		*ptr++ = i4b_make_q850_cause(cd->cause_out) | EXT_LAST;
+		*ptr++ = pst->dl_cause_out | EXT_LAST;
 	}
 	return (4);			/* bytes */
 }
@@ -1109,7 +1570,7 @@ dss1_lite_ie_callstate(struct dss1_lite *pst, uint8_t *ptr)
 	if (ptr != NULL) {
 		*ptr++ = IEI_CALLSTATE;	/* call state ie */
 		*ptr++ = 1;
-		*ptr++ = L3_STATES_Q931_CONV[cd->state];
+		*ptr++ = pst->dl_pstate->q931_state;
 	}
 	return (3);			/* bytes */
 }
@@ -1175,6 +1636,9 @@ dss1_lite_ie_called_subaddr(struct dss1_lite *pst, uint8_t *ptr)
 static uint8_t
 dss1_lite_ie_deflect(struct dss1_lite *pst, uint8_t *ptr)
 {
+	const char *str;
+	int len;
+
 	str = pst->dl_part.telno;
 	len = strlen(str);
 
@@ -1253,36 +1717,36 @@ dss1_lite_ie_date(struct dss1_lite *pst, uint8_t *ptr)
 }
 
 static const struct dss1_lite_ie_func dss1_lite_ie_tab[] = {
-	{&dss1_lite_ie_header, DL_IE_HEADER_MASK},
-	{&dss1_lite_ie_sending_complete, DL_IE_SENDING_COMPLETE_MASK},
-	{&dss1_lite_ie_bearer_cap, DL_IE_BEARER_CAP_MASK},
-	{&dss1_lite_ie_channel_id, DL_IE_CHANNEL_ID_MASK},
-	{&dss1_lite_ie_keypad, DL_IE_KEYPAD_MASK},
+	{&dss1_lite_ie_header, IE_HEADER_MASK},
+	{&dss1_lite_ie_sending_complete, IE_SENDING_COMPLETE_MASK},
+	{&dss1_lite_ie_bearer_cap, IE_BEARER_CAP_MASK},
+	{&dss1_lite_ie_channel_id, IE_CHANNEL_ID_MASK},
+	{&dss1_lite_ie_keypad, IE_KEYPAD_MASK},
 
-	{&dss1_lite_ie_calling_party0, DL_IE_CALLING_PARTY_MASK},
-	{&dss1_lite_ie_calling_subaddr0, DL_IE_CALLING_SUBADDR_MASK},
-	{&dss1_lite_ie_calling_party1, DL_IE_CALLING_PARTY_MASK},
-	{&dss1_lite_ie_calling_subaddr1, DL_IE_CALLING_SUBADDR_MASK},
+	{&dss1_lite_ie_calling_party0, IE_CALLING_PARTY_MASK},
+	{&dss1_lite_ie_calling_subaddr0, IE_CALLING_PARTY_MASK},
+	{&dss1_lite_ie_calling_party1, IE_CALLING_PARTY_MASK},
+	{&dss1_lite_ie_calling_subaddr1, IE_CALLING_PARTY_MASK},
 
-	{&dss1_lite_ie_useruser, DL_IE_USERUSER_MASK},
-	{&dss1_lite_ie_display, DL_IE_DISPLAY_MASK},
-	{&dss1_lite_ie_cause, DL_IE_CAUSE_MASK},
-	{&dss1_lite_ie_callstate, DL_IE_CALLSTATE_MASK},
+	{&dss1_lite_ie_useruser, IE_USERUSER_MASK},
+	{&dss1_lite_ie_display, IE_DISPLAY_MASK},
+	{&dss1_lite_ie_cause, IE_CAUSE_MASK},
+	{&dss1_lite_ie_callstate, IE_CALLSTATE_MASK},
 
-	{&dss1_lite_ie_progress, DL_IE_PROGRESS_MASK},
-	{&dss1_lite_ie_called_party, DL_IE_CALLED_PARTY_MASK},
-	{&dss1_lite_ie_called_subaddr, DL_IE_CALLED_SUBADDR_MASK},
-	{&dss1_lite_ie_deflect, DL_IE_DEFLECT_MASK},
+	{&dss1_lite_ie_progress, IE_PROGRESS_MASK},
+	{&dss1_lite_ie_called_party, IE_CALLED_PARTY_MASK},
+	{&dss1_lite_ie_called_subaddr, IE_CALLED_PARTY_MASK},
+	{&dss1_lite_ie_deflect, IE_DEFLECT_MASK},
 
-	{&dss1_lite_ie_mcid, DL_IE_MCID_MASK},
-	{&dss1_lite_ie_date, DL_IE_DATE_MASK},
+	{&dss1_lite_ie_mcid, IE_MCID_MASK},
+	{&dss1_lite_ie_date, IE_DATE_TIME_MASK},
 
 	{NULL, 0},
 };
 
 
-uint8_t
-dss1_lite_send_ie(struct dss1_lite *pst, uint8_t msg_type, uint32_t mask)
+static uint8_t
+dss1_lite_send_message(struct dss1_lite *pst, uint8_t msg_type, uint32_t mask)
 {
 	struct mbuf *m;
 	uint8_t *ptr;
@@ -1301,7 +1765,7 @@ dss1_lite_send_ie(struct dss1_lite *pst, uint8_t msg_type, uint32_t mask)
 	if (len == 0)
 		return (1);
 
-	m = dss1_lite_get_mbuf(len);
+	m = dss1_lite_alloc_mbuf(len);
 	if (m == NULL)
 		return (0);
 

@@ -76,6 +76,10 @@ struct dss1_lite;
 
 typedef uint8_t (dss1_lite_ie_t)(struct dss1_lite *, uint8_t *);
 typedef void (dss1_lite_set_ring_t)(struct dss1_lite *, uint8_t);
+typedef void (dss1_lite_set_hook_on_t)(struct dss1_lite *);
+typedef void (dss1_lite_set_hook_off_t)(struct dss1_lite *);
+typedef void (dss1_lite_set_r_key_t)(struct dss1_lite *);
+typedef void (dss1_lite_set_dtmf_t)(struct dss1_lite *, const char *);
 
 struct dss1_lite_ie_func {
 	dss1_lite_ie_t *pfunc;
@@ -84,23 +88,21 @@ struct dss1_lite_ie_func {
 
 /* definition of "mask" */
 
-#define	DL_IE_HEADER_MASK (1UL << 0)
-#define	DL_IE_SENDING_COMPLETE_MASK (1UL << 1)
-#define	DL_IE_BEARER_CAP_MASK (1UL << 2)
-#define	DL_IE_CHANNEL_ID_MASK (1UL << 3)
-#define	DL_IE_KEYPAD_MASK (1UL << 4)
-#define	DL_IE_CALLING_PARTY_MASK (1UL << 5)
-#define	DL_IE_CALLING_SUBADDR_MASK (1UL << 6)
-#define	DL_IE_USERUSER_MASK (1UL << 7)
-#define	DL_IE_DISPLAY_MASK (1UL << 8)
-#define	DL_IE_CAUSE_MASK (1UL << 9)
-#define	DL_IE_CALLSTATE_MASK (1UL << 10)
-#define	DL_IE_PROGRESS_MASK (1UL << 11)
-#define	DL_IE_CALLED_PARTY_MASK (1UL << 12)
-#define	DL_IE_CALLED_SUBADDR_MASK (1UL << 13)
-#define	DL_IE_DEFLECT_MASK (1UL << 14)
-#define	DL_IE_MCID_MASK (1UL << 15)
-#define	DL_IE_DATE_MASK (1UL << 16)
+#define	IE_HEADER_MASK (1UL << 0)
+#define	IE_SENDING_COMPLETE_MASK (1UL << 1)
+#define	IE_BEARER_CAP_MASK (1UL << 2)
+#define	IE_CHANNEL_ID_MASK (1UL << 3)
+#define	IE_KEYPAD_MASK (1UL << 4)
+#define	IE_CALLING_PARTY_MASK (1UL << 5)
+#define	IE_USERUSER_MASK (1UL << 6)
+#define	IE_DISPLAY_MASK (1UL << 7)
+#define	IE_CAUSE_MASK (1UL << 8)
+#define	IE_CALLSTATE_MASK (1UL << 9)
+#define	IE_PROGRESS_MASK (1UL << 10)
+#define	IE_CALLED_PARTY_MASK (1UL << 11)
+#define	IE_DEFLECT_MASK (1UL << 12)
+#define	IE_MCID_MASK (1UL << 13)
+#define	IE_DATE_TIME_MASK (1UL << 14)
 
 /* definition of "channel_id" */
 
@@ -117,13 +119,16 @@ enum {
 enum {
 	BSUBPROT_G711_ALAW,
 	BSUBPROT_G711_ULAW,
+	BSUBPROT_UNKNOWN,
 };
 
 /* definition of sub B-protocol, "bsubprot" */
 
 enum {
+	BPROT_NONE,
 	BPROT_TELEPHONY,
 	BPROT_DIGITAL,
+	BPROT_UNKNOWN,
 };
 
 /* definition of type of number, "ton" */
@@ -214,9 +219,15 @@ enum {
 #define	IEI_FACILITY    0x1c
 
 struct dss1_lite_num {
-	char	telno[64];		/* includes terminating zero */
+	char	telno[63];		/* includes terminating zero */
+	char	subaddr[63];		/* includes terminating zero */
 	uint8_t	prs_ind;		/* See PRS_XXX */
 	uint8_t	ton;			/* See TON_XXX */
+};
+
+struct dss1_lite_time {
+	uint8_t	len;
+	uint8_t	data[8];
 };
 
 struct dss1_lite_state {
@@ -227,7 +238,14 @@ struct dss1_lite_state {
 };
 
 struct dss1_lite_methods {
+	/* NT-mode */
 	dss1_lite_set_ring_t *set_ring;
+
+	/* TE-mode */
+	dss1_lite_set_hook_on_t *set_hook_on;
+	dss1_lite_set_hook_off_t *set_hook_off;
+	dss1_lite_set_r_key_t *set_r_key;
+	dss1_lite_set_dtmf_t *set_dtmf;
 };
 
 struct dss1_lite_ifq {
@@ -239,11 +257,11 @@ struct dss1_lite_ifq {
 
 struct dss1_lite {
 
-	struct callout dl_timer;
 	struct dss1_lite_ifq dl_outq;
 	struct dss1_lite_num dl_src[2];
 	struct dss1_lite_num dl_dst[2];
 	struct dss1_lite_num dl_part;
+	struct dss1_lite_time dl_otime;
 
 	const struct dss1_lite_methods *dl_methods;
 	void   *dl_softc;
@@ -253,9 +271,13 @@ struct dss1_lite {
 
 	int	dl_timeout_tick;
 	int	dl_tx_end_tick;
+	int	dl_channel_id;
 
-	uint16_t dl_channel_id;
+	char	dl_keypad[32];
+	char	dl_display[32];
+	char	dl_useruser[32];
 
+	uint8_t	dl_message_type;
 	uint8_t	dl_timeout_active;
 	uint8_t	dl_tx_in;
 	uint8_t	dl_tx_out;
@@ -263,14 +285,24 @@ struct dss1_lite {
 	uint8_t	dl_tx_window;
 	uint8_t	dl_rx_num;
 	uint8_t	dl_state_index;
-	uint8_t	dl_no_rc;		/* Set if no release complete */
+	uint8_t	dl_need_release;	/* Set if needs release complete */
 	uint8_t	dl_status_count;
 	uint8_t	dl_channel_bprot;	/* See BPROT_XXX */
 	uint8_t	dl_channel_bsubprot;	/* See BSUBPROT_XXX */
+	uint8_t	dl_channel_allocated;
 	uint8_t	dl_curr_callref;
 	uint8_t	dl_next_callref;
 	uint8_t	dl_is_nt_mode;
-	uint8_t	dl_channel_allocated;
+	uint8_t	dl_cause_out;
+	uint8_t	dl_cause_in;
+	uint8_t	dl_sending_complete;
 };
+
+/* prototype functions */
+uint8_t	dss1_lite_hook_off(struct dss1_lite *);
+uint8_t	dss1_lite_hook_on(struct dss1_lite *);
+uint8_t	dss1_lite_r_key_event(struct dss1_lite *);
+uint8_t	dss1_lite_dtmf_event(struct dss1_lite *, const char *);
+void	dss1_lite_process(struct dss1_lite *pst);
 
 #endif					/* _DSS1_LITE_H_ */
