@@ -378,6 +378,13 @@ dss1_lite_get_state(struct dss1_lite *pst)
 }
 
 static uint8_t
+dss1_lite_get_timeout(struct dss1_lite *pst)
+{
+	/* return remainder state */
+	return (pst->dl_state_index & 1U);
+}
+
+static uint8_t
 dss1_lite_set_state(struct dss1_lite *pst, uint8_t state)
 {
 	const struct dss1_lite_state *nst;
@@ -702,7 +709,7 @@ dss1_lite_decode_called_party(struct dss1_lite *pst,
 		temp = dss1_lite_peek_mbuf(m, offset + 3 + i);
 		if (temp == 0)
 			temp = '_';
-		pst->dl_part.telno[i] =
+		pst->dl_part.telno[i] = temp;
 
 	}
 
@@ -812,13 +819,68 @@ i_frame:
 
 	switch (event) {
 	case 0x01:			/* ALERT */
+		temp = (dss1_lite_get_state(pst) < DL_ST_OUT_U3);
+		if (dss1_lite_set_state(pst, DL_ST_OUT_U4) != 0) {
+			if (temp) {
+				/*
+				 * try to allocate channel before proceeding
+				 * indication
+				 */
+				if (pst->dl_channel_id != CHAN_ANY) {
+					dss1_lite_alloc_channel(pst);
+				}
+				/* proceeding_indication() */
+			}
+			/* alert_indication() */
+		}
 		break;
+
+	case 0x0d:			/* SETUP ACKNOWLEDGE */
+		if (dss1_lite_get_state(pst) == DL_ST_OUT_U2) {
+			if ((dss1_lite_get_timeout(pst) == 0) &&
+			    (dss1_lite_set_state(pst, DL_ST_OUT_U2_ACK) != 0)) {
+				/*
+				 * try to allocate channel before proceeding
+				 * indication
+				 */
+				if (pst->dl_channel_id != CHAN_ANY) {
+					dss1_lite_alloc_channel(pst);
+				}
+				/* proceeding_indication() */
+			}
+			break;
+		}
+		/* FALLTHROUGH */
 	case 0x02:			/* CALL PROCEEDING */
+		if (dss1_lite_set_state(pst, DL_ST_OUT_U3)) {
+			/*
+			 * try to allocate channel before proceeding
+			 * indication
+			 */
+			if (pst->dl_channel_id != CHAN_ANY) {
+				dss1_lite_alloc_channel(pst);
+			}
+			/* proceeding_indication() */
+		}
 		break;
+
 	case 0x03:			/* PROGRESS */
 		break;
+
 	case 0x05:			/* SETUP */
-		if (dss1_lite_set_state(pst, DL_ST_IN_U0) != 0)
+		if (dss1_lite_set_state(pst, DL_ST_IN_U0) != 0) {
+
+			pst->dl_need_release = 1;
+
+			dss1_lite_alloc_chan(pst);
+
+			if (pst->dl_channel_allocated == 0) {
+		no_channel_available:
+				/* no circuit-channel available */
+				cd->dl_cause_out = CAUSE_Q850_NOCAVAIL;
+				dss1_lite_set_state(pst, DL_ST_FREE);
+				break;
+			}
 			if (pst->dl_is_nt_mode) {
 				pst->dl_methods->set_ring(pst, 1);
 				pst->dl_ringing = 1;
@@ -835,21 +897,45 @@ i_frame:
 						dss1_lite_send_setup_acknowledge(pst);
 				}
 			}
+		}
 		break;
+
 	case 0x07:			/* CONNECT */
 		if ((dss1_lite_get_state(pst) != DL_ST_OUT_UA) &&
 		    (dss1_lite_set_state(pst, DL_ST_OUT_UA) != 0)) {
-			/* we are connected */
+
+			if (pst->dl_channel_id != CHAN_ANY) {
+
+				dss1_lite_alloc_channel(pst);
+
+				if (cd->dl_channel_allocated) {
+					/* we are connected */
+
+					dss1_lite_send_connect_acknowledge(pst);
+
+					/* connect_active() indication */
+
+					break;
+				}
+			}
+			/*
+		         * If the one end doesn't select a channel, the
+		         * other end must select a channel else there is an
+		         * error!
+		         */
+			goto no_channel_available;
 		}
 		break;
-	case 0x0d:			/* SETUP ACKNOWLEDGE */
-		break;
+
 	case 0x0f:			/* CONNECT ACKNOWLEDGE */
 		if ((dss1_lite_get_state(pst) == DL_ST_IN_U8) &&
 		    (dss1_lite_set_state(pst, DL_ST_IN_UA) != 0)) {
 			/* we are connected */
+
+			/* connect_active() indication */
 		}
 		break;
+
 	case 0x45:			/* DISCONNECT */
 		if (dss1_lite_is_incoming(pst)) {
 			if ((dss1_lite_get_state(pst) != DL_ST_IN_UC) &&
@@ -863,16 +949,20 @@ i_frame:
 			}
 		}
 		break;
+
 	case 0x4d:			/* RELEASE */
 		dss1_lite_set_state(pst, DL_ST_FREE);
 		break;
+
 	case 0x5a:			/* RELEASE COMPLETE */
 		pst->dl_need_release = 0;
 		dss1_lite_set_state(pst, DL_ST_FREE);
 		break;
+
 	case 0x75:			/* STATUS_ENQUIRY */
 		dss1_lite_send_status(pst, CAUSE_Q850_STENQRSP);
 		break;
+
 	case 0x7b:			/* INFORMATION */
 		if ((dss1_lite_get_state(pst) == DL_ST_IN_U0) &&
 		    (dss1_lite_set_state(pst, DL_ST_IN_U0_ACK) != 0)) {
@@ -881,6 +971,7 @@ i_frame:
 			}
 		}
 		break;
+
 	case 0x7d:			/* STATUS */
 		offset = dss1_lite_find_ie_mbuf(m, 0x08, 0x14 /* callstate */ );
 		if (offset != 0) {
@@ -888,6 +979,7 @@ i_frame:
 			dss1_lite_receive_status(pst, temp & 0x3F);
 		}
 		break;
+
 	default:
 		break;
 	}
