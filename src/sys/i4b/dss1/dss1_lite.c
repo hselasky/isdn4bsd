@@ -33,8 +33,19 @@
  *---------------------------------------------------------------------------*/
 
 #include <sys/stdint.h>
-#include <sys/callout.h>
+#include <sys/stddef.h>
+#include <sys/param.h>
+#include <sys/queue.h>
+#include <sys/types.h>
+#include <sys/systm.h>
+#include <sys/kernel.h>
+#include <sys/lock.h>
 #include <sys/mutex.h>
+#include <sys/condvar.h>
+#include <sys/unistd.h>
+#include <sys/callout.h>
+#include <sys/malloc.h>
+#include <sys/mbuf.h>
 
 #include <i4b/dss1/dss1_lite.h>
 
@@ -70,35 +81,37 @@ static const struct dss1_lite_state dss1_lite_in_states[0 - DL_ST_IN_U0 + DL_ST_
 	[0 - DL_ST_IN_U0 + DL_ST_IN_UC_TO] = {4, DL_ST_FREE, 0x0C, 0x01},
 };
 
-void
+static uint8_t dss1_lite_send_mbuf(struct dss1_lite *pst, struct mbuf *m);
+
+static uint8_t
 dss1_lite_has_call(struct dss1_lite *pst)
 {
 	return (pst->dl_pstate != NULL);
 }
 
-void
+static uint8_t
 dss1_lite_has_status_check(struct dss1_lite *pst)
 {
 	return (pst->dl_pstate->flags & 0x01);
 }
 
-void
+static uint8_t
 dss1_lite_is_incoming(struct dss1_lite *pst)
 {
 	return ((pst->dl_state_index & DL_ST_IN_U0) ? 1 : 0);
 }
 
-uint8_t
+static uint8_t
 dss1_lite_get_state(struct dss1_lite *pst)
 {
 	/* return aligned state */
 	return (pst->dl_state_index & -2U);
 }
 
-uint8_t
+static uint8_t
 dss1_lite_set_state(struct dss1_lite *pst, uint8_t state)
 {
-	struct dss1_lite_state *nst;
+	const struct dss1_lite_state *nst;
 
 	if (state == DL_ST_FREE) {
 		/* call complete */
@@ -202,14 +215,14 @@ dss1_lite_receive_status(struct dss1_lite *pst, uint8_t state)
 	}
 }
 
-uint8_t
+static uint8_t
 dss1_lite_send_ctrl(struct dss1_lite *pst, uint8_t sapi, uint8_t cntl)
 {
 	struct mbuf *m;
 	uint8_t *ptr;
 	uint8_t len = (cntl & 2) ? /* U-frame */ 3 : /* S-frame */ 4;
 
-	m = dss1_lite_getmbuf(len);
+	m = dss1_lite_get_mbuf(len);
 	if (m == NULL)
 		return (0);
 
@@ -278,7 +291,7 @@ dss1_lite_find_ie_mbuf(struct mbuf *m, uint16_t offset, uint8_t ie)
 }
 
 void
-dss1_lite_receive_mbuf(struct dss1_lite *pst, struct mbuf *m)
+dss1_lite_decode_mbuf(struct dss1_lite *pst, struct mbuf *m)
 {
 	uint16_t offset;
 
@@ -315,7 +328,7 @@ dss1_lite_receive_mbuf(struct dss1_lite *pst, struct mbuf *m)
 			goto done;
 	} else {
 		/* I-frame */
-		if (proto != DL_PD_Q931)
+		if (proto != PD_Q931)
 			goto done;
 		if (reflen != 0x01)
 			goto done;
@@ -417,28 +430,38 @@ i_frame:
 	}
 
 check_nr:
-	if ((tx_nr & 0xFE) == pst->dl_tx_num) {
-		/* idle state */
-	} else if (((tx_nr - 2) & 0xFE) == pst->dl_tx_num) {
-		if (pst->dl_ipending && (pst->dl_tx_in != pst->dl_tx_out)) {
-			struct mbuf *m2;
-			uint8_t n;
+	temp = tx_nr & 0xFE;
 
-			/* frame is transmitted - free it */
+	/* get NR difference */
+	tx_nr = (tx_nr - pst->dl_tx_num) / 2;
 
-			n = pst->dl_tx_in & (DL_WIN_MAX - 1);
+	/* take new NR */
+	pst->dl_tx_num = temp;
 
-			m2 = pst->dl_tx_mbuf[n];
-			pst->dl_tx_mbuf[n] = NULL;
-			m_freem(m2);
+	if (tx_nr != 0) {
+		if (tx_nr > pst->dl_tx_window) {
+			/* retransmit all */
+			pst->dl_tx_window = 0;
+		} else {
+			/* decrement TX window */
+			pst->dl_tx_window -= tx_nr;
 
-			pst->dl_ipending = 0;
-			pst->dl_tx_in++;
+			/* valid NR event */
+			while (tx_nr--) {
+				struct mbuf *m2;
+				uint8_t n;
+
+				/* frame is transmitted - free it */
+				n = pst->dl_tx_in & (DL_QUEUE_MAX - 1);
+
+				m2 = pst->dl_tx_mbuf[n];
+				pst->dl_tx_mbuf[n] = NULL;
+				m_freem(m2);
+
+				pst->dl_tx_in++;
+			}
 		}
 	}
-	/* take new TX-NR */
-	pst->dl_tx_num = tx_nr & 0xFE;
-
 done:
 	m_freem(m);
 }
@@ -613,7 +636,7 @@ dss1_lite_start_timer(struct dss1_lite *pst, uint8_t do_start)
 	}
 	if (do_start != 0) {
 		pst->dl_llat = llat;
-		callout_reset(&pst->dl_timer, llat ? (hz / 40) ? (2 * hz),
+		callout_reset(&pst->dl_timer, llat ? (hz / 40) : (2 * hz),
 		    (void *)dss1_lite_event_timer, pst);
 	}
 }
@@ -633,11 +656,91 @@ dss1_lite_queue_mbuf(struct dss1_lite *pst, struct mbuf *m)
 	return (retval);
 }
 
-void
-dss1_lite_event_timer(struct dss1_lite *pst)
+static void
+dss1_lite_init(struct dss1_lite *pst)
 {
+	pst->dl_tx_end_tick = ticks - 1;
+
+}
+
+static void
+dss1_lite_peer_put_mbuf(struct dss1_lite *pst)
+{
+	struct mbuf *m;
+	fifo_translator_t *ft = pst->dl_fifo_translator;
 	int delta;
+
+	while (1) {
+		_IF_DEQUEUE(&pst->dl_outq, m);
+		if (m == NULL)
+			break;
+		if (ft == NULL) {
+			m_freem(m);
+		} else {
+			bytes += m->m_len;
+			L5_PUT_MBUF(ft, m);
+		}
+	}
+
+	delta = ((bytes * hz) / DL_BPS_MAX);
+	if (delta < 0)
+		delta = 0;
+	else if (delta > (8 * hz))
+		delta = (8 * hz);
+
+	pst->dl_tx_end_tick = ticks + delta;
+}
+
+static void
+dss1_lite_peer_get_mbuf(struct dss1_lite *pst)
+{
+	struct mbuf *m;
+	fifo_translator_t *ft = pst->dl_fifo_translator;
+
+	if (ft == NULL)
+		return;
+
+	while (1) {
+		m = L5_GET_MBUF(ft);
+		if (m == NULL)
+			break;
+
+		if (m->m_next) {
+			/* defrag by need */
+			struct mbuf *m_new;
+			uint16_t len;
+
+			m_new = m;
+			len = 0;
+			do {
+				len += m_new->m_len;
+			} while ((m_new = m_new->m_next));
+
+			m_new = dss1_lite_get_mbuf(len);
+			if (m_new == NULL) {
+				m_freem(m);
+				continue;
+			}
+			m_copydata(m, 0, len, m_new->m_data);
+			m_freem(m);
+			m = m_new;
+		}
+		dss1_lite_decode_mbuf(pst, m);
+	}
+}
+
+void
+dss1_lite_process(struct dss1_lite *pst)
+{
+	enum {
+		WIN_MAX = DL_QUEUE_MAX / 2,
+	};
+	int delta;
+	uint8_t i;
 	uint8_t n;
+	uint8_t rx_num;
+
+	dss1_lite_peer_get_mbuf(pst);
 
 	if (pst->dl_timeout_active) {
 		delta = pst->dl_timeout_tick - ticks;
@@ -645,29 +748,55 @@ dss1_lite_event_timer(struct dss1_lite *pst)
 			dss1_lite_set_state(pst, pst->pstate->next_state);
 		}
 	}
-	if (pst->dl_tx_in != pst->dl_tx_out) {
+	delta = pst->dl_tx_end_tick - ticks;
+
+	if ((delta >= 0) && (delta < (128 * hz))) {
+		/* limit TX througput */
+		return;
+	}
+	delta = (pst->dl_tx_out - pst->dl_tx_in) & (DL_QUEUE_MAX - 1);
+	if (delta > WIN_MAX)
+		delta = WIN_MAX;
+
+	pst->dl_tx_window = delta;
+
+	for (n = 0; n != delta; n++) {
 		struct mbuf *m;
 
-		pst->dl_ipending = 1;
+		i = (pst->dl_tx_in + n) & (DL_QUEUE_MAX - 1);
 
-		n = pst->dl_tx_in & (DL_WIN_MAX - 1);
-
-		m = pst->dl_tx_mbuf[n];
+		m = pst->dl_tx_mbuf[i];
 
 		if (m != NULL)
-			m = m_dupxxx(m);
+			m = m_dup(m, M_NOWAIT);
 
 		if (m != NULL) {
-			dss1_lite_poke_mbuf(m, XXX, pst->dl_tx_num XXX);
-			dss1_lite_queue_mbuf(pst, m);
+
+			rx_num = pst->dl_rx_num;
+
+			/*
+			 * The remote end must transmit a response on
+			 * every I-frame with (P == 1)
+			 */
+			if (n == (delta - 1))
+				rx_num |= 0x01;	/* P bit == 1 */
+
+			dss1_lite_poke_mbuf(m, 0, 0x00 /* CR-COMMAND */ );
+			dss1_lite_poke_mbuf(m, 1, DL_TEI);
+			dss1_lite_poke_mbuf(m, 2, pst->dl_tx_num + (2 * n));
+			dss1_lite_poke_mbuf(m, 3, rx_num);
+
+			if (dss1_lite_queue_mbuf(pst, m) == 0)
+				break;	/* queue is full */
 		}
 	}
-	XXX signal DSS1 driver();
+
+	dss1_lite_peer_put_mbuf(pst);
 
 	dss1_lite_start_timer(pst, 1);
 }
 
-uint8_t
+static uint8_t
 dss1_lite_send_mbuf(struct dss1_lite *pst, struct mbuf *m)
 {
 	uint8_t delta;
@@ -675,9 +804,9 @@ dss1_lite_send_mbuf(struct dss1_lite *pst, struct mbuf *m)
 	uint8_t n;
 
 	if (!(dss1_lite_peek_mbuf(m, 2) & 0x01)) {	/* I-frame */
-		delta = (pst->dl_tx_out - pst->dl_tx_in) & (DL_WIN_MAX - 1);
-		if (delta < (DL_WIN_MAX - 1)) {
-			n = pst->dl_tx_out & (DL_WIN_MAX - 1);
+		delta = (pst->dl_tx_out - pst->dl_tx_in) & (DL_QUEUE_MAX - 1);
+		if (delta < (DL_QUEUE_MAX - 1)) {
+			n = pst->dl_tx_out & (DL_QUEUE_MAX - 1);
 			pst->dl_tx_mbuf[n] = m;
 			pst->dl_tx_out++;
 			retval = 1;
@@ -694,7 +823,7 @@ dss1_lite_send_mbuf(struct dss1_lite *pst, struct mbuf *m)
 	return (retval);
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_header(struct dss1_lite *pst, uint8_t *ptr)
 {
 	if (ptr != NULL) {
@@ -704,7 +833,7 @@ dss1_lite_ie_header(struct dss1_lite *pst, uint8_t *ptr)
 		*ptr++ = 0;		/* I-frame */
 		*ptr++ = 0;
 
-		*ptr++ = DL_PD_Q931;
+		*ptr++ = PD_Q931;
 		*ptr++ = 1;		/* callref length */
 		*ptr++ = pst->dl_callref;
 		*ptr++ = pst->dl_message_type;
@@ -712,7 +841,7 @@ dss1_lite_ie_header(struct dss1_lite *pst, uint8_t *ptr)
 	return (8);			/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_sending_complete(struct dss1_lite *pst, uint8_t *ptr)
 {
 	if (ptr != NULL) {
@@ -721,7 +850,7 @@ dss1_lite_ie_sending_complete(struct dss1_lite *pst, uint8_t *ptr)
 	return (1);			/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_bearer_cap(struct dss1_lite *pst, uint8_t *ptr)
 {
 	if (ptr != NULL) {
@@ -729,9 +858,8 @@ dss1_lite_ie_bearer_cap(struct dss1_lite *pst, uint8_t *ptr)
 		*ptr++ = IEI_BEARERCAP;	/* bearer capability */
 
 		switch (cd->channel_bprot) {
-		case BPROT_NONE:	/* telephony */
-		case BPROT_RHDLC_DOV:	/* Data over Voice */
-			*ptr++ = IEI_BEARERCAP_LEN + 1;
+		case BPROT_TELEPHONY:	/* telephony */
+			*ptr++ = 3;
 			*ptr++ = IT_CAP_SPEECH;
 			*ptr++ = IT_RATE_64K;
 			switch (cd->channel_bsubprot) {
@@ -747,40 +875,40 @@ dss1_lite_ie_bearer_cap(struct dss1_lite *pst, uint8_t *ptr)
 			}
 			break;
 
-		case BPROT_RHDLC:	/* raw HDLC */
-		case BPROT_NONE_VOD:	/* Voice over Data */
+		case BPROT_DIGITAL:	/* HDLC */
 		default:
-			*ptr++ = IEI_BEARERCAP_LEN;
+			*ptr++ = 2;
 			*ptr++ = IT_CAP_UNR_DIG_INFO;
 			*ptr++ = IT_RATE_64K;
 			break;
 		}
 	}
 	switch (cd->channel_bprot) {
-	case BPROT_NONE:		/* telephony */
-	case BPROT_RHDLC_DOV:		/* Data over Voice */
+	case BPROT_TELEPHONY:		/* telephony */
 		return (5);		/* bytes */
+	case BPROT_DIGITAL:		/* HDLC */
 	default:
 		return (4);		/* bytes */
 	}
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_channel_id(struct dss1_lite *pst, uint8_t *ptr)
 {
-	if (!cd->channel_allocated)
+	enum {
+		/* only accept this channel */
+		EXT_EXCLUSIVE = EXT_LAST | 0x08,
+	};
+
+	if (!pst->dl_channel_allocated)
 		return (0);		/* bytes */
 
 	if (ptr != NULL) {
 
-		/* only accept this channel */
-		enum {
-		EXT_EXCLUSIVE = 0x80 | 0x08};
-
 		*ptr++ = IEI_CHANNELID;	/* channel id */
 		*ptr++ = 1;
 
-		switch (cd->channel_id) {
+		switch (pst->dl_channel_id) {
 		case CHAN_NOT_ANY:
 			*ptr = IE_CHAN_ID_NO | EXT_EXCLUSIVE;
 			break;
@@ -801,7 +929,7 @@ dss1_lite_ie_channel_id(struct dss1_lite *pst, uint8_t *ptr)
 	return (3);			/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_keypad(struct dss1_lite *pst, uint8_t *ptr)
 {
 	const char *str;
@@ -821,7 +949,7 @@ dss1_lite_ie_keypad(struct dss1_lite *pst, uint8_t *ptr)
 	return (len + 2);		/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_calling_party_sub(struct dss1_lite *pst, uint8_t *ptr, uint8_t index)
 {
 	const char *str;
@@ -872,19 +1000,19 @@ dss1_lite_ie_calling_party_sub(struct dss1_lite *pst, uint8_t *ptr, uint8_t inde
 		return (len + 3);	/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_calling_party0(struct dss1_lite *pst, uint8_t *ptr)
 {
 	return (dss1_lite_ie_calling_party_sub(pst, ptr, 0));
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_calling_party1(struct dss1_lite *pst, uint8_t *ptr)
 {
 	return (dss1_lite_ie_calling_party_sub(pst, ptr, 1));
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_calling_subaddr_sub(struct dss1_lite *pst, uint8_t *ptr, uint8_t index)
 {
 	const char *str;
@@ -907,19 +1035,19 @@ dss1_lite_ie_calling_subaddr_sub(struct dss1_lite *pst, uint8_t *ptr, uint8_t in
 	return (len + 3);		/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_calling_subaddr0(struct dss1_lite *pst, uint8_t *ptr)
 {
 	return (dss1_lite_ie_calling_subaddr_sub(pst, ptr, 0));
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_calling_subaddr1(struct dss1_lite *pst, uint8_t *ptr)
 {
 	return (dss1_lite_ie_calling_subaddr_sub(pst, ptr, 1));
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_useruser(struct dss1_lite *pst, uint8_t *ptr)
 {
 	const char *str;
@@ -941,7 +1069,7 @@ dss1_lite_ie_useruser(struct dss1_lite *pst, uint8_t *ptr)
 	return (len + 2);		/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_display(struct dss1_lite *pst, uint8_t *ptr)
 {
 	const char *str;
@@ -963,19 +1091,19 @@ dss1_lite_ie_display(struct dss1_lite *pst, uint8_t *ptr)
 	return (len + 2);		/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_cause(struct dss1_lite *pst, uint8_t *ptr)
 {
 	if (ptr != NULL) {
 		*ptr++ = IEI_CAUSE;	/* cause ie */
 		*ptr++ = 2;
-		*ptr++ = NT_MODE(sc) ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
+		*ptr++ = pst->dl_is_nt_mode ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
 		*ptr++ = i4b_make_q850_cause(cd->cause_out) | EXT_LAST;
 	}
 	return (4);			/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_callstate(struct dss1_lite *pst, uint8_t *ptr)
 {
 	if (ptr != NULL) {
@@ -986,19 +1114,19 @@ dss1_lite_ie_callstate(struct dss1_lite *pst, uint8_t *ptr)
 	return (3);			/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_progress(struct dss1_lite *pst, uint8_t *ptr)
 {
 	if (ptr != NULL) {
 		*ptr++ = IEI_PROGRESSI;
 		*ptr++ = 2;		/* bytes */
-		*ptr++ = NT_MODE(sc) ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
+		*ptr++ = pst->dl_is_nt_mode ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
 		*ptr++ = 0x88;		/* in-band info available */
 	}
 	return (4);			/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_called_party(struct dss1_lite *pst, uint8_t *ptr)
 {
 	const char *str;
@@ -1021,7 +1149,7 @@ dss1_lite_ie_called_party(struct dss1_lite *pst, uint8_t *ptr)
 	return (len + 3);		/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_called_subaddr(struct dss1_lite *pst, uint8_t *ptr)
 {
 	const char *str;
@@ -1044,7 +1172,7 @@ dss1_lite_ie_called_subaddr(struct dss1_lite *pst, uint8_t *ptr)
 	return (len + 3);		/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_deflect(struct dss1_lite *pst, uint8_t *ptr)
 {
 	str = pst->dl_part.telno;
@@ -1082,7 +1210,7 @@ dss1_lite_ie_deflect(struct dss1_lite *pst, uint8_t *ptr)
 	return (0x12 + len);		/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_mcid(struct dss1_lite *pst, uint8_t *ptr)
 {
 	if (ptr != NULL) {
@@ -1102,10 +1230,10 @@ dss1_lite_ie_mcid(struct dss1_lite *pst, uint8_t *ptr)
 		*ptr++ = 0x03;		/* Data: Operation Value = MCID
 					 * request */
 	}
-	return (12);			/* bytes */
+	return (0x0C);			/* bytes */
 }
 
-uint8_t
+static uint8_t
 dss1_lite_ie_date(struct dss1_lite *pst, uint8_t *ptr)
 {
 	uint8_t len;
@@ -1156,9 +1284,10 @@ static const struct dss1_lite_ie_func dss1_lite_ie_tab[] = {
 uint8_t
 dss1_lite_send_ie(struct dss1_lite *pst, uint8_t msg_type, uint32_t mask)
 {
-	uint8_t i;
+	struct mbuf *m;
 	uint8_t *ptr;
 	uint16_t len;
+	uint8_t i;
 
 	len = 0;
 
@@ -1172,7 +1301,7 @@ dss1_lite_send_ie(struct dss1_lite *pst, uint8_t msg_type, uint32_t mask)
 	if (len == 0)
 		return (1);
 
-	m = dss1_lite_getmbuf(len);
+	m = dss1_lite_get_mbuf(len);
 	if (m == NULL)
 		return (0);
 
