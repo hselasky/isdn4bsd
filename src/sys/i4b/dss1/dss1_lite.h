@@ -74,6 +74,33 @@ enum {
 
 struct dss1_lite;
 
+typedef uint8_t (dss1_lite_ie_t)(struct dss1_lite *, uint8_t *);
+
+struct dss1_lite_ie_func {
+	dss1_lite_ie_t *pfunc;
+	uint32_t mask;
+};
+
+/* definition of "mask" */
+
+#define	DL_IE_HEADER_MASK (1UL << 0)
+#define	DL_IE_SENDING_COMPLETE_MASK (1UL << 1)
+#define	DL_IE_BEARER_CAP_MASK (1UL << 2)
+#define	DL_IE_CHANNEL_ID_MASK (1UL << 3)
+#define	DL_IE_KEYPAD_MASK (1UL << 4)
+#define	DL_IE_CALLING_PARTY_MASK (1UL << 5)
+#define	DL_IE_CALLING_SUBADDR_MASK (1UL << 6)
+#define	DL_IE_USERUSER_MASK (1UL << 7)
+#define	DL_IE_DISPLAY_MASK (1UL << 8)
+#define	DL_IE_CAUSE_MASK (1UL << 9)
+#define	DL_IE_CALLSTATE_MASK (1UL << 10)
+#define	DL_IE_PROGRESS_MASK (1UL << 11)
+#define	DL_IE_CALLED_PARTY_MASK (1UL << 12)
+#define	DL_IE_CALLED_SUBADDR_MASK (1UL << 13)
+#define	DL_IE_DEFLECT_MASK (1UL << 14)
+#define	DL_IE_MCID_MASK (1UL << 15)
+#define	DL_IE_DATE_MASK (1UL << 16)
+
 struct dss1_lite_state {
 	uint8_t	timeout;
 	uint8_t	next_state;

@@ -315,7 +315,7 @@ dss1_lite_receive_mbuf(struct dss1_lite *pst, struct mbuf *m)
 			goto done;
 	} else {
 		/* I-frame */
-		if (proto != 0x08)
+		if (proto != DL_PD_Q931)
 			goto done;
 		if (reflen != 0x01)
 			goto done;
@@ -692,4 +692,496 @@ dss1_lite_send_mbuf(struct dss1_lite *pst, struct mbuf *m)
 	dss1_lite_start_timer(pst, 0);
 
 	return (retval);
+}
+
+uint8_t
+dss1_lite_ie_header(struct dss1_lite *pst, uint8_t *ptr)
+{
+	if (ptr != NULL) {
+
+		*ptr++ = 0;
+		*ptr++ = 0;
+		*ptr++ = 0;		/* I-frame */
+		*ptr++ = 0;
+
+		*ptr++ = DL_PD_Q931;
+		*ptr++ = 1;		/* callref length */
+		*ptr++ = pst->dl_callref;
+		*ptr++ = pst->dl_message_type;
+	}
+	return (8);			/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_sending_complete(struct dss1_lite *pst, uint8_t *ptr)
+{
+	if (ptr != NULL) {
+		*ptr++ = IEI_SENDCOMPL;
+	}
+	return (1);			/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_bearer_cap(struct dss1_lite *pst, uint8_t *ptr)
+{
+	if (ptr != NULL) {
+
+		*ptr++ = IEI_BEARERCAP;	/* bearer capability */
+
+		switch (cd->channel_bprot) {
+		case BPROT_NONE:	/* telephony */
+		case BPROT_RHDLC_DOV:	/* Data over Voice */
+			*ptr++ = IEI_BEARERCAP_LEN + 1;
+			*ptr++ = IT_CAP_SPEECH;
+			*ptr++ = IT_RATE_64K;
+			switch (cd->channel_bsubprot) {
+			case BSUBPROT_G711_ALAW:
+				*ptr++ = IT_UL1_G711A;
+				break;
+			case BSUBPROT_G711_ULAW:
+				*ptr++ = IT_UL1_G711U;
+				break;
+			default:
+				*ptr++ = 0xA0;	/* reserved */
+				break;
+			}
+			break;
+
+		case BPROT_RHDLC:	/* raw HDLC */
+		case BPROT_NONE_VOD:	/* Voice over Data */
+		default:
+			*ptr++ = IEI_BEARERCAP_LEN;
+			*ptr++ = IT_CAP_UNR_DIG_INFO;
+			*ptr++ = IT_RATE_64K;
+			break;
+		}
+	}
+	switch (cd->channel_bprot) {
+	case BPROT_NONE:		/* telephony */
+	case BPROT_RHDLC_DOV:		/* Data over Voice */
+		return (5);		/* bytes */
+	default:
+		return (4);		/* bytes */
+	}
+}
+
+uint8_t
+dss1_lite_ie_channel_id(struct dss1_lite *pst, uint8_t *ptr)
+{
+	if (!cd->channel_allocated)
+		return (0);		/* bytes */
+
+	if (ptr != NULL) {
+
+		/* only accept this channel */
+		enum {
+		EXT_EXCLUSIVE = 0x80 | 0x08};
+
+		*ptr++ = IEI_CHANNELID;	/* channel id */
+		*ptr++ = 1;
+
+		switch (cd->channel_id) {
+		case CHAN_NOT_ANY:
+			*ptr = IE_CHAN_ID_NO | EXT_EXCLUSIVE;
+			break;
+		case CHAN_D1:
+			*ptr = 0x04 | EXT_EXCLUSIVE;
+			break;
+		case CHAN_B1:
+			*ptr = IE_CHAN_ID_B1 | EXT_EXCLUSIVE;
+			break;
+		case CHAN_B2:
+			*ptr = IE_CHAN_ID_B2 | EXT_EXCLUSIVE;
+			break;
+		default:
+			*ptr = IE_CHAN_ID_ANY | EXT_EXCLUSIVE;
+			break;
+		}
+	}
+	return (3);			/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_keypad(struct dss1_lite *pst, uint8_t *ptr)
+{
+	const char *str;
+	int len;
+
+	str = pst->dl_keypad;
+	len = strlen(str);
+
+	if ((len <= 0) || (len >= 128))
+		return (0);		/* bytes */
+
+	if (ptr != NULL) {
+		*ptr++ = IEI_KEYPAD;	/* keypad facility */
+		*ptr++ = len;		/* keypad facility length */
+		memcpy(ptr, str, len);
+	}
+	return (len + 2);		/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_calling_party_sub(struct dss1_lite *pst, uint8_t *ptr, uint8_t index)
+{
+	const char *str;
+	int len;
+	uint8_t ton;
+	uint8_t prs_ind;
+
+	str = pst->dl_src[index].telno;
+	prs_ind = pst->dl_src[index].prs_ind;
+	ton = pst->dl_src[index].ton;
+	len = strlen(str);
+
+	ton = (ton == TON_INTERNAT) ? (NUMBER_TYPE_PLAN | 0x10) :
+	    (ton == TON_NATIONAL) ? (NUMBER_TYPE_PLAN | 0x20) :
+	    NUMBER_TYPE_PLAN;
+
+	if ((len <= 0) || (len >= 128))
+		return (0);		/* bytes */
+
+	if (ptr != NULL) {
+
+		/* type of number, number plan id */
+
+		if (prs_ind != PRS_NONE) {
+
+			/* presentation indicator */
+
+			*ptr++ = IEI_CALLINGPN;	/* calling party no */
+			*ptr++ = len + 2;
+
+			/* clear extension bit */
+			*ptr++ = ton & ~0x80;
+			*ptr++ = (prs_ind == PRS_RESTRICT) ?
+			    (0x20 | 0x80) : (0x80);
+
+		} else {
+
+			*ptr++ = IEI_CALLINGPN;	/* calling party no */
+			*ptr++ = len + 1;
+			*ptr++ = ton;
+		}
+
+		memcpy(ptr, str, len);
+	}
+	if (prs_ind != PRS_NONE)
+		return (len + 4);	/* bytes */
+	else
+		return (len + 3);	/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_calling_party0(struct dss1_lite *pst, uint8_t *ptr)
+{
+	return (dss1_lite_ie_calling_party_sub(pst, ptr, 0));
+}
+
+uint8_t
+dss1_lite_ie_calling_party1(struct dss1_lite *pst, uint8_t *ptr)
+{
+	return (dss1_lite_ie_calling_party_sub(pst, ptr, 1));
+}
+
+uint8_t
+dss1_lite_ie_calling_subaddr_sub(struct dss1_lite *pst, uint8_t *ptr, uint8_t index)
+{
+	const char *str;
+	int len;
+
+	str = pst->dl_src[index].subaddr;
+	len = strlen(str);
+
+	if ((len <= 0) || (len >= 128))
+		return (0);		/* bytes */
+
+	if (ptr != NULL) {
+
+		*ptr++ = IEI_CALLINGPS;	/* calling subaddr */
+		*ptr++ = 1 + len;
+		*ptr++ = NUMBER_TYPE_NSAP;	/* type = NSAP */
+
+		memcpy(ptr, str, len);
+	}
+	return (len + 3);		/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_calling_subaddr0(struct dss1_lite *pst, uint8_t *ptr)
+{
+	return (dss1_lite_ie_calling_subaddr_sub(pst, ptr, 0));
+}
+
+uint8_t
+dss1_lite_ie_calling_subaddr1(struct dss1_lite *pst, uint8_t *ptr)
+{
+	return (dss1_lite_ie_calling_subaddr_sub(pst, ptr, 1));
+}
+
+uint8_t
+dss1_lite_ie_useruser(struct dss1_lite *pst, uint8_t *ptr)
+{
+	const char *str;
+	int len;
+
+	str = pst->dl_useruser;
+	len = strlen(str);
+
+	if ((len <= 0) || (len >= 128))
+		return (0);		/* bytes */
+
+	if (ptr != NULL) {
+
+		*ptr++ = IEI_USERUSER;	/* user-user */
+		*ptr++ = len;		/* user-user length */
+
+		memcpy(ptr, str, len);
+	}
+	return (len + 2);		/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_display(struct dss1_lite *pst, uint8_t *ptr)
+{
+	const char *str;
+	int len;
+
+	str = pst->dl_display;
+	len = strlen(str);
+
+	if ((len <= 0) || (len >= 128))
+		return (0);		/* bytes */
+
+	if (ptr != NULL) {
+
+		*ptr++ = IEI_DISPLAY;	/* display */
+		*ptr++ = len;		/* display length */
+
+		memcpy(ptr, str, len);
+	}
+	return (len + 2);		/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_cause(struct dss1_lite *pst, uint8_t *ptr)
+{
+	if (ptr != NULL) {
+		*ptr++ = IEI_CAUSE;	/* cause ie */
+		*ptr++ = 2;
+		*ptr++ = NT_MODE(sc) ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
+		*ptr++ = i4b_make_q850_cause(cd->cause_out) | EXT_LAST;
+	}
+	return (4);			/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_callstate(struct dss1_lite *pst, uint8_t *ptr)
+{
+	if (ptr != NULL) {
+		*ptr++ = IEI_CALLSTATE;	/* call state ie */
+		*ptr++ = 1;
+		*ptr++ = L3_STATES_Q931_CONV[cd->state];
+	}
+	return (3);			/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_progress(struct dss1_lite *pst, uint8_t *ptr)
+{
+	if (ptr != NULL) {
+		*ptr++ = IEI_PROGRESSI;
+		*ptr++ = 2;		/* bytes */
+		*ptr++ = NT_MODE(sc) ? CAUSE_STD_LOC_PUBLIC : CAUSE_STD_LOC_OUT;
+		*ptr++ = 0x88;		/* in-band info available */
+	}
+	return (4);			/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_called_party(struct dss1_lite *pst, uint8_t *ptr)
+{
+	const char *str;
+	int len;
+
+	str = pst->dl_part.telno;
+	len = strlen(str);
+
+	if ((len <= 0) || (len >= 128))
+		return (0);		/* bytes */
+
+	if (ptr != NULL) {
+
+		*ptr++ = IEI_CALLEDPN;	/* calling party subaddr */
+		*ptr++ = 1 + len;
+		*ptr++ = NUMBER_TYPE_PLAN;	/* type = NSAP */
+
+		memcpy(ptr, str, len);
+	}
+	return (len + 3);		/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_called_subaddr(struct dss1_lite *pst, uint8_t *ptr)
+{
+	const char *str;
+	int len;
+
+	str = pst->dl_part.subaddr;
+	len = strlen(str);
+
+	if ((len <= 0) || (len >= 128))
+		return (0);		/* bytes */
+
+	if (ptr != NULL) {
+
+		*ptr++ = IEI_CALLEDPS;	/* calling party subaddr */
+		*ptr++ = 1 + len;
+		*ptr++ = NUMBER_TYPE_NSAP;	/* type = NSAP */
+
+		memcpy(ptr, str, len);
+	}
+	return (len + 3);		/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_deflect(struct dss1_lite *pst, uint8_t *ptr)
+{
+	str = pst->dl_part.telno;
+	len = strlen(str);
+
+	if ((len <= 0) || (len >= 128))
+		return (0);		/* bytes */
+
+	if (ptr != NULL) {
+		*ptr++ = IEI_FACILITY;	/* Facility IE */
+		*ptr++ = 0x10 + len;	/* Length */
+		*ptr++ = 0x91;		/* Remote Operations Protocol */
+		*ptr++ = 0xa1;		/* Tag: context specific */
+
+		*ptr++ = 0x0D + len;	/* Length */
+		*ptr++ = 0x02;		/* Tag: Universal, Primitive, INTEGER */
+		*ptr++ = 0x02;		/* Length */
+		*ptr++ = 0x22;		/* Data: Invoke Identifier = 34 */
+
+		*ptr++ = 0x00;		/* Data */
+		*ptr++ = 0x02;		/* Tag: Universal, Primitive, INTEGER */
+		*ptr++ = 0x01;		/* Length */
+		*ptr++ = 0x0d;		/* Data: Operation Value = Call Defl. */
+
+		*ptr++ = 0x30;		/* Tag: Universal, Constructor, SEQ. */
+		*ptr++ = 0x04 + len;	/* Length */
+		*ptr++ = 0x30;		/* Tag: Universal, Constructor, SEQ. */
+		*ptr++ = 0x02 + len;	/* Length */
+
+		*ptr++ = 0x80;		/* Tag: Context specific, Prim., c=0 */
+		*ptr++ = 0x00 + len;
+
+		memcpy(ptr, str, len);
+	}
+	return (0x12 + len);		/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_mcid(struct dss1_lite *pst, uint8_t *ptr)
+{
+	if (ptr != NULL) {
+		*ptr++ = IEI_FACILITY;	/* Facility IE */
+		*ptr++ = 0x0a;		/* Length */
+		*ptr++ = 0x91;		/* Remote Operations Protocol */
+		*ptr++ = 0xa1;		/* Tag: Context-specific */
+
+		*ptr++ = 0x07;		/* Length */
+		*ptr++ = 0x02;		/* Tag: Universal, Primitive, INTEGER */
+		*ptr++ = 0x02;		/* Length */
+		*ptr++ = 0x22;		/* Data: Invoke Identifier = 34 */
+
+		*ptr++ = 0x00;		/* Data */
+		*ptr++ = 0x02;		/* Tag: Universal, Primitive, INTEGER */
+		*ptr++ = 0x01;		/* Length */
+		*ptr++ = 0x03;		/* Data: Operation Value = MCID
+					 * request */
+	}
+	return (12);			/* bytes */
+}
+
+uint8_t
+dss1_lite_ie_date(struct dss1_lite *pst, uint8_t *ptr)
+{
+	uint8_t len;
+
+	len = pst->dl_otime.len;
+	if (len > 8)
+		len = 8;
+	if (len == 0)
+		return (0);		/* bytes */
+
+	if (ptr != NULL) {
+		*ptr++ = IEI_DATETIME;	/* Date/Time IE */
+		*ptr++ = len;
+		memcpy(ptr, pst->dl_otime.data, len);
+	}
+	return (2 + len);		/* bytes */
+}
+
+static const struct dss1_lite_ie_func dss1_lite_ie_tab[] = {
+	{&dss1_lite_ie_header, DL_IE_HEADER_MASK},
+	{&dss1_lite_ie_sending_complete, DL_IE_SENDING_COMPLETE_MASK},
+	{&dss1_lite_ie_bearer_cap, DL_IE_BEARER_CAP_MASK},
+	{&dss1_lite_ie_channel_id, DL_IE_CHANNEL_ID_MASK},
+	{&dss1_lite_ie_keypad, DL_IE_KEYPAD_MASK},
+
+	{&dss1_lite_ie_calling_party0, DL_IE_CALLING_PARTY_MASK},
+	{&dss1_lite_ie_calling_subaddr0, DL_IE_CALLING_SUBADDR_MASK},
+	{&dss1_lite_ie_calling_party1, DL_IE_CALLING_PARTY_MASK},
+	{&dss1_lite_ie_calling_subaddr1, DL_IE_CALLING_SUBADDR_MASK},
+
+	{&dss1_lite_ie_useruser, DL_IE_USERUSER_MASK},
+	{&dss1_lite_ie_display, DL_IE_DISPLAY_MASK},
+	{&dss1_lite_ie_cause, DL_IE_CAUSE_MASK},
+	{&dss1_lite_ie_callstate, DL_IE_CALLSTATE_MASK},
+
+	{&dss1_lite_ie_progress, DL_IE_PROGRESS_MASK},
+	{&dss1_lite_ie_called_party, DL_IE_CALLED_PARTY_MASK},
+	{&dss1_lite_ie_called_subaddr, DL_IE_CALLED_SUBADDR_MASK},
+	{&dss1_lite_ie_deflect, DL_IE_DEFLECT_MASK},
+
+	{&dss1_lite_ie_mcid, DL_IE_MCID_MASK},
+	{&dss1_lite_ie_date, DL_IE_DATE_MASK},
+
+	{NULL, 0},
+};
+
+
+uint8_t
+dss1_lite_send_ie(struct dss1_lite *pst, uint8_t msg_type, uint32_t mask)
+{
+	uint8_t i;
+	uint8_t *ptr;
+	uint16_t len;
+
+	len = 0;
+
+	pst->dl_message_type = msg_type;
+
+	for (i = 0; dss1_lite_ie_tab[i].pfunc; i++) {
+		if (dss1_lite_ie_tab[i].mask & mask)
+			len += (dss1_lite_ie_tab[i].pfunc) (pst, NULL);
+	}
+
+	if (len == 0)
+		return (1);
+
+	m = dss1_lite_getmbuf(len);
+	if (m == NULL)
+		return (0);
+
+	ptr = m->m_data;
+
+	for (i = 0; dss1_lite_ie_tab[i].pfunc; i++) {
+		if (dss1_lite_ie_tab[i].mask & mask)
+			ptr += (dss1_lite_ie_tab[i].pfunc) (pst, ptr);
+	}
+
+	return (dss1_lite_send_mbuf(pst, m));
 }
