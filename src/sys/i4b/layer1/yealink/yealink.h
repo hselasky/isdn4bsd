@@ -30,7 +30,9 @@
 #ifndef _YEALINK_H_
 #define	_YEALINK_H_
 
-#define	YEALINK_MINFRAMES		25
+#define	YEALINK_MINFRAMES		25	/* units */
+#define	YEALINK_BPF			((8000 * 2) / 1000)	/* bytes/frame */
+#define	YEALINK_BUFSIZE			(YEALINK_BPF * YEALINK_MINFRAMES)
 #define	YEALINK_CONFIG_INDEX		0
 #define	YEALINK_IFACE_INDEX		0
 #define	YEALINK_INTR_BUF_SIZE		128	/* bytes */
@@ -129,6 +131,8 @@ struct yealink_intr {
 
 struct yealink_softc {
 
+	struct dss1_lite sc_dl;
+
 	struct yealink_status sc_status;
 	struct yealink_status sc_shadow;
 
@@ -139,6 +143,8 @@ struct yealink_softc {
 
 	struct usb_device *sc_udev;
 	struct usb_xfer *sc_xfer[YEALINK_XFER_MAX];
+
+	uint8_t	sc_buffer[YEALINK_BUFSIZE * 4];
 
 	char	sc_lcd_map[YEALINK_LCD_LINE5_OFFSET];
 	uint8_t	sc_curr_offset;
