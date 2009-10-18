@@ -37,6 +37,7 @@
 #define	YEALINK_IFACE_INDEX		0
 #define	YEALINK_INTR_BUF_SIZE		128	/* bytes */
 #define	YEALINK_PKT_LEN			16	/* bytes */
+#define	YEALINK_CMD_HANDSET_QUERY       0x8d
 #define	YEALINK_CMD_INIT                0x8e
 #define	YEALINK_CMD_KEYPRESS            0x80
 #define	YEALINK_CMD_SCANCODE            0x81
@@ -47,27 +48,21 @@
 #define	YEALINK_CMD_RINGTONE            0x03
 #define	YEALINK_CMD_DIALTONE            0x09
 
-#define	YEALINK_LCD_LINE1_OFFSET        0
-#define	YEALINK_LCD_LINE1_SIZE          17
-#define	YEALINK_LCD_LINE2_OFFSET        (YEALINK_LCD_LINE1_OFFSET + YEALINK_LCD_LINE1_SIZE)
-#define	YEALINK_LCD_LINE2_SIZE          9
-#define	YEALINK_LCD_LINE3_OFFSET        (YEALINK_LCD_LINE2_OFFSET + YEALINK_LCD_LINE2_SIZE)
-#define	YEALINK_LCD_LINE3_SIZE          12
-#define	YEALINK_LCD_LINE4_OFFSET        (YEALINK_LCD_LINE3_OFFSET + YEALINK_LCD_LINE3_SIZE)
-#define	YEALINK_LCD_LINE4_SIZE          3
-#define	YEALINK_LCD_LINE5_OFFSET        (YEALINK_LCD_LINE4_OFFSET + YEALINK_LCD_LINE4_SIZE)
-#define	YEALINK_LCD_LINE5_SIZE		0
-
-/* standard 7seg mapping */
-
-#define	SEG_DP	(1U << 0)
-#define	SEG_A	(1U << 1)
-#define	SEG_B	(1U << 2)
-#define	SEG_C	(1U << 3)
-#define	SEG_D	(1U << 4)
-#define	SEG_E	(1U << 5)
-#define	SEG_F	(1U << 6)
-#define	SEG_G	(1U << 7)
+enum {
+	YEALINK_ST_INIT,
+	YEALINK_ST_USB_ON,
+	YEALINK_ST_USB_OFF,
+	YEALINK_ST_LED_ON,
+	YEALINK_ST_LED_OFF,
+	YEALINK_ST_TONE_ON,
+	YEALINK_ST_TONE_OFF,
+	YEALINK_ST_RING_ON,
+	YEALINK_ST_RING_OFF,
+	YEALINK_ST_HANDSET_QUERY,
+	YEALINK_ST_KEY_QUERY,
+	YEALINK_ST_KEY_CODE,
+	YEALINK_ST_MAX,
+};
 
 enum {
 	YEALINK_XFER_CTRL,
@@ -88,37 +83,6 @@ struct yealink_ctl_packet {
 	uByte	sum;
 } __packed;
 
-struct yealink_status {
-	uByte	raw[0];
-	uByte	lcd[24];
-	uByte	led;
-	uByte	dialtone;
-	uByte	ringtone;
-	uByte	keynum;
-} __packed;
-
-#define	YEALINK_SEG(t, a, am, b, bm, c, cm, d, dm, e, em, f, fm, g, gm)	\
-	{ t, .u = { .s = { {a, am}, {b, bm}, {c, cm}, {d, dm},		\
-		      {e, em}, {g, gm}, {f, fm} } } }
-
-#define	YEALINK_SYM(t, h, hm, n)		\
-	{ t, .u = { .p = { h, hm, n } } }
-
-struct yealink_lcd_map {
-	char	type;
-	union {
-		struct {
-			uint8_t	a;	/* address */
-			uint8_t	m;	/* mask */
-			char	desc[12];
-		}	p;
-		struct {
-			uint8_t	a;	/* address */
-			uint8_t	m;	/* mask */
-		}	s     [7];
-	}	u;
-};
-
 struct yealink_ctrl {
 	struct usb_device_request req;
 	struct yealink_ctl_packet data;
@@ -133,9 +97,6 @@ struct yealink_softc {
 
 	struct dss1_lite sc_dl;
 
-	struct yealink_status sc_status;
-	struct yealink_status sc_shadow;
-
 	struct yealink_ctrl sc_ctrl;
 	struct yealink_intr sc_intr;
 
@@ -146,10 +107,10 @@ struct yealink_softc {
 
 	uint8_t	sc_buffer[YEALINK_BUFSIZE * 4];
 
-	char	sc_lcd_map[YEALINK_LCD_LINE5_OFFSET];
-	uint8_t	sc_curr_offset;
-	uint8_t	sc_was_opened;
+	uint8_t	sc_st_data[YEALINK_ST_MAX];
+	uint8_t	sc_st_index;
 	uint8_t	sc_iface_no;
+	uint8_t	sc_key_state;
 };
 
 #endif					/* _YEALINK_H_ */
