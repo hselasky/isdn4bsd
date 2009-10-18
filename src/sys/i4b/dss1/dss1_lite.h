@@ -75,6 +75,7 @@ enum {
 };
 
 struct dss1_lite;
+struct dss1_lite_fifo;
 struct dss1_lite_call_desc;
 
 typedef uint8_t (dss1_lite_ie_t)(struct dss1_lite_call_desc *, uint8_t *);
@@ -83,6 +84,8 @@ typedef void (dss1_lite_set_hook_on_t)(struct dss1_lite *);
 typedef void (dss1_lite_set_hook_off_t)(struct dss1_lite *);
 typedef void (dss1_lite_set_r_key_t)(struct dss1_lite *);
 typedef void (dss1_lite_set_dtmf_t)(struct dss1_lite *, const char *);
+typedef void (dss1_lite_set_protocol_t)(struct dss1_lite *, struct dss1_lite_fifo *, struct i4b_protocol *);
+typedef void (dss1_lite_set_start_t)(struct dss1_lite *, struct dss1_lite_fifo *);
 
 struct dss1_lite_ie_func {
 	dss1_lite_ie_t *pfunc;
@@ -190,6 +193,10 @@ struct dss1_lite_methods {
 	dss1_lite_set_r_key_t *set_r_key;
 	dss1_lite_set_dtmf_t *set_dtmf;
 
+	/* DUAL-mode */
+	dss1_lite_set_protocol_t *set_protocol;
+	dss1_lite_set_start_t *set_start;
+
 	uint8_t	support_echo_cancel;
 };
 
@@ -235,8 +242,16 @@ struct dss1_lite_fifo {
 	struct i4b_protocol prot_curr;	/* HDLC, trans ...  */
 	struct i4b_protocol prot_last;	/* HDLC, trans ...  */
 	struct fifo_translator ft[1];
+	struct mbuf *m_rx_curr;
+	struct mbuf *m_tx_curr;
+	uint8_t *m_tx_curr_ptr;
+	uint8_t *m_rx_curr_ptr;
 	uint32_t in_stat;
 	uint32_t out_stat;
+	uint16_t m_tx_curr_rem;
+	uint16_t m_rx_curr_rem;
+	uint16_t m_tx_last_sample;
+	uint16_t m_rx_last_sample;
 	uint8_t	is_tracing;
 };
 
@@ -265,6 +280,8 @@ struct dss1_lite {
 
 	int	dl_tx_end_tick;
 
+	int	dl_audio_channel;
+
 	uint8_t	dl_tx_in;
 	uint8_t	dl_tx_out;
 	uint8_t	dl_tx_num;
@@ -278,12 +295,19 @@ struct dss1_lite {
 uint8_t	dss1_lite_ring_event(struct dss1_lite *, uint8_t);
 uint8_t	dss1_lite_hook_off(struct dss1_lite *);
 uint8_t	dss1_lite_hook_on(struct dss1_lite *);
+uint8_t	dss1_lite_deflect_request(struct dss1_lite *);
+uint8_t	dss1_lite_mcid_request(struct dss1_lite *);
+uint8_t	dss1_lite_disconnect_request(struct dss1_lite *);
 uint8_t	dss1_lite_r_key_event(struct dss1_lite *);
 uint8_t	dss1_lite_dtmf_event(struct dss1_lite *, const char *);
 void	dss1_lite_process(struct dss1_lite *);
 void	dss1_lite_trace_info(struct dss1_lite *pdl, struct dss1_lite_fifo *f, const char *desc);
+void	dss1_lite_l5_put_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f, int32_t sample);
 void	dss1_lite_l5_put_mbuf(struct dss1_lite *, struct dss1_lite_fifo *, struct mbuf *);
 struct mbuf *dss1_lite_l5_get_new_mbuf(struct dss1_lite *, struct dss1_lite_fifo *);
+int16_t	dss1_lite_l5_get_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f);
 struct mbuf *dss1_lite_l5_get_mbuf(struct dss1_lite *, struct dss1_lite_fifo *);
+uint8_t	dss1_lite_attach(struct dss1_lite *pdl, device_t dev, struct i4b_controller *ctrl, const struct dss1_lite_methods *mtod);
+void	dss1_lite_detach(struct dss1_lite *pdl);
 
 #endif					/* _DSS1_LITE_H_ */

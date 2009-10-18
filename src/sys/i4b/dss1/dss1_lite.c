@@ -53,6 +53,8 @@
 #include <i4b/include/i4b_cause.h>
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_trace.h>
+#include <i4b/include/i4b_debug.h>
+#include <i4b/include/i4b_global.h>
 
 #include <i4b/dss1/dss1_lite.h>
 
@@ -92,10 +94,7 @@ static uint8_t dss1_lite_send_mbuf(struct dss1_lite *pdl, struct mbuf *m);
 static uint8_t dss1_lite_send_message(struct dss1_lite_call_desc *cd, uint8_t msg_type, uint32_t mask);
 static uint8_t dss1_lite_proceed_request(struct dss1_lite_call_desc *cd);
 static uint8_t dss1_lite_alert_request(struct dss1_lite_call_desc *cd);
-static uint8_t dss1_lite_deflect_request(struct dss1_lite_call_desc *cd);
-static uint8_t dss1_lite_mcid_request(struct dss1_lite_call_desc *cd);
 static uint8_t dss1_lite_setup_accept_resp(struct dss1_lite_call_desc *cd);
-static uint8_t dss1_lite_disconnect_request(struct dss1_lite_call_desc *cd);
 
 static struct i4b_controller *
 dss1_lite_get_ctrl(struct dss1_lite_call_desc *cd)
@@ -205,12 +204,15 @@ dss1_lite_send_disconnect(struct dss1_lite_call_desc *cd)
 	    IE_HEADER_MASK | IE_CAUSE_MASK));
 }
 
+#if 0
 static uint8_t
 dss1_lite_send_release(struct dss1_lite_call_desc *cd, uint8_t send_cause_flag)
 {
 	return (dss1_lite_send_message(cd, 0x4d /* RELEASE */ ,
 	    send_cause_flag ? IE_HEADER_MASK | IE_CAUSE_MASK : IE_HEADER_MASK));
 }
+
+#endif
 
 /*
  * NOTE: Some ISDN phones require the "cause" information element when
@@ -241,6 +243,7 @@ dss1_lite_send_status_enquiry(struct dss1_lite_call_desc *cd)
 	return (dss1_lite_send_message(cd, 0x75 /* STATUS_ENQUIRY */ , IE_HEADER_MASK));
 }
 
+#if 0
 static uint8_t
 dss1_lite_send_progress(struct dss1_lite_call_desc *cd)
 {
@@ -248,6 +251,9 @@ dss1_lite_send_progress(struct dss1_lite_call_desc *cd)
 	    IE_HEADER_MASK | IE_PROGRESS_MASK));
 }
 
+#endif
+
+#if 0
 static uint8_t
 dss1_lite_send_hold(struct dss1_lite_call_desc *cd)
 {
@@ -255,12 +261,18 @@ dss1_lite_send_hold(struct dss1_lite_call_desc *cd)
 	    IE_HEADER_MASK));
 }
 
+#endif
+
+#if 0
 static uint8_t
 dss1_lite_send_hold_acknowledge(struct dss1_lite_call_desc *cd)
 {
 	return (dss1_lite_send_message(cd, 0x28 /* HOLD_ACKNOWLEDGE */ , IE_HEADER_MASK));
 }
 
+#endif
+
+#if 0
 static uint8_t
 dss1_lite_send_hold_reject(struct dss1_lite_call_desc *cd, uint8_t q850cause)
 {
@@ -273,6 +285,9 @@ dss1_lite_send_hold_reject(struct dss1_lite_call_desc *cd, uint8_t q850cause)
 	return (retval);
 }
 
+#endif
+
+#if 0
 static uint8_t
 dss1_lite_send_retrieve(struct dss1_lite_call_desc *cd)
 {
@@ -280,6 +295,9 @@ dss1_lite_send_retrieve(struct dss1_lite_call_desc *cd)
 	    IE_HEADER_MASK));
 }
 
+#endif
+
+#if 0
 static uint8_t
 dss1_lite_send_retrieve_acknowledge(struct dss1_lite_call_desc *cd)
 {
@@ -287,6 +305,9 @@ dss1_lite_send_retrieve_acknowledge(struct dss1_lite_call_desc *cd)
 	    IE_HEADER_MASK | IE_CHANNEL_ID_MASK));
 }
 
+#endif
+
+#if 0
 static uint8_t
 dss1_lite_send_retrieve_reject(struct dss1_lite_call_desc *cd, uint8_t q850cause)
 {
@@ -298,6 +319,8 @@ dss1_lite_send_retrieve_reject(struct dss1_lite_call_desc *cd, uint8_t q850cause
 	cd->dl_cause_out = 0;
 	return (retval);
 }
+
+#endif
 
 static uint8_t
 dss1_lite_send_deflect_call(struct dss1_lite_call_desc *cd)
@@ -1187,19 +1210,31 @@ dss1_lite_alert_request(struct dss1_lite_call_desc *cd)
 	return (retval);
 }
 
-static uint8_t
-dss1_lite_deflect_request(struct dss1_lite_call_desc *cd)
+uint8_t
+dss1_lite_deflect_request(struct dss1_lite *pdl)
 {
-	if (dss1_lite_is_nt_mode(cd))
+	struct dss1_lite_call_desc *cd;
+
+	if (pdl->dl_is_nt_mode == 0)
+		return (0);		/* wrong mode */
+
+	cd = pdl->dl_active_call_desc;
+	if (cd == NULL)
 		return (0);
 
 	return (dss1_lite_send_deflect_call(cd));
 }
 
 uint8_t
-dss1_lite_mcid_request(struct dss1_lite_call_desc *cd)
+dss1_lite_mcid_request(struct dss1_lite *pdl)
 {
-	if (dss1_lite_is_nt_mode(cd))
+	struct dss1_lite_call_desc *cd;
+
+	if (pdl->dl_is_nt_mode == 0)
+		return (0);		/* wrong mode */
+
+	cd = pdl->dl_active_call_desc;
+	if (cd == NULL)
 		return (0);
 
 	return (dss1_lite_send_mcid_call(cd));
@@ -1237,34 +1272,37 @@ dss1_lite_setup_accept_resp(struct dss1_lite_call_desc *cd)
 	return (retval);
 }
 
-static uint8_t
-dss1_lite_disconnect_request(struct dss1_lite_call_desc *cd)
+uint8_t
+dss1_lite_disconnect_request(struct dss1_lite *pdl)
 {
+	struct dss1_lite_call_desc *cd;
 	uint8_t retval;
+
+	if (pdl->dl_is_nt_mode == 0)
+		return (0);		/* wrong mode */
+
+	cd = pdl->dl_active_call_desc;
+	if (cd == NULL)
+		return (0);
 
 	dss1_lite_proceed_request(cd);
 
-	if (dss1_lite_has_call(cd)) {
-		if (dss1_lite_is_incoming(cd)) {
-			if ((dss1_lite_get_state(cd) != DL_ST_IN_UC) &&
-			    (dss1_lite_set_state(cd, DL_ST_IN_UC) != 0)) {
+	if (dss1_lite_is_incoming(cd)) {
+		if ((dss1_lite_get_state(cd) != DL_ST_IN_UC) &&
+		    (dss1_lite_set_state(cd, DL_ST_IN_UC) != 0)) {
 
-				dss1_lite_send_disconnect(cd);
+			retval = dss1_lite_send_disconnect(cd);
 
-				retval = 1;
-			} else {
-				retval = 0;
-			}
 		} else {
-			if ((dss1_lite_get_state(cd) != DL_ST_OUT_UC) &&
-			    (dss1_lite_set_state(cd, DL_ST_OUT_UC) != 0)) {
+			retval = 0;
+		}
+	} else {
+		if ((dss1_lite_get_state(cd) != DL_ST_OUT_UC) &&
+		    (dss1_lite_set_state(cd, DL_ST_OUT_UC) != 0)) {
 
-				dss1_lite_send_disconnect(cd);
-
-				retval = 1;
-			} else {
-				retval = 0;
-			}
+			retval = dss1_lite_send_disconnect(cd);
+		} else {
+			retval = 0;
 		}
 	}
 	return (retval);

@@ -303,6 +303,35 @@ dss1_lite_trace_info(struct dss1_lite *pdl,
 }
 
 /*---------------------------------------------------------------------------*
+ *	put sample to layer 5
+ *---------------------------------------------------------------------------*/
+void
+dss1_lite_l5_put_sample(struct dss1_lite *pdl,
+    struct dss1_lite_fifo *f, int32_t sample)
+{
+	f->m_tx_last_sample = sample;
+
+	while (f->m_tx_curr_rem == 0) {
+		if (f->m_tx_curr != NULL) {
+			dss1_lite_l5_put_mbuf(pdl, f, f->m_tx_curr);
+		}
+		f->m_tx_curr = dss1_lite_l5_get_new_mbuf(pdl, f);
+		if (f->m_tx_curr == NULL)
+			return;
+		f->m_tx_curr_ptr = f->m_tx_curr->m_data;
+		f->m_tx_curr_rem = f->m_tx_curr->m_len;
+	}
+
+	if (f->prot_curr.protocol_4 == BSUBPROT_G711_ALAW) {
+		*(f->m_tx_curr_ptr)++ = i4b_signed_to_alaw(sample);
+		f->m_tx_curr_rem--;
+	} else {
+		*(f->m_tx_curr_ptr)++ = i4b_signed_to_ulaw(sample);
+		f->m_tx_curr_rem--;
+	}
+}
+
+/*---------------------------------------------------------------------------*
  *	put mbuf to layer 5
  *---------------------------------------------------------------------------*/
 void
@@ -340,6 +369,37 @@ dss1_lite_l5_get_new_mbuf(struct dss1_lite *pdl, struct dss1_lite_fifo *f)
 }
 
 /*---------------------------------------------------------------------------*
+ *	get sample from layer 5
+ *---------------------------------------------------------------------------*/
+int16_t
+dss1_lite_l5_get_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f)
+{
+	int16_t retval;
+
+	while (f->m_rx_curr_rem == 0) {
+		if (f->m_rx_curr != NULL) {
+			f->m_rx_curr = m_free(f->m_rx_curr);
+		}
+		if (f->m_rx_curr == NULL)
+			f->m_rx_curr = dss1_lite_l5_get_mbuf(pdl, f);
+		if (f->m_rx_curr == NULL)
+			return (f->m_rx_last_sample);
+		f->m_rx_curr_ptr = f->m_rx_curr->m_data;
+		f->m_rx_curr_rem = f->m_rx_curr->m_len;
+	}
+
+	if (f->prot_curr.protocol_4 == BSUBPROT_G711_ALAW) {
+		retval = i4b_alaw_to_signed[*(f->m_rx_curr_ptr)++];
+		f->m_rx_curr_rem--;
+	} else {
+		retval = i4b_ulaw_to_signed[*(f->m_rx_curr_ptr)++];
+		f->m_rx_curr_rem--;
+	}
+	f->m_rx_last_sample = retval;
+	return (retval);
+}
+
+/*---------------------------------------------------------------------------*
  *	get mbuf from layer 5
  *---------------------------------------------------------------------------*/
 struct mbuf *
@@ -372,14 +432,20 @@ dss1_lite_l1_setup(fifo_translator_t *ft, struct i4b_protocol *p)
 {
 	struct dss1_lite *pdl = ft->L1_sc;
 	struct dss1_lite_fifo *f = ft->L1_fifo;
+	struct mbuf *m;
 	uint8_t fn;
+	uint8_t i;
 
 	f->prot_curr = *p;
 
 	fn = f - pdl->dl_fifo;
 
+	if (p->protocol_1 == P_DISABLE)
+		pdl->dl_methods->set_protocol(pdl, f, p);
+	else if (fn != 0) {
+		pdl->dl_audio_channel = fn;
+	}
 	if (fn == 0) {
-		XXX setup D - channel();
 
 		pdl->dl_tx_end_tick = ticks - 1;
 
@@ -389,9 +455,40 @@ dss1_lite_l1_setup(fifo_translator_t *ft, struct i4b_protocol *p)
 		else
 			pdl->dl_is_nt_mode = 1;
 
-	} else {
-		XXX setup B - channel();
+		for (i = 0; i != DL_QUEUE_MAX; i++) {
+			if (pdl->dl_tx_mbuf[i] != NULL) {
+				m_freem(pdl->dl_tx_mbuf[i]);
+				pdl->dl_tx_mbuf[i] = NULL;
+			}
+		}
+
+		while (1) {
+			_IF_DEQUEUE(&pdl->dl_outq, m);
+			if (m == NULL)
+				break;
+			m_freem(m);
+		}
+
+		pdl->dl_tx_in = pdl->dl_tx_out;
+		pdl->dl_tx_window = 0;
 	}
+	if (f->m_tx_curr != NULL) {
+		m_freem(f->m_tx_curr);
+		f->m_tx_curr = NULL;
+		f->m_tx_curr_rem = 0;
+		f->m_tx_curr_ptr = 0;
+	}
+	if (f->m_rx_curr != NULL) {
+		m_freem(f->m_rx_curr);
+		f->m_rx_curr = NULL;
+		f->m_rx_curr_rem = 0;
+		f->m_rx_curr_ptr = 0;
+	}
+	f->m_tx_last_sample = 0;
+	f->m_rx_last_sample = 0;
+
+	if (p->protocol_1 != P_DISABLE)
+		pdl->dl_methods->set_protocol(pdl, f, p);
 }
 
 /*---------------------------------------------------------------------------*
@@ -402,15 +499,9 @@ dss1_lite_l1_start(fifo_translator_t *ft)
 {
 	struct dss1_lite *pdl = ft->L1_sc;
 	struct dss1_lite_fifo *f = ft->L1_fifo;
-	uint8_t fn;
 
-	fn = f - pdl->dl_fifo;
-
-	if (fn == 0) {
-		XXX start D - channel();
-	} else {
-		XXX start B - channel();
-	}
+	if (f->prot_curr.protocol_1 != P_DISABLE)
+		pdl->dl_methods->set_start(pdl, f);
 }
 
 /*---------------------------------------------------------------------------*
@@ -458,38 +549,35 @@ dss1_lite_l1_get_ft(struct i4b_controller *cntl, int channel)
  * Else: Failure
  *---------------------------------------------------------------------------*/
 uint8_t
-dss1_lite_init(struct dss1_lite *pdl, device_t dev, struct i4b_controller *cntl, const struct dss1_lite_methods *mtod)
+dss1_lite_attach(struct dss1_lite *pdl, device_t dev,
+    struct i4b_controller *ctrl,
+    const struct dss1_lite_methods *mtod)
 {
-	struct i4b_controller *ctrl;
 	uint8_t retval;
 
-	ctrl = i4b_controller_allocate(0, 1, 4, NULL);
-	if (ctrl == NULL)
-		return (1);
-
 	device_printf(dev, "Attaching I4B "
-	    "controller %d.\n", cntl->unit);
+	    "controller %d.\n", ctrl->unit);
 
 	pdl->dl_outq.ifq_maxlen = (2 * DL_QUEUE_MAX);
 	pdl->dl_methods = mtod;
 	pdl->dl_ctrl = ctrl;
 	pdl->dl_option_mask = I4B_OPTION_NT_MODE;
 
-	CNTL_LOCK(cntl);
+	CNTL_LOCK(ctrl);
 
 	/* init function pointers, type and controller */
 
-	cntl->L1_GET_FIFO_TRANSLATOR = &dss1_lite_l1_get_ft;
-	cntl->L1_COMMAND_REQ = &dss1_lite_l1_ioctl;
+	ctrl->L1_GET_FIFO_TRANSLATOR = &dss1_lite_l1_get_ft;
+	ctrl->L1_COMMAND_REQ = &dss1_lite_l1_ioctl;
 
-	cntl->L1_sc = pdl;
-	cntl->L1_fifo = pdl->dl_fifo;	/* default */
-	cntl->L1_type = L1_TYPE_ISDN_BRI;
-	cntl->L1_channel_end = DL_NCHAN;
+	ctrl->L1_sc = pdl;
+	ctrl->L1_fifo = pdl->dl_fifo;	/* default */
+	ctrl->L1_type = L1_TYPE_ISDN_BRI;
+	ctrl->L1_channel_end = DL_NCHAN;
 
-	CNTL_UNLOCK(cntl);
+	CNTL_UNLOCK(ctrl);
 
-	retval = i4b_controller_attach(cntl, NULL);
+	retval = i4b_controller_attach(ctrl, NULL);
 
 	if (retval != 0) {
 		i4b_controller_free(pdl->dl_ctrl, 1);
@@ -499,13 +587,11 @@ dss1_lite_init(struct dss1_lite *pdl, device_t dev, struct i4b_controller *cntl,
 }
 
 void
-dss1_lite_uninit(struct dss1_lite *pdl)
+dss1_lite_detach(struct dss1_lite *pdl)
 {
 	if (pdl->dl_ctrl != NULL) {
 		i4b_controller_detach(pdl->dl_ctrl);
 		i4b_controller_free(pdl->dl_ctrl, 1);
+		pdl->dl_ctrl = NULL;
 	}
-	dss1_lite_peer_put_mbuf(pdl);
-
-	XXX free other mbufs();
 }
