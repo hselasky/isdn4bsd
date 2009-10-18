@@ -35,7 +35,6 @@
 #define	YEALINK_BUFSIZE			(YEALINK_BPF * YEALINK_MINFRAMES)
 #define	YEALINK_CONFIG_INDEX		0
 #define	YEALINK_IFACE_INDEX		0
-#define	YEALINK_INTR_BUF_SIZE		128	/* bytes */
 #define	YEALINK_PKT_LEN			16	/* bytes */
 #define	YEALINK_CMD_HANDSET_QUERY       0x8d
 #define	YEALINK_CMD_INIT                0x8e
@@ -90,7 +89,7 @@ struct yealink_ctrl {
 
 struct yealink_intr {
 	struct yealink_ctl_packet data;
-	uint8_t	rem[YEALINK_INTR_BUF_SIZE - sizeof(struct yealink_ctl_packet)];
+	uint8_t	rem[YEALINK_PKT_LEN - sizeof(struct yealink_ctl_packet)];
 };
 
 struct yealink_softc {
@@ -111,6 +110,7 @@ struct yealink_softc {
 	uint8_t	sc_st_index;
 	uint8_t	sc_iface_no;
 	uint8_t	sc_key_state;
+	uint8_t	sc_hook_state;
 };
 
 #endif					/* _YEALINK_H_ */
