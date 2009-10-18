@@ -2082,3 +2082,9 @@ dss1_lite_send_message(struct dss1_lite_call_desc *cd, uint8_t msg_type, uint32_
 
 	return (dss1_lite_send_mbuf(cd->dl_parent, m));
 }
+
+void
+dss1_lite_default(void)
+{
+	/* NOP */
+}

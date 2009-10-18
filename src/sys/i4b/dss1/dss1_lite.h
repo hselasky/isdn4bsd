@@ -183,6 +183,15 @@ struct dss1_lite_state {
 	uint8_t	flags;
 };
 
+#define	DSS1_LITE_DEFAULT_METHODS					\
+  .set_ring = (dss1_lite_set_ring_t *)&dss1_lite_default,		\
+  .set_hook_on = (dss1_lite_set_hook_on_t *)&dss1_lite_default,		\
+  .set_hook_off = (dss1_lite_set_hook_off_t *)&dss1_lite_default,	\
+  .set_r_key = (dss1_lite_set_r_key_t *)&dss1_lite_default,		\
+  .set_dtmf = (dss1_lite_set_dtmf_t *)&dss1_lite_default,		\
+  .set_protocol = (dss1_lite_set_protocol_t *)&dss1_lite_default,	\
+  .set_start = (dss1_lite_set_start_t *)&dss1_lite_default
+
 struct dss1_lite_methods {
 	/* NT-mode */
 	dss1_lite_set_ring_t *set_ring;
@@ -256,7 +265,6 @@ struct dss1_lite_fifo {
 };
 
 struct dss1_lite {
-
 	struct dss1_lite_call_desc dl_cd[DL_NCALL];
 	struct dss1_lite_ifq dl_outq;
 	struct dss1_lite_fifo dl_fifo[DL_NCHAN];
@@ -309,5 +317,6 @@ int16_t	dss1_lite_l5_get_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f)
 struct mbuf *dss1_lite_l5_get_mbuf(struct dss1_lite *, struct dss1_lite_fifo *);
 uint8_t	dss1_lite_attach(struct dss1_lite *pdl, device_t dev, struct i4b_controller *ctrl, const struct dss1_lite_methods *mtod);
 void	dss1_lite_detach(struct dss1_lite *pdl);
+void	dss1_lite_default(void);
 
 #endif					/* _DSS1_LITE_H_ */
