@@ -9,6 +9,8 @@
 #  include <dev/pci/pcivar.h>
 #  include <isa/isavar.h>
 #  include <isa/isa_common.h>
+#  include <sys/socket.h>
+#  include <net/if.h>
 #  include <net/if_var.h>
 #  include <netgraph/ng_message.h>
 #  include <netgraph/ng_parse.h>
