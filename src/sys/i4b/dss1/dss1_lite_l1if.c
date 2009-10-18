@@ -324,6 +324,22 @@ dss1_lite_l5_put_mbuf(struct dss1_lite *pdl,
 }
 
 /*---------------------------------------------------------------------------*
+ *	get new mbuf from layer 5
+ *---------------------------------------------------------------------------*/
+struct mbuf *
+dss1_lite_l5_get_new_mbuf(struct dss1_lite *pdl, struct dss1_lite_fifo *f)
+{
+	struct mbuf *m;
+
+	if (f->prot_curr.protocol_1 == P_DISABLE)
+		return (NULL);
+
+	m = L5_ALLOC_MBUF(f->ft, BCH_MAX_DATALEN, BCH_MAX_DATALEN);
+
+	return (m);
+}
+
+/*---------------------------------------------------------------------------*
  *	get mbuf from layer 5
  *---------------------------------------------------------------------------*/
 struct mbuf *

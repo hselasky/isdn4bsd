@@ -42,18 +42,6 @@ __FBSDID("$FreeBSD: $");
 
 #define I4B_MBUF_DEBUG
 
-#if 0
-
-#define MT_I4B_D	42
-#define MT_I4B_B	43
-
-#else
-
-#define MT_I4B_D	MT_DATA
-#define MT_I4B_B	MT_DATA
-
-#endif
-
 /*---------------------------------------------------------------------------*
  *	allocate mbuf space
  *---------------------------------------------------------------------------*/
@@ -80,7 +68,7 @@ i4b_getmbuf(int len, int how)
 		return(NULL);
 	}
 
-	MGETHDR(m, how, MT_I4B_B);	/* get mbuf with pkthdr */
+	MGETHDR(m, how, MT_DATA);	/* get mbuf with pkthdr */
 
 	/* did we actually get the mbuf ? */
 
@@ -113,6 +101,7 @@ i4b_getmbuf(int len, int how)
 	}
 
 	m->m_len = len;
+	m->m_pkthdr.len = len;
 
 	return(m);
 }

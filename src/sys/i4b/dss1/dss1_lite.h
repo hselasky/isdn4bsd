@@ -283,6 +283,7 @@ uint8_t	dss1_lite_dtmf_event(struct dss1_lite *, const char *);
 void	dss1_lite_process(struct dss1_lite *);
 void	dss1_lite_trace_info(struct dss1_lite *pdl, struct dss1_lite_fifo *f, const char *desc);
 void	dss1_lite_l5_put_mbuf(struct dss1_lite *, struct dss1_lite_fifo *, struct mbuf *);
+struct mbuf *dss1_lite_l5_get_new_mbuf(struct dss1_lite *, struct dss1_lite_fifo *);
 struct mbuf *dss1_lite_l5_get_mbuf(struct dss1_lite *, struct dss1_lite_fifo *);
 
 #endif					/* _DSS1_LITE_H_ */

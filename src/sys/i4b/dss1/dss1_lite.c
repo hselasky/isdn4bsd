@@ -343,37 +343,6 @@ dss1_lite_string_filter(char *ptr)
 	}
 }
 
-static struct mbuf *
-dss1_lite_alloc_mbuf(uint16_t len)
-{
-	struct mbuf *m;
-
-	/* check for maximum size */
-	if (len > MCLBYTES)
-		return (NULL);
-
-	/* get mbuf with pkthdr */
-	MGETHDR(m, M_NOWAIT, MT_DATA);
-
-	/* did we actually get the mbuf ? */
-
-	if (m == NULL)
-		return (NULL);
-
-	if (len >= MHLEN) {
-		MCLGET(m, M_NOWAIT);
-
-		if (!(m->m_flags & M_EXT)) {
-			m_freem(m);
-			return (NULL);
-		}
-	}
-	m->m_pkthdr.len = len;
-	m->m_len = len;
-
-	return (m);
-}
-
 static uint8_t
 dss1_lite_peek_mbuf(struct mbuf *m, uint16_t offset)
 {
@@ -533,7 +502,7 @@ dss1_lite_send_ctrl(struct dss1_lite *pdl, uint8_t sapi, uint8_t cntl)
 	uint8_t *ptr;
 	uint8_t len = (cntl & 0x02) ? /* U-frame */ 3 : /* S-frame */ 4;
 
-	m = dss1_lite_alloc_mbuf(len);
+	m = i4b_getmbuf(len, M_NOWAIT);
 	if (m == NULL)
 		return (0);
 
@@ -1464,7 +1433,7 @@ dss1_lite_peer_get_mbuf(struct dss1_lite *pdl)
 				len += m_new->m_len;
 			} while ((m_new = m_new->m_next));
 
-			m_new = dss1_lite_alloc_mbuf(len);
+			m_new = i4b_getmbuf(len, M_NOWAIT);
 			if (m_new == NULL) {
 				m_freem(m);
 				continue;
@@ -2062,7 +2031,7 @@ dss1_lite_send_message(struct dss1_lite_call_desc *cd, uint8_t msg_type, uint32_
 	if (len == 0)
 		return (1);
 
-	m = dss1_lite_alloc_mbuf(len);
+	m = i4b_getmbuf(len, M_NOWAIT);
 	if (m == NULL)
 		return (0);
 
