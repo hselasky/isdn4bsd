@@ -95,6 +95,7 @@ static uint8_t dss1_lite_send_message(struct dss1_lite_call_desc *cd, uint8_t ms
 static uint8_t dss1_lite_proceed_request(struct dss1_lite_call_desc *cd);
 static uint8_t dss1_lite_alert_request(struct dss1_lite_call_desc *cd);
 static uint8_t dss1_lite_setup_accept_resp(struct dss1_lite_call_desc *cd);
+static void dss1_lite_free_channel(struct dss1_lite_call_desc *cd);
 
 static struct i4b_controller *
 dss1_lite_get_ctrl(struct dss1_lite_call_desc *cd)
@@ -469,11 +470,13 @@ dss1_lite_set_state(struct dss1_lite_call_desc *cd, uint8_t state)
 		if (cd->dl_need_release) {
 			dss1_lite_send_release_complete(cd, 1);
 		}
-		if (dss1_lite_is_nt_mode(cd)) {
+		if (dss1_lite_is_nt_mode(cd) == 0) {
 			dss1_lite_set_ring(cd, 0);
 		}
 		if (cd->dl_parent->dl_active_call_desc == cd)
 			cd->dl_parent->dl_active_call_desc = NULL;
+
+		dss1_lite_free_channel(cd);
 	}
 	return (1);			/* valid state transition */
 }
@@ -803,6 +806,7 @@ dss1_lite_alloc_cd(struct dss1_lite *pdl, uint8_t is_incoming,
 	cd->dl_parent = pdl;
 	cd->dl_channel_id = CHAN_ANY;
 	cd->dl_channel_bprot = BPROT_NONE;
+	cd->dl_channel_bsubprot = BSUBPROT_G711_ALAW;
 	cd->dl_curr_callref = crval;
 
 	if (is_incoming == 0) {
@@ -818,19 +822,28 @@ dss1_lite_alloc_cd(struct dss1_lite *pdl, uint8_t is_incoming,
 }
 
 static void
+dss1_lite_free_channel(struct dss1_lite_call_desc *cd)
+{
+	struct dss1_lite *pdl = cd->dl_parent;
+
+	if (cd->dl_channel_allocated) {
+		cd->dl_channel_allocated = 0;
+		pdl->dl_channel_util &= ~(1UL << cd->dl_channel_id);
+	}
+}
+
+static void
 dss1_lite_alloc_channel(struct dss1_lite_call_desc *cd)
 {
-	struct i4b_controller *cntl = dss1_lite_get_ctrl(cd);
+	struct dss1_lite *pdl = cd->dl_parent;
 	int id;
-	int end;
 
 	id = cd->dl_channel_id;
-	end = cntl->L1_channel_end;
 
 	if (cd->dl_channel_allocated == 0) {
 
-		if ((id >= 0) && (id < end)) {
-			if (GET_CHANNEL_UTILIZATION(cntl, id) == 0) {
+		if ((id >= 0) && (id < DL_NCHAN)) {
+			if ((pdl->dl_channel_util & (1UL << id)) == 0) {
 				goto found;
 			} else {
 				goto not_found;
@@ -839,8 +852,8 @@ dss1_lite_alloc_channel(struct dss1_lite_call_desc *cd)
 			if (id == CHAN_NOT_ANY) {
 				goto not_any;
 			} else {
-				for (id = 0; id < end; id++) {
-					if (GET_CHANNEL_UTILIZATION(cntl, id) == 0) {
+				for (id = 0; id < DL_NCHAN; id++) {
+					if ((pdl->dl_channel_util & (1UL << id)) == 0) {
 						goto found;
 					}
 				}
@@ -848,7 +861,7 @@ dss1_lite_alloc_channel(struct dss1_lite_call_desc *cd)
 				id = CHAN_ANY;
 				goto done;
 		found:
-				SET_CHANNEL_UTILIZATION(cntl, id, 1);
+				pdl->dl_channel_util |= (1UL << id);
 		not_any:
 				cd->dl_channel_allocated = 1;
 				goto done;
@@ -881,7 +894,7 @@ dss1_lite_decode_mbuf(struct dss1_lite *pdl, struct mbuf *m)
 	tx_nr = dss1_lite_peek_mbuf(m, 3);
 	proto = dss1_lite_peek_mbuf(m, 4);
 	reflen = dss1_lite_peek_mbuf(m, 5);
-	callref = dss1_lite_peek_mbuf(m, 6);
+	callref = dss1_lite_peek_mbuf(m, 6) ^ 0x80;
 	event = dss1_lite_peek_mbuf(m, 7);
 
 	if (sapi & 0xFC)
@@ -909,15 +922,15 @@ dss1_lite_decode_mbuf(struct dss1_lite *pdl, struct mbuf *m)
 		if (pdl->dl_rx_num == cntl) {
 			pdl->dl_rx_num += 2;
 			if (tx_nr & 1) {/* P=1 */
-				dss1_lite_send_ctrl(cd->dl_parent, 0x02 /* F=1 */ , 0x01 /* RR */ );
+				dss1_lite_send_ctrl(pdl, 0x02 /* F=1 */ , 0x01 /* RR */ );
 			} else if (pdl->dl_tx_in == pdl->dl_tx_out) {
-				dss1_lite_send_ctrl(cd->dl_parent, 0x00 /* F=0 */ , 0x01 /* RR */ );
+				dss1_lite_send_ctrl(pdl, 0x00 /* F=0 */ , 0x01 /* RR */ );
 			} else {
 				/* RX-NR will be sent by an I-frame */
 			}
 			goto i_frame;
 		} else {
-			dss1_lite_send_ctrl(cd->dl_parent, 0 /* F=0 */ , 0x09 /* REJ */ );
+			dss1_lite_send_ctrl(pdl, 0 /* F=0 */ , 0x09 /* REJ */ );
 			goto check_nr;
 		}
 	}
@@ -1033,7 +1046,7 @@ i_frame:
 			dss1_lite_set_state(cd, DL_ST_FREE);
 			break;
 		}
-		if (dss1_lite_is_nt_mode(cd)) {
+		if (dss1_lite_is_nt_mode(cd) == 0) {
 			dss1_lite_set_ring(cd, 1);
 			dss1_lite_alert_request(cd);
 		} else {
@@ -1117,7 +1130,7 @@ i_frame:
 	case 0x7b:			/* INFORMATION */
 		if ((dss1_lite_get_state(cd) == DL_ST_IN_U0) &&
 		    (dss1_lite_set_state(cd, DL_ST_IN_U0_ACK) != 0)) {
-			if ((dss1_lite_is_nt_mode(cd) == 0) && (cd->dl_part.telno[0] != 0)) {
+			if (dss1_lite_is_nt_mode(cd) && (cd->dl_part.telno[0] != 0)) {
 				dss1_lite_set_dtmf(cd, cd->dl_part.telno);
 			}
 		}
@@ -1215,7 +1228,7 @@ dss1_lite_deflect_request(struct dss1_lite *pdl)
 {
 	struct dss1_lite_call_desc *cd;
 
-	if (pdl->dl_is_nt_mode == 0)
+	if (pdl->dl_is_nt_mode)
 		return (0);		/* wrong mode */
 
 	cd = pdl->dl_active_call_desc;
@@ -1230,7 +1243,7 @@ dss1_lite_mcid_request(struct dss1_lite *pdl)
 {
 	struct dss1_lite_call_desc *cd;
 
-	if (pdl->dl_is_nt_mode == 0)
+	if (pdl->dl_is_nt_mode)
 		return (0);		/* wrong mode */
 
 	cd = pdl->dl_active_call_desc;
@@ -1250,7 +1263,7 @@ dss1_lite_setup_accept_resp(struct dss1_lite_call_desc *cd)
 	if ((dss1_lite_get_state(cd) != DL_ST_IN_U8) &&
 	    (dss1_lite_set_state(cd, DL_ST_IN_U8) != 0)) {
 
-		if (dss1_lite_is_nt_mode(cd)) {
+		if (dss1_lite_is_nt_mode(cd) == 0) {
 			dss1_lite_set_ring(cd, 0);
 		}
 		dss1_lite_send_connect(cd);
@@ -1278,7 +1291,7 @@ dss1_lite_disconnect_request(struct dss1_lite *pdl)
 	struct dss1_lite_call_desc *cd;
 	uint8_t retval;
 
-	if (pdl->dl_is_nt_mode == 0)
+	if (pdl->dl_is_nt_mode)
 		return (0);		/* wrong mode */
 
 	cd = pdl->dl_active_call_desc;
@@ -1313,7 +1326,7 @@ dss1_lite_ring_event(struct dss1_lite *pdl, uint8_t ison)
 {
 	struct dss1_lite_call_desc *cd;
 
-	if (pdl->dl_is_nt_mode != 0)
+	if (pdl->dl_is_nt_mode == 0)
 		return (0);		/* wrong mode */
 
 	cd = pdl->dl_active_call_desc;
@@ -1329,7 +1342,7 @@ dss1_lite_hook_off(struct dss1_lite *pdl)
 	struct dss1_lite_call_desc *cd;
 	uint8_t retval;
 
-	if (pdl->dl_is_nt_mode == 0)
+	if (pdl->dl_is_nt_mode)
 		return (0);		/* wrong mode */
 
 	cd = pdl->dl_active_call_desc;
@@ -1353,7 +1366,7 @@ dss1_lite_hook_on(struct dss1_lite *pdl)
 	struct dss1_lite_call_desc *cd;
 	uint8_t retval;
 
-	if (pdl->dl_is_nt_mode == 0)
+	if (pdl->dl_is_nt_mode)
 		return (0);		/* wrong mode */
 
 	cd = pdl->dl_active_call_desc;
@@ -1384,15 +1397,14 @@ dss1_lite_dtmf_event(struct dss1_lite *pdl, const char *pdtmf)
 	struct dss1_lite_call_desc *cd;
 	uint8_t retval;
 
-	if (pdl->dl_is_nt_mode == 0)
+	if (pdl->dl_is_nt_mode)
 		return (0);		/* wrong mode */
 
 	cd = pdl->dl_active_call_desc;
 	if (cd == NULL)
 		return (0);		/* no active call descriptor */
 
-	if ((dss1_lite_has_call(cd) != 0) &&
-	    (dss1_lite_get_state(cd) == DL_ST_OUT_U2)) {
+	if (dss1_lite_get_state(cd) == DL_ST_OUT_U2) {
 
 		strlcpy(cd->dl_part.telno, pdtmf, sizeof(cd->dl_part.telno));
 

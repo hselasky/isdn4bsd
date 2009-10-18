@@ -216,7 +216,7 @@ dss1_lite_l1_ioctl(struct i4b_controller *cntl, int command, void *parm)
 
 		if (PROT_IS_TRANSPARENT(&(f->prot_curr)) &&
 		    f->prot_curr.u.transp.echo_cancel_enable) {
-			ec_p = &(pdl->dl_echo_cancel[f - pdl->dl_fifo]);
+			ec_p = f->echo_cancel;
 			u.ec_dbg->npoints = EC_POINTS;
 			u.ec_dbg->decimal_point = I4B_ECHO_CANCEL_N_HR_DP;
 			for (x = 0; x < points; x++) {
@@ -250,7 +250,6 @@ dss1_lite_l1_ioctl(struct i4b_controller *cntl, int command, void *parm)
 		break;
 
 	default:
-		return (ENODEV);
 		break;
 	}
 	return (0);
@@ -264,7 +263,7 @@ dss1_lite_trace(struct dss1_lite *pdl, struct dss1_lite_fifo *f,
     int type, int is_transmit, struct mbuf *m)
 {
 	struct i4b_controller *cntl = pdl->dl_ctrl;
-	uint8_t from_te = (pdl->dl_option_value & I4B_OPTION_NT_MODE) ? 1 : 0;
+	uint8_t from_te = (pdl->dl_option_value & I4B_OPTION_NT_MODE) ? 0 : 1;
 
 	if (type == TRC_CH_D) {
 		type += f - pdl->dl_fifo;
@@ -309,6 +308,8 @@ void
 dss1_lite_l5_put_sample(struct dss1_lite *pdl,
     struct dss1_lite_fifo *f, int32_t sample)
 {
+	uint8_t temp;
+
 	f->m_tx_last_sample = sample;
 
 	while (f->m_tx_curr_rem == 0) {
@@ -322,12 +323,33 @@ dss1_lite_l5_put_sample(struct dss1_lite *pdl,
 		f->m_tx_curr_rem = f->m_tx_curr->m_len;
 	}
 
+	/* XXX optimise */
+
 	if (f->prot_curr.protocol_4 == BSUBPROT_G711_ALAW) {
-		*(f->m_tx_curr_ptr)++ = i4b_signed_to_alaw(sample);
-		f->m_tx_curr_rem--;
+		temp = i4b_signed_to_alaw(sample);
 	} else {
-		*(f->m_tx_curr_ptr)++ = i4b_signed_to_ulaw(sample);
-		f->m_tx_curr_rem--;
+		temp = i4b_signed_to_ulaw(sample);
+	}
+
+	/* echo cancel first */
+	if (f->prot_curr.u.transp.echo_cancel_enable) {
+		i4b_echo_cancel_merge(f->echo_cancel, &temp, 1);
+	}
+	/* DTMF detect second */
+	if (f->prot_curr.u.transp.dtmf_detect_enable) {
+		i4b_dtmf_detect(f->ft, &temp, 1);
+	}
+	*(f->m_tx_curr_ptr)++ = temp;
+	f->m_tx_curr_rem--;
+}
+
+void
+dss1_lite_l5_put_sample_complete(struct dss1_lite *pdl,
+    struct dss1_lite_fifo *f)
+{
+	/* echo cancel */
+	if (f->prot_curr.u.transp.echo_cancel_enable) {
+		i4b_echo_cancel_update_merger(f->echo_cancel, f->tx_timestamp);
 	}
 }
 
@@ -375,6 +397,7 @@ int16_t
 dss1_lite_l5_get_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f)
 {
 	int16_t retval;
+	uint8_t temp;
 
 	while (f->m_rx_curr_rem == 0) {
 		if (f->m_rx_curr != NULL) {
@@ -388,15 +411,32 @@ dss1_lite_l5_get_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f)
 		f->m_rx_curr_rem = f->m_rx_curr->m_len;
 	}
 
+	temp = *(f->m_rx_curr_ptr)++;
+	f->m_rx_curr_rem--;
+
+	/* XXX optimise */
+
+	/* echo cancel */
+	if (f->prot_curr.u.transp.echo_cancel_enable) {
+		i4b_echo_cancel_feed(f->echo_cancel, &temp, 1);
+	}
 	if (f->prot_curr.protocol_4 == BSUBPROT_G711_ALAW) {
-		retval = i4b_alaw_to_signed[*(f->m_rx_curr_ptr)++];
-		f->m_rx_curr_rem--;
+		retval = i4b_alaw_to_signed[temp];
 	} else {
-		retval = i4b_ulaw_to_signed[*(f->m_rx_curr_ptr)++];
-		f->m_rx_curr_rem--;
+		retval = i4b_ulaw_to_signed[temp];
 	}
 	f->m_rx_last_sample = retval;
 	return (retval);
+}
+
+void
+dss1_lite_l5_get_sample_complete(struct dss1_lite *pdl,
+    struct dss1_lite_fifo *f)
+{
+	/* echo cancel */
+	if (f->prot_curr.u.transp.echo_cancel_enable) {
+		i4b_echo_cancel_update_feeder(f->echo_cancel, f->rx_timestamp);
+	}
 }
 
 /*---------------------------------------------------------------------------*
@@ -440,9 +480,9 @@ dss1_lite_l1_setup(fifo_translator_t *ft, struct i4b_protocol *p)
 
 	fn = f - pdl->dl_fifo;
 
-	if (p->protocol_1 == P_DISABLE)
+	if (p->protocol_1 == P_DISABLE) {
 		pdl->dl_methods->set_protocol(pdl, f, p);
-	else if (fn != 0) {
+	} else if (fn != 0) {
 		pdl->dl_audio_channel = fn;
 	}
 	if (fn == 0) {
@@ -471,6 +511,15 @@ dss1_lite_l1_setup(fifo_translator_t *ft, struct i4b_protocol *p)
 
 		pdl->dl_tx_in = pdl->dl_tx_out;
 		pdl->dl_tx_window = 0;
+
+	} else if (p->protocol_1 != P_DISABLE) {
+
+		/* init echo cancel */
+		i4b_echo_cancel_init(f->echo_cancel, -8, f->prot_curr.protocol_4);
+
+		/* init DTMF detector and generator */
+		i4b_dtmf_init_rx(f->ft, f->prot_curr.protocol_4);
+		i4b_dtmf_init_tx(f->ft, f->prot_curr.protocol_4);
 	}
 	if (f->m_tx_curr != NULL) {
 		m_freem(f->m_tx_curr);

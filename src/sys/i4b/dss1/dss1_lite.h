@@ -251,12 +251,16 @@ struct dss1_lite_fifo {
 	struct i4b_protocol prot_curr;	/* HDLC, trans ...  */
 	struct i4b_protocol prot_last;	/* HDLC, trans ...  */
 	struct fifo_translator ft[1];
+	struct i4b_echo_cancel echo_cancel[1];
+
 	struct mbuf *m_rx_curr;
 	struct mbuf *m_tx_curr;
 	uint8_t *m_tx_curr_ptr;
 	uint8_t *m_rx_curr_ptr;
 	uint32_t in_stat;
 	uint32_t out_stat;
+	uint16_t rx_timestamp;
+	uint16_t tx_timestamp;
 	uint16_t m_tx_curr_rem;
 	uint16_t m_rx_curr_rem;
 	uint16_t m_tx_last_sample;
@@ -268,7 +272,6 @@ struct dss1_lite {
 	struct dss1_lite_call_desc dl_cd[DL_NCALL];
 	struct dss1_lite_ifq dl_outq;
 	struct dss1_lite_fifo dl_fifo[DL_NCHAN];
-	struct i4b_echo_cancel dl_echo_cancel[DL_NCHAN];
 	i4b_trace_hdr_t dl_trace_hdr;
 
 	struct dss1_lite_call_desc *dl_active_call_desc;
@@ -285,6 +288,8 @@ struct dss1_lite {
 
 	uint32_t dl_option_value;
 	uint32_t dl_option_mask;
+
+	uint32_t dl_channel_util;
 
 	int	dl_tx_end_tick;
 
@@ -311,6 +316,8 @@ uint8_t	dss1_lite_dtmf_event(struct dss1_lite *, const char *);
 void	dss1_lite_process(struct dss1_lite *);
 void	dss1_lite_trace_info(struct dss1_lite *pdl, struct dss1_lite_fifo *f, const char *desc);
 void	dss1_lite_l5_put_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f, int32_t sample);
+void	dss1_lite_l5_put_sample_complete(struct dss1_lite *pdl, struct dss1_lite_fifo *f);
+void	dss1_lite_l5_get_sample_complete(struct dss1_lite *pdl, struct dss1_lite_fifo *f);
 void	dss1_lite_l5_put_mbuf(struct dss1_lite *, struct dss1_lite_fifo *, struct mbuf *);
 struct mbuf *dss1_lite_l5_get_new_mbuf(struct dss1_lite *, struct dss1_lite_fifo *);
 int16_t	dss1_lite_l5_get_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f);
