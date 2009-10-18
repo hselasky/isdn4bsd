@@ -221,7 +221,7 @@ typedef struct DSS1_TCP_pipe {
   /* it must at least be possible to buffer
    * one frame for each call!!
    */
-  struct_ifqueue;
+  STRUCT_IFQUEUE;
 
   /* local window counters */
 
@@ -257,7 +257,7 @@ typedef struct {
 #define IS_POINT_TO_POINT(sc) ((sc)->sc_point_to_point)
 	u_int8_t	sc_point_to_point;
 
-	struct_ifqueue; /* queue of outgoing frames */
+	STRUCT_IFQUEUE; /* queue of outgoing frames */
 
 	struct usb_callout ID_REQUEST_callout;
 	struct usb_callout L1_activity_callout;

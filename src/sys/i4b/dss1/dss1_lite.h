@@ -264,8 +264,9 @@ struct dss1_lite {
 	struct dss1_lite_time dl_otime;
 
 	const struct dss1_lite_methods *dl_methods;
+	struct fifo_translator *dl_fifo_translator;
+	struct i4b_controller *dl_ctrl;
 	void   *dl_softc;
-	struct mtx *dl_pmtx;
 	const struct dss1_lite_state *dl_pstate;	/* current state */
 	struct mbuf *dl_tx_mbuf[DL_QUEUE_MAX];
 
@@ -299,6 +300,7 @@ struct dss1_lite {
 };
 
 /* prototype functions */
+uint8_t	dss1_lite_ring_event(struct dss1_lite *pst, uint8_t ison);
 uint8_t	dss1_lite_hook_off(struct dss1_lite *);
 uint8_t	dss1_lite_hook_on(struct dss1_lite *);
 uint8_t	dss1_lite_r_key_event(struct dss1_lite *);

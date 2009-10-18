@@ -46,6 +46,9 @@
 #include <sys/malloc.h>
 #include <sys/mbuf.h>
 
+#include <i4b/include/i4b_controller.h>
+#include <i4b/include/i4b_cause.h>
+
 #include <i4b/dss1/dss1_lite.h>
 
 static const struct dss1_lite_state dss1_lite_out_states[DL_ST_OUT_MAX - DL_ST_OUT_U0] = {
@@ -82,6 +85,12 @@ static const struct dss1_lite_state dss1_lite_in_states[0 - DL_ST_IN_U0 + DL_ST_
 
 static uint8_t dss1_lite_send_mbuf(struct dss1_lite *pst, struct mbuf *m);
 static uint8_t dss1_lite_send_message(struct dss1_lite *pst, uint8_t msg_type, uint32_t mask);
+static uint8_t dss1_lite_proceed_request(struct dss1_lite *pst);
+static uint8_t dss1_lite_alert_request(struct dss1_lite *pst);
+static uint8_t dss1_lite_deflect_request(struct dss1_lite *pst);
+static uint8_t dss1_lite_mcid_request(struct dss1_lite *pst);
+static uint8_t dss1_lite_setup_accept_resp(struct dss1_lite *pst);
+static uint8_t dss1_lite_disconnect_request(struct dss1_lite *pst);
 
 static uint8_t
 dss1_lite_want_dialtone(struct dss1_lite *pst)
@@ -440,8 +449,7 @@ dss1_lite_set_state(struct dss1_lite *pst, uint8_t state)
 			pst->dl_need_release = 0;
 			dss1_lite_send_release_complete(pst, 1);
 		}
-		if (pst->dl_ringing != 0) {
-			pst->dl_ringing = 0;
+		if (pst->dl_is_nt_mode) {
 			pst->dl_methods->set_ring(pst, 0);
 		}
 		pst->dl_status_count = 0;
@@ -593,7 +601,7 @@ dss1_lite_decode_channel_id(struct dss1_lite *pst,
 					if (exclusive) {
 						int channel_id = (temp & 0x7F);
 
-						L1_COMMAND_REQ(sc->sc_cntl,
+						L1_COMMAND_REQ(pst->dl_ctrl,
 						    CMR_DECODE_CHANNEL, &channel_id);
 
 						pst->dl_channel_id = channel_id;
@@ -710,12 +718,53 @@ dss1_lite_decode_called_party(struct dss1_lite *pst,
 		if (temp == 0)
 			temp = '_';
 		pst->dl_part.telno[i] = temp;
-
 	}
 
 	pst->dl_part.telno[i] = 0;
 
 	dss1_lite_string_filter(pst->dl_part.telno);
+}
+
+static void
+dss1_lite_alloc_channel(struct dss1_lite *pst)
+{
+	struct i4b_controller *cntl = pst->dl_ctrl;
+	int id;
+	int end;
+
+	id = pst->dl_channel_id;
+	end = cntl->L1_channel_end;
+
+	if (pst->dl_channel_allocated == 0) {
+
+		if ((id >= 0) && (id < end)) {
+			if (GET_CHANNEL_UTILIZATION(cntl, id) == 0) {
+				goto found;
+			} else {
+				goto not_found;
+			}
+		} else {
+			if (id == CHAN_NOT_ANY) {
+				goto not_any;
+			} else {
+				for (id = 0; id < end; id++) {
+					if (GET_CHANNEL_UTILIZATION(cntl, id) == 0) {
+						goto found;
+					}
+				}
+		not_found:
+				id = CHAN_ANY;
+				goto done;
+		found:
+				SET_CHANNEL_UTILIZATION(cntl, id, 1);
+		not_any:
+				pst->dl_channel_allocated = 1;
+				goto done;
+			}
+		}
+	}
+done:
+	pst->dl_channel_id = id;
 }
 
 static void
@@ -872,18 +921,17 @@ i_frame:
 
 			pst->dl_need_release = 1;
 
-			dss1_lite_alloc_chan(pst);
+			dss1_lite_alloc_channel(pst);
 
 			if (pst->dl_channel_allocated == 0) {
 		no_channel_available:
 				/* no circuit-channel available */
-				cd->dl_cause_out = CAUSE_Q850_NOCAVAIL;
+				pst->dl_cause_out = CAUSE_Q850_NOCAVAIL;
 				dss1_lite_set_state(pst, DL_ST_FREE);
 				break;
 			}
 			if (pst->dl_is_nt_mode) {
 				pst->dl_methods->set_ring(pst, 1);
-				pst->dl_ringing = 1;
 				dss1_lite_alert_request(pst);
 			} else {
 				if (pst->dl_part.telno[0])
@@ -908,7 +956,7 @@ i_frame:
 
 				dss1_lite_alloc_channel(pst);
 
-				if (cd->dl_channel_allocated) {
+				if (pst->dl_channel_allocated) {
 					/* we are connected */
 
 					dss1_lite_send_connect_acknowledge(pst);
@@ -1021,7 +1069,7 @@ done:
 	m_freem(m);
 }
 
-uint8_t
+static uint8_t
 dss1_lite_proceed_request(struct dss1_lite *pst)
 {
 	uint8_t retval;
@@ -1035,7 +1083,7 @@ dss1_lite_proceed_request(struct dss1_lite *pst)
 	return (retval);
 }
 
-uint8_t
+static uint8_t
 dss1_lite_alert_request(struct dss1_lite *pst)
 {
 	uint8_t retval;
@@ -1051,7 +1099,7 @@ dss1_lite_alert_request(struct dss1_lite *pst)
 	return (retval);
 }
 
-uint8_t
+static uint8_t
 dss1_lite_deflect_request(struct dss1_lite *pst)
 {
 	if (pst->dl_is_nt_mode)
@@ -1069,7 +1117,7 @@ dss1_lite_mcid_request(struct dss1_lite *pst)
 	return (dss1_lite_send_mcid_call(pst));
 }
 
-uint8_t
+static uint8_t
 dss1_lite_setup_accept_resp(struct dss1_lite *pst)
 {
 	uint8_t retval;
@@ -1081,7 +1129,6 @@ dss1_lite_setup_accept_resp(struct dss1_lite *pst)
 
 		if (pst->dl_is_nt_mode) {
 			pst->dl_methods->set_ring(pst, 0);
-			pst->dl_ringing = 0;
 		}
 		dss1_lite_send_connect(pst);
 
@@ -1102,7 +1149,7 @@ dss1_lite_setup_accept_resp(struct dss1_lite *pst)
 	return (retval);
 }
 
-uint8_t
+static uint8_t
 dss1_lite_disconnect_request(struct dss1_lite *pst)
 {
 	uint8_t retval;
@@ -1133,6 +1180,15 @@ dss1_lite_disconnect_request(struct dss1_lite *pst)
 		}
 	}
 	return (retval);
+}
+
+uint8_t
+dss1_lite_ring_event(struct dss1_lite *pst, uint8_t ison)
+{
+	if (pst->dl_is_nt_mode != 0)
+		return (0);		/* wrong mode */
+
+	return (0);
 }
 
 uint8_t
