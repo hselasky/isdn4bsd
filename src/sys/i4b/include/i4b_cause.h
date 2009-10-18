@@ -34,6 +34,14 @@
 #ifndef _I4B_CAUSE_H_
 #define _I4B_CAUSE_H_
 
+#ifndef MAKE_ENUM
+#define _MAKE_ENUM(enum,value,arg...)		\
+	enum value,
+
+#define MAKE_ENUM(macro,end...)			\
+	enum { macro(_MAKE_ENUM) end }
+#endif
+
 /*---------------------------------------------------------------------------*
  *	ISDN4BSD internal causes specification
  *---------------------------------------------------------------------------*/
