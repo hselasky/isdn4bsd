@@ -30,7 +30,8 @@
 #define	DL_TEI 0x01
 #define	DL_QUEUE_MAX 0x8
 #define	DL_BPS_MAX 512			/* bytes/second */
-#define	DL_NCALL 0x02
+#define	DL_NCALL 0x02			/* units */
+#define	DL_NCHAN 0x03			/* units */
 
 #define	DL_ST_FREE 0xFF
 #define	DL_STATUS_COUNT_MAX 8		/* timeouts ~ 8*8 = 64 seconds */
@@ -105,66 +106,6 @@ struct dss1_lite_ie_func {
 #define	IE_DEFLECT_MASK (1UL << 12)
 #define	IE_MCID_MASK (1UL << 13)
 #define	IE_DATE_TIME_MASK (1UL << 14)
-
-/* definition of "channel_id" */
-
-enum {
-	CHAN_NOT_ANY = 0xFFFE,
-	CHAN_ANY = 0xFFFF,
-	CHAN_D1 = 0,
-	CHAN_B1 = 1,
-	CHAN_B2 = 2,
-};
-
-/* definition of B-protocol, "bprot" */
-
-enum {
-	BSUBPROT_G711_ALAW,
-	BSUBPROT_G711_ULAW,
-	BSUBPROT_UNKNOWN,
-};
-
-/* definition of sub B-protocol, "bsubprot" */
-
-enum {
-	BPROT_NONE,
-	BPROT_TELEPHONY,
-	BPROT_DIGITAL,
-	BPROT_UNKNOWN,
-};
-
-/* definition of type of number, "ton" */
-
-enum {
-	TON_OTHER,			/* other type of number */
-	TON_INTERNAT,			/* international number */
-	TON_NATIONAL,			/* national number */
-};
-
-/* definition of screening indicator, "scr" */
-
-enum {
-	SCR_NONE,			/* no screening indicator transmitted */
-	SCR_USR_NOSC,			/* screening user provided, not
-					 * screened */
-	SCR_USR_PASS,			/* screening user provided, verified &
-					 * passed */
-	SCR_USR_FAIL,			/* screening user provided, verified &
-					 * failed */
-	SCR_NET,			/* screening network provided */
-};
-
-/* definition of presentation indicator, "prs" */
-
-enum {
-	PRS_NONE,			/* no presentation indicator
-					 * transmitted */
-	PRS_ALLOWED,			/* presentation allowed */
-	PRS_RESTRICT,			/* presentation restricted */
-	PRS_NNINTERW,			/* number not available due to
-					 * interworking */
-	PRS_RESERVED,			/* reserved */
-};
 
 /* PD: Protocol discriminator */
 #define	PD_Q931         0x08		/* Q.931/I.451 */
@@ -248,6 +189,8 @@ struct dss1_lite_methods {
 	dss1_lite_set_hook_off_t *set_hook_off;
 	dss1_lite_set_r_key_t *set_r_key;
 	dss1_lite_set_dtmf_t *set_dtmf;
+
+	uint8_t	support_echo_cancel;
 };
 
 struct dss1_lite_ifq {
@@ -288,17 +231,37 @@ struct dss1_lite_call_desc {
 	uint8_t	dl_is_on_hold;
 };
 
+struct dss1_lite_fifo {
+	struct i4b_protocol prot_curr;	/* HDLC, trans ...  */
+	struct i4b_protocol prot_last;	/* HDLC, trans ...  */
+	struct fifo_translator ft[1];
+	uint32_t in_stat;
+	uint32_t out_stat;
+	uint8_t	is_tracing;
+};
+
 struct dss1_lite {
 
 	struct dss1_lite_call_desc dl_cd[DL_NCALL];
 	struct dss1_lite_ifq dl_outq;
+	struct dss1_lite_fifo dl_fifo[DL_NCHAN];
+	struct i4b_echo_cancel dl_echo_cancel[DL_NCHAN];
+	i4b_trace_hdr_t dl_trace_hdr;
 
 	struct dss1_lite_call_desc *dl_active_call_desc;
 	const struct dss1_lite_methods *dl_methods;
-	struct fifo_translator *dl_fifo_translator;
 	struct i4b_controller *dl_ctrl;
 	void   *dl_softc;
 	struct mbuf *dl_tx_mbuf[DL_QUEUE_MAX];
+
+	L1_auto_activate_t *L1_auto_activate_ptr;
+	L1_auto_activate_t L1_auto_activate_variable;
+
+	L1_activity_t *L1_activity_ptr;
+	L1_activity_t L1_activity_variable;
+
+	uint32_t dl_option_value;
+	uint32_t dl_option_mask;
 
 	int	dl_tx_end_tick;
 
@@ -312,11 +275,14 @@ struct dss1_lite {
 };
 
 /* prototype functions */
-uint8_t	dss1_lite_ring_event(struct dss1_lite *, uint8_t ison);
+uint8_t	dss1_lite_ring_event(struct dss1_lite *, uint8_t);
 uint8_t	dss1_lite_hook_off(struct dss1_lite *);
 uint8_t	dss1_lite_hook_on(struct dss1_lite *);
 uint8_t	dss1_lite_r_key_event(struct dss1_lite *);
 uint8_t	dss1_lite_dtmf_event(struct dss1_lite *, const char *);
 void	dss1_lite_process(struct dss1_lite *);
+void	dss1_lite_trace_info(struct dss1_lite *pdl, struct dss1_lite_fifo *f, const char *desc);
+void	dss1_lite_l5_put_mbuf(struct dss1_lite *, struct dss1_lite_fifo *, struct mbuf *);
+struct mbuf *dss1_lite_l5_get_mbuf(struct dss1_lite *, struct dss1_lite_fifo *);
 
 #endif					/* _DSS1_LITE_H_ */

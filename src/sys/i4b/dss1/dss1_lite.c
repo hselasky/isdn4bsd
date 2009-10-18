@@ -30,6 +30,9 @@
  *
  * $FreeBSD: $
  *
+ *
+ * NOTE: This library is not thread safe and the caller is responsible
+ * for the correct locking.
  *---------------------------------------------------------------------------*/
 
 #include <sys/stdint.h>
@@ -48,6 +51,8 @@
 
 #include <i4b/include/i4b_controller.h>
 #include <i4b/include/i4b_cause.h>
+#include <i4b/include/i4b_ioctl.h>
+#include <i4b/include/i4b_trace.h>
 
 #include <i4b/dss1/dss1_lite.h>
 
@@ -682,10 +687,10 @@ dss1_lite_decode_bearer_cap(struct dss1_lite_call_desc *cd,
 
 	switch (temp) {
 	case 0x88:			/* unrestricted digital info */
-		cd->dl_channel_bprot = BPROT_DIGITAL;
+		cd->dl_channel_bprot = BPROT_RHDLC;
 		break;
 	default:
-		cd->dl_channel_bprot = BPROT_TELEPHONY;
+		cd->dl_channel_bprot = BPROT_NONE;
 		break;
 	}
 
@@ -1412,16 +1417,9 @@ dss1_lite_queue_mbuf(struct dss1_lite *pdl, struct mbuf *m)
 }
 
 static void
-dss1_lite_init(struct dss1_lite *pdl)
-{
-	pdl->dl_tx_end_tick = ticks - 1;
-}
-
-static void
 dss1_lite_peer_put_mbuf(struct dss1_lite *pdl)
 {
 	struct mbuf *m;
-	fifo_translator_t *ft = pdl->dl_fifo_translator;
 	int delta;
 	int len;
 
@@ -1431,12 +1429,9 @@ dss1_lite_peer_put_mbuf(struct dss1_lite *pdl)
 		_IF_DEQUEUE(&pdl->dl_outq, m);
 		if (m == NULL)
 			break;
-		if (ft == NULL) {
-			m_freem(m);
-		} else {
-			len += m->m_len;
-			L5_PUT_MBUF(ft, m);
-		}
+		len += m->m_len;
+
+		dss1_lite_l5_put_mbuf(pdl, pdl->dl_fifo + CHAN_D1, m);
 	}
 
 	delta = ((len * hz) / DL_BPS_MAX);
@@ -1452,13 +1447,9 @@ static void
 dss1_lite_peer_get_mbuf(struct dss1_lite *pdl)
 {
 	struct mbuf *m;
-	fifo_translator_t *ft = pdl->dl_fifo_translator;
-
-	if (ft == NULL)
-		return;
 
 	while (1) {
-		m = L5_GET_MBUF(ft);
+		m = dss1_lite_l5_get_mbuf(pdl, pdl->dl_fifo + CHAN_D1);
 		if (m == NULL)
 			break;
 
@@ -1509,6 +1500,9 @@ dss1_lite_process(struct dss1_lite *pdl)
 	uint8_t i;
 	uint8_t n;
 	uint8_t rx_num;
+
+	if (pdl->dl_fifo[CHAN_D1].prot_curr.protocol_1 == P_DISABLE)
+		return;
 
 	dss1_lite_peer_get_mbuf(pdl);
 
@@ -1620,7 +1614,7 @@ dss1_lite_ie_bearer_cap(struct dss1_lite_call_desc *cd, uint8_t *ptr)
 		*ptr++ = IEI_BEARERCAP;	/* bearer capability */
 
 		switch (cd->dl_channel_bprot) {
-		case BPROT_TELEPHONY:	/* telephony */
+		case BPROT_NONE:	/* telephony */
 			*ptr++ = 3;
 			*ptr++ = IT_CAP_SPEECH;
 			*ptr++ = IT_RATE_64K;
@@ -1637,7 +1631,7 @@ dss1_lite_ie_bearer_cap(struct dss1_lite_call_desc *cd, uint8_t *ptr)
 			}
 			break;
 
-		case BPROT_DIGITAL:	/* HDLC */
+		case BPROT_RHDLC:	/* HDLC */
 		default:
 			*ptr++ = 2;
 			*ptr++ = IT_CAP_UNR_DIG_INFO;
@@ -1646,9 +1640,9 @@ dss1_lite_ie_bearer_cap(struct dss1_lite_call_desc *cd, uint8_t *ptr)
 		}
 	}
 	switch (cd->dl_channel_bprot) {
-	case BPROT_TELEPHONY:		/* telephony */
+	case BPROT_NONE:		/* telephony */
 		return (5);		/* bytes */
-	case BPROT_DIGITAL:		/* HDLC */
+	case BPROT_RHDLC:		/* HDLC */
 	default:
 		return (4);		/* bytes */
 	}
