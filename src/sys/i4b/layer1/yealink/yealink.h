@@ -139,7 +139,7 @@ struct yealink_softc {
 	struct yealink_ctrl sc_ctrl;
 	struct yealink_intr sc_intr;
 
-	struct mtx sc_mtx;
+	struct mtx *sc_pmtx;
 
 	struct usb_device *sc_udev;
 	struct usb_xfer *sc_xfer[YEALINK_XFER_MAX];

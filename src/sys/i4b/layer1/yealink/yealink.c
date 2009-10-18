@@ -135,6 +135,10 @@ static driver_t yealink_driver = {
 DRIVER_MODULE(yealink, uhub, yealink_driver, yealink_devclass, NULL, 0);
 MODULE_DEPEND(yealink, usb, 1, 1, 1);
 
+static const struct dss1_lite_methods yealink_dl_methods = {
+	DSS1_LITE_DEFAULT_METHODS,
+};
+
 /* static structures */
 
 static const struct yealink_lcd_map yealink_lcd_map[YEALINK_LCD_LINE5_OFFSET] = {
@@ -817,14 +821,20 @@ yealink_attach(device_t dev)
 	struct usb_interface *iface = NULL;
 	struct usb_interface_descriptor *idesc = NULL;
 	struct usb_endpoint_descriptor *ed = NULL;
+	struct i4b_controller *ctrl;
 	uint8_t i;
 	uint8_t iface_index[3];
+
+	ctrl = i4b_controller_allocate(1, 1, 4, NULL);
+	if (ctrl == NULL) {
+		device_printf(dev, "Could not allocate I4B controller.\n");
+		return (ENXIO);
+	}
+	sc->sc_pmtx = CNTL_GET_LOCK(ctrl);
 
 	//device_set_usb_desc(dev);
 
 	device_set_desc(dev, "VoIP adapter");
-
-	mtx_init(&sc->sc_mtx, "yealink", NULL, MTX_DEF);
 
 	sc->sc_udev = uaa->device;
 
@@ -877,7 +887,7 @@ yealink_attach(device_t dev)
 	yealink_set_ringtone(sc, yealink_ringtone, sizeof(yealink_ringtone));
 
 	if (usbd_transfer_setup(sc->sc_udev, iface_index, sc->sc_xfer,
-	    yealink_config, YEALINK_XFER_MAX, sc, &sc->sc_mtx)) {
+	    yealink_config, YEALINK_XFER_MAX, sc, sc->sc_pmtx)) {
 		DPRINTF("could not allocate USB transfers!\n");
 		goto error;
 	}
@@ -886,11 +896,11 @@ yealink_attach(device_t dev)
 	usbd_xfer_set_priv(sc->sc_xfer[YEALINK_XFER_ISOC_OUT_0], sc->sc_buffer + (YEALINK_BUFSIZE * 2));
 	usbd_xfer_set_priv(sc->sc_xfer[YEALINK_XFER_ISOC_OUT_1], sc->sc_buffer + (YEALINK_BUFSIZE * 3));
 
-	mtx_lock(&sc->sc_mtx);
+	mtx_lock(sc->sc_pmtx);
 	sc->sc_was_opened = 1;
 	usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_CTRL]);
 	//usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_INTR]);
-	mtx_unlock(&sc->sc_mtx);
+	mtx_unlock(sc->sc_pmtx);
 
 	//yealink_set_icon(sc, "RINGTONE", sizeof("RINGTONE") - 1, 'x');
 	//yealink_set_icon(sc, "D", sizeof("D") - 1, 'x');
@@ -900,9 +910,16 @@ yealink_attach(device_t dev)
 	yealink_set_icon(sc, "LED", sizeof("LED") - 1, 'x');
 	//yealink_set_char(sc, YEALINK_LCD_LINE3_OFFSET, '9');
 
+	if (dss1_lite_attach(&sc->sc_dl, dev,
+	    ctrl, &yealink_dl_methods)) {
+		device_printf(dev, "DSS1 lite attach failed\n");
+		goto error;
+	}
 	return (0);
 
 error:
+	i4b_controller_free(ctrl, 1);
+
 	yealink_detach(dev);
 
 	return (ENXIO);
@@ -915,7 +932,7 @@ yealink_detach(device_t dev)
 
 	usbd_transfer_unsetup(sc->sc_xfer, YEALINK_XFER_MAX);
 
-	mtx_destroy(&sc->sc_mtx);
+	dss1_lite_detach(&sc->sc_dl);
 
 	return (0);			/* success */
 }
