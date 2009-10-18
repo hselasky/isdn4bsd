@@ -44,6 +44,7 @@ struct bchan_statistics;
 struct buffer;
 struct call_desc;
 struct i4b_line_interconnect;
+struct i4b_protocol;
 struct lapdstat;
 struct mbuf;
 
@@ -319,20 +320,6 @@ struct i4b_pcm_cable {
 };
 
 extern struct i4b_pcm_cable i4b_pcm_cable[I4B_PCM_CABLE_MAX];
-
-/*---------------------------------------------------------------------------*
- *	I4B-line-interconnect structure
- *
- * i4b_global_lock held: READ+WRITE
- * CNTL_LOCK() held    : READ
- *---------------------------------------------------------------------------*/
-struct i4b_line_interconnect {
-	cdid_t	cdid;
-	u_int8_t pcm_cable;
-	u_int8_t pcm_unused;
-	u_int16_t pcm_slot_rx;
-	u_int16_t pcm_slot_tx;
-};
 
 /*---------------------------------------------------------------------------*
  *	I4B-controller definition

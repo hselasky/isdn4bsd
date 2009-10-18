@@ -127,6 +127,20 @@ extern void i4b_accounting_timeout(struct i4b_accounting *sc);
 struct mbuf *i4b_getmbuf( int, int );
 
 /*---------------------------------------------------------------------------*
+ *	I4B-line-interconnect structure
+ *
+ * i4b_global_lock held: READ+WRITE
+ * CNTL_LOCK() held    : READ
+ *---------------------------------------------------------------------------*/
+struct i4b_line_interconnect {
+	cdid_t	cdid;
+	u_int8_t pcm_cable;
+	u_int8_t pcm_unused;
+	u_int16_t pcm_slot_rx;
+	u_int16_t pcm_slot_tx;
+};
+
+/*---------------------------------------------------------------------------*
  *	definition of source telephone number
  *---------------------------------------------------------------------------*/
 struct i4b_src_telno {
