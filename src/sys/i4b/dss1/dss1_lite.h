@@ -30,6 +30,7 @@
 #define	DL_TEI 0x01
 #define	DL_QUEUE_MAX 0x8
 #define	DL_BPS_MAX 512			/* bytes/second */
+#define	DL_NCALL 0x02
 
 #define	DL_ST_FREE 0xFF
 #define	DL_STATUS_COUNT_MAX 8		/* timeouts ~ 8*8 = 64 seconds */
@@ -73,8 +74,9 @@ enum {
 };
 
 struct dss1_lite;
+struct dss1_lite_call_desc;
 
-typedef uint8_t (dss1_lite_ie_t)(struct dss1_lite *, uint8_t *);
+typedef uint8_t (dss1_lite_ie_t)(struct dss1_lite_call_desc *, uint8_t *);
 typedef void (dss1_lite_set_ring_t)(struct dss1_lite *, uint8_t);
 typedef void (dss1_lite_set_hook_on_t)(struct dss1_lite *);
 typedef void (dss1_lite_set_hook_off_t)(struct dss1_lite *);
@@ -255,36 +257,23 @@ struct dss1_lite_ifq {
 	uint8_t	ifq_maxlen;
 };
 
-struct dss1_lite {
-
-	struct dss1_lite_ifq dl_outq;
+struct dss1_lite_call_desc {
 	struct dss1_lite_num dl_src[2];
 	struct dss1_lite_num dl_dst[2];
 	struct dss1_lite_num dl_part;
 	struct dss1_lite_time dl_otime;
 
-	const struct dss1_lite_methods *dl_methods;
-	struct fifo_translator *dl_fifo_translator;
-	struct i4b_controller *dl_ctrl;
-	void   *dl_softc;
 	const struct dss1_lite_state *dl_pstate;	/* current state */
-	struct mbuf *dl_tx_mbuf[DL_QUEUE_MAX];
+	struct dss1_lite *dl_parent;
 
 	int	dl_timeout_tick;
-	int	dl_tx_end_tick;
 	int	dl_channel_id;
 
 	char	dl_keypad[32];
 	char	dl_display[32];
 	char	dl_useruser[32];
 
-	uint8_t	dl_message_type;
 	uint8_t	dl_timeout_active;
-	uint8_t	dl_tx_in;
-	uint8_t	dl_tx_out;
-	uint8_t	dl_tx_num;
-	uint8_t	dl_tx_window;
-	uint8_t	dl_rx_num;
 	uint8_t	dl_state_index;
 	uint8_t	dl_need_release;	/* Set if needs release complete */
 	uint8_t	dl_status_count;
@@ -292,19 +281,42 @@ struct dss1_lite {
 	uint8_t	dl_channel_bsubprot;	/* See BSUBPROT_XXX */
 	uint8_t	dl_channel_allocated;
 	uint8_t	dl_curr_callref;
-	uint8_t	dl_next_callref;
-	uint8_t	dl_is_nt_mode;
 	uint8_t	dl_cause_out;
 	uint8_t	dl_cause_in;
 	uint8_t	dl_sending_complete;
+	uint8_t	dl_message_type;
+	uint8_t	dl_is_on_hold;
+};
+
+struct dss1_lite {
+
+	struct dss1_lite_call_desc dl_cd[DL_NCALL];
+	struct dss1_lite_ifq dl_outq;
+
+	struct dss1_lite_call_desc *dl_active_call_desc;
+	const struct dss1_lite_methods *dl_methods;
+	struct fifo_translator *dl_fifo_translator;
+	struct i4b_controller *dl_ctrl;
+	void   *dl_softc;
+	struct mbuf *dl_tx_mbuf[DL_QUEUE_MAX];
+
+	int	dl_tx_end_tick;
+
+	uint8_t	dl_tx_in;
+	uint8_t	dl_tx_out;
+	uint8_t	dl_tx_num;
+	uint8_t	dl_tx_window;
+	uint8_t	dl_rx_num;
+	uint8_t	dl_next_callref;
+	uint8_t	dl_is_nt_mode;
 };
 
 /* prototype functions */
-uint8_t	dss1_lite_ring_event(struct dss1_lite *pst, uint8_t ison);
+uint8_t	dss1_lite_ring_event(struct dss1_lite *, uint8_t ison);
 uint8_t	dss1_lite_hook_off(struct dss1_lite *);
 uint8_t	dss1_lite_hook_on(struct dss1_lite *);
 uint8_t	dss1_lite_r_key_event(struct dss1_lite *);
 uint8_t	dss1_lite_dtmf_event(struct dss1_lite *, const char *);
-void	dss1_lite_process(struct dss1_lite *pst);
+void	dss1_lite_process(struct dss1_lite *);
 
 #endif					/* _DSS1_LITE_H_ */
