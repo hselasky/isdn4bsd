@@ -34,6 +34,8 @@
 #ifndef _I4B_IOCTL_H_
 #define _I4B_IOCTL_H_
 
+#include <i4b/include/i4b_limits.h>
+
 /*---------------------------------------------------------------------------*
  *	version and release number for ISDN4BSD package
  *---------------------------------------------------------------------------*/
@@ -53,26 +55,6 @@
  * with -Werror, so this problems need to be resolved.
  *---------------------------------------------------------------------------*/
 #define I4B_TIME_FORMAT	"%d.%m.%Y %H:%M:%S"
-
-/*---------------------------------------------------------------------------*
- *	max number of controllers under I4B
- *
- * NOTE: should be power of two
- *---------------------------------------------------------------------------*/
-#define MAX_CONTROLLERS 64 /* units */
-
-/*---------------------------------------------------------------------------*
- *	max number of channels
- *
- * NOTE: must be power of two
- *---------------------------------------------------------------------------*/
-#define MAX_CHANNELS    64 /* units */
-
-/*---------------------------------------------------------------------------*
- *	max number of PCM cables
- *---------------------------------------------------------------------------*/
-#define I4B_PCM_CABLE_MAX    8 /* exclusive */
-#define I4B_PCM_SLOT_MAX   128 /* exclusive */
 
 /*---------------------------------------------------------------------------*
  *
@@ -117,25 +99,9 @@ MAKE_ENUM(L1_TYPES,
 	N_L1_TYPES);
 
 /*---------------------------------------------------------------------------*
- *	max length of some strings (includes the '\0' - character!)
- *---------------------------------------------------------------------------*/
-#define TELNO_MAX	41  /* max length of a telephone number   */
-#define SUBADDR_MAX	21  /* max length of a subaddress         */
-#define DISPLAY_MAX	91  /* max length of display information  */
-#define DATETIME_MAX	21  /* max length of datetime information */
-#define KEYPAD_MAX	35  /* max length of a keypad string      */
-#define USER_USER_MAX  129  /* max length of a user-user string   */
-
-/*---------------------------------------------------------------------------*
  *	in case the source or destination telephone number is empty
  *---------------------------------------------------------------------------*/
 #define TELNO_EMPTY	"NotAvailable"
-
-/*---------------------------------------------------------------------------*
- *	channel parameters
- *---------------------------------------------------------------------------*/
-#define BCH_MAX_DATALEN	2048	/* max length of a B channel frame */
-#define DCH_MAX_DATALEN  264	/* max length of a D channel frame */
 
 /*---------------------------------------------------------------------------*
  * userland driver types
@@ -342,8 +308,6 @@ typedef	unsigned int cause_t;		/* 32 bit unsigned int	*/
 typedef unsigned int cdid_t;
 
 #define CDID_UNUSED	0	/* cdid is invalid and unused */
-#define CDID_REF_MAX    0x100 /* exclusive */
-#define CDID_MAX        (CDID_REF_MAX * MAX_CONTROLLERS) /* exclusive */
 #define CDID2CONTROLLER(cdid) ((cdid) % MAX_CONTROLLERS)
 #define CDID2CALLREFERENCE(cdid) ((cdid) / MAX_CONTROLLERS)
 #define MAKE_CDID(controller,callreference) (((controller) % MAX_CONTROLLERS)| \
@@ -698,7 +662,6 @@ typedef struct {
 /*---------------------------------------------------------------------------*
  *	connect packet logging
  *---------------------------------------------------------------------------*/
-
 typedef struct {
 	msg_hdr_t	header;		/* common header	*/
 	int		driver;		/* driver type		*/
