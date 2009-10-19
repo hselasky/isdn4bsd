@@ -128,6 +128,7 @@ static const struct dss1_lite_methods yealink_dl_methods = {
 	DSS1_LITE_DEFAULT_METHODS,
 	.set_ring = yealink_set_ring,
 	.set_protocol = yealink_set_protocol,
+	.support_echo_cancel = 1,
 };
 
 /* static structures */
