@@ -12,6 +12,7 @@ I4B_DIR=${.CURDIR}/../src/sys/i4b
 
 .PATH:  ${I4B_DIR}/driver ${I4B_DIR}/layer4 \
 	${I4B_DIR}/layer1/ihfc3 ${I4B_DIR}/dss1 \
+	${I4B_DIR}/layer1/yealink \
 	${I4B_DIR}/layer1
 
 KMOD=     i4b
@@ -30,6 +31,11 @@ SRCS=
 SRCS+= bus_if.h device_if.h vnode_if.h opt_bus.h pci_if.h isa_if.h
 SRCS+= freebsd_fix.c opt_usb.h
 SRCS+= usb_if.h
+
+.if !defined(WITHOUT_YEALINK)
+SRCS+= yealink.c
+SRCS+= dss1_lite.c dss1_lite_l1if.c
+.endif
 
 .if defined(WITH_SPPP)
 SRCS+= i4b_isppp.c
