@@ -842,9 +842,6 @@ yealink_attach(device_t dev)
 
 	yealink_set_ringtone(sc, yealink_ringtone, sizeof(yealink_ringtone));
 
-	yealink_set_mixer(sc, 0x0500, 0x0200, 2, 0xbf3f);
-	yealink_set_mixer(sc, 0x0600, 0x0200, 2, 0x7eff);
-
 	if (usbd_transfer_setup(sc->sc_udev, iface_index, sc->sc_xfer,
 	    yealink_config, YEALINK_XFER_MAX, sc, sc->sc_pmtx)) {
 		DPRINTF("could not allocate USB transfers!\n");
@@ -875,6 +872,20 @@ yealink_attach(device_t dev)
 	mtx_lock(sc->sc_pmtx);
 	usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_CTRL]);
 	mtx_unlock(sc->sc_pmtx);
+
+	/* Wait for init */
+
+	pause("WMIX", hz / 16);
+
+	yealink_set_mixer(sc, 0x0500, 0x0200, 2, 0xbf40);
+	yealink_set_mixer(sc, 0x0600, 0x0200, 2, 0xbf40);
+
+	pause("WMIX", hz / 16);
+
+	/* Set Audio Volume */
+
+	yealink_set_mixer(sc, 0x0500, 0x0200, 2, 0xbf3f);
+ 	yealink_set_mixer(sc, 0x0600, 0x0200, 2, 0x7eff);
 
 	return (0);
 
