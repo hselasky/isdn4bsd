@@ -515,7 +515,7 @@ dss1_lite_l1_setup(fifo_translator_t *ft, struct i4b_protocol *p)
 	} else if (p->protocol_1 != P_DISABLE) {
 
 		/* init echo cancel */
-		i4b_echo_cancel_init(f->echo_cancel, -8, f->prot_curr.protocol_4);
+		i4b_echo_cancel_init(f->echo_cancel, 0, f->prot_curr.protocol_4);
 
 		/* init DTMF detector and generator */
 		i4b_dtmf_init_rx(f->ft, f->prot_curr.protocol_4);
@@ -604,8 +604,12 @@ dss1_lite_attach(struct dss1_lite *pdl, device_t dev,
 {
 	uint8_t retval;
 
-	device_printf(dev, "Attaching I4B "
-	    "controller %d.\n", ctrl->unit);
+	if (dev != NULL)
+		device_printf(dev, "Attaching I4B "
+		    "controller %d.\n", ctrl->unit);
+	else
+		printf("i4b: Attaching I4B "
+		    "controller %d.\n", ctrl->unit);
 
 	pdl->dl_outq.ifq_maxlen = (2 * DL_QUEUE_MAX);
 	pdl->dl_methods = mtod;
