@@ -11,6 +11,7 @@ USB_DIR=${.CURDIR}/../src/sys/dev/usb
 
 .PATH:  ${I4B_DIR}/driver ${I4B_DIR}/layer4 \
 	${I4B_DIR}/layer1/ihfc2 ${I4B_DIR}/dss1 \
+	${I4B_DIR}/layer1/iloop \
 	${I4B_DIR}/layer1 ${USB_DIR}
 
 KMOD=     i4b
@@ -80,6 +81,11 @@ bus_if.h device_if.h vnode_if.h opt_bus.h pci_if.h
 .if (${OSNAME} == "FreeBSD")
 SRCS+= freebsd_fix.c
 SRCS+= usb_if.h
+.endif
+
+.if defined(WITH_ILOOP)
+SRCS+= iloop.c
+SRCS+= dss1_lite.c dss1_lite_l1if.c
 .endif
 
 .if defined(WITH_SPPP)
