@@ -713,7 +713,7 @@ yealink_isoc_write_callback(struct usb_xfer *xfer, usb_error_t error)
 	uint8_t *buf;
 	uint16_t i;
 	uint16_t temp;
-	uint16_t timestamp = (usbd_xfer_get_timestamp(xfer) * 8) + YEALINK_BUFSIZE;
+	uint16_t timestamp = (usbd_xfer_get_timestamp(xfer) * 8) + (YEALINK_BUFSIZE / 2);
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
