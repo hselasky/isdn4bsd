@@ -47,6 +47,7 @@
 #include <net/if.h>
 #include <sys/fcntl.h>
 
+#include <i4b/include/i4b_compat.h>
 #include <i4b/include/i4b_controller.h>
 #include <i4b/include/i4b_cause.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -76,6 +77,8 @@ iloop_set_ring(struct dss1_lite *pdl, uint8_t on)
 
 	if (on)
 		sc->sc_ringing = 3 * ILOOP_FPS;
+	else
+		sc->sc_ringing = 0;
 }
 
 static void
@@ -89,12 +92,15 @@ iloop_timeout(void *arg)
 	usb_callout_reset(&sc->sc_callout, hz / ILOOP_FPS,
 	    &iloop_timeout, sc);
 
+	/* make sure the DSS1 code gets a chance to run */
+	dss1_lite_process(&sc->sc_dl);
+
 	sc->sc_timestamp += ILOOP_BPS;
 
 	if (sc->sc_ringing != 0) {
 		sc->sc_ringing--;
 		if (sc->sc_ringing == 0)
-			dss1_lite_hook_on(&sc->sc_dl);
+			dss1_lite_hook_off(&sc->sc_dl);
 	}
 	if (sc->sc_dl.dl_audio_channel == 0)
 		return;
@@ -139,9 +145,11 @@ iloop_init(void *arg)
 	}
 	sc->sc_pmtx = CNTL_GET_LOCK(ctrl);
 
+	sc->sc_dl.dl_softc = sc;
+
 	usb_callout_init_mtx(&sc->sc_callout, sc->sc_pmtx, 0);
 
-	printf("iloop0: USB Loopback device (attached)\n");
+	printf("iloop0: I4B Loopback device (attached)\n");
 
 	if (dss1_lite_attach(&sc->sc_dl, NULL,
 	    ctrl, &iloop_dl_methods)) {
@@ -168,7 +176,7 @@ iloop_uninit(void *arg)
 	if (sc == NULL)
 		return;
 
-	printf("iloop0: USB Loopback device (detached)\n");
+	printf("iloop0: I4B Loopback device (detached)\n");
 
 	dss1_lite_detach(&sc->sc_dl);
 
