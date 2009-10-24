@@ -48,6 +48,7 @@
 #include <sys/malloc.h>
 #include <sys/mbuf.h>
 
+#include <i4b/include/i4b_compat.h>
 #include <i4b/include/i4b_controller.h>
 #include <i4b/include/i4b_cause.h>
 #include <i4b/include/i4b_ioctl.h>

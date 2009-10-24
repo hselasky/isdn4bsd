@@ -79,6 +79,7 @@
 #include <dev/usb/usb_controller.h>
 #include <dev/usb/usb_bus.h>
 
+#include <i4b/include/i4b_compat.h>
 #include <i4b/include/i4b_controller.h>
 #include <i4b/include/i4b_cause.h>
 #include <i4b/include/i4b_ioctl.h>

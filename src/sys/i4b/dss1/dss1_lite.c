@@ -49,6 +49,7 @@
 #include <sys/malloc.h>
 #include <sys/mbuf.h>
 
+#include <i4b/include/i4b_compat.h>
 #include <i4b/include/i4b_controller.h>
 #include <i4b/include/i4b_cause.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -1546,8 +1547,13 @@ dss1_lite_process(struct dss1_lite *pdl)
 
 		m = pdl->dl_tx_mbuf[i];
 
+#ifdef __FreeBSD__
 		if (m != NULL)
 			m = m_dup(m, M_NOWAIT);
+#else
+		if (m != NULL)
+			m = m_dup(m, 0, m->m_len, M_NOWAIT);
+#endif
 
 		if (m != NULL) {
 

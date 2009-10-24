@@ -1,3 +1,6 @@
+#ifndef _I4B_COMPAT_H_
+#define	_I4B_COMPAT_H_
+
 #if defined(__FreeBSD__)
 
 # include <sys/conf.h>
@@ -48,4 +51,5 @@
 
 #else
 #include <sys/freebsd_compat.h>
+#endif
 #endif
