@@ -181,13 +181,8 @@ iloop_uninit(void *arg)
 	dss1_lite_detach(&sc->sc_dl);
 
 	usb_callout_stop(&sc->sc_callout);
-#ifdef __FreeBSD__
-	callout_drain(&sc->sc_callout.co);
-#else
-	mtx_lock(&Giant);
-	msleep(sc, &Giant, 0, "WCO", hz / 16);
-	mtx_unlock(&Giant);
-#endif
+
+	usb_callout_drain(&sc->sc_callout);
 
 	free(sc, M_TEMP);
 }
