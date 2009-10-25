@@ -685,26 +685,35 @@ int
 bus_setup_intr(device_t dev, struct resource *res, int flags,
 	       driver_intr_t *handler, void *priv, void **cookiep)
 {
-    if(cookiep == NULL)
+    if (cookiep == NULL)
     {
         return EINVAL;
     }
 
-    if(dev->dev_intr_func)
+    if (dev->dev_intr_func)
     {
         printf("%s: sorry, only one interrupt handler "
 	       "supported per unit.\n", __FUNCTION__);
 	return ENXIO;
     }
 
+    /*
+     * On NetBSD v5.x we must set the interrupt handler function
+     * before establishing the interrupt, else a NULL pointer function
+     * call might happen. On NetBSD v4.x we were called with
+     * interrupts disabled so this was not a problem.
+     */
+    dev->dev_intr_func = handler;
+    dev->dev_intr_arg = priv;
+
     cookiep[0] = NULL;
 
 #ifndef FREEBSD_NO_ISA
-    if(dev->dev_what == DEVICE_IS_PNP)
+    if (dev->dev_what == DEVICE_IS_PNP)
     {
         struct isapnp_attach_args *arg = device_get_ivars(dev);
 
-	if(arg)
+	if (arg)
 	{
 	    cookiep[0] = 
 	      isa_intr_establish(arg->ipa_ic, res->r_start,
@@ -712,11 +721,11 @@ bus_setup_intr(device_t dev, struct resource *res, int flags,
 				 &interrupt_wrapper, dev); 
 	}
     }
-    else if(dev->dev_what == DEVICE_IS_ISA)
+    else if (dev->dev_what == DEVICE_IS_ISA)
     {
         struct isa_attach_args *arg = device_get_ivars(dev);
 
-	if(arg)
+	if (arg)
 	{
 	    cookiep[0] = 
 	      isa_intr_establish(arg->ia_ic, res->r_start,
@@ -726,18 +735,16 @@ bus_setup_intr(device_t dev, struct resource *res, int flags,
     }
     else 
 #endif
-      if(dev->dev_what == DEVICE_IS_PCI)
+      if (dev->dev_what == DEVICE_IS_PCI)
     {
         struct pci_attach_args *arg = device_get_ivars(dev);
 
-	if(arg)
+	if (arg)
 	{
 	    pci_intr_handle_t intr_h;
 
-	    if(pci_intr_map(arg, &intr_h))
-	    {
-	        return ENXIO;
-	    }
+	    if (pci_intr_map(arg, &intr_h))
+		goto failure;
 
 	    cookiep[0] = 
 	      pci_intr_establish(arg->pa_pc, intr_h,
@@ -745,14 +752,15 @@ bus_setup_intr(device_t dev, struct resource *res, int flags,
 	}
     }
 
-    if(cookiep[0] == NULL)
-    {
-        return ENXIO;
-    }
+    if (cookiep[0] == NULL)
+	goto failure;
 
-    dev->dev_intr_func = handler;
-    dev->dev_intr_arg = priv;
-    return 0;
+    return (0);		/* success */
+
+failure:
+    dev->dev_intr_func = NULL;
+    dev->dev_intr_arg = NULL;
+    return (ENXIO);
 }
 
 int
