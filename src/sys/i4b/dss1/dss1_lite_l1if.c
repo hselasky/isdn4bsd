@@ -313,6 +313,9 @@ dss1_lite_l5_put_sample(struct dss1_lite *pdl,
 
 	f->m_tx_last_sample = sample;
 
+	if (f->prot_curr.protocol_1 == P_DISABLE)
+		return;
+
 	while (f->m_tx_curr_rem == 0) {
 		if (f->m_tx_curr != NULL) {
 			dss1_lite_l5_put_mbuf(pdl, f, f->m_tx_curr);
@@ -348,6 +351,9 @@ void
 dss1_lite_l5_put_sample_complete(struct dss1_lite *pdl,
     struct dss1_lite_fifo *f)
 {
+	if (f->prot_curr.protocol_1 == P_DISABLE)
+		return;
+
 	/* echo cancel */
 	if (f->prot_curr.u.transp.echo_cancel_enable) {
 		i4b_echo_cancel_update_merger(f->echo_cancel, f->tx_timestamp);
@@ -400,6 +406,9 @@ dss1_lite_l5_get_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f)
 	int16_t retval;
 	uint8_t temp;
 
+	if (f->prot_curr.protocol_1 == P_DISABLE)
+		return (f->m_rx_last_sample);
+
 	while (f->m_rx_curr_rem == 0) {
 		if (f->m_rx_curr != NULL) {
 			f->m_rx_curr = m_free(f->m_rx_curr);
@@ -434,6 +443,9 @@ void
 dss1_lite_l5_get_sample_complete(struct dss1_lite *pdl,
     struct dss1_lite_fifo *f)
 {
+	if (f->prot_curr.protocol_1 == P_DISABLE)
+		return;
+
 	/* echo cancel */
 	if (f->prot_curr.u.transp.echo_cancel_enable) {
 		i4b_echo_cancel_update_feeder(f->echo_cancel, f->rx_timestamp);
