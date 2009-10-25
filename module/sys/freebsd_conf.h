@@ -132,7 +132,6 @@ typedef int  d_spare2_t  (struct cdev *dev);
 #define	D_TRACKCLOSE	0x00080000	/* track all closes */
 #define D_MMAP_ANON	0x00100000	/* special treatment in vm_mmap.c */
 #define D_PSEUDO	0x00200000	/* make_dev() can return NULL */
-#define D_NEEDGIANT	0x00400000	/* driver want Giant */
 
 /*
  * Version numbers.

@@ -47,8 +47,8 @@ mtx_warning(void *arg)
 SYSINIT(mtx_warning, SI_SUB_LOCK, SI_ORDER_ANY, 
         mtx_warning, NULL);
 
-static uint32_t atomic_recurse = 0;
-static int atomic_spl = 0;
+static volatile uint32_t atomic_recurse = 0;
+static volatile int atomic_spl = 0;
 
 void
 atomic_lock()

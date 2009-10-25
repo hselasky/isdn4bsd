@@ -109,16 +109,11 @@ _pci_pci_probe(struct pci_attach_args *arg)
     snprintf(&dev->dev_desc[0], 
 	     sizeof(dev->dev_desc), "unknown");
 
-    mtx_lock(&Giant);
-
     error = device_probe_and_attach(dev);
 
-    mtx_unlock(&Giant);
-
     if(error)
-    {
-        goto done;
-    }
+	goto done;
+
 
     device_printf(dev, "<%s> @ %s\n", device_get_desc(dev),
 		  device_get_nameunit(device_get_parent(dev)));

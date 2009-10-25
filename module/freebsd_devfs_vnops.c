@@ -255,11 +255,6 @@ devfs_open(struct vop_open_args *ap)
 
 	VOP_UNLOCK(vp, 0);
 
-	if(dsw->d_flags & D_NEEDGIANT)
-	{
-	    mtx_lock(&Giant);
-	}
-
 	if(dsw->d_fdopen)
 	{
 #if 0
@@ -274,11 +269,6 @@ devfs_open(struct vop_open_args *ap)
 	else
 	{
 	    error = dsw->d_open(dev, ap->a_mode, S_IFCHR, td);
-	}
-
-	if(dsw->d_flags & D_NEEDGIANT)
-	{
-	    mtx_unlock(&Giant);
 	}
 
 	vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
@@ -337,17 +327,7 @@ devfs_read(struct vop_read_args *ap)
 
 	    VOP_UNLOCK(ap->a_vp, 0);
 
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_lock(&Giant);
-	    }
-
 	    error = dsw->d_read(dev, uio, ioflag);
-
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_unlock(&Giant);
-	    }
 
 	    vn_lock(ap->a_vp, LK_EXCLUSIVE | LK_RETRY);
 
@@ -406,17 +386,7 @@ devfs_write(struct vop_write_args *ap)
 
 	    VOP_UNLOCK(ap->a_vp, 0);
 
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_lock(&Giant);
-	    }
-
 	    error = dsw->d_write(dev, uio, ioflag);
-
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_unlock(&Giant);
-	    }
 
  	    vn_lock(ap->a_vp, LK_EXCLUSIVE | LK_RETRY);
 
@@ -503,17 +473,7 @@ devfs_ioctl(struct vop_ioctl_args *ap)
 		goto done;
 	    }
 
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_lock(&Giant);
-	    }
-
 	    error = dsw->d_ioctl(dev, cmd, data, ap->a_fflag, get_a_p(ap));
-
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_unlock(&Giant);
-	    }
 
 	    dev_relthread(dev);
 #if 0
@@ -550,17 +510,7 @@ devfs_poll(struct vop_poll_args *ap)
 	        goto done;
 	    }
 
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_lock(&Giant);
-	    }
-
 	    error = dsw->d_poll(dev, ap->a_events, get_a_p(ap));
-
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_unlock(&Giant);
-  	    }
 
 	    dev_relthread(dev);
 	}
@@ -591,17 +541,7 @@ devfs_kqfilter(struct vop_kqfilter_args *ap)
 	        goto done;
 	    }
 
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_lock(&Giant);
-	    }
-
 	    error = dsw->d_kqfilter(dev, ap->a_kn);
-
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_unlock(&Giant);
-	    }
 
 	    dev_relthread(dev);
 	}
@@ -634,17 +574,7 @@ devfs_close(struct vop_close_args *ap)
 
 	    VOP_UNLOCK(ap->a_vp, 0);
 
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_lock(&Giant);
-	    }
-
 	    error = dsw->d_close(dev, ap->a_fflag, S_IFCHR, get_a_p(ap));
-
-	    if(dsw->d_flags & D_NEEDGIANT)
-	    {
-	        mtx_unlock(&Giant);
-	    }
 
 	    vn_lock(ap->a_vp, LK_EXCLUSIVE | LK_RETRY);
 

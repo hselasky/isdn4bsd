@@ -62,7 +62,7 @@ usb_callout_init_mtx(struct usb_callout *c, struct mtx *mtx, u_int32_t flags)
 
 #ifdef __NetBSD__
 #if (__NetBSD_Version__ >= 500000000)
-    callout_init(&c->c_old, 0);
+    callout_init(&c->c_old, CALLOUT_MPSAFE);
 #else
     callout_init(&c->c_old);
 #endif
@@ -117,8 +117,12 @@ void
 usb_callout_drain(struct usb_callout *c)
 {
 #ifdef __NetBSD__
+#if (__NetBSD_Version__ >= 500000000)
+    callout_destroy(&c->c_old);
+#else
     /* XXX NetBSD doesn't have any callout_drain() */
     usb_callout_stop(c);
+#endif
 #elif defined(__OpenBSD__)
     usb_callout_stop(c);
 #else

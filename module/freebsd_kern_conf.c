@@ -145,12 +145,6 @@ __nullop(void)
 }
 
 static int
-__enxio(void)
-{
-	return (ENXIO);
-}
-
-static int
 __enodev(void)
 {
 	return (ENODEV);
@@ -158,47 +152,17 @@ __enodev(void)
 
 /* Define a dead_cdevsw for use when devices leave unexpectedly. */
 
-#define dead_open	(d_open_t *)&__enxio
-#define dead_close	(d_close_t *)&__enxio
-#define dead_read	(d_read_t *)&__enxio
-#define dead_write	(d_write_t *)&__enxio
-#define dead_ioctl	(d_ioctl_t *)&__enxio
-#define dead_poll	(d_poll_t *)&__enodev
-#define dead_mmap	(d_mmap_t *)&__enodev
-
-static void
-dead_strategy(struct bio *bp)
-{
-#if 0
-	biofinish(bp, NULL, ENXIO);
-#endif
-}
-
-#define dead_dump	(dumper_t *)&__enxio
-#define dead_kqfilter	(d_kqfilter_t *)&__enxio
-
 static struct __cdevsw dead_cdevsw = {
 	.d_version =	D_VERSION,
-	.d_flags =	D_NEEDGIANT, /* XXX: does dead_strategy need this ? */
-	.d_open =	dead_open,
-	.d_close =	dead_close,
-	.d_read =	dead_read,
-	.d_write =	dead_write,
-	.d_ioctl =	dead_ioctl,
-	.d_poll =	dead_poll,
-	.d_mmap =	dead_mmap,
-	.d_strategy =	dead_strategy,
 	.d_name =	"dead",
-#if 0
-	.d_dump =	dead_dump,
-#endif
-	.d_kqfilter =	dead_kqfilter
 };
 
 /* Default methods if driver does not specify method */
 
 #define null_open	(d_open_t *)&__nullop
 #define null_close	(d_close_t *)&__nullop
+
+#define no_dump		(dumper_t *)&__enodev
 #define no_read		(d_read_t *)&__enodev
 #define no_write	(d_write_t *)&__enodev
 #define no_ioctl	(d_ioctl_t *)&__enodev
@@ -208,9 +172,6 @@ static struct __cdevsw dead_cdevsw = {
 static void
 no_strategy(struct bio *bp)
 {
-#if 0
-	biofinish(bp, NULL, ENODEV);
-#endif
 }
 
 static int
@@ -229,8 +190,6 @@ no_poll(struct cdev *dev __unused, int events, struct thread *td __unused)
 
 	return (events & (POLLIN | POLLOUT | POLLRDNORM | POLLWRNORM));
 }
-
-#define no_dump		(dumper_t *)&__enodev
 
 /*
  * struct cdev * and u_dev_t primitives
@@ -343,25 +302,6 @@ prep_cdevsw(struct __cdevsw *devsw)
 {
  	dev_lock();
 
-	if (devsw->d_version != D_VERSION_01) {
-		printf(
-		 "WARNING: Device driver \"%s\" has wrong version %s\n",
-		 devsw->d_name, "and is disabled.  Recompile KLD module.");
-
-		devsw->d_open = dead_open;
-		devsw->d_close = dead_close;
-		devsw->d_read = dead_read;
-		devsw->d_write = dead_write;
-		devsw->d_ioctl = dead_ioctl;
-		devsw->d_poll = dead_poll;
-		devsw->d_mmap = dead_mmap;
-		devsw->d_strategy = dead_strategy;
-#if 0
-		devsw->d_dump = dead_dump;
-#endif
-		devsw->d_kqfilter = dead_kqfilter;
-	}
-	
 #if 0
 	if (devsw->d_flags & D_TTY) {
 		if (devsw->d_ioctl == NULL)	devsw->d_ioctl = ttyioctl;

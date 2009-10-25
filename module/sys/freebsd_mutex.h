@@ -28,11 +28,11 @@
 #define __FREEBSD_SYS_MUTEX_H__
 
 struct mtx {
-  u_int32_t mtx_recurse;
-  u_int8_t init;
-  u_int8_t waiting;
-  const char * name;
-  void *owner_td;
+  volatile void *owner_td;
+  volatile const char *name;
+  volatile u_int32_t mtx_recurse;
+  volatile u_int8_t init;
+  volatile u_int8_t waiting;
 };
 
 #define MTX_DEF         0x00000000      /* DEFAULT (sleep) lock */ 
