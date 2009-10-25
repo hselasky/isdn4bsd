@@ -1380,6 +1380,7 @@ devfs_reclaim(struct vop_reclaim_args *ap)
 	dev->si_usecount -= vp->v_usecount;
 	dev_unlock();
 	dev_rel(dev);
+ done:
 #if (__NetBSD_Version__ >= 500000000)
 	/*
 	 * XXX to avoid specfs hooks to be run we need to set the
@@ -1387,7 +1388,6 @@ devfs_reclaim(struct vop_reclaim_args *ap)
 	 */
 	vp->v_type = VNON;
 #endif
- done:
 	return (0);
 }
 
