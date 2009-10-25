@@ -37,7 +37,7 @@ struct iloop_softc {
 
 	struct mtx *sc_pmtx;
 
-	uint16_t sc_buffer[ILOOP_BPS];
+	int16_t sc_buffer[ILOOP_BPS];
 
 	uint32_t sc_timestamp;
 
