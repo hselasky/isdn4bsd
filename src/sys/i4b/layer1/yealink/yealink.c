@@ -885,8 +885,8 @@ yealink_attach(device_t dev)
 
 	/* Set Audio Volume */
 
-	yealink_set_mixer(sc, 0x0500, 0x0200, 2, 0x4dce);	/* mic: 75:75 */
-	yealink_set_mixer(sc, 0x0600, 0x0200, 2, 0x4dce);	/* pcm: 75:75 */
+	yealink_set_mixer(sc, 0x0500, 0x0200, 2, 0x7000);	/* mic */
+	yealink_set_mixer(sc, 0x0600, 0x0200, 2, 0x5000);	/* pcm */
 
 	return (0);
 
