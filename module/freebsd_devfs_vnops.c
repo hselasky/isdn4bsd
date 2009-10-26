@@ -117,7 +117,7 @@ loop:
 
 	if(de->de_dirent->d_type == DT_CHR)
 	{
-	    vp->v_type = VCHR;
+	    vp->v_type = VREG;
 	    VI_LOCK(vp);
 	    dev_lock();
 	    dev_refl(dev);
@@ -148,7 +148,7 @@ loop:
 	vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
 
 	vpp[0] = vp;
-	return 0;
+	return (0);
 }
 
 static int
@@ -224,7 +224,7 @@ devfs_open(struct vop_open_args *ap)
 	    return 0;
 	}
 
-	if(vp->v_type != VCHR)
+	if(vp->v_type != VREG)
 	{
 	    return ENXIO;
         }
@@ -297,7 +297,7 @@ devfs_read(struct vop_read_args *ap)
 	    error = VOP_READDIR(ap->a_vp, ap->a_uio, ap->a_cred, 
 				NULL, NULL, NULL);
 	}
-	else if(ap->a_vp->v_type == VCHR)
+	else if(ap->a_vp->v_type == VREG)
 	{
 	    struct __cdevsw *dsw;
 	    struct cdev *dev;
@@ -356,7 +356,7 @@ devfs_write(struct vop_write_args *ap)
 #endif
 	int error;
 
-	if(ap->a_vp->v_type == VCHR)
+	if(ap->a_vp->v_type == VREG)
 	{
 	    struct uio *uio;
 	    struct cdev *dev;
@@ -415,7 +415,7 @@ devfs_ioctl(struct vop_ioctl_args *ap)
 #endif
 	int error;
 
-	if(ap->a_vp->v_type == VCHR)
+	if(ap->a_vp->v_type == VREG)
 	{
 	    struct cdev *dev;
 	    struct __cdevsw *dsw;
@@ -499,7 +499,7 @@ devfs_poll(struct vop_poll_args *ap)
 #endif
 	int error;
 
-	if(ap->a_vp->v_type == VCHR)
+	if(ap->a_vp->v_type == VREG)
 	{
 	    struct cdev *dev;
 	    struct __cdevsw *dsw;
@@ -530,7 +530,7 @@ devfs_kqfilter(struct vop_kqfilter_args *ap)
 #endif
 	int error;
 
-	if(ap->a_vp->v_type == VCHR)
+	if(ap->a_vp->v_type == VREG)
 	{
 	    struct cdev *dev;
 	    struct __cdevsw *dsw;
@@ -561,7 +561,7 @@ devfs_close(struct vop_close_args *ap)
 #endif
 	int error;
 
-	if(ap->a_vp->v_type == VCHR)
+	if(ap->a_vp->v_type == VREG)
 	{
 	    struct cdev *dev;
 	    struct __cdevsw *dsw;
@@ -687,7 +687,7 @@ devfs_getattr(struct vop_getattr_args *ap)
 	vap->va_blocksize = DEV_BSIZE;
 	vap->va_type = vp->v_type;
 
-	if(vp->v_type != VCHR)
+	if(vp->v_type != VREG)
 	{
 		fix_time(&de->de_atime);
 		fix_time(&de->de_mtime);
@@ -818,7 +818,7 @@ devfs_setattr(struct vop_setattr_args *ap)
 
 	    if(vap->va_atime.tv_sec != VNOVAL)
 	    {
-	        if(vp->v_type == VCHR)
+	        if(vp->v_type == VREG)
 		    dev->si_atime = vap->va_atime;
 		else
 		    de->de_atime = vap->va_atime;
@@ -826,7 +826,7 @@ devfs_setattr(struct vop_setattr_args *ap)
 
 	    if(vap->va_mtime.tv_sec != VNOVAL)
 	    {
-	        if(vp->v_type == VCHR)
+	        if(vp->v_type == VREG)
 		  dev->si_mtime = vap->va_mtime;
 		else
 		  de->de_mtime = vap->va_mtime;
@@ -836,7 +836,7 @@ devfs_setattr(struct vop_setattr_args *ap)
 
 	if(c)
 	{
-	    if(vp->v_type == VCHR)
+	    if(vp->v_type == VREG)
 	        devfs_timestamp(&dev->si_ctime);
 	    else
 	        devfs_timestamp(&de->de_mtime);
@@ -1141,66 +1141,12 @@ devfs_mknod(struct vop_mknod_args *ap)
 #ifdef DEVFS_DEBUG
 	printf("%s\n", __FUNCTION__);
 #endif
-	struct componentname *cnp;
-	struct devfs_dirent *dd;
-	struct devfs_dirent *de;
-	struct devfs_mount *dmp;
-	struct vnode **vpp;
 	struct vnode *dvp;
-	struct proc *td;
-	int error;
 
 	dvp = ap->a_dvp;
 	VOP_UNLOCK(dvp, 0);
 
-	/*
-	 * The only type of node we should be creating here is a
-	 * character device, for anything else return EOPNOTSUPP.
-	 */
-	if(ap->a_vap->va_type != VCHR)
-	{
-	    error = EOPNOTSUPP;
-	    goto done;
-	}
-
-	dmp = VFSTODEVFS(dvp->v_mount);
-	__lockmgr(&dmp->dm_lock, LK_EXCLUSIVE, 0, curthread);
-
-	cnp = ap->a_cnp;
-	vpp = ap->a_vpp;
-	td = get_cn_proc(cnp);
-	dd = dvp->v_data;
-
-	error = ENOENT;
-	TAILQ_FOREACH(de, &dd->de_dlist, de_list)
-	{
-		if(cnp->cn_namelen != de->de_dirent->d_namlen)
-		{
-		    continue;
-		}
-		if(bcmp(cnp->cn_nameptr, de->de_dirent->d_name,
-			de->de_dirent->d_namlen))
-		{
-		    continue;
-		}
-		if(de->de_flags & DE_WHITEOUT)
-		{
-			break;
-		}
-		goto notfound;
-	}
-	if(de == NULL)
-	{
-	    goto notfound;
-	}
-	de->de_flags &= ~DE_WHITEOUT;
-	error = devfs_allocv(de, dvp->v_mount, vpp, td);
-
- notfound:
-	__lockmgr(&dmp->dm_lock, LK_RELEASE, 0, curthread);
-
- done:
-	return error;
+	return (EOPNOTSUPP);
 }
 
 static int
@@ -1381,13 +1327,6 @@ devfs_reclaim(struct vop_reclaim_args *ap)
 	dev_unlock();
 	dev_rel(dev);
  done:
-#if (__NetBSD_Version__ >= 500000000)
-	/*
-	 * XXX to avoid specfs hooks to be run we need to set the
-	 * vnode type to VNON!
-	 */
-	vp->v_type = VNON;
-#endif
 	return (0);
 }
 
@@ -1471,9 +1410,6 @@ devfs_symlink(struct vop_symlink_args *ap)
 	struct devfs_mount *dmp;
 	struct proc *td;
 	int i, error;
-#if 0
-	VOP_UNLOCK(ap->a_tdvp, 0);
-#endif
 
 	td = get_cn_proc(ap->a_cnp);
 	__KASSERT(td == curthread, ("%s: td != curthread", __FUNCTION__));
@@ -1496,12 +1432,13 @@ devfs_symlink(struct vop_symlink_args *ap)
 	bcopy(ap->a_target, de->de_symlink, i);
 	__lockmgr(&dmp->dm_lock, LK_EXCLUSIVE, 0, td);
 	TAILQ_INSERT_TAIL(&dd->de_dlist, de, de_list);
-	devfs_allocv(de, ap->a_dvp->v_mount, ap->a_vpp, td);
+	error = devfs_allocv(de, ap->a_dvp->v_mount, ap->a_vpp, td);
 	__lockmgr(&dmp->dm_lock, LK_RELEASE, 0, td);
 
  done:
+	VOP_UNLOCK(ap->a_dvp, 0);
 
-	return error;
+	return (error);
 }
 
 /*
