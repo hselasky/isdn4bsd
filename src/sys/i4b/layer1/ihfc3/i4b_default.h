@@ -339,7 +339,7 @@ default_register_list[] =
 };
 
 fsm_t
-default_fsm_table = { /* zero */ };
+default_fsm_table;
 
 I4B_DBASE(default_sc_default)
 {

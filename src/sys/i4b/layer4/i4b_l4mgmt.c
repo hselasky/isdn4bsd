@@ -419,7 +419,9 @@ i4b_disconnect_by_appl_interface(u_int8_t ai_type, void *ai_ptr)
 void
 i4b_update_d_channel(struct i4b_controller *cntl)
 {
-	struct i4b_protocol p = { /* zero */ };
+	struct i4b_protocol p;
+
+	memset(&p, 0, sizeof(p));
 
 	p.protocol_1 = cntl->N_protocol;
 

@@ -985,9 +985,10 @@ capi_ai_facility_ind(struct call_desc *cd, u_int16_t wSelector,
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
-	struct CAPI_FACILITY_IND_DECODED fac_ind = { /* zero */ };
-
+	struct CAPI_FACILITY_IND_DECODED fac_ind;
 	u_int16_t len;
+
+	memset(&fac_ind, 0, sizeof(fac_ind));
 
 	CAPI_INIT(CAPI_FACILITY_IND, &fac_ind);
 
@@ -1028,9 +1029,10 @@ capi_make_facility_conf(struct capi_message_encoded *pmsg,
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
-	struct CAPI_FACILITY_CONF_DECODED fac_conf = { /* zero */ };
-
+	struct CAPI_FACILITY_CONF_DECODED fac_conf;
 	u_int16_t len;
+
+	memset(&fac_conf, 0, sizeof(fac_conf));
 
 	CAPI_INIT(CAPI_FACILITY_CONF, &fac_conf);
 
@@ -1068,7 +1070,9 @@ static struct mbuf *
 capi_make_fac_suppl_conf(struct capi_message_encoded *pmsg, 
 			 u_int16_t wFunction, void *param)
 {
-	struct CAPI_SUPPL_PARAM_DECODED suppl = { /* zero */ };
+	struct CAPI_SUPPL_PARAM_DECODED suppl;
+
+	memset(&suppl, 0, sizeof(suppl));
 
 	CAPI_INIT(CAPI_SUPPL_PARAM, &suppl);
 
@@ -1089,8 +1093,9 @@ static struct mbuf *
 capi_make_fac_suppl_conf_type1(struct capi_message_encoded *pmsg, 
 				    u_int16_t wFunction, u_int16_t wResult)
 {
-	struct CAPI_FACILITY_CONF_CALL_DEFL_PARAM_DECODED 
-	  conf = { /* zero */ };
+	struct CAPI_FACILITY_CONF_CALL_DEFL_PARAM_DECODED conf;
+
+	memset(&conf, 0, sizeof(conf));
 
 	CAPI_INIT(CAPI_FACILITY_CONF_CALL_DEFL_PARAM, &conf);
 
@@ -1135,8 +1140,9 @@ capi_make_li_supp_conf(struct capi_message_encoded *pmsg)
 static struct mbuf *
 capi_make_suppl_supp_conf(struct capi_message_encoded *pmsg)
 {
-	struct CAPI_FACILITY_CONF_GET_SUPPL_DECODED 
-	  suppl_conf = { /* zero */ };
+	struct CAPI_FACILITY_CONF_GET_SUPPL_DECODED suppl_conf;
+
+	memset(&suppl_conf, 0, sizeof(suppl_conf));
 
 	CAPI_INIT(CAPI_FACILITY_CONF_GET_SUPPL, &suppl_conf);
 
@@ -1306,13 +1312,15 @@ capi_ai_connect_b3_active_ind(struct call_desc *cd)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
-	struct CAPI_CONNECT_B3_ACTIVE_IND_DECODED connect_b3_active_ind = { /* zero */ };
+	struct CAPI_CONNECT_B3_ACTIVE_IND_DECODED connect_b3_active_ind;
 
 	u_int16_t len;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		   (cd->ai_type == I4B_AI_CAPI)), 
 		  ("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
+
+	memset(&connect_b3_active_ind, 0, sizeof(connect_b3_active_ind));
 
 	CAPI_INIT(CAPI_CONNECT_B3_ACTIVE_IND, &connect_b3_active_ind);
 
@@ -1344,9 +1352,11 @@ capi_make_connect_b3_ind(struct call_desc *cd)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
-	struct CAPI_CONNECT_B3_IND_DECODED connect_b3_ind = { /* zero */ };
+	struct CAPI_CONNECT_B3_IND_DECODED connect_b3_ind;
 
 	u_int16_t len;
+
+	memset(&connect_b3_ind, 0, sizeof(connect_b3_ind));
 
 	CAPI_INIT(CAPI_CONNECT_B3_IND, &connect_b3_ind);
 
@@ -1377,11 +1387,13 @@ capi_ai_info_ind(struct call_desc *cd, u_int8_t complement,
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
-	struct CAPI_INFO_IND_DECODED info_ind = { /* zero */ };
+	struct CAPI_INFO_IND_DECODED info_ind;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		 (cd->ai_type == I4B_AI_CAPI) || complement), 
 		("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
+
+	memset(&info_ind, 0, sizeof(info_ind));
 
 	CAPI_INIT(CAPI_INFO_IND, &info_ind);
 
@@ -1585,11 +1597,13 @@ capi_ai_connect_active_ind(struct call_desc *cd)
 	u_int16_t len;
 
 	struct capi_message_encoded msg;
-	struct CAPI_CONNECT_ACTIVE_IND_DECODED connect_active_ind = { /* zero */ };
+	struct CAPI_CONNECT_ACTIVE_IND_DECODED connect_active_ind;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		 (cd->ai_type == I4B_AI_CAPI)), 
 		("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
+
+	memset(&connect_active_ind, 0, sizeof(connect_active_ind));
 
 	CAPI_INIT(CAPI_CONNECT_ACTIVE_IND, &connect_active_ind);
 
@@ -1624,13 +1638,15 @@ capi_ai_disconnect_b3_ind(struct call_desc *cd)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
-	struct CAPI_DISCONNECT_B3_IND_DECODED disconnect_b3_ind = { /* zero */ };
+	struct CAPI_DISCONNECT_B3_IND_DECODED disconnect_b3_ind;
 
 	u_int16_t len;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		   (cd->ai_type == I4B_AI_CAPI)), 
 		  ("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
+
+	memset(&disconnect_b3_ind, 0, sizeof(disconnect_b3_ind));
 
 	CAPI_INIT(CAPI_DISCONNECT_B3_IND, &disconnect_b3_ind);
 
@@ -1664,13 +1680,15 @@ capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
-	struct CAPI_DISCONNECT_IND_DECODED disconnect_ind = { /* zero */ };
+	struct CAPI_DISCONNECT_IND_DECODED disconnect_ind;
 
 	u_int16_t len;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		 (cd->ai_type == I4B_AI_CAPI) || complement), 
 		("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
+
+	memset(&disconnect_ind, 0, sizeof(disconnect_ind));
 
 	CAPI_INIT(CAPI_DISCONNECT_IND, &disconnect_ind);
 
@@ -1703,12 +1721,15 @@ capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement)
 static void
 capi_ai_line_inter_connect_ind(struct call_desc *cd)
 {
-	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm = { /* zero */ };
-	struct CAPI_LI_CONN_IND_PARAM_DECODED li_conn_ind = { /* zero */ };
+	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm;
+	struct CAPI_LI_CONN_IND_PARAM_DECODED li_conn_ind;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		   (cd->ai_type == I4B_AI_CAPI)), 
 		  ("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
+
+	memset(&li_parm, 0, sizeof(li_parm));
+	memset(&li_conn_ind, 0, sizeof(li_conn_ind));
 
 	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
 	CAPI_INIT(CAPI_LI_CONN_IND_PARAM, &li_conn_ind);
@@ -1730,12 +1751,15 @@ capi_ai_line_inter_connect_ind(struct call_desc *cd)
 static void
 capi_ai_line_inter_disconnect_ind(struct call_desc *cd)
 {
-	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm = { /* zero */ };
-	struct CAPI_LI_DISC_IND_PARAM_DECODED li_disc_ind = { /* zero */ };
+	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_parm;
+	struct CAPI_LI_DISC_IND_PARAM_DECODED li_disc_ind;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		   (cd->ai_type == I4B_AI_CAPI)), 
 		  ("%s: %s: invalid parameters", __FILE__, __FUNCTION__));
+
+	memset(&li_parm, 0, sizeof(li_parm));
+	memset(&li_disc_ind, 0, sizeof(li_disc_ind));
 
 	CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_parm);
 	CAPI_INIT(CAPI_LI_DISC_IND_PARAM, &li_disc_ind);
@@ -2193,8 +2217,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	/* verify length */
 
-	if((uio->uio_resid < 0) ||
-	   (sc->sc_msg.head.wLen > uio->uio_resid) ||
+	if((sc->sc_msg.head.wLen > uio->uio_resid) ||
 	   (sc->sc_msg.head.wLen > sizeof(sc->sc_msg.data)))
 	{
 		error = ENOMEM;
@@ -3971,7 +3994,9 @@ static void
 capi_put_dtmf(struct fifo_translator *f, u_int8_t *dtmf_ptr, u_int16_t dtmf_len)
 {
 	struct call_desc *cd = f->L5_sc;
-	struct CAPI_CUSTOM_DTMF_IND_DECODED dtmf_data = { /* zero */ };
+	struct CAPI_CUSTOM_DTMF_IND_DECODED dtmf_data;
+
+	memset(&dtmf_data, 0, sizeof(dtmf_data));
 
 	CAPI_INIT(CAPI_CUSTOM_DTMF_IND, &dtmf_data);
 

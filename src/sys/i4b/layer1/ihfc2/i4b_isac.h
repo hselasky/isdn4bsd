@@ -381,6 +381,7 @@ I4B_FIFO_MAP_DECLARE(isac_fifo_map[]) =
     .block_size   = 0x40, /* = 64 bytes */
   },
 
+#if 0
   /*
    * unused FIFO maps 
    */
@@ -388,6 +389,7 @@ I4B_FIFO_MAP_DECLARE(isac_fifo_map[]) =
   [ 5].i= { },
   [ 6].i= { },
   [ 7].i= { },
+#endif
 
   /*
    * HFC1 D-channel FIFO map

@@ -373,12 +373,14 @@ static int
 ihfc_dopen(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
 	struct i4b_controller *cntl = i4b_controller(dev);
-	struct i4b_protocol p = { /* zero */ };
+	struct i4b_protocol p;
 	u_int32_t channel = channel(dev);
 #if DO_I4B_DEBUG
 	ihfc_sc_t *sc = cntl->L1_sc;
 #endif
 	IHFC_MSG("oflags=0x%x\n",oflags);
+
+	memset(&p, 0, sizeof(p));
 
 	p.protocol_1 = P_HDLC; /* overwritten by setup_ft */
 
@@ -402,12 +404,14 @@ static int
 ihfc_dclose(struct cdev *dev, int fflag, int devtype, struct thread *td)
 {
 	struct i4b_controller *cntl = i4b_controller(dev);
-	struct i4b_protocol p = { /* zero */ };
+	struct i4b_protocol p;
 	u_int32_t channel = channel(dev);
 #if DO_I4B_DEBUG
 	ihfc_sc_t *sc = cntl->L1_sc;
 #endif
 	IHFC_MSG("fflag = 0x%x\n", (u_int32_t)fflag);
+
+	memset(&p, 0, sizeof(p));
 
 	p.protocol_1 = P_DISABLE;
 

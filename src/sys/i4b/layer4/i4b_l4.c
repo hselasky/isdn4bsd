@@ -962,7 +962,9 @@ i4b_link_bchandrvr(call_desc_t *cd, int activate)
 {
 	static const u_int8_t
 	  MAKE_TABLE(I4B_B_PROTOCOLS,PROTOCOL,[]);
-	struct i4b_protocol p = { /* zero */ };
+	struct i4b_protocol p;
+
+	memset(&p, 0, sizeof(p));
 
 	if (activate) {
 
