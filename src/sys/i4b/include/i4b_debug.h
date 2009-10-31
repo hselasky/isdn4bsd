@@ -216,9 +216,7 @@ static const struct i4b_debug_mask i4b_debug_all = {
 /*---------------------------------------------------------------------------*
  *	zero debugging mask
  *---------------------------------------------------------------------------*/
-static const struct i4b_debug_mask i4b_debug_zero = {
-
-};
+static const struct i4b_debug_mask i4b_debug_zero;
 
 /*---------------------------------------------------------------------------*
  *	Layer1 statistics structure
