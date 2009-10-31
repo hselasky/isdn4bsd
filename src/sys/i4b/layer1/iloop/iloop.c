@@ -180,7 +180,9 @@ iloop_uninit(void *arg)
 
 	dss1_lite_detach(&sc->sc_dl);
 
+	mtx_lock(sc->sc_pmtx);
 	usb_callout_stop(&sc->sc_callout);
+	mtx_unlock(sc->sc_pmtx);
 
 	usb_callout_drain(&sc->sc_callout);
 
