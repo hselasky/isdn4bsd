@@ -113,6 +113,34 @@ struct capi_ai_softc {
 	struct selinfo sc_selinfo;
 
 	struct capi_ai_softc *sc_next;
+
+	/* the following fields are only used by capi_write() */
+
+	int sc_write_busy;
+
+	struct capi_message_encoded sc_msg;
+	struct CAPI_ALERT_REQ_DECODED sc_alert_req;
+	struct CAPI_CONNECT_REQ_DECODED sc_connect_req;
+	struct CAPI_DATA_B3_REQ_DECODED sc_data_b3_req;
+	struct CAPI_INFO_REQ_DECODED sc_info_req;
+	struct CAPI_CONNECT_RESP_DECODED sc_connect_resp;
+	struct CAPI_CONNECT_B3_RESP_DECODED sc_connect_b3_resp;
+	struct CAPI_LISTEN_REQ_DECODED sc_listen_req;
+	struct CAPI_SELECT_B_PROTOCOL_REQ_DECODED sc_select_b_protocol_req;
+	struct CAPI_FACILITY_REQ_DECODED sc_facility_req;
+	struct CAPI_ADDITIONAL_INFO_DECODED sc_add_info;
+	struct CAPI_SENDING_COMPLETE_DECODED sc_sending_complete;
+	struct CAPI_B_PROTOCOL_DECODED sc_b_protocol;
+	struct CAPI_FACILITY_REQ_DTMF_PARAM_DECODED sc_dtmf_req;
+	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED sc_li_param;
+	struct CAPI_LI_CONN_REQ_PARAM_DECODED sc_li_conn_req_param;
+	struct CAPI_LI_CONN_REQ_PART_DECODED sc_li_conn_req_part;
+	struct CAPI_LI_DISC_REQ_PARAM_DECODED sc_li_disc_req_param;
+	struct CAPI_LI_DISC_REQ_PART_DECODED sc_li_disc_req_part;
+	struct CAPI_SUPPL_PARAM_DECODED sc_suppl_param;
+	struct CAPI_FACILITY_REQ_CALL_DEFL_PARAM_DECODED sc_cd_req;
+	struct CAPI_GENERIC_STRUCT_DECODED sc_gen_struct;
+	struct CAPI_EC_FACILITY_PARM_DECODED sc_ec_parm;
 };
 
 static	d_open_t	capi_open;
@@ -2111,57 +2139,29 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	u_int8_t response;
 	u_int16_t cause;
 
-	struct CAPI_ALERT_REQ_DECODED alert_req;
-	struct CAPI_CONNECT_REQ_DECODED connect_req;
-	struct CAPI_DATA_B3_REQ_DECODED data_b3_req;
-	struct CAPI_INFO_REQ_DECODED info_req;
-	struct CAPI_CONNECT_RESP_DECODED connect_resp;
-	struct CAPI_CONNECT_B3_RESP_DECODED connect_b3_resp;
-	struct CAPI_LISTEN_REQ_DECODED listen_req;
-	struct CAPI_SELECT_B_PROTOCOL_REQ_DECODED select_b_protocol_req;
-	struct CAPI_FACILITY_REQ_DECODED facility_req;
-
-	struct CAPI_ADDITIONAL_INFO_DECODED add_info;
-	struct CAPI_SENDING_COMPLETE_DECODED sending_complete;
-	struct CAPI_B_PROTOCOL_DECODED b_protocol;
-
-	struct CAPI_FACILITY_REQ_DTMF_PARAM_DECODED dtmf_req;
-
-	struct CAPI_LINE_INTERCONNECT_PARAM_DECODED li_param;
-
-	struct CAPI_LI_CONN_REQ_PARAM_DECODED li_conn_req_param;
-	struct CAPI_LI_CONN_REQ_PART_DECODED li_conn_req_part;
-
-	struct CAPI_LI_DISC_REQ_PARAM_DECODED li_disc_req_param;
-	struct CAPI_LI_DISC_REQ_PART_DECODED li_disc_req_part;
-
-	struct CAPI_SUPPL_PARAM_DECODED suppl_param;
-
-	struct CAPI_FACILITY_REQ_CALL_DEFL_PARAM_DECODED cd_req;
-
-	struct CAPI_GENERIC_STRUCT_DECODED gen_struct;
-
-	struct CAPI_EC_FACILITY_PARM_DECODED ec_parm;
-
-	struct capi_message_encoded msg;
-
 	/* NOTE: one has got to read all data into 
 	 * buffers before locking the controller,
 	 * hence uiomove() can sleep
 	 */
 	if(sc == NULL)
-	{
-		error = ENXIO;
-		goto done;
+		return (ENXIO);
+
+	mtx_lock(&sc->sc_mtx);
+	error = (sc->sc_write_busy != 0);
+	sc->sc_write_busy = 1;
+	mtx_unlock(&sc->sc_mtx);
+
+	if (error) {
+		return (EBUSY);
 	}
 
-	if(uio->uio_resid < sizeof(msg.head))
+	if(uio->uio_resid < sizeof(sc->sc_msg.head))
 	{
 		error = EINVAL;
 		goto done;
 	}
 
-	error = uiomove(&msg.head, sizeof(msg.head), uio);
+	error = uiomove(&sc->sc_msg.head, sizeof(sc->sc_msg.head), uio);
 
 	if(error)
 	{
@@ -2170,18 +2170,18 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	/* convert byte order in header to host format */
 
-	msg.head.wLen = le16toh(msg.head.wLen);
-	msg.head.wApp = le16toh(msg.head.wApp);
-	msg.head.wCmd = le16toh(msg.head.wCmd);
-	msg.head.wNum = le16toh(msg.head.wNum);
-	msg.head.dwCid = le32toh(msg.head.dwCid);
+	sc->sc_msg.head.wLen = le16toh(sc->sc_msg.head.wLen);
+	sc->sc_msg.head.wApp = le16toh(sc->sc_msg.head.wApp);
+	sc->sc_msg.head.wCmd = le16toh(sc->sc_msg.head.wCmd);
+	sc->sc_msg.head.wNum = le16toh(sc->sc_msg.head.wNum);
+	sc->sc_msg.head.dwCid = le32toh(sc->sc_msg.head.dwCid);
 
 	/* pack the command */
-	msg.head.wCmd = CAPI_COMMAND_PACK(msg.head.wCmd);
+	sc->sc_msg.head.wCmd = CAPI_COMMAND_PACK(sc->sc_msg.head.wCmd);
 
 	/* verify length */
 
-	if(msg.head.wLen < sizeof(msg.head))
+	if(sc->sc_msg.head.wLen < sizeof(sc->sc_msg.head))
 	{
 		error = EINVAL;
 		goto done;
@@ -2189,12 +2189,13 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	/* remove header from length */
 
-	msg.head.wLen -= sizeof(msg.head);
+	sc->sc_msg.head.wLen -= sizeof(sc->sc_msg.head);
 
 	/* verify length */
 
-	if((msg.head.wLen > uio->uio_resid) ||
-	   (msg.head.wLen > sizeof(msg.data)))
+	if((uio->uio_resid < 0) ||
+	   (sc->sc_msg.head.wLen > uio->uio_resid) ||
+	   (sc->sc_msg.head.wLen > sizeof(sc->sc_msg.data)))
 	{
 		error = ENOMEM;
 		goto done;
@@ -2202,7 +2203,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	/* get rest of header into buffer */
 
-	error = uiomove(&msg.data, msg.head.wLen, uio);
+	error = uiomove(&sc->sc_msg.data, sc->sc_msg.head.wLen, uio);
 
 	if(error)
 	{
@@ -2213,7 +2214,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	 * This implementation allows zero length
 	 * frames in case of DATA-B3 request.
 	 */
-	if(msg.head.wCmd == CAPI_P_REQ(DATA_B3))
+	if(sc->sc_msg.head.wCmd == CAPI_P_REQ(DATA_B3))
 	{
 		m1 = i4b_getmbuf(uio->uio_resid, M_WAITOK);
 
@@ -2235,7 +2236,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		m1 = NULL;
 	}
 
-	cntl = CNTL_FIND(CAPI_ID2CONTROLLER(msg.head.dwCid));
+	cntl = CNTL_FIND(CAPI_ID2CONTROLLER(sc->sc_msg.head.dwCid));
 
 	if(cntl == NULL)
 	{
@@ -2264,9 +2265,9 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	if(cntl->N_fifo_translator)
 	{
 	    /* connected */
-	    cd = cd_by_cdid(cntl, CAPI_ID2CDID(msg.head.dwCid));
+	    cd = cd_by_cdid(cntl, CAPI_ID2CDID(sc->sc_msg.head.dwCid));
 
-	    if(!cd && (msg.head.wCmd == CAPI_P_REQ(CONNECT)))
+	    if(!cd && (sc->sc_msg.head.wCmd == CAPI_P_REQ(CONNECT)))
 	    {
 	        /* allocate a new call-descriptor
 		 * for an outgoing call
@@ -2287,7 +2288,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	  if((cd->ai_type == I4B_AI_BROADCAST) ||
 	     ((cd->ai_type == I4B_AI_CAPI) && (cd->ai_ptr == ((void *)sc))))
 	  {
-	    switch(msg.head.wCmd) {
+	    switch(sc->sc_msg.head.wCmd) {
 
 	      /* send ALERT request */
 
@@ -2295,34 +2296,34 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(cd->dir_incoming)
 	      {
-		  m2 = capi_make_conf(&msg, CAPI_CONF(ALERT), 0x0000);
+		  m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(ALERT), 0x0000);
 
 		  if(m2)
 		  {
-		      CAPI_INIT(CAPI_ALERT_REQ, &alert_req);
+		      CAPI_INIT(CAPI_ALERT_REQ, &sc->sc_alert_req);
 
-		      capi_decode(&msg.data, msg.head.wLen, &alert_req);
+		      capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, &sc->sc_alert_req);
 
-		      CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
+		      CAPI_INIT(CAPI_ADDITIONAL_INFO, &sc->sc_add_info);
 
-		      capi_decode(alert_req.add_info.ptr,
-				  alert_req.add_info.len, &add_info);
+		      capi_decode(sc->sc_alert_req.add_info.ptr,
+				  sc->sc_alert_req.add_info.len, &sc->sc_add_info);
 
-		      CAPI_INIT(CAPI_SENDING_COMPLETE, &sending_complete);
+		      CAPI_INIT(CAPI_SENDING_COMPLETE, &sc->sc_sending_complete);
 
-		      capi_decode(add_info.sending_complete.ptr,
-				  add_info.sending_complete.len, 
-				  &sending_complete);
+		      capi_decode(sc->sc_add_info.sending_complete.ptr,
+				  sc->sc_add_info.sending_complete.len, 
+				  &sc->sc_sending_complete);
 
 		      N_ALERT_REQUEST(cd, 
-				      (sending_complete.wMode == 0x0001) ?
+				      (sc->sc_sending_complete.wMode == 0x0001) ?
 				      /* send CALL PROCEEDING */ 1 :
 				      /* send ALERT */ 0);
 		  }
 	      }
 	      else
 	      {
-		  m2 = capi_make_conf(&msg, CAPI_CONF(ALERT), 0x2001);
+		  m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(ALERT), 0x2001);
 	      }
 	      goto send_confirmation;
 
@@ -2332,38 +2333,38 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(cd->dir_incoming)
 	      {
-		  m2 = capi_make_conf(&msg, CAPI_CONF(CONNECT), 0x2001);
+		  m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(CONNECT), 0x2001);
 		  goto send_confirmation;
 	      }
 
 	      /* update CID value first */
 
-	      msg.head.dwCid = CDID2CAPI_ID(cd->cdid);
+	      sc->sc_msg.head.dwCid = CDID2CAPI_ID(cd->cdid);
 
-	      m2 = capi_make_conf(&msg, CAPI_CONF(CONNECT), 0x0000);
+	      m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(CONNECT), 0x0000);
 
 	      capi_ai_putqueue(sc,0,m2,NULL);
 
 	      if(m2 == NULL) break;
 
-	      CAPI_INIT(CAPI_CONNECT_REQ, &connect_req);
+	      CAPI_INIT(CAPI_CONNECT_REQ, &sc->sc_connect_req);
 
-	      capi_decode(&msg.data, msg.head.wLen, &connect_req);
+	      capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, &sc->sc_connect_req);
 
-	      CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
+	      CAPI_INIT(CAPI_ADDITIONAL_INFO, &sc->sc_add_info);
 
-	      capi_decode(connect_req.add_info.ptr,
-			  connect_req.add_info.len, 
-			  &add_info);
+	      capi_decode(sc->sc_connect_req.add_info.ptr,
+			  sc->sc_connect_req.add_info.len, 
+			  &sc->sc_add_info);
 
-	      switch(connect_req.wCIP) {
+	      switch(sc->sc_connect_req.wCIP) {
 	      case CAPI_CIP_SPEECH:
 	      case CAPI_CIP_3100Hz_AUDIO:
 	      case CAPI_CIP_TELEPHONY:
 		cd->channel_bprot = BPROT_NONE;
 
-		if (connect_req.BC.len >= 5) {
-		    u_int8_t *temp = connect_req.BC.ptr;
+		if (sc->sc_connect_req.BC.len >= 5) {
+		    u_int8_t *temp = sc->sc_connect_req.BC.ptr;
 
 		    switch(temp[4] & 0x1F) {
 		    case 0x02:
@@ -2385,7 +2386,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		NDBGL4(L4_ERR, "cdid=%d, unknown CIP "
 		       "value=0x%04x, fallback to "
 		       "raw HDLC", cd->cdid, 
-		       connect_req.wCIP);
+		       sc->sc_connect_req.wCIP);
 
 	      case CAPI_CIP_UNRESTRICTED_DATA:
 		cd->channel_bprot = BPROT_RHDLC;
@@ -2409,16 +2410,16 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      capi_get_telno
 		(cd, 
-		 connect_req.dst_telno.ptr,
-		 connect_req.dst_telno.len,
+		 sc->sc_connect_req.dst_telno.ptr,
+		 sc->sc_connect_req.dst_telno.len,
 		 &(cd->dst_telno[0]), sizeof(cd->dst_telno)-1, NULL);
 
 	      /* get first calling party number */
 
 	      capi_get_telno
 		(cd,
-		 connect_req.src_telno.ptr,
-		 connect_req.src_telno.len,
+		 sc->sc_connect_req.src_telno.ptr,
+		 sc->sc_connect_req.src_telno.len,
 		 &(cd->src[0].telno[0]), sizeof(cd->src[0].telno)-1, 
 		 &(cd->src[0]));
 
@@ -2426,8 +2427,8 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      capi_get_telno
 		(cd,
-		 connect_req.src_telno_2.ptr,
-		 connect_req.src_telno_2.len,
+		 sc->sc_connect_req.src_telno_2.ptr,
+		 sc->sc_connect_req.src_telno_2.len,
 		 &(cd->src[1].telno[0]), sizeof(cd->src[1].telno)-1, 
 		 &(cd->src[1]));
 
@@ -2435,83 +2436,83 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      capi_get_telno
 		(cd,
-		 connect_req.dst_subaddr.ptr,
-		 connect_req.dst_subaddr.len,
+		 sc->sc_connect_req.dst_subaddr.ptr,
+		 sc->sc_connect_req.dst_subaddr.len,
 		 &(cd->dst_subaddr[0]), sizeof(cd->dst_subaddr)-1, NULL);
 
 	      /* get first calling party subaddress */
 
 	      capi_get_telno
 		(cd,
-		 connect_req.src_subaddr.ptr,
-		 connect_req.src_subaddr.len,
+		 sc->sc_connect_req.src_subaddr.ptr,
+		 sc->sc_connect_req.src_subaddr.len,
 		 &(cd->src[0].subaddr[0]), sizeof(cd->src[0].subaddr)-1, NULL);
 
 
 	      /* copy in keypad string */
 
-	      if(add_info.keypad.len > (sizeof(cd->keypad)-1))
+	      if(sc->sc_add_info.keypad.len > (sizeof(cd->keypad)-1))
 	      {
-		  add_info.keypad.len = (sizeof(cd->keypad)-1);
+		  sc->sc_add_info.keypad.len = (sizeof(cd->keypad)-1);
 	      }
 
-	      bcopy(add_info.keypad.ptr, cd->keypad, 
-		    add_info.keypad.len);
+	      bcopy(sc->sc_add_info.keypad.ptr, cd->keypad, 
+		    sc->sc_add_info.keypad.len);
 
-	      cd->keypad[add_info.keypad.len] = '\0';
+	      cd->keypad[sc->sc_add_info.keypad.len] = '\0';
 
 
 	      /* copy in user-user string */
 
-	      if(add_info.useruser.len > (sizeof(cd->user_user)-1))
+	      if(sc->sc_add_info.useruser.len > (sizeof(cd->user_user)-1))
 	      {
-		  add_info.useruser.len = (sizeof(cd->user_user)-1);
+		  sc->sc_add_info.useruser.len = (sizeof(cd->user_user)-1);
 	      }
 
-	      bcopy(add_info.useruser.ptr, cd->user_user,
-		    add_info.useruser.len);
+	      bcopy(sc->sc_add_info.useruser.ptr, cd->user_user,
+		    sc->sc_add_info.useruser.len);
 
-	      cd->user_user[add_info.useruser.len] = '\0';
+	      cd->user_user[sc->sc_add_info.useruser.len] = '\0';
 
 
 	      /* copy in display string */
 
-	      if(connect_req.display.len > (sizeof(cd->display)-1))
+	      if(sc->sc_connect_req.display.len > (sizeof(cd->display)-1))
 	      {
-		  connect_req.display.len = (sizeof(cd->display)-1);
+		  sc->sc_connect_req.display.len = (sizeof(cd->display)-1);
 	      }
 
-	      bcopy(connect_req.display.ptr, cd->display,
-		    connect_req.display.len);
+	      bcopy(sc->sc_connect_req.display.ptr, cd->display,
+		    sc->sc_connect_req.display.len);
 
-	      cd->display[connect_req.display.len] = '\0';
+	      cd->display[sc->sc_connect_req.display.len] = '\0';
 
 	      SET_CAUSE_TYPE(cd->cause_in, CAUSET_I4B);
 	      SET_CAUSE_VAL(cd->cause_in, CAUSE_I4B_NORMAL);
 
-	      if(connect_req.b_protocol.len)
+	      if(sc->sc_connect_req.b_protocol.len)
 	      {
-		  CAPI_INIT(CAPI_B_PROTOCOL, &b_protocol);
+		  CAPI_INIT(CAPI_B_PROTOCOL, &sc->sc_b_protocol);
 
-		  capi_decode(connect_req.b_protocol.ptr,
-			      connect_req.b_protocol.len, 
-			      &b_protocol);
+		  capi_decode(sc->sc_connect_req.b_protocol.ptr,
+			      sc->sc_connect_req.b_protocol.len, 
+			      &sc->sc_b_protocol);
 
-		  capi_decode_b_protocol(cd, &b_protocol);
+		  capi_decode_b_protocol(cd, &sc->sc_b_protocol);
 	      }
 
-	      if(connect_req.bFlag_0 & CAPI_FLAG0_WANT_LATE_INBAND)
+	      if(sc->sc_connect_req.bFlag_0 & CAPI_FLAG0_WANT_LATE_INBAND)
 	      {
 		      cd->want_late_inband = 1;
 	      }
 
-	      CAPI_INIT(CAPI_SENDING_COMPLETE, &sending_complete);
+	      CAPI_INIT(CAPI_SENDING_COMPLETE, &sc->sc_sending_complete);
 
-	      capi_decode(add_info.sending_complete.ptr,
-			  add_info.sending_complete.len, 
-			  &sending_complete);
+	      capi_decode(sc->sc_add_info.sending_complete.ptr,
+			  sc->sc_add_info.sending_complete.len, 
+			  &sc->sc_sending_complete);
 
-	      cd->sending_complete = (sending_complete.wMode == 0x0001);
+	      cd->sending_complete = (sc->sc_sending_complete.wMode == 0x0001);
 
 	      if(cd->channel_allocated == 0)
 	      {
@@ -2546,9 +2547,9 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(DATA_B3): /* ============================== */
 
-	      CAPI_INIT(CAPI_DATA_B3_REQ, &data_b3_req);
+	      CAPI_INIT(CAPI_DATA_B3_REQ, &sc->sc_data_b3_req);
 
-	      capi_decode(&msg.data, msg.head.wLen, &data_b3_req);
+	      capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, &sc->sc_data_b3_req);
 
 	      /* check that the B-channel is connected */
 
@@ -2559,20 +2560,20 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 			 "when disconnected!", cd->cdid);
 
 		  m2 = capi_make_b3_conf
-		    (&msg, data_b3_req.wHandle, 0x2001);
+		    (&sc->sc_msg, sc->sc_data_b3_req.wHandle, 0x2001);
 		  goto send_confirmation;
 	      }
 
 	      /* double check the frame length */
 
-	      if(data_b3_req.wLen != m1->m_len)
+	      if(sc->sc_data_b3_req.wLen != m1->m_len)
 	      {
 		  NDBGL4(L4_ERR, "cdid=%d: invalid B-channel framelength: "
-			 "%d <> %d!", cd->cdid, data_b3_req.wLen, 
+			 "%d <> %d!", cd->cdid, sc->sc_data_b3_req.wLen, 
 			 m1->m_len);
 
 		  m2 = capi_make_b3_conf
-		    (&msg, data_b3_req.wHandle, 0x2007);
+		    (&sc->sc_msg, sc->sc_data_b3_req.wHandle, 0x2007);
 		  goto send_confirmation;
 	      }
 
@@ -2581,14 +2582,14 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      if(_IF_QFULL(&cd->fifo_translator_capi_std->tx_queue))
 	      {
 		  m2 = capi_make_b3_conf
-		    (&msg, data_b3_req.wHandle, 0x1008);
+		    (&sc->sc_msg, sc->sc_data_b3_req.wHandle, 0x1008);
 		  goto send_confirmation;
 	      }
 
 	      /* make confirmation message */
 
 	      m2 = capi_make_b3_conf
-		(&msg, data_b3_req.wHandle, 0x0000);
+		(&sc->sc_msg, sc->sc_data_b3_req.wHandle, 0x0000);
 
 	      if(m2 == NULL)
 	      {
@@ -2627,9 +2628,9 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      /* update CID value first */
 
-	      msg.head.dwCid = CDID2CAPI_ID(cd->cdid)|CAPI_ID_NCCI;
+	      sc->sc_msg.head.dwCid = CDID2CAPI_ID(cd->cdid)|CAPI_ID_NCCI;
 
-	      m2 = capi_make_conf(&msg, CAPI_CONF(CONNECT_B3), 0x0000);
+	      m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(CONNECT_B3), 0x0000);
 	      capi_ai_putqueue(sc,0,m2,NULL);
 
 	      if(i4b_link_bchandrvr(cd, 1))
@@ -2649,14 +2650,14 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      {
 		  /* disconnect request, actively terminate connection */
 
-		  m2 = capi_make_conf(&msg, CAPI_CONF(DISCONNECT_B3), 0x0000);
+		  m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(DISCONNECT_B3), 0x0000);
 		  capi_ai_putqueue(sc,0,m2,NULL);
 
 		  (void)i4b_link_bchandrvr(cd, 0);
 	      }
 	      else
 	      {
-		  m2 = capi_make_conf(&msg, CAPI_CONF(DISCONNECT_B3), 0x2001);
+		  m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(DISCONNECT_B3), 0x2001);
 		  goto send_confirmation;
 	      }
 	      break;
@@ -2667,7 +2668,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	       * that one does not have to send any confirmation 
 	       * messages !
 	       */
-	      m2 = capi_make_conf(&msg, CAPI_CONF(DISCONNECT), 0x0000);
+	      m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(DISCONNECT), 0x0000);
 #endif
 	      (void)i4b_link_bchandrvr(cd, 0);
 
@@ -2691,27 +2692,27 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(INFO): /* ============================== */
 
-	      CAPI_INIT(CAPI_INFO_REQ, &info_req);
+	      CAPI_INIT(CAPI_INFO_REQ, &sc->sc_info_req);
 
-	      capi_decode(&msg.data, msg.head.wLen, &info_req);
+	      capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, &sc->sc_info_req);
 
-	      CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
+	      CAPI_INIT(CAPI_ADDITIONAL_INFO, &sc->sc_add_info);
 
-	      capi_decode(info_req.add_info.ptr,
-			  info_req.add_info.len, &add_info);
+	      capi_decode(sc->sc_info_req.add_info.ptr,
+			  sc->sc_info_req.add_info.len, &sc->sc_add_info);
 
 	      if(cd->dir_incoming)
 	      {
-		  if(add_info.facility.len > 0)
+		  if(sc->sc_add_info.facility.len > 0)
 		  {
 		      /* 
 		       * TODO: decode more of these messages 
 		       */
 
 		      /* check for progress request */
-		      if(((u_int8_t *)(add_info.facility.ptr))[0] == 0x1e)
+		      if(((u_int8_t *)(sc->sc_add_info.facility.ptr))[0] == 0x1e)
 		      {
-			  m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x0000);
+			  m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(INFO), 0x0000);
 			  if(m2)
 			  {
 			      N_PROGRESS_REQUEST(cd);
@@ -2719,29 +2720,29 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		      }
 		      else
 		      {
-			  m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x300B);
+			  m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(INFO), 0x300B);
 		      }
 		  }
 		  else
 		  {
-		      m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x2001);
+		      m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(INFO), 0x2001);
 		  }
 	      }
 	      else
 	      {
-		  m2 = capi_make_conf(&msg, CAPI_CONF(INFO), 0x0000);
+		  m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(INFO), 0x0000);
 		  if(m2)
 		  {
-		      if(info_req.dst_telno.len > 0)
+		      if(sc->sc_info_req.dst_telno.len > 0)
 		      {
 			  /* skip number plan byte */
-			  info_req.dst_telno.len --;
-			  info_req.dst_telno.ptr = 
-			    ADD_BYTES(info_req.dst_telno.ptr,1);
+			  sc->sc_info_req.dst_telno.len --;
+			  sc->sc_info_req.dst_telno.ptr = 
+			    ADD_BYTES(sc->sc_info_req.dst_telno.ptr,1);
 		      }
 
-		      i4b_l3_information_req(cd, info_req.dst_telno.ptr, 
-					     info_req.dst_telno.len);
+		      i4b_l3_information_req(cd, sc->sc_info_req.dst_telno.ptr, 
+					     sc->sc_info_req.dst_telno.len);
 		  }
 	      }
 	      goto send_confirmation;
@@ -2749,7 +2750,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(RESET_B3): /* ============================= */
 
-	      m2 = capi_make_conf(&msg, CAPI_CONF(RESET_B3), 0x300D);
+	      m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(RESET_B3), 0x300D);
 
 	      /* nothing to do - not supported */
 
@@ -2758,26 +2759,26 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(SELECT_B_PROTOCOL): /* ==================== */
 
-	      CAPI_INIT(CAPI_SELECT_B_PROTOCOL_REQ, &select_b_protocol_req);
+	      CAPI_INIT(CAPI_SELECT_B_PROTOCOL_REQ, &sc->sc_select_b_protocol_req);
 
-	      capi_decode(&msg.data, msg.head.wLen, &select_b_protocol_req);
+	      capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, &sc->sc_select_b_protocol_req);
 
-	      if(select_b_protocol_req.b_protocol.len)
+	      if(sc->sc_select_b_protocol_req.b_protocol.len)
 	      {
 		  uint8_t berr;
 
-		  CAPI_INIT(CAPI_B_PROTOCOL, &b_protocol);
+		  CAPI_INIT(CAPI_B_PROTOCOL, &sc->sc_b_protocol);
 
-		  capi_decode(select_b_protocol_req.b_protocol.ptr,
-			      select_b_protocol_req.b_protocol.len, 
-			      &b_protocol);
+		  capi_decode(sc->sc_select_b_protocol_req.b_protocol.ptr,
+			      sc->sc_select_b_protocol_req.b_protocol.len, 
+			      &sc->sc_b_protocol);
 
 		  cd->channel_bprot = 0xff;
 
-		  berr = capi_decode_b_protocol(cd, &b_protocol);
+		  berr = capi_decode_b_protocol(cd, &sc->sc_b_protocol);
 
 		  if (berr) {
-		      m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
+		      m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(SELECT_B_PROTOCOL), 
 					  0x3000 | berr);
 		      goto send_confirmation;
 		  }
@@ -2788,7 +2789,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      cd->driver_type = DRVR_CAPI_B3;
 	      cd->driver_unit = 0;
 
-	      m2 = capi_make_conf(&msg, CAPI_CONF(SELECT_B_PROTOCOL), 
+	      m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(SELECT_B_PROTOCOL), 
 				  0x0000);
 
 	      if(cd->dir_incoming)
@@ -2802,21 +2803,21 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(FACILITY): /* ============================= */
 
-	      CAPI_INIT(CAPI_FACILITY_REQ, &facility_req);
- 	      capi_decode(&msg.data, msg.head.wLen, &facility_req);
+	      CAPI_INIT(CAPI_FACILITY_REQ, &sc->sc_facility_req);
+ 	      capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, &sc->sc_facility_req);
 
-	      if(facility_req.wSelector == 0x0001)
+	      if(sc->sc_facility_req.wSelector == 0x0001)
 	      {
 		  int err = EINVAL;
 
 		  /* DTMF support */
 
-		  CAPI_INIT(CAPI_FACILITY_REQ_DTMF_PARAM, &dtmf_req);
-		  capi_decode(facility_req.Param.ptr,
-			      facility_req.Param.len,
-			      &dtmf_req);
+		  CAPI_INIT(CAPI_FACILITY_REQ_DTMF_PARAM, &sc->sc_dtmf_req);
+		  capi_decode(sc->sc_facility_req.Param.ptr,
+			      sc->sc_facility_req.Param.len,
+			      &sc->sc_dtmf_req);
 
-		  switch(dtmf_req.wFunction) {
+		  switch(sc->sc_dtmf_req.wFunction) {
 		  case 1:
 		      /* enable DTMF detector */
 
@@ -2842,41 +2843,41 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 		      if (cd->fifo_translator_capi_std) {
 
-			u_int16_t len = dtmf_req.Digits.len;
-			u_int8_t *ptr = dtmf_req.Digits.ptr;
+			u_int16_t len = sc->sc_dtmf_req.Digits.len;
+			u_int8_t *ptr = sc->sc_dtmf_req.Digits.ptr;
 
 			while (len--) {
 			    i4b_dtmf_queue_digit
 			      (cd->fifo_translator_capi_std, *ptr++, 
-			       dtmf_req.wToneDuration,
-			       dtmf_req.wGapDuration);
+			       sc->sc_dtmf_req.wToneDuration,
+			       sc->sc_dtmf_req.wGapDuration);
 			}
 			err = 0;
 		      }
 		      break;
 		  }
-		  m2 = capi_make_dtmf_conf(&msg, err ? 
+		  m2 = capi_make_dtmf_conf(&sc->sc_msg, err ? 
 					   0x0002 /* unknown DTMF request */ : 
 					   0x0000 /* success */);
 		  goto send_confirmation;
 	      }
 
-	      if(facility_req.wSelector == 0x0008)
+	      if(sc->sc_facility_req.wSelector == 0x0008)
 	      {
 		  /* echo cancellation */
-		  CAPI_INIT(CAPI_EC_FACILITY_PARM, &ec_parm);
-		  capi_decode(facility_req.Param.ptr,
-			      facility_req.Param.len,
-			      &ec_parm);
+		  CAPI_INIT(CAPI_EC_FACILITY_PARM, &sc->sc_ec_parm);
+		  capi_decode(sc->sc_facility_req.Param.ptr,
+			      sc->sc_facility_req.Param.len,
+			      &sc->sc_ec_parm);
 
-		  if(ec_parm.wFunction == 0x0000)
+		  if(sc->sc_ec_parm.wFunction == 0x0000)
 		  {
 		      /* get supported parameters */
 
-		      m2 = capi_make_ec_supp_conf(&msg);
+		      m2 = capi_make_ec_supp_conf(&sc->sc_msg);
 		      goto send_confirmation;
 		  }
-		  else if(ec_parm.wFunction == 0x0001)
+		  else if(sc->sc_ec_parm.wFunction == 0x0001)
 		  {
 		      /* enable echo canceller */
 
@@ -2893,10 +2894,10 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		      }
 
 		      m2 = capi_make_ec_generic_conf
-			(&msg, 0x0001, err ? 0x3011 : 0x0000);
+			(&sc->sc_msg, 0x0001, err ? 0x3011 : 0x0000);
 		      goto send_confirmation;
 		  }
-		  else if(ec_parm.wFunction == 0x0002)
+		  else if(sc->sc_ec_parm.wFunction == 0x0002)
 		  {
 		      /* disable echo canceller */
 
@@ -2913,178 +2914,178 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		      }
 
 		      m2 = capi_make_ec_generic_conf
-			(&msg, 0x0002, err ? 0x3011 : 0x0000);
+			(&sc->sc_msg, 0x0002, err ? 0x3011 : 0x0000);
 		      goto send_confirmation;
 		  }
 	      }
 
-	      if(facility_req.wSelector == 0x0003)
+	      if(sc->sc_facility_req.wSelector == 0x0003)
 	      {
 		  /* supplementary services */
-		  CAPI_INIT(CAPI_SUPPL_PARAM, &suppl_param);
-		  capi_decode(facility_req.Param.ptr,
-			      facility_req.Param.len,
-			      &suppl_param);
+		  CAPI_INIT(CAPI_SUPPL_PARAM, &sc->sc_suppl_param);
+		  capi_decode(sc->sc_facility_req.Param.ptr,
+			      sc->sc_facility_req.Param.len,
+			      &sc->sc_suppl_param);
 
-		  if(suppl_param.wFunction == 0x0000)
+		  if(sc->sc_suppl_param.wFunction == 0x0000)
 		  {
 		      /* get supplementary services */
 
-		      m2 = capi_make_suppl_supp_conf(&msg);
+		      m2 = capi_make_suppl_supp_conf(&sc->sc_msg);
 		      goto send_confirmation;
 		  }
-		  else if(suppl_param.wFunction == 0x0002)
+		  else if(sc->sc_suppl_param.wFunction == 0x0002)
 		  {
 		      /* HOLD request */
 
 		      N_HOLD_REQUEST(cd);
 
 		      m2 = capi_make_fac_suppl_conf
-			(&msg, 0x0002, NULL);
+			(&sc->sc_msg, 0x0002, NULL);
 		      goto send_confirmation;
 		  }
-		  else if(suppl_param.wFunction == 0x0003)
+		  else if(sc->sc_suppl_param.wFunction == 0x0003)
 		  {
 		      /* RETRIEVE request */
 
 		      N_RETRIEVE_REQUEST(cd);
 
 		      m2 = capi_make_fac_suppl_conf
-			(&msg, 0x0003, NULL);
+			(&sc->sc_msg, 0x0003, NULL);
 		      goto send_confirmation;
 		  }
-		  else if(suppl_param.wFunction == 0x000D)
+		  else if(sc->sc_suppl_param.wFunction == 0x000D)
 		  {
 		      /* call deflection */
 
-		      CAPI_INIT(CAPI_FACILITY_REQ_CALL_DEFL_PARAM, &cd_req);
-		      capi_decode(suppl_param.Param.ptr,
-				  suppl_param.Param.len,
-				  &cd_req);
+		      CAPI_INIT(CAPI_FACILITY_REQ_CALL_DEFL_PARAM, &sc->sc_cd_req);
+		      capi_decode(sc->sc_suppl_param.Param.ptr,
+				  sc->sc_suppl_param.Param.len,
+				  &sc->sc_cd_req);
 
 		      capi_get_fac_telno
 			(cd, 
-			 cd_req.dst_telno.ptr,
-			 cd_req.dst_telno.len,
+			 sc->sc_cd_req.dst_telno.ptr,
+			 sc->sc_cd_req.dst_telno.len,
 			 &(cd->dst_telno_part[0]), 
 			 sizeof(cd->dst_telno_part)-1);
 
 		      N_DEFLECT_REQUEST(cd);
 
 		      m2 = capi_make_fac_suppl_conf_type1
-			(&msg, 0x000D, 0x0000);
+			(&sc->sc_msg, 0x000D, 0x0000);
 		      goto send_confirmation;
 		  }
-		  else if(suppl_param.wFunction == 0x000E)
+		  else if(sc->sc_suppl_param.wFunction == 0x000E)
 		  {
 		      /* MCID */
 
 		      N_MCID_REQUEST(cd);
 
 		      m2 = capi_make_fac_suppl_conf
-			(&msg, 0x000E, NULL);
+			(&sc->sc_msg, 0x000E, NULL);
 		      goto send_confirmation;
 		  }
 	      }
 
-	      if(facility_req.wSelector == 0x0005)
+	      if(sc->sc_facility_req.wSelector == 0x0005)
 	      {
 		  /* line interconnect */
 
-		  CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_param);
-		  capi_decode(facility_req.Param.ptr, facility_req.Param.len, 
-			      &li_param);
+		  CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &sc->sc_li_param);
+		  capi_decode(sc->sc_facility_req.Param.ptr, sc->sc_facility_req.Param.len, 
+			      &sc->sc_li_param);
 
-		  switch(li_param.wFunction) {
+		  switch(sc->sc_li_param.wFunction) {
 		  case 0x0000:
 		      /* get supported services */
-		      m2 = capi_make_li_supp_conf(&msg);
+		      m2 = capi_make_li_supp_conf(&sc->sc_msg);
 		      goto send_confirmation;
 
 		  case 0x0001:
 		      /* connect */
-		      CAPI_INIT(CAPI_LI_CONN_REQ_PARAM, &li_conn_req_param);
-		      capi_decode(li_param.Param.ptr, li_param.Param.len, 
-				  &li_conn_req_param);
+		      CAPI_INIT(CAPI_LI_CONN_REQ_PARAM, &sc->sc_li_conn_req_param);
+		      capi_decode(sc->sc_li_param.Param.ptr, sc->sc_li_param.Param.len, 
+				  &sc->sc_li_conn_req_param);
 
-		      CAPI_INIT(CAPI_GENERIC_STRUCT, &gen_struct);
-		      capi_decode(li_conn_req_param.conn_req_part.ptr,
-				  li_conn_req_param.conn_req_part.len,
-				  &gen_struct);
+		      CAPI_INIT(CAPI_GENERIC_STRUCT, &sc->sc_gen_struct);
+		      capi_decode(sc->sc_li_conn_req_param.conn_req_part.ptr,
+				  sc->sc_li_conn_req_param.conn_req_part.len,
+				  &sc->sc_gen_struct);
 
-		      CAPI_INIT(CAPI_LI_CONN_REQ_PART, &li_conn_req_part);
-		      capi_decode(gen_struct.Param.ptr,
-				  gen_struct.Param.len,
-				  &li_conn_req_part);
+		      CAPI_INIT(CAPI_LI_CONN_REQ_PART, &sc->sc_li_conn_req_part);
+		      capi_decode(sc->sc_gen_struct.Param.ptr,
+				  sc->sc_gen_struct.Param.len,
+				  &sc->sc_li_conn_req_part);
 
-		      if(li_conn_req_param.dwDataPath != 0x00000000)
+		      if(sc->sc_li_conn_req_param.dwDataPath != 0x00000000)
 		      {
-			  m2 = capi_make_li_conn_conf(&msg, 0x2008, 
-						      li_conn_req_part.dwCid);
+			  m2 = capi_make_li_conn_conf(&sc->sc_msg, 0x2008, 
+						      sc->sc_li_conn_req_part.dwCid);
 			  goto send_confirmation;
 		      }
 
-		      m2 = capi_make_li_conn_conf(&msg, 0x0000,
-						  li_conn_req_part.dwCid);
+		      m2 = capi_make_li_conn_conf(&sc->sc_msg, 0x0000,
+						  sc->sc_li_conn_req_part.dwCid);
 		      capi_ai_putqueue(sc,0,m2,NULL);
 
 		      capi_connect_bridge(cd, sc, 
-					  CAPI_ID2CDID(li_conn_req_part.dwCid));
+					  CAPI_ID2CDID(sc->sc_li_conn_req_part.dwCid));
 		      CNTL_UNLOCK(cntl);
 
-		      cntl = CNTL_FIND(CAPI_ID2CONTROLLER(li_conn_req_part.dwCid));
+		      cntl = CNTL_FIND(CAPI_ID2CONTROLLER(sc->sc_li_conn_req_part.dwCid));
 
 		      if(cntl)
 		      {
 			  CNTL_LOCK(cntl);
 
-			  cd = cd_by_cdid(cntl, CAPI_ID2CDID(li_conn_req_part.dwCid));
+			  cd = cd_by_cdid(cntl, CAPI_ID2CDID(sc->sc_li_conn_req_part.dwCid));
 
 			  capi_connect_bridge(cd, sc,
-					      CAPI_ID2CDID(msg.head.dwCid));
+					      CAPI_ID2CDID(sc->sc_msg.head.dwCid));
 		      }
 		      break;
 
 		  case 0x0002:
 		      /* disconnect */
-		      CAPI_INIT(CAPI_LI_DISC_REQ_PARAM, &li_disc_req_param);
-		      capi_decode(li_param.Param.ptr, li_param.Param.len, 
-				  &li_disc_req_param);
+		      CAPI_INIT(CAPI_LI_DISC_REQ_PARAM, &sc->sc_li_disc_req_param);
+		      capi_decode(sc->sc_li_param.Param.ptr, sc->sc_li_param.Param.len, 
+				  &sc->sc_li_disc_req_param);
 
-		      CAPI_INIT(CAPI_GENERIC_STRUCT, &gen_struct);
-		      capi_decode(li_disc_req_param.disc_req_part.ptr,
-				  li_disc_req_param.disc_req_part.len,
-				  &gen_struct);
+		      CAPI_INIT(CAPI_GENERIC_STRUCT, &sc->sc_gen_struct);
+		      capi_decode(sc->sc_li_disc_req_param.disc_req_part.ptr,
+				  sc->sc_li_disc_req_param.disc_req_part.len,
+				  &sc->sc_gen_struct);
 
-		      CAPI_INIT(CAPI_LI_DISC_REQ_PART, &li_disc_req_part);
-		      capi_decode(gen_struct.Param.ptr,
-				  gen_struct.Param.len,
-				  &li_disc_req_part);
+		      CAPI_INIT(CAPI_LI_DISC_REQ_PART, &sc->sc_li_disc_req_part);
+		      capi_decode(sc->sc_gen_struct.Param.ptr,
+				  sc->sc_gen_struct.Param.len,
+				  &sc->sc_li_disc_req_part);
 
-		      m2 = capi_make_li_disc_conf(&msg, 0x0000,
-						  li_disc_req_part.dwCid);
+		      m2 = capi_make_li_disc_conf(&sc->sc_msg, 0x0000,
+						  sc->sc_li_disc_req_part.dwCid);
 		      capi_ai_putqueue(sc,0,m2,NULL);
 
 		      capi_disconnect_bridge(cd, sc,
-					     CAPI_ID2CDID(li_disc_req_part.dwCid));
+					     CAPI_ID2CDID(sc->sc_li_disc_req_part.dwCid));
 		      CNTL_UNLOCK(cntl);
 
-		      cntl = CNTL_FIND(CAPI_ID2CONTROLLER(li_disc_req_part.dwCid));
+		      cntl = CNTL_FIND(CAPI_ID2CONTROLLER(sc->sc_li_disc_req_part.dwCid));
 
 		      if(cntl)
 		      {
 			  CNTL_LOCK(cntl);
 
-			  cd = cd_by_cdid(cntl, CAPI_ID2CDID(li_disc_req_part.dwCid));
+			  cd = cd_by_cdid(cntl, CAPI_ID2CDID(sc->sc_li_disc_req_part.dwCid));
 		      
 			  capi_disconnect_bridge(cd, sc, 
-						 CAPI_ID2CDID(msg.head.dwCid));
+						 CAPI_ID2CDID(sc->sc_msg.head.dwCid));
 		      }
 		      break;
 
 		  default:
 		      m2 = capi_make_facility_conf
-			(&msg, facility_req.wSelector, 0x3011, NULL);
+			(&sc->sc_msg, sc->sc_facility_req.wSelector, 0x3011, NULL);
 		      goto send_confirmation;
 		  }
 		  break;
@@ -3093,7 +3094,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      /* not supported */
 
 	      m2 = capi_make_facility_conf
-		(&msg, facility_req.wSelector, 0x300B, NULL);
+		(&sc->sc_msg, sc->sc_facility_req.wSelector, 0x300B, NULL);
 
 	      goto send_confirmation;
 
@@ -3108,19 +3109,19 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		  break;
 	      }
 
-	      CAPI_INIT(CAPI_CONNECT_RESP, &connect_resp);
+	      CAPI_INIT(CAPI_CONNECT_RESP, &sc->sc_connect_resp);
 
-	      capi_decode(&msg.data, msg.head.wLen, &connect_resp);
+	      capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, &sc->sc_connect_resp);
 
-	      if (connect_resp.wReject < 9) {
-		  cause = (CAUSET_I4B << 8) | cause_table[connect_resp.wReject];
+	      if (sc->sc_connect_resp.wReject < 9) {
+		  cause = (CAUSET_I4B << 8) | cause_table[sc->sc_connect_resp.wReject];
 
-		  if(connect_resp.wReject == 0) {
+		  if(sc->sc_connect_resp.wReject == 0) {
 
 			/* accept the call */
 			response = SETUP_RESP_ACCEPT;
 
-		  } else if(connect_resp.wReject == 1) {
+		  } else if(sc->sc_connect_resp.wReject == 1) {
 
 			/* ignore the call */
 			response = SETUP_RESP_DNTCRE;
@@ -3134,11 +3135,11 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 			response = SETUP_RESP_REJECT;
 		  }
 	      }
-	      else if((connect_resp.wReject & 0xFF00) == 0x3400)
+	      else if((sc->sc_connect_resp.wReject & 0xFF00) == 0x3400)
 	      {
 			cause = 
 			  (CAUSET_Q850 << 8) | 
-			  (connect_resp.wReject & 0x7F);
+			  (sc->sc_connect_resp.wReject & 0x7F);
 			response = SETUP_RESP_REJECT;
 	      }
 	      else
@@ -3147,18 +3148,18 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 			response = SETUP_RESP_REJECT;
 	      }
 
-	      if(connect_resp.b_protocol.len)
+	      if(sc->sc_connect_resp.b_protocol.len)
 	      {
 		  uint8_t berr;
 
-		  CAPI_INIT(CAPI_B_PROTOCOL, &b_protocol);
+		  CAPI_INIT(CAPI_B_PROTOCOL, &sc->sc_b_protocol);
 
-		  capi_decode(connect_resp.b_protocol.ptr,
-			      connect_resp.b_protocol.len, &b_protocol);
+		  capi_decode(sc->sc_connect_resp.b_protocol.ptr,
+			      sc->sc_connect_resp.b_protocol.len, &sc->sc_b_protocol);
 
 		  cd->channel_bprot = 0xff;
 
-		  berr = capi_decode_b_protocol(cd, &b_protocol);
+		  berr = capi_decode_b_protocol(cd, &sc->sc_b_protocol);
 	      }
 
 	      capi_disconnect_broadcast(cd, sc);
@@ -3173,10 +3174,10 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      cd->isdntxdelay = 0; /* seconds (disabled) */
 
-	      cd->odate_time_len = min(connect_resp.date_time.len,
+	      cd->odate_time_len = min(sc->sc_connect_resp.date_time.len,
 				       sizeof(cd->odate_time_data));
 
-	      bcopy(connect_resp.date_time.ptr,
+	      bcopy(sc->sc_connect_resp.date_time.ptr,
 		    cd->odate_time_data,
 		    cd->odate_time_len);
 
@@ -3209,11 +3210,11 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	    case CAPI_P_RESP(CONNECT_B3):
 	      if(cd->dir_incoming && (cd->ai_type == I4B_AI_CAPI))
 	      {
-		  CAPI_INIT(CAPI_CONNECT_B3_RESP, &connect_b3_resp);
+		  CAPI_INIT(CAPI_CONNECT_B3_RESP, &sc->sc_connect_b3_resp);
 
-		  capi_decode(&msg.data, msg.head.wLen, &connect_b3_resp);
+		  capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, &sc->sc_connect_b3_resp);
 
-		  if(connect_b3_resp.wReject)
+		  if(sc->sc_connect_b3_resp.wReject)
 		  {
 		      /* preset causes with our cause */
 
@@ -3267,7 +3268,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      NDBGL4(L4_ERR, "cdid=%d: Unknown frame: "
 		     "wCmd=0x%04x (ignored)!",
-		     cd->cdid, msg.head.wCmd);
+		     cd->cdid, sc->sc_msg.head.wCmd);
 
 	      /* only return error
 	       * when operation cannot
@@ -3282,31 +3283,31 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	  {
 		NDBGL4(L4_MSG, "cdid=%d: wCmd=0x%04x frame ignored. "
 		       "Application interface mismatch!", 
-		       cd->cdid, msg.head.wCmd);
+		       cd->cdid, sc->sc_msg.head.wCmd);
 
 		/* do nothing ! */
 	  }
 	}
 	else
 	{
-	    switch(msg.head.wCmd) {
+	    switch(sc->sc_msg.head.wCmd) {
 	    case CAPI_P_REQ(LISTEN):/* ================================ */
 
-	      m2 = capi_make_conf(&msg, CAPI_CONF(LISTEN), 0x0000);
+	      m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(LISTEN), 0x0000);
 
 	      if(m2)
 	      {
-		  u_int8_t controller = (msg.head.dwCid & 0xFF) % MAX_CONTROLLERS;
+		  u_int8_t controller = (sc->sc_msg.head.dwCid & 0xFF) % MAX_CONTROLLERS;
 
-		  CAPI_INIT(CAPI_LISTEN_REQ, &listen_req);
+		  CAPI_INIT(CAPI_LISTEN_REQ, &sc->sc_listen_req);
 
-		  capi_decode(&msg.data, msg.head.wLen, &listen_req);
+		  capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, &sc->sc_listen_req);
 
 		  mtx_lock(&sc->sc_mtx);
 
-		  sc->sc_info_mask[controller]  = listen_req.dwInfoMask;
-		  sc->sc_CIP_mask_1[controller] = listen_req.dwCipMask1;
-		  sc->sc_CIP_mask_2[controller] = listen_req.dwCipMask2;
+		  sc->sc_info_mask[controller]  = sc->sc_listen_req.dwInfoMask;
+		  sc->sc_CIP_mask_1[controller] = sc->sc_listen_req.dwCipMask1;
+		  sc->sc_CIP_mask_2[controller] = sc->sc_listen_req.dwCipMask2;
 
 		  mtx_unlock(&sc->sc_mtx);
 	      }
@@ -3314,44 +3315,44 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	    case CAPI_P_REQ(CONNECT): /* ============================== */
 
-	      m2 = capi_make_conf(&msg, CAPI_CONF(CONNECT), 0x2003);
+	      m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(CONNECT), 0x2003);
 
 	      goto send_confirmation;
 
 	    case CAPI_P_REQ(FACILITY):
 
-	      CAPI_INIT(CAPI_FACILITY_REQ, &facility_req);
- 	      capi_decode(&msg.data, msg.head.wLen, 
-			  &facility_req);
+	      CAPI_INIT(CAPI_FACILITY_REQ, &sc->sc_facility_req);
+ 	      capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, 
+			  &sc->sc_facility_req);
 
-	      if(facility_req.wSelector == 0x0003)
+	      if(sc->sc_facility_req.wSelector == 0x0003)
 	      {
 		  /* supplementary services */
-		  CAPI_INIT(CAPI_SUPPL_PARAM, &suppl_param);
-		  capi_decode(facility_req.Param.ptr,
-			      facility_req.Param.len,
-			      &suppl_param);
+		  CAPI_INIT(CAPI_SUPPL_PARAM, &sc->sc_suppl_param);
+		  capi_decode(sc->sc_facility_req.Param.ptr,
+			      sc->sc_facility_req.Param.len,
+			      &sc->sc_suppl_param);
 
-		  if(suppl_param.wFunction == 0x0000)
+		  if(sc->sc_suppl_param.wFunction == 0x0000)
 		  {
 		      /* get supplementary services */
 
-		      m2 = capi_make_suppl_supp_conf(&msg);
+		      m2 = capi_make_suppl_supp_conf(&sc->sc_msg);
 		      goto send_confirmation;
 		  }
 	      }
-	      if(facility_req.wSelector == 0x0005)
+	      if(sc->sc_facility_req.wSelector == 0x0005)
 	      {
 		  /* line interconnect */
 
-		  CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &li_param);
-		  capi_decode(facility_req.Param.ptr, facility_req.Param.len, 
-			      &li_param);
+		  CAPI_INIT(CAPI_LINE_INTERCONNECT_PARAM, &sc->sc_li_param);
+		  capi_decode(sc->sc_facility_req.Param.ptr, sc->sc_facility_req.Param.len, 
+			      &sc->sc_li_param);
 
-		  if(li_param.wFunction == 0x0000)
+		  if(sc->sc_li_param.wFunction == 0x0000)
 		  {
 		      /* get supported services */
-		      m2 = capi_make_li_supp_conf(&msg);
+		      m2 = capi_make_li_supp_conf(&sc->sc_msg);
 		      goto send_confirmation;
 		  }
 	      }
@@ -3387,7 +3388,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	    default:
 	      NDBGL4(L4_ERR, "wCID=0x%08x: Invalid frame or CID: "
 		     "wCmd=0x%04x (ignored)!",
-		     msg.head.dwCid, msg.head.wCmd);
+		     sc->sc_msg.head.dwCid, sc->sc_msg.head.wCmd);
 
 	      /* only return error
 	       * when operation cannot
@@ -3416,11 +3417,15 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	mtx_unlock(&sc->sc_mtx);
 
  done:
-	if(m1)
-	{
+	if (m1) {
 		m_freem(m1);
 	}
-	return error;
+
+	mtx_lock(&sc->sc_mtx);
+	sc->sc_write_busy = 0;
+	mtx_unlock(&sc->sc_mtx);
+
+	return (error);
 }
 
 /*---------------------------------------------------------------------------*
