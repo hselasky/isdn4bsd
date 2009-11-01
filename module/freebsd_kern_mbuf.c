@@ -38,22 +38,22 @@ m_getcl(int how, short type, int flags)
     struct mbuf *m;
 
     if (flags != M_PKTHDR) {
-        return NULL;
+        return (NULL);
     }
 
     MGETHDR(m, how, type);
 
     if (!m) {
-        return NULL;
+        return (NULL);
     }
 
     MCLGET(m, how);
 
     if(!(m->m_flags & M_EXT)) {
         m_freem(m);
-	return NULL;
+	return (NULL);
     }
-    return m;
+    return (m);
 }
 #endif
 
