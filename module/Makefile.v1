@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2005 Hans Petter Selasky. All rights reserved.
+# Copyright (c) 2005-2009 Hans Petter Selasky. All rights reserved.
 #
 # .include "../Makefile.inc"
 #
@@ -128,6 +128,8 @@ kern_conf:
 .if (${OSNAME} == "NetBSD")
 	@echo "# cp -i ${.CURDIR}/sys/*h         /usr/src/sys/sys"
 	@echo "# ln -s ${.CURDIR}/../src/sys/i4b /usr/src/sys/i4b"
+	@echo "# ln -s ${.CURDIR}/freebsd_kern_mutex_v5.c /usr/src/sys/freebsd_kern_mutex_v5.c"
+	@echo "# ln -s ${.CURDIR}/freebsd_kern_mutex_v4.c /usr/src/sys/freebsd_kern_mutex_v4.c"
 	@echo "# touch /usr/src/sys/arch/xxx/compile_dir/opt_i4b.h"
 	@echo "# echo #define device_t nbsd_device_t >> /usr/src/sys/sys/device.h"
 	@echo "# echo #define devclass_t nbsd_devclass_t >> /usr/src/sys/sys/device.h"
