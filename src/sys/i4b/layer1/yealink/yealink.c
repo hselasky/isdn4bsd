@@ -597,7 +597,7 @@ tr_setup:
 				if (i == YEALINK_ST_SET_MIC) {
 					yealink_set_mixer(&sc->sc_ctrl.req,
 					    sc->sc_ctrl.data.raw,
-					    0x0500, 0x0200, 2, 0x7000);	/* mic */
+					    0x0500, 0x0200, 2, 0x5800);	/* mic */
 
 					/* setup USB transfer */
 					usbd_xfer_set_frame_data(xfer, 0,
@@ -611,7 +611,7 @@ tr_setup:
 				if (i == YEALINK_ST_SET_PCM) {
 					yealink_set_mixer(&sc->sc_ctrl.req,
 					    sc->sc_ctrl.data.raw,
-					    0x0600, 0x0200, 2, 0x5000);	/* pcm */
+					    0x0600, 0x0200, 2, 0x4000);	/* pcm */
 					/* setup USB transfer */
 					usbd_xfer_set_frame_data(xfer, 0,
 					    &sc->sc_ctrl.req, sizeof(sc->sc_ctrl.req));
