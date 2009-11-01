@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2005
+ * Copyright (c) 2005-2009
  *      Hans Petter Selasky. All rights reserved.
  * Copyright (c) 2000-2004
  *	Poul-Henning Kamp.  All rights reserved.
@@ -1297,7 +1297,8 @@ devfs_inactive(struct vop_inactive_args *ap)
 	struct vnode *vp = ap->a_vp;
 
 #if (__NetBSD_Version__ >= 500000000)
-	*ap->a_recycle = 1;		/* node is gone */
+	/* XXX node is not gone */
+	*ap->a_recycle = 0;
 #endif
 
 	VOP_UNLOCK(vp, 0);
