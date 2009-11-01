@@ -92,6 +92,13 @@ devfs_mount(struct mount *mp, const char *path, void *data,
 	struct vnode *rvp;
 	int error = 0;
 
+	if (mp->mnt_flag & MNT_GETARGS) {
+#if (__NetBSD_Version__ >= 500000000)
+		*data_len = 0;
+#endif
+		return (0);
+	}
+
 	if (mp->mnt_flag & (MNT_UPDATE | MNT_ROOTFS))
 		return (EOPNOTSUPP);
 
