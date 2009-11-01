@@ -1297,8 +1297,8 @@ devfs_inactive(struct vop_inactive_args *ap)
 	struct vnode *vp = ap->a_vp;
 
 #if (__NetBSD_Version__ >= 500000000)
-	/* XXX node is not gone */
-	*ap->a_recycle = 0;
+	/* XXX node is gone */
+	*ap->a_recycle = 1;
 #endif
 
 	VOP_UNLOCK(vp, 0);
