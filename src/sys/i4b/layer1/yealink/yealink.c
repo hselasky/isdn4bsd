@@ -312,6 +312,13 @@ yealink_set_usb(struct yealink_softc *sc, uint8_t on)
 }
 
 static void
+yealink_set_volume(struct yealink_softc *sc)
+{
+	sc->sc_st_data[YEALINK_ST_SET_MIC] = 1;
+	sc->sc_st_data[YEALINK_ST_SET_PCM] = 1;
+}
+
+static void
 yealink_set_led(struct yealink_softc *sc, uint8_t on)
 {
 	sc->sc_st_data[YEALINK_ST_LED_ON] = 0;
@@ -390,6 +397,7 @@ yealink_set_protocol(struct dss1_lite *pdl,
 		yealink_set_usb(sc, enable);
 	} else {
 		yealink_set_led(sc, enable);
+		yealink_set_volume(sc);
 		if (enable) {
 			usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_ISOC_IN_0]);
 			usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_ISOC_IN_1]);
@@ -428,21 +436,15 @@ yealink_cmd(struct yealink_softc *sc, struct yealink_ctl_packet *p)
 }
 
 static void
-yealink_set_mixer(struct yealink_softc *sc, uint16_t wIndex,
+yealink_set_mixer(struct usb_device_request *preq, uint8_t *buf, uint16_t wIndex,
     uint16_t wValue, uint16_t wLength, uint16_t vol)
 {
-	struct usb_device_request req;
-	uint8_t buf[2];
-
-	req.bmRequestType = UT_WRITE_CLASS_INTERFACE;
-	req.bRequest = 0x01;		/* SET_CUR */
-	USETW(req.wValue, wValue);
-	USETW(req.wIndex, wIndex);
-	USETW(req.wLength, wLength);
+	preq->bmRequestType = UT_WRITE_CLASS_INTERFACE;
+	preq->bRequest = 0x01;		/* SET_CUR */
+	USETW(preq->wValue, wValue);
+	USETW(preq->wIndex, wIndex);
+	USETW(preq->wLength, wLength);
 	USETW(buf, vol);
-
-	usbd_do_request_flags(sc->sc_udev, NULL,
-	    &req, buf, 0, 0, 1000 /* ms */ );
 }
 
 static int
@@ -592,6 +594,33 @@ tr_setup:
 			if (sc->sc_st_data[i] != 0) {
 				sc->sc_st_data[i] = 0;
 
+				if (i == YEALINK_ST_SET_MIC) {
+					yealink_set_mixer(&sc->sc_ctrl.req,
+					    sc->sc_ctrl.data.raw,
+					    0x0500, 0x0200, 2, 0x7000);	/* mic */
+
+					/* setup USB transfer */
+					usbd_xfer_set_frame_data(xfer, 0,
+					    &sc->sc_ctrl.req, sizeof(sc->sc_ctrl.req));
+					usbd_xfer_set_frame_data(xfer, 1,
+					    &sc->sc_ctrl.data, 2);
+					usbd_xfer_set_frames(xfer, 2);
+					usbd_transfer_submit(xfer);
+					return;
+				}
+				if (i == YEALINK_ST_SET_PCM) {
+					yealink_set_mixer(&sc->sc_ctrl.req,
+					    sc->sc_ctrl.data.raw,
+					    0x0600, 0x0200, 2, 0x5000);	/* pcm */
+					/* setup USB transfer */
+					usbd_xfer_set_frame_data(xfer, 0,
+					    &sc->sc_ctrl.req, sizeof(sc->sc_ctrl.req));
+					usbd_xfer_set_frame_data(xfer, 1,
+					    &sc->sc_ctrl.data, 2);
+					usbd_xfer_set_frames(xfer, 2);
+					usbd_transfer_submit(xfer);
+					return;
+				}
 				memcpy(sc->sc_ctrl.data.raw,
 				    yealink_commands[i],
 				    YEALINK_PKT_LEN);
@@ -873,20 +902,6 @@ yealink_attach(device_t dev)
 	mtx_lock(sc->sc_pmtx);
 	usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_CTRL]);
 	mtx_unlock(sc->sc_pmtx);
-
-	/* Wait for init */
-
-	pause("WMIX", hz / 16);
-
-	yealink_set_mixer(sc, 0x0500, 0x0200, 2, 0xbf40);
-	yealink_set_mixer(sc, 0x0600, 0x0200, 2, 0xbf40);
-
-	pause("WMIX", hz / 16);
-
-	/* Set Audio Volume */
-
-	yealink_set_mixer(sc, 0x0500, 0x0200, 2, 0x7000);	/* mic */
-	yealink_set_mixer(sc, 0x0600, 0x0200, 2, 0x5000);	/* pcm */
 
 	return (0);
 
