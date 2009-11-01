@@ -1117,8 +1117,10 @@ device_get_method(device_t dev, const char *what)
 		device_printf(dev, "%s: WARNING: missing method: %s!\n",
 		    __FUNCTION__, what);
 	}
+#ifdef I4B_MODULE_DEBUG
 	device_printf(dev, "Calling %s @ %p, %p\n",
 	    what, temp, &default_method);
+#endif
 	return (temp);
 }
 
