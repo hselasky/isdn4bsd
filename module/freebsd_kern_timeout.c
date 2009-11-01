@@ -26,123 +26,194 @@
  */
 #include <sys/param.h>
 #include <sys/systm.h>
+#include <sys/kthread.h>
 
 #include <sys/freebsd_compat.h>
 
-static void
-usb_callout_cb(void *arg)
+static volatile struct usb_callout *curr_callout;
+static volatile int curr_cancel;
+static LIST_HEAD(, usb_callout) head_callout = LIST_HEAD_INITIALIZER(&head_callout);
+
+static struct mtx mtx_callout;
+
+static int usb_callout_process(void);
+
+MTX_SYSINIT(mtx_callout, &mtx_callout, "Callout", MTX_DEF | MTX_RECURSE);
+
+void
+usb_schedule(void)
 {
-    struct usb_callout *c = (struct usb_callout *)arg;
+	wakeup(&mtx_callout);
+}
 
-    mtx_lock(c->mtx);
+static void
+usb_schedule_thread(void *arg)
+{
+	int timeout;
 
-    if(c->func)
-    {
-        (c->func)(c->arg);
-    }
+	while (1) {
 
-    if(!(c->flags & CALLOUT_RETURNUNLOCKED))
-    {
-        mtx_unlock(c->mtx);
-    }
-    return;
+		bus_handle_intr();
+
+		timeout = usb_callout_process();
+
+		tsleep(&mtx_callout, PRIBIO, "WSCHED", timeout);
+	}
+}
+
+static void
+usb_schedule_init(void *arg)
+{
+#if (__NetBSD_Version__ < 500000000)
+	kthread_create1(&usb_schedule_thread, NULL,
+	    NULL, "I4B core thread");
+#else
+	kthread_create(PRI_BIO, KTHREAD_MPSAFE, NULL,
+	    &usb_schedule_thread, NULL, NULL, "I4BTHREAD");
+#endif
+}
+
+SYSINIT(usb_schedule_init, SI_SUB_DRIVERS, SI_ORDER_FIRST,
+    usb_schedule_init, NULL);
+
+static void
+usb_callout_callback(struct usb_callout *c)
+{
+	mtx_lock(c->mtx);
+
+	mtx_lock(&mtx_callout);
+	if (c->entry.le_prev != NULL) {
+		LIST_REMOVE(c, entry);
+		c->entry.le_prev = NULL;
+	}
+	mtx_unlock(&mtx_callout);
+
+	if (curr_cancel) {
+		mtx_unlock(c->mtx);
+		return;
+	}
+	if (c->func) {
+		(c->func) (c->arg);
+	}
+	if (!(c->flags & CALLOUT_RETURNUNLOCKED))
+		mtx_unlock(c->mtx);
+}
+
+static int
+usb_callout_process(void)
+{
+	struct usb_callout *c;
+	int delta;
+	int min_delay = hz / 16;
+
+repeat:
+
+	mtx_lock(&mtx_callout);
+
+	curr_callout = NULL;
+
+	LIST_FOREACH(c, &head_callout, entry) {
+
+		delta = c->timeout - ticks;
+		if (delta < 0) {
+			curr_callout = c;
+			curr_cancel = 0;
+			mtx_unlock(&mtx_callout);
+
+			usb_callout_callback(c);
+
+			goto repeat;
+
+		} else if (min_delay > delta) {
+			min_delay = delta;
+		}
+	}
+
+	mtx_unlock(&mtx_callout);
+
+	if (min_delay <= 0)
+		min_delay = 1;
+
+	return (min_delay);
 }
 
 void
 usb_callout_init_mtx(struct usb_callout *c, struct mtx *mtx, u_int32_t flags)
 {
-    bzero(c, sizeof(*c));
+	bzero(c, sizeof(*c));
 
-    if(mtx == NULL)
-    {
-       mtx = &Giant;
-    }
-    c->mtx = mtx;
-    c->flags = (flags & CALLOUT_RETURNUNLOCKED);
-
-#ifdef __NetBSD__
-#if (__NetBSD_Version__ >= 500000000)
-    callout_init(&c->c_old, CALLOUT_MPSAFE);
-#else
-    callout_init(&c->c_old);
-#endif
-#elif defined(__OpenBSD__)
-#else
-#error "Unknown operating system"
-#endif
-    return;
+	if (mtx == NULL) {
+		mtx = &Giant;
+	}
+	c->mtx = mtx;
+	c->flags = (flags & CALLOUT_RETURNUNLOCKED);
 }
 
 void
-usb_callout_reset(struct usb_callout *c, u_int32_t to_ticks, 
-		void (*func)(void *), void *arg)
+usb_callout_reset(struct usb_callout *c, u_int32_t to_ticks,
+    void (*func) (void *), void *arg)
 {
-    mtx_assert(c->mtx, MA_OWNED);
+	mtx_assert(c->mtx, MA_OWNED);
 
-    usb_callout_stop(c);
+	usb_callout_stop(c);
 
-    c->func = func;
-    c->arg = arg;
+	c->func = func;
+	c->arg = arg;
+	c->timeout = ticks + to_ticks;
 
-#ifdef __NetBSD__
-    callout_reset(&c->c_old, to_ticks, &usb_callout_cb, c);
-#elif defined(__OpenBSD__)
-    timeout(&usb_callout_cb, c, to_ticks);
-#else
-#error "Unknown operating system"
-#endif
-    return;
+	mtx_lock(&mtx_callout);
+	LIST_INSERT_HEAD(&head_callout, c, entry);
+	mtx_unlock(&mtx_callout);
+
+	usb_schedule();
 }
 
 void
 usb_callout_stop(struct usb_callout *c)
 {
-    if (c->mtx) {
-        mtx_assert(c->mtx, MA_OWNED);
-    }
+	if (c->mtx) {
+		mtx_assert(c->mtx, MA_OWNED);
+	}
+	mtx_lock(&mtx_callout);
 
-#ifdef __NetBSD__
-    callout_stop(&c->c_old);
-#elif defined(__OpenBSD__)
-    untimeout(&usb_callout_cb, c);
-#else
-#error "Unknown operating system"
-#endif
-    c->func = NULL;
-    c->arg = NULL;
-    return;
+	if (c->entry.le_prev != NULL) {
+		LIST_REMOVE(c, entry);
+		c->entry.le_prev = NULL;
+	}
+	if (curr_callout == c)
+		curr_cancel = 1;
+
+	mtx_unlock(&mtx_callout);
+
+	c->func = NULL;
+	c->arg = NULL;
 }
 
 void
 usb_callout_drain(struct usb_callout *c)
 {
-#ifdef __NetBSD__
-#if (__NetBSD_Version__ >= 500000000)
-    callout_destroy(&c->c_old);
-#else
-    /* XXX NetBSD doesn't have any callout_drain() */
-    usb_callout_stop(c);
-#endif
-#elif defined(__OpenBSD__)
-    usb_callout_stop(c);
-#else
-#error "Unknown operating system"
-#endif
-    return;
+	if (c->mtx == NULL)
+		return;			/* not initialised */
+
+	usb_callout_stop(c);
+
+	mtx_lock(&mtx_callout);
+	while (curr_callout == c) {
+		msleep(c, &mtx_callout, PRIBIO, "WCO", 1);
+	}
+	mtx_unlock(&mtx_callout);
 }
 
 u_int8_t
 usb_callout_pending(struct usb_callout *c)
 {
-    u_int8_t retval;
+	u_int8_t retval;
 
-    mtx_assert(c->mtx, MA_OWNED);
+	mtx_assert(c->mtx, MA_OWNED);
 
-#ifdef __NetBSD__
-    retval = (callout_pending(&c->c_old) != 0);
-#else
-#error "Unknown operating system"
-#endif
+	mtx_lock(&mtx_callout);
+	retval = (c->entry.le_prev != NULL);
+	mtx_unlock(&mtx_callout);
 
-    return retval;
+	return (retval);
 }

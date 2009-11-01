@@ -38,8 +38,8 @@
 #include <sys/errno.h>
 
 #if ((__NetBSD_Version__ < 300000000) || (__NetBSD_Version__ >= 400000000))
-#define pci_set_powerstate __pci_set_powerstate
-#define pci_get_powerstate __pci_get_powerstate
+#define	pci_set_powerstate __pci_set_powerstate
+#define	pci_get_powerstate __pci_get_powerstate
 #endif
 
 #include <dev/pci/pcivar.h>
@@ -57,261 +57,243 @@ MOD_MISC("i4b");
 static int
 _pci_pci_probe(struct pci_attach_args *arg)
 {
-    struct __device *dev;
-    static struct __device dummy_pci_dev;
-    static struct bsd_module_data dev_module;
-    static struct __driver driver;
-    int error;
+	struct __device *dev;
+	static struct __device dummy_pci_dev;
+	static struct bsd_module_data dev_module;
+	static struct __driver driver;
+	int error;
 
-    if(sizeof(dev->dev_aux_data) < sizeof(*arg))
-    {
-        printf("%s: match needs %d bytes!\n",
-	       __FUNCTION__, (u_int32_t)sizeof(*arg));
-	return 0;
-    }
+	if (sizeof(dev->dev_aux_data) < sizeof(*arg)) {
+		printf("%s: match needs %d bytes!\n",
+		    __FUNCTION__, (u_int32_t)sizeof(*arg));
+		return (0);
+	}
+	dev = malloc(sizeof(*dev), M_DEVBUF, M_WAITOK | M_ZERO);
 
-    dev = malloc(sizeof(*dev), M_DEVBUF, M_WAITOK);
+	if (dev == NULL) {
+		printf("%s: out of memory!\n",
+		    __FUNCTION__);
+		return (0);
+	}
+	/*
+	 * this structure must be available after attach:
+	 */
+	bcopy(arg, &(dev->dev_aux_data), sizeof(*arg));
+	arg = (void *)&(dev->dev_aux_data);
 
-    if(dev == NULL)
-    {
-        printf("%s: out of memory!\n",
-	       __FUNCTION__);
-	return 0;
-    }
+	memset(&dummy_pci_dev, 0, sizeof(dummy_pci_dev));
+	memset(&dev_module, 0, sizeof(dev_module));
+	memset(&driver, 0, sizeof(driver));
 
-    bzero(dev, sizeof(*dev));
+	/* create a dummy parent PCI device */
 
-    /* this structure must be available
-     * after attach:
-     */
-    bcopy(arg, &(dev->dev_aux_data), sizeof(*arg));
-    arg = (void *)&(dev->dev_aux_data);
+	dummy_pci_dev.dev_module = &dev_module;
+	dev_module.driver = &driver;
+	driver.name = "pci";
+	snprintf(&dummy_pci_dev.dev_nameunit[0],
+	    sizeof(dummy_pci_dev.dev_nameunit), "pci0");
 
-    /* create a dummy parent PCI device */
+	/* initialize "dev" structure */
 
-    dummy_pci_dev.dev_module = &dev_module;
-    dev_module.driver = &driver;
-    driver.name = "pci";
-    snprintf(&dummy_pci_dev.dev_nameunit[0], 
-	     sizeof(dummy_pci_dev.dev_nameunit), "pci0");
+	dev->dev_id = arg->pa_id;
+	dev->dev_pci_class = arg->pa_class;
+	dev->dev_dma_tag = arg->pa_dmat;
+	dev->dev_what = DEVICE_IS_PCI;
+	dev->dev_parent = &dummy_pci_dev;
+	TAILQ_INIT(&dev->dev_children);
 
-    /* initialize "dev" structure */
+	device_set_ivars(dev, arg);
 
-    dev->dev_id = arg->pa_id;
-    dev->dev_pci_class = arg->pa_class;
-    dev->dev_dma_tag = arg->pa_dmat;
-    dev->dev_what = DEVICE_IS_PCI;
-    dev->dev_parent = &dummy_pci_dev;
-    TAILQ_INIT(&dev->dev_children);
+	snprintf(&dev->dev_desc[0],
+	    sizeof(dev->dev_desc), "unknown");
 
-    device_set_ivars(dev, arg);
+	error = device_probe_and_attach(dev);
 
-    snprintf(&dev->dev_desc[0], 
-	     sizeof(dev->dev_desc), "unknown");
-
-    error = device_probe_and_attach(dev);
-
-    if(error)
-	goto done;
+	if (error)
+		goto done;
 
 
-    device_printf(dev, "<%s> @ %s\n", device_get_desc(dev),
-		  device_get_nameunit(device_get_parent(dev)));
+	device_printf(dev, "<%s> @ %s\n", device_get_desc(dev),
+	    device_get_nameunit(device_get_parent(dev)));
 
- done:
-    if(error)
-    {
-        free(dev, M_DEVBUF);
-	dev = NULL;
-    }
-
-    /* continue search */
-    return 0;
+done:
+	if (error) {
+		device_delete_child(NULL, dev);
+		dev = NULL;
+	}
+	/* continue search */
+	return (0);
 }
 
 static void
-do_sysinit(const struct sysinit *start, 
-	   const struct sysinit *end,
-	   u_int32_t level_first, 
-	   u_int32_t level_last)
+do_sysinit(const struct sysinit *start,
+    const struct sysinit *end,
+    u_int32_t level_first,
+    u_int32_t level_last)
 {
-    const struct sysinit *sys;
-    u_int32_t level_next;
-    u_int32_t order_first;
-    u_int32_t order_next;
-    u_int32_t temp1;
-    u_int32_t temp2;
+	const struct sysinit *sys;
+	u_int32_t level_next;
+	u_int32_t order_first;
+	u_int32_t order_next;
+	u_int32_t temp1;
+	u_int32_t temp2;
 
-    if(level_last < level_first)
-    {
-        level_last = level_first;
-    }
+	if (level_last < level_first) {
+		level_last = level_first;
+	}
+	while (1) {
+		level_next = level_last;
+		order_first = 0;
 
-    while(1)
-    {
-        level_next = level_last;
-	order_first = 0;
+		while (1) {
+			order_next = 0xffffffff;
 
-	while(1)
-	{
-	    order_next = 0xffffffff;
+			for (sys = start;
+			    sys < end;
+			    sys++) {
+				temp1 = sys->subsystem;
+				temp2 = sys->order;
 
-	    for(sys = start;
-		sys < end;
-		sys++)
-	    {
-	        temp1 = sys->subsystem;
-		temp2 = sys->order;
-
-		if((temp1 == level_first) &&
-		   (temp2 == order_first))
-		{
-#if 0
-		    printf("calling %p(%p) @ %s:%d:\n", 
-			   sys->func, sys->udata, 
-			   sys->file, sys->line);
+				if ((temp1 == level_first) &&
+				    (temp2 == order_first)) {
+#ifdef I4B_MODULE_DBUG
+					printf("calling %p(%p) @ %s:%d:\n",
+					    sys->func, sys->udata,
+					    sys->file, sys->line);
 #endif
-		    (sys->func)(sys->udata);
+					(sys->func) (sys->udata);
+#ifdef I4B_MODULE_DBUG
+					printf("calling done\n");
+#endif
+				}
+				if ((temp1 > level_first) &&
+				    (temp1 < level_next)) {
+					level_next = temp1;
+				}
+				if ((temp2 > order_first) &&
+				    (temp2 < order_next)) {
+					order_next = temp2;
+				}
+			}
+
+			if (order_first == 0xffffffff) {
+				break;
+			}
+			order_first = order_next;
 		}
 
-		if((temp1 > level_first) &&
-		   (temp1 < level_next))
-		{
-		    level_next = temp1;
+		if (level_first == level_last) {
+			break;
 		}
-
-		if((temp2 > order_first) &&
-		   (temp2 < order_next))
-		{
-		    order_next = temp2;
-		}
-	    }
-
-	    if(order_first == 0xffffffff)
-	    {
-	        break;
-	    }
-	    order_first = order_next;
+		level_first = level_next;
 	}
-
-	if(level_first == level_last)
-	{
-	    break;
-	}
-	level_first = level_next;
-    }
-    return;
 }
 
 static int
 do_module(int command)
 {
-    struct module_called {
-      void *callback;
-      struct module_called *next;
-    };
-    struct module_called *root = NULL;
-    struct module_called *temp;
-    const struct bsd_module_data *mod;
-    int error = 0;
+	struct module_called {
+		void   *callback;
+		struct module_called *next;
+	};
+	struct module_called *root = NULL;
+	struct module_called *temp;
+	const struct bsd_module_data *mod;
+	int error = 0;
 
-    for(mod = &bsd_module_data_start[0]; 
-	mod < &bsd_module_data_end[0];
-	mod++)
-    {
-        if(mod->callback)
-	{
-	    temp = root;
-	    while(temp)
-	    {
-	        if(temp->callback == mod->callback)
-		{
-		    goto skip;
+	for (mod = &bsd_module_data_start[0];
+	    mod < &bsd_module_data_end[0];
+	    mod++) {
+		if (mod->callback) {
+			temp = root;
+			while (temp) {
+				if (temp->callback == mod->callback) {
+					goto skip;
+				}
+				temp = temp->next;
+			}
+
+			temp = __builtin_alloca(sizeof(*temp));
+			temp->next = root;
+			temp->callback = mod->callback;
+			root = temp;
+#ifdef I4B_MODULE_DBUG
+			printf("calling %p\n", mod->callback);
+#endif
+			error = (mod->callback) (NULL, command, mod->arg);
+
+#ifdef I4B_MODULE_DBUG
+			printf("calling done\n");
+#endif
+			if (error) {
+				break;
+			}
 		}
-		temp = temp->next;
-	    }
-
-	    temp = __builtin_alloca(sizeof(*temp));
-	    temp->next = root;
-	    temp->callback = mod->callback;
-	    root = temp;
-
-	    error = (mod->callback)(NULL, command, mod->arg);
-
-	    if(error)
-	    {
-	        break;
-	    }
+skip:		;
 	}
-    skip: ;
-    }
-    return error;
+	return (error);
 }
 
 static int
 load(struct lkm_table *p, int cmd)
 {
-    struct device *dev;
-    int error;
+	struct device *dev;
+	int error;
 
-    printf("FreeBSD 7.x emulation layer loaded. Probing devices ...\n");
+	printf("FreeBSD 7.x emulation layer loaded. Probing devices ...\n");
 
-    /*
-     * call initializers first
-     */
-    do_sysinit(&bsd_sys_init_data_start[0], 
-	       &bsd_sys_init_data_end[0],
-	       0, SI_SUB_DRIVERS);
+	/*
+         * call initializers first
+         */
+	do_sysinit(&bsd_sys_init_data_start[0],
+	    &bsd_sys_init_data_end[0],
+	    0, SI_SUB_DRIVERS);
 
-    /*
-     * call module loaders
-     */
-    error = do_module(MOD_LOAD);
-    if(error)
-    {
-        do_sysinit(&bsd_sys_uninit_data_start[0], 
-		   &bsd_sys_uninit_data_end[0],
-		   0, -1);
+	/*
+         * call module loaders
+         */
+	error = do_module(MOD_LOAD);
+	if (error) {
+		do_sysinit(&bsd_sys_uninit_data_start[0],
+		    &bsd_sys_uninit_data_end[0],
+		    0, -1);
 
-        printf("%s: error loading module(s): %d!\n",
-	       __FUNCTION__, error);
-	goto done;
-    }
-
-    /*
-     * scan PCI
-     */
-    TAILQ_FOREACH(dev, &alldevs, dv_list)
-    {
-        if(!strcmp(dev->dv_cfdriver->cd_name, "pci"))
-	{
-#if (__NetBSD_Version__ >= 500000000)
-	    static const int wildcard[16] = { -1, -1 };
-
-	    pci_enumerate_bus(device_private(dev), &wildcard[0], &_pci_pci_probe, 0);
-#elif (__NetBSD_Version__ >= 300000000)
-	    static const int wildcard[16] = { -1, -1 };
-
-	    pci_enumerate_bus((void *)dev, &wildcard[0], &_pci_pci_probe, 0);
-#else
-	    pci_enumerate_bus((void *)dev, &_pci_pci_probe, 0);
-#endif
+		printf("%s: error loading module(s): %d!\n",
+		    __FUNCTION__, error);
+		goto done;
 	}
-    }
+	/*
+         * scan PCI
+         */
+	TAILQ_FOREACH(dev, &alldevs, dv_list) {
+		if (!strcmp(dev->dv_cfdriver->cd_name, "pci")) {
+#if (__NetBSD_Version__ >= 500000000)
+			static const int wildcard[16] = {-1, -1};
 
-    /*
-     * call initializers
-     */
-    do_sysinit(&bsd_sys_init_data_start[0], 
-	       &bsd_sys_init_data_end[0],
-	       SI_SUB_DRIVERS+1, -1);
+			pci_enumerate_bus(device_private(dev), &wildcard[0], &_pci_pci_probe, 0);
+#elif (__NetBSD_Version__ >= 300000000)
+			static const int wildcard[16] = {-1, -1};
 
- done:
+			pci_enumerate_bus((void *)dev, &wildcard[0], &_pci_pci_probe, 0);
+#else
+			pci_enumerate_bus((void *)dev, &_pci_pci_probe, 0);
+#endif
+		}
+	}
 
-    return error;
+	/*
+         * call initializers
+         */
+	do_sysinit(&bsd_sys_init_data_start[0],
+	    &bsd_sys_init_data_end[0],
+	    SI_SUB_DRIVERS + 1, -1);
+
+done:
+
+	return (error);
 }
 
-/* 
+/*
  * The following function is used when we have I4B loaded
  * into the NetBSD kernel to load the I4B module.
  */
@@ -328,38 +310,36 @@ i4b_load(void)
 static int
 unload(struct lkm_table *p, int cmd)
 {
-    int error = 0;
+	int error = 0;
 
-    /*
-     * Sorry, this is not supported
-     */
-    return EINVAL;
+	/*
+         * Sorry, this is not supported
+         */
+	return (EINVAL);
 
-    /*
-     * call module un-loaders
-     */
-    error = do_module(MOD_UNLOAD);
-    if(error)
-    {
-        printf("%s: error un-loading module: %d!\n",
-	       __FUNCTION__, error);
-	goto done;
-    }
+	/*
+         * call module un-loaders
+         */
+	error = do_module(MOD_UNLOAD);
+	if (error) {
+		printf("%s: error un-loading module: %d!\n",
+		    __FUNCTION__, error);
+		goto done;
+	}
+	/*
+         * call un-initializers
+         */
+	do_sysinit(&bsd_sys_uninit_data_start[0],
+	    &bsd_sys_uninit_data_end[0],
+	    0, -1);
 
-    /*
-     * call un-initializers
-     */
-    do_sysinit(&bsd_sys_uninit_data_start[0], 
-	       &bsd_sys_uninit_data_end[0],
-	       0, -1);
+	/*
+         * TODO: detach devices
+         */
 
-    /*
-     * TODO: detach devices
-     */
+done:
 
- done:
-
-    return error;
+	return (error);
 }
 
 /*
@@ -368,6 +348,5 @@ unload(struct lkm_table *p, int cmd)
 int
 i4b_lkmentry(struct lkm_table *lkmtp, int cmd, int ver)
 {
-    DISPATCH(lkmtp, cmd, ver, load, unload, lkm_nofunc)
+	DISPATCH(lkmtp, cmd, ver, load, unload, lkm_nofunc)
 }
-

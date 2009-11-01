@@ -25,36 +25,25 @@
  * NOTE: This is a lite implementation of "FreeBSD/src/sys/sys/callout.h"
  */
 #ifndef __FREEBSD_CALLOUT_H__
-#define __FREEBSD_CALLOUT_H__
+#define	__FREEBSD_CALLOUT_H__
 
 struct usb_callout {
-#ifdef __NetBSD__
-    struct callout c_old;
-#elif defined(__OpenBSD__)
-#else
-#error "Unknown operating system"
-#endif
-    struct mtx *mtx;
-    void (*func)(void *);
-    void *arg;
-    u_int32_t flags;
+	LIST_ENTRY(usb_callout) entry;
+	struct mtx *mtx;
+	void    (*func) (void *);
+	void   *arg;
+	u_int32_t flags;
+	int	timeout;
 };
 
-#define CALLOUT_RETURNUNLOCKED 0x0001
+#define	CALLOUT_RETURNUNLOCKED 0x0001
 
-extern void
-usb_callout_init_mtx(struct usb_callout *c, struct mtx *mtx, u_int32_t flags);
+extern void usb_callout_init_mtx(struct usb_callout *c, struct mtx *mtx, u_int32_t flags);
 
-extern void
-usb_callout_reset(struct usb_callout *c, u_int32_t to_ticks, 
-		void (*func)(void *), void *arg);
-extern void
-usb_callout_stop(struct usb_callout *c);
-
-extern void
-usb_callout_drain(struct usb_callout *c);
-
-extern u_int8_t
-usb_callout_pending(struct usb_callout *c);
+extern void usb_callout_reset(struct usb_callout *c, u_int32_t to_ticks, void (*func) (void *), void *arg);
+extern void usb_callout_stop(struct usb_callout *c);
+extern void usb_callout_drain(struct usb_callout *c);
+extern u_int8_t usb_callout_pending(struct usb_callout *c);
+extern void usb_schedule(void);
 
 #endif

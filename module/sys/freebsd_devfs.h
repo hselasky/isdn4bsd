@@ -63,8 +63,8 @@ typedef uint32_t devfs_rid;
  * userland-specific values.
  */
 struct devfs_rule {
-	uint32_t dr_magic;			/* Magic number. */
-	devfs_rid dr_id;			/* Identifier. */
+	uint32_t dr_magic;		/* Magic number. */
+	devfs_rid dr_id;		/* Identifier. */
 
 	/*
 	 * Conditions under which this rule should be applied.  These
@@ -75,7 +75,7 @@ struct devfs_rule {
 	int	dr_icond;
 #define	DRC_DSWFLAGS	0x001
 #define	DRC_PATHPTRN	0x002
-	int	dr_dswflags;			/* cdevsw flags to match. */
+	int	dr_dswflags;		/* cdevsw flags to match. */
 #define	DEVFS_MAXPTRNLEN	200
 	char	dr_pathptrn[DEVFS_MAXPTRNLEN];	/* Pattern to match path. */
 
@@ -89,13 +89,13 @@ struct devfs_rule {
 #define	DRA_GID		0x004
 #define	DRA_MODE	0x008
 #define	DRA_INCSET	0x010
-	int	dr_bacts;			/* Boolean (on/off) action. */
-#define	DRB_HIDE	0x001			/* Hide entry (DE_WHITEOUT). */
-#define	DRB_UNHIDE	0x002			/* Unhide entry. */
+	int	dr_bacts;		/* Boolean (on/off) action. */
+#define	DRB_HIDE	0x001		/* Hide entry (DE_WHITEOUT). */
+#define	DRB_UNHIDE	0x002		/* Unhide entry. */
 	uid_t	dr_uid;
 	gid_t	dr_gid;
 	mode_t	dr_mode;
-	devfs_rsnum dr_incset;			/* Included ruleset. */
+	devfs_rsnum dr_incset;		/* Included ruleset. */
 };
 
 /*
@@ -117,16 +117,16 @@ struct devfs_rule {
 
 /*
  * These are default sizes for the DEVFS inode table and the overflow
- * table.  If the default table overflows we allocate the overflow 
+ * table.  If the default table overflows we allocate the overflow
  * table, the size of which can also be set with a sysctl.  If the
  * overflow table fills you're toast.
  */
 #ifndef NDEVFSINO
-#define NDEVFSINO 1024
+#define	NDEVFSINO 1024
 #endif
 
 #ifndef NDEVFSOVERFLOW
-#define NDEVFSOVERFLOW 32768
+#define	NDEVFSOVERFLOW 32768
 #endif
 
 /*
@@ -134,124 +134,97 @@ struct devfs_rule {
  * and symlinks and the like.  Must be larger than the number of "true"
  * device nodes and symlinks.  It is.
  */
-#define DEVFSINOMOUNT	0x2000000
-
-#ifdef MALLOC_DECLARE
-MALLOC_DECLARE(M_DEVFS);
-#endif
+#define	DEVFSINOMOUNT	0x2000000
 
 struct cdev;
 
 struct devfs_dirent {
-	int			de_inode;
-	int			de_flags;
+	int	de_inode;
+	int	de_flags;
 #define	DE_WHITEOUT	0x1
 #define	DE_DOT		0x2
 #define	DE_DOTDOT	0x4
-	struct dirent 		*de_dirent;
+	struct dirent *de_dirent;
 	TAILQ_ENTRY(devfs_dirent) de_list;
 	TAILQ_HEAD(, devfs_dirent) de_dlist;
 	LIST_ENTRY(devfs_dirent) de_alias;
-	struct devfs_dirent *   de_dir;
-	int			de_links;
-	mode_t			de_mode;
-	uid_t			de_uid;
-	gid_t			de_gid;
-	struct label *          de_label;
-	struct timespec 	de_atime;
-	struct timespec 	de_mtime;
-	struct timespec 	de_ctime;
-	struct vnode *          de_vnode;
-	char *                  de_symlink;
-	struct cdev *           de_dev;
+	struct devfs_dirent *de_dir;
+	int	de_links;
+	mode_t	de_mode;
+	uid_t	de_uid;
+	gid_t	de_gid;
+	struct label *de_label;
+	struct timespec de_atime;
+	struct timespec de_mtime;
+	struct timespec de_ctime;
+	struct vnode *de_vnode;
+	char   *de_symlink;
+	struct cdev *de_dev;
 };
 
 struct devfs_mount {
-	struct mount *          dm_mount;
-	struct devfs_dirent *   dm_rootdir;
-	struct devfs_dirent *   dm_basedir;
-	unsigned		dm_generation;
-	struct devfs_dirent **  dm_dirent;
-	struct devfs_dirent **  dm_overflow;
-	int			dm_inode;
-	struct lock		dm_lock;
-	devfs_rsnum		dm_ruleset;
-	struct vnode *          dm_root_vnode;
+	struct mount *dm_mount;
+	struct devfs_dirent *dm_rootdir;
+	struct devfs_dirent *dm_basedir;
+	unsigned dm_generation;
+	struct devfs_dirent **dm_dirent;
+	struct devfs_dirent **dm_overflow;
+	int	dm_inode;
+	struct lock dm_lock;
+	devfs_rsnum dm_ruleset;
+	struct vnode *dm_root_vnode;
 };
 
-/*
- * This is what we fill in dm_dirent[N] for a deleted entry.
- */
-#define DE_DELETED ((struct devfs_dirent *)sizeof(struct devfs_dirent))
+#define	VFSTODEVFS(mp)	((struct devfs_mount *)((mp)->mnt_data))
 
-#define VFSTODEVFS(mp)	((struct devfs_mount *)((mp)->mnt_data))
-
-extern void 
-  devfs_rules_apply(struct devfs_mount *dm, struct devfs_dirent *de);
-extern int
-  devfs_rules_ioctl(struct mount *mp, u_long cmd, caddr_t data, struct thread *td);
-extern void 
-  devfs_rules_newmount(struct devfs_mount *dm, struct thread *td);
-extern int
-  devfs_allocv(struct devfs_dirent *de, struct mount *mp, struct vnode **vpp, 
-	       struct thread *td);
-extern struct cdev **
-  devfs_itod(int inode);
-extern struct devfs_dirent **
-  devfs_itode(struct devfs_mount *dm, int inode);
-extern int
-  devfs_populate(struct devfs_mount *dm);
-extern struct devfs_dirent *
-  devfs_newdirent(char *name, int namelen);
-extern void
-  devfs_purge(struct devfs_dirent *dd);
-extern struct devfs_dirent *
-  devfs_vmkdir (char *name, int namelen, 
-		struct devfs_dirent *dotdot);
-extern const struct vnodeopv_desc 
-  devfs_vnodeop_opv_desc;
-extern void
-  devfs_timestamp(struct timespec *ts);
+extern void devfs_rules_apply(struct devfs_mount *dm, struct devfs_dirent *de);
+extern int devfs_rules_ioctl(struct mount *mp, u_long cmd, caddr_t data, struct thread *td);
+extern void devfs_rules_newmount(struct devfs_mount *dm, struct thread *td);
+extern int devfs_allocv(struct devfs_dirent *de, struct mount *mp, struct vnode **vpp, struct thread *td);
+extern struct cdev **devfs_itod(int inode);
+extern struct devfs_dirent **devfs_itode(struct devfs_mount *dm, int inode);
+extern int devfs_populate(struct devfs_mount *dm);
+extern struct devfs_dirent *devfs_newdirent(char *name, int namelen);
+extern void devfs_purge(struct devfs_dirent *dd);
+extern struct devfs_dirent *devfs_vmkdir(char *name, int namelen, struct devfs_dirent *dotdot);
+extern const struct vnodeopv_desc devfs_vnodeop_opv_desc;
+extern void devfs_timestamp(struct timespec *ts);
 
 #undef minor
 #undef major
 #undef makedev
 
-extern int 
-  minor(struct cdev *x);
-extern dev_t 
-  dev2udev(struct cdev *x);
-extern int 
-  uminor(dev_t dev);
-extern int 
-  umajor(dev_t dev);
-extern const char *
-  devtoname(struct cdev *cdev);
+extern int minor(struct cdev *x);
+extern dev_t dev2udev(struct cdev *x);
+extern int uminor(dev_t dev);
+extern int umajor(dev_t dev);
+extern const char *devtoname(struct cdev *cdev);
 
-#define MOUNT_DEVFS "devfs"
-#define M_DEVFS M_TEMP
-#define S_IFCHR  0020000                /* character special */
+#define	MOUNT_DEVFS "devfs"
+#define	M_DEVFS M_TEMP
+#define	S_IFCHR  0020000		/* character special */
 
 #if (__NetBSD_Version__ < 400000000)
-#define O_DIRECT 0
-#define IO_DIRECT 0
+#define	O_DIRECT 0
+#define	IO_DIRECT 0
 #endif
 
 #if (__NetBSD_Version__ >= 500000000)
-#define VI_LOCK(vp) mutex_enter(&(vp)->v_interlock)
-#define VI_UNLOCK(vp) mutex_exit(&(vp)->v_interlock)
+#define	VI_LOCK(vp) mutex_enter(&(vp)->v_interlock)
+#define	VI_UNLOCK(vp) mutex_exit(&(vp)->v_interlock)
 #else
-#define VI_LOCK(vp) simple_lock(&(vp)->v_interlock)
-#define VI_UNLOCK(vp) simple_unlock(&(vp)->v_interlock)
+#define	VI_LOCK(vp) simple_lock(&(vp)->v_interlock)
+#define	VI_UNLOCK(vp) simple_unlock(&(vp)->v_interlock)
 #endif
 
-#define FIODTYPE        _IOR('f', 122, int)     /* get d_flags type part */
+#define	FIODTYPE        _IOR('f', 122, int)	/* get d_flags type part */
 struct fiodgname_arg {
-   int     len;
-   void *  buf;
+	int	len;
+	void   *buf;
 };
-#define FIODGNAME       _IOW('f', 120, struct fiodgname_arg) /* get dev. name */
 
-#endif /* _KERNEL */
+#define	FIODGNAME       _IOW('f', 120, struct fiodgname_arg)	/* get dev. name */
 
-#endif /* !__FREEBSD_FS_DEVFS_DEVFS_H__ */
+#endif					/* _KERNEL */
+
+#endif					/* !__FREEBSD_FS_DEVFS_DEVFS_H__ */

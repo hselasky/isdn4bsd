@@ -27,8 +27,8 @@
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/mutex.h>
-
-#include <machine/cpu.h>
+#include <sys/rwlock.h>
+#include <sys/cpu.h>
 
 #include <sys/freebsd_compat.h>
 
@@ -38,9 +38,6 @@ struct mtx Giant;
 
 MTX_SYSINIT(Giant, &Giant, "Giant", MTX_DEF | MTX_RECURSE);
 
-static volatile void *atomic_cpu = NULL;
-static volatile void *atomic_lwp = NULL;
-static volatile uint32_t atomic_recurse = 0;
 static kmutex_t atomic_mutex;
 
 static void
@@ -51,75 +48,25 @@ atomic_init(void *arg)
 
 SYSINIT(atomic_init, SI_SUB_DONE, SI_ORDER_FIRST, atomic_init, NULL);
 
-uint8_t
-atomic_is_locked(void)
-{
-	/* XXX there is a bug the NetBSD mutex_owned() */
-	return ((atomic_cpu == (void *)curcpu()) && (atomic_lwp == (void *)curlwp));
-}
-
-static void
-atomic_grab(void)
-{
-	atomic_cpu = (void *)curcpu();
-	atomic_lwp = (void *)curlwp;
-}
-
-static void
-atomic_release(void)
-{
-	atomic_cpu = NULL;
-	atomic_lwp = NULL;
-}
-
 void
 atomic_lock()
 {
-	if (!atomic_is_locked()) {
-		mutex_enter(&atomic_mutex);
-		atomic_grab();
-	}
-	if (++atomic_recurse == 0xFFFFFFFF) {
-		panic("freebsd_kern_mutex_v5.c: atomic_lock - "
-		    "refcount is wrapping!\n");
-	}
+	mutex_enter(&atomic_mutex);
 }
 
 void
 atomic_unlock()
 {
-	if (atomic_recurse == 0) {
-		panic("freebsd_kern_mutex_v5.c: atomic_unlock "
-		    "- invalid refcount!\n");
-	} else {
-		if (--atomic_recurse == 0) {
-			atomic_release();
-			mutex_exit(&atomic_mutex);
-		}
-	}
-}
-
-int
-atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src)
-{
-	uint8_t ret = 0;
-
-	atomic_lock();
-	if (dst[0] == exp) {
-		dst[0] = src;
-		ret = 1;
-	}
-	atomic_unlock();
-	return (ret);
+	mutex_exit(&atomic_mutex);
 }
 
 static __inline uint8_t
 mtx_lock_held(struct mtx *mtx)
 {
-	if (!mtx->init) {
+	if (!mtx->init)
 		panic("Mutex is not initialised.\n");
-	}
-	return ((void *)curthread == mtx->owner_td);
+
+	return ((void *)curlwp == mtx->owner_td);
 }
 
 #ifdef MA_OWNED
@@ -129,10 +76,7 @@ _mtx_assert(struct mtx *mtx, uint32_t what,
 {
 	uint8_t own;
 
-
-	atomic_lock();
 	own = mtx_lock_held(mtx);
-	atomic_unlock();
 
 	if ((what & MA_OWNED) && (own == 0)) {
 		printf("%s:%d: mutex %s not owned!\n",
@@ -167,6 +111,8 @@ mtx_init(struct mtx *mtx, const char *name,
 	mtx->name = name;
 	mtx->init = 1;
 	mtx->owner_td = MTX_NO_THREAD;
+
+	mutex_init(&mtx->real_mtx, MUTEX_DEFAULT, IPL_NONE);
 }
 
 void
@@ -175,22 +121,12 @@ mtx_lock(struct mtx *mtx)
 #ifdef MTX_DEBUG
 	printf("mtx_lock %s %u\n", mtx->name, mtx->mtx_recurse);
 #endif
-
-	atomic_lock();
-
 	if (mtx_lock_held(mtx)) {
 		mtx->mtx_recurse++;
-		atomic_unlock();
-		return;
+	} else {
+		mutex_enter(&mtx->real_mtx);
+		mtx->owner_td = (void *)curlwp;
 	}
-	if (mtx->owner_td != MTX_NO_THREAD) {
-		printf("WARNING: something is sleeping with "
-		    "mutex '%s' locked!\n", mtx->name ?
-		    mtx->name : "unknown");
-		atomic_unlock();
-		return;
-	}
-	mtx->owner_td = (void *)curthread;
 }
 
 uint8_t
@@ -200,19 +136,15 @@ mtx_trylock(struct mtx *mtx)
 	printf("mtx_trylock %s %u\n", mtx->name, mtx->mtx_recurse);
 #endif
 
-	atomic_lock();
-
 	if (mtx_lock_held(mtx)) {
 		mtx->mtx_recurse++;
-		atomic_unlock();
 		return (1);
 	}
-	if (mtx->owner_td != MTX_NO_THREAD) {
-		atomic_unlock();
-		return (0);
+	if (mutex_tryenter(&mtx->real_mtx)) {
+		mtx->owner_td = (void *)curlwp;
+		return (1);
 	}
-	mtx->owner_td = (void *)curthread;
-	return (1);
+	return (0);
 }
 
 void
@@ -222,30 +154,23 @@ _mtx_unlock(struct mtx *mtx)
 	printf("mtx_unlock %s %u\n", mtx->name, mtx->mtx_recurse);
 #endif
 
-	atomic_lock();
+	if (!mtx_lock_held(mtx))
+		panic("mtx_unlock %s %u (not locked)\n", mtx->name, mtx->mtx_recurse);
 
-	if (!mtx_lock_held(mtx)) {
-#ifdef MTX_DEBUG
-		printf("mtx_unlock %s %u (not locked)\n", mtx->name, mtx->mtx_recurse);
-#endif
-		goto done;
-	}
 	if (mtx->mtx_recurse == 0) {
-		atomic_unlock();
-
 		mtx->owner_td = MTX_NO_THREAD;
+		mutex_exit(&mtx->real_mtx);
 	} else {
 		mtx->mtx_recurse--;
 	}
-
-done:
-	atomic_unlock();
 }
 
 void
 mtx_destroy(struct mtx *mtx)
 {
 	mtx->init = 0;
+
+	mutex_destroy(&mtx->real_mtx);
 }
 
 void
@@ -262,46 +187,26 @@ msleep(void *ident, struct mtx *mtx, int priority,
 {
 	int error;
 	uint32_t mtx_recurse = 0;
-	uint32_t a_recurse = 0;
-	uint8_t held;
 
-	if (mtx == NULL) {
+	if (mtx == NULL)
 		mtx = &Giant;
-	}
-	atomic_lock();
-	held = mtx_lock_held(mtx);
-	atomic_unlock();
 
-	if (held) {
-		/* drop the lock */
-		mtx_recurse = mtx->mtx_recurse;
-		mtx->mtx_recurse = 0;
-		mtx->owner_td = MTX_NO_THREAD;
+	if (!mtx_lock_held(mtx))
+		panic("msleep %s %u (not locked)\n", mtx->name, mtx->mtx_recurse);
 
-		a_recurse = atomic_recurse;
-		atomic_recurse = 0;
-
-		atomic_release();
-	} else {
-		printf("WARNING: mutex '%s' was not locked when "
-		    "trying to sleep '%s'!\n", mtx->name ? mtx->name :
-		    "unknown", wmesg ? wmesg : "unknown");
-	}
+	/* drop the lock */
+	mtx_recurse = mtx->mtx_recurse;
+	mtx->mtx_recurse = 0;
+	mtx->owner_td = MTX_NO_THREAD;
 
 	priority &= PCATCH;
 	priority |= PRIBIO;
 
-	error = mtsleep(ident, priority, wmesg, timeout, &atomic_mutex);
+	error = mtsleep(ident, priority, wmesg, timeout, &mtx->real_mtx);
 
-	if (held) {
+	mtx->mtx_recurse = mtx_recurse;
+	mtx->owner_td = (void *)curlwp;
 
-		atomic_grab();
-
-		mtx->mtx_recurse = mtx_recurse;
-		mtx->owner_td = (void *)curthread;
-
-		atomic_recurse = a_recurse;
-	}
 	return (error);
 }
 

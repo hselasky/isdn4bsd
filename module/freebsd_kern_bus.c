@@ -33,8 +33,8 @@
 #include <machine/stdarg.h>
 
 #if ((__NetBSD_Version__ < 300000000) || (__NetBSD_Version__ >= 400000000))
-#define pci_set_powerstate __pci_set_powerstate
-#define pci_get_powerstate __pci_get_powerstate
+#define	pci_set_powerstate __pci_set_powerstate
+#define	pci_get_powerstate __pci_get_powerstate
 #endif
 
 #include <dev/pci/pcireg.h>
@@ -54,1367 +54,1279 @@
 
 #endif
 
-static const char * const unknown_string = "unknown";
+static const char *const unknown_string = "unknown";
+
+static LIST_HEAD(, __device) bus_irq_head = LIST_HEAD_INITIALIZER(&bus_irq_head);
+static struct mtx bus_irq_mtx;
+
+MTX_SYSINIT(bus_irq_mtx, &bus_irq_mtx, "IRQ mutex", MTX_DEF | MTX_RECURSE);
 
 #if 0
 
 static u_int8_t
 get_hex(u_int8_t tmp)
 {
-    if((tmp >= 'A') && (tmp <= 'F'))
-      tmp = (tmp - 'A' + 0xA);
-    else if((tmp >= 'a') && (tmp <= 'f'))
-      tmp = (tmp - 'a' + 0xA);
-    else if((tmp >= '0') && (tmp <= '9'))
-      tmp = (tmp - '0');
-    else 
-      tmp = 0;
+	if ((tmp >= 'A') && (tmp <= 'F'))
+		tmp = (tmp - 'A' + 0xA);
+	else if ((tmp >= 'a') && (tmp <= 'f'))
+		tmp = (tmp - 'a' + 0xA);
+	else if ((tmp >= '0') && (tmp <= '9'))
+		tmp = (tmp - '0');
+	else
+		tmp = 0;
 
-    return tmp;
+	return tmp;
 }
 
 static u_int32_t
 isapnp_vendor_to_id(const u_int8_t *src)
 {
-    u_int32_t id =
-      (get_hex(src[6]) << 24) |
-      (get_hex(src[5]) << 28) |
-      (get_hex(src[4]) << 16) |
-      (get_hex(src[3]) << 20) |
-      (((src[2] - 'A' + 1) & 0x1f) << 8) |
-      (((src[1] - 'A' + 1) & 0x07) << 13) |
-      (((src[1] - 'A' + 1) & 0x18) >> 3) |
-      (((src[0] - 'A' + 1) & 0x3F) << 2);
+	u_int32_t id =
+	(get_hex(src[6]) << 24) |
+	(get_hex(src[5]) << 28) |
+	(get_hex(src[4]) << 16) |
+	(get_hex(src[3]) << 20) |
+	(((src[2] - 'A' + 1) & 0x1f) << 8) |
+	(((src[1] - 'A' + 1) & 0x07) << 13) |
+	(((src[1] - 'A' + 1) & 0x18) >> 3) |
+	(((src[0] - 'A' + 1) & 0x3F) << 2);
 
-    return id;
+	return id;
 }
 
 static int
 netbsd_pnp_match(device_t dev, struct isapnp_attach_args *arg)
 {
-    static struct __device dummy_isa_dev;
-    static struct bsd_module_data dev_module;
-    static struct __driver driver;
+	static struct __device dummy_isa_dev;
+	static struct bsd_module_data dev_module;
+	static struct __driver driver;
 
-    /* create a dummy parent ISA device */
+	/* create a dummy parent ISA device */
 
-    dummy_isa_dev.dev_module = &dev_module;
-    dev_module.driver = &driver;
-    driver.name = "isa";
+	dummy_isa_dev.dev_module = &dev_module;
+	dev_module.driver = &driver;
+	driver.name = "isa";
 
-    snprintf(&dummy_isa_dev.dev_nameunit[0], sizeof(dummy_isa_dev.dev_nameunit), 
-	     "isa0");
+	snprintf(&dummy_isa_dev.dev_nameunit[0], sizeof(dummy_isa_dev.dev_nameunit),
+	    "isa0");
 
-    /* initialize "dev" structure */
+	/* initialize "dev" structure */
 
-    bzero((&(dev->dev_local)) + 1, sizeof(*dev) - sizeof(dev->dev_local));
+	memeset(dev, 0, sizeof(*dev));
 
-    dev->dev_id = isapnp_vendor_to_id(&arg->ipa_devlogic[0]);
-    dev->dev_id_sub = isapnp_vendor_to_id(&arg->ipa_devcompat[0]);
-    dev->dev_what = DEVICE_IS_PNP;
-    dev->dev_parent = &dummy_isa_dev;
-    TAILQ_INIT(&dev->dev_children);
+	dev->dev_id = isapnp_vendor_to_id(&arg->ipa_devlogic[0]);
+	dev->dev_id_sub = isapnp_vendor_to_id(&arg->ipa_devcompat[0]);
+	dev->dev_what = DEVICE_IS_PNP;
+	dev->dev_parent = &dummy_isa_dev;
+	TAILQ_INIT(&dev->dev_children);
 
-    snprintf(&dev->dev_desc[0], sizeof(dev->dev_desc), 
-	     "%s", &arg->ipa_devident[0]);
+	snprintf(&dev->dev_desc[0], sizeof(dev->dev_desc),
+	    "%s", &arg->ipa_devident[0]);
 
-    device_set_ivars(dev, arg);
+	device_set_ivars(dev, arg);
 
-    return (device_probe_and_attach(dev) ? 1 : 0);
+	return (device_probe_and_attach(dev) ? 1 : 0);
 }
+
 #endif
 
 u_int32_t
 pci_read_config(device_t dev, int reg, int width)
 {
-    u_int32_t temp;
+	u_int32_t temp;
+	u_int8_t shift;
 
-    switch(width) {
-    case 0:
-      temp = 0x00;
-      break;
-    case 1:
-      temp = 0xFF;
-      break;
-    case 2:
-      temp = 0xFFFF;
-      break;
-    case 3:
-      temp = 0xFFFFFF;
-      break;
-    default:
-      temp = 0xFFFFFFFF;
-      break;
-    }
-
-    if(dev && (dev->dev_what == DEVICE_IS_PCI))
-    {
-        struct pci_attach_args *arg = device_get_ivars(dev);
-
-	if(arg)
-	{
-	    temp &= pci_conf_read(arg->pa_pc, arg->pa_tag, reg);
+	switch (width) {
+	case 0:
+		temp = 0x00;
+		break;
+	case 1:
+		temp = 0xFF;
+		break;
+	case 2:
+		temp = 0xFFFF;
+		break;
+	case 3:
+		temp = 0xFFFFFF;
+		break;
+	default:
+		temp = 0xFFFFFFFF;
+		break;
 	}
-    }
-    return temp;
+
+	shift = 8 * (reg & 3UL);
+
+	reg &= ~3UL;
+
+	if (dev && (dev->dev_what == DEVICE_IS_PCI)) {
+		struct pci_attach_args *arg = device_get_ivars(dev);
+
+		if (arg) {
+			temp &= (pci_conf_read(arg->pa_pc, arg->pa_tag, reg) >> shift);
+		}
+	}
+	return temp;
 }
 
 void
 pci_write_config(device_t dev, int reg, u_int32_t val, int width)
 {
-    u_int32_t temp;
+	u_int32_t temp;
+	u_int8_t shift;
 
-    switch(width) {
-    case 0:
-      temp = 0x00;
-      break;
-    case 1:
-      temp = 0xFF;
-      break;
-    case 2:
-      temp = 0xFFFF;
-      break;
-    case 3:
-      temp = 0xFFFFFF;
-      break;
-    default:
-      temp = 0xFFFFFFFF;
-      break;
-    }
-
-    if(dev && (dev->dev_what == DEVICE_IS_PCI))
-    {
-        struct pci_attach_args *arg = device_get_ivars(dev);
-
-	if(arg)
-	{
-	    val &= temp;
-	    val |= pci_read_config(dev, reg, 4) & (~temp);
-	    pci_conf_write(arg->pa_pc, arg->pa_tag, reg, val);
+	switch (width) {
+	case 0:
+		temp = 0x00;
+		break;
+	case 1:
+		temp = 0xFF;
+		break;
+	case 2:
+		temp = 0xFFFF;
+		break;
+	case 3:
+		temp = 0xFFFFFF;
+		break;
+	default:
+		temp = 0xFFFFFFFF;
+		break;
 	}
-    }
-    return;
+
+	shift = 8 * (reg & 3UL);
+
+	reg &= ~3UL;
+
+	temp <<= shift;
+	val <<= shift;
+
+	if (dev && (dev->dev_what == DEVICE_IS_PCI)) {
+		struct pci_attach_args *arg = device_get_ivars(dev);
+
+		if (arg) {
+			val &= temp;
+			val |= pci_conf_read(arg->pa_pc, arg->pa_tag, reg) & (~temp);
+			pci_conf_write(arg->pa_pc, arg->pa_tag, reg, val);
+		}
+	}
 }
 
 int
 pci_enable_busmaster(device_t dev)
 {
-    u_int32_t temp;
+	u_int32_t temp;
 
-    if(dev && (dev->dev_what == DEVICE_IS_PCI))
-    {
-        struct pci_attach_args *arg = device_get_ivars(dev);
+	if (dev && (dev->dev_what == DEVICE_IS_PCI)) {
+		struct pci_attach_args *arg = device_get_ivars(dev);
 
-	if(arg)
-	{
-	    temp = pci_conf_read(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG);
-	    temp |= PCI_COMMAND_MASTER_ENABLE;
-	    pci_conf_write(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG, temp);
+		if (arg) {
+			temp = pci_conf_read(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG);
+			temp |= PCI_COMMAND_MASTER_ENABLE;
+			pci_conf_write(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG, temp);
+		}
 	}
-    }
-    return 0;
+	return 0;
 }
 
 int
 pci_disable_busmaster(device_t dev)
 {
-    u_int32_t temp;
+	u_int32_t temp;
 
-    if(dev && (dev->dev_what == DEVICE_IS_PCI))
-    {
-        struct pci_attach_args *arg = device_get_ivars(dev);
+	if (dev && (dev->dev_what == DEVICE_IS_PCI)) {
+		struct pci_attach_args *arg = device_get_ivars(dev);
 
-	if(arg)
-	{
-	    temp = pci_conf_read(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG);
-	    temp &= ~PCI_COMMAND_MASTER_ENABLE;
-	    pci_conf_write(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG, temp);
+		if (arg) {
+			temp = pci_conf_read(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG);
+			temp &= ~PCI_COMMAND_MASTER_ENABLE;
+			pci_conf_write(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG, temp);
+		}
 	}
-    }
-    return 0;
+	return 0;
 }
 
 int
 pci_enable_io(device_t dev, int space)
 {
-    u_int32_t temp;
+	u_int32_t temp;
 
-    if(dev && (dev->dev_what == DEVICE_IS_PCI))
-    {
-        struct pci_attach_args *arg = device_get_ivars(dev);
+	if (dev && (dev->dev_what == DEVICE_IS_PCI)) {
+		struct pci_attach_args *arg = device_get_ivars(dev);
 
-	if(arg)
-	{
-	    temp = pci_conf_read(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG);
+		if (arg) {
+			temp = pci_conf_read(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG);
 
-	    switch(space) {
-	    case SYS_RES_IOPORT:
-	        temp |= PCI_COMMAND_IO_ENABLE;
-		break;
-	    case SYS_RES_MEMORY:
-	        temp |= PCI_COMMAND_MEM_ENABLE;
-		break;
-	    }
-	    pci_conf_write(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG, temp);
+			switch (space) {
+			case SYS_RES_IOPORT:
+				temp |= PCI_COMMAND_IO_ENABLE;
+				break;
+			case SYS_RES_MEMORY:
+				temp |= PCI_COMMAND_MEM_ENABLE;
+				break;
+			}
+			pci_conf_write(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG, temp);
+		}
 	}
-    }
-    return 0;
+	return 0;
 }
 
 int
 pci_disable_io(device_t dev, int space)
 {
-    u_int32_t temp;
+	u_int32_t temp;
 
-    if(dev && (dev->dev_what == DEVICE_IS_PCI))
-    {
-        struct pci_attach_args *arg = device_get_ivars(dev);
+	if (dev && (dev->dev_what == DEVICE_IS_PCI)) {
+		struct pci_attach_args *arg = device_get_ivars(dev);
 
-        if(arg)
-	{
-	    temp = pci_conf_read(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG);
+		if (arg) {
+			temp = pci_conf_read(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG);
 
-	    switch(space) {
-	    case SYS_RES_IOPORT:
-	        temp &= ~PCI_COMMAND_IO_ENABLE;
-		break;
-	    case SYS_RES_MEMORY:
-	        temp &= ~PCI_COMMAND_MEM_ENABLE;
-		break;
-	    }
-	    pci_conf_write(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG, temp);
+			switch (space) {
+			case SYS_RES_IOPORT:
+				temp &= ~PCI_COMMAND_IO_ENABLE;
+				break;
+			case SYS_RES_MEMORY:
+				temp &= ~PCI_COMMAND_MEM_ENABLE;
+				break;
+			}
+			pci_conf_write(arg->pa_pc, arg->pa_tag, PCI_COMMAND_STATUS_REG, temp);
+		}
 	}
-    }
-    return 0;
+	return 0;
 }
 
 u_int8_t
 pci_get_class(device_t dev)
 {
-    return PCI_CLASS(dev->dev_pci_class);
+	return PCI_CLASS(dev->dev_pci_class);
 }
 
 u_int8_t
 pci_get_subclass(device_t dev)
 {
-    return PCI_SUBCLASS(dev->dev_pci_class);
+	return PCI_SUBCLASS(dev->dev_pci_class);
 }
 
 u_int8_t
 pci_get_progif(device_t dev)
 {
-    return PCI_INTERFACE(dev->dev_pci_class);
+	return PCI_INTERFACE(dev->dev_pci_class);
 }
 
 u_int16_t
 pci_get_vendor(device_t dev)
 {
-    return (dev->dev_id & 0xFFFF);
+	return (dev->dev_id & 0xFFFF);
 }
 
 u_int16_t
 pci_get_device(device_t dev)
 {
-    return ((dev->dev_id >> 16) & 0xFFFF);
+	return ((dev->dev_id >> 16) & 0xFFFF);
 }
 
 static struct resource *
 alloc_res(device_t dev)
 {
-    u_int16_t x = DEVICE_MAXRES;
-    struct resource *res = &dev->dev_resources[0];
+	u_int16_t x = DEVICE_MAXRES;
+	struct resource *res = &dev->dev_resources[0];
 
-    while(x)
-    {
-        if(res->r_in_use ||
-	   res->r_alloced)
-	{
-	    res++;
-	    x--;
-	    continue;
+	while (x) {
+		if (res->r_in_use ||
+		    res->r_alloced) {
+			res++;
+			x--;
+			continue;
+		}
+		bzero(res, sizeof(*res));
+		res->r_in_use = 1;
+		return res;
 	}
-	bzero(res, sizeof(*res));
-	res->r_in_use = 1;
-	return res;
-    }
-    return NULL;
+	return NULL;
 }
 
 static struct resource *
 find_res(device_t dev, u_int8_t type, u_int32_t rid)
 {
-    struct resource *res = &dev->dev_resources[0];
-    u_int16_t x = DEVICE_MAXRES;
+	struct resource *res = &dev->dev_resources[0];
+	u_int16_t x = DEVICE_MAXRES;
 
-    while(x)
-    {
-        if(res->r_in_use && !res->r_alloced &&
-	   (res->r_rid == rid) &&
-	   (res->r_type == type))
-	{
-	    break;
+	while (x) {
+		if (res->r_in_use && !res->r_alloced &&
+		    (res->r_rid == rid) &&
+		    (res->r_type == type)) {
+			break;
+		}
+		res++;
+		x--;
 	}
-	res++;
-	x--;
-    }
-    if(x == 0)
-      res = NULL;
-    return res;
+	if (x == 0)
+		res = NULL;
+	return res;
 }
 
 static void
 free_res(struct resource *res)
 {
-    res->r_in_use = 0;
-    res->r_alloced = 0;
-    return;
+	res->r_in_use = 0;
+	res->r_alloced = 0;
 }
 
 struct resource *
-bus_alloc_resource(device_t dev, int type, int *rid, u_int32_t start, 
-		   u_int32_t end, u_int32_t count, u_int32_t flags)
+bus_alloc_resource(device_t dev, int type, int *rid, u_int32_t start,
+    u_int32_t end, u_int32_t count, u_int32_t flags)
 {
-    struct resource *res = NULL;
-    bus_addr_t base;
-    bus_size_t size;
+	struct resource *res = NULL;
+	bus_addr_t base;
+	bus_size_t size;
 
-    if(rid == NULL) goto error;
-
-    if((start == 0) && (end == (u_int32_t)(-1)))
-    {
-      res = find_res(dev, type, rid[0]);
-
-      if(res)
-      {
-	  /* already allocated */
-	  goto error;
-      }
-
-      res = alloc_res(dev);
-      if(res == NULL)
-      {
-	  /* out of memory */
-	  goto error;
-      }
-
-#ifndef FREEBSD_NO_ISA
-
-      if(dev->dev_what == DEVICE_IS_PNP)
-      {
-	  struct isapnp_attach_args *arg = device_get_ivars(dev);
-	  u_int32_t n;
-
-	  if(arg == NULL)
-	  {
-	      goto error;
-	  }
-
-	  if(dev->dev_res_alloc == 0)
-	  {
-	      if(isapnp_config(arg->ipa_iot, arg->ipa_memt, arg))
-	      {
-		  /* resource error */
-		  goto error;
-	      }
-	      dev->dev_res_alloc = 1;
-	  }
-
-	  n = rid[0];
-
-	  switch(type) {
-	  case SYS_RES_IOPORT:
-
-	    if(n >= arg->ipa_nio)
-	    {
-	        goto error;
-	    }
-
-	    res->r_bustag = arg->ipa_iot;
-	    res->r_start = arg->ipa_io[n].base;
-	    res->r_end = 
-	      arg->ipa_io[n].base +
-	      arg->ipa_io[n].length - 1;
-	    res->r_bushandle = arg->ipa_io[n].h;
-	    res->r_rid = n;
-	    res->r_type = SYS_RES_IOPORT;
-	    break;
-
-	  case SYS_RES_MEMORY:
-
-	    if(n >= arg->ipa_nmem)
-	    {
-	        goto error;
-	    }
-
-	    res->r_bustag = arg->ipa_memt;
-	    res->r_start = arg->ipa_mem[n].base;
-	    res->r_end = 
-	      arg->ipa_mem[n].base +
-	      arg->ipa_mem[n].length - 1;
-	    res->r_bushandle = arg->ipa_mem[n].h;
-	    res->r_rid = n;
-	    res->r_type = SYS_RES_MEMORY;
-	    break;
-
-	  case SYS_RES_IRQ:
-
-	    if(n >= arg->ipa_nirq)
-	    {
-	        goto error;
-	    }
-
-	    res->r_start = arg->ipa_irq[n].num;
-	    res->r_end = arg->ipa_irq[n].num;
-	    res->r_intr_type = arg->ipa_irq[n].type;
-	    res->r_rid = n;
-	    res->r_type = SYS_RES_IRQ;
-	    break;
-
-	  case SYS_RES_DRQ:
-
-	    if(n >= arg->ipa_ndrq)
-	    {
-	        goto error;
-	    }
-
-	    res->r_dmatag = arg->ipa_dmat;
-	    res->r_start = arg->ipa_drq[n].num;
-	    res->r_end = arg->ipa_drq[n].num;
-	    res->r_rid = n;
-	    res->r_type = SYS_RES_DRQ;
-	    break;
-
-	  default:
-	    goto error;
-	  }
-      }
-#if 0
-      else if(dev->dev_what == DEVICE_IS_ISA)
-      {
-
-      }
-#endif
-      else 
-#endif
-	if(dev->dev_what == DEVICE_IS_PCI)
-      {
-	  struct pci_attach_args *arg = device_get_ivars(dev);
-
-	  if(arg == NULL)
-	  {
-	      goto error;
-	  }
-
-	  switch(type) {
-	  case SYS_RES_IOPORT:
-	    if ((rid[0] < PCI_MAPREG_START) || (rid[0] & 3)) {
-	        printf("%s: Invalid I/O-port rid: 0x%x\n", __FUNCTION__, rid[0]);
+	if (rid == NULL)
 		goto error;
-	    }
 
-	    if(pci_mapreg_map(arg, rid[0], 
-			      PCI_MAPREG_TYPE_IO, 0, 
-			      &res->r_bustag, &res->r_bushandle,
-			      &base, &size))
-	    {
-	        goto error;
-	    }
-	    res->r_start = base;
-	    res->r_end = base + size -1;
-	    res->r_rid = rid[0];
-	    res->r_type = type;
-	    break;
+	if ((start == 0) && (end == (u_int32_t)(-1))) {
+		res = find_res(dev, type, rid[0]);
 
-	  case SYS_RES_MEMORY:
-	    if ((rid[0] < PCI_MAPREG_START) || (rid[0] & 3)) {
-	        printf("%s: Invalid memory rid: 0x%x\n", __FUNCTION__, rid[0]);
-		goto error;
-	    }
-
-	    if(pci_mapreg_map(arg, rid[0], 
-			      (PCI_MAPREG_TYPE_MEM | PCI_MAPREG_MEM_TYPE_32BIT), 0,
-			      &res->r_bustag, &res->r_bushandle,
-			      &base, &size))
-	    {
-	        goto error;
-	    }
-	    res->r_start = base;
-	    res->r_end = base + size -1;
-	    res->r_rid = rid[0];
-	    res->r_type = type;
-	    break;
-
-	  case SYS_RES_IRQ:
-	    if(rid[0] != 0)
-	    {
-	        goto error;
-	    }
-
-	    res->r_start =
-	      res->r_end =
-	      pci_read_config(dev, PCI_INTERRUPT_REG, 1);
-	    res->r_rid = rid[0];
-	    res->r_type = type;
-	    break;
-
-	  default:
-	    goto error;
-	  }
-      }
-      else
-      {
-	  goto error;
-      }
-    }
-    else
-    {
-      /* no support */
-      goto error;
-    }
-
-    dev->dev_res_alloc_count++;
-    res->r_in_use = 1;
-    return res;
-
- error:
-    if(res)
-    {
-      free_res(res);
-      res = NULL;
-    }
-    return res;
-}
-
-int
-bus_release_resource(device_t dev, int type, int rid, 
-		     struct resource *res)
-{
-    int error = ENXIO;
-    if(dev && res)
-    {
-        if(res->r_alloced)
-	{
-	  switch(res->r_type) {
-	  case SYS_RES_IOPORT:
-	  case SYS_RES_MEMORY:
-	      bus_space_unmap(res->r_bustag, res->r_bushandle,
-			      res->r_end - res->r_start + 1);
-	      break;
-	  }
-	}
-	free_res(res);
-	error = 0;
-
-	if(dev->dev_res_alloc_count)
-	{
-	    dev->dev_res_alloc_count--;
-	}
-
-	if((dev->dev_res_alloc_count == 0) &&
-	   (dev->dev_res_alloc))
-	{
-#ifndef FREEBSD_NO_ISA
-	    if(dev->dev_what == DEVICE_IS_PNP)
-	    {
-	        struct isapnp_attach_args *arg = device_get_ivars(dev);
-
-		if(arg)
-		{
-		    isapnp_unconfig(arg->ipa_iot, arg->ipa_memt, arg);
+		if (res) {
+			/* already allocated */
+			goto error;
 		}
-	    }
+		res = alloc_res(dev);
+		if (res == NULL) {
+			/* out of memory */
+			goto error;
+		}
+#ifndef FREEBSD_NO_ISA
+
+		if (dev->dev_what == DEVICE_IS_PNP) {
+			struct isapnp_attach_args *arg = device_get_ivars(dev);
+			u_int32_t n;
+
+			if (arg == NULL) {
+				goto error;
+			}
+			if (dev->dev_res_alloc == 0) {
+				if (isapnp_config(arg->ipa_iot, arg->ipa_memt, arg)) {
+					/* resource error */
+					goto error;
+				}
+				dev->dev_res_alloc = 1;
+			}
+			n = rid[0];
+
+			switch (type) {
+			case SYS_RES_IOPORT:
+
+				if (n >= arg->ipa_nio) {
+					goto error;
+				}
+				res->r_bustag = arg->ipa_iot;
+				res->r_start = arg->ipa_io[n].base;
+				res->r_end =
+				    arg->ipa_io[n].base +
+				    arg->ipa_io[n].length - 1;
+				res->r_bushandle = arg->ipa_io[n].h;
+				res->r_rid = n;
+				res->r_type = SYS_RES_IOPORT;
+				break;
+
+			case SYS_RES_MEMORY:
+
+				if (n >= arg->ipa_nmem) {
+					goto error;
+				}
+				res->r_bustag = arg->ipa_memt;
+				res->r_start = arg->ipa_mem[n].base;
+				res->r_end =
+				    arg->ipa_mem[n].base +
+				    arg->ipa_mem[n].length - 1;
+				res->r_bushandle = arg->ipa_mem[n].h;
+				res->r_rid = n;
+				res->r_type = SYS_RES_MEMORY;
+				break;
+
+			case SYS_RES_IRQ:
+
+				if (n >= arg->ipa_nirq) {
+					goto error;
+				}
+				res->r_start = arg->ipa_irq[n].num;
+				res->r_end = arg->ipa_irq[n].num;
+				res->r_intr_type = arg->ipa_irq[n].type;
+				res->r_rid = n;
+				res->r_type = SYS_RES_IRQ;
+				break;
+
+			case SYS_RES_DRQ:
+
+				if (n >= arg->ipa_ndrq) {
+					goto error;
+				}
+				res->r_dmatag = arg->ipa_dmat;
+				res->r_start = arg->ipa_drq[n].num;
+				res->r_end = arg->ipa_drq[n].num;
+				res->r_rid = n;
+				res->r_type = SYS_RES_DRQ;
+				break;
+
+			default:
+				goto error;
+			}
+		}
+#if 0
+		else if (dev->dev_what == DEVICE_IS_ISA) {
+
+		}
 #endif
-	    dev->dev_res_alloc = 0;
+		else
+#endif
+		if (dev->dev_what == DEVICE_IS_PCI) {
+			struct pci_attach_args *arg = device_get_ivars(dev);
+
+			if (arg == NULL) {
+				goto error;
+			}
+			switch (type) {
+			case SYS_RES_IOPORT:
+				if ((rid[0] < PCI_MAPREG_START) || (rid[0] & 3)) {
+					printf("%s: Invalid I/O-port rid: 0x%x\n", __FUNCTION__, rid[0]);
+					goto error;
+				}
+				if (pci_mapreg_map(arg, rid[0],
+				    PCI_MAPREG_TYPE_IO, 0,
+				    &res->r_bustag, &res->r_bushandle,
+				    &base, &size)) {
+					goto error;
+				}
+				res->r_start = base;
+				res->r_end = base + size - 1;
+				res->r_rid = rid[0];
+				res->r_type = type;
+				break;
+
+			case SYS_RES_MEMORY:
+				if ((rid[0] < PCI_MAPREG_START) || (rid[0] & 3)) {
+					printf("%s: Invalid memory rid: 0x%x\n", __FUNCTION__, rid[0]);
+					goto error;
+				}
+				if (pci_mapreg_map(arg, rid[0],
+				    (PCI_MAPREG_TYPE_MEM | PCI_MAPREG_MEM_TYPE_32BIT), 0,
+				    &res->r_bustag, &res->r_bushandle,
+				    &base, &size)) {
+					goto error;
+				}
+				res->r_start = base;
+				res->r_end = base + size - 1;
+				res->r_rid = rid[0];
+				res->r_type = type;
+				break;
+
+			case SYS_RES_IRQ:
+				if (rid[0] != 0) {
+					goto error;
+				}
+				res->r_start =
+				    res->r_end =
+				    pci_read_config(dev, PCI_INTERRUPT_REG, 1);
+				res->r_rid = rid[0];
+				res->r_type = type;
+				break;
+
+			default:
+				goto error;
+			}
+		} else {
+			goto error;
+		}
+	} else {
+		/* no support */
+		goto error;
 	}
-    }
-    return error;
+
+	dev->dev_res_alloc_count++;
+	res->r_in_use = 1;
+	return res;
+
+error:
+	if (res) {
+		free_res(res);
+		res = NULL;
+	}
+	return res;
 }
 
 int
-bus_set_resource(device_t dev, int type, int rid, u_int32_t start, 
-		 u_int32_t count)
+bus_release_resource(device_t dev, int type, int rid,
+    struct resource *res)
 {
-    u_int16_t x = DEVICE_MAXRES;
-    struct resource *res = &dev->dev_resources[0];
+	int error = ENXIO;
 
-    if(count == 0)
-    {
-        return EINVAL;
-    }
+	if (dev && res) {
+		if (res->r_alloced) {
+			switch (res->r_type) {
+			case SYS_RES_IOPORT:
+			case SYS_RES_MEMORY:
+				bus_space_unmap(res->r_bustag, res->r_bushandle,
+				    res->r_end - res->r_start + 1);
+				break;
+			}
+		}
+		free_res(res);
+		error = 0;
 
-    while(x)
-    {
-        if(res->r_in_use ||
-	   res->r_alloced)
-	{
-	    if((res->r_rid == rid) &&
-	       (res->r_type == type))
-	    {
-	        goto found;
-	    }
+		if (dev->dev_res_alloc_count) {
+			dev->dev_res_alloc_count--;
+		}
+		if ((dev->dev_res_alloc_count == 0) &&
+		    (dev->dev_res_alloc)) {
+#ifndef FREEBSD_NO_ISA
+			if (dev->dev_what == DEVICE_IS_PNP) {
+				struct isapnp_attach_args *arg = device_get_ivars(dev);
+
+				if (arg) {
+					isapnp_unconfig(arg->ipa_iot, arg->ipa_memt, arg);
+				}
+			}
+#endif
+			dev->dev_res_alloc = 0;
+		}
 	}
-	res++;
-	x--;
-    }
+	return error;
+}
 
-    res = alloc_res(dev);
+int
+bus_set_resource(device_t dev, int type, int rid, u_int32_t start,
+    u_int32_t count)
+{
+	u_int16_t x = DEVICE_MAXRES;
+	struct resource *res = &dev->dev_resources[0];
 
- found:
-    if(res == NULL)
-    {
-        return ENOMEM;
-    }
+	if (count == 0) {
+		return EINVAL;
+	}
+	while (x) {
+		if (res->r_in_use ||
+		    res->r_alloced) {
+			if ((res->r_rid == rid) &&
+			    (res->r_type == type)) {
+				goto found;
+			}
+		}
+		res++;
+		x--;
+	}
 
-    res->r_rid = rid;
-    res->r_type = type;
-    res->r_start = start;
-    res->r_end = start+count-1;
+	res = alloc_res(dev);
 
-    return 0;
+found:
+	if (res == NULL) {
+		return ENOMEM;
+	}
+	res->r_rid = rid;
+	res->r_type = type;
+	res->r_start = start;
+	res->r_end = start + count - 1;
+
+	return 0;
 }
 
 static int
 interrupt_wrapper(void *arg)
 {
-    device_t dev = arg;
-    (dev->dev_intr_func)(dev->dev_intr_arg);
-    return 1;
+	usb_schedule();
+	return (1);
+}
+
+void
+bus_handle_intr(void)
+{
+	device_t dev;
+
+	mtx_lock(&bus_irq_mtx);
+	LIST_FOREACH(dev, &bus_irq_head, dev_irq_entry) {
+		(dev->dev_intr_func) (dev->dev_intr_arg);
+	}
+	mtx_unlock(&bus_irq_mtx);
 }
 
 int
 bus_setup_intr(device_t dev, struct resource *res, int flags,
-	       driver_intr_t *handler, void *priv, void **cookiep)
+    driver_intr_t *handler, void *priv, void **cookiep)
 {
-    if (cookiep == NULL)
-    {
-        return EINVAL;
-    }
+	if (cookiep == NULL) {
+		return EINVAL;
+	}
+	if (dev->dev_intr_func) {
+		printf("%s: sorry, only one interrupt handler "
+		    "supported per unit.\n", __FUNCTION__);
+		return ENXIO;
+	}
+	/*
+         * On NetBSD v5.x we must set the interrupt handler function
+         * before establishing the interrupt, else a NULL pointer function
+         * call might happen. On NetBSD v4.x we were called with
+         * interrupts disabled so this was not a problem.
+         */
+	dev->dev_intr_func = handler;
+	dev->dev_intr_arg = priv;
 
-    if (dev->dev_intr_func)
-    {
-        printf("%s: sorry, only one interrupt handler "
-	       "supported per unit.\n", __FUNCTION__);
-	return ENXIO;
-    }
+	mtx_lock(&bus_irq_mtx);
+	LIST_INSERT_HEAD(&bus_irq_head, dev, dev_irq_entry);
+	mtx_unlock(&bus_irq_mtx);
 
-    /*
-     * On NetBSD v5.x we must set the interrupt handler function
-     * before establishing the interrupt, else a NULL pointer function
-     * call might happen. On NetBSD v4.x we were called with
-     * interrupts disabled so this was not a problem.
-     */
-    dev->dev_intr_func = handler;
-    dev->dev_intr_arg = priv;
-
-    cookiep[0] = NULL;
+	cookiep[0] = NULL;
 
 #ifndef FREEBSD_NO_ISA
-    if (dev->dev_what == DEVICE_IS_PNP)
-    {
-        struct isapnp_attach_args *arg = device_get_ivars(dev);
+	if (dev->dev_what == DEVICE_IS_PNP) {
+		struct isapnp_attach_args *arg = device_get_ivars(dev);
 
-	if (arg)
-	{
-	    cookiep[0] = 
-	      isa_intr_establish(arg->ipa_ic, res->r_start,
-				 res->r_intr_type, IPL_NET,
-				 &interrupt_wrapper, dev); 
-	}
-    }
-    else if (dev->dev_what == DEVICE_IS_ISA)
-    {
-        struct isa_attach_args *arg = device_get_ivars(dev);
+		if (arg) {
+			cookiep[0] =
+			    isa_intr_establish(arg->ipa_ic, res->r_start,
+			    res->r_intr_type, IPL_NET,
+			    &interrupt_wrapper, dev);
+		}
+	} else if (dev->dev_what == DEVICE_IS_ISA) {
+		struct isa_attach_args *arg = device_get_ivars(dev);
 
-	if (arg)
-	{
-	    cookiep[0] = 
-	      isa_intr_establish(arg->ia_ic, res->r_start,
-				 IST_EDGE, IPL_NET,
-				 &interrupt_wrapper, dev);
-	}
-    }
-    else 
+		if (arg) {
+			cookiep[0] =
+			    isa_intr_establish(arg->ia_ic, res->r_start,
+			    IST_EDGE, IPL_NET,
+			    &interrupt_wrapper, dev);
+		}
+	} else
 #endif
-      if (dev->dev_what == DEVICE_IS_PCI)
-    {
-        struct pci_attach_args *arg = device_get_ivars(dev);
+	if (dev->dev_what == DEVICE_IS_PCI) {
+		struct pci_attach_args *arg = device_get_ivars(dev);
 
-	if (arg)
-	{
-	    pci_intr_handle_t intr_h;
+		if (arg) {
+			pci_intr_handle_t intr_h;
 
-	    if (pci_intr_map(arg, &intr_h))
+			if (pci_intr_map(arg, &intr_h))
+				goto failure;
+
+			cookiep[0] =
+			    pci_intr_establish(arg->pa_pc, intr_h,
+			    IPL_NET, &interrupt_wrapper, dev);
+		}
+	}
+	if (cookiep[0] == NULL)
 		goto failure;
 
-	    cookiep[0] = 
-	      pci_intr_establish(arg->pa_pc, intr_h,
-				 IPL_NET, &interrupt_wrapper, dev);
-	}
-    }
-
-    if (cookiep[0] == NULL)
-	goto failure;
-
-    return (0);		/* success */
+	return (0);			/* success */
 
 failure:
-    dev->dev_intr_func = NULL;
-    dev->dev_intr_arg = NULL;
-    return (ENXIO);
+	dev->dev_intr_func = NULL;
+	dev->dev_intr_arg = NULL;
+
+	mtx_lock(&bus_irq_mtx);
+	LIST_REMOVE(dev, dev_irq_entry);
+	mtx_unlock(&bus_irq_mtx);
+
+	return (ENXIO);
 }
 
 int
 bus_teardown_intr(device_t dev, struct resource *r, void *cookie)
 {
-    if(cookie == NULL)
-    {
-        return 0;
-    }
-
+	if (cookie == NULL) {
+		return 0;
+	}
 #ifndef FREEBSD_NO_ISA
-    if(dev->dev_what == DEVICE_IS_PNP)
-    {
-	  struct isapnp_attach_args *arg = device_get_ivars(dev);
-	  if(arg)
-	  {
-	      isa_intr_disestablish(arg->ipa_ic, cookie);
-	  }
-    }
-    else if(dev->dev_what == DEVICE_IS_ISA)
-    {
-        struct isa_attach_args *arg = device_get_ivars(dev);
-	if(arg)
-	{
-	    isa_intr_disestablish(arg->ia_ic, cookie);
-	}
-    }
-    else
-#endif
-      if(dev->dev_what == DEVICE_IS_PCI)
-    {
-        struct pci_attach_args *arg = device_get_ivars(dev);
-	if(arg)
-	{
-	    pci_intr_disestablish(arg->pa_pc, cookie);
-	}
-    }
+	if (dev->dev_what == DEVICE_IS_PNP) {
+		struct isapnp_attach_args *arg = device_get_ivars(dev);
 
-    dev->dev_intr_func = NULL;
-    dev->dev_intr_arg = NULL;
-    return 0;
+		if (arg) {
+			isa_intr_disestablish(arg->ipa_ic, cookie);
+		}
+	} else if (dev->dev_what == DEVICE_IS_ISA) {
+		struct isa_attach_args *arg = device_get_ivars(dev);
+
+		if (arg) {
+			isa_intr_disestablish(arg->ia_ic, cookie);
+		}
+	} else
+#endif
+	if (dev->dev_what == DEVICE_IS_PCI) {
+		struct pci_attach_args *arg = device_get_ivars(dev);
+
+		if (arg) {
+			pci_intr_disestablish(arg->pa_pc, cookie);
+		}
+	}
+	mtx_lock(&bus_irq_mtx);
+	LIST_REMOVE(dev, dev_irq_entry);
+	mtx_unlock(&bus_irq_mtx);
+
+	dev->dev_intr_func = NULL;
+	dev->dev_intr_arg = NULL;
+	return 0;
 }
 
 int32_t
 bus_generic_detach(device_t dev)
 {
-    device_t child;
-    int error;
+	device_t child;
+	int error;
 
-    if (!dev->dev_attached)
-	return (EBUSY);
+	if (!dev->dev_attached)
+		return (EBUSY);
 
-    TAILQ_FOREACH(child, &dev->dev_children, dev_link) {
-	if ((error = device_detach(child)) != 0)
-        	return (error);
-    }
+	TAILQ_FOREACH(child, &dev->dev_children, dev_link) {
+		if ((error = device_detach(child)) != 0)
+			return (error);
+	}
 
-    return (0);
+	return (0);
 }
 
 const char *
 device_get_nameunit(device_t dev)
 {
-    if(dev && dev->dev_nameunit[0])
-      return &(dev->dev_nameunit[0]);
-    else
-      return unknown_string;
+	if (dev && dev->dev_nameunit[0])
+		return &(dev->dev_nameunit[0]);
+	else
+		return unknown_string;
 }
 
 int
-__device_printf(device_t dev, const char *fmt, ...)
+__device_printf(device_t dev, const char *fmt,...)
 {
-    const char *indent;
-    va_list ap;
+	const char *indent;
+	va_list ap;
 
-    if(dev && dev->dev_nameunit[0])
-      indent = &dev->dev_nameunit[0];
-    else
-      indent = unknown_string;
+	if (dev && dev->dev_nameunit[0])
+		indent = &dev->dev_nameunit[0];
+	else
+		indent = unknown_string;
 
-    printf("%s: ", indent);
+	printf("%s: ", indent);
 
-    va_start(ap, fmt);
-    vprintf(fmt, ap);
-    va_end(ap);
+	va_start(ap, fmt);
+	vprintf(fmt, ap);
+	va_end(ap);
 
-    return 0; /* XXX should return number of characters printed */
+	return 0;			/* XXX should return number of
+					 * characters printed */
 }
 
 static u_int8_t
 devclass_create(devclass_t *dc_pp)
 {
-    if (dc_pp == NULL) {
-        return 1;
-    }
-
-    if (dc_pp[0] == NULL) {
-        dc_pp[0] = malloc(sizeof(**(dc_pp)), 
-			  M_DEVBUF, M_WAITOK|M_ZERO);
-
-	if (dc_pp[0] == NULL) {
-	    return 1;
+	if (dc_pp == NULL) {
+		return 1;
 	}
-    }
-    return 0;
+	if (dc_pp[0] == NULL) {
+		dc_pp[0] = malloc(sizeof(**(dc_pp)),
+		    M_DEVBUF, M_WAITOK | M_ZERO);
+
+		if (dc_pp[0] == NULL) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 static const struct bsd_module_data *
 devclass_find_create(const char *classname)
 {
-    const struct bsd_module_data *mod;
+	const struct bsd_module_data *mod;
 
-    for(mod = &bsd_module_data_start[0]; 
-	mod < &bsd_module_data_end[0];
-	mod++)
-    {
-        if(mod->mod_name &&
-	   (strcmp(classname, mod->mod_name) == 0))
-	{
-	    if(devclass_create(mod->devclass_pp))
-	    {
-	        continue;
-	    }
-	    return mod;
+	for (mod = &bsd_module_data_start[0];
+	    mod < &bsd_module_data_end[0];
+	    mod++) {
+		if (mod->mod_name &&
+		    (strcmp(classname, mod->mod_name) == 0)) {
+			if (devclass_create(mod->devclass_pp)) {
+				continue;
+			}
+			return mod;
+		}
 	}
-    }
-    return NULL;
+	return NULL;
 }
 
 static u_int8_t
 devclass_add_device(const struct bsd_module_data *mod, device_t dev)
 {
-    u_int16_t n;
-    const char *name = "unknown";
+	u_int16_t n;
+	const char *name = "unknown";
 
-    if ((mod->devclass_pp == NULL) ||
-	(mod->devclass_pp[0] == NULL)) {
-        return 1;
-    }
+	if ((mod->devclass_pp == NULL) ||
+	    (mod->devclass_pp[0] == NULL)) {
+		return 1;
+	}
+	if (mod->driver &&
+	    mod->driver->name) {
+		name = mod->driver->name;
+	}
+	if (dev->dev_unit_manual) {
 
-    if(mod->driver &&
-       mod->driver->name) {
-        name = mod->driver->name;
-    }
+		n = dev->dev_unit;
 
-    if (dev->dev_unit_manual) {
+		if ((n < DEVCLASS_MAXUNIT) &&
+		    (mod->devclass_pp[0]->dev_list[n] == NULL)) {
+			goto found;
+		}
+	} else {
 
-        n = dev->dev_unit;
-
-	if ((n < DEVCLASS_MAXUNIT) &&
-	    (mod->devclass_pp[0]->dev_list[n] == NULL))
-	{
-	    goto found;
+		for (n = 0; n < DEVCLASS_MAXUNIT; n++) {
+			if (mod->devclass_pp[0]->dev_list[n] == NULL) {
+				goto found;
+			}
+		}
 	}
 
-    } else {
+	return 1;
 
-        for(n = 0; n < DEVCLASS_MAXUNIT; n++)
-	{
-	    if(mod->devclass_pp[0]->dev_list[n] == NULL)
-	    {
-	        goto found;
-	    }
-	}
-    }
+found:
 
-    return 1;
+	mod->devclass_pp[0]->dev_list[n] = dev;
 
- found:
+	dev->dev_unit = n;
+	dev->dev_module = mod;
+	snprintf(&dev->dev_nameunit[0],
+	    sizeof(dev->dev_nameunit), "%s%d", name, n);
 
-    mod->devclass_pp[0]->dev_list[n] = dev;
-
-    dev->dev_unit = n;
-    dev->dev_module = mod;
-    snprintf(&dev->dev_nameunit[0], 
-	     sizeof(dev->dev_nameunit), "%s%d", name, n);
-
-    return 0;
+	return 0;
 }
 
 static void
 devclass_delete_device(const struct bsd_module_data *mod, device_t dev)
 {
-    if (mod == NULL) {
-        return;
-    }
-
-    if(devclass_get_device(mod->devclass_pp ? 
-			   mod->devclass_pp[0] : NULL, dev->dev_unit) == dev)
-    {
-        mod->devclass_pp[0]->dev_list[dev->dev_unit] = NULL;
-    }
-    else
-    {
-        device_printf(dev, "WARNING: device is not present in devclass!\n");
-    }
-    dev->dev_module = NULL;
-    return;
+	if (mod == NULL) {
+		return;
+	}
+	if (devclass_get_device(mod->devclass_pp ?
+	    mod->devclass_pp[0] : NULL, dev->dev_unit) == dev) {
+		mod->devclass_pp[0]->dev_list[dev->dev_unit] = NULL;
+	}
+	dev->dev_module = NULL;
+	return;
 }
 
 static device_t
 make_device(device_t parent, const char *name, int unit)
 {
-    device_t dev = NULL;
-    const struct bsd_module_data *mod = NULL;
+	device_t dev = NULL;
+	const struct bsd_module_data *mod = NULL;
 
-    if (name) {
+	if (name) {
 
-        mod = devclass_find_create(name);
+		mod = devclass_find_create(name);
 
-	if (!mod) {
+		if (!mod) {
 
-	    printf("%s:%d:%s: can't find device "
-		   "class %s\n", __FILE__, __LINE__,
-		   __FUNCTION__, name);
-	    goto done;
-        }
-    }
-
-    dev = malloc(sizeof(*dev), M_DEVBUF, M_NOWAIT|M_ZERO);
-
-    if (dev == NULL) goto done;
-
-    dev->dev_parent = parent;
-    TAILQ_INIT(&dev->dev_children);
-
-    if (unit != -1) {
-        dev->dev_unit_manual = 1;
-	dev->dev_unit = unit;
-    }
-
-    if (name) {
-        dev->dev_fixed_class = 1;
-	dev->dev_module = mod;
-
-	if (devclass_add_device(mod, dev)) {
-	    goto error;
+			printf("%s:%d:%s: can't find device "
+			    "class %s\n", __FILE__, __LINE__,
+			    __FUNCTION__, name);
+			goto done;
+		}
 	}
-    }
+	dev = malloc(sizeof(*dev), M_DEVBUF, M_NOWAIT | M_ZERO);
 
- done:
-    return dev;
+	if (dev == NULL)
+		goto done;
 
- error:
-    if (dev) {
-        free(dev, M_DEVBUF);
-    }
-    return NULL;
+	dev->dev_parent = parent;
+	TAILQ_INIT(&dev->dev_children);
+
+	if (unit != -1) {
+		dev->dev_unit_manual = 1;
+		dev->dev_unit = unit;
+	}
+	if (name) {
+		dev->dev_fixed_class = 1;
+		dev->dev_module = mod;
+
+		if (devclass_add_device(mod, dev)) {
+			goto error;
+		}
+	}
+done:
+	return dev;
+
+error:
+	if (dev) {
+		free(dev, M_DEVBUF);
+	}
+	return NULL;
 }
 
 device_t
 device_add_child_ordered(device_t dev, int order, const char *name, int unit)
 {
-    device_t child;
-    device_t place;
+	device_t child;
+	device_t place;
 
-    child = make_device(dev, name, unit);
-    if (child == NULL) {
-        goto done;
-    }
-    child->dev_order = order;
-
-    TAILQ_FOREACH(place, &dev->dev_children, dev_link) {
-        if (place->dev_order > order) {
-	    break;
+	child = make_device(dev, name, unit);
+	if (child == NULL) {
+		goto done;
 	}
-    }
+	child->dev_order = order;
 
-    if (place) {
-        /*
-	 * The device 'place' is the first device whose order is
-	 * greater than the new child.
-	 */
-        TAILQ_INSERT_BEFORE(place, child, dev_link);
-    } else {
-        /*
-	 * The new child's order is greater or equal to the order of
-	 * any existing device. Add the child to the tail of the list.
-	 */
-        TAILQ_INSERT_TAIL(&dev->dev_children, child, dev_link);
-    }
+	TAILQ_FOREACH(place, &dev->dev_children, dev_link) {
+		if (place->dev_order > order) {
+			break;
+		}
+	}
 
- done:
-    return child;
+	if (place) {
+		/*
+		 * The device 'place' is the first device whose order is
+		 * greater than the new child.
+		 */
+		TAILQ_INSERT_BEFORE(place, child, dev_link);
+	} else {
+		/*
+		 * The new child's order is greater or equal to the order of
+		 * any existing device. Add the child to the tail of the list.
+		 */
+		TAILQ_INSERT_TAIL(&dev->dev_children, child, dev_link);
+	}
+
+done:
+	return child;
 }
 
-device_t 
+device_t
 device_add_child(device_t dev, const char *name, int unit)
 {
-    return device_add_child_ordered(dev, 0, name, unit);
+	return device_add_child_ordered(dev, 0, name, unit);
 }
 
 int
 device_delete_child(device_t dev, device_t child)
 {
-    int error = 0;
-    device_t grandchild;
+	int error = 0;
+	device_t grandchild;
 
-    /* remove children first */
+	/* remove children first */
 
-    while ( (grandchild = TAILQ_FIRST(&child->dev_children)) ) {
-        error = device_delete_child(child, grandchild);
-	if (error) goto done;
-    }
+	while ((grandchild = TAILQ_FIRST(&child->dev_children))) {
+		error = device_delete_child(child, grandchild);
+		if (error)
+			goto done;
+	}
 
-    error = device_detach(child);
+	error = device_detach(child);
 
-    if (error) goto done;
+	if (error)
+		goto done;
 
-    devclass_delete_device(child->dev_module, child);
+	devclass_delete_device(child->dev_module, child);
 
-    TAILQ_REMOVE(&dev->dev_children, child, dev_link);
+	if (dev != NULL)
+		TAILQ_REMOVE(&dev->dev_children, child, dev_link);
 
-    free(child, M_DEVBUF);
+	free(child, M_DEVBUF);
 
- done:
-    return error;
+done:
+	return error;
 }
 
 int
 device_get_children(device_t dev, device_t **devlistp, int *devcountp)
 {
-    int count;
-    int n;
-    device_t child;
-    device_t *list;
+	int count;
+	int n;
+	device_t child;
+	device_t *list;
 
-    count = 0;
-    TAILQ_FOREACH(child, &dev->dev_children, dev_link) {
-	count++;
-    }
-
-    if (count == 0) {
-        /* avoid zero size allocation */
-        n = 1 * sizeof(device_t);
-    } else {
-        n = count * sizeof(device_t);
-    }
-
-    list = malloc(n, M_TEMP, M_NOWAIT|M_ZERO);
-    if (!list) {
-        *devlistp = NULL;
-	*devcountp = 0;
-	return ENOMEM;
-    }
-
-    n = 0;
-    TAILQ_FOREACH(child, &dev->dev_children, dev_link) {
-        if (n < count) {
-	    list[n] = child;
-	    n++;
+	count = 0;
+	TAILQ_FOREACH(child, &dev->dev_children, dev_link) {
+		count++;
 	}
-    }
 
-    if (n != count) {
-        printf("%s: WARNING: Number of "
-	       "devices changed %d -> %d!\n",
-	       __FILE__, count, n);
-    }
+	if (count == 0) {
+		/* avoid zero size allocation */
+		n = 1 * sizeof(device_t);
+	} else {
+		n = count * sizeof(device_t);
+	}
 
-    *devlistp = list;
-    *devcountp = count;
+	list = malloc(n, M_TEMP, M_NOWAIT | M_ZERO);
+	if (!list) {
+		*devlistp = NULL;
+		*devcountp = 0;
+		return ENOMEM;
+	}
+	n = 0;
+	TAILQ_FOREACH(child, &dev->dev_children, dev_link) {
+		if (n < count) {
+			list[n] = child;
+			n++;
+		}
+	}
 
-    return 0;
+	if (n != count) {
+		printf("%s: WARNING: Number of "
+		    "devices changed %d -> %d!\n",
+		    __FILE__, count, n);
+	}
+	*devlistp = list;
+	*devcountp = count;
+
+	return 0;
 }
 
 void
 device_quiet(device_t dev)
 {
-    dev->dev_quiet = 1;
-    return;
+	dev->dev_quiet = 1;
+	return;
 }
 
 const char *
 device_get_desc(device_t dev)
 {
-    if(dev)
-      return &(dev->dev_desc[0]);
-    else
-      return unknown_string;
+	if (dev)
+		return &(dev->dev_desc[0]);
+	else
+		return unknown_string;
 }
 
 static void
 default_method(void)
 {
-    /* do nothing */
-    return;
+	/* do nothing */
+	return;
 }
 
-void *
+void   *
 device_get_method(device_t dev, const char *what)
 {
-    void *temp = NULL;
-    const struct __device_method *mtod;
+	void *temp = NULL;
+	const struct __device_method *mtod;
 
-    if(dev && 
-       dev->dev_module &&
-       dev->dev_module->driver &&
-       dev->dev_module->driver->methods)
-    {
-        mtod = dev->dev_module->driver->methods;
-	while(mtod->desc && mtod->func)
-	{
-	  if(strcmp(mtod->desc, what) == 0)
-	  {
-	      temp = mtod->func;
-	      break;
-	  }
-	  mtod++;
+	if (dev &&
+	    dev->dev_module &&
+	    dev->dev_module->driver &&
+	    dev->dev_module->driver->methods) {
+		mtod = dev->dev_module->driver->methods;
+		while (mtod->desc && mtod->func) {
+			if (strcmp(mtod->desc, what) == 0) {
+				temp = mtod->func;
+				break;
+			}
+			mtod++;
+		}
 	}
-    }
-    if(temp == NULL)
-    {
-        /* maybe one should panic here */
-        temp = &default_method;
-	device_printf(dev, "%s: WARNING: missing method: %s!\n",
-		      __FUNCTION__, what);
-    }
-    return temp;
+	if (temp == NULL) {
+		/* maybe one should panic here */
+		temp = &default_method;
+		device_printf(dev, "%s: WARNING: missing method: %s!\n",
+		    __FUNCTION__, what);
+	}
+	device_printf(dev, "Calling %s @ %p, %p\n",
+	    what, temp, &default_method);
+	return (temp);
 }
 
 const char *
 device_get_name(device_t dev)
 {
-    const struct bsd_module_data *mod = dev ? dev->dev_module : NULL;
+	const struct bsd_module_data *mod = dev ? dev->dev_module : NULL;
 
-    if(mod &&
-       mod->driver &&
-       mod->driver->name)
-      return mod->driver->name;
-    else
-      return unknown_string;
+	if (mod &&
+	    mod->driver &&
+	    mod->driver->name)
+		return mod->driver->name;
+	else
+		return unknown_string;
 }
 
 int
 device_probe_and_attach(device_t dev)
 {
-    const struct bsd_module_data *mod;
-    const u_int8_t *bus_name_parent = device_get_name(device_get_parent(dev));
+	const struct bsd_module_data *mod;
+	const u_int8_t *bus_name_parent = device_get_name(device_get_parent(dev));
 
-    if(dev->dev_attached)
-    {
-        return 0;
-    }
-
-    if (dev->dev_fixed_class) {
-
-        mod = dev->dev_module;
-
-	if(CALL_METHOD(dev, device_probe, dev) <= 0)
-	{
-	    if(CALL_METHOD(dev, device_attach, dev) == 0)
-	    {
-	        /* success */
-	        dev->dev_attached = 1;
+	if (dev->dev_attached) {
 		return 0;
-	    }
 	}
+	if (dev->dev_fixed_class) {
 
-	device_detach(dev);
+		mod = dev->dev_module;
 
-	goto error;
-    }
-
-    /*
-     * else find a module for our device, if any
-     */
-    for(mod = &bsd_module_data_start[0]; 
-	mod < &bsd_module_data_end[0];
-	mod++)
-    {
-        if(mod->bus_name && 
-	   mod->driver && 
-	   mod->driver->methods &&
-	   mod->driver->name &&
-	   (strcmp(mod->bus_name, bus_name_parent) == 0))
-	{
-	    if (devclass_create(mod->devclass_pp)) {
-	        device_printf(dev, "devclass_create_() failed!\n");
-	        continue;
-	    }
-
-	    if (devclass_add_device(mod, dev)) {
-	        device_printf(dev, "devclass_add_device() failed!\n");
-	        continue;
-	    }
-
-	    if(CALL_METHOD(dev, device_probe, dev) <= 0)
-	    {
-	        if(CALL_METHOD(dev, device_attach, dev) == 0)
-		{
-		    /* success */
-		    dev->dev_attached = 1;
-		    return 0;
+		if (CALL_METHOD(dev, device_probe, dev) <= 0) {
+			if (CALL_METHOD(dev, device_attach, dev) == 0) {
+				/* success */
+				dev->dev_attached = 1;
+				return 0;
+			}
 		}
-	    }
+		device_detach(dev);
 
-	    /* else try next driver */
-
-	    device_detach(dev);
+		goto error;
 	}
-    }
+	/*
+         * else find a module for our device, if any
+         */
+	for (mod = &bsd_module_data_start[0];
+	    mod < &bsd_module_data_end[0];
+	    mod++) {
 
- error:
-    return ENODEV;
+		if (mod->bus_name &&
+		    mod->driver &&
+		    mod->driver->methods &&
+		    mod->driver->name &&
+		    (strcmp(mod->bus_name, bus_name_parent) == 0)) {
+
+			if (devclass_create(mod->devclass_pp)) {
+				device_printf(dev, "devclass_create_() failed!\n");
+				continue;
+			}
+			if (devclass_add_device(mod, dev)) {
+				device_printf(dev, "devclass_add_device() failed!\n");
+				continue;
+			}
+			if (CALL_METHOD(dev, device_probe, dev) <= 0) {
+				if (CALL_METHOD(dev, device_attach, dev) == 0) {
+					/* success */
+					dev->dev_attached = 1;
+					return 0;
+				}
+			}
+			/* else try next driver */
+
+			device_detach(dev);
+		}
+	}
+
+error:
+	return ENODEV;
 }
 
 int
 device_detach(device_t dev)
 {
-    const struct bsd_module_data *mod = dev->dev_module;
-    int error;
+	const struct bsd_module_data *mod = dev->dev_module;
+	int error;
 
-    if(mod == NULL)
-    {
-        device_printf(dev, "invalid device: dev->dev_module == NULL!\n");
+	if (mod == NULL) {
+		return 0;
+	}
+	if (dev->dev_attached) {
+		error = CALL_METHOD(dev, device_detach, dev);
+		if (error) {
+			return error;
+		}
+		dev->dev_attached = 0;
+	}
+	device_set_softc(dev, NULL);
+	dev->dev_softc_set = 0;
+
+	if (dev->dev_fixed_class == 0) {
+		devclass_delete_device(mod, dev);
+	}
 	return 0;
-    }
-
-    if(dev->dev_attached)
-    {
-       error = CALL_METHOD(dev, device_detach, dev);
-       if(error)
-       {
-	   return error;
-       }
-
-       dev->dev_attached = 0;
-    }
-
-    device_set_softc(dev, NULL);
-    dev->dev_softc_set = 0;
-
-    if (dev->dev_fixed_class == 0) {
-        devclass_delete_device(mod, dev);
-    }
-    return 0;
 }
 
 void
 device_set_softc(device_t dev, void *softc)
 {
-    if(dev->dev_softc_alloc)
-    {
-        free(dev->dev_sc, M_DEVBUF);
-        dev->dev_sc = NULL;
-    }
-
-    dev->dev_sc = softc;
-    dev->dev_softc_alloc = 0;
-    dev->dev_softc_set = 1;
-    return;
+	if (dev->dev_softc_alloc) {
+		free(dev->dev_sc, M_DEVBUF);
+		dev->dev_sc = NULL;
+	}
+	dev->dev_sc = softc;
+	dev->dev_softc_alloc = 0;
+	dev->dev_softc_set = 1;
+	return;
 }
 
-void *
+void   *
 device_get_softc(device_t dev)
 {
-    const struct bsd_module_data *mod;
+	const struct bsd_module_data *mod;
 
-    if (dev == NULL) {
-        return NULL;
-    }
-
-    mod = dev->dev_module;
-
-    if((!dev->dev_softc_set) &&
-       (!dev->dev_softc_alloc) &&
-       mod && 
-       mod->driver &&
-       mod->driver->size)
-    {
-        dev->dev_sc = malloc(mod->driver->size, 
-			     M_DEVBUF, M_WAITOK|M_ZERO);
-
-	if(dev->dev_sc)
-	{
-	    dev->dev_softc_set = 1;
-	    dev->dev_softc_alloc = 1;
+	if (dev == NULL) {
+		return NULL;
 	}
-    }
-    return dev->dev_sc;
+	mod = dev->dev_module;
+
+	if ((!dev->dev_softc_set) &&
+	    (!dev->dev_softc_alloc) &&
+	    mod &&
+	    mod->driver &&
+	    mod->driver->size) {
+		dev->dev_sc = malloc(mod->driver->size,
+		    M_DEVBUF, M_WAITOK | M_ZERO);
+
+		if (dev->dev_sc) {
+			dev->dev_softc_set = 1;
+			dev->dev_softc_alloc = 1;
+		}
+	}
+	return dev->dev_sc;
 }
 
 int
 device_is_attached(device_t dev)
 {
-    return dev->dev_attached;
+	return dev->dev_attached;
 }
 
 void
-device_set_desc(device_t dev, const char * desc)
+device_set_desc(device_t dev, const char *desc)
 {
-    snprintf(&dev->dev_desc[0], sizeof(dev->dev_desc), "%s", desc);
-    return;
+	snprintf(&dev->dev_desc[0], sizeof(dev->dev_desc), "%s", desc);
+	return;
 }
 
 void
-device_set_desc_copy(device_t dev, const char * desc)
+device_set_desc_copy(device_t dev, const char *desc)
 {
-    device_set_desc(dev, desc);
-    return;
+	device_set_desc(dev, desc);
+	return;
 }
 
-void *
+void   *
 devclass_get_softc(devclass_t dc, int unit)
 {
-    return device_get_softc(devclass_get_device(dc,unit));
+	return device_get_softc(devclass_get_device(dc, unit));
 }
 
-int 
+int
 devclass_get_maxunit(devclass_t dc)
 {
-    int max_unit = 0;
+	int max_unit = 0;
 
-    if(dc)
-    {
-        max_unit = DEVCLASS_MAXUNIT;
-        while(max_unit--)
-	{
-	  if(dc->dev_list[max_unit])
-	  {
-	      break;
-	  }
+	if (dc) {
+		max_unit = DEVCLASS_MAXUNIT;
+		while (max_unit--) {
+			if (dc->dev_list[max_unit]) {
+				break;
+			}
+		}
+		max_unit++;
 	}
-	max_unit++;
-    }
-    return max_unit;
+	return max_unit;
 }
 
 device_t
 devclass_get_device(devclass_t dc, int unit)
 {
-    return ((unit < 0) || (unit >= DEVCLASS_MAXUNIT) || (dc == NULL)) ? 
-      NULL : dc->dev_list[unit];
+	return ((unit < 0) || (unit >= DEVCLASS_MAXUNIT) || (dc == NULL)) ?
+	NULL : dc->dev_list[unit];
 }
 
-devclass_t 
+devclass_t
 devclass_find(const char *classname)
 {
-    const struct bsd_module_data *mod;
+	const struct bsd_module_data *mod;
 
-    for(mod = &bsd_module_data_start[0]; 
-	mod < &bsd_module_data_end[0];
-	mod++)
-    {
-        if(mod->devclass_pp && 
-	   mod->devclass_pp[0] &&
-	   mod->mod_name &&
-	   (strcmp(classname, mod->mod_name) == 0))
-	{
-	    return mod->devclass_pp[0];
+	for (mod = &bsd_module_data_start[0];
+	    mod < &bsd_module_data_end[0];
+	    mod++) {
+		if (mod->devclass_pp &&
+		    mod->devclass_pp[0] &&
+		    mod->mod_name &&
+		    (strcmp(classname, mod->mod_name) == 0)) {
+			return mod->devclass_pp[0];
+		}
 	}
-    }
-    return NULL;
+	return NULL;
 }
 
 #ifndef IHFC_USB_ENABLED
@@ -1514,7 +1426,6 @@ usbd_dma_tag_setup(struct usbd_dma_parent_tag *udpt,
 		/* something is corrupt */
 		return;
 	}
-
 	/* store some information */
 	udpt->mtx = mtx;
 	udpt->info = info;
@@ -1566,7 +1477,6 @@ usbd_pc_common_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 	struct usbd_dma_parent_tag *uptag;
 	struct usbd_page *pg;
 	uint32_t rem;
-	uint8_t ext_seg;		/* extend last segment */
 
 	uptag = pc->tag_parent;
 
@@ -1585,12 +1495,6 @@ usbd_pc_common_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 	rem = segs->ds_addr & (USB_PAGE_SIZE - 1);
 	pc->page_offset_buf = rem;
 	pc->page_offset_end += rem;
-	if (nseg < ((pc->page_offset_end +
-	    (USB_PAGE_SIZE - 1)) / USB_PAGE_SIZE)) {
-		ext_seg = 1;
-	} else {
-		ext_seg = 0;
-	}
 	nseg--;
 
 	while (nseg > 0) {
@@ -1600,14 +1504,6 @@ usbd_pc_common_mem_cb(struct usbd_page_cache *pc, bus_dma_segment_t *segs,
 		pg->physaddr = segs->ds_addr & ~(USB_PAGE_SIZE - 1);
 	}
 
-	/*
-	 * XXX The segments we get from BUS-DMA are not aligned,
-	 * XXX so we need to extend the last segment if we are
-	 * XXX unaligned and cross the segment boundary!
-	 */
-	if (ext_seg && pc->ismultiseg) {
-		(pg + 1)->physaddr = pg->physaddr + USB_PAGE_SIZE;
-	}
 done:
 	mtx_lock(uptag->mtx);
 	uptag->dma_error = (error ? 1 : 0);
@@ -1633,7 +1529,7 @@ usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
 	struct usbd_dma_tag *utag;
 	caddr_t ptr = NULL;
 	bus_dmamap_t map;
-	int seg_count;
+	int seg_count = 0;
 
 	uptag = pc->tag_parent;
 
@@ -1660,15 +1556,16 @@ usbd_pc_alloc_mem(struct usbd_page_cache *pc, struct usbd_page *pg,
 		goto done_4;
 	}
 	if (bus_dmamem_map(utag->tag, utag->p_seg, seg_count, size,
-	   (void *)&ptr, BUS_DMA_WAITOK | BUS_DMA_COHERENT)) {
+	    (void *)&ptr, BUS_DMA_WAITOK | BUS_DMA_COHERENT)) {
 		goto done_3;
 	}
 	if (bus_dmamap_create(utag->tag, size, utag->n_seg, (align == 1) ?
-	    USB_PAGE_SIZE : size, 0, BUS_DMA_WAITOK, &map)) {
+	    USB_PAGE_SIZE : size, (align == 1) ? USB_PAGE_SIZE : 0,
+	    BUS_DMA_WAITOK, &map)) {
 		goto done_2;
 	}
 	if (bus_dmamap_load(utag->tag, map, ptr, size, NULL,
-	    BUS_DMA_WAITOK)) {
+	    BUS_DMA_NOWAIT)) {
 		goto done_1;
 	}
 	pc->p_seg = malloc(seg_count * sizeof(*(pc->p_seg)),
@@ -1754,8 +1651,10 @@ usbd_pc_cpu_invalidate(struct usbd_page_cache *pc)
 	len = pc->page_offset_end - pc->page_offset_buf;
 
 	bus_dmamap_sync(pc->tag, pc->map, 0, len,
-	    BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
-	return;
+	    BUS_DMASYNC_POSTREAD);
+
+	bus_dmamap_sync(pc->tag, pc->map, 0, len,
+	    BUS_DMASYNC_PREREAD);
 }
 
 /*------------------------------------------------------------------------*
@@ -1769,8 +1668,7 @@ usbd_pc_cpu_flush(struct usbd_page_cache *pc)
 	len = pc->page_offset_end - pc->page_offset_buf;
 
 	bus_dmamap_sync(pc->tag, pc->map, 0, len,
-	    BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
-	return;
+	    BUS_DMASYNC_PREWRITE);
 }
 
 /*------------------------------------------------------------------------*

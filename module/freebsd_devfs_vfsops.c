@@ -5,7 +5,7 @@
  *	Poul-Henning Kamp.  All rights reserved.
  * Copyright (c) 1992, 1993, 1995
  *	The Regents of the University of California.  All rights reserved.
- * Copyright (c) 
+ * Copyright (c)
  *       Jan-Simon Pendry. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,20 +46,21 @@
 
 #include <sys/freebsd_compat.h>
 
+extern int genfs_renamelock_enter(struct mount *mp);
+extern void genfs_renamelock_exit(struct mount *mp);
+
 static int
-devfs_root(struct mount *mp, /* int flags, */
-	   struct vnode **vpp)
+devfs_root(struct mount *mp, struct vnode **vpp)
 {
-	struct thread *td = curthread; /* XXX */
+	struct thread *td = curthread;	/* XXX */
 	struct devfs_mount *dmp;
 	struct vnode *vp;
 	int error;
 
 	dmp = VFSTODEVFS(mp);
 	error = devfs_allocv(dmp->dm_rootdir, mp, &vp, td);
-	if(error)
-	{
-	    goto done;
+	if (error) {
+		goto done;
 	}
 #if (__NetBSD_Version__ >= 500000000)
 	vp->v_vflag |= VV_ROOT;
@@ -68,42 +69,38 @@ devfs_root(struct mount *mp, /* int flags, */
 #endif
 	*vpp = vp;
 
- done:
-	return error;
+done:
+	return (error);
 }
 
 #undef DECONST
-#define DECONST(arg) ((void *)(((const char *)arg) - ((const char *)0)))
+#define	DECONST(arg) ((void *)(((const char *)arg) - ((const char *)0)))
 
+static int
 #if (__NetBSD_Version__ >= 500000000)
-static int
 devfs_mount(struct mount *mp, const char *path, void *data,
-	    size_t *data_len)
+    size_t *data_len)
 #elif (__NetBSD_Version__ >= 400000000)
-static int
 devfs_mount(struct mount *mp, const char *path, void *data,
-	    struct nameidata *ndp, struct lwp *l)
+    struct nameidata *ndp, struct lwp *l)
 #else
-static int
 devfs_mount(struct mount *mp, const char *path, void *data,
-	    struct nameidata *ndp, struct thread *td)
+    struct nameidata *ndp, struct thread *td)
 #endif
 {
 	struct devfs_mount *fmp;
 	struct vnode *rvp;
 	int error = 0;
 
-	if(mp->mnt_flag & (MNT_UPDATE | MNT_ROOTFS))
-	{
-	    return EOPNOTSUPP;
-	}
+	if (mp->mnt_flag & (MNT_UPDATE | MNT_ROOTFS))
+		return (EOPNOTSUPP);
 
 	MALLOC(fmp, struct devfs_mount *, sizeof(struct devfs_mount),
-	       M_DEVFS, M_WAITOK | M_ZERO);
+	    M_DEVFS, M_WAITOK | M_ZERO);
 
 	MALLOC(fmp->dm_dirent, struct devfs_dirent **,
-	       sizeof(struct devfs_dirent *) * NDEVFSINO,
-	       M_DEVFS, M_WAITOK | M_ZERO);
+	    sizeof(struct devfs_dirent *) * NDEVFSINO,
+	    M_DEVFS, M_WAITOK | M_ZERO);
 
 	lockinit(&fmp->dm_lock, PVFS, "devfs", 0, 0);
 
@@ -111,6 +108,11 @@ devfs_mount(struct mount *mp, const char *path, void *data,
 	mp->mnt_data = fmp;
 #if 0
 	mp->mnt_stat.f_namemax = MAXNAMLEN;
+#endif
+#if (__NetBSD_Version__ >= 500000000)
+	mp->mnt_fs_bshift = PAGE_SHIFT;
+	mp->mnt_dev_bshift = DEV_BSHIFT;
+	mp->mnt_iflag |= IMNT_MPSAFE;
 #endif
 
 	fmp->dm_mount = mp;
@@ -127,12 +129,10 @@ devfs_mount(struct mount *mp, const char *path, void *data,
 	devfs_rules_newmount(fmp, td);
 #endif
 
-	error = devfs_root(mp, /* LK_EXCLUSIVE, */ &rvp /* , td */);
-	if(error)
-	{
-	    goto done;
+	error = devfs_root(mp, &rvp);
+	if (error) {
+		goto done;
 	}
-
 	VOP_UNLOCK(rvp, 0);
 
 	fmp->dm_root_vnode = rvp;
@@ -142,88 +142,74 @@ devfs_mount(struct mount *mp, const char *path, void *data,
 	    mp->mnt_op->vfs_name, mp, curlwp);
 #elif (__NetBSD_Version__ >= 400000000)
 	error = set_statfs_info
-	  (path, UIO_USERSPACE, "devfs", UIO_SYSSPACE, mp, l);
+	    (path, UIO_USERSPACE, "devfs", UIO_SYSSPACE, mp, l);
 #else
 	error = set_statfs_info
-	  (path, UIO_USERSPACE, "devfs", UIO_SYSSPACE, mp, td);
+	    (path, UIO_USERSPACE, "devfs", UIO_SYSSPACE, mp, td);
 #endif
-	if(error)
-	{
-	    goto done;
-	}
+	if (error)
+		goto done;
 #if 0
 	vfs_mountedfrom(mp, "devfs");
 #endif
 
- done:
-	if(error)
-	{
-	    mp->mnt_data = NULL;
-	    lockdestroy(&fmp->dm_lock);
-	    FREE(fmp, M_DEVFS);
+done:
+	if (error) {
+		mp->mnt_data = NULL;
+		lockdestroy(&fmp->dm_lock);
+		FREE(fmp, M_DEVFS);
 	}
-	return error;
+	return (error);
 }
 
-#if (__NetBSD_Version__ >= 500000000)
 static int
+#if (__NetBSD_Version__ >= 500000000)
 devfs_unmount(struct mount *mp, int mntflags)
 #elif (__NetBSD_Version__ >= 400000000)
-static int
-devfs_unmount(struct mount *mp, int mntflags, 
-	      struct lwp *l)
+devfs_unmount(struct mount *mp, int mntflags, struct lwp *l)
 #else
-static int
-devfs_unmount(struct mount *mp, int mntflags, 
-	      struct thread *td)
+devfs_unmount(struct mount *mp, int mntflags, struct thread *td)
 #endif
 {
 	struct devfs_mount *fmp;
 	int flags = 0;
 	int error;
 
-	if((mntflags & MNT_FORCE))
-	{
-	    flags |= FORCECLOSE;
+	if ((mntflags & MNT_FORCE)) {
+		flags |= FORCECLOSE;
 	}
-
 	fmp = VFSTODEVFS(mp);
 
 #if 1
 	/* drop extra reference to root vnode */
 
-	if(fmp->dm_root_vnode)
-	{
-	    vrele(fmp->dm_root_vnode);
+	if (fmp->dm_root_vnode) {
+		vrele(fmp->dm_root_vnode);
 	}
 #endif
 
 	/* flush vnodes */
 
 	error = vflush(mp, fmp->dm_root_vnode, flags);
-	if(error)
-	{
-	    goto done;
+	if (error) {
+		goto done;
 	}
-
 	devfs_purge(fmp->dm_rootdir);
 	mp->mnt_data = NULL;
 	lockdestroy(&fmp->dm_lock);
 	free(fmp->dm_dirent, M_DEVFS);
 	free(fmp, M_DEVFS);
 
- done:
-	return error;
+done:
+	return (error);
 }
 
-#if (__NetBSD_Version__ >= 500000000)
 static int
+#if (__NetBSD_Version__ >= 500000000)
 devfs_statfs(struct mount *mp, struct statfs *sbp)
 #elif (__NetBSD_Version__ >= 400000000)
-static int
 devfs_statfs(struct mount *mp, struct statfs *sbp, struct lwp *l)
 #else
-static int
 devfs_statfs(struct mount *mp, struct statfs *sbp, struct thread *td)
 #endif
 {
@@ -239,140 +225,157 @@ devfs_statfs(struct mount *mp, struct statfs *sbp, struct thread *td)
 	sbp->f_ffree = 0;
 
 	copy_statfs_info(sbp, mp);
-	return 0;
+	return (0);
 }
 
 static void
 devfs_init(void)
 {
-	return;
 }
 
 static void
 devfs_reinit(void)
 {
-	return;
 }
 
 static void
 devfs_done(void)
 {
-	return;
 }
 
-#if (__NetBSD_Version__ >= 500000000)
 static int
+#if (__NetBSD_Version__ >= 500000000)
 devfs_start(struct mount *a, int b)
 #elif (__NetBSD_Version__ >= 400000000)
-static int
 devfs_start(struct mount *a, int b, struct lwp *l)
 #else
-static int
 devfs_start(struct mount *a, int b, struct proc *c)
 #endif
 {
-	return 0;
+	return (0);
 }
 
-#if (__NetBSD_Version__ >= 500000000)
 static int
+#if (__NetBSD_Version__ >= 500000000)
 devfs_quotactl(struct mount *a, int b, uid_t c, void *d)
 #elif (__NetBSD_Version__ < 300000000)
-static int
-devfs_quotactl(struct mount *a, int b, uid_t c, caddr_t d,
-	       struct proc *e)
+devfs_quotactl(struct mount *a, int b, uid_t c, caddr_t d, struct proc *e)
 #elif (__NetBSD_Version__ >= 400000000)
-static int
-devfs_quotactl(struct mount *a, int b, uid_t c, void *d,
-	       struct lwp *l)
+devfs_quotactl(struct mount *a, int b, uid_t c, void *d, struct lwp *l)
 #else
-static int
-devfs_quotactl(struct mount *a, int b, uid_t c, void *d,
-	       struct proc *e)
+devfs_quotactl(struct mount *a, int b, uid_t c, void *d, struct proc *e)
 #endif
 {
-	return ENOTSUP;
+	return (ENOTSUP);
+}
+
+static int
+#if (__NetBSD_Version__ >= 500000000)
+devfs_sync(struct mount *a, int b, kauth_cred_t kcred)
+#elif (__NetBSD_Version__ >= 400000000)
+devfs_sync(struct mount *a, int b, kauth_cred_t kcred, struct lwp *l)
+#else
+devfs_sync(struct mount *a, int b, struct ucred *c, struct proc *d)
+#endif
+{
+	return (0);
 }
 
 #if (__NetBSD_Version__ >= 500000000)
 static int
-devfs_sync(struct mount *a, int b, kauth_cred_t kcred)
-#elif (__NetBSD_Version__ >= 400000000)
-static int
-devfs_sync(struct mount *a, int b, kauth_cred_t kcred,
-	   struct lwp *l)
-#else
-static int
-devfs_sync(struct mount *a, int b, struct ucred * c,
-	   struct proc *d)
-#endif
+devfs_fsync(struct vnode *vp, int flags)
 {
-	return 0;
+	return (ENOTSUP);
 }
+
+#endif
+
+#if (__NetBSD_Version__ >= 500000000)
+static int
+devfs_suspendctl(struct mount *mp, int flags)
+{
+	return (ENOTSUP);
+}
+
+#endif
 
 static int
 devfs_vget(struct mount *a, ino_t b, struct vnode **c)
 {
-	return ENOTSUP;
-} 
+	return (ENOTSUP);
+}
 
 static int
 devfs_fhtovp(struct mount *a, struct fid *b,
-	     struct vnode **c)
+    struct vnode **c)
 {
-	return ENOTSUP;
-} 
+	return (ENOTSUP);
+}
 
-#if (__NetBSD_Version__ >= 400000000)
 static int
+#if (__NetBSD_Version__ >= 400000000)
 devfs_vptofh(struct vnode *a, struct fid *b, size_t *ps)
 #else
-static int
 devfs_vptofh(struct vnode *a, struct fid *b)
 #endif
 {
-	return ENOTSUP;
-} 
+	return (ENOTSUP);
+}
 
 #if (__NetBSD_Version__ < 400000000)
 static int
 devfs_checkexp(struct mount *a, struct mbuf *b, int *c,
-	       struct ucred **d)
+    struct ucred **d)
 {
-	return ENOTSUP;
+	return (ENOTSUP);
 }
+
 #endif
 
-static const struct vnodeopv_desc * const 
-devfs_vnodeopv_descs[] = 
+static int
+devfs_snapshot(struct mount *mp, struct vnode *vp,
+    struct timespec *ctime)
+{
+	return (ENOTSUP);
+}
+
+static const struct vnodeopv_desc *const
+	devfs_vnodeopv_descs[] =
 {
 	&devfs_vnodeop_opv_desc,
 	NULL,
 };
 
-static struct vfsops devfs_vfsops = 
+static struct vfsops devfs_vfsops =
 {
-  .vfs_name           = MOUNT_DEVFS,
-  .vfs_mount          = &devfs_mount,
-  .vfs_unmount        = &devfs_unmount,
-  .vfs_root           = &devfs_root,
-  .vfs_statfs         = &devfs_statfs,
-  .vfs_opv_descs      = &devfs_vnodeopv_descs[0],
+	.vfs_name = MOUNT_DEVFS,
+	.vfs_mount = &devfs_mount,
+	.vfs_unmount = &devfs_unmount,
+	.vfs_root = &devfs_root,
+	.vfs_statfs = &devfs_statfs,
+	.vfs_opv_descs = &devfs_vnodeopv_descs[0],
 
-  /*
-   * not used
-   */
-  .vfs_init           = &devfs_init,
-  .vfs_reinit         = &devfs_reinit,
-  .vfs_done           = &devfs_done,
-  .vfs_start          = &devfs_start,
-  .vfs_quotactl       = &devfs_quotactl,
-  .vfs_sync           = &devfs_sync,
-  .vfs_vget           = &devfs_vget,
-  .vfs_fhtovp         = &devfs_fhtovp,
-  .vfs_vptofh         = &devfs_vptofh,
+	/*
+         * not used
+         */
+	.vfs_init = &devfs_init,
+	.vfs_reinit = &devfs_reinit,
+	.vfs_done = &devfs_done,
+	.vfs_start = &devfs_start,
+	.vfs_quotactl = &devfs_quotactl,
+	.vfs_sync = &devfs_sync,
+	.vfs_vget = &devfs_vget,
+	.vfs_fhtovp = &devfs_fhtovp,
+	.vfs_vptofh = &devfs_vptofh,
 #if (__NetBSD_Version__ < 400000000)
-  .vfs_checkexp       = &devfs_checkexp,
+	.vfs_checkexp = &devfs_checkexp,
+#endif
+	.vfs_snapshot = &devfs_snapshot,
+#if (__NetBSD_Version__ >= 500000000)
+	.vfs_suspendctl = &devfs_suspendctl,
+	.vfs_renamelock_enter = &genfs_renamelock_enter,
+	.vfs_renamelock_exit = &genfs_renamelock_exit,
+	.vfs_fsync = &devfs_fsync,
 #endif
 };
 
@@ -383,28 +386,18 @@ devfs_sysinit(void *arg)
 
 	error = vfs_attach(&devfs_vfsops);
 
-	if(error)
-	{
-	    printf("%s: VFS attach failed, error=%d!\n",
-		   __FUNCTION__, error);
-	    goto done;
+	if (error) {
+		printf("%s: VFS attach failed, error=%d!\n",
+		    __FUNCTION__, error);
 	}
-
- done:
-	return;
 }
 
-SYSINIT(devfs_sysinit, SI_SUB_DRIVERS, SI_ORDER_FIRST, 
-	devfs_sysinit, NULL);
+SYSINIT(devfs_sysinit, SI_SUB_DRIVERS, SI_ORDER_FIRST, devfs_sysinit, NULL);
 
 static void
 devfs_sysuninit(void *arg)
 {
 	vfs_detach(&devfs_vfsops);
-
-	return;
 }
 
-SYSUNINIT(devfs_sysuninit, SI_SUB_DRIVERS, SI_ORDER_FIRST, 
-	  devfs_sysuninit, NULL);
-
+SYSUNINIT(devfs_sysuninit, SI_SUB_DRIVERS, SI_ORDER_FIRST, devfs_sysuninit, NULL);

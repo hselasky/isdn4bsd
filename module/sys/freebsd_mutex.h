@@ -25,81 +25,68 @@
  * NOTE: This is a lite implementation of "FreeBSD/src/sys/sys/mutex.h"
  */
 #ifndef __FREEBSD_SYS_MUTEX_H__
-#define __FREEBSD_SYS_MUTEX_H__
+#define	__FREEBSD_SYS_MUTEX_H__
 
 struct mtx {
-  volatile void *owner_td;
-  volatile const char *name;
-  volatile u_int32_t mtx_recurse;
-  volatile u_int8_t init;
-  volatile u_int8_t waiting;
+	volatile void *owner_td;
+	volatile const char *name;
+	volatile u_int32_t mtx_recurse;
+	volatile u_int8_t init;
+	volatile u_int8_t waiting;
+#if (__NetBSD_Version__ >= 500000000)
+	kmutex_t real_mtx;
+#endif
 };
 
-#define MTX_DEF         0x00000000      /* DEFAULT (sleep) lock */ 
-#define MTX_SPIN        0x00000001      /* Spin lock (disables interrupts) */
-#define MTX_RECURSE     0x00000004      /* Option: lock allowed to recurse */
-#define MTX_NOWITNESS   0x00000008      /* Don't do any witness checking. */
-#define MTX_DUPOK       0x00000020      /* Don't log a duplicate acquire */
-#define MTX_QUIET       LOP_QUIET       /* Don't log a mutex event */
+#define	MTX_DEF         0x00000000	/* DEFAULT (sleep) lock */
+#define	MTX_SPIN        0x00000001	/* Spin lock (disables interrupts) */
+#define	MTX_RECURSE     0x00000004	/* Option: lock allowed to recurse */
+#define	MTX_NOWITNESS   0x00000008	/* Don't do any witness checking. */
+#define	MTX_DUPOK       0x00000020	/* Don't log a duplicate acquire */
+#define	MTX_QUIET       LOP_QUIET	/* Don't log a mutex event */
 
-#define mtx_lock_spin(m)        mtx_lock(m)
-#define mtx_unlock_spin(m)      mtx_unlock(m)
+#define	mtx_lock_spin(m)        mtx_lock(m)
+#define	mtx_unlock_spin(m)      mtx_unlock(m)
 
-extern u_int8_t
-  mtx_initialized(struct mtx *m);
+extern u_int8_t mtx_initialized(struct mtx *m);
 
-extern void
-  mtx_init(struct mtx *m, const char *name, 
-	   const char *type, u_int32_t opts);
-extern void
-  mtx_destroy(struct mtx *m);
-extern void
-  mtx_sysinit(void *arg);
+extern void mtx_init(struct mtx *m, const char *name, const char *type, u_int32_t opts);
+extern void mtx_destroy(struct mtx *m);
+extern void mtx_sysinit(void *arg);
 
-extern void
-  mtx_lock(struct mtx *m);
-extern void
-  _mtx_unlock(struct mtx *m);
+extern void mtx_lock(struct mtx *m);
+extern void _mtx_unlock(struct mtx *m);
 
-#define mtx_unlock(mtx) do { \
+#define	mtx_unlock(mtx) do { \
     mtx_assert(mtx, MA_OWNED);	\
     _mtx_unlock(mtx); } while (0)
 
-extern u_int8_t
-  mtx_trylock(struct mtx *m);
-extern void
-  _mtx_assert(struct mtx *m, u_int32_t what, 
-	      const char *file, u_int32_t line);
-extern int
-  msleep(void *ident, struct mtx *mtx, int priority,
-	 const char *wmesg, int timeout);
+extern u_int8_t mtx_trylock(struct mtx *m);
+extern void _mtx_assert(struct mtx *m, u_int32_t what, const char *file, u_int32_t line);
+extern int msleep(void *ident, struct mtx *mtx, int priority, const char *wmesg, int timeout);
 
-#if (__NetBSD_Version__ < 500000000)
-extern void  atomic_add_int(u_int *p, u_int v);
-extern void atomic_sub_int(u_int *p, u_int v);
-#else
-#include <sys/atomic.h>
+#if (__NetBSD_Version__ >= 500000000)
 #include <sys/vnode.h>
 struct lock {
 	struct vnlock lock;
 };
 extern int __lockmgr(struct lock *lock, int what, void *dummy, struct thread *td);
 extern void lockinit(struct lock *lock, int pri, const char *desc, int x, int y);
+
 #endif
 
-extern int  atomic_cmpset_int(volatile u_int *dst, u_int exp, u_int src);
 extern void atomic_lock(void);
 extern void atomic_unlock(void);
 
 extern struct mtx Giant;
 
 struct mtx_args {
-  struct mtx *mtx;
-  const u_int8_t *desc;
-  u_int32_t flags;
+	struct mtx *mtx;
+	const u_int8_t *desc;
+	u_int32_t flags;
 };
 
-#define MTX_SYSINIT(name, mtx, desc, opts)                              \
+#define	MTX_SYSINIT(name, mtx, desc, opts)                              \
         static struct mtx_args name##_args = {                          \
                 (mtx),                                                  \
                 (desc),                                                 \
@@ -109,14 +96,14 @@ struct mtx_args {
 		mtx_sysinit, &name##_args)
 
 #if 1
-#define MA_OWNED        0x01
-#define MA_NOTOWNED     0x02
-#define MA_RECURSED     0x04
-#define MA_NOTRECURSED  0x08
-#define mtx_assert(m, what)				\
+#define	MA_OWNED        0x01
+#define	MA_NOTOWNED     0x02
+#define	MA_RECURSED     0x04
+#define	MA_NOTRECURSED  0x08
+#define	mtx_assert(m, what)				\
         _mtx_assert((m), (what), __FILE__, __LINE__)
 #else
-#define mtx_assert(a...) 
+#define	mtx_assert(a...)
 #endif
 
 #if (!defined(PSR_IMPL))
@@ -128,15 +115,15 @@ struct mtx_args {
 static __inline register_t
 intr_disable(void)
 {
-    atomic_lock();
-    return 0;
+	atomic_lock();
+	return 0;
 }
 
 static __inline void
 intr_restore(register_t restore)
 {
-    atomic_unlock();
-    return;
+	atomic_unlock();
+	return;
 }
 
 #endif

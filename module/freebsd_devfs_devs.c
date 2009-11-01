@@ -37,86 +37,22 @@
 #include <sys/sysctl.h>
 #include <sys/vnode.h>
 
-#ifdef __FreeBSD__
-#include <machine/atomic.h>
-#endif
-
 #include <sys/freebsd_compat.h>
 
 static struct cdev *devfs_inot[NDEVFSINO];
-static struct cdev **devfs_overflow;
-static int devfs_ref[NDEVFSINO];
-static int *devfs_refoverflow;
-static int devfs_nextino = 3;
-static int devfs_numino;
-static int devfs_topino;
-static int devfs_noverflowwant = NDEVFSOVERFLOW;
-static int devfs_noverflow;
-static unsigned devfs_generation;
 
-static struct devfs_dirent *devfs_find (struct devfs_dirent *dd, 
-					const char *name, int namelen);
+static int devfs_inode;
+static unsigned int devfs_generation;
 
-static SYSCTL_NODE(_vfs, OID_AUTO, devfs, CTLFLAG_RW, 0, "DEVFS filesystem");
-SYSCTL_UINT(_vfs_devfs, OID_AUTO, noverflow, CTLFLAG_RW,
-	    &devfs_noverflowwant, 0, "Size of DEVFS overflow table");
-
-SYSCTL_UINT(_vfs_devfs, OID_AUTO, generation, CTLFLAG_RD,
-	    &devfs_generation, 0, "DEVFS generation number");
-
-SYSCTL_UINT(_vfs_devfs, OID_AUTO, inodes, CTLFLAG_RD,
-	    &devfs_numino, 0, "DEVFS inodes");
-
-SYSCTL_UINT(_vfs_devfs, OID_AUTO, topinode, CTLFLAG_RD,
-	    &devfs_topino, 0, "DEVFS highest inode#");
+static struct devfs_dirent *devfs_find(struct devfs_dirent *dd, const char *name, int namelen);
 
 void
 devfs_timestamp(struct timespec *ts)
 {
-    struct timeval tv;
-    microtime(&tv);
-    TIMEVAL_TO_TIMESPEC(&tv, ts);
-    return;
-}
+	struct timeval tv;
 
-static int *
-devfs_itor(int inode)
-{
-	if (inode < NDEVFSINO)
-		return (&devfs_ref[inode]);
-	else if (inode < NDEVFSINO + devfs_noverflow)
-		return (&devfs_refoverflow[inode - NDEVFSINO]);
-	else
-		panic ("YRK!");
-}
-
-static void
-devfs_dropref(int inode)
-{
-	int *ip;
-
-	ip = devfs_itor(inode);
-	atomic_add_int(ip, -1);
-}
-
-static int
-devfs_getref(int inode)
-{
-	int *ip, i, j;
-	struct cdev **dp;
-
-	ip = devfs_itor(inode);
-	dp = devfs_itod(inode);
-	for (;;) {
-		i = *ip;
-		j = i + 1;
-		if (!atomic_cmpset_int(ip, i, j))
-			continue;
-		if (*dp != NULL)
-			return (1);
-		atomic_add_int(ip, -1);
-		return(0);
-	}
+	microtime(&tv);
+	TIMEVAL_TO_TIMESPEC(&tv, ts);
 }
 
 struct devfs_dirent **
@@ -126,10 +62,6 @@ devfs_itode(struct devfs_mount *dm, int inode)
 		return (NULL);
 	if (inode < NDEVFSINO)
 		return (&dm->dm_dirent[inode]);
-	if (devfs_overflow == NULL)
-		return (NULL);
-	if (inode < (NDEVFSINO + devfs_noverflow))
-		return (&dm->dm_overflow[inode - NDEVFSINO]);
 	return (NULL);
 }
 
@@ -140,10 +72,6 @@ devfs_itod(int inode)
 		return (NULL);
 	if (inode < NDEVFSINO)
 		return (&devfs_inot[inode]);
-	if (devfs_overflow == NULL)
-		return (NULL);
-	if (inode < NDEVFSINO + devfs_noverflow)
-		return (&devfs_overflow[inode - NDEVFSINO]);
 	return (NULL);
 }
 
@@ -169,10 +97,10 @@ devfs_newdirent(char *name, int namelen)
 	struct devfs_dirent *de;
 
 #if (__NetBSD_Version__ < 400000000)
-#define _DIRENT_RECLEN(pde, namlen) \
+#define	_DIRENT_RECLEN(pde, namlen) \
 	(sizeof(*(pde)) - sizeof((pde)->d_name) + (((namlen) + 1 + 3) &~ 3))
 #endif
-	i = sizeof (*de) + _DIRENT_RECLEN(de->de_dirent, namelen);
+	i = sizeof(*de) + _DIRENT_RECLEN(de->de_dirent, namelen);
 	MALLOC(de, struct devfs_dirent *, i, M_DEVFS, M_WAITOK | M_ZERO);
 	de->de_dirent = (struct dirent *)(de + 1);
 	de->de_dirent->d_namlen = namelen;
@@ -182,14 +110,11 @@ devfs_newdirent(char *name, int namelen)
 	devfs_timestamp(&de->de_ctime);
 	de->de_mtime = de->de_atime = de->de_ctime;
 	de->de_links = 1;
-#ifdef MAC
-	mac_init_devfsdirent(de);
-#endif
 	return (de);
 }
 
 #undef DECONST
-#define DECONST(arg) ((void *)(((const char *)arg) - ((const char *)0)))
+#define	DECONST(arg) ((void *)(((const char *)arg) - ((const char *)0)))
 
 struct devfs_dirent *
 devfs_vmkdir(char *name, int namelen, struct devfs_dirent *dotdot)
@@ -234,12 +159,10 @@ devfs_delete(struct devfs_dirent *dd, struct devfs_dirent *de)
 	}
 	if (de->de_vnode)
 		de->de_vnode->v_data = NULL;
+
 	TAILQ_REMOVE(&dd->de_dlist, de, de_list);
-#ifdef MAC
-	mac_destroy_devfsdirent(de);
-#endif
+
 	FREE(de, M_DEVFS);
-	return;
 }
 
 void
@@ -247,106 +170,102 @@ devfs_purge(struct devfs_dirent *dd)
 {
 	struct devfs_dirent *de;
 
+	if (dd == NULL)
+		return;
+
 	for (;;) {
 		de = TAILQ_FIRST(&dd->de_dlist);
 		if (de == NULL)
 			break;
 		devfs_delete(dd, de);
 	}
+
 	FREE(dd, M_DEVFS);
-	return;
 }
 
 int
 devfs_populate(struct devfs_mount *dm)
 {
-	int i, j;
-	struct cdev *dev, *pdev;
+	struct cdev *dev;
+	struct cdev *pdev;
+	struct __cdevsw *csw;
 	struct devfs_dirent *dd;
-	struct devfs_dirent *de, **dep;
-	char *q, *s;
+	struct devfs_dirent *de;
+	struct devfs_dirent **dep;
+	char *q;
+	char *s;
+	int i;
+	int j;
 
 	if (dm->dm_generation == devfs_generation)
 		return (0);
-	if (devfs_noverflow && dm->dm_overflow == NULL) {
-		i = devfs_noverflow * sizeof (struct devfs_dirent *);
-		MALLOC(dm->dm_overflow, struct devfs_dirent **, i,
-			M_DEVFS, M_WAITOK | M_ZERO);
-	}
-	while (dm->dm_generation != devfs_generation) {
-		dm->dm_generation = devfs_generation;
-		for (i = 0; i <= devfs_topino; i++) {
-			dev = *devfs_itod(i);
-			dep = devfs_itode(dm, i);
-			de = *dep;
-			if (dev == NULL && de == DE_DELETED) {
-				*dep = NULL;
-				continue;
-			}
-			if (dev == NULL && de != NULL) {
+	dm->dm_generation = devfs_generation;
+
+	for (i = 0; i != NDEVFSINO; i++) {
+		dev = *devfs_itod(i);
+		if (dev == NULL)
+			continue;
+		csw = dev_ref_cdevsw(dev);
+		dep = devfs_itode(dm, i);
+		de = *dep;
+
+		if (csw == NULL) {
+			/* device is gone */
+			if (de != NULL) {
 				dd = de->de_dir;
 				*dep = NULL;
 				devfs_delete(dd, de);
-				devfs_dropref(i);
-				continue;
+				dev_rel(dev);
 			}
-			if (dev == NULL)
-				continue;
-			if (de != NULL)
-				continue;
-			if (!devfs_getref(i))
-				continue;
-			dd = dm->dm_basedir;
-			s = dev->si_name;
-			for (;;) {
-				for (q = s; *q != '/' && *q != '\0'; q++)
-					continue;
-				if (*q != '/')
-					break;
-				de = devfs_find(dd, s, q - s);
-				if (de == NULL) {
-					de = devfs_vmkdir(s, q - s, dd);
-#ifdef MAC
-					mac_create_devfs_directory(
-					    dm->dm_mount, s, q - s, de);
-#endif
-					de->de_inode = dm->dm_inode++;
-					TAILQ_INSERT_TAIL(&dd->de_dlist, de, de_list);
-					dd->de_links++;
-				}
-				s = q + 1;
-				dd = de;
-			}
-			de = devfs_newdirent(s, q - s);
-			if (dev->si_flags & SI_ALIAS) {
-				de->de_inode = dm->dm_inode++;
-				de->de_uid = 0;
-				de->de_gid = 0;
-				de->de_mode = 0755;
-				de->de_dirent->d_type = DT_LNK;
-				pdev = dev->si_parent;
-				j = strlen(pdev->si_name) + 1;
-				MALLOC(de->de_symlink, char *, j, M_DEVFS, M_WAITOK);
-				bcopy(pdev->si_name, de->de_symlink, j);
-			} else {
-				de->de_inode = i;
-				de->de_uid = dev->si_uid;
-				de->de_gid = dev->si_gid;
-				de->de_mode = dev->si_mode;
-				de->de_dirent->d_type = DT_CHR;
-			}
-#ifdef MAC
-			mac_create_devfs_device(dev->si_cred, dm->dm_mount,
-			    dev, de);
-#endif
-			*dep = de;
-			de->de_dir = dd;
-#if 0
-			devfs_rules_apply(dm, de);
-#endif
-			TAILQ_INSERT_TAIL(&dd->de_dlist, de, de_list);
+			continue;
 		}
+		if (de != NULL) {
+			/* already have a directory entry */
+			dev_rel(dev);
+			continue;
+		}
+		dd = dm->dm_basedir;
+		s = dev->si_name;
+		for (;;) {
+			for (q = s; *q != '/' && *q != '\0'; q++)
+				continue;
+			if (*q != '/')
+				break;
+			de = devfs_find(dd, s, q - s);
+			if (de == NULL) {
+				de = devfs_vmkdir(s, q - s, dd);
+				de->de_inode = dm->dm_inode++;
+				TAILQ_INSERT_TAIL(&dd->de_dlist, de, de_list);
+				dd->de_links++;
+			}
+			s = q + 1;
+			dd = de;
+		}
+		de = devfs_newdirent(s, q - s);
+		if (dev->si_flags & SI_ALIAS) {
+			de->de_inode = dm->dm_inode++;
+			de->de_uid = 0;
+			de->de_gid = 0;
+			de->de_mode = 0755;
+			de->de_dirent->d_type = DT_LNK;
+			pdev = dev->si_parent;
+			j = strlen(pdev->si_name) + 1;
+			MALLOC(de->de_symlink, char *, j, M_DEVFS, M_WAITOK);
+			bcopy(pdev->si_name, de->de_symlink, j);
+		} else {
+			de->de_inode = i;
+			de->de_uid = dev->si_uid;
+			de->de_gid = dev->si_gid;
+			de->de_mode = dev->si_mode;
+			de->de_dirent->d_type = DT_FIFO;
+		}
+		*dep = de;
+
+		de->de_dir = dd;
+
+		TAILQ_INSERT_TAIL(&dd->de_dlist, de, de_list);
 	}
+
 	return (0);
 }
 
@@ -359,92 +278,30 @@ devfs_populate(struct devfs_mount *dm)
 void
 devfs_create(struct cdev *dev)
 {
-	int ino, i, *ip;
-	struct cdev **dp;
-	struct cdev **ot;
-	int *or;
-	int n;
+	int i;
+	int j = NDEVFSINO;
 
-	for (;;) {
-		/* Grab the next inode number */
-		ino = devfs_nextino;
-		i = ino + 1;
-		/* wrap around when we reach the end */
-		if(i >= (NDEVFSINO + devfs_noverflow))
+	i = devfs_inode;
+
+	while (j--) {
+
+		if (i < 3 || i >= NDEVFSINO)
 			i = 3;
-		devfs_nextino = i;
 
-		/* see if it was occupied */
-		dp = devfs_itod(ino);
-		__KASSERT(dp != NULL, ("DEVFS: No devptr inode %d", ino));
-		if (*dp != NULL)
-			continue;
-		ip = devfs_itor(ino);
-		__KASSERT(ip != NULL, ("DEVFS: No iptr inode %d", ino));
-		if (*ip != 0)
-			continue;
-		break;
+		if (devfs_inot[i] == NULL) {
+			dev->si_inode = i;
+			devfs_inot[i] = dev;
+			devfs_generation++;
+			break;
+		}
+		i++;
 	}
 
-	*dp = dev;
-	dev->si_inode = ino;
-	if (i > devfs_topino)
-		devfs_topino = i;
-
-	devfs_numino++;
-	devfs_generation++;
-
-	if((devfs_overflow != NULL) || 
-	   ((devfs_numino + 100) < NDEVFSINO))
-	{
-	    return;
-	}
-
-	/*
-	 * Try to allocate overflow table
-	 * XXX: we can probably be less panicy these days and a linked
-	 * XXX: list of PAGESIZE/PTRSIZE entries might be a better idea.
-	 *
-	 * XXX: we may be into witness unlove here.
-	 */
-	n = devfs_noverflowwant;
-	ot = malloc(sizeof(*ot) * n, M_DEVFS, M_NOWAIT | M_ZERO);
-	if (ot == NULL)
-		return;
-	or = malloc(sizeof(*or) * n, M_DEVFS, M_NOWAIT | M_ZERO);
-	if (or == NULL) {
-		free(ot, M_DEVFS);
-		return;
-	}
-	devfs_overflow = ot;
-	devfs_refoverflow = or;
-	devfs_noverflow = n;
-	printf("%s: Overflow table with %d entries allocated\n",
-	       __FUNCTION__, n);
-	return;
+	devfs_inode = i;
 }
 
 void
 devfs_destroy(struct cdev *dev)
 {
-	int ino;
-	struct cdev **dp;
-
-	ino = dev->si_inode;
-	dev->si_inode = 0;
-	if(ino == 0)
-	{
-	    return;
-	}
-	dp = devfs_itod(ino);
-	__KASSERT(*dp == dev,
-	    ("DEVFS: destroying wrong cdev ino %d", ino));
-	*dp = NULL;
-	devfs_numino--;
 	devfs_generation++;
-	if(ino < devfs_nextino)
-	{
-	    devfs_nextino = ino;
-	}
-	return;
 }
