@@ -131,6 +131,7 @@ kern_conf:
 	@echo "# ln -s ${.CURDIR}/freebsd_kern_mutex_v5.c /usr/src/sys/freebsd_kern_mutex_v5.c"
 	@echo "# ln -s ${.CURDIR}/freebsd_kern_mutex_v4.c /usr/src/sys/freebsd_kern_mutex_v4.c"
 	@echo "# touch /usr/src/sys/arch/xxx/compile_dir/opt_i4b.h"
+	@echo "# echo #define FREEBSD_NO_ISA >> /usr/src/sys/sys/freebsd_compat.h"
 	@echo "# echo #define device_t nbsd_device_t >> /usr/src/sys/sys/device.h"
 	@echo "# echo #define devclass_t nbsd_devclass_t >> /usr/src/sys/sys/device.h"
 	@echo "# echo extern void i4b_load(void); >> /usr/src/sys/kern/init_main.c"
