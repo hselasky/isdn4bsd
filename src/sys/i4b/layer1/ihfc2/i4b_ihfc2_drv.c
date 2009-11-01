@@ -658,7 +658,7 @@ ihfc_buffer_setup(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int16_t buffersize)
 	/* free old buffer */
 	if(f->buf.Buf_start)
 	{
-	  free(f->buf.Buf_start, M_CACHE);
+	  free(f->buf.Buf_start, M_TEMP);
 
 	  /* clear counters */
 	  bzero(&f->buf, sizeof(f->buf));
@@ -670,7 +670,7 @@ ihfc_buffer_setup(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int16_t buffersize)
 		if(!f->buf.Buf_start)
 		{
 			if(!(f->buf.Buf_start = malloc(buffersize,
-						       M_CACHE,
+						       M_TEMP,
 						       M_NOWAIT|M_ZERO)))
 			{
 				IHFC_ERR("malloc == 0!\n");

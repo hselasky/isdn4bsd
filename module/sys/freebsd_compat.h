@@ -317,10 +317,6 @@ time_second()
 #endif
 #endif
 
-#ifndef M_CACHE
-#define	M_CACHE M_TEMP
-#endif
-
 #undef if_attach
 #define	if_attach(ifp) \
   { if_attach(ifp); if_alloc_sadl(ifp); }
