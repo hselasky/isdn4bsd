@@ -44,9 +44,11 @@ SRCS=
 
 .if (${OSNAME} == "NetBSD")
 #
-# Workaround for overloaded defines in NetBSD 4
+# Workaround for overloaded defines in NetBSD 4 and NetBSD 5
 #
-CFLAGS+= -Ddevice_t=undef0 -Ddevclass_t=undef1 -I/usr/include
+CFLAGS+= -Ddevice_t=undef0
+CFLAGS+= -Ddevclass_t=undef1 
+CFLAGS+= -DMULTIPROCESSOR
 .endif
 
 .if (${OSNAME} != "FreeBSD")
@@ -125,17 +127,18 @@ kern_conf:
 	@echo "# The following should be added to your /usr/src/sys/conf/files:"
 .if (${OSNAME} == "NetBSD")
 	@echo "# cp -i ${.CURDIR}/sys/*h         /usr/src/sys/sys"
-	@echo "# ln -s ${.CURDIR}/../src/sys/i4b /usr/src/sys/i4b
-	@echo "# touch /usr/xxx_compile_dir/opt_i4b.h
+	@echo "# ln -s ${.CURDIR}/../src/sys/i4b /usr/src/sys/i4b"
+	@echo "# touch /usr/src/sys/arch/xxx/compile_dir/opt_i4b.h"
 	@echo "# echo #define device_t nbsd_device_t >> /usr/src/sys/sys/device.h"
 	@echo "# echo #define devclass_t nbsd_devclass_t >> /usr/src/sys/sys/device.h"
+	@echo "# echo extern void i4b_load(void); >> /usr/src/sys/kern/init_main.c"
 	@echo "# echo i4b_load(); >> /usr/src/sys/kern/init_main.c"
 
 .for F in ${SRCS}
-	@echo file `find ${.CURDIR}/.. -name "${F}"`
+	@echo file `find ${.CURDIR}/.. -name "${F}" | grep -v "ihfc3"`
 .endfor
 .elif (${OSNAME} == "FreeBSD")
 .for F in ${SRCS}
-	@echo `find ${.CURDIR}/.. -name "${F}"` optional i4b_files
+	@echo `find ${.CURDIR}/.. -name "${F}" | grep -v "ihfc2"` optional i4b_files
 .endfor
 .endif
