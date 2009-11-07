@@ -113,6 +113,7 @@ struct yealink_softc {
 	uint8_t	sc_iface_no;
 	uint8_t	sc_key_state;
 	uint8_t	sc_hook_state;
+	uint8_t sc_no_interrupt;
 };
 
 #endif					/* _YEALINK_H_ */

@@ -574,9 +574,11 @@ yealink_ctrl_callback(struct usb_xfer *xfer, usb_error_t error)
 
 	switch (USB_GET_STATE(xfer)) {
 	case USB_ST_TRANSFERRED:
-		/* get data on interrupt endpoint */
-		usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_INTR]);
-		break;
+		if (sc->sc_no_interrupt == 0) {
+			/* get data on interrupt endpoint */
+			usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_INTR]);
+			break;
+		}
 
 	case USB_ST_SETUP:
 tr_setup:
@@ -598,7 +600,6 @@ tr_setup:
 					yealink_set_mixer(&sc->sc_ctrl.req,
 					    sc->sc_ctrl.data.raw,
 					    0x0500, 0x0200, 2, 0x5800);	/* mic */
-
 					/* setup USB transfer */
 					usbd_xfer_set_frame_data(xfer, 0,
 					    &sc->sc_ctrl.req, sizeof(sc->sc_ctrl.req));
@@ -606,6 +607,7 @@ tr_setup:
 					    &sc->sc_ctrl.data, 2);
 					usbd_xfer_set_frames(xfer, 2);
 					usbd_transfer_submit(xfer);
+					sc->sc_no_interrupt = 1;
 					return;
 				}
 				if (i == YEALINK_ST_SET_PCM) {
@@ -619,6 +621,7 @@ tr_setup:
 					    &sc->sc_ctrl.data, 2);
 					usbd_xfer_set_frames(xfer, 2);
 					usbd_transfer_submit(xfer);
+					sc->sc_no_interrupt = 1;
 					return;
 				}
 				memcpy(sc->sc_ctrl.data.raw,
@@ -660,6 +663,7 @@ tr_setup:
 		    &sc->sc_ctrl.data, sizeof(sc->sc_ctrl.data));
 		usbd_xfer_set_frames(xfer, 2);
 		usbd_transfer_submit(xfer);
+		sc->sc_no_interrupt = 0;
 
 		/* make sure the DSS1 code gets a chance to run */
 		dss1_lite_process(&sc->sc_dl);
