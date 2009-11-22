@@ -106,6 +106,8 @@ struct yealink_softc {
 	struct usb_device *sc_udev;
 	struct usb_xfer *sc_xfer[YEALINK_XFER_MAX];
 
+	int	sc_last_ring;
+
 	uint8_t	sc_buffer[YEALINK_BUFSIZE * 4];
 
 	uint8_t	sc_st_data[YEALINK_ST_MAX];
@@ -113,7 +115,8 @@ struct yealink_softc {
 	uint8_t	sc_iface_no;
 	uint8_t	sc_key_state;
 	uint8_t	sc_hook_state;
-	uint8_t sc_no_interrupt;
+	uint8_t	sc_no_interrupt;
+	uint8_t	sc_is_ringing;
 };
 
 #endif					/* _YEALINK_H_ */

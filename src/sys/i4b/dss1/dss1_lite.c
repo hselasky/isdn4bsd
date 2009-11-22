@@ -1346,6 +1346,9 @@ dss1_lite_hook_off(struct dss1_lite *pdl)
 	if (pdl->dl_is_nt_mode)
 		return (0);		/* wrong mode */
 
+	/* set hook off */
+	pdl->dl_is_hook_off = 1;
+
 	cd = pdl->dl_active_call_desc;
 	if (cd == NULL) {
 		cd = dss1_lite_alloc_cd(pdl, 0, 0);
@@ -1369,6 +1372,9 @@ dss1_lite_hook_on(struct dss1_lite *pdl)
 
 	if (pdl->dl_is_nt_mode)
 		return (0);		/* wrong mode */
+
+	/* set hook on */
+	pdl->dl_is_hook_off = 0;
 
 	cd = pdl->dl_active_call_desc;
 	if (cd == NULL)
@@ -1524,6 +1530,11 @@ dss1_lite_process(struct dss1_lite *pdl)
 	if (pdl->dl_fifo[CHAN_D1].prot_curr.protocol_1 == P_DISABLE)
 		return;
 
+	if ((pdl->dl_active_call_desc == NULL) &&
+	    (pdl->dl_is_hook_off != 0)) {
+		/* simulate another hook off */
+		dss1_lite_hook_off(pdl);
+	}
 	dss1_lite_peer_get_mbuf(pdl);
 
 	dss1_lite_check_timeout(pdl->dl_cd);

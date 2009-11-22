@@ -377,8 +377,33 @@ yealink_set_ring(struct dss1_lite *pdl, uint8_t on)
 {
 	struct yealink_softc *sc = pdl->dl_softc;
 
+	sc->sc_is_ringing = on;
+	sc->sc_last_ring = ticks;
+
 	yealink_set_tone_st(sc, 0);
+}
+
+static void
+yealink_update_ring(struct yealink_softc *sc)
+{
+	int delta;
+	uint8_t on;
+
+	delta = ticks - sc->sc_last_ring;
+
+	if ((delta < (1 * hz)) && (delta >= 0))
+		return;
+
+	if (sc->sc_is_ringing == 0)
+		return;
+
+	on = ((sc->sc_is_ringing & 0x30) < 0x30);
+
+	sc->sc_is_ringing += 0x10;
+
 	yealink_set_ring_st(sc, on);
+
+	sc->sc_last_ring = ticks;
 }
 
 static void
@@ -579,7 +604,6 @@ yealink_ctrl_callback(struct usb_xfer *xfer, usb_error_t error)
 			usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_INTR]);
 			break;
 		}
-
 	case USB_ST_SETUP:
 tr_setup:
 		yealink_handset_query(sc, 1);
@@ -667,6 +691,10 @@ tr_setup:
 
 		/* make sure the DSS1 code gets a chance to run */
 		dss1_lite_process(&sc->sc_dl);
+
+		/* check for ringing tone update */
+		yealink_update_ring(sc);
+
 		break;
 
 	default:			/* Error */

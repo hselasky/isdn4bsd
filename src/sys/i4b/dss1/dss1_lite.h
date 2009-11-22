@@ -302,6 +302,7 @@ struct dss1_lite {
 	uint8_t	dl_rx_num;
 	uint8_t	dl_next_callref;
 	uint8_t	dl_is_nt_mode;
+	uint8_t	dl_is_hook_off;
 };
 
 /* prototype functions */
