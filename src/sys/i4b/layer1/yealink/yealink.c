@@ -381,6 +381,7 @@ yealink_set_ring(struct dss1_lite *pdl, uint8_t on)
 	sc->sc_last_ring = ticks;
 
 	yealink_set_tone_st(sc, 0);
+	yealink_set_ring_st(sc, on);
 }
 
 static void
@@ -397,7 +398,11 @@ yealink_update_ring(struct yealink_softc *sc)
 	if (sc->sc_is_ringing == 0)
 		return;
 
-	on = ((sc->sc_is_ringing & 0x30) < 0x30);
+	sc->sc_is_ringing += 0x10;
+	if (sc->sc_is_ringing >= 0x30)
+		sc->sc_is_ringing -= 0x30;
+
+	on = (sc->sc_is_ringing < 0x20);
 
 	sc->sc_is_ringing += 0x10;
 
