@@ -674,7 +674,7 @@ tr_setup:
 		}
 
 		if (i == YEALINK_ST_KEY_QUERY)
-			usbd_xfer_set_interval(xfer, 25 /* ms */ );
+			usbd_xfer_set_interval(xfer, 16 /* ms */ );
 		else
 			usbd_xfer_set_interval(xfer, 0 /* ms */ );
 
