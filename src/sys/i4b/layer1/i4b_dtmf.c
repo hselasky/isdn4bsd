@@ -350,6 +350,10 @@ i4b_dtmf_detect(struct fifo_translator *ft,
     u_int8_t temp;
     u_int8_t code;
 
+    /* sanity check */
+    if (ft->L5_PUT_DTMF == NULL)
+	return;
+
     while (data_len--) {
 
         sample = ((ft->dtmf_rx.bsubprot == BSUBPROT_G711_ALAW) ?

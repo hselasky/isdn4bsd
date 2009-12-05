@@ -334,14 +334,9 @@ dss1_lite_l5_put_sample(struct dss1_lite *pdl,
 	} else {
 		temp = i4b_signed_to_ulaw(sample);
 	}
-
-	/* echo cancel first */
+	/* Echo Cancel */
 	if (f->prot_curr.u.transp.echo_cancel_enable) {
 		i4b_echo_cancel_merge(f->echo_cancel, &temp, 1);
-	}
-	/* DTMF detect second */
-	if (f->prot_curr.u.transp.dtmf_detect_enable) {
-		i4b_dtmf_detect(f->ft, &temp, 1);
 	}
 	*(f->m_tx_curr_ptr)++ = temp;
 	f->m_tx_curr_rem--;
@@ -360,6 +355,27 @@ dss1_lite_l5_put_sample_complete(struct dss1_lite *pdl,
 	}
 }
 
+
+/*---------------------------------------------------------------------------*
+ *	put DTMF to layer 5
+ *---------------------------------------------------------------------------*/
+static void
+dss1_lite_l5_put_dtmf(struct fifo_translator *f, 
+    uint8_t *dtmf_ptr, uint16_t dtmf_len)
+{
+	struct dss1_lite *pdl = f->L1_sc;
+	uint16_t x;
+	char buf[2];
+
+	for (x = 0; x != dtmf_len; x++) {
+
+		buf[0] = dtmf_ptr[x];
+		buf[1] = 0;
+
+		dss1_lite_dtmf_event(pdl, buf);
+	}
+}
+
 /*---------------------------------------------------------------------------*
  *	put mbuf to layer 5
  *---------------------------------------------------------------------------*/
@@ -373,6 +389,12 @@ dss1_lite_l5_put_mbuf(struct dss1_lite *pdl,
 		m_freem(m);
 		return;
 	}
+	/* DTMF detect */
+	if ((f->prot_curr.u.transp.dtmf_detect_enable) ||
+	    (ft->L5_PUT_DTMF == &dss1_lite_l5_put_dtmf)) {
+		i4b_dtmf_detect(ft, m->m_data, m->m_len);
+	}
+	/* ISDN trace */
 	if (f->is_tracing) {
 		dss1_lite_trace(pdl, f, TRC_CH_D, 1, m);
 	}
@@ -531,8 +553,12 @@ dss1_lite_l1_setup(fifo_translator_t *ft, struct i4b_protocol *p)
 		i4b_echo_cancel_init(f->echo_cancel, 0, f->prot_curr.protocol_4);
 
 		/* init DTMF detector and generator */
-		i4b_dtmf_init_rx(f->ft, f->prot_curr.protocol_4);
-		i4b_dtmf_init_tx(f->ft, f->prot_curr.protocol_4);
+		i4b_dtmf_init_rx(ft, f->prot_curr.protocol_4);
+		i4b_dtmf_init_tx(ft, f->prot_curr.protocol_4);
+
+		/* check if no DMTF detect is not enabled */
+		if (ft->L5_PUT_DTMF == NULL)
+			ft->L5_PUT_DTMF = dss1_lite_l5_put_dtmf;
 	}
 	if (f->m_tx_curr != NULL) {
 		m_freem(f->m_tx_curr);

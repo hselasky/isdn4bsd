@@ -1712,15 +1712,12 @@ SYSINIT(i4b_tel_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, i4b_tel_attach, NULL);
 /*---------------------------------------------------------------------------*
  *	dial and ringing tone generator
  *---------------------------------------------------------------------------*/
-
 static void
 tel_dial_put_mbuf(struct fifo_translator *f, struct mbuf *m)
 {
 	/* just free the mbuf */
 
 	m_freem(m);
-
-	return;
 }
 
 static struct mbuf *
@@ -1804,7 +1801,7 @@ tel_dial_get_mbuf(struct fifo_translator *f)
 	  /* out of memory */
 
 	}
-	return m;
+	return (m);
 }
 
 /*---------------------------------------------------------------------------*
@@ -1840,5 +1837,5 @@ tel_dial_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	    cd->tone_gen_ptr = NULL;
 	}
-	return f;
+	return (f);
 }

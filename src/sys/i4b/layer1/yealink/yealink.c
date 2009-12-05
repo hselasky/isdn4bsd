@@ -246,53 +246,6 @@ static const struct usb_config yealink_config[YEALINK_XFER_MAX] = {
 };
 
 static void
-yealink_p1k_to_ascii(struct yealink_softc *sc, uint8_t what)
-{
-	;				/* indent fix */
-	switch (what) {
-	case 0x00:
-		dss1_lite_dtmf_event(&sc->sc_dl, "0");
-		break;
-	case 0x01:
-		dss1_lite_dtmf_event(&sc->sc_dl, "1");
-		break;
-	case 0x02:
-		dss1_lite_dtmf_event(&sc->sc_dl, "2");
-		break;
-	case 0x03:
-		dss1_lite_dtmf_event(&sc->sc_dl, "3");
-		break;
-	case 0x04:
-		dss1_lite_dtmf_event(&sc->sc_dl, "4");
-		break;
-	case 0x05:
-		dss1_lite_dtmf_event(&sc->sc_dl, "5");
-		break;
-	case 0x06:
-		dss1_lite_dtmf_event(&sc->sc_dl, "6");
-		break;
-	case 0x07:
-		dss1_lite_dtmf_event(&sc->sc_dl, "7");
-		break;
-	case 0x08:
-		dss1_lite_dtmf_event(&sc->sc_dl, "8");
-		break;
-	case 0x09:
-		dss1_lite_dtmf_event(&sc->sc_dl, "9");
-		break;
-	case 0x0b:
-		dss1_lite_dtmf_event(&sc->sc_dl, "*");
-		break;
-	case 0x0c:
-		dss1_lite_dtmf_event(&sc->sc_dl, "#");
-		break;
-	default:
-		break;
-	}
-	return;
-}
-
-static void
 yealink_init(struct yealink_softc *sc, uint8_t on)
 {
 	sc->sc_st_data[YEALINK_ST_INIT] = on;
@@ -428,6 +381,7 @@ yealink_set_protocol(struct dss1_lite *pdl,
 	} else {
 		yealink_set_led(sc, enable);
 		yealink_set_volume(sc);
+
 		if (enable) {
 			usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_ISOC_IN_0]);
 			usbd_transfer_start(sc->sc_xfer[YEALINK_XFER_ISOC_IN_1]);
@@ -543,8 +497,7 @@ yealink_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 				break;
 
 			case YEALINK_CMD_SCANCODE:
-				DPRINTFN(1, "Scancode 0x%02x\n", val);
-				yealink_p1k_to_ascii(sc, val);
+				DPRINTFN(1, "Scancode 0x%02x (ignored)\n", val);
 				break;
 
 			case YEALINK_CMD_HANDSET_QUERY:
@@ -674,7 +627,7 @@ tr_setup:
 		}
 
 		if (i == YEALINK_ST_KEY_QUERY)
-			usbd_xfer_set_interval(xfer, 16 /* ms */ );
+			usbd_xfer_set_interval(xfer, 25 /* ms */ );
 		else
 			usbd_xfer_set_interval(xfer, 0 /* ms */ );
 

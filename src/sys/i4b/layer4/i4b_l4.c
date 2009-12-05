@@ -516,21 +516,19 @@ i4b_l4_information_ind(call_desc_t *cd)
 {
 	msg_information_ind_t *mp;
 	struct mbuf *m;
-	u_int8_t buffer[TELNO_MAX];
+	char buffer[TELNO_MAX];
 	int len;
 
-	if(cd->dst_telno_part[0] == 0)
-	{
+	if (cd->dst_telno_part[0] == 0) {
 	    NDBGL4(L4_MSG, "cdid=%d: cd->dst_telno_part[0] == 0",
 		   cd->cdid);
 	    return;
 	}
 
-	len = snprintf(&(buffer[0]), sizeof(buffer),
-		       "%c%s", 0x81, &(cd->dst_telno_part[0]));
+	len = snprintf(buffer, sizeof(buffer),
+		       "%c%s", 0x81, cd->dst_telno_part);
 
-	if(len < 1)
-	{
+	if (len < 1) {
 	    /* shouldn't happen */
 	    return;
 	}
@@ -552,7 +550,7 @@ i4b_l4_information_ind(call_desc_t *cd)
 		    len = (sizeof(mp->dst_telno)-1);
 		}
 
-		bcopy(&(buffer[1]), &(mp->dst_telno[0]), len);
+		memcpy(mp->dst_telno, buffer + 1, len);
 		mp->dst_telno[len] = 0;
 
 		i4b_ai_putqueue(cd->ai_ptr,0,m,NULL);
@@ -840,6 +838,7 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int32_t channel,
 	   (channel < cntl->L1_channel_end) && 
 	   (f1 = L1_GET_FIFO_TRANSLATOR(cntl,channel)))
 	{
+	  /* get current FIFO translator, if any */
 	  f2 = setup_ft(cntl,0,0,driver_type,driver_unit,cd);
 
 	  if(pp->protocol_1 == P_D_CHANNEL)
@@ -895,6 +894,7 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int32_t channel,
 	  f2->L5_sc = NULL;
 	  f2->L5_fifo = NULL;
 	  f2->L5_PUT_MBUF = NULL;
+	  f2->L5_PUT_DTMF = NULL;
 	  f2->L5_GET_MBUF = NULL;
 	  f2->L5_RX_INTERRUPT = NULL;
 	  f2->L5_TX_INTERRUPT = NULL;
