@@ -1153,7 +1153,8 @@ check_nr:
 	temp = tx_nr & 0xFE;
 
 	/* get NR difference */
-	tx_nr = (tx_nr - pdl->dl_tx_num) / 2;
+	tx_nr = temp - pdl->dl_tx_num;
+	tx_nr /= 2;
 
 	/* take new NR */
 	pdl->dl_tx_num = temp;
