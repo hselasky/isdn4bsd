@@ -35,6 +35,8 @@
 #include <sys/exec.h>
 #ifndef _MODULE
 #include <sys/lkm.h>
+#else
+struct lkm_table;
 #endif
 #include <sys/file.h>
 #include <sys/errno.h>
