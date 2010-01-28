@@ -116,10 +116,14 @@ SRCS+=  i4b_ihfc2_end.c
 SRCS+=  freebsd_section_end.c
 .endif
 
+.if (${OSNAME} == "NetBSD")
+.include <bsd.kmodule.mk>
+.else
 .if ((${OSNAME} == "OpenBSD") || (${OSNAME} == "MirBSD"))
 .include <bsd.lkm.mk>
 .else
 .include <bsd.kmod.mk>
+.endif
 .endif
 
 kern_conf:

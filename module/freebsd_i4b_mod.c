@@ -33,9 +33,15 @@
 #include <sys/conf.h>
 #include <sys/mount.h>
 #include <sys/exec.h>
+#ifndef _MODULE
 #include <sys/lkm.h>
+#endif
 #include <sys/file.h>
 #include <sys/errno.h>
+
+#ifdef _MODULE
+#include <sys/module.h>
+#endif
 
 #if ((__NetBSD_Version__ < 300000000) || (__NetBSD_Version__ >= 400000000))
 #define	pci_set_powerstate __pci_set_powerstate
@@ -50,9 +56,13 @@
 
 #include <sys/freebsd_compat.h>
 
+#ifndef _MODULE
+
 extern int i4b_lkmentry(struct lkm_table *, int, int);
 
 MOD_MISC("i4b");
+
+#endif
 
 static int
 _pci_pci_probe(struct pci_attach_args *arg)
@@ -342,6 +352,24 @@ done:
 	return (error);
 }
 
+#ifdef _MODULE
+
+MODULE(MODULE_CLASS_DRIVER, i4b, NULL);
+
+static int
+i4b_modcmd(modcmd_t cmd, void *arg)
+{
+	switch (cmd) {
+	case MODULE_CMD_INIT:
+		return (load(0,0));
+	case MODULE_CMD_FINI:
+		return (unload(0,0));
+	default:
+		return (ENOTTY);
+	}
+}
+
+#else
 /*
  * entry point
  */
@@ -350,3 +378,4 @@ i4b_lkmentry(struct lkm_table *lkmtp, int cmd, int ver)
 {
 	DISPATCH(lkmtp, cmd, ver, load, unload, lkm_nofunc)
 }
+#endif
