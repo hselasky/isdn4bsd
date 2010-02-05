@@ -41,11 +41,11 @@ const DECLARE_SYSUNINIT_DATA(bsd_sys_uninit_data_start[0]);
  * to zero:
  */
 
-#define ZERO_DEF(what)					\
-  __asm(".global " #what "_response_to_user\n");	\
-  __asm(".set    " #what "_response_to_user,0\n");	\
-  __asm(".global " #what "_setup_ft\n");		\
-  __asm(".set    " #what "_setup_ft,0\n");
+#define ZERO_DEF(what)				\
+  void * what##_setup_ft(void) {		\
+	return ((void *)1); /* FT_INVALID */	\
+  }						\
+  void what##_response_to_user(void) { }
 
 ZERO_DEF(ibc);
 ZERO_DEF(ing);
