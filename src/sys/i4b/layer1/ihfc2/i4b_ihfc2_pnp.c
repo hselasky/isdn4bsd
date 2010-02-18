@@ -1081,7 +1081,10 @@ ihfc_pnp_probe_sub(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	    usb_callout_init_mtx(&st->T3callout, sc->sc_mtx_p, 0);
 
 	    st->i4b_option_value = sc->sc_default.i4b_option_value;
-
+#ifdef __NetBSD__
+	    /* NetBSD has problems with the current IRQ solution - use polled mode */
+	    st->i4b_option_value |= sc->sc_default.i4b_option_mask & I4B_OPTION_POLLED_MODE;
+#endif
 	    ihfc_init_i4b(sc, cntl);
 	}
 

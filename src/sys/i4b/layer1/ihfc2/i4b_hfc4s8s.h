@@ -1043,7 +1043,7 @@ hfc4s8s_chip_status_read CHIP_STATUS_READ_T(sc)
 	HFC4S8S_READ_1(REG_hfc4s8s_r_irq_misc_read, temp);
 
 	/* timer elapsed */
-	if(temp & 2)
+	if ((temp & 2) || IS_POLLED_MODE(sc,0))
 	{
 	    for(temp = 0; 
 		temp < sc->sc_default.d_sub_controllers; 

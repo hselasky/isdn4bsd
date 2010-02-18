@@ -173,7 +173,7 @@ default_chip_status_check CHIP_STATUS_CHECK_T(sc)
 	  }
 
 	  /* Timer 64ms, 50ms, 25ms ... */
-	  if(sc->sc_config.s_int_s1 & 0x80)
+	  if ((sc->sc_config.s_int_s1 & 0x80) || IS_POLLED_MODE(sc,0))
 	  {
 		QFIFO(sc,lo,b1r);
 		QFIFO(sc,lo,b1t);

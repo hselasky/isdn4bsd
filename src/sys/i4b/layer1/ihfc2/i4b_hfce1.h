@@ -1050,7 +1050,7 @@ hfce1_chip_status_read CHIP_STATUS_READ_T(sc)
 	}
 
 	/* timer elapsed */
-	if(temp & 2)
+	if ((temp & 2) || IS_POLLED_MODE(sc,0))
 	{
 #if ((IHFC_CHANNELS < (31*2)) || (SC_INTR_BITS != 8))
 #error "please update this code, (IHFC_CHANNELS < (31*2)) || (SC_INTR_BITS != 8)"
