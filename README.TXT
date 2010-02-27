@@ -12,19 +12,12 @@ This file should give you some help on how to install this driver.
 
 
 
-SUPPORTED OPERATING SYSTEMS
-===========================
+OFFICIALLY SUPPORTED OPERATING SYSTEMS
+======================================
 
- - FreeBSD-6.2-release
- - FreeBSD-6.3-release
- - FreeBSD-6-current
- - FreeBSD-7-current
  - FreeBSD-8-current
  - FreeBSD-9-current
 
- - NetBSD 2.x.x
- - NetBSD 3.x.x
- - NetBSD 4.x.x
  - NetBSD 5.x.x
 
 
@@ -85,7 +78,10 @@ HOW TO INSTALL AS ROOT ON NETBSD
 
 cd NetBSD.i4b
 make install
-make load
+
+#
+# Edit /boot.cfg so that it loads the I4B kernel module automatically.
+#
 
 HOW TO SET NT-MODE
 ==================
@@ -110,15 +106,6 @@ After that one has to install the ISDN4BSD module. Then get chan_capi
 create a "capi.conf" file like the one in the "examples" directory. 
 Then put something sensible in your "extensions.conf" and it should 
 work.
-
-
-RESOURCES
-=========
-
- [1] chan_capi (when one is asked for password, just press enter)
-cvs -d:pserver:anonymous@cvs.sourceforge.net:/cvsroot/chan-capi login
-cvs -z3 -d:pserver:anonymous@cvs.sourceforge.net:/cvsroot/chan-capi co -P chan_capi 
-
 
 NOTES:
 ======

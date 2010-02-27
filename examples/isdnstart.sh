@@ -9,12 +9,16 @@
 [ `uname` != "NetBSD" ] && echo "Operating system mismatch!" && exit
 
 #
-# only execute once
+# Only execute once
 #
-modstat -n i4b > /dev/null && echo "ISDN4BSD already loaded (skipping init)" && exit
+INSTALLED=`df | grep dev/dev | wc -l`
+
+if [ "$INSTALLED" -eq 1 ]; then
+	echo "/dev/dev ISDN4BSD already loaded (skipping init)"
+	exit 1
+fi
 
 echo "Starting ISDN4BSD ..."
-modload -o i4b.t /usr/lkm/i4b.o
 
 rm -f /dev/i4b*
 rm -f /dev/ihfc*
