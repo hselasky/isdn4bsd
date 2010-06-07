@@ -671,6 +671,9 @@ I4B_PCI_DRIVER(/* ISDN PCI DC-105V2 */
 	       .vid = 0x3069182d,
 	       .sub = 0x3069182d);
 
+I4B_PCI_DRIVER(/* PrimuX S0 */
+		.vid = 0xb7001397);
+
 #undef HFCSPCI_BUS_VAR
 #undef HFCSPCI_READ_1
 #undef HFCSPCI_WRITE_1
