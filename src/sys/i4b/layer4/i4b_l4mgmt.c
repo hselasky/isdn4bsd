@@ -716,13 +716,13 @@ i4b_slot_li_alloc(cdid_t cdid_src, cdid_t cdid_dst)
 	for(y = 0; y < cntl_dst->L1_pcm_cable_end; y++)
 	{
 	    if(cntl_dst->L1_pcm_cable_map[y] != 
-	       cntl_dst->L1_pcm_cable_map[x])
+	       cntl_src->L1_pcm_cable_map[x])
 	    {
 	        /* not the same cable */
 	        continue;
 	    }
 
-	    z = cntl_dst->L1_pcm_cable_map[x];
+	    z = cntl_src->L1_pcm_cable_map[x];
 
 	    cable = &i4b_pcm_cable[z];
 	    pcm_end = (cable->slot_end/2);
