@@ -244,17 +244,36 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		  (p_src->ton == TON_NATIONAL) ? (NUMBER_TYPE_PLAN | 0x20) :
 		  NUMBER_TYPE_PLAN;
 
-		if(p_src->prs_ind != PRS_NONE)
+		if ((p_src->prs_ind != PRS_NONE) ||
+		    (p_src->scr_ind != SCR_NONE))
 		{
-		    /* presentation indicator */
+		    u_int8_t temp;
 
 		    /* clear extension bit */
 		    ptr[1] &= ~0x80;
 
-		    ptr[2] =
-		      (p_src->prs_ind == PRS_RESTRICT) ? 
-		      (0x20|0x80) : (0x80);
+		    temp = 0x80;
 
+		    /* add resentation indicator */
+		    if (p_src->prs_ind == PRS_RESTRICT)
+			temp |= 0x20;
+
+		    /* add screening indicator */
+		    switch (p_src->scr_ind) {
+		    case SCR_USR_PASS:
+			temp |= 0x01;
+			break;
+		    case SCR_USR_FAIL:
+			temp |= 0x02;
+			break;
+		    case SCR_NET:
+			temp |= 0x03;
+			break;
+		    default:
+			break;
+		    }
+
+		    ptr[2] = temp;
 		    ptr[0] += 2;
 		    ptr += 3;
 		}

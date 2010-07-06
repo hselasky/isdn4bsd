@@ -802,8 +802,25 @@ capi_get_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len,
 
 		if(len && p_src)
 		{
+		    /* presentation indicator */
 		    p_src->prs_ind = 
 		      ((src[0] & 0x60) == 0x20) ? PRS_RESTRICT : PRS_ALLOWED;
+
+		    /* screening indicator */
+		    switch (src[0] & 0x03) {
+		    case 0:
+			p_src->scr_ind = SCR_USR_NOSC;
+			break;
+		    case 1:
+			p_src->scr_ind = SCR_USR_PASS;
+			break;
+		    case 2:
+			p_src->scr_ind = SCR_USR_FAIL;
+			break;
+		    default:
+			p_src->scr_ind = SCR_NET;
+			break;
+		    }
 
 		    src++;
 		    len--;
@@ -886,10 +903,39 @@ capi_put_telno(struct call_desc *cd, const u_int8_t *src, u_int8_t *dst,
 
 	if(p_src)
 	{
-	    /* add presentation and screening indicator */
-	    *dst++ = 
-	      (p_src->prs_ind == PRS_RESTRICT) ? 0xA0 :
-	      (p_src->prs_ind == PRS_NNINTERW) ? 0xC0 : 0x80;
+	    u_int8_t temp;
+
+	    /* set extension bit */
+	    temp = 0x80;
+
+	    /* add presentation indicator */
+	    switch (p_src->prs_ind) {
+	    case PRS_RESTRICT:
+		temp |= 0x20;
+		break;
+	    case PRS_NNINTERW:
+		temp |= 0x40;
+		break;
+	    default:
+		break;
+	    }
+
+	    /* add screening indicator */
+	    switch (p_src->scr_ind) {
+	    case SCR_USR_PASS:
+		temp |= 0x01;
+		break;
+	    case SCR_USR_FAIL:
+		temp |= 0x02;
+		break;
+	    case SCR_NET:
+		temp |= 0x03;
+		break;
+	    default:
+		break;
+	    }
+
+	    *dst++ = temp;
 	}
 
 	while(*src)
