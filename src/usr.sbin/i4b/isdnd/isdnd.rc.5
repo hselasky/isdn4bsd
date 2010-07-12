@@ -276,6 +276,8 @@
 \&HDLC framing.
 .It Ar raw
 \&No framing at all (used for telephony) .
+.It Ar fax
+\&No framing at all (used for faxing) .
 .It Ar BPROT_DISABLE
 \&disable sending and reception of data
 .It Ar BPROT_NONE_VOD
@@ -286,6 +288,8 @@
 \&HDLC protocol: flag, data, crc, flag (Data over Voice) 
 .It Ar BPROT_NONE
 \&no protocol at all, raw data
+.It Ar BPROT_NONE_3_1_KHZ
+\&no protocol at all, 3.1KHz FAX
 .El
 \&
 .It Li budget-calloutperiod

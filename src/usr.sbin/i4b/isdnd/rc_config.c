@@ -630,6 +630,8 @@ cfg_setval(int keyword)
 				cep->bprotocol = BPROT_RHDLC;
 			else if(!(strcmp(yylval.str, "hdlc_dov")))
 				cep->bprotocol = BPROT_RHDLC_DOV;
+			else if (!(strcmp(yylval.str, "fax")))
+                                cep->bprotocol = BPROT_NONE_3_1_KHZ;
 #define m(enum,args...)								\
 			else if(!(strcmp(yylval.str, #enum)))			\
 				cep->bprotocol = enum;	\
@@ -1586,6 +1588,7 @@ check_config(void)
 		if(((cep->dialin_reaction == REACT_ALERT) ||
 		    (cep->dialin_reaction == REACT_ANSWER)) && 
 		   (cep->bprotocol != BPROT_NONE) &&
+		   (cep->bprotocol != BPROT_NONE_3_1_KHZ) &&
 		   (cep->bprotocol != BPROT_NONE_VOD) &&
 		   (cep->usrdevicename == DRVR_TEL))
 		{

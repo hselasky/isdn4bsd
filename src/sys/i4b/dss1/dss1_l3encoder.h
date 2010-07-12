@@ -181,6 +181,23 @@ dss1_l3_tx_setup(call_desc_t *cd)
 	  *ptr++ = IEI_BEARERCAP;	/* bearer capability */
 
 	  switch(cd->channel_bprot) {
+	  case BPROT_NONE_3_1_KHZ:        /* 3.1Khz FAX */
+	      *ptr++ = IEI_BEARERCAP_LEN+1;
+	      *ptr++ = IT_CAP_AUDIO_3100Hz;
+	      *ptr++ = IT_RATE_64K;
+	      switch(cd->channel_bsubprot) {
+	      case BSUBPROT_G711_ALAW:
+		  *ptr++ = IT_UL1_G711A;
+		  break;
+	      case BSUBPROT_G711_ULAW:
+		  *ptr++ = IT_UL1_G711U;
+		  break;
+	      default:
+		  *ptr++ = 0xA0; /* reserved */
+		  break;
+	      }
+	      break;
+
 	  case BPROT_NONE:        /* telephony */
 	  case BPROT_RHDLC_DOV:   /* Data over Voice */
 	      *ptr++ = IEI_BEARERCAP_LEN+1;

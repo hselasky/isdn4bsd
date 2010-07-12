@@ -1495,7 +1495,11 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 	static const u_int8_t bc_bprot_ulaw[] = { 0x04, 0x03, 0x80, 0x90, 0xA2 };
 	static const u_int8_t bc_bprot_reserved[] = { 0x04, 0x03, 0x80, 0x90, 0xA0 };
 	static const u_int8_t bc_bprot_rhdlc[] = { 0x04, 0x02, 0x88, 0x90 };
+	static const u_int8_t bc_bprot_3_1_khz_alaw[] = { 0x04, 0x03, 0x90, 0x90, 0xA3 };
+	static const u_int8_t bc_bprot_3_1_khz_ulaw[] = { 0x04, 0x03, 0x90, 0x90, 0xA2 };
+	static const u_int8_t bc_bprot_3_1_khz_reserved[] = { 0x04, 0x03, 0x90, 0x90, 0xA0 };
 	static const u_int8_t hlc_bprot_none[] = { 0x7D, 0x02, 0x91, 0x81 };
+
 	static const u_int8_t sending_complete[] = { 0x01, 0x00 };
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
@@ -1518,6 +1522,28 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 	CAPI_INIT(CAPI_ADDITIONAL_INFO, &add_info);
 
 	switch(cd->channel_bprot) {
+	case BPROT_NONE_3_1_KHZ:
+	  connect_ind.wCIP = CAPI_CIP_3100Hz_AUDIO;
+
+	  switch(cd->channel_bsubprot) {
+	  case BSUBPROT_G711_ALAW:
+	      connect_ind.BC.ptr = &bc_bprot_3_1_khz_alaw;
+	      connect_ind.BC.len = sizeof(bc_bprot_3_1_khz_alaw);
+	      break;
+	  case BSUBPROT_G711_ULAW:
+	      connect_ind.BC.ptr = &bc_bprot_3_1_khz_ulaw;
+	      connect_ind.BC.len = sizeof(bc_bprot_3_1_khz_ulaw);
+	      break;
+	  default:
+	      connect_ind.BC.ptr = &bc_bprot_3_1_khz_reserved;
+	      connect_ind.BC.len = sizeof(bc_bprot_3_1_khz_reserved);
+	      break;
+	  }
+
+	  connect_ind.HLC.ptr = &hlc_bprot_none;
+	  connect_ind.HLC.len = sizeof(hlc_bprot_none);
+	  break;
+
 	case BPROT_NONE:
 	case BPROT_RHDLC_DOV:
 	  connect_ind.wCIP = CAPI_CIP_TELEPHONY;
@@ -1955,16 +1981,18 @@ capi_decode_b_protocol(struct call_desc *cd,
     uint8_t error = 0;
 
     if (b_prot->wB1_protocol == 0) {
-        if (cd->channel_bprot == BPROT_NONE) {
+	if (cd->channel_bprot == BPROT_NONE) {
 	    /* data over voice */
 	    cd->channel_bprot = BPROT_RHDLC_DOV;
 	} else {
 	    cd->channel_bprot = BPROT_RHDLC;
 	}
     } else if (b_prot->wB1_protocol == 1) {
-        if (cd->channel_bprot == BPROT_RHDLC) {
+	if (cd->channel_bprot == BPROT_RHDLC) {
 	    /* voice over data */
 	    cd->channel_bprot = BPROT_NONE_VOD;
+	} else if (cd->channel_bprot == BPROT_NONE_3_1_KHZ) {
+	    /* pass through */
 	} else {
 	    cd->channel_bprot = BPROT_NONE;
 	}
@@ -2442,7 +2470,11 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 	      case CAPI_CIP_SPEECH:
 	      case CAPI_CIP_3100Hz_AUDIO:
 	      case CAPI_CIP_TELEPHONY:
-		cd->channel_bprot = BPROT_NONE;
+
+		if (sc->sc_connect_req.wCIP == CAPI_CIP_3100Hz_AUDIO)
+		    cd->channel_bprot = BPROT_NONE_3_1_KHZ;
+		else
+		    cd->channel_bprot = BPROT_NONE;
 
 		if (sc->sc_connect_req.BC.len >= 5) {
 		    u_int8_t *temp = sc->sc_connect_req.BC.ptr;

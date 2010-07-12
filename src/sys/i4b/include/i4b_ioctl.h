@@ -274,6 +274,8 @@ m(BPROT_RHDLC_DOV    ,, P_HDLC         ,\
   "HDLC protocol: flag, data, crc, flag (Data over Voice)" ,0x80)\
 m(BPROT_NONE         ,, P_TRANSPARENT  ,\
 "no protocol at all, raw data"				   ,0x80)\
+m(BPROT_NONE_3_1_KHZ ,, P_TRANSPARENT  ,\
+  "no protocol at all, raw data (Fax over Voice)"          ,0x90)\
 /**/
 
 #define I4B_B_SUB_PROTOCOLS(m) \
