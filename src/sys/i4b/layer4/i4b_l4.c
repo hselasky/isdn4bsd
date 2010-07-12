@@ -518,6 +518,7 @@ i4b_l4_information_ind(call_desc_t *cd)
 	struct mbuf *m;
 	char buffer[TELNO_MAX];
 	int len;
+	u_int8_t temp;
 
 	if (cd->dst_telno_part[0] == 0) {
 	    NDBGL4(L4_MSG, "cdid=%d: cd->dst_telno_part[0] == 0",
@@ -525,8 +526,20 @@ i4b_l4_information_ind(call_desc_t *cd)
 	    return;
 	}
 
+	switch (cd->dst_ton) {
+	case TON_INTERNAT:
+		temp = 0x80 | 0x10 | 0x01;
+		break;
+	case TON_NATIONAL:
+		temp = 0x80 | 0x20 | 0x01;
+		break;
+	default:
+		temp = 0x80 | 0x00 | 0x01;
+		break;
+	}
+
 	len = snprintf(buffer, sizeof(buffer),
-		       "%c%s", 0x81, cd->dst_telno_part);
+		       "%c%s", temp, cd->dst_telno_part);
 
 	if (len < 1) {
 	    /* shouldn't happen */

@@ -1479,6 +1479,7 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 {
 	struct mbuf *m;
 	u_int16_t len;
+	u_int8_t temp;
 
 	struct capi_message_encoded msg;
 	struct CAPI_CONNECT_IND_DECODED connect_ind;
@@ -1552,10 +1553,21 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 	  break;
 	}
 
+	switch (cd->dst_ton) {
+	case TON_INTERNAT:
+		temp = 0x80 | 0x10;
+		break;
+	case TON_NATIONAL:
+		temp = 0x80 | 0x20;
+		break;
+	default:
+		temp = 0x80 | 0x00;
+		break;
+	}
 	connect_ind.dst_telno.ptr = &dst_telno[0];
 	connect_ind.dst_telno.len = capi_put_telno
 	  (cd, &cd->dst_telno[0], &dst_telno[0], 
-	   sizeof(dst_telno), 0x80, NULL);
+	   sizeof(dst_telno), temp, NULL);
 
 	/* first calling party number */
 
