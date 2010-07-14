@@ -145,9 +145,12 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct dss1_buffer *buf)
 	    }
 
 	    switch(temp) {
+	    case 0x90:	/* 3.1KHz audio */
+	        cd->channel_bprot = BPROT_NONE_3_1_KHZ;
+		break;
+
 	    case 0x80:	/* speech */
 	    case 0x89:	/* restricted digital info */
-	    case 0x90:	/* 3.1KHz audio */
 	        cd->channel_bprot = BPROT_NONE;
 		break;
 
