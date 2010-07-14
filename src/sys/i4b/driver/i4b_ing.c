@@ -69,7 +69,7 @@ struct ing_softc {
 	struct _ifqueue xmitq;		/* transmit queue */
 		
 	node_p		node;		/* back pointer to node */
-	char		nodename[NG_NODELEN + 1]; /* store our node name */
+	char		nodename[64];	/* store our node name */
 	hook_p  	debughook;
 	hook_p  	hook;	
 
@@ -214,7 +214,7 @@ i4bingattach(void *dummy)
 
 		/* name the netgraph node */
 
-		sprintf(sc->nodename, "%s%d", NG_ING_NODE_TYPE, sc->sc_unit);
+		snprintf(sc->nodename, sizeof(sc->nodename), "%s%d", NG_ING_NODE_TYPE, sc->sc_unit);
 		if((ret = ng_name_node(sc->node, sc->nodename)))
 		{
 			printf("ing: ng_name node, ret = %d\n!", ret);
@@ -580,7 +580,9 @@ ng_ing_rcvdata(hook_p hook, item_p item)
 
 	if(_IF_QFULL(xmitq_p))
 	{
+#if 0
 		_IF_DROP(xmitq_p);
+#endif
 	}
 	else
 	{
@@ -632,7 +634,7 @@ ng_ing_shutdown(node_p node)
 	}
 
 	/* name the netgraph node */
-	sprintf(sc->nodename, "%s%d", NG_ING_NODE_TYPE, sc->sc_unit);
+	snprintf(sc->nodename, sizeof(sc->nodename), "%s%d", NG_ING_NODE_TYPE, sc->sc_unit);
 	if((ret = ng_name_node(sc->node, sc->nodename)))
 	{
 		printf("%s: ng_name node, ret = %d\n!", 
