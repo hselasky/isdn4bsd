@@ -315,6 +315,19 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
 	    /* need to check status regularly */
 	    dss1_l3_tx_status_enquiry(cd);
 	}
+	if((cd->dst_telno_early[0] != 0) &&
+	    (newstate != ST_L3_U2))
+	{
+		if(TE_MODE(sc) || 
+		   IS_POINT_TO_POINT(sc) ||
+		   (newstate == ST_L3_UA) ||
+		   (newstate == ST_L3_UA_TO)) {
+			/* need to send accumulated digits */
+			dss1_l3_tx_information(cd);
+			/* clear any early digits */
+			cd->dst_telno_early[0] = 0;
+		}
+	}
   }
 
   NDBGL3(L3_MSG, "cdid=%d, [%s]",
@@ -580,7 +593,14 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	      /* send next part of number,
 	       * "cd->dst_telno_part"
 	       */
-	      dss1_l3_tx_information(cd);
+	      strlcat(cd->dst_telno_early,
+	          cd->dst_telno_part, sizeof(cd->dst_telno_early));
+
+	      /* check if it is too early to send digits */
+	      if (state != ST_L3_U2) {
+			dss1_l3_tx_information(cd);
+			cd->dst_telno_early[0] = 0;
+	      }
 	  }
 
 	  if((state == ST_L3_U2) ||

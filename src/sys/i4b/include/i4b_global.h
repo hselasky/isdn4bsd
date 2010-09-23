@@ -189,6 +189,7 @@ typedef struct call_desc {
 	u_char	dst_telno[TELNO_MAX];	/* destination number (accumulated) */
 	u_char *dst_telno_ptr;		/* pointer to end of destination number */
 	u_char  dst_telno_part[TELNO_MAX]; /* destination number (last part received) */
+	u_char  dst_telno_early[TELNO_MAX]; /* destination number (early part received) */
 
 	u_char	dst_subaddr[SUBADDR_MAX]; /* destination subaddr */
 

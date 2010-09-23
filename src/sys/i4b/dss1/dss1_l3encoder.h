@@ -623,7 +623,7 @@ dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int16_t flag)
 
 	  if(flag & L3_TX_CALLEDPN)
 	  {
-	    str = &(cd->dst_telno_part[0]);
+	    str = &(cd->dst_telno_early[0]);
 
 	    if(str[0] != 0)
 	    {
