@@ -30,11 +30,6 @@ CONF_DIR=${S}/sys/${ARCH}/conf
 CONF_DIR=${S}/sys/i386/conf
 .endif
 
-REMOVE_FILES=\
-${S}/sys/i386/include/i4b*h \
-${INCLUDE}/machine/i4b*h \
-${INCLUDE}/i4b/include/*h \
-
 I4B_FILES=\
 ${S}/lib/libcapi20 \
 ${S}/sys/i4b \
@@ -61,10 +56,6 @@ ${S}/sys/conf/files.i386 \
 
 HEADER_FIX_FILES=\
 ${S}/usr.sbin/ppp/i4b.c \
-${S}/share/examples/isdn/v21/v21modem.c \
-${S}/share/examples/isdn/contrib/hplay.c \
-${S}/share/examples/isdn/contrib/isdntelmux.c \
-${S}/share/examples/isdn/i4brunppp/i4brunppp.c \
 
 DIFF_FILES=\
 ${HEADER_FIX_FILES} \
@@ -75,7 +66,6 @@ ${S}/usr.sbin/Makefile.inc \
 ${S}/lib/Makefile \
 
 BACKUP_FILES=\
-${REMOVE_FILES} \
 ${I4B_FILES} \
 ${CONFIG_FILES} \
 ${DIFF_FILES} \
@@ -133,7 +123,7 @@ ${N}\# \
 ${N}\# source directory:      ${S} \
 ${N}\# backup directory:      ${.CURDIR} \
 ${N}\# targets:               help fetch all install deinstall clean \
-${N}\#                        distclean \
+${N}\#                        distclean install-userspace \
 ${N}\# \
 ${N}\# \
 ${N}\# 0. If you installed an older \
@@ -143,6 +133,7 @@ ${N}\#    cvsup of your kernel source code. \
 ${N}\# \
 ${N}\# 1. Install this package:\
 ${N}\#    \"make install\" \
+${N}\#    \"make install-userspace\" \
 ${N}\# \
 ${N}\# 2. Make sure that the following lines are  \
 ${N}\#    in your kernel configuration file, \
@@ -204,7 +195,6 @@ fetch:
 backup:
 	@echo ""
 	@echo "Installing sources to \"${S}\""
-	@echo "Installing headers to \"${INCLUDE}\""
 	@echo ""
 	@echo "Kernel backup location is \"${.CURDIR}/kernel\""
 	@echo ""
@@ -256,19 +246,12 @@ backup:
 	mkdir ${S}/share/examples/isdn/contrib || echo -n
 	mkdir ${S}/share/examples/isdn/i4brunppp || echo -n
 
-	mkdir ${INCLUDE}               || echo -n
-	mkdir ${INCLUDE}/i4b           || echo -n
-	mkdir ${INCLUDE}/i4b/include   || echo -n
-	mkdir ${INCLUDE}/machine       || echo -n
-
 #
 # create missing files
 #
 
 .for FILE in \
 ${S}/sys/i386/include/i4b_ioctl.h \
-${INCLUDE}/i4b/include/i4b_ioctl.h \
-${INCLUDE}/machine/i4b_ioctl.h \
 ${I4B_FILES} \
 ${CONFIG_FILES} \
 ${DIFF_FILES}
@@ -324,15 +307,11 @@ install: ${DIFF} ${PACKAGE} help backup update_config
 
 # cleanup
 
-	rm -f -rv ${I4B_FILES} ${REMOVE_FILES} || echo -n
+	rm -f -rv ${I4B_FILES} || echo -n
 
 # install package
 
 	tar -opjxmvf ${PACKAGE} -C${S}
-
-# install header files
-
-	cp -v ${S}/sys/i4b/include/*h ${INCLUDE}/i4b/include/ || echo -n
 
 #
 # touch some files so that the kernel is rebuilt
@@ -402,6 +381,17 @@ install: ${DIFF} ${PACKAGE} help backup update_config
 	[ -f ${S}/usr.sbin/Makefile.inc ] || \
 	(echo "BINDIR?=/usr/sbin" >> ${S}/usr.sbin/Makefile.inc)
 
+	cat ${S}/usr.sbin/Makefile \
+	| grep -v "^SUBDIR+= i4b" \
+	| grep -v "^.include <bsd.subdir.mk>" \
+	| cat - \
+	> ${TEMP}
+
+	echo "SUBDIR+= i4b" >> ${TEMP}
+	echo ".include <bsd.subdir.mk>" >> ${TEMP}
+
+	cat ${TEMP} > ${S}/usr.sbin/Makefile
+
 # patch 10
 #
 # update some #include <... statements
@@ -414,6 +404,14 @@ install: ${DIFF} ${PACKAGE} help backup update_config
 	> ${TEMP}
 	cat ${TEMP} > ${FILE}
 .endfor
+
+install-userspace:
+#
+# Install header files
+#
+	[ -d ${INCLUDE}/i4b/include/ ] || mkdir -p ${INCLUDE}/i4b/include/
+
+	cp -v ${S}/sys/i4b/include/*h ${INCLUDE}/i4b/include/ || echo -n
 
 #
 # Final install
@@ -437,7 +435,7 @@ deinstall: ${BACKUP}
 
 	@sleep 10
 
-	rm -f -rv ${I4B_FILES} ${REMOVE_FILES} || echo -n
+	rm -f -rv ${I4B_FILES} || echo -n
 
 	tar -jxvf ${BACKUP} -C/
 #

@@ -62,6 +62,7 @@ HOW TO INSTALL AS ROOT ON FREEBSD
 cd FreeBSD.i4b
 make S=../src package
 make install
+make install-userspace
 
 #
 # Type "make help" for more help.
