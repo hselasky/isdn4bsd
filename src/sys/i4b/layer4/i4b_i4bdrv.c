@@ -47,12 +47,8 @@
 #include <sys/mbuf.h>
 #include <sys/socket.h>
 #include <sys/poll.h>
-#if __FreeBSD_version >= 700050
-# include <sys/priv.h>
-#endif
-#if __FreeBSD_version >= 800000 
-#define suser(x) priv_check(x, PRIV_DRIVER)
-#endif
+#include <sys/priv.h>
+#include <sys/queue.h>
 #include <net/if.h>
 
 #include <i4b/include/i4b_debug.h>
@@ -62,29 +58,29 @@
 
 #include <i4b/layer4/i4b_l4.h>
 
-__FBSDID("$FreeBSD: $");
+__FBSDID("$FreeBSD$");
 
 struct i4b_ai_softc {
 
 	struct mtx sc_mtx;
+#define	I4B_AI_LOCK(sc) mtx_lock(&(sc)->sc_mtx)
+#define	I4B_AI_UNLOCK(sc) mtx_unlock(&(sc)->sc_mtx)
 
-	struct cdev *sc_dev;
+	unsigned long sc_refs;
 
 	u_int16_t sc_flags;
-#define ST_OPEN           0x0001 /* set if AI is opened */
-#define ST_OPENING        0x0002 /* set if AI is opening */
+#define ST_CLOSING        0x0001 /* set if AI is closing */
 #define ST_SLEEP_WAKEUP   0x0004 /* set if AI needs wakeup */
 #define ST_SLEEP_ENTERED  0x0008 /* set if AI is sleeping */
 #define ST_SELECT         0x0010 /* set if AI is selected by poll */
 #define ST_IOCTL          0x0020 /* set if AI is doing a IOCTL */
-#define ST_CLOSING        0x0040 /* set if AI is closing */
 #define ST_BLOCK          0x0080 /* set if I/O is blocking */
 #define ST_MBUF_LOST      0x0100 /* set if an mbuf was lost */
 
 	struct _ifqueue sc_rdqueue;
 	struct selinfo sc_selinfo;
 
-	struct i4b_ai_softc *sc_next;
+	TAILQ_ENTRY(i4b_ai_softc) entry;
 };
 
 static	d_open_t	i4b_open;
@@ -94,222 +90,68 @@ static	d_ioctl_t	i4b_ioctl;
 static	d_poll_t	i4b_poll;
 
 static cdevsw_t i4b_cdevsw = {
-#ifdef D_VERSION
       .d_version =    D_VERSION,
-#endif
       .d_open =       i4b_open,
       .d_close =      i4b_close,
       .d_read =       i4b_read,
       .d_ioctl =      i4b_ioctl,
       .d_poll =       i4b_poll,
       .d_name =       "i4b",
+      .d_flags =      D_TRACKCLOSE,
 };
 
-#define DEV2SC(dev) (*((struct i4b_ai_softc **)&((dev)->si_drv1)))
+static TAILQ_HEAD(,i4b_ai_softc) i4b_head = TAILQ_HEAD_INITIALIZER(i4b_head);
 
-static struct i4b_ai_softc *i4b_ai_sc_root = NULL;
-
-static struct cdev *i4b_dev = NULL;
-
-static eventhandler_tag i4b_clone_tag = NULL;
-
-static u_int32_t i4b_units = 0;
+static struct cdev *i4b_dev;
 
 #define I4BNAME "i4b"
-#define I4B_APPLICATIONS_MAX 0x80 /* units */
 
 static struct i4b_ai_softc *
-i4b_ai_get_closed_sc(void)
+i4b_ai_new_softc(void)
 {
 	struct i4b_ai_softc *sc;
-	u_int8_t free_sc = 0;
-	u_int8_t link_sc = 0;
-	u_int32_t unit;
-
-	static u_int8_t flag = 0;
-
-	mtx_lock(&i4b_global_lock);
-
-	while(flag)
-	{
-		flag |= 2;
-		msleep(&flag, &i4b_global_lock, 
-		       PZERO, "I4B AI create unit", 0);
-	}
-
-	flag = 1;
-
-	/* only need a valid starting point */
-
-	sc = i4b_ai_sc_root;
-
-	unit = i4b_units;
-
-	mtx_unlock(&i4b_global_lock);
-
-
-	/* first search for an existing closed device */
-
-	while(sc)
-	{
-	    u_int8_t closed;
-
-	    mtx_lock(&sc->sc_mtx);
-
-	    closed = !(sc->sc_flags & (ST_OPEN|ST_CLOSING|ST_OPENING));
-
-	    mtx_unlock(&sc->sc_mtx);
-
-	    if(closed)
-	    {
-	        /* no need to create another unit */
-		goto done;
-	    }
-
-	    sc = sc->sc_next;
-	}
-
-
-	/* check number of units */
-
-	if(unit >= I4B_APPLICATIONS_MAX)
-	{
-		goto done;
-	}
-
 
 	/* try to create another unit */
 
 	sc = malloc(sizeof(*sc), M_DEVBUF, M_WAITOK|M_ZERO);
 
-	if(sc == NULL)
-	{
-		goto done;
-	}
+	if (sc == NULL)
+		return (NULL);
 
 	/* setup softc */
 
-	sc->sc_rdqueue.ifq_maxlen = MAX_CHANNELS * 5;
+	sc->sc_rdqueue.ifq_maxlen = 0x80;
+	sc->sc_flags = ST_BLOCK;
 
 	mtx_init(&sc->sc_mtx, "I4B AI", NULL, MTX_DEF | MTX_RECURSE);
 
-	sc->sc_dev = 
-	  make_dev(&i4b_cdevsw, unit+1, UID_ROOT, GID_WHEEL, 0600, 
-		   I4BNAME ".%03x", unit);
-
-	if(sc->sc_dev == NULL)
-	{
-		free_sc = 1;
-		goto done;
-	}
-
-	DEV2SC(sc->sc_dev) = sc;
-
-	link_sc = 1;
-
- done:
-	if(free_sc)
-	{
-	    if(mtx_initialized(&sc->sc_mtx))
-	    {
-	        mtx_destroy(&sc->sc_mtx);
-	    }
-	    free(sc, M_DEVBUF);
-	    sc = NULL;
-	}
-
 	mtx_lock(&i4b_global_lock);
-
-	if(link_sc)
-	{
-	    /* insert "sc" into list */
-
-	    sc->sc_next = i4b_ai_sc_root;
-	    i4b_ai_sc_root = sc;
-	    i4b_units ++;
-	}
-
-	if(flag & 2)
-	{
-		wakeup(&flag);
-	}
-	flag = 0;
-
-	if(sc)
-	{
-	    /* exit with "sc->sc_mtx" locked
-	     * (need to do the locking here
-	     *  to avoid locking order 
-	     *  reversal later)
-	     */
-	    mtx_lock(&sc->sc_mtx);
-	}
-
+	TAILQ_INSERT_TAIL(&i4b_head, sc, entry);
 	mtx_unlock(&i4b_global_lock);
 
-	return sc;
+	return (sc);
 }
 
-#if ((__FreeBSD_version >= 700001) || (__FreeBSD_version == 0) || \
-     ((__FreeBSD_version >= 600034) && (__FreeBSD_version < 700000)))
-#define I4B_UCRED struct ucred *ucred,
-#else
-#define I4B_UCRED
-#endif
-
 static void
-i4b_clone(void *arg, I4B_UCRED char *name, int namelen, struct cdev **dev)
+i4b_ai_free_softc(void *arg)
 {
-	struct i4b_ai_softc *sc;
-	struct thread *td;
+	struct i4b_ai_softc *sc = (struct i4b_ai_softc *)arg;
 
-        if(dev[0] != NULL)
-	{
-		return;
+	mtx_lock(&i4b_global_lock);
+	while (sc->sc_refs != 0) {
+		msleep(sc, &i4b_global_lock, PZERO,
+		       "I4B AI free", hz / 16);
 	}
+	TAILQ_REMOVE(&i4b_head, sc, entry);
+	mtx_unlock(&i4b_global_lock);
 
-        if(strcmp(name, I4BNAME) != 0)
-	{
-		return;
-        }
+	I4B_AI_LOCK(sc);
+	_IF_DRAIN(&sc->sc_rdqueue);
+	I4B_AI_UNLOCK(sc);
 
-	td = curthread;
+	mtx_destroy(&sc->sc_mtx);
 
-#ifdef __FreeBSD__
-	if (td->td_ucred == NULL)
-#else
-	if (td->p_cred == NULL)
-#endif
-	{
-		/* sanity */
-		return;
-	}
-
-	if (suser(td) == 0) {
-		sc = i4b_ai_get_closed_sc();
-		if (sc == NULL) {
-			return;
-		}
-	} else {
-		return;
-	}
-
-	/* this flag is set to prevent
-	 * too early recycling of this
-	 * device, and is cleared by
-	 * "i4b_open()":
-	 */
-	sc->sc_flags |= ST_OPENING;
-
-	dev[0] = sc->sc_dev;
-
-	mtx_unlock(&sc->sc_mtx);
-
-	dev_ref(dev[0]);
-#if 0
-	dev[0]->si_flags |= SI_CHEAPCLONE;
-#endif
-	return;
+	free(sc, M_DEVBUF);
 }
 
 /*---------------------------------------------------------------------------*
@@ -318,36 +160,16 @@ i4b_clone(void *arg, I4B_UCRED char *name, int namelen, struct cdev **dev)
 static void
 i4b_ai_attach(void *dummy)
 {
-	/* check type of "i4b_clone()": */
-	dev_clone_fn i4b_clone_ptr = &i4b_clone;
-
-	i4b_clone_tag = EVENTHANDLER_REGISTER(dev_clone, i4b_clone_ptr, 0, 1000);
-
-	if(i4b_clone_tag == NULL)
-	{
-	    printf("%s: %s: failed to register \"dev_clone\"!\n",
-		   __FILE__, __FUNCTION__);
-	}
-
-	/* make a device so that we are visible
-	 * (some space is added to the device name 
-	 *  so that this device does not conflict
-	 *  with the cloning process)
+	/*
+	 * Make a character device so that we are visible:
 	 */
 	i4b_dev = 
-	  make_dev(&i4b_cdevsw, 0, UID_ROOT, GID_WHEEL, 0600, I4BNAME " ");
+	  make_dev(&i4b_cdevsw, 0, UID_ROOT, GID_WHEEL, 0600, I4BNAME);
 
 	if(i4b_dev == NULL)
-	{
-		printf("%s: %s: failed to make dummy device!\n",
-		       __FILE__, __FUNCTION__);
-	}
-#if 0
-	else 
-	  DEV2SC(i4b_dev) = NULL;
-#endif
+		printf("i4b: Failed to create character device.\n");
+
 	printf("i4b: ISDN call control device attached\n");
-	return;
 }
 SYSINIT(i4b_ai_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, i4b_ai_attach, NULL);
 
@@ -363,46 +185,49 @@ i4b_ai_putqueue(struct i4b_ai_softc *sc, u_int8_t sc_complement,
 
 	if((sc == NULL) || (sc_complement))
 	{
-		/* broadcast 
-		 *
-		 * NOTE: the softc structures are
-		 * never unlinked, so one only needs
-		 * a valid starting point:
-		 */
+		/* Broadcast a message */
+
 		sc_exclude = sc;
 
 		mtx_lock(&i4b_global_lock);
-		sc = i4b_ai_sc_root;
+		sc = TAILQ_FIRST(&i4b_head);
+		if (sc != NULL)
+			sc->sc_refs++;
 		mtx_unlock(&i4b_global_lock);
 
 		while(sc)
 		{
 			if(sc != sc_exclude)
 			{
-				/* m_copypacket() is used because
-				 * the copies does not need to be
-				 * writeable. In other words the
-				 * data pointed to by m_data can
-				 * be shared.
+				/* 
+				 * m_copypacket() is used because the
+				 * copies does not need to be
+				 * writeable. In other words the data
+				 * pointed to by m_data can be shared.
 				 */
 				m2 = m_copypacket(m1, M_DONTWAIT);
 
-				if(m2 == NULL)
-				{
+				if (m2 == NULL) {
 					NDBGL4(L4_ERR, "out of mbufs!");
-					break;
+				} else {
+					i4b_ai_putqueue(sc, 0, m2, p_copy_count);
 				}
- 				i4b_ai_putqueue(sc, 0, m2, p_copy_count);
 			}
-			sc = sc->sc_next;
+
+			mtx_lock(&i4b_global_lock);
+			sc->sc_refs--;
+			sc = TAILQ_NEXT(sc, entry);
+			if (sc != NULL)
+				sc->sc_refs++;
+			mtx_unlock(&i4b_global_lock);
 		}
 		m_freem(m1);
 	}
 	else
 	{
-		mtx_lock(&sc->sc_mtx);
+		I4B_AI_LOCK(sc);
 
-		if(!(sc->sc_flags & ST_OPEN))
+		if (sc->sc_flags & ST_CLOSING)
 		{
 			m_freem(m1);
 			goto done;
@@ -416,9 +241,8 @@ i4b_ai_putqueue(struct i4b_ai_softc *sc, u_int8_t sc_complement,
 			NDBGL4(L4_ERR, "ERROR: queue full, removing entry!");
 		}
 
-		if (p_copy_count) {
-		  (*p_copy_count) ++;
-		}
+		if (p_copy_count)
+			(*p_copy_count) ++;
 
 		_IF_ENQUEUE(&sc->sc_rdqueue, m1);
 
@@ -435,9 +259,8 @@ i4b_ai_putqueue(struct i4b_ai_softc *sc, u_int8_t sc_complement,
 		}
 
 	done:
-		mtx_unlock(&sc->sc_mtx);
+		I4B_AI_UNLOCK(sc);
 	}
-	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -446,38 +269,18 @@ i4b_ai_putqueue(struct i4b_ai_softc *sc, u_int8_t sc_complement,
 static int
 i4b_open(struct cdev *dev, int flag, int fmt, struct thread *td)
 {
-	struct i4b_ai_softc *sc = DEV2SC(dev);
-	int error = 0;
+	struct i4b_ai_softc *sc;
 
-	if(sc == NULL)
-	{
-		return ENXIO;
-	}
+	sc = i4b_ai_new_softc();
+	if (sc == NULL)
+		return (ENOMEM);
 
-	mtx_lock(&sc->sc_mtx);
-	if(sc->sc_flags & (ST_OPEN|ST_CLOSING))
-	{
-		error = EBUSY;
-		goto done;
-	}
-	sc->sc_flags |= (ST_OPEN|ST_OPENING|ST_BLOCK);
-	mtx_unlock(&sc->sc_mtx);
+	devfs_set_cdevpriv(sc, i4b_ai_free_softc);
 
 	/* open D-channels */
 	i4b_update_all_d_channels(1);
 
-	mtx_lock(&sc->sc_mtx);
-	sc->sc_flags &= ~(ST_OPENING|ST_MBUF_LOST);
-
-	if(sc->sc_flags & ST_CLOSING)
-	{
-		wakeup(sc);
-		error = EIO;
-	}
- done:
-	mtx_unlock(&sc->sc_mtx);
-
-	return error;
+	return (0);
 }
 
 /*---------------------------------------------------------------------------*
@@ -486,59 +289,53 @@ i4b_open(struct cdev *dev, int flag, int fmt, struct thread *td)
 static int
 i4b_close(struct cdev *dev, int flag, int fmt, struct thread *td)
 {
-	struct i4b_ai_softc *sc = DEV2SC(dev);
-	if(sc == NULL)
-	{
-		return ENXIO;
-	}
+	struct i4b_ai_softc *sc;
+	int error;
 
-	mtx_lock(&sc->sc_mtx);
+        error = devfs_get_cdevpriv((void **)&sc);
+	if (error != 0)
+                return (error);
+	if (sc == NULL)
+		return (ENXIO);
 
-	if((sc->sc_flags & ST_OPEN) && 
-	   (!(sc->sc_flags & ST_CLOSING)))
-	{
-		sc->sc_flags |= ST_CLOSING;
+	I4B_AI_LOCK(sc);
 
-		while(sc->sc_flags & (ST_SLEEP_WAKEUP|
-				      ST_SLEEP_ENTERED|
-				      ST_IOCTL|
-				      ST_OPENING))
-		{
-			if(sc->sc_flags & ST_SLEEP_WAKEUP)
-			{
-				sc->sc_flags &= ~ST_SLEEP_WAKEUP;
-				wakeup(&sc->sc_rdqueue);
-			}
+	sc->sc_flags |= ST_CLOSING;
 
-			(void) msleep(sc, &sc->sc_mtx, PZERO,
-				      "I4B AI closing", 0);
+	while (sc->sc_flags & (ST_SLEEP_WAKEUP|
+			       ST_SLEEP_ENTERED|
+			       ST_IOCTL)) {
+
+		if (sc->sc_flags & ST_SLEEP_WAKEUP) {
+			sc->sc_flags &= ~ST_SLEEP_WAKEUP;
+			wakeup(&sc->sc_rdqueue);
 		}
 
-		mtx_unlock(&sc->sc_mtx);
-
-		/* disconnect any active calls on this
-		 * application interface
-		 */
-		i4b_disconnect_by_appl_interface(I4B_AI_I4B, sc);
-
-		/* close D-channels */
-		i4b_update_all_d_channels(0);
-
-		/* release all reserved drivers */
-		i4b_release_drivers_by_appl_interface(I4B_AI_I4B, sc);
-
-		mtx_lock(&sc->sc_mtx);
-
-		/* free memory last */
-		_IF_DRAIN(&sc->sc_rdqueue);
-
-		/* clear flags last */
-		sc->sc_flags &= ~(ST_OPEN|ST_CLOSING);
+		msleep(sc, &sc->sc_mtx, PZERO,
+		       "I4B AI closing", 0);
 	}
 
-	mtx_unlock(&sc->sc_mtx);
+	I4B_AI_UNLOCK(sc);
 
-	return(0);
+	/*
+	 * Disconnect any active calls on this application interface
+	 */
+	i4b_disconnect_by_appl_interface(I4B_AI_I4B, sc);
+
+	/* close D-channels */
+	i4b_update_all_d_channels(0);
+
+	/* release all reserved drivers */
+	i4b_release_drivers_by_appl_interface(I4B_AI_I4B, sc);
+
+	I4B_AI_LOCK(sc);
+
+	/* free memory last */
+	_IF_DRAIN(&sc->sc_rdqueue);
+
+	I4B_AI_UNLOCK(sc);
+
+	return (0);
 }
 
 /*---------------------------------------------------------------------------*
@@ -547,21 +344,22 @@ i4b_close(struct cdev *dev, int flag, int fmt, struct thread *td)
 static int
 i4b_read(struct cdev *dev, struct uio *uio, int ioflag)
 {
-	struct i4b_ai_softc *sc = DEV2SC(dev);
+	struct i4b_ai_softc *sc;
 	struct mbuf *m;
-	int error = 0;
+	int error;
 
-	if(sc == NULL)
-	{
-		return ENXIO;
-	}
+        error = devfs_get_cdevpriv((void **)&sc);
+	if (error != 0)
+                return (error);
+	if (sc == NULL)
+		return (ENXIO);
 
-	mtx_lock(&sc->sc_mtx);
+	I4B_AI_LOCK(sc);
 
 	if(sc->sc_flags & (ST_SLEEP_ENTERED|ST_CLOSING))
 	{
 		/* only one thread at a time */
-		mtx_unlock(&sc->sc_mtx);
+		I4B_AI_UNLOCK(sc);
 		return EBUSY;
 	}
 
@@ -589,12 +387,12 @@ i4b_read(struct cdev *dev, struct uio *uio, int ioflag)
 
 	    if(error)
 	    {
-	        mtx_unlock(&sc->sc_mtx);
+	        I4B_AI_UNLOCK(sc);
 		return error;
 	    }
 	}
 	_IF_DEQUEUE(&sc->sc_rdqueue, m);
-	mtx_unlock(&sc->sc_mtx);
+	I4B_AI_UNLOCK(sc);
 
 	if(m && m->m_len)
 		error = uiomove(m->m_data, m->m_len, uio);
@@ -604,7 +402,7 @@ i4b_read(struct cdev *dev, struct uio *uio, int ioflag)
 	if(m)
 		m_freem(m);
 
-	return(error);
+	return (error);
 }
 
 /*---------------------------------------------------------------------------*
@@ -691,7 +489,7 @@ i4b_controller_download(struct i4b_controller *cntl,
 	/* restore "protocols" pointer */
 	req->protocols = protocols_old;
 
-	return error;
+	return (error);
 }
 
 /*---------------------------------------------------------------------------*
@@ -771,7 +569,7 @@ i4b_active_diagnostic(struct i4b_controller *cntl,
 	req->in_param_ptr = in_param_ptr_old;
 	req->out_param_ptr = out_param_ptr_old;
 
-	return error;
+	return (error);
 }
 
 /*---------------------------------------------------------------------------*
@@ -785,7 +583,6 @@ i4b_version_request(msg_vr_req_t *mvr)
 	mvr->version = I4B_VERSION;
 	mvr->release = I4B_REL;
 	mvr->step = I4B_STEP;
-	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -794,28 +591,26 @@ i4b_version_request(msg_vr_req_t *mvr)
 static int
 i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *td)
 {
-	struct i4b_ai_softc *sc = DEV2SC(dev);
+	struct i4b_ai_softc *sc;
 	struct i4b_controller *cntl;
 	call_desc_t *cd;
-	int error = 0;
+	int error;
 
-	if(sc == NULL)
-	{
-		return ENXIO;
-	}
+        error = devfs_get_cdevpriv((void **)&sc);
+	if (error != 0)
+                return (error);
+	if (sc == NULL)
+		return (ENXIO);
 
-	if(cmd == FIONBIO)
-	{
-		mtx_lock(&sc->sc_mtx);
-
+	if (cmd == FIONBIO) {
+		I4B_AI_LOCK(sc);
 		if(*(int *)data)
-		  sc->sc_flags &= ~ST_BLOCK;
+			sc->sc_flags &= ~ST_BLOCK;
 		else
-		  sc->sc_flags |= ST_BLOCK;
+			sc->sc_flags |= ST_BLOCK;
+		I4B_AI_UNLOCK(sc);
 
-		mtx_unlock(&sc->sc_mtx);
-
-		return 0;
+		return (0);
 	}
 
 	if(IOCPARM_LEN(cmd) >= sizeof(cdid_t))
@@ -833,18 +628,18 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 		goto done;
 	}
 
-	mtx_lock(&sc->sc_mtx);
+	I4B_AI_LOCK(sc);
 
 	if(sc->sc_flags & (ST_IOCTL|ST_CLOSING))
 	{
 		/* only one thread at a time */
-		mtx_unlock(&sc->sc_mtx);
+		I4B_AI_UNLOCK(sc);
 		return EBUSY;
 	}
 
 	sc->sc_flags |= ST_IOCTL;
 
-	mtx_unlock(&sc->sc_mtx);
+	I4B_AI_UNLOCK(sc);
 
 	cd = NULL;
 
@@ -1213,7 +1008,7 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 		CNTL_UNLOCK(cntl);
 	}
 
-	mtx_lock(&sc->sc_mtx);
+	I4B_AI_LOCK(sc);
 
 	sc->sc_flags &= ~ST_IOCTL;
 
@@ -1222,10 +1017,10 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 		wakeup(sc);
 		error = EIO;
 	}
-	mtx_unlock(&sc->sc_mtx);
+	I4B_AI_UNLOCK(sc);
 
 done:
-	return(error);
+	return (error);
 }
 
 /*---------------------------------------------------------------------------*
@@ -1234,15 +1029,16 @@ done:
 static int
 i4b_poll(struct cdev *dev, int events, struct thread *td)
 {
-	struct i4b_ai_softc *sc = DEV2SC(dev);
-	int revents = 0;        /* events we found */
+	struct i4b_ai_softc *sc;
+	int revents;
 
-	if(sc == NULL)
-	{
-		return POLLNVAL;
-	}
+        revents = devfs_get_cdevpriv((void **)&sc);
+	if (revents != 0)
+                return (POLLNVAL);
+	if (sc == NULL)
+		return (POLLNVAL);
 
-	mtx_lock(&sc->sc_mtx);
+	I4B_AI_LOCK(sc);
 
 	if(!_IF_QEMPTY(&sc->sc_rdqueue))
 	{
@@ -1255,7 +1051,7 @@ i4b_poll(struct cdev *dev, int events, struct thread *td)
 		sc->sc_flags |= ST_SELECT;
 	}
 
-	mtx_unlock(&sc->sc_mtx);
+	I4B_AI_UNLOCK(sc);
 
-	return(revents);
+	return (revents);
 }

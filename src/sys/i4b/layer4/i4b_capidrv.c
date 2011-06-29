@@ -79,7 +79,10 @@ struct capi_ai_softc {
 
 	unsigned long sc_refs;
 
-	struct mtx sc_mtx; /* lock that protects this structure */
+	/* lock protecting this structure */
+	struct mtx sc_mtx;
+#define	CAPI_AI_LOCK(sc) mtx_lock(&(sc)->sc_mtx)
+#define	CAPI_AI_UNLOCK(sc) mtx_unlock(&(sc)->sc_mtx)
 
 	u_int16_t sc_flags;
 #define ST_CLOSING           0x0001 /* set if AI is closing */
@@ -126,9 +129,6 @@ struct capi_ai_softc {
 	struct CAPI_GENERIC_STRUCT_DECODED sc_gen_struct;
 	struct CAPI_EC_FACILITY_PARM_DECODED sc_ec_parm;
 };
-
-#define	CAPI_AI_LOCK(sc) mtx_lock(&(sc)->sc_mtx)
-#define	CAPI_AI_UNLOCK(sc) mtx_unlock(&(sc)->sc_mtx)
 
 static	d_open_t	capi_open;
 static	d_close_t	capi_close;
@@ -253,12 +253,8 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 
 		flags &= ~CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT;
 
-		/* broadcast 
-		 *
-		 * NOTE: the softc structures are
-		 * never unlinked, so one only needs
-		 * a valid starting point:
-		 */
+		/* Broadcast a message */
+
 		sc_exclude = sc;
 
 		mtx_lock(&i4b_global_lock);
@@ -1720,11 +1716,11 @@ capi_close(struct cdev *dev, int flag, int fmt, struct thread *td)
 
 	sc->sc_flags |= ST_CLOSING;
 
-	while(sc->sc_flags & (ST_RD_SLEEP_WAKEUP|
-			      ST_RD_SLEEP_ENTERED|
-			      ST_WR_SLEEP_WAKEUP|
-			      ST_WR_SLEEP_ENTERED|
-			      ST_IOCTL)) {
+	while (sc->sc_flags & (ST_RD_SLEEP_WAKEUP|
+			       ST_RD_SLEEP_ENTERED|
+			       ST_WR_SLEEP_WAKEUP|
+			       ST_WR_SLEEP_ENTERED|
+			       ST_IOCTL)) {
 
 		if (sc->sc_flags & ST_RD_SLEEP_WAKEUP) {
 			sc->sc_flags &= ~ST_RD_SLEEP_WAKEUP;
@@ -1761,7 +1757,7 @@ capi_close(struct cdev *dev, int flag, int fmt, struct thread *td)
 
 	CAPI_AI_UNLOCK(sc);
 
-	return(0);
+	return (0);
 }
 
 static const uint8_t cause_table[9] = {
