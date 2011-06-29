@@ -1,4 +1,4 @@
-_OSV8!=(uname -s -r | grep -E "FreeBSD [89]") || (echo -n "")
+_OSV8!=(uname -s -r | grep -E "FreeBSD [189]") || (echo -n "")
 
 .if empty(_OSV8)
 .include "Makefile.v1"
