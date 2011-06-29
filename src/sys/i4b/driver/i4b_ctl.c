@@ -50,13 +50,12 @@ static	d_close_t	i4bctlclose;
 static	d_ioctl_t	i4bctlioctl;
 
 static cdevsw_t i4bctl_cdevsw = {
-#ifdef D_VERSION
       .d_version =    D_VERSION,
-#endif
       .d_open =       i4bctlopen,
       .d_close =      i4bctlclose,
       .d_ioctl =      i4bctlioctl,
       .d_name =       "i4bctl",
+      .d_flags =      D_TRACKCLOSE,
 };
 
 /*---------------------------------------------------------------------------*

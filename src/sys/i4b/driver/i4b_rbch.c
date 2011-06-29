@@ -85,9 +85,7 @@ static 	d_ioctl_t	i4b_rbch_ioctl;
 static 	d_poll_t	i4b_rbch_poll;
 
 static cdevsw_t i4b_rbch__cdevsw = {
-#ifdef D_VERSION
       .d_version =    D_VERSION,
-#endif
       .d_open =       i4b_rbch_open,
       .d_close =      i4b_rbch_close,
       .d_read =       i4b_rbch_read,
@@ -95,6 +93,7 @@ static cdevsw_t i4b_rbch__cdevsw = {
       .d_ioctl =      i4b_rbch_ioctl,
       .d_poll =       i4b_rbch_poll,
       .d_name =       "i4brbch",
+      .d_flags =      D_TRACKCLOSE,
 };
 
 /*===========================================================================*

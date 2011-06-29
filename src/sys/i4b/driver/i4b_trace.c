@@ -74,15 +74,14 @@ static d_ioctl_t  i4btrc_ioctl;
 static d_poll_t   i4btrc_poll;
 
 static cdevsw_t i4btrc_cdevsw = {
-#ifdef D_VERSION
       .d_version =    D_VERSION,
-#endif
       .d_open =       &i4btrc_open,
       .d_close =      &i4btrc_close,
       .d_read =       &i4btrc_read,
       .d_ioctl =      &i4btrc_ioctl,
       .d_poll =       &i4btrc_poll,
       .d_name =       "i4btrc",
+      .d_flags =      D_TRACKCLOSE,
 };
 
 #define DEV2SC(dev) (dev)->si_drv1
