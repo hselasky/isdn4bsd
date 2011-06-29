@@ -17,6 +17,7 @@ OFFICIALLY SUPPORTED OPERATING SYSTEMS
 
  - FreeBSD-8-current
  - FreeBSD-9-current
+ - FreeBSD-10-current
 
  - NetBSD 5.x.x
 
