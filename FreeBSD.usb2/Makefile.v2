@@ -1,2 +1,0 @@
-all:
-	@echo "The USB stack in this repository is already present in FreeBSD-8/9."
