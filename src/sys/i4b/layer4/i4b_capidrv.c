@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2005-2006 Hans Petter Selasky. All rights reserved.
+ * Copyright (c) 2005-2011 Hans Petter Selasky. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -48,13 +48,9 @@
 #include <sys/endian.h>
 #include <sys/filio.h>
 #include <sys/lock.h>
-#if __FreeBSD_version >= 700050
-# include <sys/priv.h>
-#endif
+#include <sys/priv.h>
+#include <sys/queue.h>
 #include <net/if.h>
-#if __FreeBSD_version >= 800000
-#define suser(x) priv_check(x, PRIV_DRIVER)
-#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -66,15 +62,7 @@
 
 #include <i4b/layer4/i4b_l4.h>
 
-__FBSDID("$FreeBSD: $");
-
-struct capi_delegate {
-	uint32_t uid;
-	uint32_t gid;
-	uint16_t mode;
-	uint16_t use_count;
-	uint16_t max_count;
-};
+__FBSDID("$FreeBSD$");
 
 /* the following structure describes one CAPI application */
 
@@ -89,21 +77,17 @@ struct capi_ai_softc {
 
 	u_int16_t sc_max_b_data_blocks;
 
-	struct cdev *sc_dev;
-
-	struct capi_delegate *sc_delegate;
+	unsigned long sc_refs;
 
 	struct mtx sc_mtx; /* lock that protects this structure */
 
 	u_int16_t sc_flags;
-#define ST_OPEN              0x0001 /* set if AI opened */
-#define ST_OPENING           0x0002 /* set if AI is opening */
+#define ST_CLOSING           0x0001 /* set if AI is closing */
 #define ST_RD_SLEEP_WAKEUP   0x0004 /* set if AI needs wakeup */
 #define ST_RD_SLEEP_ENTERED  0x0008 /* set if AI is sleeping */
 #define ST_WR_SLEEP_WAKEUP   0x0010 /* set if AI needs wakeup */
 #define ST_WR_SLEEP_ENTERED  0x0020 /* set if AI is sleeping */
 #define ST_SELECT            0x0040 /* set if AI is selected by poll */
-#define ST_CLOSING           0x0080 /* set if AI is closing */
 #define ST_BLOCK             0x0100 /* set if I/O is blocking */
 #define ST_IOCTL             0x0200 /* set if AI is doing a IOCTL */
 #define ST_D_OPEN            0x0400 /* set if D-channel has been started */
@@ -112,7 +96,7 @@ struct capi_ai_softc {
 	struct _ifqueue sc_rdqueue;
 	struct selinfo sc_selinfo;
 
-	struct capi_ai_softc *sc_next;
+	TAILQ_ENTRY(capi_ai_softc) entry;
 
 	/* the following fields are only used by capi_write() */
 
@@ -143,6 +127,9 @@ struct capi_ai_softc {
 	struct CAPI_EC_FACILITY_PARM_DECODED sc_ec_parm;
 };
 
+#define	CAPI_AI_LOCK(sc) mtx_lock(&(sc)->sc_mtx)
+#define	CAPI_AI_UNLOCK(sc) mtx_unlock(&(sc)->sc_mtx)
+
 static	d_open_t	capi_open;
 static	d_close_t	capi_close;
 static	d_read_t	capi_read;
@@ -151,9 +138,7 @@ static	d_ioctl_t	capi_ioctl;
 static	d_poll_t	capi_poll;
 
 static cdevsw_t capi_cdevsw = {
-#ifdef D_VERSION
       .d_version  = D_VERSION,
-#endif
       .d_open     = capi_open,
       .d_close    = capi_close,
       .d_read     = capi_read,
@@ -161,237 +146,25 @@ static cdevsw_t capi_cdevsw = {
       .d_ioctl    = capi_ioctl,
       .d_poll     = capi_poll,
       .d_name     = "capi",
+      .d_flags    = D_TRACKCLOSE,
 };
 
-#define DEV2SC(dev) (*((struct capi_ai_softc **)&((dev)->si_drv1)))
-
-#define CAPI_DELEGATES_MAX 16
-
-static struct capi_ai_softc *capi_ai_sc_root = NULL;
-
-/* the following structure is protected by "capi_ai_global_lock" */
-
-static struct capi_delegate capi_delegate[CAPI_DELEGATES_MAX];
-
-static uint16_t capi_delegate_count = 0;
-
-static struct cdev *capi_dev = NULL;
-
-static eventhandler_tag capi_clone_tag = NULL;
-
-static u_int32_t capi_units = 0;
+static struct cdev *capi_dev;
+static TAILQ_HEAD(,capi_ai_softc) capi_head = TAILQ_HEAD_INITIALIZER(capi_head);
 
 #define CAPINAME "capi20"
 
-static struct capi_delegate *
-capi_ai_find_delegate_by_uid(uint32_t uid)
-{
-	struct capi_delegate *dg = capi_delegate + 1;
-	struct capi_delegate *dg_end = capi_delegate + capi_delegate_count;
-
-	if (uid >= 0xffffffff) return NULL;
-
-	while (dg != dg_end) {
-	    if (dg->uid == uid) {
-	        return dg;
-	    }
-	    dg++;
-	}
-	return NULL;
-}
-
-static struct capi_delegate *
-capi_ai_find_delegate_by_gid(uint32_t gid)
-{
-	struct capi_delegate *dg = capi_delegate + 1;
-	struct capi_delegate *dg_end = capi_delegate + capi_delegate_count;
-
-	if (gid >= 0xffffffff) return NULL;
-
-	while (dg != dg_end) {
-	    if (dg->gid == gid) {
-	        return dg;
-	    }
-	    dg++;
-	}
-	return NULL;
-}
-
-static uint8_t
-capi_ai_update_delegate(i4b_capi_delegate_t *capi_dg)
-{
-	struct capi_delegate *dg;
-	uint16_t mode;
-	uint8_t error = 0;
-
-	dg = capi_ai_find_delegate_by_uid(capi_dg->uid);
-	mode = (capi_dg->mode & 0600) ? 0600 : 0000;
-
-	if (dg == NULL) {
-	    /* create a new delegate */
-	    if (capi_delegate_count >= CAPI_DELEGATES_MAX) {
-	        error = 1;
-		goto try_gid;
-	    }
-
-	    dg = capi_delegate + capi_delegate_count;
-	    capi_delegate_count ++;
-	    dg->uid = capi_dg->uid;
-	    dg->gid = 0xffffffff;
-	    dg->use_count = 0;
-	}
-
-	/* simply update */
-	dg->mode = mode;
-	dg->max_count = capi_dg->max_units;
-
- try_gid:
-	dg = capi_ai_find_delegate_by_gid(capi_dg->gid);
-	mode = (capi_dg->mode & 0060) ? 0060 : 0000;
-
-	if (dg == NULL) {
-	    /* create a new delegate */
-	    if (capi_delegate_count >= CAPI_DELEGATES_MAX) {
-	        error = 1;
-		goto done;
-	    }
-	    dg = capi_delegate + capi_delegate_count;
-	    capi_delegate_count ++;
-	    dg->uid = 0xffffffff;
-	    dg->gid = capi_dg->gid;
-	    dg->use_count = 0;
-	}
-
-	/* simply update */
-	dg->mode = mode;
-	dg->max_count = capi_dg->max_units;
-
- done:
-	return error;
-}
-
-static void
-capi_ai_global_lock(uint8_t do_lock)
-{
-	static uint8_t flag = 0;
-	int error;
-
-	mtx_assert(&i4b_global_lock, MA_OWNED);
-
-	/* XXX we should replace this by a SX lock one day! */
-
-	if (do_lock)
-	{
-	    while (flag)
-	    {
-		flag |= 2;
-		error = msleep(&flag, &i4b_global_lock, 
-			       0, "CAPI AI create unit", 0);
-	    }
-	    flag = 1;
-	}
-	else
-	{
-	    if (flag & 2)
-	    {
-		wakeup(&flag);
-	    }
-	    flag = 0;
-	}
-	return;
-}
-
 static struct capi_ai_softc *
-capi_ai_get_closed_sc(struct capi_delegate *dg, struct thread *td)
+capi_ai_new_softc(void)
 {
 	struct capi_ai_softc *sc;
-	u_int8_t free_sc = 0;
-	u_int8_t link_sc = 0;
-	u_int32_t unit;
-
-	mtx_lock(&i4b_global_lock);
-
-	capi_ai_global_lock(1);
-
-	sc = capi_ai_sc_root;
-
-	unit = capi_units;
-
-	mtx_unlock(&i4b_global_lock);
-
-	if (dg == NULL) {
-
-	    /* try by user first */
-#ifdef __FreeBSD__
-	    dg = capi_ai_find_delegate_by_uid(td->td_ucred->cr_ruid);
-#else
-	    dg = capi_ai_find_delegate_by_uid(
-	        kauth_cred_geteuid(td->p_cred));
-#endif
-	    if ((dg == NULL) || 
-		((dg->mode & 0600) == 0)) {
-
-	        /* try by group second */
-#ifdef __FreeBSD__
-	        dg = capi_ai_find_delegate_by_gid(td->td_ucred->cr_rgid);
-#else
-		dg = capi_ai_find_delegate_by_gid(
-		    kauth_cred_getegid(td->p_cred));
-#endif
-		if ((dg == NULL) || 
-		    ((dg->mode & 0060) == 0)) {
-			sc = NULL;
-			goto done;
-		}
-	    }
-	}
-
-	/* first search for an existing closed device */
-
-	while(sc)
-	{
-	    u_int8_t closed;
-
-	    mtx_lock(&sc->sc_mtx);
-
-	    if (sc->sc_delegate != dg) {
-	        closed = 0;
-	    } else {
-	        closed = !(sc->sc_flags & (ST_OPEN|ST_CLOSING|ST_OPENING));
-	    }
-
-	    mtx_unlock(&sc->sc_mtx);
-
-	    if(closed)
-	    {
-	        /* no need to create another unit */
-		goto done;
-	    }
-
-	    sc = sc->sc_next;
-	}
-
-
-	/* check number of units */
-
-	if(unit >= CAPI_APPLICATION_MAX)
-	{
-		goto done;
-	}
-
-	if (dg->use_count >= dg->max_count)
-	{
-		goto done;
-	}
 
 	/* try to create another unit */
 
 	sc = malloc(sizeof(*sc), M_DEVBUF, M_WAITOK|M_ZERO);
 
-	if(sc == NULL)
-	{
-		goto done;
-	}
+	if (sc == NULL)
+		return (NULL);
 
 	/* setup softc */
 
@@ -402,128 +175,39 @@ capi_ai_get_closed_sc(struct capi_delegate *dg, struct thread *td)
 
 	mtx_init(&sc->sc_mtx, "CAPI AI", NULL, MTX_DEF | MTX_RECURSE);
 
-	sc->sc_dev = 
-	  make_dev(&capi_cdevsw, unit+1, (dg->uid < 0xffffffff) ? dg->uid : UID_ROOT,
-					 (dg->gid < 0xffffffff) ? dg->gid : GID_WHEEL,
-					  dg->mode, CAPINAME ".%03x", unit);
+	sc->sc_flags = ST_BLOCK;
 
-	if(sc->sc_dev == NULL)
-	{
-		free_sc = 1;
-		goto done;
-	}
+	/* set default receive length */
 
-	DEV2SC(sc->sc_dev) = sc;
-	sc->sc_delegate = dg;
-
-	link_sc = 1;
-
- done:
-	if(free_sc)
-	{
-	    if(mtx_initialized(&sc->sc_mtx))
-	    {
-	        mtx_destroy(&sc->sc_mtx);
-	    }
-
-	    free(sc, M_DEVBUF);
-	    sc = NULL;
-	}
+	sc->sc_max_b_data_len = BCH_MAX_DATALEN;
 
 	mtx_lock(&i4b_global_lock);
-
-	if(link_sc)
-	{
-	    /* insert "sc" into list */
-
-	    sc->sc_next = capi_ai_sc_root;
-	    capi_ai_sc_root = sc;
-	    capi_units ++;
-
-	    /* update delegate count */
-
-	    dg->use_count ++;
-	}
-
-	capi_ai_global_lock(0);
-
-	if(sc)
-	{
-	    /* exit with "sc->sc_mtx" locked
-	     * (need to do the locking here
-	     *  to avoid locking order 
-	     *  reversal later)
-	     */
-	    mtx_lock(&sc->sc_mtx);
-	}
-
+	TAILQ_INSERT_TAIL(&capi_head, sc, entry);
 	mtx_unlock(&i4b_global_lock);
 
-	return sc;
+	return (sc);
 }
 
-#if ((__FreeBSD_version >= 700001) || (__FreeBSD_version == 0) || \
-     ((__FreeBSD_version >= 600034) && (__FreeBSD_version < 700000)))
-#define I4B_UCRED struct ucred *ucred,
-#else
-#define I4B_UCRED
-#endif
-
 static void
-capi_clone(void *arg, I4B_UCRED char *name, int namelen, struct cdev **dev)
+capi_ai_free_softc(void *arg)
 {
-	struct capi_ai_softc *sc;
-	struct thread *td;
+	struct capi_ai_softc *sc = (struct capi_ai_softc *)arg;
 
-        if(dev[0] != NULL)
-	{
-		return;
+	mtx_lock(&i4b_global_lock);
+	while (sc->sc_refs != 0) {
+		msleep(sc, &i4b_global_lock, PZERO,
+		       "CAPI AI free", hz / 16);
 	}
+	TAILQ_REMOVE(&capi_head, sc, entry);
+	mtx_unlock(&i4b_global_lock);
 
-        if(strcmp(name, CAPINAME) != 0)
-	{
-		return;
-        }
+	CAPI_AI_LOCK(sc);
+	_IF_DRAIN(&sc->sc_rdqueue);
+	CAPI_AI_UNLOCK(sc);
 
-	td = curthread;
+	mtx_destroy(&sc->sc_mtx);
 
-#ifdef __FreeBSD__
-	if (td->td_ucred == NULL)
-#else
-	if (td->p_cred == NULL)
-#endif
-	{
-		/* sanity */
-		return;
-	}
-
-	if (suser(td)) {
-	    sc = capi_ai_get_closed_sc(NULL, td);
-	} else {
-	    sc = capi_ai_get_closed_sc(capi_delegate, td);
-	}
-
-	if(sc == NULL)
-	{
-		return;
-	}
-
-	/* this flag is set to prevent
-	 * too early recycling of this
-	 * device, and is cleared by
-	 * "capi_open()":
-	 */
-	sc->sc_flags |= ST_OPENING;
-
-	dev[0] = sc->sc_dev;
-
-	mtx_unlock(&sc->sc_mtx);
-
-	dev_ref(dev[0]);
-#if 0
-	dev[0]->si_flags |= SI_CHEAPCLONE;
-#endif
-	return;
+	free(sc, M_DEVBUF);
 }
 
 /*---------------------------------------------------------------------------*
@@ -532,45 +216,17 @@ capi_clone(void *arg, I4B_UCRED char *name, int namelen, struct cdev **dev)
 static void
 capi_ai_attach(void *dummy)
 {
-	/* check type of "capi_clone()": */
-	dev_clone_fn capi_clone_ptr = &capi_clone;
-
-	/* init root delegate */
-
-	capi_delegate[0].uid = UID_ROOT;
-	capi_delegate[0].gid = GID_WHEEL;
-	capi_delegate[0].mode = 0600;
-	capi_delegate[0].max_count = CAPI_APPLICATION_MAX;
-	capi_delegate_count ++;
-
-	capi_clone_tag = EVENTHANDLER_REGISTER(dev_clone, capi_clone_ptr, 0, 1000);
-
-	if(capi_clone_tag == NULL)
-	{
-	    printf("%s: %s: failed to register \"dev_clone\", "
-		   "continuing!\n", __FILE__, __FUNCTION__);
-	}
-
-	/* make a device so that we are visible
-	 * (some space is added to the device name 
-	 *  so that this device does not conflict
-	 *  with the cloning process)
+	/*
+	 * Make a character device so that we are visible:
 	 */
 	capi_dev = 
-	  make_dev(&capi_cdevsw, 0, UID_ROOT, GID_WHEEL, 0600, CAPINAME " ");
+		make_dev(&capi_cdevsw, 0, UID_ROOT, GID_WHEEL, 0600, CAPINAME);
 
-	if(capi_dev == NULL)
-	{
-		printf("%s: %s: failed to make dummy device, "
-		       "continuing!\n", __FILE__, __FUNCTION__);
-	}
-#if 0
-	else 
-	  DEV2SC(capi_dev) = NULL;
-#endif
+	if (capi_dev == NULL)
+		printf("capi: Failed to create character device.");
+
 	printf("capi: CAPI call control device attached, v%d.%02d\n",
 	       (CAPI_STACK_VERSION / 100), (CAPI_STACK_VERSION % 100));
-	return;
 }
 SYSINIT(capi_ai_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, capi_ai_attach, NULL);
 
@@ -606,40 +262,43 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 		sc_exclude = sc;
 
 		mtx_lock(&i4b_global_lock);
-		sc = capi_ai_sc_root;
+		sc = TAILQ_FIRST(&capi_head);
+		if (sc != NULL)
+			sc->sc_refs++;
 		mtx_unlock(&i4b_global_lock);
 
 		while(sc)
 		{
 			if(sc != sc_exclude)
 			{
-				/* m_copypacket() is used hence writeable
-				 * copies are not required. This means that
-				 * data pointed to by m_data can be shared.
+				/*
+				 * m_copypacket() is used hence
+				 * writeable copies are not
+				 * required. This means that data
+				 * pointed to by m_data can be shared.
 				 * Else m_dup() must be used.
 				 */
-				if((m1 == NULL) || 
-				   (sc->sc_next == NULL))
-				{
-				    /* save a copypacket call */
-				    m2 = m1;
-				    m1 = NULL;
-				}
+				if (m1 == NULL)
+					m2 = NULL;
 				else
-				{
-				    m2 = m_copypacket(m1, M_DONTWAIT);
-				}
+					m2 = m_copypacket(m1, M_DONTWAIT);
 
 				capi_ai_putqueue(sc,flags,m2,p_copy_count);
 			}
-			sc = sc->sc_next;
+
+			mtx_lock(&i4b_global_lock);
+			sc->sc_refs--;
+			sc = TAILQ_NEXT(sc, entry);
+			if (sc != NULL)
+				sc->sc_refs++;
+			mtx_unlock(&i4b_global_lock);
 		}
 	}
 	else
 	{
-		mtx_lock(&sc->sc_mtx);
+		CAPI_AI_LOCK(sc);
 
-		if(!(sc->sc_flags & ST_OPEN))
+		if(sc->sc_flags & ST_CLOSING)
 		{
 		    goto done;
 		}
@@ -720,9 +379,8 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 			}
 		}
 
-		if (p_copy_count) {
+		if (p_copy_count)
 		  (*p_copy_count) ++;
-		}
 
 		_IF_ENQUEUE(&sc->sc_rdqueue, m1);
 		m1 = NULL;
@@ -740,14 +398,11 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 		}
 
 	done:
-		mtx_unlock(&sc->sc_mtx);
+		CAPI_AI_UNLOCK(sc);
 	}
 
-	if(m1)
-	{
+	if (m1 != NULL)
 		m_freem(m1);
-	}
-	return;
 }
 
 #define CAPI_ID_NCCI (1 << 16)
@@ -1063,7 +718,6 @@ capi_ai_facility_ind(struct call_desc *cd, u_int16_t wSelector,
 	}
 	
 	capi_ai_putqueue(cd->ai_ptr,flags,m,NULL);
-	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -1387,7 +1041,6 @@ capi_ai_connect_b3_active_ind(struct call_desc *cd)
 	}
 
 	capi_ai_putqueue(cd->ai_ptr,0,m,NULL);
-	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -1465,7 +1118,6 @@ capi_ai_info_ind(struct call_desc *cd, u_int8_t complement,
 
 	capi_ai_putqueue(cd->ai_ptr,complement ? 
 			 CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT : 0,m,NULL);
-	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -1667,7 +1319,6 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 	}
 
 	capi_ai_putqueue(cd->ai_ptr,0,m,p_copy_count);
-	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -1711,7 +1362,6 @@ capi_ai_connect_active_ind(struct call_desc *cd)
 	}
 
 	capi_ai_putqueue(cd->ai_ptr,0,m,NULL);
-	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -1753,7 +1403,6 @@ capi_ai_disconnect_b3_ind(struct call_desc *cd)
 	}
 
 	capi_ai_putqueue(cd->ai_ptr,0,m,NULL);
-	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -1796,7 +1445,6 @@ capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement)
 
 	capi_ai_putqueue(cd->ai_ptr,complement ? 
 			 CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT : 0,m,NULL);
-	return;
 }
 
 /*---------------------------------------------------------------------------*
@@ -2041,33 +1689,15 @@ capi_decode_b_protocol(struct call_desc *cd,
 static int
 capi_open(struct cdev *dev, int flag, int fmt, struct thread *td)
 {
-	struct capi_ai_softc *sc = DEV2SC(dev);
-	int error = 0;
+	struct capi_ai_softc *sc;
 
-	if(sc == NULL)
-	{
-		return ENXIO;
-	}
+	sc = capi_ai_new_softc();
+	if (sc == NULL)
+		return (ENOMEM);
 
-	mtx_lock(&sc->sc_mtx);
-	if(sc->sc_flags & (ST_OPEN|ST_CLOSING))
-	{
-		error = EBUSY;
-		goto done;
-	}
-	sc->sc_flags |= (ST_OPEN|ST_BLOCK);
-	sc->sc_flags &= ~(ST_OPENING|ST_MBUF_LOST);
+	devfs_set_cdevpriv(sc, capi_ai_free_softc);
 
-	bzero(&sc->sc_info_mask, sizeof(sc->sc_info_mask)); /* disable all information */
-	bzero(&sc->sc_CIP_mask_1, sizeof(sc->sc_CIP_mask_1)); /* disable incoming calls */
-	bzero(&sc->sc_CIP_mask_2, sizeof(sc->sc_CIP_mask_2)); /* disable incoming calls */
-
-	sc->sc_max_b_data_len = BCH_MAX_DATALEN; /* set default receive length */
-
- done:
-	mtx_unlock(&sc->sc_mtx);
-
-	return error;
+	return (0);
 }
 
 /*---------------------------------------------------------------------------*
@@ -2076,72 +1706,60 @@ capi_open(struct cdev *dev, int flag, int fmt, struct thread *td)
 static int
 capi_close(struct cdev *dev, int flag, int fmt, struct thread *td)
 {
-	struct capi_ai_softc *sc = DEV2SC(dev);
-	u_int8_t d_open;
+	struct capi_ai_softc *sc;
+	int error;
+	uint8_t d_open;
 
-	if(sc == NULL)
-	{
-		return ENXIO;
+        error = devfs_get_cdevpriv((void **)&sc);
+	if (error != 0)
+                return (error);
+	if (sc == NULL)
+		return (ENXIO);
+
+	CAPI_AI_LOCK(sc);
+
+	sc->sc_flags |= ST_CLOSING;
+
+	while(sc->sc_flags & (ST_RD_SLEEP_WAKEUP|
+			      ST_RD_SLEEP_ENTERED|
+			      ST_WR_SLEEP_WAKEUP|
+			      ST_WR_SLEEP_ENTERED|
+			      ST_IOCTL)) {
+
+		if (sc->sc_flags & ST_RD_SLEEP_WAKEUP) {
+			sc->sc_flags &= ~ST_RD_SLEEP_WAKEUP;
+			wakeup(&sc->sc_rdqueue);
+		}
+		msleep(sc, &sc->sc_mtx, PZERO,
+		       "CAPI AI closing", 0);
 	}
 
-	mtx_lock(&sc->sc_mtx);
+	d_open = ((sc->sc_flags & ST_D_OPEN) != 0);
 
-	if((sc->sc_flags & ST_OPEN) &&
-	   (!(sc->sc_flags & ST_CLOSING)))
-	{
-		sc->sc_flags |= ST_CLOSING;
+	CAPI_AI_UNLOCK(sc);
 
-		while(sc->sc_flags & (ST_RD_SLEEP_WAKEUP|
-				      ST_RD_SLEEP_ENTERED|
-				      ST_WR_SLEEP_WAKEUP|
-				      ST_WR_SLEEP_ENTERED|
-				      ST_IOCTL|
-				      ST_OPENING))
-		{
-			if(sc->sc_flags & ST_RD_SLEEP_WAKEUP)
-			{
-				sc->sc_flags &= ~ST_RD_SLEEP_WAKEUP;
-				wakeup(&sc->sc_rdqueue);
-			}
-#if 0
-			if(sc->sc_flags & ST_WR_SLEEP_WAKEUP)
-			{
-				sc->sc_flags &= ~ST_WR_SLEEP_WAKEUP;
-				wakeup(& ??? );
-			}
-#endif
-			(void) msleep(sc, &sc->sc_mtx, PZERO,
-				      "CAPI AI closing", 0);
-		}
+	/*
+	 * Disconnect any active calls on this application interface:
+	 */
+	i4b_disconnect_by_appl_interface(I4B_AI_CAPI, sc);
 
-		d_open = ((sc->sc_flags & ST_D_OPEN) != 0);
-
-		mtx_unlock(&sc->sc_mtx);
-
-		/* disconnect any active calls on this
-		 * application interface
-		 */
-		i4b_disconnect_by_appl_interface(I4B_AI_CAPI, sc);
-
-		if(d_open)
-		{
-		    /* close D-channels */
-		    i4b_update_all_d_channels(0);
-		}
-
-		/* release all reserved drivers */
-		i4b_release_drivers_by_appl_interface(I4B_AI_CAPI, sc);
-
-		mtx_lock(&sc->sc_mtx);
-
-		/* free memory last */
-		_IF_DRAIN(&sc->sc_rdqueue);
-
-		/* clear flags last */
-		sc->sc_flags &= ~(ST_OPEN|ST_CLOSING|ST_D_OPEN);
+	if(d_open) {
+		/* close D-channels */
+		i4b_update_all_d_channels(0);
 	}
 
-	mtx_unlock(&sc->sc_mtx);
+	/* release all reserved drivers */
+	i4b_release_drivers_by_appl_interface(I4B_AI_CAPI, sc);
+
+	CAPI_AI_LOCK(sc);
+
+	/* free memory last */
+	_IF_DRAIN(&sc->sc_rdqueue);
+
+	/* clear flags last */
+	sc->sc_flags &= ~ST_D_OPEN;
+
+	CAPI_AI_UNLOCK(sc);
 
 	return(0);
 }
@@ -2164,22 +1782,23 @@ static const uint8_t cause_table[9] = {
 static int
 capi_read(struct cdev *dev, struct uio *uio, int flag)
 {
-	struct capi_ai_softc *sc = DEV2SC(dev);
+	struct capi_ai_softc *sc;
 	struct mbuf *m1;
 	struct mbuf *m2;
-	int error = 0;
+	int error;
 
-	if(sc == NULL)
-	{
-		return ENXIO;
-	}
+        error = devfs_get_cdevpriv((void **)&sc);
+	if (error != 0)
+                return (error);
+	if (sc == NULL)
+		return (ENXIO);
 
-	mtx_lock(&sc->sc_mtx);
+	CAPI_AI_LOCK(sc);
 
 	if(sc->sc_flags & (ST_RD_SLEEP_ENTERED|ST_CLOSING|ST_MBUF_LOST))
 	{
 		/* only one thread at a time */
-		mtx_unlock(&sc->sc_mtx);
+		CAPI_AI_UNLOCK(sc);
 		return EBUSY;
 	}
 
@@ -2207,12 +1826,12 @@ capi_read(struct cdev *dev, struct uio *uio, int flag)
 
 	    if(error)
 	    {
-		mtx_unlock(&sc->sc_mtx);
+		CAPI_AI_UNLOCK(sc);
 		return error;
 	    }
 	}
 	_IF_DEQUEUE(&sc->sc_rdqueue, m1);
-	mtx_unlock(&sc->sc_mtx);
+	CAPI_AI_UNLOCK(sc);
 
 	if(m1 && m1->m_len)
 	{
@@ -2239,27 +1858,30 @@ capi_read(struct cdev *dev, struct uio *uio, int flag)
 static int
 capi_write(struct cdev *dev, struct uio * uio, int flag)
 {
-	struct capi_ai_softc *sc = DEV2SC(dev);
+	struct capi_ai_softc *sc;
 	struct i4b_controller *cntl;
 	struct call_desc *cd;
 	struct mbuf *m1 = NULL;
 	struct mbuf *m2;
 	int error;
+	uint8_t response;
+	uint16_t cause;
 
-	u_int8_t response;
-	u_int16_t cause;
-
-	/* NOTE: one has got to read all data into 
-	 * buffers before locking the controller,
-	 * hence uiomove() can sleep
-	 */
-	if(sc == NULL)
+        error = devfs_get_cdevpriv((void **)&sc);
+	if (error != 0)
+                return (error);
+	if (sc == NULL)
 		return (ENXIO);
 
-	mtx_lock(&sc->sc_mtx);
+	/*
+	 * NOTE: one has got to read all data into buffers before
+	 * locking the controller, hence uiomove() can sleep
+	 */
+
+	CAPI_AI_LOCK(sc);
 	error = (sc->sc_write_busy != 0);
 	sc->sc_write_busy = 1;
-	mtx_unlock(&sc->sc_mtx);
+	CAPI_AI_UNLOCK(sc);
 
 	if (error) {
 		return (EBUSY);
@@ -2353,19 +1975,19 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		goto done;
 	}
 
-	mtx_lock(&sc->sc_mtx);
+	CAPI_AI_LOCK(sc);
 
 	if(sc->sc_flags & (ST_WR_SLEEP_ENTERED|ST_CLOSING))
 	{
 		/* only one thread at a time */
-		mtx_unlock(&sc->sc_mtx);
+		CAPI_AI_UNLOCK(sc);
 		error = EBUSY;
 		goto done;
 	}
 
 	sc->sc_flags |= ST_WR_SLEEP_ENTERED;
 
-	mtx_unlock(&sc->sc_mtx);
+	CAPI_AI_UNLOCK(sc);
 
 	cd = NULL;
 
@@ -3416,13 +3038,13 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 		  capi_decode(&sc->sc_msg.data, sc->sc_msg.head.wLen, &sc->sc_listen_req);
 
-		  mtx_lock(&sc->sc_mtx);
+		  CAPI_AI_LOCK(sc);
 
 		  sc->sc_info_mask[controller]  = sc->sc_listen_req.dwInfoMask;
 		  sc->sc_CIP_mask_1[controller] = sc->sc_listen_req.dwCipMask1;
 		  sc->sc_CIP_mask_2[controller] = sc->sc_listen_req.dwCipMask2;
 
-		  mtx_unlock(&sc->sc_mtx);
+		  CAPI_AI_UNLOCK(sc);
 	      }
 	      goto send_confirmation;
 
@@ -3518,7 +3140,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		CNTL_UNLOCK(cntl);
 	}
 
-	mtx_lock(&sc->sc_mtx);
+	CAPI_AI_LOCK(sc);
 
 	sc->sc_flags &= ~ST_WR_SLEEP_ENTERED;
 
@@ -3527,16 +3149,16 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		wakeup(sc);
 		error = EIO;
 	}
-	mtx_unlock(&sc->sc_mtx);
+	CAPI_AI_UNLOCK(sc);
 
  done:
 	if (m1) {
 		m_freem(m1);
 	}
 
-	mtx_lock(&sc->sc_mtx);
+	CAPI_AI_LOCK(sc);
 	sc->sc_write_busy = 0;
-	mtx_unlock(&sc->sc_mtx);
+	CAPI_AI_UNLOCK(sc);
 
 	return (error);
 }
@@ -3547,27 +3169,28 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 static int
 capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *td)
 {
-	struct capi_ai_softc *sc = DEV2SC(dev);
+	struct capi_ai_softc *sc;
 	struct i4b_controller *cntl;
-	int error = 0;
+	int error;
 
-	if(sc == NULL)
-	{
-		return ENODEV;
-	}
+        error = devfs_get_cdevpriv((void **)&sc);
+        if (error != 0)
+                return (error);
+	if (sc == NULL)
+		return (ENXIO);
 
-	mtx_lock(&sc->sc_mtx);
+	CAPI_AI_LOCK(sc);
 
 	if(sc->sc_flags & (ST_IOCTL|ST_CLOSING))
 	{
 		/* only one thread at a time */
-		mtx_unlock(&sc->sc_mtx);
+		CAPI_AI_UNLOCK(sc);
 		return EBUSY;
 	}
 
 	sc->sc_flags |= ST_IOCTL;
 
-	mtx_unlock(&sc->sc_mtx);
+	CAPI_AI_UNLOCK(sc);
 
 
 	switch(cmd) {
@@ -3588,10 +3211,10 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		   req->max_b_data_blocks = 128;
 		}
 
-		mtx_lock(&sc->sc_mtx);
+		CAPI_AI_LOCK(sc);
 		sc->sc_max_b_data_len = req->max_b_data_len;
 		sc->sc_max_b_data_blocks = req->max_b_data_blocks;
-		mtx_unlock(&sc->sc_mtx);
+		CAPI_AI_UNLOCK(sc);
 
 		req->app_id = 0; /* unused */
 		break;
@@ -3601,7 +3224,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 	{
 		u_int8_t d_open;
 
-		mtx_lock(&sc->sc_mtx);
+		CAPI_AI_LOCK(sc);
 		if(!(sc->sc_flags & ST_D_OPEN))
 		{
 		    sc->sc_flags |= ST_D_OPEN;
@@ -3611,7 +3234,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		{
 		    d_open = 0;
 		}
-		mtx_unlock(&sc->sc_mtx);
+		CAPI_AI_UNLOCK(sc);
 
 		if(d_open)
 		{
@@ -3640,11 +3263,11 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		snprintf(&req->name[0], sizeof(req->name), 
 			 "unknown controller %d", req->controller);
 
-		/* forward ioctl to layer 1 
-		 * (and ignore any errors)
+		/*
+		 * Forward ioctl to layer 1 (and ignore any errors)
 		 */
 
-		(void) L1_COMMAND_REQ(cntl, CMR_CAPI_GET_MANUFACTURER, data);
+		L1_COMMAND_REQ(cntl, CMR_CAPI_GET_MANUFACTURER, data);
 
 		break;
 	}
@@ -3672,11 +3295,11 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		req->version.BSD_major = I4B_VERSION;
 		req->version.BSD_minor = I4B_REL;
 
-		/* forward ioctl to layer 1 
-		 * (and ignore any errors)
+		/*
+		 * Forward ioctl to layer 1 (and ignore any errors)
 		 */
 
-		(void) L1_COMMAND_REQ(cntl, CMR_CAPI_GET_VERSION, data);
+		L1_COMMAND_REQ(cntl, CMR_CAPI_GET_VERSION, data);
 
 		break;
 	}
@@ -3704,11 +3327,11 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 		CNTL_UNLOCK(cntl);
 
-		/* forward ioctl to layer 1 
-		 * (and ignore any errors)
+		/*
+		 * Forward ioctl to layer 1 (and ignore any errors)
 		 */
 
-		(void) L1_COMMAND_REQ(cntl, CMR_CAPI_GET_SERIAL, data);
+		L1_COMMAND_REQ(cntl, CMR_CAPI_GET_SERIAL, data);
 
 		break;
 	}
@@ -3780,43 +3403,11 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		req->profile.dwB3ProtocolSupport = 
 		  htole32((1 << CAPI_B3_TRANSPARENT));
 
-		/* forward ioctl to layer 1 (ignore any errors) */
+		/*
+		 * Forward ioctl to layer 1 (ignore any errors)
+		 */
 
-		(void) L1_COMMAND_REQ(cntl, CMR_CAPI_GET_PROFILE, data);
-
-		break;
-	}
-
-	case I4B_CTL_CAPI_DELEGATE:
-	{
-		i4b_capi_delegate_t *capi_dg = (void *)data;
-
-		/* check credentials */
-
-		if(suser(curthread))
-		{
-		    error = EPERM;
-		    break;
-		}
-
-		if ((capi_dg->uid >= 0xffffffff) ||
-		    (capi_dg->gid >= 0xffffffff))
-		{
-		    error = EINVAL;
-		    break;
-		}
-
-		mtx_lock(&i4b_global_lock);
-
-		capi_ai_global_lock(1);
-
-		if (capi_ai_update_delegate(capi_dg)) {
-		    error = ENOMEM;
-		}
-
-		capi_ai_global_lock(0);
-
-		mtx_unlock(&i4b_global_lock);
+		L1_COMMAND_REQ(cntl, CMR_CAPI_GET_PROFILE, data);
 
 		break;
 	}
@@ -3825,7 +3416,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 		/* check credentials */
 
-		if(suser(curthread))
+	  if(priv_check(curthread, PRIV_DRIVER))
 		{
 		    error = EPERM;
 		    break;
@@ -3871,7 +3462,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 		/* check credentials */
 
-		if(suser(curthread))
+		if(priv_check(curthread, PRIV_DRIVER))
 		{
 		    error = EPERM;
 		    break;
@@ -3903,7 +3494,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 		/* check credentials */
 
-		if(suser(curthread))
+		if(priv_check(curthread, PRIV_DRIVER))
 		{
 		    error = EPERM;
 		    break;
@@ -3968,7 +3559,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 		/* check credentials */
 
-		if(suser(curthread))
+		if(priv_check(curthread, PRIV_DRIVER))
 		{
 		    error = EPERM;
 		    break;
@@ -3991,7 +3582,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 	case FIONREAD:
 
-		mtx_lock(&sc->sc_mtx);
+		CAPI_AI_LOCK(sc);
 
 		/* return the minimum length that can be read */
 
@@ -4000,20 +3591,20 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		else
 		    *(int *)data = sizeof(struct CAPI_HEADER_ENCODED);
 
-		mtx_unlock(&sc->sc_mtx);
+		CAPI_AI_UNLOCK(sc);
 
 		break;
       
 	case FIONBIO:
 
-		mtx_lock(&sc->sc_mtx);
+		CAPI_AI_LOCK(sc);
 
 		if(*(int *)data)
 		  sc->sc_flags &= ~ST_BLOCK;
 		else
 		  sc->sc_flags |= ST_BLOCK;
 
-		mtx_unlock(&sc->sc_mtx);
+		CAPI_AI_UNLOCK(sc);
 		break;
 
 	default:
@@ -4021,7 +3612,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		break;
 	}
 
-	mtx_lock(&sc->sc_mtx);
+	CAPI_AI_LOCK(sc);
 
 	sc->sc_flags &= ~ST_IOCTL;
 
@@ -4030,7 +3621,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		wakeup(sc);
 		error = EIO;
 	}
-	mtx_unlock(&sc->sc_mtx);
+	CAPI_AI_UNLOCK(sc);
 
 	return(error);
 }
@@ -4041,15 +3632,16 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 static int
 capi_poll(struct cdev *dev, int events, struct thread *td)
 {
-	struct capi_ai_softc *sc = DEV2SC(dev);
-	int revents = 0; /* events found */
+	struct capi_ai_softc *sc;
+	int revents;
 
-	if(sc == NULL)
-	{
-		return POLLNVAL;
-	}
+        revents = devfs_get_cdevpriv((void **)&sc);
+        if (revents != 0)
+		return (POLLNVAL);
+	if (sc == NULL)
+		return (POLLNVAL);
 
-	mtx_lock(&sc->sc_mtx);
+	CAPI_AI_LOCK(sc);
 
 	if((!_IF_QEMPTY(&sc->sc_rdqueue)) || (sc->sc_flags & ST_MBUF_LOST))
 	{
@@ -4065,7 +3657,7 @@ capi_poll(struct cdev *dev, int events, struct thread *td)
 		sc->sc_flags |= ST_SELECT;
 	}
 
-	mtx_unlock(&sc->sc_mtx);
+	CAPI_AI_UNLOCK(sc);
 
 	return(revents);
 }
@@ -4259,7 +3851,7 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 		if (sc == NULL) {
 		    pp->protocol_1 = P_DISABLE;
 		} else {
-		    mtx_lock(&sc->sc_mtx);
+		    CAPI_AI_LOCK(sc);
 		    f->tx_queue.ifq_maxlen = sc->sc_max_b_data_blocks;
 
 		    if (cd->new_max_packet_size == 0) {
@@ -4270,7 +3862,7 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 		    if (cd->curr_max_packet_size < MIN_B_DATA_LEN) {
 		        cd->curr_max_packet_size = MIN_B_DATA_LEN;
 		    }
-		    mtx_unlock(&sc->sc_mtx);
+		    CAPI_AI_UNLOCK(sc);
 		}
 
 		capi_ai_connect_b3_active_ind(cd);
