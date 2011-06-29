@@ -955,14 +955,11 @@ capi_music(uint8_t *buffer, uint32_t samples)
 	uint8_t x;
 
 	while (samples--) {
-		if (pwait == 1) {
+		if (!pwait--) {
 			for (x = 0; x != MAX_SCORES; x++) {
 				if (duration[x])
 					duration[x]--;
 			}
-			pwait = 0;
-		} else if (pwait != 0) {
-			pwait--;
 		}
 		if (wait == 0) {
 			if (music_ptr == NULL || music_ptr[0] == 0)
