@@ -179,6 +179,7 @@ dss1_lite_l1_ioctl(struct i4b_controller *cntl, int command, void *parm)
 
 	case CMR_SET_CHANNEL_MAPPING:
 		/* NOP */
+		break;
 
 	case CMR_ENABLE_ECHO_CANCEL:
 
