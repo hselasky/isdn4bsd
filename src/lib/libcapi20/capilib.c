@@ -370,7 +370,7 @@ capi20_register(struct capi20_backend *cbe,
 {
 	struct app_softc *sc;
 	struct data_buffer *mp;
-	struct capi_register_req req = { /* zero */ };
+	struct capi_register_req req = { 0 };
 	uint32_t size;
 	uint32_t max_msg_data_size;
 	int32_t temp = 1;
@@ -927,7 +927,7 @@ capi20_get_message(uint32_t app_id, uint8_t **buf_pp)
 		struct {
 		  struct CAPI_HEADER_ENCODED head;
 		  struct CAPI_DATA_B3_RESP_ENCODED data;
-		} __packed resp = { /* zero */ };
+		} __packed resp = { { 0 } };
 
 		/* acknowledge the frame here, 
 		 * hence the application won't
@@ -999,7 +999,7 @@ capi20_get_message(uint32_t app_id, uint8_t **buf_pp)
 uint16_t
 capi20_wait_for_message(uint32_t app_id, struct timeval *timeval_ptr)
 {
-	struct pollfd  pollfd = { /* zero */ };
+	struct pollfd  pollfd = { 0 };
 	struct timeval tvEnd;
 	struct timeval tvCurr;
 	struct timeval tvTmp;
@@ -1116,7 +1116,7 @@ uint16_t
 capi20_get_manufacturer(struct capi20_backend *cbe, uint32_t controller,
     char *buf_ptr, uint16_t buf_len)
 {
-	struct capi_get_manufacturer_req req = { /* zero */ };
+	struct capi_get_manufacturer_req req = { 0 };
 	uint16_t error;
 
 	if (buf_len == 0) {
@@ -1164,7 +1164,7 @@ uint16_t
 capi20_get_version(struct capi20_backend *cbe, uint32_t controller,
     char *buf_ptr, uint16_t buf_len)
 {
-	struct capi_get_version_req req = { /* zero */ };
+	struct capi_get_version_req req = { 0 };
 	uint16_t error;
 
 	if (buf_len == 0) {
@@ -1224,7 +1224,7 @@ uint16_t
 capi20_get_serial_number(struct capi20_backend *cbe, uint32_t controller,
    char *buf_ptr, uint16_t buf_len)
 {
-	struct capi_get_serial_req req = { /* zero */ };
+	struct capi_get_serial_req req = { 0 };
 	uint16_t error;
 
 	if (buf_len == 0) {
@@ -1284,7 +1284,7 @@ uint16_t
 capi20_get_profile(struct capi20_backend *cbe, uint32_t controller, 
     void *buf_ptr, uint16_t buf_len)
 {
-	struct capi_get_profile_req req = { /* zero */ };
+	struct capi_get_profile_req req = { 0 };
 	uint16_t error;
 
 	if (buf_len == 0) {
@@ -1399,7 +1399,7 @@ uint16_t
 capi_firmware_download(struct capi20_backend *cbe, uint32_t controller, 
   struct isdn_dr_prot *protocols_ptr, uint16_t protocols_len)
 {
-	struct isdn_download_request req = { /* zero */ };
+	struct isdn_download_request req = { 0 };
 
 	if(protocols_ptr == NULL) 
 	{
@@ -2129,7 +2129,7 @@ capi20_decode(void *ptr, uint16_t len, void *ie)
 		       * software is looking up fields before
 		       * checking the length!
 		       */
-		      static const uint8_t empty_struct[8] = { /* zero */ };
+		      static const uint8_t empty_struct[8] = { 0 };
 
 		      /* structure is empty or non-existing */
 		      ((void_p_t *)(ie))->data = (void *)&empty_struct;
