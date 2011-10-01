@@ -410,7 +410,7 @@ capilib_alloc_app_bintec(struct capi20_backend *cbe)
  *
  * @retval Else          An error happened.
  *---------------------------------------------------------------------------*/
-uint16_t
+static uint16_t
 capilib_bintec_do_cmd(struct app_softc *sc, uint16_t wReqCmd, 
     uint16_t wConfCmd, void *pReq, void *pConf)
 {
@@ -549,7 +549,7 @@ capilib_bintec_do_ioctl(struct app_softc *sc, uint32_t cmd, void *data)
 		req.ctrl.sData2.ptr = sc->sc_temp + len;
 		req.ctrl.sData2.len = MD5_DIGEST_LENGTH;
 
-		if ((len + MD5_DIGEST_LENGTH) > sizeof(sc->sc_temp)) {
+		if ((len + MD5_DIGEST_LENGTH) > (int)sizeof(sc->sc_temp)) {
 		    error = CAPI_ERROR_INVALID_BUFFER_SIZE;
 		    break;
 		}
@@ -559,10 +559,10 @@ capilib_bintec_do_ioctl(struct app_softc *sc, uint32_t cmd, void *data)
 		/* compute digest */
 
 	        MD5Init(md5Context);
-		MD5Update(md5Context, (void *)(ptr->pUserName), len);
+		MD5Update(md5Context, (const void *)(ptr->pUserName), len);
 		MD5Update(md5Context, conf.ctrl.sData1.ptr,
 		 conf.ctrl.sData1.len);
-		MD5Update(md5Context, (void *)(ptr->pPassWord), 
+		MD5Update(md5Context, (const void *)(ptr->pPassWord), 
 		 strlen(ptr->pPassWord));
 		MD5Final(sc->sc_temp + len, md5Context);
 
