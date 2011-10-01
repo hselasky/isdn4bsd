@@ -849,7 +849,7 @@ capi20_get_message(uint32_t app_id, uint8_t **buf_pp)
 
 	/* ignore too short messages */
 
-	if(len < sizeof(struct CAPI_HEADER_ENCODED))
+	if(len < (int)sizeof(struct CAPI_HEADER_ENCODED))
 	{
 	    goto again;
 	}
@@ -1855,7 +1855,7 @@ capi_message_decoded_to_string(char *dst, uint16_t len,
 
     while(1)
     {
-      var = ADD_BYTES(mp, ptr->offset);
+      var = ADD_BYTES((void *)(long)mp, ptr->offset);
 
       switch(ptr->what) {
       default:
