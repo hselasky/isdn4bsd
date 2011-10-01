@@ -370,10 +370,12 @@ capi20_register(struct capi20_backend *cbe,
 {
 	struct app_softc *sc;
 	struct data_buffer *mp;
-	struct capi_register_req req = { 0 };
+	struct capi_register_req req;
 	uint32_t size;
 	uint32_t max_msg_data_size;
 	int32_t temp = 1;
+
+	memset(&req, 0, sizeof(req));
 
 	if (app_id_ptr == NULL) {
 	    return CAPI_ERROR_INVALID_PARAM;
@@ -927,7 +929,9 @@ capi20_get_message(uint32_t app_id, uint8_t **buf_pp)
 		struct {
 		  struct CAPI_HEADER_ENCODED head;
 		  struct CAPI_DATA_B3_RESP_ENCODED data;
-		} __packed resp = { { 0 } };
+		} __packed resp;
+
+		memset(&resp, 0, sizeof(resp));
 
 		/* acknowledge the frame here, 
 		 * hence the application won't
@@ -999,12 +1003,14 @@ capi20_get_message(uint32_t app_id, uint8_t **buf_pp)
 uint16_t
 capi20_wait_for_message(uint32_t app_id, struct timeval *timeval_ptr)
 {
-	struct pollfd  pollfd = { 0 };
+	struct pollfd  pollfd;
 	struct timeval tvEnd;
 	struct timeval tvCurr;
 	struct timeval tvTmp;
 	int            timeout;
 	int            error;
+
+	memset(&pollfd, 0, sizeof(pollfd));
 
 	/* get file number */
 	pollfd.fd = capi20_fileno(app_id);
@@ -1116,8 +1122,10 @@ uint16_t
 capi20_get_manufacturer(struct capi20_backend *cbe, uint32_t controller,
     char *buf_ptr, uint16_t buf_len)
 {
-	struct capi_get_manufacturer_req req = { 0 };
+	struct capi_get_manufacturer_req req;
 	uint16_t error;
+
+	memset(&req, 0, sizeof(req));
 
 	if (buf_len == 0) {
 	    /* nothing to do */
@@ -1164,8 +1172,10 @@ uint16_t
 capi20_get_version(struct capi20_backend *cbe, uint32_t controller,
     char *buf_ptr, uint16_t buf_len)
 {
-	struct capi_get_version_req req = { 0 };
+	struct capi_get_version_req req;
 	uint16_t error;
+
+	memset(&req, 0, sizeof(req));
 
 	if (buf_len == 0) {
 	    /* nothing to do */
@@ -1224,8 +1234,10 @@ uint16_t
 capi20_get_serial_number(struct capi20_backend *cbe, uint32_t controller,
    char *buf_ptr, uint16_t buf_len)
 {
-	struct capi_get_serial_req req = { 0 };
+	struct capi_get_serial_req req;
 	uint16_t error;
+
+	memset(&req, 0, sizeof(req));
 
 	if (buf_len == 0) {
 	    /* nothing to do */
@@ -1284,8 +1296,10 @@ uint16_t
 capi20_get_profile(struct capi20_backend *cbe, uint32_t controller, 
     void *buf_ptr, uint16_t buf_len)
 {
-	struct capi_get_profile_req req = { 0 };
+	struct capi_get_profile_req req;
 	uint16_t error;
+
+	memset(&req, 0, sizeof(req));
 
 	if (buf_len == 0) {
 	    /* nothing to do */
@@ -1399,7 +1413,9 @@ uint16_t
 capi_firmware_download(struct capi20_backend *cbe, uint32_t controller, 
   struct isdn_dr_prot *protocols_ptr, uint16_t protocols_len)
 {
-	struct isdn_download_request req = { 0 };
+	struct isdn_download_request req;
+
+	memset(&req, 0, sizeof(req));
 
 	if(protocols_ptr == NULL) 
 	{
