@@ -43,6 +43,8 @@ sigchild_handler(int sig)
 {
 	int retstat;
 	pid_t pid;
+
+	(void)sig;
 	
 	if((pid = waitpid(-1, &retstat, WNOHANG)) <= 0)
 	{
@@ -93,7 +95,7 @@ sigchild_handler(int sig)
  *	execute prog as a subprocess and pass an argumentlist
  *---------------------------------------------------------------------------*/
 pid_t
-exec_prog(char *prog, char **arglist)
+exec_prog(const char *prog, const char ** arglist)
 {
 	char tmp[MAXPATHLEN];
 	char path[MAXPATHLEN+1];
@@ -108,8 +110,8 @@ exec_prog(char *prog, char **arglist)
 
 	for(a=1; arglist[a] != NULL; ++a )
 	{
-		strcat(tmp, " " );
-		strcat(tmp, arglist[a]);
+		strlcat(tmp, " ", sizeof(tmp));
+		strlcat(tmp, arglist[a], sizeof(tmp));
 	}
 
 	DBGL(DL_PROC, (log(LL_DBG, "%s, args:%s", path, tmp)));
@@ -141,7 +143,7 @@ exec_prog(char *prog, char **arglist)
 	if(uselogfile && logfp)
 		fclose(logfp);
 
-	if(execvp(path,arglist) < 0 )
+	if(execvp(path, (char * const *)(long)arglist) < 0 )
 		_exit(127);
 
 	return(-1);
@@ -153,7 +155,8 @@ exec_prog(char *prog, char **arglist)
 int
 exec_connect_prog(cfg_entry_t *cep, const char *prog, int link_down)
 {
-	char *argv[32], **av = argv;
+	const char *argv[32];
+	const char **av = argv;
 	char devicename[MAXPATHLEN], addr[100];
 	const char *device;
 	int s;
@@ -162,7 +165,7 @@ exec_connect_prog(cfg_entry_t *cep, const char *prog, int link_down)
 	/* the obvious things */
 	device = driver_devicename(cep->usrdevicename);
 	snprintf(devicename, sizeof(devicename), "%s%d", device, cep->usrdeviceunit);
-	*av++ = (char*)prog;
+	*av++ = (const char*)prog;
 	*av++ = "-d";
 	*av++ = devicename;
 	*av++ = "-f";
@@ -187,7 +190,7 @@ exec_connect_prog(cfg_entry_t *cep, const char *prog, int link_down)
 	/* terminate argv */
 	*av++ = NULL;
 
-	return exec_prog((char*)prog, argv);
+	return exec_prog(prog, argv);
 }
 
 /*---------------------------------------------------------------------------*
@@ -196,8 +199,8 @@ exec_connect_prog(cfg_entry_t *cep, const char *prog, int link_down)
 int
 exec_answer(cfg_entry_t *cep)
 {
-	char *argv[32];
-	u_char devicename[MAXPATHLEN];	
+	const char *argv[32];
+	char devicename[MAXPATHLEN];	
 	int pid;
 	const char *device;
 

@@ -165,8 +165,8 @@ WINDOW *lower_w;		/* curses lower window pointer */
 
 char devbuf[256];
 
-char *sockpath = NULL;
-char *hostname = NULL;
+const char *sockpath = NULL;
+const char *hostname = NULL;
 int portno;
 
 #else /* !MAIN */
@@ -186,8 +186,8 @@ WINDOW *lower_w;
 
 char devbuf[256];
 
-char *sockpath;
-char *hostname;
+const char *sockpath;
+const char *hostname;
 int portno;
 
 #endif
@@ -197,10 +197,10 @@ extern void do_menu ( void );
 extern void init_screen ( void );
 extern void display_charge ( int pos, int charge );
 extern void display_ccharge ( int pos, int units );
-extern void display_connect(int pos, int dir, char *name, char *remtel, char *dev);
+extern void display_connect(int pos, int dir, const char *name, const char *remtel, const char *dev);
 extern void display_acct ( int pos, int obyte, int obps, int ibyte, int ibps );
 extern void display_disconnect ( int pos );
-extern void display_updown ( int pos, int updown, char *device );
+extern void display_updown ( int pos, int updown, const char *device );
 extern void display_l12stat ( int controller, int layer, int state );
 extern void display_tei ( int controller, int tei );
 

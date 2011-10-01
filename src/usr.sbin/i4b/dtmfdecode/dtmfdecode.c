@@ -29,8 +29,7 @@
 #define SEG_MASK        (0x70)          /* Segment field mask. */
 
 static int
-alaw2linear(a_val)
-        unsigned char   a_val;
+alaw2linear(unsigned char a_val)
 {
         int             t;
         int             seg;
@@ -67,7 +66,7 @@ static int p1[8] = {-3497, -3369, -3212, -3027, -2384, -2040, -1635, -1164};
 #define P2 ((int)(POLRAD*POLRAD*FSC))
 
 int
-main(int argc, char **argv)
+main(void)
 {
 	int i, kk, t, nn, s, so, ia;
 	int x, c, d, f, h[8], k[8], n, y[8];

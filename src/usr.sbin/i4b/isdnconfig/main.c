@@ -362,7 +362,9 @@ dump_ec_fir_filter(struct options *opt)
 static void
 flush_command(struct options *opt)
 {
-    i4b_debug_t dbg = { /* zero */ };
+    i4b_debug_t dbg;
+
+    memset(&dbg, 0, sizeof(dbg));
 
     /* first check for contradictions */
 
@@ -544,10 +546,13 @@ flush_command(struct options *opt)
 
         if(opt->got_p)
 	{
-	    msg_prot_ind_t mpi = { /* zero */ };
+	    msg_prot_ind_t mpi;
+
+	    memset(&mpi, 0, sizeof(mpi));
 
 	    mpi.serial_number = 
-	      opt->got_i ? opt->serial : (opt->unit + 0xABCD);
+	      opt->got_i ? (unsigned)opt->serial :
+		(unsigned)(opt->unit + 0xABCD);
 
 	    mpi.driver_type = opt->driver_type;
 
@@ -588,7 +593,9 @@ flush_command(struct options *opt)
 static void
 controller_info(u_int32_t controller)
 {
-    msg_ctrl_info_req_t mcir = { /* zero */ };
+    msg_ctrl_info_req_t mcir;
+
+    memset(&mcir, 0, sizeof(mcir));
 
     mcir.controller = controller;
 
@@ -628,9 +635,11 @@ controller_info(u_int32_t controller)
 int
 main(int argc, char **argv)
 {
-    register int c;
-    msg_vr_req_t mvr = { /* zero */ };
+    int c;
+    msg_vr_req_t mvr;
     struct options *opt = alloca(sizeof(*opt));
+
+    memset(&mvr, 0, sizeof(mvr));
 
     reset_options(opt);
 
@@ -872,7 +881,7 @@ main(int argc, char **argv)
 
 	  /* display info about all controllers */
 
-	  for(c = 0; c < mvr.max_controllers; c++) {
+	  for(c = 0; c < (int)mvr.max_controllers; c++) {
 	      controller_info(c);
 	  }
       }

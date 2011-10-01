@@ -46,7 +46,7 @@ static struct alias *firsta = NULL;
  *	read in and init aliases
  *---------------------------------------------------------------------------*/
 void 
-init_alias(char *filename)
+init_alias(const char *filename)
 {
 	FILE *fp;
 	unsigned char buffer[MAXBUFSZ + 1];

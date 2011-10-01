@@ -117,8 +117,8 @@ print_cause(cause_t code)
 		case CAUSET_Q850:
 			strcat(error_message, "Q.850: ");
 
-			if((cause_val >= 0) &&
-			   (cause_val < INDEXES(Q850_CAUSES_DESC)))
+			if(/* (cause_val >= 0) && */
+			   (cause_val < (cause_t)INDEXES(Q850_CAUSES_DESC)))
 			{
 				ptr = Q850_CAUSES_DESC[cause_val];
 			}
@@ -127,8 +127,8 @@ print_cause(cause_t code)
 		case CAUSET_I4B:
 			strcat(error_message, "I4B: ");
 
-			if((cause_val >= 0) &&
-			   (cause_val < INDEXES(I4B_CAUSES_DESC)))
+			if(/* (cause_val >= 0) && */
+			   (cause_val < (cause_t)INDEXES(I4B_CAUSES_DESC)))
 			{
 				ptr = I4B_CAUSES_DESC[cause_val];
 			}
@@ -337,7 +337,7 @@ ev_disconnect_from_i4b(msg_disconnect_ind_t *mp, cfg_entry_t *cep_exception)
 {
   CEP_FOREACH(cep,&cfg_entry_tab[0])
   {
-    if((cep->cdid == mp->header.cdid) &&
+    if((cep->cdid == (int)mp->header.cdid) &&
        (cep != cep_exception))
     {
 	cep->disc_cause = mp->cause;
@@ -542,7 +542,9 @@ ev_connect_from_i4b(msg_connect_active_ind_t *mp)
   if((cep->state == ST_WAIT_CONNECT) ||
      (cep->state == ST_DIAL))
   {
-	msg_link_b_channel_driver_req_t mlr = { /* zero */ };
+	msg_link_b_channel_driver_req_t mlr;
+
+	memset(&mlr, 0, sizeof(mlr));
 
 	mlr.cdid = mp->header.cdid;
 	mlr.activate = 1;
@@ -998,13 +1000,12 @@ ev_incoming_from_i4b(msg_connect_ind_t *mp)
 void
 handle_recovery(void)
 {
-	static time_t last_time, last_unit_check;
+	static unsigned last_time;
+	static unsigned last_unit_check;
 	char check_units;
-	time_t now;
+	unsigned now;
 
-#warning "this code assumes that time_t is unsigned"
-
-	now = time(NULL);	/* get current time */
+	now = (unsigned)time(NULL);	/* get current time */
 
 	if((now - last_time) >= 1)
 	{

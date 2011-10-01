@@ -33,7 +33,7 @@
  *
  *---------------------------------------------------------------------------*/
 
-static void update_state(int event, char *reason);
+static void update_state(int event, const char *reason);
 static void kbd_hdlr(void);
 
 #include "defs.h"
@@ -105,8 +105,8 @@ main(int argc, char **argv)
 	char opt_k = 0;
 	char opt_w = 0;
 	char opt_unit = 0;
-	char *number = "";
-	char *subaddr = "";
+	const char *number = "";
+	const char *subaddr = "";
 
 	/* init non-zero-global variables */
 
@@ -266,10 +266,10 @@ main(int argc, char **argv)
 
 	for (;;)
 	{
-		int sound;
+		int sound = 0;
 		int maxfd = 0;
 		fd_set set;
-		struct timeval timeout;
+		struct timeval timo;
 
 		FD_ZERO(&set);
 		
@@ -281,8 +281,8 @@ main(int argc, char **argv)
 		if(dialerfd > maxfd)
 			maxfd = dialerfd;
 		
-		timeout.tv_sec = 4;
-		timeout.tv_usec = 0;
+		timo.tv_sec = 4;
+		timo.tv_usec = 0;
 
 		if(state == ST_INCOMING)
 		{
@@ -290,13 +290,13 @@ main(int argc, char **argv)
 
 		  if(sound & 3)
 		  {
-		    timeout.tv_sec = 0;
-		    timeout.tv_usec = 250000;
+		    timo.tv_sec = 0;
+		    timo.tv_usec = 250000;
 		  }
 		  else
 		  {
-		    timeout.tv_sec = 1;
-		    timeout.tv_usec = 0;
+		    timo.tv_sec = 1;
+		    timo.tv_usec = 0;
 		  }
 		  sound++;
 		  beep();
@@ -311,7 +311,7 @@ main(int argc, char **argv)
 		/* if no char is available within timeout, do something */
 		
 		ret = select(maxfd+1, &set, NULL, NULL,
-			     select_timeout ? &timeout : NULL);
+			     select_timeout ? &timo : NULL);
 
 		if(ret > 0)
 		{
@@ -521,7 +521,7 @@ kbd_hdlr(void)
 		case '8':
 		case '9':
 	    display_char:
-			if(curx < (INDEXES(numberbuffer)-1))
+			if(curx < (int)(INDEXES(numberbuffer)-1))
 			{
 			  numberbuffer[curx] = kchar;
 			  curx++;
@@ -538,7 +538,7 @@ kbd_hdlr(void)
  *	update state
  *---------------------------------------------------------------------------*/
 static void
-update_state(int event, char *reason)
+update_state(int event, const char *reason)
 {
 	static const char * const
 	  MAKE_TABLE(EVENTS,DESC,[]);
@@ -622,7 +622,6 @@ update_state(int event, char *reason)
 	case EV_LARGE_BUFFER:
 		if(large_buffer)
 		{
-		disable_large_buffer:
 		  /* disable large_buffer */
 		  ioctl(tel_fd,I4B_TEL_DISABLE_LARGE_BUFFER,NULL);
 		  reason = "normal buffer";

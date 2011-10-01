@@ -60,8 +60,8 @@ static u_int8_t  bpopt = 0;
 static u_int8_t  info = 0;
 static u_int8_t  Fopt = 0;
 static u_int8_t  outfileset = 0;
-static u_int8_t *outfile = TRACE_FILE_NAME;
-static u_int8_t *binfile = BIN_FILE_NAME;
+static const char *outfile = TRACE_FILE_NAME;
+static const char *binfile = BIN_FILE_NAME;
 static u_int8_t  once = 1;
 static u_int8_t  npoll = 0;
 
@@ -122,7 +122,7 @@ usage(void)
  *	exit handler function to be called at program exit
  *---------------------------------------------------------------------------*/
 static void
-exit_hdl()
+exit_hdl(void)
 {
 	if(traceon)
 	    switch_driver(TRACE_OFF);
@@ -169,7 +169,7 @@ buf_init(struct buffer *dst, void *start, u_int16_t len)
 /*---------------------------------------------------------------------------*
  *	print text safely to a buffer
  *---------------------------------------------------------------------------*/
-void
+static void
 bsprintf(struct buffer *dst, const void *fmt, ...)
 {
 	int error;
@@ -193,7 +193,7 @@ bsprintf(struct buffer *dst, const void *fmt, ...)
 /*---------------------------------------------------------------------------*
  *	decode layer 1 information
  *---------------------------------------------------------------------------*/
-void
+static void
 layer1(struct buffer *dst, struct buffer *src)
 {
     u_int8_t j;
@@ -564,28 +564,28 @@ main(int argc, char *argv[])
 		{
 			n = read_driver(&tempbuffer[0], sizeof(tempbuffer));
 
-			if(n < sizeof(i4b_trace_hdr_t))
+			if(n < (int)sizeof(i4b_trace_hdr_t))
 			{
 			    err(1, "Invalid trace length, %d bytes!", n);
 			}
 
 			if(Bopt)
 			{
-			    if(fwrite(&tempbuffer[0], 1, n, BP) != n)
+			    if(fwrite(&tempbuffer[0], 1, n, BP) != (size_t)n)
 			    {
 			        err(1, "Error writing file [%s]", 
 				    &BPfilename[0]);
 			    }
 			}
 
-			n -= sizeof(i4b_trace_hdr_t);			
+			n -= (int)sizeof(i4b_trace_hdr_t);			
 		}
 		else
 		{
 again:
 			n = sizeof(i4b_trace_hdr_t);
 
-			if(fread(&tempbuffer[0], 1, n, BP) != n)
+			if(fread(&tempbuffer[0], 1, n, BP) != (size_t)n)
 			{
 			    if(feof(BP))
 			    {
@@ -636,12 +636,12 @@ again:
 			ithp = (void *)&tempbuffer[0];
 			n = ithp->length - sizeof(i4b_trace_hdr_t);
 
-			if((n < 0) || (n > (sizeof(tempbuffer) - sizeof(i4b_trace_hdr_t))))
+			if((n < 0) || (n > (int)(sizeof(tempbuffer) - sizeof(i4b_trace_hdr_t))))
 			{
 			    err(1, "Invalid trace data length in header, %d bytes!", n);
 			}
 
-			if(fread(&tempbuffer[sizeof(i4b_trace_hdr_t)], 1, n, BP) != n)
+			if(fread(&tempbuffer[sizeof(i4b_trace_hdr_t)], 1, n, BP) != (size_t)n)
 			{
 			    err(1, "Error reading data from "
 				"file [%s]", &BPfilename[0]);
@@ -938,7 +938,7 @@ read_driver(void *buffer, u_int32_t len)
 	break;
     }
 
-    if(analyze && (error >= sizeof(i4b_trace_hdr_t)))
+    if(analyze && (error >= (int)sizeof(i4b_trace_hdr_t)))
     {
         i4b_trace_hdr_t *hdr = buffer;
 
@@ -962,6 +962,8 @@ read_driver(void *buffer, u_int32_t len)
 static void
 reopenfiles(int dummy)
 {
+	(void)dummy;
+
 	if(outflag)
 	{
 		fclose(Fout);

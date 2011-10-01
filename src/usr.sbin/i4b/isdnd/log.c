@@ -41,7 +41,7 @@
  *	check for a match in the regexp array
  *---------------------------------------------------------------------------*/
 static void
-check_reg(char *logstring)
+check_reg(const char *logstring)
 {
 	register int i;
 
@@ -49,7 +49,7 @@ check_reg(char *logstring)
 	{
 		if(rarr[i].re_flg && (!regexec(&(rarr[i].re), logstring, (size_t) 0, NULL, 0)))
 		{
-			char* argv[3];
+			const char* argv[3];
 			argv[0] = rarr[i].re_prog;
 			argv[1] = logstring;
 			argv[2] = NULL;
@@ -64,7 +64,7 @@ check_reg(char *logstring)
  * 	table for converting internal log levels into syslog levels
  *---------------------------------------------------------------------------*/
 static const struct logtab {
-	char * const text;
+	const char * const text;
 	int pri;
 } MAKE_TABLE(LOGIDS,TABLE,[]);
 
@@ -176,7 +176,7 @@ do_log(int what, const char *fmt, ...)
 #include <osreldate.h>
 #endif
 #if defined(__FreeBSD_version) && __FreeBSD_version >= 400009		
-#warning "FreeBSD ncurses is buggy: write to last column = auto newline!"
+/* NOTE: "FreeBSD ncurses is buggy: write to last column = auto newline!" */
 		     COLS-((strlen(dp))+(strlen(LOGIDS_TABLE[what].text))+3), buffer);
 #else
 		     (int)(COLS-((strlen(dp))+(strlen(LOGIDS_TABLE[what].text))+2)), buffer);

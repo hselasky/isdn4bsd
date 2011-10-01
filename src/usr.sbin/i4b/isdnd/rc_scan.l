@@ -47,7 +47,17 @@
 
 #include "rc_parse.h"
 
+extern int	yylex(void);
+extern void	reset_scanner(FILE *infile);
+
 int lineno;
+
+void
+reset_scanner(FILE *infile)
+{
+        yyrestart(infile);
+        lineno = 1;
+}
 
 %}
 
@@ -198,10 +208,3 @@ yes				{ return YES; }
 .				{ return yytext[0]; }
 
 %%
-
-void
-reset_scanner(FILE *infile)
-{
-        yyrestart(infile);
-        lineno = 1;
-}

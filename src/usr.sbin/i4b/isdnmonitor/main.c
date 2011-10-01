@@ -90,26 +90,26 @@ int getopt(int nargc, char * const nargv[], const char *ostr);
 /*
  * Local function prototypes
  */
-static int connect_local(char *sockpath);
-static int connect_remote(char *host, int portno);
-static void usage();
-static void mloop();
-static void handle_input();
-static void print_menu();
-static void print_logevent(time_t tstamp, int prio, char * what, char * msg);
+static int connect_local(const const char *sockpath);
+static int connect_remote(const const char *host, int portno);
+static void usage(void);
+static void mloop(void);
+static void handle_input(void);
+static void print_menu(void);
+static void print_logevent(time_t tstamp, int prio, const char * what, const char * msg);
 static void print_charge(time_t tstamp, int controller, int channel, int units, int estimated);
-static void print_connect(time_t tstamp, int dir, int controller, int channel, char * cfgname, char * devname, char * remphone, char * locphone);
+static void print_connect(time_t tstamp, int dir, int controller, int channel, const const char * cfgname, const const char *, const const char *, const const char *);
 static void print_disconnect(time_t tstamp, int controller, int channel);
 static void print_updown(time_t tstamp, int contoller, int channel, int isup);
-static void handle_event(u_int8_t *msg, int len);
+static void handle_event(const char *msg, int len);
 #ifdef DEBUG
-static void dump_event(u_int8_t *msg, int len, int readflag);
+static void dump_event(const char *msg, int len, int readflag);
 #endif
 
 static ssize_t sock_read(int fd, void *buf, size_t nbytes);
 static ssize_t sock_write(int fd, void *buf, size_t nbytes);
 
-static void mprintf(char *fmt, ...);
+static void mprintf(const char *fmt, ...);
 
 /*
  * Global variables
@@ -127,14 +127,14 @@ static int isdn_major = 0;
 static int isdn_minor = 0;
 static u_int32_t rights = 0;
 
-static char *logfilename = NULL;
+static const char *logfilename = NULL;
 static FILE *lfp = NULL;
 
 /*---------------------------------------------------------------------------
  *	Display usage and exit
  *---------------------------------------------------------------------------*/
 static void
-usage()
+usage(void)
 {
         fprintf(stderr, "\n");
         fprintf(stderr, "isdnmonitor - version %02d.%02d.%d, %s %s (protocol %02d.%02d)\n", I4B_VERSION, I4B_REL, I4B_STEP, __DATE__, __TIME__, MPROT_VERSION, MPROT_REL);
@@ -269,7 +269,7 @@ int main(int argc, char **argv)
  *	Return socket if successfull, -1 on error.
  ---------------------------------------------------------------------------*/
 static int
-connect_remote(char *host, int portno)
+connect_remote(const char *host, int _port)
 {
 	struct sockaddr_in sa;
 	struct hostent *h;
@@ -297,7 +297,7 @@ connect_remote(char *host, int portno)
 	sa.sin_len = sizeof(sa);
 #endif
 	sa.sin_family = AF_INET;
-	sa.sin_port = htons(portno);
+	sa.sin_port = htons(_port);
 
 	memcpy(&sa.sin_addr.s_addr, h->h_addr_list[0], sizeof(sa.sin_addr.s_addr));
 
@@ -316,16 +316,16 @@ connect_remote(char *host, int portno)
  *	Return socket on success, -1 on failure.
  *---------------------------------------------------------------------------*/
 static int
-connect_local(char *sockpath)
+connect_local(const char *_spath)
 {
 	int s;
 	struct sockaddr_un sa;
 
 	/* check path length */
-	if(strlen(sockpath) >= sizeof(sa.sun_path))
+	if(strlen(_spath) >= sizeof(sa.sun_path))
 	{
 		fprintf(stderr, "pathname to long for local socket: %s\n",
-			sockpath);
+			_spath);
 		exit(1);
 	}
 
@@ -342,11 +342,11 @@ connect_local(char *sockpath)
 
 	sa.sun_len = sizeof(sa);
 	sa.sun_family = AF_LOCAL;
-	strcpy(sa.sun_path, sockpath);
+	strcpy(sa.sun_path, _spath);
 
 	if(connect(s, (struct sockaddr *)&sa, sizeof(sa)))
 	{
-		fprintf(stderr, "could not connect local monitor socket [%s]: %s\n", sockpath, strerror(errno));
+		fprintf(stderr, "could not connect local monitor socket [%s]: %s\n", _spath, strerror(errno));
 	}
 
 	return s;
@@ -444,7 +444,7 @@ mloop()
 
 			bytes = I4B_GET_2B(buf, I4B_MON_EVNT_LEN);
 
-			if(bytes >= sizeof(buf))
+			if(bytes >= (int)sizeof(buf))
 			{
 				fprintf(stderr, "mloop: socket recv buffer overflow %d!\n", bytes);
 				break;
@@ -482,11 +482,11 @@ mloop()
 /*
  * Dump a complete event packet.
  */
-static void dump_event(u_int8_t *msg, int len, int read)
+static void dump_event(const char *msg, int len, int is_read)
 {
 	int i;
 
-	if(read)
+	if(is_read)
 		mprintf("read from socket:");
 	else
 		mprintf("write to socket:");
@@ -502,7 +502,7 @@ static void dump_event(u_int8_t *msg, int len, int read)
 #endif
 
 static void
-print_logevent(time_t tstamp, int prio, char * what, char * msg)
+print_logevent(time_t tstamp, int prio, const char * what, const char * msg)
 {
 	char buf[256];
 	strftime(buf, sizeof(buf), I4B_TIME_FORMAT, localtime(&tstamp));
@@ -522,7 +522,7 @@ print_logevent(time_t tstamp, int prio, char * what, char * msg)
 #include <osreldate.h>
 #endif
 #if defined(__FreeBSD_version) && __FreeBSD_version >= 400009
-#warning "FreeBSD ncurses is buggy: write to last column = auto newline!"
+/* NOTE: FreeBSD ncurses is buggy: write to last column = auto newline! */
 	                wprintw(lower_w, "%s %s %-.*s\n", buf, what,
 				COLS-((strlen(buf))+(strlen(what))+3), msg);
 #else
@@ -563,10 +563,10 @@ static void print_connect(
 	int outgoing,	/* 0 = incoming, 1 = outgoing */
 	int controller, /* controller number */
 	int channel,	/* channel no, used to identify this connection until disconnect */
-	char * cfgname, 	/* name of config entry/connection */
-	char * devname, 	/* device used (e.g. isp0) */
-	char * remphone, 	/* phone no of remote side */
-	char * locphone)	/* local phone no */
+	const char * cfgname, 	/* name of config entry/connection */
+	const char * _devname, 	/* device used (e.g. isp0) */
+	const char * remphone, 	/* phone no of remote side */
+	const char * locphone)	/* local phone no */
 {
 	char buf[256];
 
@@ -584,11 +584,11 @@ static void print_connect(
 		mprintf("%s: incoming call from '%s' [to msn: '%s']",
 			buf, remphone, locphone);
 	mprintf(", controller %d, channel %d, config '%s' on device '%s'\n",
-		controller, channel, cfgname, devname);
+		controller, channel, cfgname, _devname);
 
 #ifndef WIN32
 	if(fullscreen)
-		display_connect(CHPOS(controller, channel), outgoing, cfgname, remphone, devname);
+		display_connect(CHPOS(controller, channel), outgoing, cfgname, remphone, _devname);
 #endif
 }
 
@@ -625,6 +625,9 @@ static void
 print_updown(time_t tstamp, int controller, int channel, int isup)
 {
 	char buf[256];
+
+	(void)controller;
+
 	strftime(buf, sizeof(buf), I4B_TIME_FORMAT, localtime(&tstamp));
 	mprintf("%s: channel %d is %s\n",
 		buf, channel, isup ? "up" : "down");
@@ -634,16 +637,16 @@ print_updown(time_t tstamp, int controller, int channel, int isup)
  * Print l1 / l2 status
  */
 static void
-print_l12stat(time_t tstamp, int controller, int layer, int state)
+print_l12stat(time_t tstamp, int controller, int layer, int _st)
 {
 	char buf[256];
 	strftime(buf, sizeof(buf), I4B_TIME_FORMAT, localtime(&tstamp));
 
 	mprintf("%s: layer %d change on controller %d: %s\n",
-		buf, layer, controller, state ? "up" : "down");
+		buf, layer, controller, _st ? "up" : "down");
 #ifndef WIN32
 	if(fullscreen)
-		display_l12stat(controller, layer, state);
+		display_l12stat(controller, layer, _st);
 #endif
 }
 
@@ -703,7 +706,7 @@ print_initialization(void)
  * Dispatch one message received from the daemon.
  */
 static void
-handle_event(u_int8_t *msg, int len)
+handle_event(const char *msg, int len)
 {
 	u_int8_t cmd[I4B_MON_ICLIENT_SIZE];
 	int local;	
@@ -957,7 +960,7 @@ handle_event(u_int8_t *msg, int len)
  * Process input from user
  */
 static void
-handle_input()
+handle_input(void)
 {
 	char buf[1024];
 	int channel, controller;
@@ -1097,7 +1100,7 @@ hangup(int ctrl, int chan)
  * Display menu
  */
 static void
-print_menu()
+print_menu(void)
 {
 	if(!fullscreen)
 	{
@@ -1173,7 +1176,7 @@ sock_write(int fd, void *buf, size_t nbytes)
 }
 
 static void
-mprintf(char *fmt, ...)
+mprintf(const char *fmt, ...)
 {
 #define	PRBUFLEN 1024
 	char buffer[PRBUFLEN];

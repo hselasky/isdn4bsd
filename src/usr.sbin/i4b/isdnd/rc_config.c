@@ -38,7 +38,6 @@
 
 static void check_config(void);
 static void print_config(void);
-static void parse_valid(int entrycount, char *dt);
 
 static int nregexpr = 0;
 static int nregprog = 0;
@@ -137,6 +136,19 @@ set_config_defaults(void)
 	
 	for(i=0; i < CFG_ENTRY_MAX; i++, cep++)
 	{
+		/* free allocated strings */
+
+		free(cep->answerprog);
+		free(cep->budget_callbacks_file);
+		free(cep->budget_callouts_file);
+		free(cep->connectprog);
+		free(cep->disconnectprog);
+
+		cep->answerprog = NULL;
+		cep->budget_callbacks_file = NULL;
+		cep->budget_callouts_file = NULL;
+		cep->connectprog = NULL;
+		cep->disconnectprog = NULL;
 
 		/* ====== filled in at startup configuration, then static */
 
@@ -162,7 +174,7 @@ set_config_defaults(void)
 		
 	 	cep->unitlengthsrc = ULSRC_NONE;
 
-		cep->answerprog = ANSWERPROG_DEF;
+		cep->answerprog = strdup(ANSWERPROG_DEF);
 
 		cep->callbackwait = CALLBACKWAIT_MIN;
 
@@ -207,10 +219,8 @@ set_config_defaults(void)
  *	called from main to read and process config file
  *---------------------------------------------------------------------------*/
 void
-configure(char *filename, int reread)
+configure(const char *filename, int reread)
 {
-	extern void reset_scanner(FILE *inputfile);
-
 	close_allactive();
 
 #if I4B_EXTERNAL_MONITOR
@@ -1661,16 +1671,15 @@ print_config(void)
 #define PFILE stdout
 
 #ifdef I4B_EXTERNAL_MONITOR
-	extern struct monitor_rights * monitor_next_rights(const struct monitor_rights *r);
 	struct monitor_rights *m_rights;
 #endif
 	cfg_entry_t *cep = &cfg_entry_tab[0];	/* ptr to config entry */
 	int i, j;
-	time_t clock;
+	time_t clock_now;
 	char mytime[64];
 
-	time(&clock);
-	strcpy(mytime, ctime(&clock));
+	time(&clock_now);
+	strcpy(mytime, ctime(&clock_now));
 	mytime[strlen(mytime)-1] = '\0';
 
 	fprintf(PFILE, "#---------------------------------------------------------------------------\n");
@@ -1711,7 +1720,7 @@ print_config(void)
 	m_rights = monitor_next_rights(NULL);
 	if(m_rights != NULL)
 	{
-		char *s = "error\n";
+		const char *s = "error\n";
 		char b[512];
 
 		for ( ; m_rights != NULL; m_rights = monitor_next_rights(m_rights))
@@ -1967,7 +1976,7 @@ print_config(void)
 
 		if(cep->usrdevicename == DRVR_ISPPP)
 		{
-			char *s;
+			const char *s;
 			switch(cep->ppp_expect_auth)
 			{
 				case AUTH_NONE:
@@ -2025,7 +2034,7 @@ print_config(void)
 
 		if(!((cep->inout == DIR_INONLY) || (cep->usrdevicename == DRVR_TEL)))
 		{
-			char *s;
+			const char *s;
 			fprintf(PFILE, "idletime-outgoing     = %d\t\t# outgoing call idle timeout\n", cep->idle_time_out);
 
 			switch( cep->shorthold_algorithm )

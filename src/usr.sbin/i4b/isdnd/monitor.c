@@ -227,7 +227,7 @@ monitor_start_rights(const char *clientspec)
 			s ^= ~0U;
 			l = p - clientspec;
 
-			if (l >= sizeof hostname)
+			if (l >= (int)sizeof(hostname))
 				return I4BMAR_LENGTH;
 
 			strncpy(hostname, clientspec, l);
@@ -705,6 +705,10 @@ cmd_dump_rights(int fd, int r_mask, u_int8_t *cmd, const char *source)
 	u_int8_t drini[I4B_MON_DRINI_SIZE];
 	u_int8_t dr[I4B_MON_DR_SIZE];
 
+	(void)r_mask;
+	(void)cmd;
+	(void)source;
+
 	for (num_rights = 0, r = TAILQ_FIRST(&rights); r != NULL; r = TAILQ_NEXT(r, list))
 		num_rights++;
 
@@ -734,8 +738,13 @@ cmd_dump_rights(int fd, int r_mask, u_int8_t *cmd, const char *source)
  * rescan config file
  *---------------------------------------------------------------------------*/
 static void
-cmd_reread_cfg(int fd, int rights, u_int8_t *cmd, const char * source)
+cmd_reread_cfg(int fd, int r_mask, u_int8_t *cmd, const char * source)
 {
+	(void)fd;
+	(void)r_mask;
+	(void)cmd;
+	(void)source;
+
 	rereadconfig(42);
 }
 
@@ -743,10 +752,14 @@ cmd_reread_cfg(int fd, int rights, u_int8_t *cmd, const char * source)
  * drop one connection
  *---------------------------------------------------------------------------*/
 static void
-cmd_hangup(int fd, int rights, u_int8_t *cmd, const char * source)
+cmd_hangup(int fd, int r_mask, u_int8_t *cmd, const char * source)
 {
 	int channel = I4B_GET_4B(cmd, I4B_MON_HANGUP_CHANNEL);
 	int ctrl = I4B_GET_4B(cmd, I4B_MON_HANGUP_CTRL);	
+
+	(void)fd;
+	(void)r_mask;
+	(void)cmd;
 
 	hangup_channel(ctrl, channel, source);
 }
@@ -755,11 +768,15 @@ cmd_hangup(int fd, int rights, u_int8_t *cmd, const char * source)
  * dump all active monitor connections
  *---------------------------------------------------------------------------*/
 static void
-cmd_dump_mcons(int fd, int rights, u_int8_t *cmd, const char * source)
+cmd_dump_mcons(int fd, int r_mask, u_int8_t *cmd, const char * source)
 {
 	int num_connections;
 	struct monitor_connection *con;
 	u_int8_t dcini[I4B_MON_DCINI_SIZE];
+
+	(void)r_mask;
+	(void)cmd;
+	(void)source;
 
 	for (num_connections = 0, con = TAILQ_FIRST(&connections); con != NULL; con = TAILQ_NEXT(con, connections))
 		num_connections++;
@@ -802,17 +819,17 @@ cmd_dump_mcons(int fd, int rights, u_int8_t *cmd, const char * source)
  * Return non-zero if connection is closed.
  *---------------------------------------------------------------------------*/
 static int
-monitor_command(struct monitor_connection * con, int fd, int rights)
+monitor_command(struct monitor_connection * con, int fd, int r_mask)
 {
 	char cmd[I4B_MAX_MON_CLIENT_CMD];
 	u_int code;
 
 	/* command dispatch table */
-	typedef void (*cmd_func_t)(int fd, int rights, u_int8_t *cmd, const char *source);
+	typedef void (*cmd_func_t)(int fd, int r_mask, u_int8_t *cmd, const char *source);
 
 	static struct {
 		cmd_func_t call;	/* function to execute */
-		u_int rights;		/* necessary rights */
+		u_int r_mask;		/* necessary rights */
 	} cmd_tab[] =
 	{
 	/* 0 */	{ NULL, 0 },
@@ -853,7 +870,7 @@ monitor_command(struct monitor_connection * con, int fd, int rights)
 
 	bytes = I4B_GET_2B(cmd, I4B_MON_CMD_LEN);
 
-	if (bytes >= sizeof cmd)
+	if (bytes >= (int)sizeof(cmd))
 	{
 		close(fd);
 		log(LL_MER, "monitor: garbage on connection");
@@ -884,11 +901,11 @@ monitor_command(struct monitor_connection * con, int fd, int rights)
 		*/
 
 		int events = I4B_GET_4B(cmd, I4B_MON_ICLIENT_EVENTS);
-		con->events = events & rights;
+		con->events = events & r_mask;
 		return 0;
 	}
 
-	if (code < 0 || code >= NUMCMD)
+	if (/* code < 0 || */ code >= NUMCMD)
 	{
 		log(LL_MER, "illegal command from client, code = %d\n",
 			code);
@@ -898,8 +915,8 @@ monitor_command(struct monitor_connection * con, int fd, int rights)
 	if (cmd_tab[code].call == NULL)
 		return 0;
 
-	if ((cmd_tab[code].rights & rights) == cmd_tab[code].rights)
-		cmd_tab[code].call(fd, rights, cmd, con->source);
+	if ((cmd_tab[code].r_mask & r_mask) == cmd_tab[code].r_mask)
+		cmd_tab[code].call(fd, r_mask, cmd, con->source);
 
 	return 0;
 }
@@ -1024,7 +1041,7 @@ void
 monitor_evnt_connect(cfg_entry_t *cep)
 {
 	u_int8_t evnt[I4B_MON_CONNECT_SIZE];
-	char devname[I4B_MAX_MON_STRING];
+	char temp[I4B_MAX_MON_STRING];
 	int mask;
 	time_t now;
 	
@@ -1035,7 +1052,7 @@ monitor_evnt_connect(cfg_entry_t *cep)
 
 	time(&now);
 
-	snprintf(devname, sizeof devname, "%s%d", driver_name(cep->usrdevicename), cep->usrdeviceunit);
+	snprintf(temp, sizeof temp, "%s%d", driver_name(cep->usrdevicename), cep->usrdeviceunit);
 
 	I4B_PREP_EVNT(evnt, I4B_MON_CONNECT_CODE);
 	I4B_PUT_4B(evnt, I4B_MON_CONNECT_TSTAMP, (long)now);
@@ -1043,7 +1060,7 @@ monitor_evnt_connect(cfg_entry_t *cep)
 	I4B_PUT_4B(evnt, I4B_MON_CONNECT_CTRL, cep->isdncontrollerused);
 	I4B_PUT_4B(evnt, I4B_MON_CONNECT_CHANNEL, cep->isdnchannelused);	
 	I4B_PUT_STR(evnt, I4B_MON_CONNECT_CFGNAME, cep->name);
-	I4B_PUT_STR(evnt, I4B_MON_CONNECT_DEVNAME, devname);
+	I4B_PUT_STR(evnt, I4B_MON_CONNECT_DEVNAME, temp);
 
 	if(cep->dir_incoming)
 	{

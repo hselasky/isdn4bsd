@@ -90,7 +90,7 @@ init_screen(void)
 
 	snprintf(buffer, sizeof(buffer), "----- isdn controller channel state ------------- isdnd %02d.%02d.%d [pid %d] -", I4B_VERSION, I4B_REL, I4B_STEP, (int)getpid());
 
-	while(strlen(buffer) < COLS && strlen(buffer) < sizeof(buffer) - 1)
+	while(strlen(buffer) < (size_t)COLS && strlen(buffer) < (size_t)(sizeof(buffer) - 1))
 		strcat(buffer, "-");	
 
 	move(0, 0);
@@ -103,7 +103,7 @@ init_screen(void)
 	addstr("c tei b remote                 iface  dir outbytes   obps inbytes    ibps  units");
 	
 	snprintf(buffer, sizeof(buffer), "----- isdn userland interface state ------------------------------------------");	
-	while(strlen(buffer) < COLS && strlen(buffer) < sizeof(buffer) - 1)
+	while(strlen(buffer) < (size_t)COLS && strlen(buffer) < (size_t)(sizeof(buffer) - 1))
 		strcat(buffer, "-");	
 
 	move(uheight+2, 0);
@@ -112,7 +112,7 @@ init_screen(void)
 	standend();
 
 	snprintf(buffer, sizeof(buffer), "----- isdnd logfile display --------------------------------------------------");
-	while(strlen(buffer) < COLS && strlen(buffer) < sizeof(buffer) - 1)
+	while(strlen(buffer) < (size_t)COLS && strlen(buffer) < (size_t)(sizeof(buffer) - 1))
 		strcat(buffer, "-");	
 
 	move(uheight+4, 0);
@@ -163,7 +163,7 @@ do_menu(void)
 	int c;
 	int mpos;
 	fd_set set;
-	struct timeval timeout;
+	struct timeval timo;
 	
 	/* create a new window in the lower screen area */
 	
@@ -206,12 +206,12 @@ do_menu(void)
 
 		FD_ZERO(&set);
 		FD_SET(STDIN_FILENO, &set);
-		timeout.tv_sec = WMTIMEOUT;
-		timeout.tv_usec = 0;
+		timo.tv_sec = WMTIMEOUT;
+		timo.tv_usec = 0;
 
 		/* if no char is available within timeout, exit menu*/
 		
-		if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout)) <= 0)
+		if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timo)) <= 0)
 			goto mexit;
 		
 		c = wgetch(menu_w);
@@ -348,8 +348,8 @@ menuexit(WINDOW *menu_w)
 	/*      01234567890123456789012345678901234567890123456789012345678901234567890123456789 */
 	addstr("c tei b remote                 iface  dir outbytes   obps inbytes    ibps  units");
 	
-	sprintf(buffer, "----- isdn userland interface state ------------------------------------------");	
-	while(strlen(buffer) < COLS)
+	snprintf(buffer, sizeof(buffer), "----- isdn userland interface state ------------------------------------------");	
+	while(strlen(buffer) < (size_t)COLS)
 		strcat(buffer, "-");	
 
 	move(uheight+2, 0);
@@ -357,8 +357,8 @@ menuexit(WINDOW *menu_w)
 	addstr(buffer);
 	standend();
 
-	sprintf(buffer, "----- isdnd logfile display --------------------------------------------------");
-	while(strlen(buffer) < COLS)
+	snprintf(buffer, sizeof(buffer), "----- isdnd logfile display --------------------------------------------------");
+	while(strlen(buffer) < (size_t)COLS)
 		strcat(buffer, "-");	
 
 	move(uheight+4, 0);
@@ -558,7 +558,7 @@ display_chans(void)
 	WINDOW *chan_w;
 	int nlines, ncols, pos_x, pos_y;
 	fd_set set;
-	struct timeval timeout;
+	struct timeval timo;
 	cfg_entry_t *cep = NULL;
 
 	/* need this later to close the connection */
@@ -658,12 +658,12 @@ display_chans(void)
 
 		FD_ZERO(&set);
 		FD_SET(STDIN_FILENO, &set);
-		timeout.tv_sec = WMTIMEOUT;
-		timeout.tv_usec = 0;
+		timo.tv_sec = WMTIMEOUT;
+		timo.tv_usec = 0;
 
 		/* if no char is available within timeout, exit menu*/
 		
-		if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout)) <= 0)
+		if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timo)) <= 0)
 			break;
 		
 		ncols = wgetch(chan_w);
@@ -710,7 +710,7 @@ display_cards(void)
 	WINDOW *chan_w;
 	int nlines, ncols, pos_x, pos_y;
 	fd_set set;
-	struct timeval timeout;
+	struct timeval timo;
 	int i;
 	
 	nlines = 6+MAX_CONTROLLERS;
@@ -748,10 +748,10 @@ display_cards(void)
 	
 	FD_ZERO(&set);
 	FD_SET(STDIN_FILENO, &set);
-	timeout.tv_sec = WMTIMEOUT*2;
-	timeout.tv_usec = 0;
+	timo.tv_sec = WMTIMEOUT*2;
+	timo.tv_usec = 0;
 
-	if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout)) <= 0)
+	if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timo)) <= 0)
 	{
 		delwin(chan_w);
 		return;
@@ -770,7 +770,7 @@ display_budget(void)
 	WINDOW *bud_w;
 	int nlines, ncols, pos_x, pos_y;
 	fd_set set;
-	struct timeval timeout;
+	struct timeval timo;
 	int i, j;
 	cfg_entry_t *cep;
 	time_t now;
@@ -883,10 +883,10 @@ display_budget(void)
 	
 	FD_ZERO(&set);
 	FD_SET(STDIN_FILENO, &set);
-	timeout.tv_sec = WMTIMEOUT*3;
-	timeout.tv_usec = 0;
+	timo.tv_sec = WMTIMEOUT*3;
+	timo.tv_usec = 0;
 
-	if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout)) <= 0)
+	if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timo)) <= 0)
 	{
 		delwin(bud_w);
 		return;

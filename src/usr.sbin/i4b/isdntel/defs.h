@@ -113,14 +113,13 @@ int curses_ready = 0;		/* flag, curses display is initialized */
 struct onefile *cur_file = NULL;/* the CURRENT filename */
 struct onefile *first = NULL;	/* init dir-list head-ptr */
 struct onefile *last = NULL;	/* init dir-list tail-ptr */
+const char *spooldir = SPOOLDIR;
+const char *playstring = PLAYCMD;
 
 WINDOW *main_w;			/* curses main window pointer */
 
 int nofiles = 0;
-int cur_pos = 0;
-
-char *spooldir = SPOOLDIR;
-char *playstring = PLAYCMD;
+int current_pos = 0;
 
 #else
 
@@ -130,17 +129,18 @@ extern struct onefile *cur_file;
 extern struct onefile *first;
 extern struct onefile *last;
 
+extern char *spooldir;
+extern const char *playstring;
+extern const char *aliasfile;
+
 extern WINDOW *main_w;
 
 extern int nofiles;
-extern int cur_pos;
-
-extern char *spooldir;
-extern char *playstring;
+extern int current_pos;
 
 #endif
 
-extern void init_alias( char *filename );
+extern void init_alias( const char *filename );
 extern void init_files( int inipos );
 extern void init_screen ( void );
 extern void do_menu ( void );
@@ -148,8 +148,8 @@ extern int fill_list( void );
 extern char *get_alias( char *number );
 extern int main ( int argc, char **argv );
 extern void do_quit ( int exitval );
-extern void fatal ( char *fmt, ... );
-extern void error ( char *fmt, ... );
+extern void fatal ( const char *fmt, ... );
+extern void error ( const char *fmt, ... );
 extern void play ( struct onefile * );
 extern void delete ( struct onefile * );
 extern void reread( void );

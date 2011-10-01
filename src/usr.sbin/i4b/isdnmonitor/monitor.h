@@ -47,12 +47,12 @@
 #define DEF_MONPORT     451             /* default monitor TCP port     */
 
 #ifdef __hpux
-#define	u_int8_t	ubit8
-#define	u_int32_t	ubit32
+#define	uint8_t	ubit8
+#define	uint32_t	ubit32
 #endif
 #ifdef WIN32
-#define	u_int8_t	BYTE
-#define	u_int32_t	DWORD
+#define	uint8_t	BYTE
+#define	uint32_t	DWORD
 #endif
 
 /*
@@ -69,7 +69,7 @@
  * All multi-byte values are in network byte order!
  */
 
-/* All data packets transfered are declared as arrays of u_int8_t */
+/* All data packets transfered are declared as arrays of uint8_t */
 
 /* max stringlength used in this protocol */
 #define	I4B_MAX_MON_STRING		256
@@ -278,14 +278,14 @@
 }
 
 /* put 1, 2 or 4 bytes in network byte order into a record at offset off */
-#define	I4B_PUT_1B(r, off, val)	{ ((u_int8_t*)(r))[off] = (val) & 0x00ff; }
+#define	I4B_PUT_1B(r, off, val)	{ ((uint8_t*)(r))[off] = (val) & 0x00ff; }
 #define	I4B_PUT_2B(r, off, val) { I4B_PUT_1B(r, off, val >> 8); I4B_PUT_1B(r, off+1, val); }
 #define	I4B_PUT_4B(r, off, val) { I4B_PUT_1B(r, off, val >> 24); I4B_PUT_1B(r, off+1, val >> 16); I4B_PUT_1B(r, off+2, val >> 8); I4B_PUT_1B(r, off+3, val); }
 
 /* get 1, 2 or 4 bytes in network byte order from a record at offset off */
-#define	I4B_GET_1B(r, off)	(((u_int8_t*)(r))[off])
-#define	I4B_GET_2B(r, off)	((((u_int8_t*)(r))[off]) << 8) | (((u_int8_t*)(r))[off+1])
-#define	I4B_GET_4B(r, off)	((((u_int8_t*)(r))[off]) << 24) | ((((u_int8_t*)(r))[off+1]) << 16) | ((((u_int8_t*)(r))[off+2]) << 8) | (((u_int8_t*)(r))[off+3])
+#define	I4B_GET_1B(r, off)	(((const uint8_t*)(r))[off])
+#define	I4B_GET_2B(r, off)	((((const uint8_t*)(r))[off]) << 8) | (((const uint8_t*)(r))[off+1])
+#define	I4B_GET_4B(r, off)	((((const uint8_t*)(r))[off]) << 24) | ((((const uint8_t*)(r))[off+1]) << 16) | ((((const uint8_t*)(r))[off+2]) << 8) | (((const uint8_t*)(r))[off+3])
 
 /*
  * put a string into record r at offset off, make sure it's not to long
@@ -293,7 +293,7 @@
  */
 #define	I4B_PUT_STR(r, off, str)	{		\
 	strncpy((r)+(off), (str), I4B_MAX_MON_STRING);	\
-	(r)[(off)+I4B_MAX_MON_STRING-1] = (u_int8_t)0;     }
+	(r)[(off)+I4B_MAX_MON_STRING-1] = (const uint8_t)0;     }
 
 #endif /* _MONITOR_H_ */
 

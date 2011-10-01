@@ -308,12 +308,12 @@ kbdrdhdl(void)
  *	data from /dev/isdn available, read and process them
  *---------------------------------------------------------------------------*/
 static void
-isdnrdhdl(int isdnfd)
+isdnrdhdl(int fd)
 {
 	static unsigned char buf[1024];
 	int len;
 
-	if((len = read(isdnfd, buf, 1024 - 1)) > 0)
+	if((len = read(fd, buf, 1024 - 1)) > 0)
 	{
 		switch (buf[0]) {
 		case MSG_CONNECT_IND:
@@ -352,7 +352,7 @@ isdnrdhdl(int isdnfd)
  *	initiate an outgoing connection
  *---------------------------------------------------------------------------*/
 int
-connect_request(int isdnfd, unsigned int cdid)
+connect_request(int fd, unsigned int cdid)
 {
 	msg_connect_req_t mcr;
 	int ret;
@@ -375,7 +375,7 @@ connect_request(int isdnfd, unsigned int cdid)
 	strcpy(mcr.dst_telno, outgoingnumber);
 	strcpy(mcr.src_telno, incomingnumber);
 	
-	if((ret = ioctl(isdnfd, I4B_CONNECT_REQ, &mcr)) < 0)
+	if((ret = ioctl(fd, I4B_CONNECT_REQ, &mcr)) < 0)
 	{
 		fprintf(stderr, "ioctl I4B_CONNECT_REQ failed: %s\n",
 			strerror(errno));
@@ -407,8 +407,10 @@ handle_connect_ind(msg_connect_ind_t *msi)
 	
 	if(strcmp(msi->dst_telno, incomingnumber))
 	{
-		msg_connect_resp_t msr = { /* zero */ };
+		msg_connect_resp_t msr;
 		int ret;
+
+		memset(&msr, 0, sizeof(msr));
 
 		fprintf(stderr, "isdntest: ignoring incoming SETUP: "
 			"my number [%s] != outgoing [%s]\n",
@@ -427,8 +429,10 @@ handle_connect_ind(msg_connect_ind_t *msi)
 	}
 	else
 	{
-		msg_connect_resp_t msr = { /* zero */ };
+		msg_connect_resp_t msr;
 		int ret;
+
+		memset(&msr, 0, sizeof(msr));
 
 		fprintf(stderr, "isdntest: accepting call, sending "
 			"CONNECT_RESPONSE .....\n");
@@ -462,8 +466,10 @@ handle_connect_ind(msg_connect_ind_t *msi)
 void
 handle_connect_active_ind(msg_connect_active_ind_t *msi)
 {
-	msg_link_b_channel_driver_req_t mlr = { /* zero */ };
+	msg_link_b_channel_driver_req_t mlr;
 	int i;
+
+	memset(&mlr, 0, sizeof(mlr));
 
 	mlr.cdid = msi->header.cdid;
 	mlr.activate = 1;
@@ -525,7 +531,7 @@ void
 handle_information_ind(msg_information_ind_t *mii)
 {
 	fprintf(stderr, "isdntest: cdid %d, received digits: %s\n",
-		mii->header.cdid, &(mii->dst_telno));
+		mii->header.cdid, mii->dst_telno);
 	return;
 }
 
@@ -563,15 +569,17 @@ handle_disconnect(msg_disconnect_ind_t *mdi)
  *	hang up
  *---------------------------------------------------------------------------*/
 int
-disconnect_request(int isdnfd, unsigned int cdid)
+disconnect_request(int fd, unsigned int cdid)
 {
-	msg_disconnect_req_t mdr = { /* zero */ };
+	msg_disconnect_req_t mdr;
 	int ret;
+
+	memset(&mdr, 0, sizeof(mdr));
 
 	mdr.cdid = cdid;
 	mdr.cause = (CAUSET_I4B << 8) | CAUSE_I4B_NORMAL;
 	
-	if((ret = ioctl(isdnfd, I4B_DISCONNECT_REQ, &mdr)) < 0)
+	if((ret = ioctl(fd, I4B_DISCONNECT_REQ, &mdr)) < 0)
 	{
 		fprintf(stderr, "ioctl I4B_DISCONNECT_REQ failed: %s\n", 
 			strerror(errno));
@@ -585,14 +593,16 @@ disconnect_request(int isdnfd, unsigned int cdid)
  *	get cdid from kernel
  *---------------------------------------------------------------------------*/
 unsigned int
-get_cdid(int isdnfd)
+get_cdid(int fd)
 {
-	msg_cdid_req_t mcr = { /* zero */ };
+	msg_cdid_req_t mcr;
 	int ret;
-	
+
+	memset(&mcr, 0, sizeof(mcr));
+
 	mcr.cdid = controller;
 	
-	if((ret = ioctl(isdnfd, I4B_CDID_REQ, &mcr)) < 0)
+	if((ret = ioctl(fd, I4B_CDID_REQ, &mcr)) < 0)
 	{
 		fprintf(stderr, "ioctl I4B_CDID_REQ failed: %s\n", 
 			strerror(errno));

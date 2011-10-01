@@ -37,7 +37,7 @@
 
 #include "defs.h"
 
-static char *helpstr = "Enter Control-D to exit program or RETURN for command window";
+static const char *helpstr = "Enter Control-D to exit program or RETURN for command window";
 
 /*---------------------------------------------------------------------------*
  *	init curses fullscreen display
@@ -98,7 +98,7 @@ init_screen(void)
 void
 do_menu(void)
 {
-	static char *menu[WMITEMS] =
+	static const char *menu[WMITEMS] =
 	{
 		"Play   File",
 #define PLAY	0		

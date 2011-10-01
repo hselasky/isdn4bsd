@@ -179,7 +179,7 @@ number_matches(msg_connect_ind_t *mp, cfg_entry_t *cep)
 	 * check if controller matches
 	 */
 	if(/* (cep->isdncontroller != -1) && XXX */
-	   (cep->isdncontroller != CDID2CONTROLLER(mp->header.cdid)))
+	   (cep->isdncontroller != (int)CDID2CONTROLLER(mp->header.cdid)))
 	{ 
 		log(LL_CHD, "%05d %s incoming call, controller %d != incoming %d",
 		    mp->header.cdid, cep->name, 
@@ -285,7 +285,7 @@ handle_scrprs(int cdid, int scr, int prs, char *caller)
 	}
 	else
 	{
-		static char *scrtab[] = {
+		static const char *scrtab[] = {
 			"no screening indicator",
 			"sreening user provided, not screened",
 			"screening user provided, verified & passed",
@@ -310,7 +310,7 @@ handle_scrprs(int cdid, int scr, int prs, char *caller)
 	}
 	else
 	{
-		static char *prstab[] = {
+		static const char *prstab[] = {
 			"no presentation indicator",
 			"presentation allowed",
 			"presentation restricted",
@@ -534,7 +534,7 @@ init_active_controller(void)
 		
 		if(isdn_ctrl_tab[controller].firmware != NULL)
 		{
-		    int fd, ret;
+		    int fd;
 		    struct isdn_dr_prot idp;
 		    struct isdn_download_request idr;
 

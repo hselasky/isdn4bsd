@@ -41,7 +41,7 @@
  *	create a doubly linked list in sorted order, return pointer to new
  *	first element of list
  *---------------------------------------------------------------------------*/
-struct onefile *store
+static struct onefile *store
   (register struct onefile *new,		/* new entry to store into list */
    register struct onefile *top)		/* current first entry in list */
 {
@@ -230,7 +230,7 @@ fill_list(void)
 /*---------------------------------------------------------------------------*
  *	free the current malloc'ed list
  *---------------------------------------------------------------------------*/
-void
+static void
 free_list(void)
 {
 	register struct onefile *dir;
@@ -273,7 +273,7 @@ delete(struct onefile *this)
 
 	wclear(main_w);
 
-	init_files(cur_pos);
+	init_files(current_pos);
 }
 
 /*---------------------------------------------------------------------------*
@@ -286,7 +286,7 @@ reread(void)
 
 	wclear(main_w);
 
-	init_files(cur_pos);
+	init_files(current_pos);
 }
 
 /*---------------------------------------------------------------------------*

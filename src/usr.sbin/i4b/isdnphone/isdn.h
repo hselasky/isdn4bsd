@@ -48,7 +48,7 @@ init_dial(char *device)
 	return(ret);
 }
 
-static const struct { u_int8_t event, exitvalue, * const desc; }
+static const struct { uint8_t event; uint8_t exitvalue; const char * desc; }
 MAKE_TABLE(DSTATS,IPHONE_TABLE,[]);
 
 /*---------------------------------------------------------------------------*

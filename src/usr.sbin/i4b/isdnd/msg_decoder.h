@@ -61,7 +61,9 @@ msg_proceeding_ind(msg_proceeding_ind_t *mp)
 		 * using this
 		 */
 
-	        msg_link_b_channel_driver_req_t mlr = { /* zero */ };
+	        msg_link_b_channel_driver_req_t mlr;
+
+		memset(&mlr, 0, sizeof(mlr));
 
 		mlr.cdid = mp->header.cdid;
 		mlr.activate = 1;
@@ -580,8 +582,7 @@ msg_packet_ind(msg_packet_ind_t *mp)
 	u_char *proto_hdr;
 	char tmp[80];
 	char *cptr = tmp;
-	char *name;
-	int i;
+	const char *name;
 
 	cep = get_cep_by_driver(mp->driver,mp->driver_unit);
 
@@ -653,7 +654,9 @@ msg_packet_ind(msg_packet_ind_t *mp)
 static void
 msg_information_ind(msg_information_ind_t *mp)
 {
-	msg_connect_replay_req_t mcrr = { /* zero */ };
+	msg_connect_replay_req_t mcrr;
+
+	memset(&mcrr, 0, sizeof(mcrr));
 
 	/* this indication indicates that one is
 	 * getting additional dial digits.
@@ -794,4 +797,3 @@ isdnrdhdl(void)
 	}
 	return;
 }
-

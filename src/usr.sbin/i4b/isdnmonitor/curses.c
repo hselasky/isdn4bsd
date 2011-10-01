@@ -101,9 +101,9 @@ init_screen(void)
 	
 	scrollok(lower_w, 1);
 
-	sprintf(buffer, "----- isdn controller channel state ------------- isdnmonitor %02d.%02d.%d -", I4B_VERSION, I4B_REL, I4B_STEP);
+	snprintf(buffer, sizeof(buffer), "----- isdn controller channel state ------------- isdnmonitor %02d.%02d.%d -", I4B_VERSION, I4B_REL, I4B_STEP);
 
-	while(strlen(buffer) < COLS)
+	while(strlen(buffer) < (size_t)COLS)
 		strcat(buffer, "-");	
 
 	move(0, 0);
@@ -116,11 +116,11 @@ init_screen(void)
 	addstr("c tei b remote                 iface  dir outbytes   obps inbytes    ibps  units");
 	
 	if(hostname)
-		sprintf(buffer, "----- isdn userland interface state ------------- %s:%d -", hostname, portno);
+		snprintf(buffer, sizeof(buffer), "----- isdn userland interface state ------------- %s:%d -", hostname, portno);
 	else
-		sprintf(buffer, "----- isdn userland interface state ------------- %s -", sockpath);
+		snprintf(buffer, sizeof(buffer), "----- isdn userland interface state ------------- %s -", sockpath);
 		
-	while(strlen(buffer) < COLS)
+	while(strlen(buffer) < (size_t)COLS)
 		strcat(buffer, "-");	
 
 	move(uheight+2, 0);
@@ -128,8 +128,8 @@ init_screen(void)
 	addstr(buffer);
 	standend();
 
-	sprintf(buffer, "----- isdnd logfile display --------------------------------------------------");
-	while(strlen(buffer) < COLS)
+	snprintf(buffer, sizeof(buffer), "----- isdnd logfile display --------------------------------------------------");
+	while(strlen(buffer) < (size_t)COLS)
 		strcat(buffer, "-");	
 
 	move(uheight+4, 0);
@@ -221,7 +221,7 @@ display_disconnect(int pos)
  *	display interface up/down information
  *---------------------------------------------------------------------------*/
 void
-display_updown(int pos, int updown, char *device)
+display_updown(int pos, int updown, const char *device)
 {
 	if(updown)
 		wstandend(mid_w);
@@ -302,7 +302,7 @@ display_bell(void)
 void
 do_menu(void)
 {
-	static char *menu[WMITEMS] =
+	static const char *menu[WMITEMS] =
 	{
 		"1 - (D)isplay refresh",
 		"2 - (H)angup (choose a channel)",
@@ -314,7 +314,7 @@ do_menu(void)
 	int c;
 	int mpos;
 	fd_set set;
-	struct timeval timeout;
+	struct timeval timo;
 
 	/* create a new window in the lower screen area */
 	
@@ -353,12 +353,12 @@ do_menu(void)
 
 		FD_ZERO(&set);
 		FD_SET(STDIN_FILENO, &set);
-		timeout.tv_sec = WMTIMEOUT;
-		timeout.tv_usec = 0;
+		timo.tv_sec = WMTIMEOUT;
+		timo.tv_usec = 0;
 
 		/* if no char is available within timeout, exit menu*/
 		
-		if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout)) <= 0)
+		if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timo)) <= 0)
 			goto mexit;
 		
 		c = wgetch(menu_w);
@@ -445,13 +445,13 @@ mexit:
  *	display connect information
  *---------------------------------------------------------------------------*/
 void
-display_connect(int pos, int dir, char *name, char *remtel, char *dev)
+display_connect(int pos, int dir, const char *name, const char *remtel, const char *dev)
 {
 	char buffer[256];
 
 	/* remote telephone number */
 
-	sprintf(buffer, "%s/%s", name, remtel);
+	snprintf(buffer, sizeof(buffer), "%s/%s", name, remtel);
 		
 	buffer[H_IFN - H_TELN - 1] = '\0';
 
@@ -486,7 +486,7 @@ display_chans(void)
 	WINDOW *chan_w;
 	int nlines, ncols, pos_x, pos_y;
 	fd_set set;
-	struct timeval timeout;
+	struct timeval timo;
 
 	/* need this later to close the connection */
 	struct ctlr_chan {
@@ -560,7 +560,7 @@ display_chans(void)
 	{
 		if(remstate[i].ch1state)
 		{
-			sprintf(buffer, "%d - Controller %d channel %s", ncols, i, "B1");
+			snprintf(buffer, sizeof(buffer), "%d - Controller %d channel %s", ncols, i, "B1");
 			mvwaddstr(chan_w, nlines, 2, buffer);
 			cc[ncols - 1].cntl = i;
 			cc[ncols - 1].chn = CHAN_B1;
@@ -569,7 +569,7 @@ display_chans(void)
 		}
 		if(remstate[i].ch2state)		
 		{
-			sprintf(buffer, "%d - Controller %d channel %s", ncols, i, "B2");
+			snprintf(buffer, sizeof(buffer), "%d - Controller %d channel %s", ncols, i, "B2");
 			mvwaddstr(chan_w, nlines, 2, buffer);
 			cc[ncols - 1].cntl = i;
 			cc[ncols - 1].chn = CHAN_B2;
@@ -584,12 +584,12 @@ display_chans(void)
 
 		FD_ZERO(&set);
 		FD_SET(STDIN_FILENO, &set);
-		timeout.tv_sec = WMTIMEOUT;
-		timeout.tv_usec = 0;
+		timo.tv_sec = WMTIMEOUT;
+		timo.tv_usec = 0;
 
 		/* if no char is available within timeout, exit menu*/
 		
-		if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout)) <= 0)
+		if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timo)) <= 0)
 			break;
 		
 		ncols = wgetch(chan_w);

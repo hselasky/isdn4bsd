@@ -823,7 +823,7 @@ static const uint8_t __signed_to_alaw[0x2000] = {
 
 /* NOTE: returns a bit-reversed value */
 
-uint8_t
+static uint8_t
 signed_to_alaw(int32_t temp)
 {
 	if (temp > 0x7FFF) {
@@ -1046,6 +1046,7 @@ capi_music(uint8_t *buffer, uint32_t samples)
 	}
 }
 
+#if 0
 static const char *
 capi_event_to_string(uint8_t event)
 {
@@ -1065,6 +1066,7 @@ capi_state_to_string(uint8_t state)
 	return
 	    (state >= N_STATES) ? "unknown state" : STATES_DESC[state];
 }
+#endif
 
 struct call_desc {
 	uint8_t	state;
@@ -1094,7 +1096,6 @@ struct call_desc {
 static struct call_desc *cd_root = NULL;
 static uint16_t message_number = 1;
 static uint32_t app_id = 0;
-static uint16_t receive_count = 0;
 
 static struct call_desc *
 cd_by_cid(uint32_t cid)
@@ -1196,8 +1197,7 @@ bit_reverse(uint8_t *ptr, uint16_t len)
 	}
 }
 
-static void
-	make_call();
+static void make_call(void);
 
 static void
 cd_event(struct call_desc *cd, uint8_t event)
@@ -1312,7 +1312,7 @@ __capi_put_message_decoded(struct capi_message_decoded *mp, const char *where)
 #define	capi_put_message_decoded(mp) __capi_put_message_decoded(mp, __FUNCTION__)
 
 static uint16_t
-capi_send_listen_request(unsigned controller, uint8_t incoming_calls)
+capi_send_listen_request(unsigned ctrl, uint8_t incoming_calls)
 {
 	struct capi_message_decoded msg;
 
@@ -1326,7 +1326,7 @@ capi_send_listen_request(unsigned controller, uint8_t incoming_calls)
 
 	msg.head.wApp = app_id;
 	msg.head.wCmd = CAPI_P_REQ(LISTEN);
-	msg.head.dwCid = controller;
+	msg.head.dwCid = ctrl;
 
 	msg.data.LISTEN_REQ.dwInfoMask =
 	    CAPI_INFO_MASK_CAUSE |
@@ -1377,6 +1377,7 @@ capi_send_data_b3_req(struct call_desc *cd,
 	return (capi_put_message_decoded(&msg));
 }
 
+#if 0
 static uint16_t
 capi_send_alert_req(struct call_desc *cd)
 {
@@ -1390,6 +1391,7 @@ capi_send_alert_req(struct call_desc *cd)
 
 	return (capi_put_message_decoded(&msg));
 }
+#endif
 
 static uint16_t
 capi_send_connect_resp(struct call_desc *cd, uint16_t wReject)
@@ -1429,8 +1431,8 @@ capi_send_connect_req(struct call_desc *cd)
 {
 	struct capi_message_decoded msg;
 	static const uint8_t sending_complete[] = {2, 1, 0};
-	uint8_t dst_telno[TELNO_MAX + 3];
-	uint8_t src_telno[TELNO_MAX + 3];
+	uint8_t _dst_telno[TELNO_MAX + 3];
+	uint8_t _src_telno[TELNO_MAX + 3];
 	uint16_t len;
 
 	bzero(&msg, sizeof(msg));
@@ -1450,44 +1452,44 @@ capi_send_connect_req(struct call_desc *cd)
 	len = strlen(&cd->dst_telno[0]);
 
 	if (len == 0) {
-		dst_telno[0] = 0;	/* overlap sending */
+		_dst_telno[0] = 0;	/* overlap sending */
 	} else {
 		if (len > TELNO_MAX)
 			len = TELNO_MAX;
 
-		dst_telno[0] = len + 1;
-		dst_telno[1] = 0x80;
-		bcopy(&cd->dst_telno[0], &dst_telno[2], len);
+		_dst_telno[0] = len + 1;
+		_dst_telno[1] = 0x80;
+		bcopy(&cd->dst_telno[0], &_dst_telno[2], len);
 
-		if (dst_telno[0] == 0xFF)
-			dst_telno[0] = 0xFE;	/* avoid escape code */
+		if (_dst_telno[0] == 0xFF)
+			_dst_telno[0] = 0xFE;	/* avoid escape code */
 
-		msg.data.CONNECT_REQ.dst_telno.ptr = &dst_telno[0];
+		msg.data.CONNECT_REQ.dst_telno.ptr = &_dst_telno[0];
 
 		/*
 		 * send sending complete so that the kernel dials
 		 * immediately:
 		 */
-		CONNECT_REQ_SENDINGCOMPLETE(&msg) = (uint8_t *)&sending_complete[0];
+		CONNECT_REQ_SENDINGCOMPLETE(&msg) = (uint8_t *)(long)&sending_complete[0];
 	}
 
 	len = strlen(&cd->src_telno[0]);
 
 	if (len == 0) {
-		src_telno[0] = 0;
+		_src_telno[0] = 0;
 	} else {
 		if (len > TELNO_MAX)
 			len = TELNO_MAX;
 
-		src_telno[0] = len + 2;
-		src_telno[1] = 0x00;
-		src_telno[2] = 0x80;	/* not restricted */
-		bcopy(&cd->src_telno[0], &src_telno[3], len);
+		_src_telno[0] = len + 2;
+		_src_telno[1] = 0x00;
+		_src_telno[2] = 0x80;	/* not restricted */
+		bcopy(&cd->src_telno[0], &_src_telno[3], len);
 
-		if (src_telno[0] == 0xFF)
-			src_telno[0] = 0xFE;	/* avoid escape code */
+		if (_src_telno[0] == 0xFF)
+			_src_telno[0] = 0xFE;	/* avoid escape code */
 
-		msg.data.CONNECT_REQ.src_telno.ptr = &src_telno[0];
+		msg.data.CONNECT_REQ.src_telno.ptr = &_src_telno[0];
 	}
 
 	CONNECT_REQ_ADDITIONALINFO(&msg) = CAPI_COMPOSE;
@@ -1527,7 +1529,7 @@ make_call()
  *	handle an incoming CAPI message
  *---------------------------------------------------------------------------*/
 static void
-capi_message_handler(const struct capi_message_decoded *mp)
+capi_message_handler(struct capi_message_decoded *mp)
 {
 	struct capi_message_decoded msg;
 	struct call_desc *cd;
@@ -1783,7 +1785,7 @@ capi_message_handler(const struct capi_message_decoded *mp)
 }
 
 static void
-loop()
+loop(void)
 {
 	int error;
 

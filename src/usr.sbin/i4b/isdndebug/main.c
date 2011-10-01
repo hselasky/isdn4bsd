@@ -61,7 +61,7 @@ static u_int opt_unit = 0;
 static i4b_debug_t dbg;
 
 static const struct enum_list {
-  u_int8_t *name;
+  const char *name;
   u_int8_t value;
 }
 	enum_list[] =
@@ -73,19 +73,19 @@ static const struct enum_list {
 };
 
 static int
-__atoi(const u_int8_t *optarg)
+__atoi(const u_int8_t *arg)
 {
     const struct enum_list *item = &enum_list[0];
 
     while(item->name)
     {
-        if(strcmp(item->name,optarg) == 0)
+        if(strcmp(item->name,arg) == 0)
 	{
 	    return(item->value);
 	}
 	item++;
     }
-    return(atoi(optarg));
+    return(atoi(arg));
 }
 
 /*---------------------------------------------------------------------------*
@@ -137,7 +137,7 @@ usage(void)
  *	i4b_print_events
  *---------------------------------------------------------------------------*/
 static void
-i4b_print_events()
+i4b_print_events(void)
 {
     printf("\n"
 	   "Chip statistics for unit %2d, chan %2d:\n"
@@ -219,7 +219,7 @@ i4b_debug_set_bit(struct i4b_debug_mask *pmask,
  *	update debugging bits
  *---------------------------------------------------------------------------*/
 static void
-i4b_debug_mask_update(u_int8_t *str, u_int8_t cmd)
+i4b_debug_mask_update(const char *str, u_int8_t cmd)
 {
     u_int8_t buf[256];
     u_int8_t layer[8];
@@ -486,39 +486,39 @@ main(int argc, char **argv)
 
 	      printf("\nmux unit %d Q.921 statistics: receive     transmit"
 		     "\n-------------------------------------------------"
-		     "\n# of I-frames           %12lu %12lu"
-		     "\n# of RR-frames          %12lu %12lu"
-		     "\n# of RNR-frames         %12lu %12lu"
-		     "\n# of REJ-frames         %12lu %12lu"
-		     "\n# of SABME-frames       %12lu %12lu"
-		     "\n# of DM-frames          %12lu %12lu"
-		     "\n# of DISC-frames        %12lu %12lu"
-		     "\n# of UA-frames          %12lu %12lu"
-		     "\n# of FRMR-frames        %12lu %12lu"
-		     "\n# of TEI-frames         %12lu %12lu"
-		     "\n# of UI-frames          %12lu      "
-		     "\n# of XID-frames         %12lu      "
+		     "\n# of I-frames           %12u %12u"
+		     "\n# of RR-frames          %12u %12u"
+		     "\n# of RNR-frames         %12u %12u"
+		     "\n# of REJ-frames         %12u %12u"
+		     "\n# of SABME-frames       %12u %12u"
+		     "\n# of DM-frames          %12u %12u"
+		     "\n# of DISC-frames        %12u %12u"
+		     "\n# of UA-frames          %12u %12u"
+		     "\n# of FRMR-frames        %12u %12u"
+		     "\n# of TEI-frames         %12u %12u"
+		     "\n# of UI-frames          %12u      "
+		     "\n# of XID-frames         %12u      "
 		     "\n                                           errors "
 		     "\n------------------------------------------------- "
-		     "\n# of frames with incorrect length    %12lu"
-		     "\n# of frames with bad frame type      %12lu"
-		     "\n# of bad S-frames                    %12lu"
-		     "\n# of bad U-frames                    %12lu"
-		     "\n# of bad UI-frames                   %12lu"
+		     "\n# of frames with incorrect length    %12u"
+		     "\n# of frames with bad frame type      %12u"
+		     "\n# of bad S-frames                    %12u"
+		     "\n# of bad U-frames                    %12u"
+		     "\n# of bad UI-frames                   %12u"
 		     "\n",
 		     dbg.unit,
-		     dbg.lapdstat.rx_i,     dbg.lapdstat.tx_i,
-		     dbg.lapdstat.rx_rr,    0,
-		     dbg.lapdstat.rx_rnr,   0,
-		     dbg.lapdstat.rx_rej,   0,
-		     dbg.lapdstat.rx_sabme, 0,
-		     dbg.lapdstat.rx_dm,    0,
-		     dbg.lapdstat.rx_disc,  0,
-		     dbg.lapdstat.rx_ua,    0,
-		     dbg.lapdstat.rx_frmr,  0,
-		     dbg.lapdstat.rx_tei,   dbg.lapdstat.tx_tei,
-		     dbg.lapdstat.rx_ui,
-		     dbg.lapdstat.rx_xid,
+		     (unsigned)dbg.lapdstat.rx_i,     (unsigned)dbg.lapdstat.tx_i,
+		     (unsigned)dbg.lapdstat.rx_rr,    0,
+		     (unsigned)dbg.lapdstat.rx_rnr,   0,
+		     (unsigned)dbg.lapdstat.rx_rej,   0,
+		     (unsigned)dbg.lapdstat.rx_sabme, 0,
+		     (unsigned)dbg.lapdstat.rx_dm,    0,
+		     (unsigned)dbg.lapdstat.rx_disc,  0,
+		     (unsigned)dbg.lapdstat.rx_ua,    0,
+		     (unsigned)dbg.lapdstat.rx_frmr,  0,
+		     (unsigned)dbg.lapdstat.rx_tei,   (unsigned)dbg.lapdstat.tx_tei,
+		     (unsigned)dbg.lapdstat.rx_ui,
+		     (unsigned)dbg.lapdstat.rx_xid,
 		     0,
 		     0,
 		     0,

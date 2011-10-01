@@ -47,7 +47,9 @@ static int top_dis = 0;
 static int bot_dis = 0;
 static int cur_pos_scr = 0;
 
-static void makecurrent(int cur_pos, struct onefile *cur_file, int cold);
+static void makecurrent(int cur_pos, struct onefile *current_file, int cold);
+
+const char *aliasfile = ALIASFILE;
 
 /*---------------------------------------------------------------------------*
  *      program entry
@@ -58,9 +60,6 @@ main(int argc, char **argv)
         int i;
 	int kchar;
 	
-	char *spooldir = SPOOLDIR;
-	char *playstring = PLAYCMD;
-	char *aliasfile = ALIASFILE;
 	int rrtimeout = REREADTIMEOUT;
 	
 	setlocale( LC_ALL, "");
@@ -102,7 +101,7 @@ main(int argc, char **argv)
 	if(rrtimeout < 10)
 		rrtimeout = 10;
 
-	if((chdir(spooldir)) != 0)
+	if(chdir(spooldir) != 0)
 		fatal("cannot change directory to spooldir %s!", spooldir);
 
 	init_alias(aliasfile);
@@ -116,16 +115,16 @@ main(int argc, char **argv)
 	for (;;)
 	{
 		fd_set set;
-		struct timeval timeout;
+		struct timeval timo;
 
 		FD_ZERO(&set);
 		FD_SET(STDIN_FILENO, &set);
-		timeout.tv_sec = rrtimeout;
-		timeout.tv_usec = 0;
+		timo.tv_sec = rrtimeout;
+		timo.tv_usec = 0;
 
 		/* if no char is available within timeout, reread spool */
 		
-		if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout)) <= 0)
+		if((select(STDIN_FILENO + 1, &set, NULL, NULL, &timo)) <= 0)
 		{
 			reread();
 			continue;
@@ -147,7 +146,7 @@ main(int argc, char **argv)
 				if(cur_file && cur_file->prev)
 				{
 					cur_file = cur_file->prev;
-					cur_pos--;
+					current_pos--;
 				}
 				break;
 
@@ -157,7 +156,7 @@ main(int argc, char **argv)
 				if(cur_file && cur_file->next)
 				{
 					cur_file = cur_file->next;
-					cur_pos++;
+					current_pos++;
 				}
 				break;
 
@@ -177,7 +176,7 @@ main(int argc, char **argv)
 				break;
 
 		}
-		makecurrent(cur_pos, cur_file, 0);
+		makecurrent(current_pos, cur_file, 0);
 	}
 
 	do_quit(0);
@@ -189,7 +188,7 @@ main(int argc, char **argv)
  *      handle horizontal selection bar movement
  *---------------------------------------------------------------------------*/
 static void
-makecurrent(int cur_pos, struct onefile *cur_file, int cold)
+makecurrent(int cur_pos, struct onefile *current_file, int cold)
 {
 	static int lastpos;
 	static struct onefile *lastfile;
@@ -197,7 +196,7 @@ makecurrent(int cur_pos, struct onefile *cur_file, int cold)
 
 	/* un-higlight current horizontal bar */
 
-	if(!cold && lastfile && cur_file)
+	if(!cold && lastfile && current_file)
 	{
 		sprintf(buffer, "%s %s %-16s %-16s %-20s %-6s%*s",
 			lastfile->date, lastfile->time,
@@ -211,10 +210,10 @@ makecurrent(int cur_pos, struct onefile *cur_file, int cold)
 		wattroff(main_w, A_REVERSE);
 	}
 
-	if(cur_file == NULL)
+	if(current_file == NULL)
 	{
 		lastpos = cur_pos_scr;
-		lastfile = cur_file;
+		lastfile = current_file;
 		return;
 	}
 		
@@ -246,10 +245,10 @@ makecurrent(int cur_pos, struct onefile *cur_file, int cold)
 	}		
 
 	sprintf(buffer, "%s %s %-16s %-16s %-20s %-6s%*s",
-			cur_file->date, cur_file->time,
-			cur_file->dstnumber, cur_file->srcnumber,
-			cur_file->alias == NULL ? "-/-" : cur_file->alias,
-			cur_file->seconds,
+			current_file->date, current_file->time,
+			current_file->dstnumber, current_file->srcnumber,
+			current_file->alias == NULL ? "-/-" : current_file->alias,
+			current_file->seconds,
 			COLS - LAST_POS - 2, "");
 			
 	wattron(main_w, A_REVERSE);
@@ -257,7 +256,7 @@ makecurrent(int cur_pos, struct onefile *cur_file, int cold)
 	wattroff(main_w, A_REVERSE);
 
 	lastpos = cur_pos_scr;
-	lastfile = cur_file;
+	lastfile = current_file;
 
 	wrefresh(main_w);	
 }
@@ -296,7 +295,7 @@ usage(void)
  *	fatal error exit
  *---------------------------------------------------------------------------*/
 void
-fatal(char *fmt, ...)
+fatal(const char *fmt, ...)
 {
 	va_list ap;
 
@@ -323,7 +322,7 @@ fatal(char *fmt, ...)
  *	error printing
  *---------------------------------------------------------------------------*/
 void
-error(char *fmt, ...)
+error(const char *fmt, ...)
 {
 	va_list ap;
 
@@ -361,7 +360,7 @@ init_files(int inipos)
 
 	cur_file = first;
 
-	cur_pos = 0;
+	current_pos = 0;
 	cur_pos_scr = 0;	
 
 	if(nofiles == 0)
@@ -393,7 +392,7 @@ init_files(int inipos)
 				break;
 		}
 	}
-	makecurrent(cur_pos, cur_file, 1);
+	makecurrent(current_pos, cur_file, 1);
 }
 
 /* EOF */

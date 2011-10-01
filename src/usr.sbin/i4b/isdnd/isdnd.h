@@ -546,7 +546,7 @@ int isdnfd;					/* file handle, /dev/i4b */
 char mailto[MAXPATHLEN] = "";			/* panic mail address */
 char mailer[MAXPATHLEN] = "";			/* panic mail address */
 
-char *configfile = CONFIG_FILE_DEF;		/* configuration filename */
+const char *configfile = CONFIG_FILE_DEF;	/* configuration filename */
 int config_error_flag = 0;			/* error counter */
 
 #ifdef DEBUG
@@ -560,10 +560,10 @@ int do_bell = 0;				/* bell on connect/disconnect */
 int do_fork = 1;				/* run as daemon/foreground */
 
 int do_ttytype = 0;				/* got new terminal type */
-char *ttype = "";				/* termcap entry name string */
+const char *ttype = "";				/* termcap entry name string */
 
 int do_rdev = 0;				/* redirect output	*/
-char *rdev = "";				/* new device string */
+const char *rdev = "";				/* new device string */
 
 int do_print = 0;				/* config file printout */
 
@@ -633,6 +633,11 @@ char prefixinternational[TELNO_MAX] = "";
 
 #else /* !MAIN */
 
+extern struct monitor_rights *
+monitor_next_rights(const struct monitor_rights *r);
+
+extern FILE *logfp;
+
 int isdnfd;
 
 char mailto[MAXPATHLEN];
@@ -669,7 +674,6 @@ int nentries;
 
 int uselogfile;
 char logfile[MAXPATHLEN];
-FILE *logfp;
 int logfacility;
 int nregex;
 struct rarr rarr[MAX_RE];
@@ -696,8 +700,6 @@ WINDOW *lower_w;
 #endif
 
 int rt_prio;
-
-FILE *logfp;
 
 int do_monitor;
 int inhibit_monitor;
@@ -726,7 +728,7 @@ const char * driver_devicename ( int drivertype );
 void cfg_setval ( int keyword );
 void check_pid ( void );
 void close_allactive ( void );
-void configure ( char *filename, int reread );
+void configure ( const char *filename, int reread );
 void daemonize ( void );
 void display_acct ( cfg_entry_t *cep );
 void display_bell ( void );
@@ -741,7 +743,7 @@ void display_updown ( cfg_entry_t *cep, int updown );
 void do_menu ( void );
 int exec_answer ( cfg_entry_t *cep );
 int exec_connect_prog ( cfg_entry_t *cep, const char *prog, int link_down );
-pid_t exec_prog ( char *prog, char **arglist );
+pid_t exec_prog ( const char *prog, const char ** arglist );
 void finish_log ( void );
 char * getlogdatetime ( void );
 cfg_entry_t * get_cep_by_cc ( int ctrlr, int chan );
@@ -768,10 +770,10 @@ void error_exit(int exitval, const char *fmt, ...);
 
 /* monitor.c */
 
-void monitor_init();
-void monitor_exit();
-void monitor_clear_rights();
-void monitor_fixup_rights();
+void monitor_init(void);
+void monitor_exit(void);
+void monitor_clear_rights(void);
+void monitor_fixup_rights(void);
 int monitor_start_rights(const char *clientspec);
 void monitor_add_rights(int rights);
 
@@ -782,10 +784,10 @@ void monitor_add_rights(int rights);
 #define	I4BMAR_CIDR	3	/* cidr netmask is invalid */
 #define	I4BMAR_NOIP	4	/* host/net could not be resolved */
 
-int monitor_create_local_socket();
+int monitor_create_local_socket(void);
 
 #ifndef I4B_NOTCPIP_MONITOR
-int monitor_create_remote_socket(int portno);
+int monitor_create_remote_socket(int);
 #endif
 
 void monitor_prepselect(fd_set *selset, int *max_fd);
@@ -829,8 +831,8 @@ int isholiday(int d, int m, int y);
 /**/
 
 extern void	reset_scanner(FILE *infile);
-extern int	yylex();
-int yyparse();
+extern int	yylex(void);
+int yyparse(void);
 
 extern int	lineno;
 extern char	*yytext;

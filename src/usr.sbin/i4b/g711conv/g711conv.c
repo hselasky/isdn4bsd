@@ -145,7 +145,7 @@ unsigned char bitreverse[256] = {
 
 /* A-law to u-law conversion */
 
-unsigned char alaw2ulaw(unsigned char aval)
+static unsigned char alaw2ulaw(unsigned char aval)
 {
 	aval &= 0xff;
 	return ((aval & 0x80) ? (0xFF ^ _a2u[aval ^ 0xD5]) :
@@ -154,14 +154,14 @@ unsigned char alaw2ulaw(unsigned char aval)
 
 /* u-law to A-law conversion */
 
-unsigned char ulaw2alaw(unsigned char uval)
+static unsigned char ulaw2alaw(unsigned char uval)
 {
 	uval &= 0xff;
 	return ((uval & 0x80) ? (0xD5 ^ (_u2a[0xFF ^ uval] - 1)) :
 				(0x55 ^ (_u2a[0x7F ^ uval] - 1)));
 }
 
-void
+static void
 usage(void)
 {
 	fprintf(stderr, "\n");

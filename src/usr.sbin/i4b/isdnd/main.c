@@ -48,7 +48,7 @@ static void kbdrdhdl(void);
 #endif
 
 static void usage(void);
-static void mloop();
+static void mloop(void);
 
 /*---------------------------------------------------------------------------*
  *	usage display and exit
@@ -93,7 +93,7 @@ usage(void)
  *	program exit
  *---------------------------------------------------------------------------*/
 static void
-at_exit()
+at_exit(void)
 {
 	close_allactive();
 
@@ -447,10 +447,10 @@ error_exit(int exitval, const char *fmt, ...)
  *	main loop
  *---------------------------------------------------------------------------*/
 static void
-mloop()
+mloop(void)
 {
 	fd_set set;
-	struct timeval timeout;
+	struct timeval timo;
 	int ret;
 	int high_selfd;
 
@@ -497,10 +497,10 @@ mloop()
 		}
 #endif
 
-		timeout.tv_sec = 1;
-		timeout.tv_usec = 0;
+		timo.tv_sec = 1;
+		timo.tv_usec = 0;
 
-		ret = select(high_selfd + 1, &set, NULL, NULL, &timeout);
+		ret = select(high_selfd + 1, &set, NULL, NULL, &timo);
 
 		if(ret > 0)
 		{	
@@ -580,6 +580,8 @@ void
 rereadconfig(int dummy)
 {
 	log(LL_DMN, "re-reading configuration file");
+
+	(void)dummy;
 	
 	/* read runtime configuration file and configure ourselves */
 	
@@ -594,6 +596,8 @@ rereadconfig(int dummy)
 void
 reopenfiles(int dummy)
 {
+	(void)dummy;
+
         if(useacctfile)
 	{
 		/* close file */

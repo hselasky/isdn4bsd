@@ -241,7 +241,7 @@ sysentry:	sysfileentry
 sysmonitorstart:
 		MONITOR '=' STRING '\n'
 			{
-			    char *err = NULL;
+			    const char *err = NULL;
 			    switch (monitor_start_rights($3)) {
 			    	case I4BMAR_OK:
 			    		break;

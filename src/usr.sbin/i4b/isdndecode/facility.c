@@ -893,6 +893,9 @@ F_RR3(struct buffer *dst, struct buffer *src, int val)
 static void
 F_RRR(struct buffer *dst, struct buffer *src, int val)
 {
+	(void)val;
+	(void)dst;
+
 #ifdef ST_DEBUG
 	bsprintf(dst, "next_state: exec F_RRR, val = %d\n", val);
 #endif

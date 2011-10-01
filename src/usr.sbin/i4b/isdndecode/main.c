@@ -55,8 +55,8 @@ static u_int8_t  npoll = 0;
 
 static u_int32_t enable_trace = TRACE_D_RX | TRACE_D_TX;
 
-static char *outfile = DECODE_FILE_NAME;
-static char *binfile = BIN_FILE_NAME;
+static const char *outfile = DECODE_FILE_NAME;
+static const char *binfile = BIN_FILE_NAME;
 
 static int f_Rx;
 static int f_Tx;
@@ -166,7 +166,7 @@ usage(void)
  *	exit handler function to be called at program exit
  *---------------------------------------------------------------------------*/
 static void
-exit_hdl()
+exit_hdl(void)
 {
 	if(traceon)
 		switch_driver(TRACE_OFF);
@@ -394,14 +394,14 @@ main(int argc, char *argv[])
 		{
 			n = read_driver(&tempbuffer[0], sizeof(tempbuffer));
 
-			if(n < sizeof(i4b_trace_hdr_t))
+			if(n < (int)sizeof(i4b_trace_hdr_t))
 			{
 			    err(1, "Invalid trace length, %d bytes!", n);
 			}
 
 			if(Bopt)
 			{
-			    if(fwrite(&tempbuffer[0], 1, n, BP) != n)
+			    if(fwrite(&tempbuffer[0], 1, n, BP) != (size_t)n)
 			    {
 			        err(1, "Error writing file [%s]", 
 				    &BPfilename[0]);
@@ -414,7 +414,7 @@ main(int argc, char *argv[])
 		{
 			n = sizeof(i4b_trace_hdr_t);
 
-			if(fread(&tempbuffer[0], 1, n, BP) != n)
+			if(fread(&tempbuffer[0], 1, n, BP) != (size_t)n)
 			{
 			    if(feof(BP))
 			    {
@@ -431,12 +431,12 @@ main(int argc, char *argv[])
 			ithp = (void *)&tempbuffer[0];
 			n = ithp->length - sizeof(i4b_trace_hdr_t);
 
-			if((n < 0) || (n > (sizeof(tempbuffer) - sizeof(i4b_trace_hdr_t))))
+			if((n < 0) || (n > (int)(sizeof(tempbuffer) - sizeof(i4b_trace_hdr_t))))
 			{
 			    err(1, "Invalid trace data length in header, %d bytes!", n);
 			}
 		        
-			if(fread(&tempbuffer[sizeof(i4b_trace_hdr_t)], 1, n, BP) != n)
+			if(fread(&tempbuffer[sizeof(i4b_trace_hdr_t)], 1, n, BP) != (size_t)n)
 			{
 			    err(1, "Error reading data from file [%s]", 
 				&BPfilename[0]);
@@ -800,7 +800,7 @@ read_driver(void *buffer, u_int32_t len)
 	break;
     }
 
-    if(analyze && (error >= sizeof(i4b_trace_hdr_t)))
+    if(analyze && (error >= (int)sizeof(i4b_trace_hdr_t)))
     {
         i4b_trace_hdr_t *hdr = buffer;
 
@@ -824,6 +824,8 @@ read_driver(void *buffer, u_int32_t len)
 static void
 reopenfiles(int dummy)
 {
+	(void)dummy;
+
 	if(outflag)
 	{
 		fclose(Fout);
