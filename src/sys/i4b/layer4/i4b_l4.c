@@ -842,7 +842,7 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int32_t channel,
 
 	if(driver_type >= N_I4B_DRIVERS)
 	{
-	  driver_type = 0;
+	  driver_type = DRVR_DUMMY;
 	}
 
 	setup_ft = I4B_DRIVERS_SETUP_FT[driver_type];

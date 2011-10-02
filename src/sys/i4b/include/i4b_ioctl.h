@@ -124,13 +124,13 @@ MAKE_ENUM(L1_TYPES,
 /* B-channel drivers */
 
 #define I4B_B_DRIVERS(m) \
-m(DRVR_IBC        ,,ibc_setup_ft       ,ibc_response_to_user,\
+m(DRVR_IBC        ,,NULL               ,NULL,\
   "BSD/OS point to point driver"		, null)\
-m(DRVR_ING        ,,ing_setup_ft       ,ing_response_to_user,\
+m(DRVR_ING        ,,NULL               ,NULL,\
   "NetGraph driver"				, null)\
 m(DRVR_IPR        ,,ipr_setup_ft       ,ipr_response_to_user,\
   "IP over raw HDLC interface driver"		, null)\
-m(DRVR_ISPPP      ,,i4bisppp_setup_ft  ,i4bisppp_response_to_user,\
+m(DRVR_ISPPP      ,,NULL               ,NULL,\
   "sync Kernel PPP interface driver"		, null)\
 m(DRVR_RBCH       ,,rbch_setup_ft      ,rbch_response_to_user,\
   "raw B-channel interface driver"		, rbch)\
@@ -161,11 +161,11 @@ m(DRVR_DSS1_NT    ,,dss1_setup_ft      ,NULL,\
   ""						,null)\
 m(DRVR_CAPI_TE    ,,capi_setup_ft      ,NULL,\
   ""						,null)\
-m(DRVR_DIEHL_TE   ,,diehl_setup_ft     ,NULL,\
+m(DRVR_DIEHL_TE   ,,NULL               ,NULL,\
   ""						,null)\
-m(DRVR_TINA_DD_TE ,,tina_dd_setup_ft   ,NULL,\
+m(DRVR_TINA_DD_TE ,,NULL               ,NULL,\
   ""						,null)\
-m(DRVR_AMV_B1_TE  ,,amv_b1_setup_ft    ,NULL,\
+m(DRVR_AMV_B1_TE  ,,NULL               ,NULL,\
   ""						,null)\
 \
 m(DRVR_D_CHANNEL  ,,NULL               ,NULL,\
