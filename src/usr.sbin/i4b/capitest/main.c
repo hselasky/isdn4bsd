@@ -1499,7 +1499,7 @@ capi_send_connect_req(struct call_desc *cd)
 }
 
 static void
-make_call()
+make_call(void)
 {
 	struct call_desc *cd;
 
