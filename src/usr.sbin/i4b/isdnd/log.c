@@ -216,7 +216,7 @@ do_log(int what, const char *fmt, ...)
  *	return ptr to static area containing date/time
  *---------------------------------------------------------------------------*/
 char *
-getlogdatetime()
+getlogdatetime(void)
 {
 	static char logdatetime[41];
 	time_t tim;
