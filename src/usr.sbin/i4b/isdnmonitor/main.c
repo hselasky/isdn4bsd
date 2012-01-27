@@ -380,7 +380,7 @@ kbdrdhdl(void)
  *	main event loop
  *---------------------------------------------------------------------------*/
 static void
-mloop()
+mloop(void)
 {
 	for(;;)
 	{
