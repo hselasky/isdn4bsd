@@ -1,7 +1,7 @@
 # $FreeBSD: src/usr.sbin/i4b/Makefile,v 1.8 2001/12/31 09:31:51 joerg Exp $
 
 SUBDIR=	capitest dtmfdecode g711conv isdnconfig isdnd isdndebug isdndecode \
-	isdnmonitor isdnphone isdntel isdntelctl isdntest isdntrace man
+	isdnmonitor isdntel isdntelctl isdntest isdntrace man
 
 .include <bsd.subdir.mk>
 
