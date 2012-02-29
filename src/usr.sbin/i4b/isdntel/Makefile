@@ -7,4 +7,5 @@ SRCS=	main.c display.c files.c alias.c
 DPADD=	${LIBCURSES}
 LDADD=	-lcurses
 
+.include "../Makefile.sub"
 .include <bsd.prog.mk>

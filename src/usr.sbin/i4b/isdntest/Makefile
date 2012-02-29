@@ -4,7 +4,5 @@ PROG=	isdntest
 MAN=	isdntest.8
 SRCS=	main.c
 
-install:
-	@${ECHO} "isdntest is not installed automatically"
-
+.include "../Makefile.sub"
 .include <bsd.prog.mk>

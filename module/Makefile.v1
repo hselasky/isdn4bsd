@@ -1,8 +1,0 @@
-all: error
-install: error
-clean: error
-cleandepend: error
-error:
-	@echo "ISDN4BSD does no longer support versions of FreeBSD prior to v8."
-
-#--HPS

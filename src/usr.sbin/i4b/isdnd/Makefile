@@ -21,7 +21,7 @@ CFLAGS+= -DUSE_RTPRIO
 
 CFLAGS+= -I. -I${.CURDIR}/../isdnmonitor -I${.CURDIR}/../isdntel -I${.CURDIR}
 
-.include "${.CURDIR}/../Makefile.inc"
+.include "../Makefile.sub"
 
 .if !defined(I4B_WITHOUT_CURSES)
 CFLAGS+= -DUSE_CURSES

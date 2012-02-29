@@ -3811,7 +3811,7 @@ capi_alloc_mbuf(struct fifo_translator *f, u_int16_t def_len, u_int16_t tr_len)
 /*---------------------------------------------------------------------------*
  *	setup the FIFO-translator for I4B-CAPI
  *---------------------------------------------------------------------------*/
-fifo_translator_t *
+static fifo_translator_t *
 capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
 	      struct i4b_protocol *pp, u_int32_t driver_type, 
 	      u_int32_t driver_unit, call_desc_t *cd)
@@ -3871,12 +3871,12 @@ capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	}
 	return f;
 }
-
+I4B_REGISTER(DRVR_CAPI_B3, capi_setup_ft, NULL);
 
 /*---------------------------------------------------------------------------*
  *	setup the FIFO-translator for I4B-CAPI-BRIDGE
  *---------------------------------------------------------------------------*/
-fifo_translator_t *
+static fifo_translator_t *
 capi_bridge_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
 		     struct i4b_protocol *pp, u_int32_t driver_type, 
 		     u_int32_t driver_unit, call_desc_t *cd)
@@ -3929,3 +3929,5 @@ capi_bridge_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	}
 	return f;
 }
+I4B_REGISTER(DRVR_CAPI_BRIDGE, capi_bridge_setup_ft, NULL);
+

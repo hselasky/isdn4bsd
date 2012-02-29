@@ -233,7 +233,7 @@ ihfc_dev_tx_interrupt RXTX_INTERRUPT_T(ft,buf)
 	return;
 }
 
-fifo_translator_t *
+static fifo_translator_t *
 ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, 
 		  struct i4b_protocol *pp, u_int32_t driver_type,
 		  u_int32_t driver_unit, call_desc_t *cd)
@@ -276,6 +276,7 @@ ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft,
 	}
 	return ft;
 }
+I4B_REGISTER(DRVR_IHFC_DEV, ihfc_dev_setup_ft, NULL);
 
 /*---------------------------------------------------------------------------*
  * :ihfc io control

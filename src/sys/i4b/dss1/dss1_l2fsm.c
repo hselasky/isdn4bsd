@@ -1574,7 +1574,7 @@ static l2softc_t l2_softc[MAX_CONTROLLERS];
 /*---------------------------------------------------------------------------*
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
-fifo_translator_t *
+static fifo_translator_t *
 dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
 	      struct i4b_protocol *pp, u_int32_t driver_type, 
 	      u_int32_t driver_unit, call_desc_t *cd)
@@ -1781,4 +1781,7 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	}
 	return f;
 }
-
+I4B_REGISTER(DRVR_DSS1_TE, dss1_setup_ft, NULL);
+I4B_REGISTER(DRVR_DSS1_NT, dss1_setup_ft, NULL);
+I4B_REGISTER(DRVR_DSS1_P2P_TE, dss1_setup_ft, NULL);
+I4B_REGISTER(DRVR_DSS1_P2P_NT, dss1_setup_ft, NULL);

@@ -335,7 +335,7 @@ i4bisppp_negotiation_complete(struct sppp *sp)
  *	this routine is used to give a feedback from userland demon
  *	in case of dial problems
  *---------------------------------------------------------------------------*/
-void
+static void
 i4bisppp_response_to_user(msg_response_to_user_t *mrtu)
 {
 	struct i4bisppp_softc *sc = &i4bisppp_softc[mrtu->driver_unit];
@@ -467,7 +467,7 @@ i4bisppp_get_mbuf(struct fifo_translator *__f)
 /*---------------------------------------------------------------------------*
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
-fifo_translator_t *
+static fifo_translator_t *
 i4bisppp_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
 		  struct i4b_protocol *pp, u_int32_t driver_type,
 		  u_int32_t driver_unit, call_desc_t *cd)
@@ -517,3 +517,4 @@ i4bisppp_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	}
 	return f;
 }
+I4B_REGISTER(DRVR_ISPPP, i4bisppp_setup_ft, i4bisppp_response_to_user);

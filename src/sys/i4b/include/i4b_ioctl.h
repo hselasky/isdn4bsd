@@ -39,9 +39,9 @@
 /*---------------------------------------------------------------------------*
  *	version and release number for ISDN4BSD package
  *---------------------------------------------------------------------------*/
-#define I4B_VERSION    1                /* version number */
-#define I4B_REL        7                /* release number */
-#define I4B_STEP       0                /* release step   */
+#define I4B_VERSION    2                /* version number */
+#define I4B_REL        0                /* release number */
+#define I4B_STEP       1                /* release step   */
 
 /*---------------------------------------------------------------------------*
  * date/time format in I4B log messages
@@ -109,79 +109,61 @@ MAKE_ENUM(L1_TYPES,
  * a "driver" is defined here as a piece of software interfacing an
  * ISDN channel
  *---------------------------------------------------------------------------*/
-#define I4B_DRIVERS_DEVICE(          enum,value,setup_ft,response_to_user,desc,dev) #dev
-#define I4B_DRIVERS_ISDND_RC_5(      enum,value,setup_ft,response_to_user,desc,dev) "IT(Ar " #enum ") " desc " "
-#define I4B_DRIVERS_RESPONSE_TO_USER(enum,value,setup_ft,response_to_user,desc,dev) response_to_user
-#define I4B_DRIVERS_SETUP_FT(        enum,value,setup_ft,response_to_user,desc,dev) setup_ft
-#define I4B_DRIVERS_NAME(            enum,value,setup_ft,response_to_user,desc,dev) #enum
-#define I4B_DRIVERS_LLIST(           enum,value,setup_ft,response_to_user,desc,dev) { #enum, desc, enum },
-#define I4B_DRIVERS_DLIST(           enum,value,setup_ft,response_to_user,desc,dev) #enum ", "
-#define I4B_DRIVERS(m)				\
-	I4B_B_DRIVERS(m)			\
-	I4B_D_DRIVERS(m)			\
-/**/	
+#define I4B_DRIVERS_DEVICE(    enum,value,desc,dev) #dev
+#define I4B_DRIVERS_ISDND_RC_5(enum,value,desc,dev) "IT(Ar " #enum ") " desc " "
+#define I4B_DRIVERS_NAME(      enum,value,desc,dev) #enum
+#define I4B_DRIVERS_LLIST(     enum,value,desc,dev) { #enum, desc, enum },
+#define I4B_DRIVERS_DLIST(     enum,value,desc,dev) #enum ", "
+#define I4B_DRIVERS(m)		\
+	I4B_B_DRIVERS(m)	\
+	I4B_D_DRIVERS(m)
+/**/
 
 /* B-channel drivers */
 
 #define I4B_B_DRIVERS(m) \
-m(DRVR_IBC        ,,NULL               ,NULL,\
-  "BSD/OS point to point driver"		, null)\
-m(DRVR_ING        ,,NULL               ,NULL,\
-  "NetGraph driver"				, null)\
-m(DRVR_IPR        ,,ipr_setup_ft       ,ipr_response_to_user,\
-  "IP over raw HDLC interface driver"		, null)\
-m(DRVR_ISPPP      ,,NULL               ,NULL,\
-  "sync Kernel PPP interface driver"		, null)\
-m(DRVR_RBCH       ,,rbch_setup_ft      ,rbch_response_to_user,\
-  "raw B-channel interface driver"		, rbch)\
-m(DRVR_TEL        ,,tel_setup_ft       ,tel_response_to_user,\
-  "telephone or speech interface driver"	, tel)\
-m(DRVR_IHFC_DEV   ,,ihfc_dev_setup_ft  ,NULL,\
-  "ihfc interface driver"			, null)\
-m(DRVR_CAPI_B3    ,,capi_setup_ft      ,NULL,\
-  "CAPI application interface driver"           , null)\
-m(DRVR_DIAL_GEN   ,,tel_dial_setup_ft  ,NULL,\
-  "I4B dialtone generator"		       	, null)\
-m(DRVR_CAPI_BRIDGE,,capi_bridge_setup_ft, NULL,\
-  "CAPI bridge driver"           , null)\
+m(DRVR_IBC        ,, "BSD/OS point to point driver", null)\
+m(DRVR_ING        ,, "NetGraph driver", null)\
+m(DRVR_IPR        ,, "IP over raw HDLC interface driver", null)\
+m(DRVR_ISPPP      ,, "sync Kernel PPP interface driver", null)\
+m(DRVR_RBCH       ,, "raw B-channel interface driver", rbch)\
+m(DRVR_TEL        ,, "telephone or speech interface driver", tel)\
+m(DRVR_IHFC_DEV   ,, "ihfc interface driver", null)\
+m(DRVR_CAPI_B3    ,, "CAPI application interface driver", null)\
+m(DRVR_DIAL_GEN   ,, "I4B dialtone generator", null)\
+m(DRVR_CAPI_BRIDGE,, "CAPI bridge driver", null)\
 /**/
 
 /* D-channel drivers */
 
 #define I4B_D_DRIVERS(m) \
-m(DRVR_DSS1_TE    ,,dss1_setup_ft      ,NULL,\
+m(DRVR_DSS1_TE    ,,\
   "This is the terminal side, point to multipoint driver, "\
   "for the DSS1 or 'euro-ISDN' protocol. This driver "\
   "supports ITU Recommendations Q.921 and Q.931."\
   ""						,null)\
-m(DRVR_DSS1_NT    ,,dss1_setup_ft      ,NULL,\
+m(DRVR_DSS1_NT    ,,\
   "This is the network side, multipoint to point driver, "\
   "for the DSS1 or 'euro-ISDN' protocol. This driver "\
   "supports ITU Recommendations Q.921 and Q.931."\
   ""						,null)\
-m(DRVR_CAPI_TE    ,,capi_setup_ft      ,NULL,\
-  ""						,null)\
-m(DRVR_DIEHL_TE   ,,NULL               ,NULL,\
-  ""						,null)\
-m(DRVR_TINA_DD_TE ,,NULL               ,NULL,\
-  ""						,null)\
-m(DRVR_AMV_B1_TE  ,,NULL               ,NULL,\
-  ""						,null)\
-\
-m(DRVR_D_CHANNEL  ,,NULL               ,NULL,\
+m(DRVR_CAPI_TE    ,, "", null)\
+m(DRVR_DIEHL_TE   ,, "", null)\
+m(DRVR_TINA_DD_TE ,, "", null)\
+m(DRVR_AMV_B1_TE  ,, "", null)\
+m(DRVR_D_CHANNEL  ,,\
   "This driver selects the default D-channel driver." \
-  ""						,null)\
-m(DRVR_D64S       ,,NULL               ,NULL,\
+  "", null)\
+m(DRVR_D64S       ,,\
  "This driver can be used on single B-channel leased lines."\
  ""						,null)\
-m(DRVR_DUMMY      ,,NULL               ,NULL,\
-  ""						,null)\
-m(DRVR_DSS1_P2P_TE,,dss1_setup_ft      ,NULL,\
+m(DRVR_DUMMY      ,, "", null)\
+m(DRVR_DSS1_P2P_TE,,\
   "This is the terminal side, point to point driver, "\
   "for the DSS1 or 'euro-ISDN' protocol. This driver "\
   "supports ITU Recommendations Q.921 and Q.931."\
   ""						,null)\
-m(DRVR_DSS1_P2P_NT,,dss1_setup_ft      ,NULL,\
+m(DRVR_DSS1_P2P_NT,,\
   "This is the network side, point to point driver, "\
   "for the DSS1 or 'euro-ISDN' protocol. This driver "\
   "supports ITU Recommendations Q.921 and Q.931."\

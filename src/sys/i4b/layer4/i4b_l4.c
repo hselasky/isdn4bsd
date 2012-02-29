@@ -803,10 +803,33 @@ i4b_l4_packet_ind(int driver, int driver_unit, int dir_out, struct mbuf *pkt)
 	return;
 }
 
+setup_ft_t *i4b_drivers_setup_ft[N_I4B_DRIVERS];
+response_to_user_t *i4b_drivers_response_to_user[N_I4B_DRIVERS];
+
 static struct mbuf *
 i4b_default_alloc_mbuf(struct fifo_translator *f, u_int16_t def_len, u_int16_t tr_len)
 {
     return i4b_getmbuf(def_len, M_NOWAIT);
+}
+
+void
+i4b_register_driver(int type, setup_ft_t *sft, response_to_user_t *rtu)
+{
+    if (type < 0 || type >= N_I4B_DRIVERS)
+        return;
+
+    i4b_drivers_setup_ft[type] = sft;
+    i4b_drivers_response_to_user[type] = rtu;
+}
+
+void
+i4b_unregister_driver(int type)
+{
+    if (type < 0 || type >= N_I4B_DRIVERS)
+        return;
+
+    i4b_drivers_setup_ft[type] = NULL;
+    i4b_drivers_response_to_user[type] = NULL;
 }
 
 /*---------------------------------------------------------------------------*
@@ -820,9 +843,6 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int32_t channel,
 		 u_int32_t driver_unit, struct call_desc *cd)
 {
 	setup_ft_t *setup_ft;
-
-	static setup_ft_t * const
-	  MAKE_TABLE(I4B_DRIVERS,SETUP_FT,[]);
 
 	static const u_int8_t
 	  MAKE_TABLE(L1_TYPES,DEFAULT_DRIVER_TYPE,[]);
@@ -845,7 +865,7 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int32_t channel,
 	  driver_type = DRVR_DUMMY;
 	}
 
-	setup_ft = I4B_DRIVERS_SETUP_FT[driver_type];
+	setup_ft = i4b_drivers_setup_ft[driver_type];
 
 	if(setup_ft && cntl->L1_GET_FIFO_TRANSLATOR && 
 	   (channel < cntl->L1_channel_end) && 

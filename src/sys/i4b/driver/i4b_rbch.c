@@ -518,7 +518,7 @@ i4b_rbch_poll(struct cdev *dev, int events, struct thread *td)
 /*---------------------------------------------------------------------------*
  *	feedback from daemon in case of dial problems
  *---------------------------------------------------------------------------*/
-void
+static void
 rbch_response_to_user(msg_response_to_user_t *mrtu)
 {
 }
@@ -617,7 +617,7 @@ rbch_get_mbuf(struct fifo_translator *f)
 /*---------------------------------------------------------------------------*
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
-fifo_translator_t *
+static fifo_translator_t *
 rbch_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
 	      struct i4b_protocol *pp, u_int32_t driver_type, 
 	      u_int32_t driver_unit, call_desc_t *cd)
@@ -675,4 +675,4 @@ rbch_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	return f;
 }
-
+I4B_REGISTER(DRVR_RBCH, rbch_setup_ft, rbch_response_to_user);

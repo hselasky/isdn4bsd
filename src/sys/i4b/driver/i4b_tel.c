@@ -773,7 +773,7 @@ i4b_tel_dpoll(struct cdev *dev, int events, struct thread *td)
 /*---------------------------------------------------------------------------*
  *	feedback from daemon in case of dial problems
  *---------------------------------------------------------------------------*/
-void
+static void
 tel_response_to_user(msg_response_to_user_t *mrtu)
 {
 	tel_sc_t *sc = &tel_sc[mrtu->driver_unit];
@@ -896,7 +896,7 @@ tel_get_mbuf(struct fifo_translator *f)
 /*---------------------------------------------------------------------------*
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
-fifo_translator_t *
+static fifo_translator_t *
 tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
 	     struct i4b_protocol *pp, u_int32_t driver_type, 
 	     u_int32_t driver_unit, call_desc_t *cd)
@@ -981,6 +981,7 @@ tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	}
 	return f;
 }
+I4B_REGISTER(DRVR_TEL, tel_setup_ft, tel_response_to_user);
 
 static cdevsw_t i4b_tel_cdevsw = {
       .d_version =    D_VERSION,
@@ -1144,7 +1145,7 @@ tel_dial_get_mbuf(struct fifo_translator *f)
 /*---------------------------------------------------------------------------*
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
-fifo_translator_t *
+static fifo_translator_t *
 tel_dial_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
 		  struct i4b_protocol *pp, u_int32_t driver_type,
 		  u_int32_t driver_unit, call_desc_t *cd)
@@ -1176,3 +1177,4 @@ tel_dial_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	}
 	return (f);
 }
+I4B_REGISTER(DRVR_DIAL_GEN, tel_dial_setup_ft, NULL);

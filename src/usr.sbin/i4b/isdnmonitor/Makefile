@@ -14,4 +14,5 @@ CFLAGS+= -fno-merge-constants
 DPADD=	${LIBCURSES}
 LDADD=	-lcurses
 
+.include "../Makefile.sub"
 .include <bsd.prog.mk>

@@ -147,33 +147,24 @@ typedef struct fifo_translator * (setup_ft_t)(struct i4b_controller *cntl,
 	 struct fifo_translator *f, struct i4b_protocol *protocol, 
 	 u_int32_t driver_type, u_int32_t driver_unit, struct call_desc *cd);
 
-extern     response_to_user_t
-       ibc_response_to_user,
-       ing_response_to_user,
-       ipr_response_to_user,
-  i4bisppp_response_to_user,
-      rbch_response_to_user,
-       tel_response_to_user,
-  ihfc_dev_response_to_user,
-      dss1_response_to_user,
-     diehl_response_to_user,
-   tina_dd_response_to_user,
-    amv_b1_response_to_user;
+extern setup_ft_t *i4b_drivers_setup_ft[N_I4B_DRIVERS];
+extern response_to_user_t *i4b_drivers_response_to_user[N_I4B_DRIVERS];
 
-extern       setup_ft_t
-         ibc_setup_ft,
-         ing_setup_ft,
-         ipr_setup_ft,
-    i4bisppp_setup_ft,
-        rbch_setup_ft,
-         tel_setup_ft,
-    tel_dial_setup_ft,
-    ihfc_dev_setup_ft,
-        dss1_setup_ft,
-        capi_setup_ft,
- capi_bridge_setup_ft,
-       diehl_setup_ft,
-     tina_dd_setup_ft,
-      amv_b1_setup_ft;
+extern void i4b_register_driver(int, setup_ft_t *, response_to_user_t *);
+extern void i4b_unregister_driver(int);
+
+#include <sys/kernel.h>
+
+#define	I4B_REGISTER(type, setup, resp)					\
+static void type##_init(void *dummy)						\
+{									\
+  i4b_register_driver(type, setup, resp);				\
+}									\
+SYSINIT(type##_init, SI_SUB_KLD, SI_ORDER_FIRST, &type##_init, NULL);	\
+static void type##_uninit(void *dummy)					\
+{									\
+  i4b_unregister_driver(type);						\
+}									\
+SYSUNINIT(type##_uninit, SI_SUB_KLD, SI_ORDER_FIRST, &type##_uninit, NULL)
 
 #endif /* _I4B_L4_H_ */

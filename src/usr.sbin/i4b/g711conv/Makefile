@@ -8,4 +8,5 @@
 
 PROG=	g711conv
 
+.include "../Makefile.sub"
 .include <bsd.prog.mk>

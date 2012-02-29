@@ -440,7 +440,7 @@ iprclearqueues(struct ipr_softc *sc)
  *	this routine is used to give a feedback from userland daemon
  *	in case of dial problems
  *---------------------------------------------------------------------------*/
-void
+static void
 ipr_response_to_user(msg_response_to_user_t *mrtu)
 {
 	struct ipr_softc *sc = &ipr_softc[mrtu->driver_unit];
@@ -753,7 +753,7 @@ i4bipr_connect_startio(struct ipr_softc *sc)
 /*---------------------------------------------------------------------------*
  *	setup the FIFO-translator for this driver
  *---------------------------------------------------------------------------*/
-fifo_translator_t *
+static fifo_translator_t *
 ipr_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
 	     struct i4b_protocol *pp, u_int32_t driver_type, 
 	     u_int32_t driver_unit, call_desc_t *cd)
@@ -850,3 +850,4 @@ ipr_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	return f;
 }
+I4B_REGISTER(DRVR_IPR, ipr_setup_ft, ipr_response_to_user);

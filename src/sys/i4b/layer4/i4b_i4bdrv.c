@@ -950,10 +950,7 @@ i4b_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *t
 			{
 			  response_to_user_t *func;
 
-			  static response_to_user_t * const
-			    MAKE_TABLE(I4B_DRIVERS,RESPONSE_TO_USER,[]);
-
-			  func = I4B_DRIVERS_RESPONSE_TO_USER[mrtu->driver_type];
+			  func = i4b_drivers_response_to_user[mrtu->driver_type];
 
 			  if(func != NULL)
 			  {

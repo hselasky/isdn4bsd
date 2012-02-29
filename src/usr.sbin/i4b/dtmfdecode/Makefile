@@ -16,4 +16,5 @@ CFLAGS+= -DDEBUG
 test:   ${PROG}
 	uudecode -p < dtmfsounds.al.uu | ./${PROG}
 
+.include "../Makefile.sub"
 .include <bsd.prog.mk>

@@ -10,4 +10,6 @@ LDADD+= -lcapi20
 DPADD+= ${LIBM}
 LDADD+= -lm
 
+.include "../Makefile.sub"
 .include <bsd.prog.mk>
+

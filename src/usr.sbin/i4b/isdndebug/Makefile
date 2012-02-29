@@ -4,4 +4,5 @@ PROG=	isdndebug
 MAN= 	isdndebug.8
 SRCS=	main.c
 
+.include "../Makefile.sub"
 .include <bsd.prog.mk>
