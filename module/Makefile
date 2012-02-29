@@ -39,7 +39,8 @@ I4B_DIR=${.CURDIR}/../src/sys/i4b
 
 .include "../Makefile.sub"
 
-KMOD=i4b
+KMODNAME?=i4b
+KMOD=${KMODNAME}
 MAN=
 
 .if (${MACHINE_CPUARCH} != "i386")

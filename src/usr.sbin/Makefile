@@ -1,9 +1,6 @@
-SUBDIR= i4b
+.include "../Makefile.sub"
 
-OSNAME!= uname
-
-.if (${OSNAME} == NetBSD)
-SUBDIR+= mount_devfs
-.endif
+SUBDIR= i4b \
+	${HAVE_MOUNT_DEVFS}
 
 .include <bsd.subdir.mk>

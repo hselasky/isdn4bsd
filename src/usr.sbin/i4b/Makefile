@@ -3,6 +3,7 @@
 
 SUBDIR= \
     ${HAVE_CAPITEST} \
+    ${HAVE_CAPIMONITOR} \
     ${HAVE_DTMFDECODE} \
     ${HAVE_G711CONV} \
     ${HAVE_ISDNCONFIG} \

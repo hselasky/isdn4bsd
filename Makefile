@@ -27,11 +27,13 @@
 
 VERSION=2.0.1
 
+KMODNAME?=i4b
+
 .if defined(HAVE_KMOD) || defined(HAVE_ALL)
 SUBDIR+= module
 .endif
 
-.if defined(HAVE_UTILS) || defined(HAVE_ALL)
+.if defined(HAVE_UTILS) || defined(HAVE_ALL) || defined(HAVE_MAN)
 SUBDIR+= src/usr.sbin
 .endif
 
@@ -49,6 +51,7 @@ configure: cleanconfig
 	ln -s ${INCLUDEDIR}/capi20.h ${CAPI20}
 
 	echo "KMODDIR=${KMODDIR}" >> ${CONFIG}
+	echo "KMODNAME=${KMODNAME}" >> ${CONFIG}
 	echo "BINDIR=${BINDIR}" >> ${CONFIG}
 	echo "INCLUDEDIR=${INCLUDEDIR}" >> ${CONFIG}
 	echo "MANDIR=${MANDIR}" >> ${CONFIG}
@@ -64,6 +67,10 @@ configure: cleanconfig
 
 .if defined(HAVE_DEBUG) || defined(HAVE_ALL)
 	echo "HAVE_DEBUG=1" >> ${CONFIG}
+	echo "CFLAGS+= -g" >> ${CONFIG}
+.endif
+.if defined(HAVE_CAPIMONITOR) || defined(HAVE_ALL)
+	echo "HAVE_CAPIMONITOR=capimonitor" >> ${CONFIG}
 .endif
 .if defined(HAVE_CAPITEST) || defined(HAVE_ALL)
 	echo "HAVE_CAPITEST=capitest" >> ${CONFIG}
@@ -103,6 +110,12 @@ configure: cleanconfig
 .endif
 .if defined(HAVE_MAN) || defined(HAVE_ALL)
 	echo "HAVE_MAN=man" >> ${CONFIG}
+.endif
+.if defined(HAVE_NO_MAN)
+	echo "MK_MAN=no" >> ${CONFIG}
+.endif
+.if defined(HAVE_MOUNT_DEVFS) || defined(HAVE_ALL)
+	echo "HAVE_MOUNT_DEVFS=mount_devfs" >> ${CONFIG}
 .endif
 .if defined(I4B_EXTERNAL_MONITOR)
 	echo "I4B_EXTERNAL_MONITOR=1" >> ${CONFIG}
