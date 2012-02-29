@@ -166,7 +166,7 @@ package:
 	tar -cvf temp.tar --exclude="*~" --exclude="*#" \
 		--exclude=".svn" --exclude="*.orig" --exclude="*.rej" \
 		--exclude="temp" \
-		Makefile Makefile.sub README.TXT examples module/Makefile src
+		Makefile README.TXT examples module/Makefile src
 
 	rm -rf isdn4bsd-${VERSION}
 

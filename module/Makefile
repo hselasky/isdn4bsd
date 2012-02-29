@@ -43,8 +43,16 @@ KMODNAME?=i4b
 KMOD=${KMODNAME}
 MAN=
 
+.if defined(MACHINE_CPUARCH)
 .if (${MACHINE_CPUARCH} != "i386")
 CFLAGS+=-DFREEBSD_NO_ISA
+.endif
+.endif
+
+.if defined(MACHINE_ARCH)
+.if (${MACHINE_ARCH} != "i386")
+CFLAGS+=-DFREEBSD_NO_ISA
+.endif
 .endif
 
 SRCS=
