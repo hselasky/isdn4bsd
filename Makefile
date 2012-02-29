@@ -33,9 +33,7 @@ KMODNAME?=i4b
 SUBDIR+= module
 .endif
 
-.if defined(HAVE_UTILS) || defined(HAVE_ALL) || defined(HAVE_MAN)
 SUBDIR+= src/usr.sbin
-.endif
 
 .include <bsd.subdir.mk>
 
