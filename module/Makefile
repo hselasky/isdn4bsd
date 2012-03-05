@@ -92,8 +92,11 @@ SRCS+= i4b_ihfc2_end.c
 SRCS+= iloop.c
 .endif
 
-.if !defined(HAVE_YEALINK_DRIVER)
+.if defined(HAVE_YEALINK_DRIVER)
 SRCS+= yealink.c
+.endif
+
+.if defined(HAVE_ISDN_LOOP_DRIVER) || defined(HAVE_YEALINK_DRIVER)
 SRCS+= dss1_lite.c dss1_lite_l1if.c
 .endif
 
