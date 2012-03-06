@@ -46,6 +46,7 @@
 #include <sys/ioccom.h>
 #include <sys/sockio.h>
 #include <sys/kernel.h>
+#include <sys/module.h>
 
 #include <net/if.h>
 #include <net/if_types.h>
@@ -114,6 +115,9 @@ static void	i4bisppp_negotiation_complete(struct sppp *sp);
 /*===========================================================================*
  *			DEVICE DRIVER ROUTINES
  *===========================================================================*/
+
+MODULE_VERSION(i4bisppp, 1);
+MODULE_DEPEND(i4bisppp, sppp, 1, 1, 1);
 
 /*---------------------------------------------------------------------------*
  *	interface attach routine at kernel boot time
