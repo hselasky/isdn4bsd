@@ -177,8 +177,10 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct dss1_buffer *buf)
 	      break;
 
 	    default:
-	      NDBGL3(L3_P_ERR, "IEI_BEARERCAP - "
+	      if (dss1_get_valid(buf,4)) {
+	      	NDBGL3(L3_P_ERR, "IEI_BEARERCAP - "
 		     "Unsupported B-Sub-Protocol 0x%02x", temp);
+	      }
 	      cd->channel_bsubprot = BSUBPROT_UNKNOWN;
 	    }
 	    break;
