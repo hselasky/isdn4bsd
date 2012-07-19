@@ -65,7 +65,7 @@ struct mbuf;
  *---------------------------------------------------------------------------*/
 #include <sys/param.h>
 
-#define SECOND		time_second
+#define SECOND		time_uptime
 
 /*---------------------------------------------------------------------------*
  *	accounting definitions
