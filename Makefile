@@ -25,7 +25,7 @@
 # ISDN4BSD toplevel Makefile
 #
 
-VERSION=2.0.4
+VERSION=2.0.5
 
 KMODNAME?=i4b
 
