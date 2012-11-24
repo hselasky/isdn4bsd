@@ -194,7 +194,7 @@ ihfc_config_write(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	   * specific delay should be less
 	   * than 1*hz.
 	   */
-	  if(sc->sc_default.d_interrupt_delay >= (1*hz))
+	  if(sc->sc_default.d_interrupt_delay >= (uint32_t)(1 * hz))
 	  {
 	    sc->sc_default.d_interrupt_delay -= 1*hz;
 	  }
@@ -213,7 +213,7 @@ ihfc_config_write(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	   * NOTE: this delay must be
 	   * shorter than ``IHFC_T3_DELAY''.
 	   */
-	  if(sc->sc_default.d_interrupt_delay < (hz / 4))
+	  if(sc->sc_default.d_interrupt_delay < (uint32_t)(hz / 4))
 	  {
 	    sc->sc_default.d_interrupt_delay += 1*hz;
 	  }

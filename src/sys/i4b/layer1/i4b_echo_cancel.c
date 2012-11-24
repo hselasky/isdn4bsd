@@ -159,7 +159,7 @@ static __inline int32_t
 i4b_echo_cancel_abs(int32_t temp)
 {
     if (temp < 0) {
-	if (temp == -0x80000000) {
+	if (temp == (int32_t)0x80000000) {
 	    /* avoid overflow */
 	    temp = 0x7FFFFFFF;
 	} else {

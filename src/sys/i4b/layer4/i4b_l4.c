@@ -557,7 +557,7 @@ i4b_l4_information_ind(call_desc_t *cd)
 		mp->header.type = MSG_INFORMATION_IND;
 		mp->header.cdid = cd->cdid;
 
-		if(len > (sizeof(mp->dst_telno)-1))
+		if(len > (int)(sizeof(mp->dst_telno)-1))
 		{
 		    /* should not happen */
 		    len = (sizeof(mp->dst_telno)-1);

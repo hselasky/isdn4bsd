@@ -877,7 +877,7 @@ wibusb2_callback_interrupt(struct usb_xfer *xfer, usb_error_t error)
   case USB_ST_TRANSFERRED: 
 	IHFC_MSG("actlen=%d\n", actlen);
 
-	if (actlen < sizeof(stat)) {
+	if (actlen < (int)sizeof(stat)) {
 	    goto tr_setup;
 	}
 

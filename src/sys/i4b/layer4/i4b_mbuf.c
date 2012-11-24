@@ -83,7 +83,7 @@ i4b_getmbuf(int len, int how)
 		return(NULL);
 	}
 
-	if(len >= MHLEN)
+	if(len >= (int)MHLEN)
 	{
 		MCLGET(m, how);
 

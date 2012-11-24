@@ -112,7 +112,7 @@ struct ngingstat {
 #define NG_ING_STATS_TYPE_INFO	{				\
 	  { "packets_in",	&ng_parse_int32_type	},	\
 	  { "packets_out",	&ng_parse_int32_type	},	\
-	  { NULL },						\
+	  { NULL, NULL },				       	\
 }
 
 /*

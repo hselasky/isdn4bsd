@@ -44,12 +44,10 @@ static void
 usage(void)
 {
 	fprintf(stderr,
-	    "\n"
 	    "\n" "capimonitor - print information about incoming calls"
 	    "\n" "usage: capimonitor [-u controller]"
 	    "\n" "       -u <unit>     specify controller unit to listen to"
-	    "\n"
-	    ,CAPI_STACK_VERSION / 100, CAPI_STACK_VERSION % 100);
+	    "\n");
 
 	exit(1);
 }
@@ -146,10 +144,7 @@ static void
 capi_message_handler(const struct capi_message_decoded *mp)
 {
 	struct capi_message_decoded msg;
-	struct call_desc *cd;
 	struct capi_struct str;
-
-	uint8_t buffer[2048];
 
 	msg.head.wCmd = 0;
 
@@ -215,7 +210,7 @@ capi_message_handler(const struct capi_message_decoded *mp)
 }
 
 static void
-loop()
+loop(void)
 {
 	int error;
 

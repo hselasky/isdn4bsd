@@ -1883,7 +1883,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		return (EBUSY);
 	}
 
-	if(uio->uio_resid < sizeof(sc->sc_msg.head))
+	if(uio->uio_resid < (int)sizeof(sc->sc_msg.head))
 	{
 		error = EINVAL;
 		goto done;
