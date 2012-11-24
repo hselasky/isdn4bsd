@@ -45,8 +45,6 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <err.h>
-#include <grp.h>
-#include <pwd.h>
 #include <limits.h>
 
 #include <i4b/include/i4b_debug.h>
@@ -88,6 +86,10 @@ struct options {
     u_int8_t  got_pcm_master : 1;
     u_int8_t  got_pcm_slave : 1;
     u_int8_t  got_pcm_map : 1;
+    u_int8_t  got_dialtone_enable : 1;
+    u_int8_t  got_dialtone_disable : 1;
+    u_int8_t  got_status_enquiry_enable : 1;
+    u_int8_t  got_status_enquiry_disable : 1;
 };
 
 static const struct enum_desc 
@@ -100,64 +102,6 @@ static const struct enum_desc
 {
   I4B_D_DRIVERS(I4B_DRIVERS_LLIST) { NULL, NULL, 0 }
 };
-
-static uid_t
-num_id(const char *name, const char *type)
-{
-    uid_t val;
-    char *ep;
-
-    errno = 0;
-    val = strtoul(name, &ep, 10);
-    if (errno) {
-        err(1, "%s", name);
-    }
-    if (*ep != '\0') {
-        errx(1, "%s: illegal %s name", name, type);
-    }
-    return (val);
-}
-
-static gid_t
-a_gid(const char *s)
-{
-    struct group *gr;
-
-    if (*s == '\0') {
-        /* empty group ID */
-        return ((gid_t)-1);
-    }
-    return ((gr = getgrnam(s)) ? gr->gr_gid : num_id(s, "group"));
-}
-
-static uid_t
-a_uid(const char *s)
-{
-    struct passwd *pw;
-
-    if (*s == '\0') {
-        /* empty user ID */
-        return ((uid_t)-1);
-    }
-    return ((pw = getpwnam(s)) ? pw->pw_uid : num_id(s, "user"));
-}
-
-static mode_t
-a_mode(const char *s)
-{
-    uint16_t val;
-    char *ep;
-
-    errno = 0;
-    val = strtoul(s, &ep, 8);
-    if (errno) {
-        err(1, "%s", s);
-    }
-    if (*ep != '\0') {
-        errx(1, "illegal permissions: %s", s);
-    }
-    return val;
-}
 
 static int
 __atoi(const u_int8_t *str)
@@ -430,6 +374,20 @@ flush_command(struct options *opt)
         err(1, "'-i' option requires '-p' option!");
     }
 
+    if (opt->got_dialtone_enable &&
+	opt->got_dialtone_disable)
+    {
+	err(1, "cannot specify 'dialtone_enable' and "
+	    "'dialtone_disable' at the same time!");
+    }
+
+    if (opt->got_status_enquiry_enable &&
+	opt->got_status_enquiry_disable)
+    {
+	err(1, "cannot specify 'status_enquiry_enable' and "
+	    "'status_enquiry_disable' at the same time!");
+    }
+
     /* execute commands */
 
     dbg.unit = opt->unit;
@@ -528,6 +486,24 @@ flush_command(struct options *opt)
 	  dbg.mask |= I4B_OPTION_T1_MODE;
 	}
 
+	if(opt->got_dialtone_enable) {
+	  dbg.mask |= I4B_OPTION_NO_DIALTONE;
+	}
+
+	if(opt->got_dialtone_disable) {
+	  dbg.mask |= I4B_OPTION_NO_DIALTONE;
+	  dbg.value |= I4B_OPTION_NO_DIALTONE;
+	}
+
+	if(opt->got_status_enquiry_enable) {
+	  dbg.mask |= I4B_OPTION_NO_STATUS_ENQUIRY;
+	}
+
+	if(opt->got_status_enquiry_disable) {
+	  dbg.mask |= I4B_OPTION_NO_STATUS_ENQUIRY;
+	  dbg.value |= I4B_OPTION_NO_STATUS_ENQUIRY;
+	}
+
 	if(dbg.mask) {
 
 	  u_int32_t mask_copy = dbg.mask;
@@ -624,6 +600,9 @@ controller_info(u_int32_t controller)
 	printf("  Layer 2:\n");
 	printf("    driver_type : %s\n",
 	       get_layer2_enum(mcir.l2_driver_type));
+	printf("  Layer 3:\n");
+	printf("    status_enquiry : %s\n",
+	       mcir.l3_no_status_enquiry ? "disabled" : "enabled");
 	printf("}\n");
     }
     return;
@@ -801,6 +780,18 @@ main(int argc, char **argv)
 	  } else if(strcmp(ptr, "pcm_slave") == 0) {
 	    opt->got_pcm_slave = 1;
 	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "dialtone_enable") == 0) {
+	    opt->got_dialtone_enable = 1;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "dialtone_disable") == 0) {
+	    opt->got_dialtone_disable = 1;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "status_enquiry_enable") == 0) {
+	    opt->got_status_enquiry_enable = 1;
+	    opt->got_any = 1;
+	  } else if(strcmp(ptr, "status_enquiry_disable") == 0) {
+	    opt->got_status_enquiry_disable = 1;
+	    opt->got_any = 1;
 	  } else if(strcmp(ptr, "pcm_map") == 0) {
 
 	    optind++;
@@ -816,53 +807,6 @@ main(int argc, char **argv)
  		optind++;
 	    }
 	    opt->got_pcm_map = 1;
-	    opt->got_any = 1;
-
-	  } else if(strcmp(ptr, "capi_delegate") == 0) {
-
-	    char *cp;
-	    uint8_t success = 0;
-	    i4b_capi_delegate_t dg;
-
-	    bzero(&dg, sizeof(dg));
-
-	    optind++;
-	    if (optind < argc) {
-	        cp = argv[optind];
-		cp = strchr(cp, ':');
-		if (cp == NULL) {
-		    err(1, "missing ':' in user:group after 'capi_delegate'!");
-		}
-		*(cp++) = '\0';
-		dg.gid = a_gid(cp);
-		dg.uid = a_uid(argv[optind]);
-		optind++;
-		if (optind < argc) {
-		    dg.mode = a_mode(argv[optind]);
-		    optind++;
-		    if (optind < argc) {
-		        dg.max_units = atoi(argv[optind]);
-			/* allow future extensions */
-			while (success == 0) {
-			    optind++;
-			    if (optind < argc) {
-			        if (strcmp(argv[optind], "end") == 0) {
-				    success = 1;
-				}
-			    } else {
-			        break;
-			    }
-			}
-		    }
-		}
-	    }
-
-	    if (success == 0) {
-	        err(1, "badly formatted capi_delegate command!");
-	    }
-
-	    i4b_ioctl(I4B_CTL_CAPI_DELEGATE, "capi_delegate", &dg);
-
 	    opt->got_any = 1;
 
 	  } else {

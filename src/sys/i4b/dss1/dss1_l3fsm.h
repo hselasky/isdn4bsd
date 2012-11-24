@@ -297,6 +297,16 @@ cd_set_state(call_desc_t *cd, u_int8_t newstate)
 	        cd->status_enquiry_timeout++;
 		newstate--;
 	    }
+	} else if (NO_STATUS_ENQUIRY(sc) &&
+	    ((newstate == ST_L3_UC_TO) ||
+	     (newstate == ST_L3_UA_TO) ||
+	     (newstate == ST_L3_U3_TO) ||
+	     (newstate == ST_L3_U4_TO) ||
+	     (newstate == ST_L3_U6_TO) ||
+	     (newstate == ST_L3_U7_TO))) {
+		/* don't send status enquiry */
+		send_status_enquiry = 0;
+		newstate--;
 	}
 
 	cd->state = newstate;

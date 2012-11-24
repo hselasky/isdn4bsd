@@ -249,6 +249,8 @@ typedef struct {
 	L1_activity_t L1_activity;
 	L1_auto_activate_t L1_auto_activate;
 
+#define	NO_STATUS_ENQUIRY(sc) ((sc)->sc_cntl != NULL && \
+    (sc)->sc_cntl->no_layer3_status_enquiry != 0)
 #define NT_MODE(sc) ((sc)->sc_nt_mode)
 #define TE_MODE(sc) (!NT_MODE(sc))
 	u_int8_t	sc_nt_mode;

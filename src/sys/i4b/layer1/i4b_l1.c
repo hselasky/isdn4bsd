@@ -380,6 +380,30 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
   if(cntl->L1_COMMAND_REQ)
   {
     switch(cmd) {
+    case CMR_SET_I4B_OPTIONS:
+    {
+	i4b_debug_t *dbg = (void *)data;
+
+	if (dbg->mask & I4B_OPTION_NT_MODE) {
+		if (dbg->value & I4B_OPTION_NT_MODE)
+			cntl->N_nt_mode = 1;
+		else
+			cntl->N_nt_mode = 0;
+	}
+	if (dbg->mask & I4B_OPTION_NO_DIALTONE) {
+		if (dbg->value & I4B_OPTION_NO_DIALTONE)
+			cntl->no_layer1_dialtone = 1;
+		else
+			cntl->no_layer1_dialtone = 0;
+	}
+	if (dbg->mask & I4B_OPTION_NO_STATUS_ENQUIRY) {
+		if (dbg->value & I4B_OPTION_NO_STATUS_ENQUIRY)
+			cntl->no_layer3_status_enquiry = 1;
+		else
+			cntl->no_layer3_status_enquiry = 0;
+	}
+	break;
+    }
     case CMR_SET_POWER_SAVE:
         cntl->no_power_save = 0;
 	break;
@@ -395,6 +419,7 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
 	mcir->l1_serial = cntl->N_serial_number;
 	mcir->l1_desc[0] = '\0';
 	mcir->l1_no_dialtone = cntl->no_layer1_dialtone;
+	mcir->l3_no_status_enquiry = cntl->no_layer3_status_enquiry;
 	mcir->l1_no_power_save = cntl->no_power_save;
 	mcir->l1_attached = cntl->attached;
 	mcir->l2_driver_type = cntl->N_driver_type;
@@ -404,8 +429,8 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
     {
         msg_prot_ind_t *mpi = (void *)data;
 
-	if ((cntl->N_driver_type != mpi->driver_type) ||
-	    (cntl->N_serial_number != mpi->serial_number))
+	if ((cntl->N_driver_type != (uint32_t)mpi->driver_type) ||
+	    (cntl->N_serial_number != (uint16_t)mpi->serial_number))
 	{
 	    /* disconnect current driver */
 

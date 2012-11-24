@@ -336,6 +336,7 @@ typedef struct i4b_controller {
 	u_int8_t no_layer1_dialtone:1;	/* set if dialtone is not wanted */
 	u_int8_t attached:1;		/* set if controller is attached */
 	u_int8_t no_power_save:1;	/* set to disable power saving */
+	u_int8_t no_layer3_status_enquiry:1;	/* set to disable L3 status enquiry */
 	u_int8_t N_nt_mode:1;		/* set if NT-mode is used */
 
 	/* --> Layer 2 */

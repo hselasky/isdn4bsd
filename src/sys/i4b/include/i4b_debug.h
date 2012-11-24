@@ -316,7 +316,8 @@ typedef struct {
 #define  I4B_OPTION_POLLED_MODE       0x0080 /* If set, else standard mode */
 #define  I4B_OPTION_LOCAL_LOOP        0x0100 /* If set, else disabled */
 #define  I4B_OPTION_REMOTE_LOOP       0x0200 /* If set, else disabled */
-#define I4B_CTL_CAPI_DELEGATE       _IOW('C',26, i4b_capi_delegate_t) /* delegate CAPI access */
+#define  I4B_OPTION_NO_DIALTONE       0x0400 /* If set, else enabled */
+#define  I4B_OPTION_NO_STATUS_ENQUIRY 0x0800 /* If set, else enabled */
 
 /*---------------------------------------------------------------------------*
  *	I4B echo cancel debug IOCTL structure

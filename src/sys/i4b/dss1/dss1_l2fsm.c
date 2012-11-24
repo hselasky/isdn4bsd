@@ -1494,10 +1494,11 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 			 * STATUS_ENQUIRY seems to not 
 			 * be included by this rule.
 			 */
-			*ptr++ = PD_Q931;
-			 ptr   = make_callreference(pipe_adapter, 0x7f, ptr);
-		        *ptr++ = STATUS_ENQUIRY;
-
+			if (!NO_STATUS_ENQUIRY(sc)) {
+				*ptr++ = PD_Q931;
+				 ptr   = make_callreference(pipe_adapter, 0x7f, ptr);
+				*ptr++ = STATUS_ENQUIRY;
+			}
 			m->m_len = ptr - ((__typeof(ptr))m->m_data);
 		    }
 		}
@@ -1670,7 +1671,6 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 			       I4B_OPTION_NT_MODE, 
 			       I4B_OPTION_NT_MODE);
 
-	    cntl->N_nt_mode = 1;
 	    sc->sc_nt_mode = 1;
 
 	    if(!IS_POINT_TO_POINT(sc))
@@ -1686,7 +1686,6 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 			       I4B_OPTION_NT_MODE, 
 			       0);
 
-	    cntl->N_nt_mode = 0;
 	    sc->sc_nt_mode = 0;
 	  }
 #if 0

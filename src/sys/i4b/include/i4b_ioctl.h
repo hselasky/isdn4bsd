@@ -782,7 +782,8 @@ typedef struct {
 	u_char    l1_no_dialtone : 1; 
 	u_char    l1_no_power_save : 1;
 	u_char    l1_attached : 1;
-	u_char    l1_unused : 4;
+	u_char    l3_no_status_enquiry : 1; 
+	u_char    l1_unused : 3;
 	u_int32_t l2_driver_type;
 } msg_ctrl_info_req_t;
 	

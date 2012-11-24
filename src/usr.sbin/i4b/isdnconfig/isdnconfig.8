@@ -24,7 +24,7 @@
 .\"
 .\" $FreeBSD: $
 .\"
-.Dd June 25, 2007
+.Dd November 24, 2012
 .Dt ISDNCONFIG 8
 .Os
 .Sh NAME
@@ -34,7 +34,7 @@
 .Nm
 .Op Fl u Ar unit
 .Op Fl c Ar channel
-.Op Fl i Ar value
+d.Op Fl i Ar value
 .Op Fl p Ar protocol
 .Op Fl r
 .Op Fl n
@@ -119,8 +119,16 @@ Select E1 cable mode, if supported by hardware (default).
 .It dump_ec
 Dump echo cancel state information in matlab compatible format to standard
 out. This command requires a valid -u and -c option.
-.It capi_delegate
-Delegate one or more CAPI applications to a user. See examples below for syntax.
+.It dialtone_enable
+Enable L1 dialtone (default).
+Enabling this feature causes a dialtone to be played automatically when handling incoming calls in NT-mode.
+.It dialtone_disable
+Disable L1 dialtone.
+.It status_enquiry_enable
+Enable Q.931 L3 status enquiry (default).
+Enabling this feature prevents ghost calls.
+.It status_enquiry_disable
+Disable Q.931 L3 status enquiry.
 .El
 .Ed
 .Sh EXAMPLES
@@ -184,19 +192,6 @@ isdnconfig -u 0 -c 1 dump_ec | octave
 .Ed
 .Pp
 dumps echo cancel information for unit zero and channel B1 to octave.
-.
-.Pp
-The command:
-.Bd -literal -offset indent
-isdnconfig capi_delegate root:wheel 0600 2 end
-.Ed
-.Pp
-delegates a maximum of 2 CAPI applications to the "root" user and the
-"wheel" group with rights 0600 which is given in octal. You should
-always delegate one more CAPI application than the user will actually
-use, due to the way
-.Xr libcapi20
-is implemented!
 .
 .Sh AUTHORS
 The
