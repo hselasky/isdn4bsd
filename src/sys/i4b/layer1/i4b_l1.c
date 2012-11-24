@@ -374,6 +374,8 @@ int
 i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
 {
   int error = 0;
+  uint32_t dbg_mask = 0;
+  uint32_t dbg_value = 0;
 
   CNTL_LOCK(cntl);
 
@@ -383,6 +385,11 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
     case CMR_SET_I4B_OPTIONS:
     {
 	i4b_debug_t *dbg = (void *)data;
+
+	/* save value of non-L1-options */
+	dbg_mask = (dbg->mask & (I4B_OPTION_NO_DIALTONE |
+	    I4B_OPTION_NO_STATUS_ENQUIRY));
+	dbg_value = dbg_mask & dbg->value;
 
 	if (dbg->mask & I4B_OPTION_NT_MODE) {
 		if (dbg->value & I4B_OPTION_NT_MODE)
@@ -471,6 +478,21 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
       break;
     }
     error = (cntl->L1_COMMAND_REQ)(cntl,cmd,data);
+
+    switch(cmd) {
+    case CMR_SET_I4B_OPTIONS:
+    {
+	i4b_debug_t *dbg = (void *)data;
+
+	/* restore non-L1-option mask and value */
+	dbg->mask |= dbg_mask;
+	dbg->value &= ~dbg_mask;
+	dbg->value |= dbg_value;
+	break;
+    }
+    default:
+	break;
+    }
   }
   else
   {
