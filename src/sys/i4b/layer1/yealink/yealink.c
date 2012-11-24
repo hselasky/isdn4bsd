@@ -483,7 +483,7 @@ yealink_intr_callback(struct usb_xfer *xfer, usb_error_t error)
 
 		DPRINTFN(15, "%d bytes\n", actlen);
 
-		if (actlen >= sizeof(sc->sc_intr.data)) {
+		if (actlen >= (int)sizeof(sc->sc_intr.data)) {
 
 			val = sc->sc_intr.data.data[0];
 
