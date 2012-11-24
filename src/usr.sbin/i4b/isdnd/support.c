@@ -854,7 +854,7 @@ daemonize(void)
 		case 0:			/* child */
 			break;
 		default:		/* parent */
-			exit(0);
+			_exit(0);
 	}
 
 	/* new session / no control tty */
