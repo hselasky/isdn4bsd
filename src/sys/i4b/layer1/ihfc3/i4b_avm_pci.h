@@ -215,7 +215,8 @@ avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
 {
 	IPAC_BUS_VAR(sc);
 
-	u_int8_t buffer[0x40 + 0x10]; /* allocate a buffer on the stack */
+	/* allocate a buffer on the stack */
+	u_int8_t buffer[0x40 + 0x10] __aligned(4);
 	u_int8_t temp;
 
 	/* read status */
