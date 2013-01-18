@@ -400,6 +400,17 @@ I4B_FIFO_MAP_DECLARE(isac_fifo_map[]) =
     .Zdata        = REG2HFC1(REG_isac_data),
     .block_size   = 0x20, /* = 32 bytes */
   },
+
+  /*
+   * IPAC D-channel FIFO map (remove status byte)
+   */
+
+  [ 9].i=
+  {
+    .Zdata        = REG_isac_data,
+    .block_size   = 0x20, /* = 32 bytes */
+    .remove_stat  = 1;
+  },
 };
 
 I4B_FIFO_MAP_DECLARE(psb3186_fifo_map[]) =

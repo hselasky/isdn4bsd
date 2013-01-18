@@ -113,9 +113,19 @@ avm_pci_chip_read CHIP_READ_T(sc,reg,ptr,len)
 
 	if(reg & 0x80)
 	{
+	    IHFC_LEN_T x;
+
+	    /* sanity check */
+	    if (len > (sizeof(sc->sc_buffer) / 4))
+		len = (sizeof(sc->sc_buffer) / 4);
+
 	    /* ISAC-SX REGISTER */
 	    bus_space_write_4(t, h, REG_ISACSX_INDEX, (reg & 0x7F));
-	    bus_space_read_multi_1(t, h, REG_ISACSX_DATA, ptr, len);
+	    bus_space_read_multi_4(t, h, REG_ISACSX_DATA,
+		(u_int32_t *)sc->sc_buffer, len);
+
+	    for (x = 0; x != len; x++)
+		ptr[x] = ((u_int32_t *)sc->sc_buffer)[x];
 	}
 	else
 	{
@@ -148,9 +158,19 @@ avm_pci_chip_write CHIP_WRITE_T(sc,reg,ptr,len)
 
 	if(reg & 0x80)
 	{
+	    IHFC_LEN_T x;
+
+	    /* sanity check */
+	    if (len > (sizeof(sc->sc_buffer) / 4))
+		len = (sizeof(sc->sc_buffer) / 4);
+
+	    for (x = 0; x != len; x++)
+		((u_int32_t *)sc->sc_buffer)[x] = ptr[x];
+
 	    /* ISAC-SX REGISTER */
 	    bus_space_write_4(t, h, REG_ISACSX_INDEX, (reg & 0x7F));
-	    bus_space_write_multi_1(t, h, REG_ISACSX_DATA, ptr, len);
+	    bus_space_write_multi_4(t, h, REG_ISACSX_DATA,
+		(u_int32_t *)sc->sc_buffer, len);
 	}
 	else
 	{
@@ -215,14 +235,14 @@ avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
 {
 	IPAC_BUS_VAR(sc);
 
-	/* allocate a buffer on the stack */
-	u_int8_t buffer[0x40 + 0x10] __aligned(4);
 	u_int8_t temp;
+	u_int32_t status;
 
 	/* read status */
-	temp = bus_space_read_1(t, h, offset + HSCX_STAT);
+	status = bus_space_read_4(t, h, offset + HSCX_STAT);
+	temp = (status & 0xFF);
 
-	IHFC_MSG("b_status=0x%02x\n", temp);
+	IHFC_MSG("b_status=0x%08x\n", (unsigned int)status);
 
 	if(temp)
 	{
@@ -253,14 +273,14 @@ avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
 	{
 	    (f+receive)->i_ista &= ~(I_ISTA_RPF|I_ISTA_ERR);
 
-	    temp = bus_space_read_1(t, h, offset + HSCX_LEN) & 0x3F;
+	    temp = (status >> 8) & 0x3F;	/* HSCX_LEN */
 	    if(temp == 0) temp = 32;
 
 	    /* read FIFO */
 	    bus_space_read_multi_4(t, h, offset + HSCX_FIFO, 
-				   (void *)&buffer[0], (temp+3)/4);
+		(u_int32_t *)sc->sc_buffer, (temp + 3) / 4);
 
-	    (f+receive)->Z_ptr = &buffer[0];
+	    (f+receive)->Z_ptr = (u_int8_t *)sc->sc_buffer;
 	    (f+receive)->Z_chip = temp;
 
 	    /* call filter */
@@ -280,7 +300,7 @@ avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
 	    temp = 32;
 
 	    (f+transmit)->i_ista &= ~(I_ISTA_ERR|I_ISTA_XPR);
-	    (f+transmit)->Z_ptr = &buffer[0];
+	    (f+transmit)->Z_ptr = (u_int8_t *)sc->sc_buffer;
 	    (f+transmit)->Z_chip = temp;
 
 	    /* call filter */
@@ -300,9 +320,13 @@ avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
 	    /* update state */
 	    (f+transmit)->state &= ~(ST_FRAME_ERROR|ST_FRAME_END);
 
+	    /* write FIFO command and FIFO length (=0) */
+	    bus_space_write_4(t, h, offset + HSCX_STAT,
+		((HSCX_CMD_XME) | (HSCX_MODE_TRANS << 16)));
+
 	    /* write FIFO */
 	    bus_space_write_multi_4(t, h, offset + HSCX_FIFO, 
-				    (void *)&buffer[0], (temp+3)/4);
+		(u_int32_t *)sc->sc_buffer, (temp + 3) / 4);
 	}
 	return;
 }
@@ -452,16 +476,11 @@ avm_pci_fifo_reset(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
 
       	/* first step, reset the FIFO, 
 	 * which will clear the selected protocol
+	 * second step, select extended transparent mode
 	 */
 
-	bus_space_write_1(t, h, offset + HSCX_STAT, 
-			  (HSCX_CMD_XRS|HSCX_CMD_RRS));
-
-	DELAY(150); /* wait at least 125 us */
-
-	/* second step, select extended transparent mode */
-
-	bus_space_write_1(t, h, offset + HSCX_PROT, HSCX_MODE_TRANS);
+	bus_space_write_4(t, h, offset + HSCX_STAT, 
+		((HSCX_CMD_XRS|HSCX_CMD_RRS) | (HSCX_MODE_TRANS << 16)));
 
 	DELAY(150); /* wait at least 125 us */
 
@@ -479,25 +498,45 @@ avm_pci_chip_reset CHIP_RESET_T(sc,error)
 	IPAC_BUS_VAR(sc);
 	u_int8_t temp;
 
+	/*
+	 * Reset the card
+	 *
+	 * Copied from old FreeBSD:
+	 * i4b/layer1/ifpi2/i4b_ifpi2_pci.c
+	 *
+	 * The Linux driver does this to clear any pending ISAC or
+	 * HSCX interrupts
+	 */
+	avm_pci_chip_read(sc, REG_isacsx_rmoded, &temp, 1);
+	avm_pci_chip_read(sc, REG_isacsx_istad, &temp, 1);
+	avm_pci_chip_read(sc, REG_isacsx_ista, &temp, 1);
+	avm_pci_chip_read(sc, REG_isacsx_maskd, &temp, 1);
+	avm_pci_chip_read(sc, REG_isacsx_mask, &temp, 1);
+	temp = 0xFF;
+	avm_pci_chip_write(sc, REG_isacsx_maskd, &temp, 1);
+	avm_pci_chip_write(sc, REG_isacsx_mask, &temp, 1);
+	bus_space_read_1(t, h, REG_BCHAN_1 + HSCX_STAT);
+	bus_space_read_1(t, h, REG_BCHAN_2 + HSCX_STAT);
+
  	bus_space_write_1(t, h, REG_STAT0_OFFSET, 0);
 
-	DELAY(4000); /* 4 ms */
+	DELAY(10000); /* 10 ms */
 
 	bus_space_write_1(t, h, REG_STAT0_OFFSET, ASL_RESET_ALL);
 
-	DELAY(4000); /* 4 ms */
+	DELAY(10000); /* 10 ms */
 
 	bus_space_write_1(t, h, REG_STAT0_OFFSET, 0);
 
-	DELAY(4000); /* 4 ms */
+	DELAY(10000); /* 10 ms */
 
  	bus_space_write_1(t, h, REG_STAT0_OFFSET, ASL_TIMERRESET);
 
-	DELAY(4000); /* 4 ms */
+	DELAY(10000); /* 10 ms */
 
 	bus_space_write_1(t, h, REG_STAT0_OFFSET, ASL_ENABLE_INT);
 
-	DELAY(4000); /* 4 ms */
+	DELAY(10000); /* 10 ms */
 
  	avm_pci_fifo_reset(sc, &(sc->sc_fifo[b1t & b1r]), REG_BCHAN_1);
 	avm_pci_fifo_reset(sc, &(sc->sc_fifo[b2t & b2r]), REG_BCHAN_2);
@@ -537,6 +576,9 @@ avm_pci_chip_reset CHIP_RESET_T(sc,error)
 	 */
 	temp = 0;
 	avm_pci_chip_write(sc, REG_isacsx_tr_mode, &temp, 1);
+
+	avm_pci_chip_write(sc, REG_isacsx_maskd, &temp, 1);
+	avm_pci_chip_write(sc, REG_isacsx_mask, &temp, 1);
 
 	return;
 }
@@ -604,7 +646,7 @@ I4B_DBASE(avm_pci_dbase_root)
   I4B_DBASE_ADD(i4b_option_value   , 0);
 
   I4B_DBASE_ADD(d_fifo_map[d1t]    , FM2OFF (isac_fifo_map[0]));
-  I4B_DBASE_ADD(d_fifo_map[d1r]    , FM2OFF (isac_fifo_map[0]));
+  I4B_DBASE_ADD(d_fifo_map[d1r]    , FM2OFF (isac_fifo_map[9]));
 
   I4B_DBASE_ADD(o_RES_IRQ_0        , 1); /* enable */
   I4B_DBASE_ADD(o_RES_MEMORY_0     , 1); /* enable */

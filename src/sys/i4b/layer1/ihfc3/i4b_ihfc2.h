@@ -2583,7 +2583,7 @@ struct ihfc_sc {
 	struct usb_callout	sc_pollout_timr;      /* T50 ms  */
 	struct usb_callout	sc_pollout_timr_wait; /* T125 us */
 
-	u_int8_t		sc_buffer[1024];
+	u_int8_t		sc_buffer[1024] __aligned(4);
   
 	struct sc_fifo *	sc_fifo_select_last; /* used by 
 						      * FIFO_SELECT(,) 
