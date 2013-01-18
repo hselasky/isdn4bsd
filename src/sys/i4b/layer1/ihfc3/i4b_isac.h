@@ -409,7 +409,7 @@ I4B_FIFO_MAP_DECLARE(isac_fifo_map[]) =
   {
     .Zdata        = REG_isac_data,
     .block_size   = 0x20, /* = 32 bytes */
-    .remove_stat  = 1;
+    .remove_stat  = 1,
   },
 };
 
