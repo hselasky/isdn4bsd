@@ -336,15 +336,14 @@ void
 i4b_dtmf_detect(struct fifo_translator *ft, 
 		u_int8_t *data_ptr, u_int16_t data_len)
 {
-    static const int32_t min_gain = 0x1000;
     int32_t w2[I4B_DTMF_N_FREQ];
+    int32_t max_gain;
     int32_t sample;
-    int32_t sample_cp;
-    int32_t min0;
-    int32_t min1;
     int32_t max0;
     int32_t max1;
     int32_t max2;
+    u_int16_t x;
+    u_int16_t delta;
     u_int32_t found;
     u_int32_t n;
     u_int8_t temp;
@@ -354,83 +353,81 @@ i4b_dtmf_detect(struct fifo_translator *ft,
     if (ft->L5_PUT_DTMF == NULL)
 	return;
 
-    while (data_len--) {
+    while (1) {
+	delta = I4B_DTMF_N_SAMPLES - ft->dtmf_rx.count;
+	if (delta > data_len)
+		delta = data_len;
+	memcpy(ft->dtmf_rx.buffer + ft->dtmf_rx.count, data_ptr, delta);
+	data_ptr += delta;
+	data_len -= delta;
+	ft->dtmf_rx.count += delta;
 
-        sample = ((ft->dtmf_rx.bsubprot == BSUBPROT_G711_ALAW) ?
-		  i4b_alaw_to_signed[*data_ptr] :
-		  i4b_ulaw_to_signed[*data_ptr]); 
+	if (ft->dtmf_rx.count != I4B_DTMF_N_SAMPLES)
+		break;
 
-	data_ptr++;
+	/* reset detector */
+	bzero(ft->dtmf_rx.w1, sizeof(ft->dtmf_rx.w1));
+	bzero(ft->dtmf_rx.w0, sizeof(ft->dtmf_rx.w0));
+	ft->dtmf_rx.count = 0;
 
-	if (ft->dtmf_rx.max_gain < min_gain) {
-	    ft->dtmf_rx.max_gain = min_gain;
+	/* compute AGC */
+	max_gain = 0x1000;
+
+	for (x = 0; x != I4B_DTMF_N_SAMPLES; x++) {
+		sample = ((ft->dtmf_rx.bsubprot == BSUBPROT_G711_ALAW) ?
+		    i4b_alaw_to_signed[ft->dtmf_rx.buffer[x]] :
+		    i4b_ulaw_to_signed[ft->dtmf_rx.buffer[x]]);
+		if (sample < 0)
+			sample = -sample;
+		if (sample > max_gain) {
+			if (sample > 0x7FFF)
+				sample = 0x7FFF;
+			max_gain = sample;
+		}
 	}
 
-	if (sample == -0x8000) {
-	    sample = -0x7FFF;
+	for (x = 0; x != I4B_DTMF_N_SAMPLES; x++) {
+		sample = ((ft->dtmf_rx.bsubprot == BSUBPROT_G711_ALAW) ?
+		    i4b_alaw_to_signed[ft->dtmf_rx.buffer[x]] :
+		    i4b_ulaw_to_signed[ft->dtmf_rx.buffer[x]]);
+
+		/* normalize input data */
+
+		sample = ((sample * 0x8000) - sample) / max_gain;
+
+		if (sample > 0x7FFF)
+			sample = 0x7FFF;
+		else if (sample < -0x7FFF)
+			sample = -0x7FFF;
+
+		/* compute Goertzel filters */
+
+		for (n = 0; n < I4B_DTMF_N_FREQ; n += 2) {
+
+			/* partial loop unrolling */
+
+			w2[n] = (((K[n] * (ft->dtmf_rx.w1[n] / (1<<7))) / (1<<7)) - 
+			    (ft->dtmf_rx.w0[n]) + sample);
+
+			ft->dtmf_rx.w0[n] = ft->dtmf_rx.w1[n];
+			ft->dtmf_rx.w1[n] = w2[n];
+
+			w2[n+1] = (((K[n+1] * (ft->dtmf_rx.w1[n+1] / (1<<7))) / (1<<7)) - 
+			    (ft->dtmf_rx.w0[n+1]) + sample);
+
+			ft->dtmf_rx.w0[n+1] = ft->dtmf_rx.w1[n+1];
+			ft->dtmf_rx.w1[n+1] = w2[n+1];
+		}
 	}
 
-	sample_cp = sample;
+	found = 0;
+	max2 = 0;
+	max1 = 0;
+	max0 = 0;
 
-	/* normalize input data */
+	for (n = 0; n != I4B_DTMF_N_FREQ; n++) {
 
-	sample = ((sample * 0x8000) - sample) / ft->dtmf_rx.max_gain;
-
-	/* XXX the AGC could be better! XXX */
-
-	/* check if sound is too loud */
-
-	if ((sample > 0x7FFF) ||
-	    (sample < -0x7FFF))
-	{
-	    if (sample_cp < 0) {
-	        sample_cp = -sample_cp;
-	    }
-
-	    if (sample_cp < min_gain) {
-	        sample_cp = min_gain;
-	    }
-
-	    ft->dtmf_rx.max_gain = sample_cp;
-
-	    /* clip sound */
-
-	    sample = ((sample < 0) ? -0x7FFF : 0x7FFF);
-	}
-
-	/* compute Goertzel filters */
-
-	for (n = 0; n < I4B_DTMF_N_FREQ; n += 2) {
-
-	    /* partial loop unrolling */
-
-	    w2[n] = (((K[n] * (ft->dtmf_rx.w1[n] / (1<<7))) / (1<<7)) - 
-		     (ft->dtmf_rx.w0[n]) + sample);
-
-	    ft->dtmf_rx.w0[n] = ft->dtmf_rx.w1[n];
-	    ft->dtmf_rx.w1[n] = w2[n];
-
-	    w2[n+1] = (((K[n+1] * (ft->dtmf_rx.w1[n+1] / (1<<7))) / (1<<7)) - 
-		     (ft->dtmf_rx.w0[n+1]) + sample);
-
-	    ft->dtmf_rx.w0[n+1] = ft->dtmf_rx.w1[n+1];
-	    ft->dtmf_rx.w1[n+1] = w2[n+1];
-	}
-
-	ft->dtmf_rx.count++;
-
-	if (ft->dtmf_rx.count == I4B_DTMF_N_SAMPLES) {
-
-	    found = 0;
-	    max2 = 0;
-	    max1 = 0;
-	    max0 = 0;
-	    min0 = 0x7FFFFFFF;
-	    min1 = 0x7FFFFFFF;
-
-	    for (n = 0; n < I4B_DTMF_N_FREQ; n++) {
-
-	        ft->dtmf_rx.w0[n] /= (1<<7);
+		ft->dtmf_rx.w0[n] /= (1<<7);
 		ft->dtmf_rx.w1[n] /= (1<<7);
 
 		w2[n] = i4b_sqrt_32
@@ -451,136 +448,112 @@ i4b_dtmf_detect(struct fifo_translator *ft,
 		} else if (max2 < w2[n]) {
 		    max2 = w2[n];
 		}
+	}
 
-		/* compute the two lowest values */
+	if ((max0 >= 5000) && (max1 >= (max0 / 2)) && (max2 < (max0 / 2))) {
 
-		if (min0 > w2[n]) {
-		    min1 = min0;
-		    min0 = w2[n];
-		} else if (min1 > w2[n]) {
-		    min1 = w2[n];
-		}
-	    }
+		/* multi tone */
 
-	    if ((max0 >= 5000) && (max0 < 10000) &&
-		(max1 >= 5000) && (max1 < 10000) &&
-		(max1 < (max0 + (max0/2))) &&
-		(max2 < 4000)) {
-
-	        /* dual tone */
-
-	        for (n = 0; n < I4B_DTMF_N_FREQ; n++) {
-		    found |= ((w2[n] == max0) ||
-			      (w2[n] == max1)) << n;
+		for (n = 0; n < I4B_DTMF_N_FREQ; n++) {
+			found |= (w2[n] >= max1) << n;
 		}
 
-	    } if ((max0 >= 10000) && (max1 < 5000)) {
+	} else if ((max0 >= 10000) && (max1 < (max0 / 2))) {
 
-	        /* single tone */
+		/* single tone */
 
-	        for (n = 0; n < I4B_DTMF_N_FREQ; n++) {
-		    found |= (w2[n] == max1) << n;
+		for (n = 0; n < I4B_DTMF_N_FREQ; n++) {
+			found |= (w2[n] == max0) << n;
 		}
-	    }
+	}
 
-	    if (found) {
-	        for (n = 0; n < I4B_DTMF_N_FREQ; n++) {
-		    I4B_DBG(1, L1_DTMF_MSG, "tone[%d]=%d max=%d,%d,%d "
-			    "min=%d,%d", n, w2[n], max0, max1, 
-			    max2, min0, min1);
+	if (found) {
+		for (n = 0; n != I4B_DTMF_N_FREQ; n++) {
+			I4B_DBG(1, L1_DTMF_MSG, "tone[%d]=%d max=%d,%d,%d",
+				n, w2[n], max0, max1, max2);
 		}
-	    }
+	}
 
-	    if (found == (1<<16)) {
-
-	        if (ft->dtmf_rx.detected_fax_or_modem) {
-		    code = 0;
-		    goto done;
+	if (found == (1<<16)) {
+		if (ft->dtmf_rx.detected_fax_or_modem) {
+			code = 0;
+			goto done;
 		} else {
-		    /* fax tone 1.1 kHz */
-		    code = 'X';
+			/* fax tone 1.1 kHz */
+			code = 'X';
 		}
-
-	    } else if (found == (1<<17)) {
-
-	        if (ft->dtmf_rx.detected_fax_or_modem) {
-		    code = 0;
-		    goto done;
+	} else if (found == (1<<17)) {
+		if (ft->dtmf_rx.detected_fax_or_modem) {
+			code = 0;
+			goto done;
 		} else {
-		    /* fax tone 2.1 kHz */
-		    code = 'Y';
+			/* fax tone 2.1 kHz */
+			code = 'Y';
 		}
-
-	    } else {
-
-	        /* DTMF tone */
-	        temp = (found & 0xF);
+	} else {
+		/* DTMF tone */
+		temp = (found & 0xF);
 
 		if (temp == 1) {
-		    code = 0;
+			code = 0;
 		} else if (temp == 2) {
-		    code = 1;
+			code = 1;
 		} else if (temp == 4) {
-		    code = 2;
+			code = 2;
 		} else if (temp == 8) {
-		    code = 3;
+			code = 3;
 		} else {
-		    code = 0;
-		    goto done;
+			code = 0;
+			goto done;
 		}
 
 		if (found & 0xFFFFFF00) {
-		    code = 0;
-		    goto done;
+			code = 0;
+			goto done;
 		}
 
 		temp = ((found >> 4) & 0xF);
 
 		if (temp == 1) {
-		    code |= 0x0;
+			code |= 0x0;
 		} else if (temp == 2) {
-		    code |= 0x4;
+			code |= 0x4;
 		} else if (temp == 4) {
-		    code |= 0x8;
+			code |= 0x8;
 		} else if (temp == 8) {
-		    code |= 0xC;
+			code |= 0xC;
 		} else {
-		    code = 0;
-		    goto done;
+			code = 0;
+			goto done;
 		}
-
 		code = code_to_ascii[code];
-	    }
-	done:
-	    if (ft->dtmf_rx.code != code) {
-	        ft->dtmf_rx.code = code;
+	}
+done:
+	if (code == 0 && ft->dtmf_rx.no_code_count < 2) {
+		/* JITTER case */
+		code = ft->dtmf_rx.code;
+		ft->dtmf_rx.no_code_count++;
+	} else {
+		/* non-JITTER case */
+		ft->dtmf_rx.no_code_count = 0;
+	}
+	if (code != ft->dtmf_rx.code) {
+		ft->dtmf_rx.code = code;
 		ft->dtmf_rx.code_count = 0;
-	    }
-
-	    if ((code == 'X') || (code == 'Y')) {
-	        if (ft->dtmf_rx.code_count == 14) {
-		    L5_PUT_DTMF(ft, &code, 1);
-
-		    ft->dtmf_rx.detected_fax_or_modem = 1;
+	}
+	if ((code == 'X') || (code == 'Y')) {
+		if (ft->dtmf_rx.code_count == 14) {
+			L5_PUT_DTMF(ft, &code, 1);
+			ft->dtmf_rx.detected_fax_or_modem = 1;
 		}
-		if (ft->dtmf_rx.code_count != 0xFF) {
-		    ft->dtmf_rx.code_count++;
+		if (ft->dtmf_rx.code_count != 255)
+			ft->dtmf_rx.code_count++;
+	} else if (code != 0) {
+		if (ft->dtmf_rx.code_count == 1) {
+			L5_PUT_DTMF(ft, &code, 1);
 		}
-	    } else if (code) {
-	        if (ft->dtmf_rx.code_count == 1) {
-		    L5_PUT_DTMF(ft, &code, 1);
-		}
-		if (ft->dtmf_rx.code_count != 0xFF) {
-		    ft->dtmf_rx.code_count++;
-		}
-	    }
-
-	    /* reset detector */
-	    bzero(ft->dtmf_rx.w1, sizeof(ft->dtmf_rx.w1));
-	    bzero(ft->dtmf_rx.w0, sizeof(ft->dtmf_rx.w0));
-	    ft->dtmf_rx.count = 0;
-	    ft->dtmf_rx.max_gain = 0;
+		if (ft->dtmf_rx.code_count != 255)
+			ft->dtmf_rx.code_count++;
 	}
     }
-    return;
 }
