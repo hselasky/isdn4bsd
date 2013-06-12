@@ -68,17 +68,18 @@ struct mbuf;
  *	definition of DTMF detector
  *---------------------------------------------------------------------------*/
 #define	I4B_DTMF_N_FREQ 18		/* must be even */
-#define	I4B_DTMF_N_SAMPLES 102
+#define	I4B_DTMF_N_SAMPLES 102		/* 12.75ms */
 #define	I4B_DTMF_N_DIGITS 32		/* units, max */
 
 struct i4b_dtmf_info_rx {
 	int32_t	w0[I4B_DTMF_N_FREQ];
 	int32_t	w1[I4B_DTMF_N_FREQ];
-	int32_t	max_gain;
 
+	u_int8_t buffer[I4B_DTMF_N_SAMPLES];
 	u_int8_t count;
 	u_int8_t code;
 	u_int8_t code_count;
+	u_int8_t no_code_count;
 	u_int8_t bsubprot;
 	u_int8_t detected_fax_or_modem;
 };
