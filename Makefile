@@ -25,7 +25,7 @@
 # ISDN4BSD toplevel Makefile
 #
 
-VERSION=2.0.7
+VERSION=2.0.8
 
 KMODNAME?=i4b
 
@@ -110,7 +110,7 @@ configure: cleanconfig
 	echo "HAVE_MAN=man" >> ${CONFIG}
 .endif
 .if defined(HAVE_NO_MAN)
-	echo "MK_MAN=no" >> ${CONFIG}
+	echo "NO_MAN=YES" >> ${CONFIG}
 .endif
 .if defined(HAVE_MOUNT_DEVFS) || defined(HAVE_ALL)
 	echo "HAVE_MOUNT_DEVFS=mount_devfs" >> ${CONFIG}
