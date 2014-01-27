@@ -150,9 +150,7 @@ NOT(led_turns_on /* when mask is ored */)(|(mask))	\
  * : global fifo_map support macros and structure(s)
  *---------------------------------------------------------------------------*/
 #define I4B_FIFO_MAP_DECLARE(name)			\
- 	static const union fifo_map name		\
-	  __attribute__((__section__("ihfc_fifo_maps"),	\
-			 __aligned__(1),__used__))	\
+ 	static const union fifo_map name
 /**/
 
 /*---------------------------------------------------------------------------*
@@ -162,10 +160,10 @@ NOT(led_turns_on /* when mask is ored */)(|(mask))	\
  * NOTE: the compiler does not support nameless declarations
  *       so the UNIQUE() macro is used to generate a name
  *---------------------------------------------------------------------------*/
-#define I4B_DRIVER_DECLARE(type)					\
-	static const struct drvr_id					\
-	  __attribute__((__section__("ihfc_" #type "_id_start"),	\
-			 __aligned__(1),__used__)) UNIQUE(drvr_id)	\
+#define I4B_DRIVER_DECLARE(type)			\
+	extern const struct drvr_id UNIQUE(drvr_id);	\
+	TEXT_SET(ihfc_##type##_id, UNIQUE(drvr_id));	\
+	const struct drvr_id UNIQUE(drvr_id)
 /**/
 
 struct drvr_id
@@ -206,15 +204,10 @@ struct drvr_id
 #define _I4B_PSB2152_H_
 #define _I4B_PSB3186_H_
 
-extern struct drvr_id
-  ihfc_usb_id_start[0],
-  ihfc_usb_id_end[0],
-  ihfc_pci_id_start[0],
-  ihfc_pci_id_end[0],
-  ihfc_pnp_id_start[0],
-  ihfc_pnp_id_end[0],
-  ihfc_isa_id_start[0],
-  ihfc_isa_id_end[0];
+SET_DECLARE(ihfc_usb_id, const struct drvr_id);
+SET_DECLARE(ihfc_pnp_id, const struct drvr_id);
+SET_DECLARE(ihfc_pci_id, const struct drvr_id);
+SET_DECLARE(ihfc_isa_id, const struct drvr_id);
 
 /* make sure that the names are UNIQUE() */
 #include <i4b/layer1/ihfc3/i4b_count.h>
@@ -1129,8 +1122,8 @@ ihfc_pnp_probe(device_t dev)
         u_int32_t       flags =  device_get_flags(dev);
         u_int8_t         name = *device_get_name(device_get_parent(dev));
 
-        const struct drvr_id * id       = NULL;
-	const struct drvr_id * id_end   = NULL;
+	const struct drvr_id ** ppid = NULL;
+	const struct drvr_id ** ppid_end = NULL;
 
         u_int32_t vid = 0, lid = 0, cid = 0, sub = 0;
 
@@ -1152,8 +1145,8 @@ ihfc_pnp_probe(device_t dev)
       	if(flags)
 	{
 		/* Probe ISA */
-		id       = &ihfc_isa_id_start[0];
-		id_end   = &ihfc_isa_id_end[0];
+		ppid = SET_BEGIN(ihfc_isa_id);
+		ppid_end = SET_LIMIT(ihfc_isa_id);
 
 		vid = (flags & 0xff);
 	}
@@ -1162,8 +1155,8 @@ ihfc_pnp_probe(device_t dev)
 	  if(name == 'i')
 	  {
 		/* Probe PNP */
-		id       = &ihfc_pnp_id_start[0];
-		id_end   = &ihfc_pnp_id_end[0];
+		ppid = SET_BEGIN(ihfc_pnp_id);
+		ppid_end = SET_LIMIT(ihfc_pnp_id);
 
 		lid = isa_get_logicalid(dev);
 		vid = isa_get_vendorid(dev);
@@ -1173,8 +1166,8 @@ ihfc_pnp_probe(device_t dev)
 	  if(name == 'p')
 	  {
 		/* Probe PCI */
-		id       = &ihfc_pci_id_start[0];
-		id_end   = &ihfc_pci_id_end[0];
+		ppid = SET_BEGIN(ihfc_pci_id);
+		ppid_end = SET_LIMIT(ihfc_pci_id);
 
 		vid = pci_get_devid(dev);
 		sub = pci_read_config(dev, 0x2c, 4);
@@ -1186,8 +1179,8 @@ ihfc_pnp_probe(device_t dev)
 		struct usb_attach_arg *uaa;
 
 		/* Probe USB */
-		id       = &ihfc_usb_id_start[0];
-		id_end   = &ihfc_usb_id_end[0];
+		ppid = SET_BEGIN(ihfc_usb_id);
+		ppid_end = SET_LIMIT(ihfc_usb_id);
 
 		uaa = device_get_ivars(dev);
 		if (uaa->usb_mode != USB_MODE_HOST) {
@@ -1215,8 +1208,10 @@ ihfc_pnp_probe(device_t dev)
 	 * (will be checked below)
 	 */
 
-	for( ; id < id_end; id++)
+	for( ; ppid != ppid_end; ppid++)
 	{
+	  const struct drvr_id * id = *ppid;
+
 	  if(((id->vid == vid) ||
 	      (id->vid == lid) ||
 	      (id->vid == cid)) &&

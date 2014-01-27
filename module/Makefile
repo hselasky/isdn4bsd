@@ -85,7 +85,6 @@ SRCS+= i4b_ihfc2_drv.c
 SRCS+= i4b_ihfc2_pnp.c
 SRCS+= i4b_ihfc2_dev.c
 SRCS+= i4b_ihfc2_l1if.c
-SRCS+= i4b_ihfc2_end.c
 .endif
 
 .if defined(HAVE_ISDN_LOOP_DRIVER)

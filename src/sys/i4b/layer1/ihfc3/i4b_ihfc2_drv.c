@@ -629,9 +629,9 @@ struct filter_info {
 };
 
 #define I4B_FILTER_INFO_DECLARE(name)				\
-	static const struct filter_info name			\
-	  __attribute__((__section__("ihfc_filter_info_start"),	\
-			 __aligned__(1),__used__))		\
+	extern const struct filter_info name;			\
+	TEXT_SET(ihfc_filter_info, name);			\
+	const struct filter_info name
 /**/
 /*
  * NOTE: __aligned__(1) is used to make sure that
@@ -642,9 +642,7 @@ struct filter_info {
 #define I4B_FILTER_EXPORT()				\
 	I4B_FILTER_INFO_DECLARE(UNIQUE(ihfc_filter_info))
 
-extern struct filter_info
-  ihfc_filter_info_start[0],
-  ihfc_filter_info_end[0];
+SET_DECLARE(ihfc_filter_info, const struct filter_info);
 
 #include <i4b/layer1/ihfc3/i4b_count.h>
 #include <i4b/layer1/ihfc3/i4b_filter.h>
@@ -698,6 +696,7 @@ static void
 ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
 	const struct filter_info *filt;
+	const struct filter_info **ppfilt;
 	__typeof(((struct filter_info *)0)->rxtx_interrupt) *rxtx_interrupt;
 	__typeof(((struct filter_info *)0)->buffersize) buffersize = 0;
 	u_int16_t protocol;
@@ -750,10 +749,12 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 
 	if(protocol != P_DISABLE)
 	{
-	    for(filt = &ihfc_filter_info_start[0];
-		filt < &ihfc_filter_info_end[0];
-		filt++)
+	    for (ppfilt = SET_BEGIN(ihfc_filter_info);
+		ppfilt != SET_LIMIT(ihfc_filter_info);
+		ppfilt++)
 	    {
+		filt = *ppfilt;
+
 	        if(((filt->protocol[0] == protocol) ||
 		    (filt->protocol[1] == protocol) ||
 		    (filt->protocol[2] == protocol) ||

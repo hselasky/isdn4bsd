@@ -55,6 +55,7 @@
 # include <machine/bus.h>
 # include <sys/callout.h>
 # include <sys/bus.h>
+# include <sys/linker_set.h>
 
 # include <net/if.h>
 
