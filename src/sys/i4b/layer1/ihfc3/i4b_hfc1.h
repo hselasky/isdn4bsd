@@ -621,8 +621,8 @@ hfc1_chip_unselect CHIP_UNSELECT_T(sc)
 	cli(sc);
 
 	/* write CMDR (ISAC) */
-	if(sc->sc_fifo[d1r].i_cmdr |=
-	   sc->sc_fifo[d1t].i_cmdr)
+	if((sc->sc_fifo[d1r].i_cmdr |=
+	   sc->sc_fifo[d1t].i_cmdr))
 	{
 #if 0
 		/* disable TIN hence T50 is used instead */

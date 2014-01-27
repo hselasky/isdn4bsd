@@ -530,8 +530,8 @@ tiger300_isac_chip_unselect CHIP_UNSELECT_T(sc)
    */
 
   /* write CMDR (ISAC) */
-  if(sc->sc_fifo[d1r].i_cmdr |=
-     sc->sc_fifo[d1t].i_cmdr)
+  if((sc->sc_fifo[d1r].i_cmdr |=
+     sc->sc_fifo[d1t].i_cmdr))
   {
           IPAC_WRITE_1(REG_isac_cmdr,
                        sc->sc_fifo[d1r].i_cmdr);
