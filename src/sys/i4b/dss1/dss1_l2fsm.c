@@ -1508,7 +1508,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 		     * of this I-frame 
 		     * for Layer 1
 		     */
-		    m = m_copypacket(m, M_DONTWAIT);
+		    m = m_copypacket(m, M_NOWAIT);
 		}
 
 		if(!m)

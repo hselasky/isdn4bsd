@@ -50,13 +50,6 @@ i4b_getmbuf(int len, int how)
 {
 	struct mbuf *m;
 
-#if ((defined(M_DONTWAIT) ||			\
-      defined(M_TRYWAIT)) &&			\
-     ((M_DONTWAIT != M_NOWAIT) ||		\
-      (M_TRYWAIT != M_WAITOK)))
-#error "\"how\" argument needs to be converted!"
-#endif
-
 	if(len > MCLBYTES)	/* if length > max extension size */
 	{
 

@@ -205,7 +205,7 @@ i4b_ai_putqueue(struct i4b_ai_softc *sc, u_int8_t sc_complement,
 				 * writeable. In other words the data
 				 * pointed to by m_data can be shared.
 				 */
-				m2 = m_copypacket(m1, M_DONTWAIT);
+				m2 = m_copypacket(m1, M_NOWAIT);
 
 				if (m2 == NULL) {
 					NDBGL4(L4_ERR, "out of mbufs!");

@@ -277,7 +277,7 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 				if (m1 == NULL)
 					m2 = NULL;
 				else
-					m2 = m_copypacket(m1, M_DONTWAIT);
+					m2 = m_copypacket(m1, M_NOWAIT);
 
 				capi_ai_putqueue(sc,flags,m2,p_copy_count);
 			}
