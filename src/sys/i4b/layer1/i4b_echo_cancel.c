@@ -477,7 +477,10 @@ i4b_echo_cancel_coeffs_reset(struct i4b_echo_cancel *ec)
 
     ec->offset_x = I4B_ECHO_CANCEL_N_TAPS;
     ec->offset_e = (4*I4B_ECHO_CANCEL_N_TAPS);
-    return;
+
+    /* initial muting should only activate once */
+    if (ec->mute_count != 0)
+	ec->mute_count = 0xFFFFU;
 }
 
 static void
