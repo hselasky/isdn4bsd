@@ -174,5 +174,5 @@ package:
 
 	rm -rf temp.tar
 
-	tar -jcvf isdn4bsd-${VERSION}.tar.bz2 isdn4bsd-${VERSION}
+	tar --uid 0 --gid 0 -jcvf isdn4bsd-${VERSION}.tar.bz2 isdn4bsd-${VERSION}
 
