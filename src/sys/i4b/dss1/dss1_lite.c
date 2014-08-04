@@ -130,6 +130,18 @@ dss1_lite_set_dtmf(struct dss1_lite_call_desc *cd, const char *pdtmf)
 	(cd->dl_parent->dl_methods->set_dtmf) (cd->dl_parent, pdtmf);
 }
 
+static void
+dss1_lite_set_hook_on(struct dss1_lite_call_desc *cd)
+{
+	(cd->dl_parent->dl_methods->set_hook_on) (cd->dl_parent);
+}
+
+static void
+dss1_lite_set_hook_off(struct dss1_lite_call_desc *cd)
+{
+	(cd->dl_parent->dl_methods->set_hook_off) (cd->dl_parent);
+}
+
 static uint8_t
 dss1_lite_send_setup(struct dss1_lite_call_desc *cd,
     uint8_t sending_complete)
@@ -141,6 +153,7 @@ dss1_lite_send_setup(struct dss1_lite_call_desc *cd,
 	    (sending_complete ? IE_SENDING_COMPLETE_MASK : 0)));
 }
 
+#if 0
 static uint8_t
 dss1_lite_send_setup_acknowledge(struct dss1_lite_call_desc *cd)
 {
@@ -151,6 +164,8 @@ dss1_lite_send_setup_acknowledge(struct dss1_lite_call_desc *cd)
 	    (IE_HEADER_MASK | (send_progress ? IE_PROGRESS_MASK : 0) |
 	    (send_chan_id ? IE_CHANNEL_ID_MASK : 0))));
 }
+
+#endif
 
 static uint8_t
 dss1_lite_send_alert(struct dss1_lite_call_desc *cd)
@@ -473,6 +488,8 @@ dss1_lite_set_state(struct dss1_lite_call_desc *cd, uint8_t state)
 		}
 		if (dss1_lite_is_nt_mode(cd) == 0) {
 			dss1_lite_set_ring(cd, 0);
+		} else {
+			dss1_lite_set_hook_on(cd);
 		}
 		if (cd->dl_parent->dl_active_call_desc == cd)
 			cd->dl_parent->dl_active_call_desc = NULL;
@@ -1051,15 +1068,27 @@ i_frame:
 			dss1_lite_set_ring(cd, 1);
 			dss1_lite_alert_request(cd);
 		} else {
+			dss1_lite_set_hook_off(cd);
+
 			if (cd->dl_part.telno[0])
 				dss1_lite_set_dtmf(cd, cd->dl_part.telno);
 
 			if (cd->dl_sending_complete) {
 				if (dss1_lite_set_state(cd, DL_ST_IN_U6))
 					dss1_lite_send_call_proceeding(cd);
+				dss1_lite_alert_request(cd);
+				dss1_lite_send_connect(cd);
+
+				cd->dl_cause_out = 0;
+				cd->dl_need_release = 1;
 			} else {
+#if 1
+				cd->dl_cause_out = CAUSE_Q850_NORMUNSP;
+				dss1_lite_set_state(cd, DL_ST_FREE);
+#else
 				if (dss1_lite_set_state(cd, DL_ST_IN_U0_ACK))
 					dss1_lite_send_setup_acknowledge(cd);
+#endif
 			}
 		}
 		break;
@@ -1077,8 +1106,10 @@ i_frame:
 
 					dss1_lite_send_connect_acknowledge(cd);
 
-					/* connect_active() indication */
-
+					if (dss1_lite_is_nt_mode(cd)) {
+						/* connect active indication */
+						dss1_lite_set_hook_off(cd);
+					}
 					break;
 				}
 			}
@@ -1327,15 +1358,30 @@ uint8_t
 dss1_lite_ring_event(struct dss1_lite *pdl, uint8_t ison)
 {
 	struct dss1_lite_call_desc *cd;
+	uint8_t retval;
 
 	if (pdl->dl_is_nt_mode == 0)
 		return (0);		/* wrong mode */
 
 	cd = pdl->dl_active_call_desc;
-	if (cd == NULL)
-		return (0);		/* no active call descriptor */
+	if (cd == NULL) {
+		if (ison == 0)
+			return (1);	/* no call */
 
-	return (0);
+		cd = dss1_lite_alloc_cd(pdl, 0, 0);
+		if (cd == NULL)
+			return (0);
+
+		retval = dss1_lite_send_setup(cd, 1);
+		cd->dl_need_release = 1;
+	} else {
+		if (ison != 0)
+			return (1);	/* call active */
+
+		cd->dl_cause_out = CAUSE_Q850_NORMUNSP;
+		retval = dss1_lite_set_state(cd, DL_ST_FREE);
+	}
+	return (retval);
 }
 
 uint8_t
