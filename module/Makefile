@@ -34,6 +34,7 @@ I4B_DIR=${.CURDIR}/../src/sys/i4b
 	${I4B_DIR}/layer1/ihfc3 \
 	${I4B_DIR}/layer1/iloop \
 	${I4B_DIR}/layer1/yealink \
+	${I4B_DIR}/layer1/g_phone \
 	${I4B_DIR}/layer4 \
 	${I4B_DIR}/driver
 
@@ -93,6 +94,10 @@ SRCS+= iloop.c
 
 .if defined(HAVE_YEALINK_DRIVER)
 SRCS+= yealink.c
+.endif
+
+.if defined(HAVE_G_PHONE_DRIVER)
+SRCS+= g_phone.c
 .endif
 
 .if defined(HAVE_ISDN_LOOP_DRIVER) || defined(HAVE_YEALINK_DRIVER)

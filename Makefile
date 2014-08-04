@@ -136,6 +136,9 @@ configure: cleanconfig
 .if defined(HAVE_YEALINK_DRIVER) || defined(HAVE_ALL)
 	echo "HAVE_YEALINK_DRIVER=1" >> ${CONFIG}
 .endif
+.if defined(HAVE_G_PHONE_DRIVER) || defined(HAVE_ALL)
+	echo "HAVE_G_PHONE_DRIVER=1" >> ${CONFIG}
+.endif
 .if defined(HAVE_SPPP_DRIVER) || defined(HAVE_ALL)
 	echo "HAVE_SPPP_DRIVER=1" >> ${CONFIG}
 .endif
