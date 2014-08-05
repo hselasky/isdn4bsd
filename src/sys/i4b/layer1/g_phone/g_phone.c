@@ -120,7 +120,6 @@ DRIVER_MODULE(g_phone, uhub, g_phone_driver, g_phone_devclass, NULL, 0);
 MODULE_DEPEND(g_phone, usb, 1, 1, 1);
 MODULE_DEPEND(g_phone, ihfcpnp, 1, 1, 1);
 
-static dss1_lite_set_ring_t g_phone_set_ring;
 static dss1_lite_set_protocol_t g_phone_set_protocol;
 static dss1_lite_set_hook_on_t g_phone_set_hook_on;
 static dss1_lite_set_hook_off_t g_phone_set_hook_off;
@@ -141,7 +140,6 @@ static const struct usb_device_id g_phone_devs_table[] = {
 	{USB_VPI(0x6993, 0xb001, 0)},
 };
 
-static usb_callback_t g_phone_ctrl_callback;
 static usb_callback_t g_phone_intr_callback;
 static usb_callback_t g_phone_isoc_read_callback;
 static usb_callback_t g_phone_isoc_write_callback;
@@ -167,7 +165,7 @@ static const struct usb_config g_phone_config[G_PHONE_XFER_MAX] = {
 		.frames = G_PHONE_MINFRAMES,
 		.flags = {.short_xfer_ok = 1,.ext_buffer = 1,},
 		.callback = &g_phone_isoc_read_callback,
-		.if_index = 1,
+		.if_index = 2,
 		.usb_mode = USB_MODE_DEVICE,
 	},
 
@@ -179,7 +177,7 @@ static const struct usb_config g_phone_config[G_PHONE_XFER_MAX] = {
 		.frames = G_PHONE_MINFRAMES,
 		.flags = {.short_xfer_ok = 1,.ext_buffer = 1,},
 		.callback = &g_phone_isoc_read_callback,
-		.if_index = 1,
+		.if_index = 2,
 		.usb_mode = USB_MODE_DEVICE,
 	},
 
@@ -191,7 +189,7 @@ static const struct usb_config g_phone_config[G_PHONE_XFER_MAX] = {
 		.frames = G_PHONE_MINFRAMES,
 		.flags = {.ext_buffer = 1,},
 		.callback = &g_phone_isoc_write_callback,
-		.if_index = 2,
+		.if_index = 1,
 		.usb_mode = USB_MODE_DEVICE,
 	},
 
@@ -203,7 +201,7 @@ static const struct usb_config g_phone_config[G_PHONE_XFER_MAX] = {
 		.frames = G_PHONE_MINFRAMES,
 		.flags = {.ext_buffer = 1,},
 		.callback = &g_phone_isoc_write_callback,
-		.if_index = 2,
+		.if_index = 1,
 		.usb_mode = USB_MODE_DEVICE,
 	},
 };
@@ -382,7 +380,7 @@ g_phone_probe(device_t dev)
 		return (ENXIO);
 	if (uaa->info.bIfaceIndex != G_PHONE_IFACE_INDEX)
 		return (ENXIO);
-	if (usbd_get_speed(uaa->device) != USB_SPEED_FULL ||
+	if (usbd_get_speed(uaa->device) != USB_SPEED_FULL &&
 	    usbd_get_speed(uaa->device) != USB_SPEED_HIGH)
 		return (ENXIO);
 	return (usbd_lookup_id_by_uaa(g_phone_devs_table,
@@ -434,6 +432,7 @@ g_phone_attach(device_t dev)
 
 		if (idesc->bInterfaceClass == UICLASS_AUDIO) {
 			if (idesc->bInterfaceSubClass == UISUBCLASS_AUDIOSTREAM) {
+				usbd_set_alt_interface_index(uaa->device, i, 1);
 				ed = usbd_find_descriptor(uaa->device,
 				    NULL, i, UDESC_ENDPOINT, 0xFF, 0, 0);
 				if (ed != NULL) {
@@ -524,6 +523,9 @@ g_phone_get_command(const struct usb_device_request *req)
 	} else if ((req->bmRequestType == UT_READ_CLASS_INTERFACE) &&
 	    (req->wIndex[0] == 0) && (req->bRequest == 0x84)) {
 		return (G_CMD_AUDIO_GET_RES);
+	} else if ((req->bmRequestType == UT_READ_CLASS_INTERFACE) &&
+	    (req->wIndex[0] == 0) && (req->bRequest == 0x81)) {
+		return (G_CMD_AUDIO_GET_VOLUME);
 	} else if ((req->bmRequestType == UT_WRITE_CLASS_INTERFACE) &&
 	    (req->wIndex[0] == 0) && (req->bRequest == 0x01)) {
 		return (G_CMD_AUDIO_SET_VOLUME);
@@ -611,6 +613,7 @@ g_phone_handle_request(device_t dev,
 				*plen = 0;
 			}
 			return (0);
+		case G_CMD_AUDIO_GET_VOLUME:
 		case G_CMD_AUDIO_SET_VOLUME:
 			if (offset == 0) {
 				*plen = sizeof(sc->sc_volume_setting);
