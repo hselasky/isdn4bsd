@@ -57,10 +57,11 @@ usage(void)
 	    "\n" "       -p <value>    set CIP value (2:HDLC,16:telephony)"
 	    "\n" "       -n <value>    number of dialouts"
 	    "\n" "       -s            write received data to stdout"
-	    "\n" "       -h <host>     IP host (will select bintec backend)"
-	    "\n" "       -H <port>     IP port"
-	    "\n" "       -q <port>     username"
-	    "\n" "       -Q <port>     password"
+	    "\n" "       -h <host>     IP host (will select BINTEC backend)"
+	    "\n" "       -H <host>     IP host (will select CAPI client backend)"
+	    "\n" "       -P <port>     IP port"
+	    "\n" "       -q <user>     username"
+	    "\n" "       -Q <password>     password"
 	    "\n"
 	    "\n"
 
@@ -77,6 +78,7 @@ static char username[64];
 static char password[64];
 static char src_telno[TELNO_MAX];
 static char dst_telno[TELNO_MAX];
+static uint8_t use_bintec = 0;
 static uint8_t controller = 0;
 static uint8_t verbose_level = 0;
 static uint8_t write_data_to_stdout = 0;
@@ -1932,10 +1934,16 @@ main(int argc, char **argv)
 			break;
 
 		case 'h':
+			use_bintec = 1;
 			strlcpy(hostname, optarg, sizeof(hostname));
 			break;
 
 		case 'H':
+			use_bintec = 0;
+			strlcpy(hostname, optarg, sizeof(hostname));
+			break;
+
+		case 'P':
 			strlcpy(servname, optarg, sizeof(servname));
 			break;
 
@@ -1955,8 +1963,13 @@ main(int argc, char **argv)
 	}
 
 	if (hostname[0] != 0) {
-		error = capi20_be_alloc_bintec(hostname,
-		    servname, username, password, &cbe_p);
+		if (use_bintec) {
+			error = capi20_be_alloc_bintec(hostname,
+			    servname, username, password, &cbe_p);
+		} else {
+			error = capi20_be_alloc_client(hostname,
+			    servname, &cbe_p);
+		}
 	} else {
 		error = capi20_be_alloc_i4b(&cbe_p);
 	}

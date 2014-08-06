@@ -26,7 +26,7 @@
 .\" $FreeBSD: $
 .\"
 .\"
-.Dd July 14, 2008
+.Dd August 6, 2014
 .Dt CAPITEST 8
 .Os
 .Sh NAME
@@ -43,7 +43,8 @@
 .Op Fl n Ar number
 .Op Fl p Ar number
 .Op Fl h Ar host
-.Op Fl H Ar port
+.Op Fl H Ar host
+.Op Fl P Ar port
 .Op Fl q Ar username
 .Op Fl Q Ar password
 .Op Fl w
@@ -73,6 +74,9 @@ Set protocol to use. "2" is HDLC. "16" is telephony. Default is 16.
 Set hostname. Default is unset. When this parameter is used the backend
 will be changed to BinTec.
 .It Fl H
+Set hostname. Default is unset. When this parameter is used the backend
+will be changed to CAPI client.
+.It Fl P
 Set portnumber or servicename.
 .It Fl q
 Set username.
