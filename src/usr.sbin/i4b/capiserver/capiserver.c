@@ -146,8 +146,6 @@ capiserver_ioctl(int tcp_fd, uint32_t cmd, int capi_fd,
 		CAPI_FWD(req->max_b_data_len);
 		CAPI_FWD(req->max_msg_data_size);
 		CAPI_FWD(req->app_id);
-		req->pUserName = NULL;
-		req->pPassWord = NULL;
 	} else if (ioctl_cmd == CAPI_GET_MANUFACTURER_REQ ||
 		   ioctl_cmd == CAPI_GET_VERSION_REQ ||
 		   ioctl_cmd == CAPI_GET_SERIAL_REQ ||
