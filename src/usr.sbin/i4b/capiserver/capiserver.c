@@ -126,6 +126,9 @@ capiserver_listen(const char *host, const char *port, int buffer)
 	return (s);
 }
 
+#define	CAPI_FWD(x) (x) = le32toh(x)
+#define	CAPI_REV(x) (x) = htole32(x)
+
 static int
 capiserver_ioctl(int tcp_fd, uint32_t cmd, int capi_fd,
     uint32_t ioctl_cmd, void *buffer, ssize_t length)
@@ -138,12 +141,38 @@ capiserver_ioctl(int tcp_fd, uint32_t cmd, int capi_fd,
 	}
 	if (ioctl_cmd == CAPI_REGISTER_REQ) {
 		struct capi_register_req *req = buffer;
-
+		CAPI_FWD(req->max_logical_connections);
+		CAPI_FWD(req->max_b_data_blocks);
+		CAPI_FWD(req->max_b_data_len);
+		CAPI_FWD(req->max_msg_data_size);
+		CAPI_FWD(req->app_id);
 		req->pUserName = NULL;
 		req->pPassWord = NULL;
+	} else if (ioctl_cmd == CAPI_GET_MANUFACTURER_REQ ||
+		   ioctl_cmd == CAPI_GET_VERSION_REQ ||
+		   ioctl_cmd == CAPI_GET_SERIAL_REQ ||
+		   ioctl_cmd == CAPI_GET_PROFILE_REQ) {
+		uint32_t *pcontroller = buffer;
+		CAPI_FWD(*pcontroller);
 	}
 	if (ioctl(capi_fd, ioctl_cmd, buffer) != 0)
 		goto error;
+
+	if (ioctl_cmd == CAPI_REGISTER_REQ) {
+		struct capi_register_req *req = buffer;
+
+		CAPI_REV(req->max_logical_connections);
+		CAPI_REV(req->max_b_data_blocks);
+		CAPI_REV(req->max_b_data_len);
+		CAPI_REV(req->max_msg_data_size);
+		CAPI_REV(req->app_id);
+	} else if (ioctl_cmd == CAPI_GET_MANUFACTURER_REQ ||
+		   ioctl_cmd == CAPI_GET_VERSION_REQ ||
+		   ioctl_cmd == CAPI_GET_SERIAL_REQ ||
+		   ioctl_cmd == CAPI_GET_PROFILE_REQ) {
+		uint32_t *pcontroller = buffer;
+		CAPI_REV(*pcontroller);
+	}
 
 	header[0] = length & 0xFF;
 	header[1] = length >> 8;
