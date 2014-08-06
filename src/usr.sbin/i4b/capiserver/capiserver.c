@@ -62,10 +62,11 @@ enum {
 static int
 capiserver_read(int fd, char *buf, int len)
 {
-	int delta = 0;
 	int retval = 0;
 
 	while (len > 0) {
+		int delta;
+
 		delta = read(fd, buf, len);
 		if (delta < 0)
 			return (-1);
@@ -178,11 +179,13 @@ capiserver(int capi_fd, int tcp_fd)
 
 	while (1) {
 		fds[0].fd = capi_fd;
-		fds[0].events = POLLIN | POLLERR | POLLHUP;
+		fds[0].events = (POLLIN | POLLRDNORM | POLLRDBAND | POLLPRI | 
+		    POLLERR | POLLHUP | POLLNVAL);
 		fds[0].revents = 0;
 
 		fds[1].fd = tcp_fd;
-		fds[1].events = POLLIN | POLLERR | POLLHUP;
+		fds[1].events = (POLLIN | POLLRDNORM | POLLRDBAND | POLLPRI | 
+		    POLLERR | POLLHUP | POLLNVAL);
 		fds[1].revents = 0;
 
 		if (poll(fds, 2, -1) < 0)
