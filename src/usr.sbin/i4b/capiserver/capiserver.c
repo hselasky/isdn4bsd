@@ -58,6 +58,7 @@ enum {
 	CAPISERVER_CMD_CAPI_VERSION,
 	CAPISERVER_CMD_CAPI_SERIAL,
 	CAPISERVER_CMD_CAPI_PROFILE,
+	CAPISERVER_CMD_CAPI_START,
 };
 
 static int
@@ -180,7 +181,7 @@ capiserver_ioctl(int tcp_fd, uint32_t cmd, int capi_fd,
 	if (write(tcp_fd, header, sizeof(header)) != sizeof(header))
 		return (-1);
 
-	if (write(tcp_fd, buffer, length) != length)
+	if (length != 0 && write(tcp_fd, buffer, length) != length)
 		return (-1);
 
 	return (0);
@@ -289,6 +290,11 @@ capiserver(void *_parg)
 			case CAPISERVER_CMD_CAPI_PROFILE:
 				if (capiserver_ioctl(parg->tcp_fd, cmd, parg->capi_fd,
 				    CAPI_GET_PROFILE_REQ, buffer, length))
+					goto done;
+				break;
+			case CAPISERVER_CMD_CAPI_START:
+				if (capiserver_ioctl(parg->tcp_fd, cmd, parg->capi_fd,
+				    CAPI_START_D_CHANNEL_REQ, buffer, length))
 					goto done;
 				break;
 			default:
