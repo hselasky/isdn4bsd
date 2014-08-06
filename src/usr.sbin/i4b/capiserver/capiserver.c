@@ -177,6 +177,8 @@ struct capiserver_arg {
 	int	tcp_fd;
 };
 
+#define	CAPISERVER_BUF_MAX 65536
+
 static void *
 capiserver(void *_parg)
 {
@@ -187,7 +189,7 @@ capiserver(void *_parg)
 	ssize_t length;
 	uint8_t cmd;
 
-	buffer = malloc(65536);
+	buffer = malloc(CAPISERVER_BUF_MAX);
 	if (buffer == NULL)
 		goto done;
 
@@ -206,7 +208,7 @@ capiserver(void *_parg)
 			goto done;
 
 		if (fds[0].revents != 0) {
-			length = read(parg->capi_fd, buffer, sizeof(buffer));
+			length = read(parg->capi_fd, buffer, CAPISERVER_BUF_MAX);
 			if (length < 0)
 				goto done;
 
@@ -222,7 +224,8 @@ capiserver(void *_parg)
 				goto done;
 		}
 		if (fds[1].revents != 0) {
-			if (capiserver_read(parg->tcp_fd, buffer, CAPISERVER_HDR_SIZE) != CAPISERVER_HDR_SIZE)
+			if (capiserver_read(parg->tcp_fd, buffer,
+			    CAPISERVER_HDR_SIZE) != CAPISERVER_HDR_SIZE)
 				goto done;
 
 			length = buffer[0] | (buffer[1] << 8);
@@ -323,7 +326,7 @@ main(int argc, char **argv)
 		if (fork() != 0)
 			return (0);
 	}
-	s = capiserver_listen(host, port, 65536);
+	s = capiserver_listen(host, port, CAPISERVER_BUF_MAX);
 	if (s < 0) {
 		printf("Could not bind to '%s' and '%s'\n", host, port);
 		return (0);
