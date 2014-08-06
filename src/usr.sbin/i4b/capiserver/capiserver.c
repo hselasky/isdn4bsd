@@ -43,6 +43,7 @@
 #include <errno.h>
 #include <sysexits.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 #define	CAPI_MAKE_IOCTL
 #include <i4b/include/capi20.h>
@@ -68,6 +69,8 @@ capiserver_read(int fd, char *buf, int len)
 		int delta;
 
 		delta = read(fd, buf, len);
+		if (delta == 0)
+			return (-1);	/* hangup */
 		if (delta < 0)
 			return (-1);
 		buf += delta;
@@ -104,6 +107,7 @@ capiserver_listen(const char *host, const char *port, int buffer)
 			continue;
 
 		flag = 1;
+		setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &flag, (int)sizeof(flag));
 		setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &flag, (int)sizeof(flag));
 
 		setsockopt(s, SOL_SOCKET, SO_SNDBUF, &buffer, (int)sizeof(buffer));
@@ -168,23 +172,33 @@ error:
 	return (0);
 }
 
-static void
-capiserver(int capi_fd, int tcp_fd)
+struct capiserver_arg {
+	int	capi_fd;
+	int	tcp_fd;
+};
+
+static void *
+capiserver(void *_parg)
 {
 	uint8_t header[CAPISERVER_HDR_SIZE] __aligned(4);
-	uint8_t buffer[65536] __aligned(4);
+	uint8_t *buffer;
+	struct capiserver_arg *parg = _parg;
 	struct pollfd fds[2];
 	ssize_t length;
 	uint8_t cmd;
 
+	buffer = malloc(65536);
+	if (buffer == NULL)
+		goto done;
+
 	while (1) {
-		fds[0].fd = capi_fd;
-		fds[0].events = (POLLIN | POLLRDNORM | POLLRDBAND | POLLPRI | 
+		fds[0].fd = parg->capi_fd;
+		fds[0].events = (POLLIN | POLLRDNORM | POLLRDBAND | POLLPRI |
 		    POLLERR | POLLHUP | POLLNVAL);
 		fds[0].revents = 0;
 
-		fds[1].fd = tcp_fd;
-		fds[1].events = (POLLIN | POLLRDNORM | POLLRDBAND | POLLPRI | 
+		fds[1].fd = parg->tcp_fd;
+		fds[1].events = (POLLIN | POLLRDNORM | POLLRDBAND | POLLPRI |
 		    POLLERR | POLLHUP | POLLNVAL);
 		fds[1].revents = 0;
 
@@ -192,7 +206,7 @@ capiserver(int capi_fd, int tcp_fd)
 			goto done;
 
 		if (fds[0].revents != 0) {
-			length = read(capi_fd, buffer, sizeof(buffer));
+			length = read(parg->capi_fd, buffer, sizeof(buffer));
 			if (length < 0)
 				goto done;
 
@@ -201,49 +215,49 @@ capiserver(int capi_fd, int tcp_fd)
 			header[2] = CAPISERVER_CMD_CAPI_MSG;
 			header[3] = 0;
 
-			if (write(tcp_fd, header, sizeof(header)) != sizeof(header))
+			if (write(parg->tcp_fd, header, sizeof(header)) != sizeof(header))
 				goto done;
 
-			if (write(tcp_fd, buffer, length) != length)
+			if (write(parg->tcp_fd, buffer, length) != length)
 				goto done;
 		}
 		if (fds[1].revents != 0) {
-			if (capiserver_read(tcp_fd, buffer, CAPISERVER_HDR_SIZE) != CAPISERVER_HDR_SIZE)
+			if (capiserver_read(parg->tcp_fd, buffer, CAPISERVER_HDR_SIZE) != CAPISERVER_HDR_SIZE)
 				goto done;
 
 			length = buffer[0] | (buffer[1] << 8);
 			cmd = buffer[2];
 
-			if (capiserver_read(tcp_fd, buffer, length) != length)
+			if (capiserver_read(parg->tcp_fd, buffer, length) != length)
 				goto done;
 
 			switch (cmd) {
 			case CAPISERVER_CMD_CAPI_MSG:
-				if (write(capi_fd, buffer, length) != length)
+				if (write(parg->capi_fd, buffer, length) != length)
 					goto done;
 				break;
 			case CAPISERVER_CMD_CAPI_REGISTER:
-				if (capiserver_ioctl(tcp_fd, cmd, capi_fd,
+				if (capiserver_ioctl(parg->tcp_fd, cmd, parg->capi_fd,
 				    CAPI_REGISTER_REQ, buffer, length))
 					goto done;
 				break;
 			case CAPISERVER_CMD_CAPI_MANUFACTURER:
-				if (capiserver_ioctl(tcp_fd, cmd, capi_fd,
+				if (capiserver_ioctl(parg->tcp_fd, cmd, parg->capi_fd,
 				    CAPI_GET_MANUFACTURER_REQ, buffer, length))
 					goto done;
 				break;
 			case CAPISERVER_CMD_CAPI_VERSION:
-				if (capiserver_ioctl(tcp_fd, cmd, capi_fd,
+				if (capiserver_ioctl(parg->tcp_fd, cmd, parg->capi_fd,
 				    CAPI_GET_VERSION_REQ, buffer, length))
 					goto done;
 				break;
 			case CAPISERVER_CMD_CAPI_SERIAL:
-				if (capiserver_ioctl(tcp_fd, cmd, capi_fd,
+				if (capiserver_ioctl(parg->tcp_fd, cmd, parg->capi_fd,
 				    CAPI_GET_SERIAL_REQ, buffer, length))
 					goto done;
 				break;
 			case CAPISERVER_CMD_CAPI_PROFILE:
-				if (capiserver_ioctl(tcp_fd, cmd, capi_fd,
+				if (capiserver_ioctl(parg->tcp_fd, cmd, parg->capi_fd,
 				    CAPI_GET_PROFILE_REQ, buffer, length))
 					goto done;
 				break;
@@ -253,8 +267,11 @@ capiserver(int capi_fd, int tcp_fd)
 		}
 	}
 done:
-	close(capi_fd);
-	close(tcp_fd);
+	close(parg->capi_fd);
+	close(parg->tcp_fd);
+	free(parg);
+	free(buffer);
+	return (NULL);
 }
 
 static void
@@ -312,33 +329,41 @@ main(int argc, char **argv)
 		return (0);
 	}
 	while (1) {
+		struct capiserver_arg *parg;
+		pthread_t dummy;
+
 		f = accept(s, NULL, NULL);
 		if (f < 0)
 			break;
 
-		if (fork() == 0) {
-			close(s);
+		parg = malloc(sizeof(*parg));
+		if (parg == NULL) {
+			close(f);
+			continue;
+		}
+		c = open(CAPI_DEVICE_NAME, O_RDWR);
+		if (c < 0) {
+			close(f);
+			continue;
+		}
+		d = 0;
+		if (ioctl(c, FIONBIO, &d) != 0) {
+			close(c);
+			close(f);
+			continue;
+		}
+		d = 0;
+		if (ioctl(f, FIONBIO, &d) != 0) {
+			close(c);
+			close(f);
+			continue;
+		}
+		parg->capi_fd = c;
+		parg->tcp_fd = f;
 
-			c = open(CAPI_DEVICE_NAME, O_RDWR);
-			if (c < 0) {
-				close(f);
-				break;
-			}
-			d = 0;
-			if (ioctl(c, FIONBIO, &d) != 0) {
-				close(c);
-				close(f);
-				break;
-			}
-			d = 0;
-			if (ioctl(f, FIONBIO, &d) != 0) {
-				close(c);
-				close(f);
-				break;
-			}
-			capiserver(c, f);
-			break;
-		} else {
+		if (pthread_create(&dummy, NULL, &capiserver, parg) != 0) {
+			free(parg);
+			close(c);
 			close(f);
 		}
 	}
