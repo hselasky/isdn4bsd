@@ -310,7 +310,7 @@ capiserver_usage(void)
 	fprintf(stderr,
 	    "\n"
 	    "\n" "capiserver - CAPI server, version %d.%02d, compiled %s %s"
-	    "\n" "usage: capiserver [-B] [-b 0.0.0.0] [-p 2663] [-h]"
+	    "\n" "usage: capiserver [-B] [-b 127.0.0.1] [-p 2663] [-h]"
 	    "\n" "       -B            run in background"
 	    "\n" "       -b <addr>     bind address"
 	    "\n" "       -p <port>     bind port"
@@ -323,7 +323,7 @@ int
 main(int argc, char **argv)
 {
 	const char *params = "Bb:p:h";
-	const char *host = "0.0.0.0";
+	const char *host = "127.0.0.1";
 	const char *port = "2663";
 	int do_fork = 0;
 	int opt;
