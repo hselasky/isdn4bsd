@@ -133,5 +133,3 @@ SRCS+= i4b_ing.c
 
 .include <bsd.kmod.mk>
 
-CFLAGS+=-Wno-missing-field-initializers
-
