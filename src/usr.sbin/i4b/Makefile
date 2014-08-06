@@ -2,6 +2,7 @@
 .include "../Makefile.sub"
 
 SUBDIR= \
+    ${HAVE_CAPISERVER} \
     ${HAVE_CAPITEST} \
     ${HAVE_CAPIMONITOR} \
     ${HAVE_DTMFDECODE} \

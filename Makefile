@@ -70,6 +70,9 @@ configure: cleanconfig
 .if defined(HAVE_CAPIMONITOR) || defined(HAVE_ALL)
 	echo "HAVE_CAPIMONITOR=capimonitor" >> ${CONFIG}
 .endif
+.if defined(HAVE_CAPISERVER) || defined(HAVE_ALL)
+	echo "HAVE_CAPISERVER=capiserver" >> ${CONFIG}
+.endif
 .if defined(HAVE_CAPITEST) || defined(HAVE_ALL)
 	echo "HAVE_CAPITEST=capitest" >> ${CONFIG}
 .endif
