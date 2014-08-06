@@ -49,7 +49,7 @@
 #include <sys/module.h>
 
 #include <net/if.h>
-#include <net/ifq.h>
+#include <net/if_var.h>
 #include <net/if_types.h>
 #include <net/if_sppp.h>
 

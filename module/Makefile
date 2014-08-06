@@ -44,8 +44,6 @@ KMODNAME?=i4b
 KMOD=${KMODNAME}
 MAN=
 
-CFLAGS+=-Wno-missing-field-initializers
-
 .if defined(MACHINE_CPUARCH)
 .if (${MACHINE_CPUARCH} != "i386")
 CFLAGS+=-DFREEBSD_NO_ISA
@@ -134,3 +132,6 @@ SRCS+= i4b_ing.c
 .endif
 
 .include <bsd.kmod.mk>
+
+CFLAGS+=-Wno-missing-field-initializers
+
