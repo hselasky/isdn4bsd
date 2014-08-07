@@ -294,6 +294,9 @@ g_phone_isoc_read_callback(struct usb_xfer *xfer, usb_error_t error)
 
 		dss1_lite_l5_put_sample_complete(&sc->sc_dl, f);
 
+		if (sc->sc_hook_off == 0 && f->m_tx_last_sample != 0)
+			(void)dss1_lite_ring_event(&sc->sc_dl, 1);
+
 	case USB_ST_SETUP:
 tr_setup:
 
