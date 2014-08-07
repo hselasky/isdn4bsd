@@ -1368,8 +1368,15 @@ dss1_lite_ring_event(struct dss1_lite *pdl, uint8_t ison)
 		if (cd == NULL)
 			return (0);
 
-		retval = dss1_lite_send_setup(cd, 1);
-		cd->dl_need_release = 1;
+		dss1_lite_alloc_channel(cd);
+
+		if (cd->dl_channel_allocated == 0) {
+			/* no channel allocated, free call descriptor */
+			retval = dss1_lite_set_state(cd, DL_ST_FREE);
+		} else {
+			retval = dss1_lite_send_setup(cd, 1);
+			cd->dl_need_release = 1;
+		}
 	} else {
 		if (ison != 0)
 			return (1);	/* call active */
