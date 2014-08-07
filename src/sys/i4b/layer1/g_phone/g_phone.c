@@ -535,6 +535,10 @@ g_phone_get_command(const struct usb_device_request *req)
 	} else if ((req->bmRequestType == UT_WRITE_CLASS_ENDPOINT) &&
 	    (req->wIndex[0] == 0) && (req->bRequest == 0x01)) {
 		return (G_CMD_AUDIO_SET_RATE);
+	} else if ((req->bmRequestType == UT_WRITE_CLASS_INTERFACE) &&
+		   (req->wIndex[0] == 3) && (req->wIndex[1] == 0) &&
+		   (req->bRequest == 0x0A)) {
+		return (G_CMD_AUDIO_SET_IDLE);
 	}
 	return (G_CMD_MAX);
 }
@@ -618,13 +622,19 @@ g_phone_handle_request(device_t dev,
 			return (0);
 		case G_CMD_AUDIO_GET_VOLUME:
 		case G_CMD_AUDIO_SET_VOLUME:
-			if (offset == 0) {
+			switch (UGETW(req->wLength)) {
+			case 1:
+				*plen = sizeof(sc->sc_mute_setting);
+				*pptr = &sc->sc_mute_setting;
+				return (0);
+			case 2:
 				*plen = sizeof(sc->sc_volume_setting);
 				*pptr = &sc->sc_volume_setting;
-			} else {
-				*plen = 0;
+				return (0);
+			default:
+				break;
 			}
-			return (0);
+			break;
 		case G_CMD_AUDIO_SET_RATE:
 			if (offset == 0) {
 				*plen = sizeof(sc->sc_sample_rate);
@@ -633,7 +643,10 @@ g_phone_handle_request(device_t dev,
 				*plen = 0;
 			}
 			return (0);
-		default:
+		case G_CMD_AUDIO_SET_IDLE:
+			*plen = 0;
+			return (0);
+		default:  		  
 			break;
 		}
 	} else {

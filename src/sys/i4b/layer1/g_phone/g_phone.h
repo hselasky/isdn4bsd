@@ -51,6 +51,7 @@ enum {
 	G_CMD_AUDIO_GET_VOLUME,
 	G_CMD_AUDIO_SET_VOLUME,
 	G_CMD_AUDIO_SET_RATE,
+	G_CMD_AUDIO_SET_IDLE,
 	G_CMD_MAX
 };
 
@@ -72,7 +73,8 @@ struct g_phone_softc {
 	uint8_t	sc_buffer[G_PHONE_BUFSIZE * 4];
 
 	uint8_t	sc_command_data[G_PHONE_PKT_LEN];
-	uint8_t	sc_volume_setting[32];
+	uint8_t	sc_mute_setting[1];
+	uint8_t	sc_volume_setting[2];
 	uint8_t	sc_volume_limit[32];
 	uint8_t	sc_sample_rate[32];
 
