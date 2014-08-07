@@ -844,9 +844,11 @@ dss1_lite_free_channel(struct dss1_lite_call_desc *cd)
 {
 	struct dss1_lite *pdl = cd->dl_parent;
 
-	if (cd->dl_channel_allocated) {
+	if (cd->dl_channel_allocated != 0) {
 		cd->dl_channel_allocated = 0;
-		pdl->dl_channel_util &= ~(1UL << cd->dl_channel_id);
+		if (cd->dl_channel_id >= 0 && cd->dl_channel_id < DL_NCHAN) {
+			pdl->dl_channel_util &= ~(1UL << cd->dl_channel_id);
+		}
 	}
 }
 
@@ -870,7 +872,7 @@ dss1_lite_alloc_channel(struct dss1_lite_call_desc *cd)
 			if (id == CHAN_NOT_ANY) {
 				goto not_any;
 			} else {
-				for (id = 0; id < DL_NCHAN; id++) {
+				for (id = CHAN_B1; id < DL_NCHAN; id++) {
 					if ((pdl->dl_channel_util & (1UL << id)) == 0) {
 						goto found;
 					}
@@ -1074,13 +1076,7 @@ i_frame:
 				dss1_lite_set_dtmf(cd, cd->dl_part.telno);
 
 			if (cd->dl_sending_complete) {
-				if (dss1_lite_set_state(cd, DL_ST_IN_U6))
-					dss1_lite_send_call_proceeding(cd);
-				dss1_lite_alert_request(cd);
-				dss1_lite_send_connect(cd);
-
-				cd->dl_cause_out = 0;
-				cd->dl_need_release = 1;
+				dss1_lite_setup_accept_resp(cd);
 			} else {
 #if 1
 				cd->dl_cause_out = CAUSE_Q850_NORMUNSP;
