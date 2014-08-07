@@ -37,6 +37,7 @@
 #include <sys/socket.h>
 #include <sys/ioccom.h>
 #include <sys/filio.h>
+#include <sys/uio.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -135,6 +136,7 @@ capiserver_ioctl(int tcp_fd, uint32_t cmd, int capi_fd,
     uint32_t ioctl_cmd, void *buffer, ssize_t length)
 {
 	uint8_t header[CAPISERVER_HDR_SIZE] __aligned(4);
+	struct iovec iov[2];
 
 	if (length != IOCPARM_LEN(ioctl_cmd)) {
 		errno = EINVAL;
@@ -178,10 +180,13 @@ capiserver_ioctl(int tcp_fd, uint32_t cmd, int capi_fd,
 	header[2] = cmd;
 	header[3] = 0;
 
-	if (write(tcp_fd, header, sizeof(header)) != sizeof(header))
-		return (-1);
+	iov[0].iov_base = header;
+	iov[0].iov_len = sizeof(header);
 
-	if (length != 0 && write(tcp_fd, buffer, length) != length)
+	iov[1].iov_base = buffer;
+	iov[1].iov_len = length;
+
+	if (writev(tcp_fd, iov, 2) != (ssize_t)(sizeof(header) + length))
 		return (-1);
 
 	return (0);
@@ -236,6 +241,8 @@ capiserver(void *_parg)
 			goto done;
 
 		if (fds[0].revents != 0) {
+			struct iovec iov[2];
+
 			length = read(parg->capi_fd, buffer, CAPISERVER_BUF_MAX);
 			if (length < 0)
 				goto done;
@@ -245,10 +252,13 @@ capiserver(void *_parg)
 			header[2] = CAPISERVER_CMD_CAPI_MSG;
 			header[3] = 0;
 
-			if (write(parg->tcp_fd, header, sizeof(header)) != sizeof(header))
-				goto done;
+			iov[0].iov_base = header;
+			iov[0].iov_len = sizeof(header);
 
-			if (write(parg->tcp_fd, buffer, length) != length)
+			iov[1].iov_base = buffer;
+			iov[1].iov_len = length;
+
+			if (writev(parg->tcp_fd, iov, 2) != (ssize_t)(sizeof(header) + length))
 				goto done;
 		}
 		if (fds[1].revents != 0) {
