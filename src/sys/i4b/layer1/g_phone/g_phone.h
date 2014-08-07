@@ -75,7 +75,7 @@ struct g_phone_softc {
 	uint8_t	sc_command_data[G_PHONE_PKT_LEN];
 	uint8_t	sc_mute_setting[1];
 	uint8_t	sc_volume_setting[2];
-	uint8_t	sc_volume_limit[32];
+	uint8_t	sc_volume_limit[2];
 	uint8_t	sc_sample_rate[32];
 
 	uint8_t	sc_hook_off;		/* set if hook is off */

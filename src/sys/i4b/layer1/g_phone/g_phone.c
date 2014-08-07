@@ -613,7 +613,7 @@ g_phone_handle_request(device_t dev,
 			return (0);
 		case G_CMD_AUDIO_GET_RES:
 			if (offset == 0) {
-				USETW(sc->sc_volume_limit, 0);
+				USETW(sc->sc_volume_limit, 1);
 				*plen = 2;
 				*pptr = &sc->sc_volume_limit;
 			} else {
@@ -621,6 +621,9 @@ g_phone_handle_request(device_t dev,
 			}
 			return (0);
 		case G_CMD_AUDIO_GET_VOLUME:
+			USETW(sc->sc_volume_setting, 0x2000);
+			sc->sc_mute_setting[0] = 0;
+
 		case G_CMD_AUDIO_SET_VOLUME:
 			switch (UGETW(req->wLength)) {
 			case 1:
