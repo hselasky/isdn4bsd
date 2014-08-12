@@ -45,6 +45,8 @@
 #include <sysexits.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <libutil.h>
+#include <err.h>
 
 #define	CAPI_MAKE_IOCTL
 #include <i4b/include/capi20.h>
@@ -61,6 +63,8 @@ enum {
 	CAPISERVER_CMD_CAPI_PROFILE,
 	CAPISERVER_CMD_CAPI_START,
 };
+
+static struct pidfh *local_pid;
 
 static int
 capiserver_read(int fd, char *buf, int len)
@@ -83,7 +87,7 @@ capiserver_read(int fd, char *buf, int len)
 }
 
 static int
-capiserver_listen(const char *host, const char *port, int buffer)
+capiserver_do_listen(const char *host, const char *port, int buffer, int *pfd, int num_sock)
 {
 	struct addrinfo hints;
 	struct addrinfo *res;
@@ -91,6 +95,7 @@ capiserver_listen(const char *host, const char *port, int buffer)
 	int error;
 	int flag;
 	int s;
+	int ns = 0;
 
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;
@@ -116,8 +121,13 @@ capiserver_listen(const char *host, const char *port, int buffer)
 		setsockopt(s, SOL_SOCKET, SO_RCVBUF, &buffer, (int)sizeof(buffer));
 
 		if (bind(s, res0->ai_addr, res0->ai_addrlen) == 0) {
-			if (listen(s, 1) == 0)
+			if (listen(s, 1) == 0) {
+				if (ns < num_sock) {
+					pfd[ns++] = s;
+					continue;
+				}
 				break;
+			}
 		}
 		close(s);
 		s = -1;
@@ -125,7 +135,7 @@ capiserver_listen(const char *host, const char *port, int buffer)
 
 	freeaddrinfo(res);
 
-	return (s);
+	return (ns);
 }
 
 #define	CAPI_FWD(x) (x) = le32toh(x)
@@ -144,16 +154,18 @@ capiserver_ioctl(int tcp_fd, uint32_t cmd, int capi_fd,
 	}
 	if (ioctl_cmd == CAPI_REGISTER_REQ) {
 		struct capi_register_req *req = buffer;
+
 		CAPI_FWD(req->max_logical_connections);
 		CAPI_FWD(req->max_b_data_blocks);
 		CAPI_FWD(req->max_b_data_len);
 		CAPI_FWD(req->max_msg_data_size);
 		CAPI_FWD(req->app_id);
 	} else if (ioctl_cmd == CAPI_GET_MANUFACTURER_REQ ||
-		   ioctl_cmd == CAPI_GET_VERSION_REQ ||
-		   ioctl_cmd == CAPI_GET_SERIAL_REQ ||
-		   ioctl_cmd == CAPI_GET_PROFILE_REQ) {
+		    ioctl_cmd == CAPI_GET_VERSION_REQ ||
+		    ioctl_cmd == CAPI_GET_SERIAL_REQ ||
+	    ioctl_cmd == CAPI_GET_PROFILE_REQ) {
 		uint32_t *pcontroller = buffer;
+
 		CAPI_FWD(*pcontroller);
 	}
 	if (ioctl(capi_fd, ioctl_cmd, buffer) != 0)
@@ -168,13 +180,13 @@ capiserver_ioctl(int tcp_fd, uint32_t cmd, int capi_fd,
 		CAPI_REV(req->max_msg_data_size);
 		CAPI_REV(req->app_id);
 	} else if (ioctl_cmd == CAPI_GET_MANUFACTURER_REQ ||
-		   ioctl_cmd == CAPI_GET_VERSION_REQ ||
-		   ioctl_cmd == CAPI_GET_SERIAL_REQ ||
-		   ioctl_cmd == CAPI_GET_PROFILE_REQ) {
+		    ioctl_cmd == CAPI_GET_VERSION_REQ ||
+		    ioctl_cmd == CAPI_GET_SERIAL_REQ ||
+	    ioctl_cmd == CAPI_GET_PROFILE_REQ) {
 		uint32_t *pcontroller = buffer;
+
 		CAPI_REV(*pcontroller);
 	}
-
 	header[0] = length & 0xFF;
 	header[1] = length >> 8;
 	header[2] = cmd;
@@ -211,6 +223,7 @@ struct capiserver_arg {
 };
 
 #define	CAPISERVER_BUF_MAX 65536
+#define	CAPISERVER_SOCK_MAX 32
 
 static void *
 capiserver(void *_parg)
@@ -332,7 +345,32 @@ capiserver_usage(void)
 	    "\n" "       -p <port>     bind port"
 	    "\n" "       -h            show usage"
 	    "\n"
-	    ,CAPI_STACK_VERSION / 100, CAPI_STACK_VERSION % 100, __DATE__, __TIME__);
+	    ,CAPI_STACK_VERSION / 100, CAPI_STACK_VERSION % 100,
+	    __DATE__, __TIME__);
+}
+
+static void
+do_exit(void)
+{
+	if (local_pid != NULL) {
+		pidfile_remove(local_pid);
+		local_pid = NULL;
+	}
+}
+
+static int
+do_pidfile(void)
+{
+	if (local_pid != NULL)
+		return (0);
+
+	local_pid = pidfile_open("/var/run/capiserver", 0600, NULL);
+	if (local_pid == NULL) {
+		return (EEXIST);
+	} else {
+		pidfile_write(local_pid);
+	}
+	return (0);
 }
 
 int
@@ -343,10 +381,13 @@ main(int argc, char **argv)
 	const char *port = "2663";
 	int do_fork = 0;
 	int opt;
-	int s;
+	int ns;
+	int s[CAPISERVER_SOCK_MAX];
 	int f;
 	int c;
 	int d;
+
+	atexit(&do_exit);
 
 	while ((opt = getopt(argc, argv, params)) != -1) {
 		switch (opt) {
@@ -365,20 +406,42 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (do_fork) {
-		if (fork() != 0)
-			return (0);
+	if (do_pidfile()) {
+		errx(EX_SOFTWARE, "Cannot create PID file. "
+		    "CAPI server already running?");
 	}
-	s = capiserver_listen(host, port, CAPISERVER_BUF_MAX);
-	if (s < 0) {
-		printf("Could not bind to '%s' and '%s'\n", host, port);
-		return (0);
+	if (do_fork) {
+		if (daemon(0, 0) != 0)
+			errx(EX_SOFTWARE, "Cannot daemonize");
+	}
+	ns = capiserver_do_listen(host, port, CAPISERVER_BUF_MAX,
+	    s, CAPISERVER_SOCK_MAX);
+	if (ns < 1) {
+		errx(EX_SOFTWARE, "Could not bind to "
+		    "'%s' and '%s'\n", host, port);
 	}
 	while (1) {
+		struct pollfd fds[ns];
 		struct capiserver_arg *parg;
 		pthread_t dummy;
 
-		f = accept(s, NULL, NULL);
+		for (c = 0; c != ns; c++) {
+			fds[c].fd = s[c];
+			fds[c].events = (POLLIN | POLLRDNORM | POLLRDBAND | POLLPRI |
+			    POLLERR | POLLHUP | POLLNVAL);
+			fds[c].revents = 0;
+		}
+		if (poll(fds, ns, -1) < 0)
+			errx(EX_SOFTWARE, "Polling failed");
+
+		for (c = 0; c != ns; c++) {
+			if (fds[c].revents != 0)
+				break;
+		}
+		if (c == ns)
+			continue;
+
+		f = accept(s[c], NULL, NULL);
 		if (f < 0)
 			break;
 
