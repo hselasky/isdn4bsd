@@ -1964,11 +1964,19 @@ main(int argc, char **argv)
 
 	if (hostname[0] != 0) {
 		if (use_bintec) {
-			error = capi20_be_alloc_bintec(hostname,
-			    servname, username, password, &cbe_p);
+			error = capi20_be_alloc_bintec(&cbe_p);
+			if (error == 0) {
+				error = capi20_be_socket_configure(cbe_p, 
+				    hostname, servname,
+				    username, password);
+			}
 		} else {
-			error = capi20_be_alloc_client(hostname,
-			    servname, &cbe_p);
+			error = capi20_be_alloc_client(&cbe_p);
+			if (error == 0) {
+				error = capi20_be_socket_configure(cbe_p, 
+				    hostname, servname,
+				    username, password);
+			}
 		}
 	} else {
 		error = capi20_be_alloc_i4b(&cbe_p);
