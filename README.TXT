@@ -15,9 +15,10 @@ This file should give you some help on how to install this driver.
 OFFICIALLY SUPPORTED OPERATING SYSTEMS
 ======================================
 
- - FreeBSD-8-current
- - FreeBSD-9-current
- - FreeBSD-10-current
+ - FreeBSD-8-stable
+ - FreeBSD-9-stable
+ - FreeBSD-10-stable
+ - FreeBSD-11-current
 
 FEATURES
 ========
@@ -37,6 +38,7 @@ FEATURES
   - new "isdntrace"
   - new "isdndecode"
   - new "isdnd"
+  - new "capiserver"
 
 ** not all hardware can run NT-mode
 
@@ -44,9 +46,6 @@ SUPPORTED HARDWARE
 ==================
 
 See "man ihfc" after install.  
-
-NOTE: On NetBSD only PCI ISDN adapters for Basic Rate and Primary Rate, 
-are supported.
 
 A short list of chips supported:
 IPAC / ISAC / HSCX / HFC / WINBOND
