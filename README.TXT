@@ -63,8 +63,8 @@ make configure HAVE_ALL=YES KMODDIR=/boot/modules \
     INCLUDEDIR=/usr/local/include \
     MANDIR=/usr/local/man/man
 
-make depend all HAVE_ALL=YES
-make install HAVE_ALL=YES
+make -m /usr/src/share/mk SYSDIR=/usr/src/sys depend all HAVE_ALL=YES
+make -m /usr/src/share/mk SYSDIR=/usr/src/sys install HAVE_ALL=YES
 
 HOW TO SET NT-MODE
 ==================
