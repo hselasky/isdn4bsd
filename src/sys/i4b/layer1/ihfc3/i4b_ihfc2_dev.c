@@ -1,3 +1,4 @@
+/* $FreeBSD$ */
 /*-
  * Copyright (c) 2001-2005 Hans Petter Selasky. All rights reserved.
  *
@@ -32,8 +33,6 @@
 #include <i4b/layer1/ihfc3/i4b_ihfc2.h>
 #include <i4b/layer1/ihfc3/i4b_ihfc2_ext.h>
 #include <i4b/layer4/i4b_l4.h>
-
-__FBSDID("$FreeBSD: $");
 
 /*---------------------------------------------------------------------------*
  * :prototypes

@@ -1,3 +1,4 @@
+/* $FreeBSD$ */
 /*-
  * Copyright (c) 2005-2011 Hans Petter Selasky. All rights reserved.
  *
@@ -65,8 +66,6 @@
 #include <i4b/include/capi20.h>
 
 #include <i4b/layer4/i4b_l4.h>
-
-__FBSDID("$FreeBSD$");
 
 /* the following structure describes one CAPI application */
 

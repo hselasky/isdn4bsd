@@ -1,3 +1,4 @@
+/* $FreeBSD$ */
 /*-
  * Copyright (c) 1997, 2002 Hellmuth Michaelis. All rights reserved.
  *
@@ -44,8 +45,6 @@
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_global.h>
-
-__FBSDID("$FreeBSD: $");
 
 static uint8_t openflag;
 

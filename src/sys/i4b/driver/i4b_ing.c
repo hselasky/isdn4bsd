@@ -1,3 +1,4 @@
+/* $FreeBSD$ */
 /*-
  * Copyright (c) 1999, 2002 Hellmuth Michaelis. All rights reserved.
  *
@@ -49,8 +50,6 @@
 #include <i4b/include/i4b_global.h>
 
 #include <i4b/layer4/i4b_l4.h>
-
-__FBSDID("$FreeBSD: $");
 
 #define I4BINGMAXQLEN	50		/* max queue length */
 

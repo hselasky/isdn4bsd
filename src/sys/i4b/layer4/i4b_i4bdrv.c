@@ -1,3 +1,4 @@
+/* $FreeBSD$ */
 /*-
  * Copyright (c) 1997, 2002 Hellmuth Michaelis. All rights reserved.
  *
@@ -61,8 +62,6 @@
 #include <i4b/include/i4b_global.h>
 
 #include <i4b/layer4/i4b_l4.h>
-
-__FBSDID("$FreeBSD$");
 
 struct i4b_ai_softc {
 
