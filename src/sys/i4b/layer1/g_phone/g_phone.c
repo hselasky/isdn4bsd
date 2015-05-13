@@ -57,6 +57,8 @@
 #ifdef USB_GLOBAL_INCLUDE_FILE
 #include USB_GLOBAL_INCLUDE_FILE
 #else
+#include "usb_if.h"
+
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_ioctl.h>
 #include <dev/usb/usbdi.h>
@@ -89,8 +91,6 @@
 #include <i4b/dss1/dss1_lite.h>
 
 #include <i4b/layer1/g_phone/g_phone.h>
-
-#include "usb_if.h"
 
 #ifdef USB_DEBUG
 static int g_phone_debug = 0;
