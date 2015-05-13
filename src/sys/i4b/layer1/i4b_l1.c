@@ -40,6 +40,9 @@
 #include <sys/systm.h>
 #include <sys/socket.h>
 #include <sys/kernel.h>
+#include <sys/lock.h>
+#include <sys/mutex.h>
+#include <sys/sx.h>
 
 #include <net/if.h>
 #endif
@@ -54,6 +57,7 @@ struct i4b_controller i4b_controller[MAX_CONTROLLERS]; /* controller description
 struct i4b_pcm_cable i4b_pcm_cable[I4B_PCM_CABLE_MAX]; /* PCM cable array */
 
 struct mtx i4b_global_lock;
+struct sx i4b_global_sx_lock;
 
 /*---------------------------------------------------------------------------*
  *	i4b_controller_setup
@@ -74,11 +78,11 @@ i4b_controller_setup(void *arg)
 #endif
 #endif
 
-  mtx_init(&i4b_global_lock, "i4b_global_lock", 
-	   NULL, MTX_DEF|MTX_RECURSE);
+  mtx_init(&i4b_global_lock, "i4b_global_lock", NULL, MTX_DEF | MTX_RECURSE);
+  sx_init(&i4b_global_sx_lock, "i4b_global_sx_lock");
 
   for(cntl = &i4b_controller[0];
-      cntl < &i4b_controller[MAX_CONTROLLERS];
+      cntl != &i4b_controller[MAX_CONTROLLERS];
       cntl++)
   {
 	cntl->unit = unit;
@@ -111,9 +115,22 @@ i4b_controller_setup(void *arg)
   }
   return;
 }
+SYSINIT(i4b_controller_setup, SI_SUB_LOCK, SI_ORDER_ANY, i4b_controller_setup, NULL);
 
-SYSINIT(i4b_controller_setup, SI_SUB_LOCK, SI_ORDER_ANY, 
-	i4b_controller_setup, NULL);
+static void
+i4b_controller_unsetup(void *arg)
+{
+	struct i4b_controller *cntl;
+
+	for(cntl = &i4b_controller[0];
+	    cntl != &i4b_controller[MAX_CONTROLLERS];
+	    cntl++) {
+		mtx_destroy(&cntl->L1_lock_data);
+	}
+	sx_destroy(&i4b_global_sx_lock);
+	mtx_destroy(&i4b_global_lock);
+}
+SYSUNINIT(i4b_controller_unsetup, SI_SUB_LOCK, SI_ORDER_ANY, i4b_controller_unsetup, NULL);
 
 /*---------------------------------------------------------------------------*
  *	i4b_controller_reset

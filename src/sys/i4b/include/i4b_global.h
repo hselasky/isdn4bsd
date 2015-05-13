@@ -51,6 +51,8 @@ struct fifo_translator;
 struct i4b_protocol;
 struct buffer;
 struct mbuf;
+struct mtx;
+struct sx;
 
 /*---------------------------------------------------------------------------*
  *	local mutex support for single CPU systems
@@ -272,6 +274,7 @@ typedef struct call_desc {
 } call_desc_t;
 
 extern struct mtx i4b_global_lock;
+extern struct sx i4b_global_sx_lock;
 
 extern uint32_t i4b_open_refcount;
 

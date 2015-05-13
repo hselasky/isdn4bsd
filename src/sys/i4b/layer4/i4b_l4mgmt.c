@@ -40,6 +40,10 @@
 #include <sys/systm.h>
 #include <sys/mbuf.h>
 #include <sys/socket.h>
+#include <sys/lock.h>
+#include <sys/mutex.h>
+#include <sys/sx.h>
+
 #include <net/if.h>
 #endif
 
@@ -448,57 +452,28 @@ void
 i4b_update_all_d_channels(int open)
 {
 	struct i4b_controller *cntl;
-	static uint8_t flag;
+	int do_update;
 
+	sx_xlock(&i4b_global_sx_lock);
 	mtx_lock(&i4b_global_lock);
-
-	while(flag)
-	{
-		/* wait for other thread to 
-		 * finish open or close 
-		 */
-		flag |= 2;
-		(void) msleep(&flag, &i4b_global_lock,
-			      PZERO, "I4B update D-channels", 0);
-	}
-	flag = 1;
-
-	if(open)
-	{
+	if (open)
 		i4b_open_refcount++;
-	}
-	else
-	{
-		if(i4b_open_refcount)
-		{
-			i4b_open_refcount--;
-		}
-	}
+	else if (i4b_open_refcount != 0)
+		i4b_open_refcount--;
 
-	if((i4b_open_refcount == 0) || 
-	   ((i4b_open_refcount == 1) && open))
-	{
-		mtx_unlock(&i4b_global_lock);
+	do_update = ((i4b_open_refcount == 0) || 
+	   ((i4b_open_refcount == 1) && open != 0));
+	mtx_unlock(&i4b_global_lock);
 
+	if (do_update) {
 		for(cntl = &i4b_controller[0];
 		    cntl < &i4b_controller[MAX_CONTROLLERS];
 		    cntl++)
 		{
 			i4b_update_d_channel(cntl);
 		}
-
-		mtx_lock(&i4b_global_lock);
 	}
-
-	if(flag & 2)
-	{
-		wakeup(&flag);
-	}
-	flag = 0;
-
-	mtx_unlock(&i4b_global_lock);
-
-	return;
+	sx_xunlock(&i4b_global_sx_lock);
 }
 
 static const uint8_t MAKE_TABLE(I4B_CAUSES,Q850_CONV,[]);
