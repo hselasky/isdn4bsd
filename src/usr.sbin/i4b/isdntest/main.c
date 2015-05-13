@@ -94,7 +94,7 @@ usage(void)
 {
     fprintf
       (stderr,
-       "\n" "isdntest - i4b selftest, version %d.%d.%d, compiled %s %s"
+       "\n" "isdntest - I4B selftest, version %02d.%02d.%d"
        "\n" "usage: isdntest [-u ctrl] [-d level] [-h] [-i telno] "
        "\n" "                [-o telno] [-t num] [-w]"
        "\n" "       -u <unit>     specify controller unit to use"
@@ -105,7 +105,7 @@ usage(void)
        "\n" "       -t <num>      send test pattern num times"
        "\n" "       -w            wait for keyboard entry to disconnect"
        "\n"
-       ,I4B_VERSION, I4B_REL, I4B_STEP, __DATE__, __TIME__);
+       ,I4B_VERSION, I4B_REL, I4B_STEP);
     exit(1);
 }
 

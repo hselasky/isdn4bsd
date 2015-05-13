@@ -99,7 +99,7 @@ usage(void)
 #define MACRO_1(enum,...) #enum ", "
 
   fprintf(stdout,
-  """isdndebug - i4b set debug level, version %d.%d.%d, compiled %s %s"
+  """isdndebug - I4B set debug level, version %02d.%02d.%d"
   "\nusage:	isdndebug -c -e -g -l <layer> -s <keyword> -m -q -r" 
   "\n	isdndebug -u <mux unit> -z -C -Q" 
   "\n	isdndebug -u 0 -ta -r -b1 -p11 -l1 -g -l2 -g" 
@@ -128,7 +128,7 @@ usage(void)
   I4B_PROTOCOLS(MACRO_1)
   I4B_DRIVERS(MACRO_1)
   "\n",
-	  I4B_VERSION, I4B_REL, I4B_STEP, __DATE__, __TIME__);
+	  I4B_VERSION, I4B_REL, I4B_STEP);
 
   exit(1);
 }

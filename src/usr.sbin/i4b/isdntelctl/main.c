@@ -212,16 +212,18 @@ main(int argc, char **argv)
 static void
 usage(void)
 {
-	fprintf(stderr, "\n");
-	fprintf(stderr, "isdntelctl - %si4btel control, version %d.%d.%d (%s %s)\n", _PATH_DEV, I4B_VERSION, I4B_REL, I4B_STEP, __DATE__, __TIME__);
-	fprintf(stderr, "usage: isdntelctl -c -g -u <unit> -A -N -U\n");
-	fprintf(stderr, "       -c            clear input queue\n");
-	fprintf(stderr, "       -g            get current settings\n");
-	fprintf(stderr, "       -u unit       specify unit number\n");	
-	fprintf(stderr, "       -A            set conversion ISDN: A-law -> user: u-law\n");
-	fprintf(stderr, "       -U            set conversion ISDN: u-law -> user: A-law\n");
-	fprintf(stderr, "       -N            set conversion to no A-law/u-law conversion\n");
-	fprintf(stderr, "\n");
+	fprintf(stderr,
+		"\n"
+		"isdntelctl - %si4btel control, version %02d.%02d.%d\n"
+		"usage: isdntelctl -c -g -u <unit> -A -N -U\n"
+		"       -c            clear input queue\n"
+		"       -g            get current settings\n"
+		"       -u unit       specify unit number\n"	
+		"       -A            set conversion ISDN: A-law -> user: u-law\n"
+		"       -U            set conversion ISDN: u-law -> user: A-law\n"
+		"       -N            set conversion to no A-law/u-law conversion\n"
+		"\n", _PATH_DEV, I4B_VERSION, I4B_REL, I4B_STEP
+	);
 	exit(1);
 }
 

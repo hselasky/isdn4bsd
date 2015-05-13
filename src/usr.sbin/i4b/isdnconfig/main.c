@@ -170,7 +170,7 @@ usage(void)
 {
     fprintf
       (stdout,
-       """isdnconfig - configure ISDN4BSD, version %d.%d.%d, compiled %s %s"
+       """isdnconfig - configure ISDN4BSD, version %02d.%02d.%d"
        "\nusage:  isdnconfig -u <unit> -i <number> -p <protocol> [parameters]" 
        "\n	-u unit         set controller unit (default is zero)"
        "\n	-c channel      set channel number (default is zero)"
@@ -187,7 +187,7 @@ usage(void)
        "\nenums: "
        "\n" I4B_D_DRIVERS(I4B_DRIVERS_DLIST)
        "\n",
-       I4B_VERSION, I4B_REL, I4B_STEP, __DATE__, __TIME__);
+       I4B_VERSION, I4B_REL, I4B_STEP);
 
     exit(1);
     return;

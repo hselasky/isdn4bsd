@@ -12,10 +12,6 @@ YHEADER=1
 # compile debug support
 CFLAGS+= -DDEBUG
 
-# avoid wacky merging of string constants from
-# source code with compile-time timestamp
-CFLAGS+= -fno-merge-constants
-
 # enable rtprio usage
 CFLAGS+= -DUSE_RTPRIO
 

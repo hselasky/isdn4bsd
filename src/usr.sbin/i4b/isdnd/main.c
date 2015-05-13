@@ -57,7 +57,7 @@ static void
 usage(void)
 {
 	fprintf(stderr, "\n");
-	fprintf(stderr, "isdnd - i4b ISDN manager daemon, version %02d.%02d.%d, %s %s\n", I4B_VERSION, I4B_REL, I4B_STEP, __DATE__, __TIME__);
+	fprintf(stderr, "isdnd - I4B ISDN manager daemon, version %02d.%02d.%d\n", I4B_VERSION, I4B_REL, I4B_STEP);
 #ifdef DEBUG
 	fprintf(stderr, "  usage: isdnd [-c file] [-d level] [-F] [-f [-r dev] [-t termtype]]\n");
 #else

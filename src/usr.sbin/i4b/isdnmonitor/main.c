@@ -90,15 +90,15 @@ int getopt(int nargc, char * const nargv[], const char *ostr);
 /*
  * Local function prototypes
  */
-static int connect_local(const const char *sockpath);
-static int connect_remote(const const char *host, int portno);
+static int connect_local(const char *sockpath);
+static int connect_remote(const char *host, int portno);
 static void usage(void);
 static void mloop(void);
 static void handle_input(void);
 static void print_menu(void);
 static void print_logevent(time_t tstamp, int prio, const char * what, const char * msg);
 static void print_charge(time_t tstamp, int controller, int channel, int units, int estimated);
-static void print_connect(time_t tstamp, int dir, int controller, int channel, const const char * cfgname, const const char *, const const char *, const const char *);
+static void print_connect(time_t tstamp, int dir, int controller, int channel, const char * cfgname, const char *, const char *, const char *);
 static void print_disconnect(time_t tstamp, int controller, int channel);
 static void print_updown(time_t tstamp, int contoller, int channel, int isup);
 static void handle_event(const char *msg, int len);
@@ -137,7 +137,7 @@ static void
 usage(void)
 {
         fprintf(stderr, "\n");
-        fprintf(stderr, "isdnmonitor - version %02d.%02d.%d, %s %s (protocol %02d.%02d)\n", I4B_VERSION, I4B_REL, I4B_STEP, __DATE__, __TIME__, MPROT_VERSION, MPROT_REL);
+        fprintf(stderr, "isdnmonitor - version %02d.%02d.%d, protocol %02d.%02d\n", I4B_VERSION, I4B_REL, I4B_STEP, MPROT_VERSION, MPROT_REL);
 #ifdef FOREIGN
         fprintf(stderr, "  usage: isdnmonitor [-c] [-d val] [-f name] [-h host] [-p port]\n");
 #else
