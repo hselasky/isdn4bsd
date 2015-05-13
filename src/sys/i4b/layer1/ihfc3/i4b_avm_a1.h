@@ -180,7 +180,7 @@ static void
 avm_a1_chip_reset CHIP_RESET_T(sc,error)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t temp1, temp2;
+	uint8_t temp1, temp2;
 
 	t = sc->sc_resources.io_tag[0];
 	h = sc->sc_resources.io_hdl[0];
@@ -269,8 +269,8 @@ static int
 avm_a1_chip_identify(device_t dev)
 {
 	struct resource * res;
-	u_int32_t rid;
-	u_int32_t base;
+	uint32_t rid;
+	uint32_t base;
 
 	rid = 0;
 

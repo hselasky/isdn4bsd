@@ -33,11 +33,16 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/socket.h>
 #include <sys/kernel.h>
+
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -138,8 +143,8 @@ i4b_controller_reset(struct i4b_controller *cntl)
  * NOTE: all sub-controllers are under the same lock
  *---------------------------------------------------------------------------*/
 struct i4b_controller *
-i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers, 
-			u_int8_t call_descriptors, u_int8_t *error)
+i4b_controller_allocate(uint8_t portable, uint8_t sub_controllers, 
+			uint8_t call_descriptors, uint8_t *error)
 {
   struct i4b_controller *cntl;
   struct i4b_controller *cntl_end;
@@ -147,7 +152,7 @@ i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers,
   struct call_desc *cd = NULL;
   struct i4b_line_interconnect *li = NULL;
   struct mtx *p_mtx;
-  u_int8_t x;
+  uint8_t x;
 
   if((sub_controllers == 0) ||
      (sub_controllers > MAX_CONTROLLERS))
@@ -270,7 +275,7 @@ i4b_controller_allocate(u_int8_t portable, u_int8_t sub_controllers,
  * TODO: could check that ``i4b_controller'' has been properly setup
  *---------------------------------------------------------------------------*/
 int
-i4b_controller_attach(struct i4b_controller *cntl, u_int8_t *error)
+i4b_controller_attach(struct i4b_controller *cntl, uint8_t *error)
 {
   CNTL_LOCK(cntl);
 
@@ -320,7 +325,7 @@ i4b_controller_detach(struct i4b_controller *cntl)
  *	i4b_controller_free
  *---------------------------------------------------------------------------*/
 void
-i4b_controller_free(struct i4b_controller *cntl, u_int8_t sub_controllers)
+i4b_controller_free(struct i4b_controller *cntl, uint8_t sub_controllers)
 {
   struct call_desc *cd;
   struct i4b_line_interconnect *li;
@@ -457,7 +462,7 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
     case CMR_SET_PCM_MAPPING:
     {
         i4b_debug_t *dbg = (void *)data;
-	u_int8_t x = dbg->value;
+	uint8_t x = dbg->value;
 
 	if(x > (sizeof(dbg->desc)/sizeof(dbg->desc[0]))) {
 	   x = (sizeof(dbg->desc)/sizeof(dbg->desc[0]));
@@ -510,7 +515,7 @@ i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *data)
  *---------------------------------------------------------------------------*/
 int
 i4b_l1_set_options(struct i4b_controller *cntl, 
-		   u_int32_t mask, u_int32_t value)
+		   uint32_t mask, uint32_t value)
 {
    i4b_debug_t dbg;
 

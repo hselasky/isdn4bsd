@@ -95,7 +95,7 @@
 
 #include <i4b/layer1/i4b_hdlc.h>
 
-static u_int8_t
+static uint8_t
 hfcs_fifo_frame_check FIFO_FRAME_CHECK_T(sc,f,m)
 {
 	/* NOTE: After a Frame or Zdata hardware overflow  *
@@ -112,9 +112,9 @@ hfcs_fifo_frame_check FIFO_FRAME_CHECK_T(sc,f,m)
 	 * without   having  to   do  ``advanced''  error  *
 	 * checking.                                       */
 
-	register u_int16_t  crc = 0xffff;
-	register u_int16_t  len = m->m_len;
-	register const u_int8_t * ptr = m->m_data;
+	register uint16_t  crc = 0xffff;
+	register uint16_t  len = m->m_len;
+	register const uint8_t * ptr = m->m_data;
 
 	/* check length */
 	if(len < 3)
@@ -126,8 +126,8 @@ hfcs_fifo_frame_check FIFO_FRAME_CHECK_T(sc,f,m)
 	/* generate CRC */
 	while(len--)
 	{
-	    crc = (HDLC_FCS_TAB[(u_int8_t)(*ptr++ ^ crc)]
-		   ^ (u_int8_t)(crc >> 8));
+	    crc = (HDLC_FCS_TAB[(uint8_t)(*ptr++ ^ crc)]
+		   ^ (uint8_t)(crc >> 8));
 	}
 
 	/* check CRC */

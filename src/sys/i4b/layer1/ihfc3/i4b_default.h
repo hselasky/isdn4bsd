@@ -326,7 +326,7 @@ default_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 	return;
 }
 
-static u_int8_t
+static uint8_t
 default_fifo_frame_check FIFO_FRAME_CHECK_T(sc,f,m)
 {
 	return 0; /* valid frame */

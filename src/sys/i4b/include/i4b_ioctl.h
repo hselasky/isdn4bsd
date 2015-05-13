@@ -175,22 +175,22 @@ m(DRVR_DSS1_P2P_NT,,\
  *---------------------------------------------------------------------------*/
 struct i4b_protocol {
 
-    u_int16_t protocol_1; /* I4B_PROTOCOLS() */
-    u_int16_t protocol_2;
-    u_int16_t protocol_3;
-    u_int16_t protocol_4; /* I4B_B_SUB_PROTOCOLS() */
+    uint16_t protocol_1; /* I4B_PROTOCOLS() */
+    uint16_t protocol_2;
+    uint16_t protocol_3;
+    uint16_t protocol_4; /* I4B_B_SUB_PROTOCOLS() */
 
     union {
         struct {
-	    u_int16_t rx_slot;
-	    u_int16_t tx_slot;
+	    uint16_t rx_slot;
+	    uint16_t tx_slot;
 
-	    u_int8_t  rx_cable;
-	    u_int8_t  tx_cable;
+	    uint8_t  rx_cable;
+	    uint8_t  tx_cable;
 	} bridge;
         struct {
-	    u_int8_t  echo_cancel_enable;
-	    u_int8_t  dtmf_detect_enable;
+	    uint8_t  echo_cancel_enable;
+	    uint8_t  dtmf_detect_enable;
 	} transp;
     } u;
 };
@@ -407,7 +407,7 @@ typedef struct {
  *	message header, included in every message
  *---------------------------------------------------------------------------*/
 typedef struct {
-	u_int8_t	type;		/* message identifier		*/
+	uint8_t	type;		/* message identifier		*/
 	cdid_t		cdid;		/* call descriptor id		*/
 } msg_hdr_t;
 
@@ -652,7 +652,7 @@ typedef struct {
 	int		driver_unit;	/* driver unit number	*/
 	int		direction_out;	/* 0=in 1=out		*/
 #define MAX_PACKET_LOG	40		/* space for IP and TCP header	*/
-	u_int8_t	pktdata[MAX_PACKET_LOG];
+	uint8_t	pktdata[MAX_PACKET_LOG];
 } msg_packet_ind_t;
 
 /*---------------------------------------------------------------------------*
@@ -773,9 +773,9 @@ typedef struct {
  *---------------------------------------------------------------------------*/
 typedef struct {
 	cdid_t	  controller;	/* controller number */
-        u_int16_t l1_channels;  /* number of channels provided */
-	u_int32_t l1_serial;    /* serial number used */
-	u_int8_t  l1_type;  	/* controller type passive/active */
+        uint16_t l1_channels;  /* number of channels provided */
+	uint32_t l1_serial;    /* serial number used */
+	uint8_t  l1_type;  	/* controller type passive/active */
 	u_char    l1_desc[64];	/* controller description, zero terminated */
 	u_char    l1_state[64]; /* controller state, zero terminated */
 	u_char    l1_active : 1;/* set if layer 1 is active */
@@ -784,7 +784,7 @@ typedef struct {
 	u_char    l1_attached : 1;
 	u_char    l3_no_status_enquiry : 1; 
 	u_char    l1_unused : 3;
-	u_int32_t l2_driver_type;
+	uint32_t l2_driver_type;
 } msg_ctrl_info_req_t;
 	
 #define	I4B_CTRL_INFO_REQ	_IOWR('4', 5, msg_ctrl_info_req_t)
@@ -873,10 +873,10 @@ typedef struct {
  *---------------------------------------------------------------------------*/
 typedef struct {
 	cdid_t	  version;      /* version number */
-	u_int32_t release;      /* release number */
-	u_int32_t step;	        /* release step number */	
-	u_int32_t max_controllers; /* maximum number of controllers in system */
-	u_int32_t max_channels; /* maximum number of channels in system */
+	uint32_t release;      /* release number */
+	uint32_t step;	        /* release step number */	
+	uint32_t max_controllers; /* maximum number of controllers in system */
+	uint32_t max_channels; /* maximum number of channels in system */
 } msg_vr_req_t;
 
 #define I4B_VR_REQ              _IOR('4',10, msg_vr_req_t)
@@ -916,13 +916,13 @@ typedef struct {
  *	protocol download to active cards
  *---------------------------------------------------------------------------*/
 struct isdn_dr_prot {
-	u_int32_t bytecount;	/* length of code */
-	u_int8_t *microcode;	/* pointer to microcode */
+	uint32_t bytecount;	/* length of code */
+	uint8_t *microcode;	/* pointer to microcode */
 };
 
 struct isdn_download_request {
 	cdid_t controller;	/* controller number */
-	u_int32_t numprotos;	/* number of protocols pointed 
+	uint32_t numprotos;	/* number of protocols pointed 
 				 * to by "protocols"
 				 */
 	struct isdn_dr_prot *protocols;
@@ -935,11 +935,11 @@ struct isdn_download_request {
  *---------------------------------------------------------------------------*/
 struct isdn_diagnostic_request {
 	cdid_t controller;     	/* controller number */
-	u_int32_t cmd;		/* diagnostic command to execute */
-	u_int32_t in_param_len;	/* length of additional input parameter */
+	uint32_t cmd;		/* diagnostic command to execute */
+	uint32_t in_param_len;	/* length of additional input parameter */
 #define I4B_ACTIVE_DIAGNOSTIC_MAXPARAMLEN	0x10000
 	void *in_param_ptr;	/* optional input parameter */
-	u_int32_t out_param_len;	/* available output space */
+	uint32_t out_param_len;	/* available output space */
 	void *out_param_ptr;	/* output data goes here */
 };
 

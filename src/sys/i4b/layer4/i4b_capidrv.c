@@ -35,6 +35,9 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/ioccom.h>
 #include <sys/malloc.h>
@@ -51,6 +54,7 @@
 #include <sys/priv.h>
 #include <sys/queue.h>
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -68,14 +72,14 @@ __FBSDID("$FreeBSD$");
 
 struct capi_ai_softc {
 
-	u_int32_t sc_info_mask[MAX_CONTROLLERS]; /* used to limit information */
-	u_int32_t sc_CIP_mask_1[MAX_CONTROLLERS]; /* used to select incoming calls */
-	u_int32_t sc_CIP_mask_2[MAX_CONTROLLERS]; /* used to select incoming calls */
+	uint32_t sc_info_mask[MAX_CONTROLLERS]; /* used to limit information */
+	uint32_t sc_CIP_mask_1[MAX_CONTROLLERS]; /* used to select incoming calls */
+	uint32_t sc_CIP_mask_2[MAX_CONTROLLERS]; /* used to select incoming calls */
 
-	u_int16_t sc_max_b_data_len;
+	uint16_t sc_max_b_data_len;
 #define MIN_B_DATA_LEN 128 /* bytes */
 
-	u_int16_t sc_max_b_data_blocks;
+	uint16_t sc_max_b_data_blocks;
 
 	unsigned long sc_refs;
 
@@ -84,7 +88,7 @@ struct capi_ai_softc {
 #define	CAPI_AI_LOCK(sc) mtx_lock(&(sc)->sc_mtx)
 #define	CAPI_AI_UNLOCK(sc) mtx_unlock(&(sc)->sc_mtx)
 
-	u_int16_t sc_flags;
+	uint16_t sc_flags;
 #define ST_CLOSING           0x0001 /* set if AI is closing */
 #define ST_RD_SLEEP_WAKEUP   0x0004 /* set if AI needs wakeup */
 #define ST_RD_SLEEP_ENTERED  0x0008 /* set if AI is sleeping */
@@ -241,7 +245,7 @@ SYSINIT(capi_ai_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, capi_ai_attach, NULL);
  *---------------------------------------------------------------------------*/
 static void
 capi_ai_putqueue(struct capi_ai_softc *sc, 
-		 u_int8_t flags, struct mbuf *m1, uint16_t *p_copy_count)
+		 uint8_t flags, struct mbuf *m1, uint16_t *p_copy_count)
 {
 	struct capi_ai_softc *sc_exclude;
 	struct capi_message_encoded *mp;
@@ -324,8 +328,8 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 
 		if(mp->head.wCmd == htole16(CAPI_IND(CONNECT)))
 		{
-		    u_int32_t cip = le16toh(mp->data.CONNECT_IND.wCIP);
-		    u_int8_t controller = le32toh(mp->head.dwCid) & 0xFF;
+		    uint32_t cip = le16toh(mp->data.CONNECT_IND.wCIP);
+		    uint8_t controller = le32toh(mp->head.dwCid) & 0xFF;
 
 		    if(cip < 32)
 		      cip = (1 << cip) | 1;
@@ -349,7 +353,7 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 
 		if(mp->head.wCmd == htole16(CAPI_IND(INFO)))
 		{
-		    u_int8_t controller = le32toh(mp->head.dwCid) & 0xFF;
+		    uint8_t controller = le32toh(mp->head.dwCid) & 0xFF;
 
 		    if(controller >= MAX_CONTROLLERS)
 		    {
@@ -419,11 +423,11 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
  *	extract CAPI telephone number and presentation
  *---------------------------------------------------------------------------*/
 static void
-capi_get_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len, 
-	       u_int8_t *dst, u_int16_t max_length, 
+capi_get_telno(struct call_desc *cd, uint8_t *src, uint16_t len, 
+	       uint8_t *dst, uint16_t max_length, 
 	       struct i4b_src_telno *p_src)
 {
-	u_int8_t temp;
+	uint8_t temp;
 
 	if(p_src)
 	{
@@ -494,8 +498,8 @@ capi_get_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len,
  *	extract CAPI facility telephone number
  *---------------------------------------------------------------------------*/
 static void
-capi_get_fac_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len, 
-		   u_int8_t *dst, u_int16_t max_length)
+capi_get_fac_telno(struct call_desc *cd, uint8_t *src, uint16_t len, 
+		   uint8_t *dst, uint16_t max_length)
 {
 	if(len)
 	{
@@ -536,11 +540,11 @@ capi_get_fac_telno(struct call_desc *cd, u_int8_t *src, u_int16_t len,
 /*---------------------------------------------------------------------------*
  *	compile CAPI telephone number and presentation
  *---------------------------------------------------------------------------*/
-static u_int16_t
-capi_put_telno(struct call_desc *cd, const u_int8_t *src, u_int8_t *dst, 
-	       u_int16_t len, u_int8_t type, struct i4b_src_telno *p_src)
+static uint16_t
+capi_put_telno(struct call_desc *cd, const uint8_t *src, uint8_t *dst, 
+	       uint16_t len, uint8_t type, struct i4b_src_telno *p_src)
 {
-	u_int8_t *dst_end;
+	uint8_t *dst_end;
 
 	if(len < 2)
 	{
@@ -554,7 +558,7 @@ capi_put_telno(struct call_desc *cd, const u_int8_t *src, u_int8_t *dst,
 
 	if(p_src)
 	{
-	    u_int8_t temp;
+	    uint8_t temp;
 
 	    /* set extension bit */
 	    temp = 0x80;
@@ -607,8 +611,8 @@ capi_put_telno(struct call_desc *cd, const u_int8_t *src, u_int8_t *dst,
  *	generate DATA-B3 confirmation message
  *---------------------------------------------------------------------------*/
 static struct mbuf *
-capi_make_b3_conf(struct capi_message_encoded *msg, u_int16_t wDataHandle, 
-		  u_int16_t wStatus)
+capi_make_b3_conf(struct capi_message_encoded *msg, uint16_t wDataHandle, 
+		  uint16_t wStatus)
 {
 	struct mbuf *m;
 	struct {
@@ -617,8 +621,8 @@ capi_make_b3_conf(struct capi_message_encoded *msg, u_int16_t wDataHandle,
 	   */
 	  struct CAPI_HEADER_ENCODED head;
 
-	  u_int16_t wDataHandle;
-	  u_int16_t wStatus;
+	  uint16_t wDataHandle;
+	  uint16_t wStatus;
 	} __packed *mp;
 
 	m = i4b_getmbuf(sizeof(*mp), M_NOWAIT);
@@ -643,8 +647,8 @@ capi_make_b3_conf(struct capi_message_encoded *msg, u_int16_t wDataHandle,
  *	generate generic CAPI confirmation message
  *---------------------------------------------------------------------------*/
 static struct mbuf *
-capi_make_conf(struct capi_message_encoded *msg, u_int16_t wCmd, 
-	       u_int16_t wStatus)
+capi_make_conf(struct capi_message_encoded *msg, uint16_t wCmd, 
+	       uint16_t wStatus)
 {
 	struct mbuf *m;
 	struct {
@@ -653,7 +657,7 @@ capi_make_conf(struct capi_message_encoded *msg, u_int16_t wCmd,
 	   */
 	  struct CAPI_HEADER_ENCODED head;
 
-	  u_int16_t wStatus;
+	  uint16_t wStatus;
 	} __packed *mp;
 
 	m = i4b_getmbuf(sizeof(*mp), M_NOWAIT);
@@ -677,13 +681,13 @@ capi_make_conf(struct capi_message_encoded *msg, u_int16_t wCmd,
  *	send a facility indication message
  *---------------------------------------------------------------------------*/
 static void
-capi_ai_facility_ind(struct call_desc *cd, u_int16_t wSelector, 
-		     u_int8_t flags, void *param)
+capi_ai_facility_ind(struct call_desc *cd, uint16_t wSelector, 
+		     uint8_t flags, void *param)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
 	struct CAPI_FACILITY_IND_DECODED fac_ind;
-	u_int16_t len;
+	uint16_t len;
 
 	memset(&fac_ind, 0, sizeof(fac_ind));
 
@@ -721,12 +725,12 @@ capi_ai_facility_ind(struct call_desc *cd, u_int16_t wSelector,
  *---------------------------------------------------------------------------*/
 static struct mbuf *
 capi_make_facility_conf(struct capi_message_encoded *pmsg, 
-			u_int16_t wSelector, u_int16_t wInfo, void *param)
+			uint16_t wSelector, uint16_t wInfo, void *param)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
 	struct CAPI_FACILITY_CONF_DECODED fac_conf;
-	u_int16_t len;
+	uint16_t len;
 
 	memset(&fac_conf, 0, sizeof(fac_conf));
 
@@ -764,7 +768,7 @@ capi_make_facility_conf(struct capi_message_encoded *pmsg,
  *---------------------------------------------------------------------------*/
 static struct mbuf *
 capi_make_fac_suppl_conf(struct capi_message_encoded *pmsg, 
-			 u_int16_t wFunction, void *param)
+			 uint16_t wFunction, void *param)
 {
 	struct CAPI_SUPPL_PARAM_DECODED suppl;
 
@@ -787,7 +791,7 @@ capi_make_fac_suppl_conf(struct capi_message_encoded *pmsg,
  *---------------------------------------------------------------------------*/
 static struct mbuf *
 capi_make_fac_suppl_conf_type1(struct capi_message_encoded *pmsg, 
-				    u_int16_t wFunction, u_int16_t wResult)
+				    uint16_t wFunction, uint16_t wResult)
 {
 	struct CAPI_FACILITY_CONF_CALL_DEFL_PARAM_DECODED conf;
 
@@ -856,7 +860,7 @@ capi_make_suppl_supp_conf(struct capi_message_encoded *pmsg)
  *---------------------------------------------------------------------------*/
 static struct mbuf *
 capi_make_li_conn_conf(struct capi_message_encoded *pmsg, 
-		       u_int16_t wInfo, u_int32_t dwCid)
+		       uint16_t wInfo, uint32_t dwCid)
 {
 	struct CAPI_LI_CONN_CONF_PART_DECODED li_conn_conf_part;
 	struct CAPI_GENERIC_STRUCT_DECODED gen_struct;
@@ -896,7 +900,7 @@ capi_make_li_conn_conf(struct capi_message_encoded *pmsg,
  *---------------------------------------------------------------------------*/
 static struct mbuf *
 capi_make_li_disc_conf(struct capi_message_encoded *pmsg, 
-		       u_int16_t wInfo, u_int32_t dwCid)
+		       uint16_t wInfo, uint32_t dwCid)
 {
 	struct CAPI_LI_DISC_CONF_PART_DECODED li_disc_conf_part;
 	struct CAPI_GENERIC_STRUCT_DECODED gen_struct;
@@ -935,7 +939,7 @@ capi_make_li_disc_conf(struct capi_message_encoded *pmsg,
  *	generate DTMF support confirmation
  *---------------------------------------------------------------------------*/
 static struct mbuf *
-capi_make_dtmf_conf(struct capi_message_encoded *pmsg, u_int16_t wInfo)
+capi_make_dtmf_conf(struct capi_message_encoded *pmsg, uint16_t wInfo)
 {
 	struct CAPI_FACILITY_CONF_DTMF_PARAM_DECODED dtmf_conf;
 
@@ -978,7 +982,7 @@ capi_make_ec_supp_conf(struct capi_message_encoded *pmsg)
  *---------------------------------------------------------------------------*/
 static struct mbuf *
 capi_make_ec_generic_conf(struct capi_message_encoded *pmsg, 
-			  u_int16_t wFunction, u_int16_t wInfo)
+			  uint16_t wFunction, uint16_t wInfo)
 {
 	struct CAPI_EC_PARM_GENERIC_CONF_DECODED conf;
 	struct CAPI_EC_FACILITY_PARM_DECODED fac_parm;
@@ -1010,7 +1014,7 @@ capi_ai_connect_b3_active_ind(struct call_desc *cd)
 	struct capi_message_encoded msg;
 	struct CAPI_CONNECT_B3_ACTIVE_IND_DECODED connect_b3_active_ind;
 
-	u_int16_t len;
+	uint16_t len;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		   (cd->ai_type == I4B_AI_CAPI)), 
@@ -1049,7 +1053,7 @@ capi_make_connect_b3_ind(struct call_desc *cd)
 	struct capi_message_encoded msg;
 	struct CAPI_CONNECT_B3_IND_DECODED connect_b3_ind;
 
-	u_int16_t len;
+	uint16_t len;
 
 	memset(&connect_b3_ind, 0, sizeof(connect_b3_ind));
 
@@ -1077,8 +1081,8 @@ capi_make_connect_b3_ind(struct call_desc *cd)
  *	send CAPI connect indication
  *---------------------------------------------------------------------------*/
 void
-capi_ai_info_ind(struct call_desc *cd, u_int8_t complement, 
-		 u_int16_t wInfoNumber, void *ptr, u_int16_t len)
+capi_ai_info_ind(struct call_desc *cd, uint8_t complement, 
+		 uint16_t wInfoNumber, void *ptr, uint16_t len)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
@@ -1126,29 +1130,29 @@ void
 capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 {
 	struct mbuf *m;
-	u_int16_t len;
-	u_int8_t temp;
+	uint16_t len;
+	uint8_t temp;
 
 	struct capi_message_encoded msg;
 	struct CAPI_CONNECT_IND_DECODED connect_ind;
 	struct CAPI_ADDITIONAL_INFO_DECODED add_info;
 
-	u_int8_t dst_telno[TELNO_MAX];
-	u_int8_t src_telno_1[TELNO_MAX];
-	u_int8_t src_telno_2[TELNO_MAX];
-	u_int8_t dst_subaddr[SUBADDR_MAX];
-	u_int8_t src_subaddr[SUBADDR_MAX];
+	uint8_t dst_telno[TELNO_MAX];
+	uint8_t src_telno_1[TELNO_MAX];
+	uint8_t src_telno_2[TELNO_MAX];
+	uint8_t dst_subaddr[SUBADDR_MAX];
+	uint8_t src_subaddr[SUBADDR_MAX];
 
-	static const u_int8_t bc_bprot_alaw[] = { 0x04, 0x03, 0x80, 0x90, 0xA3 };
-	static const u_int8_t bc_bprot_ulaw[] = { 0x04, 0x03, 0x80, 0x90, 0xA2 };
-	static const u_int8_t bc_bprot_reserved[] = { 0x04, 0x03, 0x80, 0x90, 0xA0 };
-	static const u_int8_t bc_bprot_rhdlc[] = { 0x04, 0x02, 0x88, 0x90 };
-	static const u_int8_t bc_bprot_3_1_khz_alaw[] = { 0x04, 0x03, 0x90, 0x90, 0xA3 };
-	static const u_int8_t bc_bprot_3_1_khz_ulaw[] = { 0x04, 0x03, 0x90, 0x90, 0xA2 };
-	static const u_int8_t bc_bprot_3_1_khz_reserved[] = { 0x04, 0x03, 0x90, 0x90, 0xA0 };
-	static const u_int8_t hlc_bprot_none[] = { 0x7D, 0x02, 0x91, 0x81 };
+	static const uint8_t bc_bprot_alaw[] = { 0x04, 0x03, 0x80, 0x90, 0xA3 };
+	static const uint8_t bc_bprot_ulaw[] = { 0x04, 0x03, 0x80, 0x90, 0xA2 };
+	static const uint8_t bc_bprot_reserved[] = { 0x04, 0x03, 0x80, 0x90, 0xA0 };
+	static const uint8_t bc_bprot_rhdlc[] = { 0x04, 0x02, 0x88, 0x90 };
+	static const uint8_t bc_bprot_3_1_khz_alaw[] = { 0x04, 0x03, 0x90, 0x90, 0xA3 };
+	static const uint8_t bc_bprot_3_1_khz_ulaw[] = { 0x04, 0x03, 0x90, 0x90, 0xA2 };
+	static const uint8_t bc_bprot_3_1_khz_reserved[] = { 0x04, 0x03, 0x90, 0x90, 0xA0 };
+	static const uint8_t hlc_bprot_none[] = { 0x7D, 0x02, 0x91, 0x81 };
 
-	static const u_int8_t sending_complete[] = { 0x01, 0x00 };
+	static const uint8_t sending_complete[] = { 0x01, 0x00 };
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		   (cd->ai_type == I4B_AI_CAPI)), 
@@ -1325,7 +1329,7 @@ capi_ai_connect_active_ind(struct call_desc *cd)
 {
 	struct mbuf *m;
 
-	u_int16_t len;
+	uint16_t len;
 
 	struct capi_message_encoded msg;
 	struct CAPI_CONNECT_ACTIVE_IND_DECODED connect_active_ind;
@@ -1370,7 +1374,7 @@ capi_ai_disconnect_b3_ind(struct call_desc *cd)
 	struct capi_message_encoded msg;
 	struct CAPI_DISCONNECT_B3_IND_DECODED disconnect_b3_ind;
 
-	u_int16_t len;
+	uint16_t len;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		   (cd->ai_type == I4B_AI_CAPI)), 
@@ -1405,13 +1409,13 @@ capi_ai_disconnect_b3_ind(struct call_desc *cd)
  *	send CAPI disconnect indication
  *---------------------------------------------------------------------------*/
 void
-capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement)
+capi_ai_disconnect_ind(struct call_desc *cd, uint8_t complement)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
 	struct CAPI_DISCONNECT_IND_DECODED disconnect_ind;
 
-	u_int16_t len;
+	uint16_t len;
 
 	__KASSERT(((cd->ai_ptr == NULL) || 
 		 (cd->ai_type == I4B_AI_CAPI) || complement), 
@@ -2095,7 +2099,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		    cd->channel_bprot = BPROT_NONE;
 
 		if (sc->sc_connect_req.BC.len >= 5) {
-		    u_int8_t *temp = sc->sc_connect_req.BC.ptr;
+		    uint8_t *temp = sc->sc_connect_req.BC.ptr;
 
 		    switch(temp[4] & 0x1F) {
 		    case 0x02:
@@ -2441,7 +2445,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 		       */
 
 		      /* check for progress request */
-		      if(((u_int8_t *)(sc->sc_add_info.facility.ptr))[0] == 0x1e)
+		      if(((uint8_t *)(sc->sc_add_info.facility.ptr))[0] == 0x1e)
 		      {
 			  m2 = capi_make_conf(&sc->sc_msg, CAPI_CONF(INFO), 0x0000);
 			  if(m2)
@@ -2574,8 +2578,8 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 		      if (cd->fifo_translator_capi_std) {
 
-			u_int16_t len = sc->sc_dtmf_req.Digits.len;
-			u_int8_t *ptr = sc->sc_dtmf_req.Digits.ptr;
+			uint16_t len = sc->sc_dtmf_req.Digits.len;
+			uint8_t *ptr = sc->sc_dtmf_req.Digits.ptr;
 
 			while (len--) {
 			    i4b_dtmf_queue_digit
@@ -3028,7 +3032,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(m2)
 	      {
-		  u_int8_t controller = (sc->sc_msg.head.dwCid & 0xFF) % MAX_CONTROLLERS;
+		  uint8_t controller = (sc->sc_msg.head.dwCid & 0xFF) % MAX_CONTROLLERS;
 
 		  CAPI_INIT(CAPI_LISTEN_REQ, &sc->sc_listen_req);
 
@@ -3218,7 +3222,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 	case CAPI_START_D_CHANNEL_REQ:
 	{
-		u_int8_t d_open;
+		uint8_t d_open;
 
 		CAPI_AI_LOCK(sc);
 		if(!(sc->sc_flags & ST_D_OPEN))
@@ -3340,7 +3344,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 	case CAPI_SET_STACK_VERSION_REQ:
 	{
-		u_int32_t *stack_version = (void *)data;
+		uint32_t *stack_version = (void *)data;
 
 		/* reject invalid stack versions */
 		if(stack_version[0] < 204)
@@ -3669,7 +3673,7 @@ CAPI_MAKE_STRUCT(CAPI_CUSTOM_DTMF_IND);
  *	when a DTMF digit has been detected
  *---------------------------------------------------------------------------*/
 static void
-capi_put_dtmf(struct fifo_translator *f, u_int8_t *dtmf_ptr, u_int16_t dtmf_len)
+capi_put_dtmf(struct fifo_translator *f, uint8_t *dtmf_ptr, uint16_t dtmf_len)
 {
 	struct call_desc *cd = f->L5_sc;
 	struct CAPI_CUSTOM_DTMF_IND_DECODED dtmf_data;
@@ -3703,11 +3707,11 @@ capi_put_mbuf(struct fifo_translator *f, struct mbuf *m1)
 	   */
 	  struct CAPI_HEADER_ENCODED head;
 
-	  u_int32_t dwPtr_1;
-	  u_int16_t wLen;
-	  u_int16_t wHandle;
-	  u_int16_t wFlags;
-	  u_int64_t qwPtr_2;
+	  uint32_t dwPtr_1;
+	  uint16_t wLen;
+	  uint16_t wHandle;
+	  uint16_t wFlags;
+	  uint64_t qwPtr_2;
 	} __packed *mp;
 
 	struct mbuf *m2;
@@ -3797,7 +3801,7 @@ capi_get_mbuf(struct fifo_translator *f)
  *	stored
  *---------------------------------------------------------------------------*/
 static struct mbuf *
-capi_alloc_mbuf(struct fifo_translator *f, u_int16_t def_len, u_int16_t tr_len)
+capi_alloc_mbuf(struct fifo_translator *f, uint16_t def_len, uint16_t tr_len)
 {
 	struct call_desc *cd = f->L5_sc;
 
@@ -3813,8 +3817,8 @@ capi_alloc_mbuf(struct fifo_translator *f, u_int16_t def_len, u_int16_t tr_len)
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 capi_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
-	      struct i4b_protocol *pp, u_int32_t driver_type, 
-	      u_int32_t driver_unit, call_desc_t *cd)
+	      struct i4b_protocol *pp, uint32_t driver_type, 
+	      uint32_t driver_unit, call_desc_t *cd)
 {
 	if(!cd)
 	{
@@ -3878,8 +3882,8 @@ I4B_REGISTER(DRVR_CAPI_B3, capi_setup_ft, NULL);
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 capi_bridge_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
-		     struct i4b_protocol *pp, u_int32_t driver_type, 
-		     u_int32_t driver_unit, call_desc_t *cd)
+		     struct i4b_protocol *pp, uint32_t driver_type, 
+		     uint32_t driver_unit, call_desc_t *cd)
 {
 	struct i4b_line_interconnect *li;
 

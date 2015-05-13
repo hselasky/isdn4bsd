@@ -45,6 +45,9 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/mbuf.h>
@@ -64,6 +67,7 @@
 #include <netinet/in_systm.h>
 #include <netinet/in_var.h>
 #include <netinet/ip.h>
+#endif
 
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_debug.h>
@@ -142,10 +146,10 @@ struct ipr_softc {
 #ifdef IPR_VJ
 	struct slcompress sc_compr;	/* tcp compression data		*/
 #ifdef IPR_VJ_USEBUFFER
-	u_int8_t	sc_cbuf[I4BIPRMAXMTU+128];  /* tcp decompression buffer */
+	uint8_t	sc_cbuf[I4BIPRMAXMTU+128];  /* tcp decompression buffer */
 #endif
 #endif
-	u_int32_t       sc_unit;
+	uint32_t       sc_unit;
 
 } ipr_softc[NI4BIPR];
 
@@ -173,7 +177,7 @@ i4biprattach(void *dummy)
 {
 	struct ipr_softc *sc = &ipr_softc[0];
 	struct ifnet *ifp;
-	u_int32_t i;
+	uint32_t i;
 
 #ifdef IPR_VJ
 	printf("i4bipr: %d IP over raw HDLC ISDN device(s) attached "
@@ -479,7 +483,7 @@ ipr_put_mbuf(struct fifo_translator *__f, struct mbuf *m)
 
 #ifdef IPR_VJ
 #ifdef IPR_VJ_USEBUFFER
-	u_int8_t *cp = &sc->sc_cbuf[0];
+	uint8_t *cp = &sc->sc_cbuf[0];
 #endif	
 	int len, c;
 #endif
@@ -495,7 +499,7 @@ ipr_put_mbuf(struct fifo_translator *__f, struct mbuf *m)
 	sc->sc_ifp->if_ibytes += m->m_pkthdr.len;
 
 #ifdef	IPR_VJ
-	if((c = (*(mtod(m, u_int8_t *)) & 0xf0)) != (IPVERSION << 4))
+	if((c = (*(mtod(m, uint8_t *)) & 0xf0)) != (IPVERSION << 4))
 	{
 		/* copy data to buffer */
 
@@ -514,7 +518,7 @@ ipr_put_mbuf(struct fifo_translator *__f, struct mbuf *m)
 #ifdef IPR_VJ_USEBUFFER
 			*cp &= 0x4f;		/* XXX */
 #else
-			*(mtod(m, u_int8_t *)) &= 0x4f; 			
+			*(mtod(m, uint8_t *)) &= 0x4f; 			
 #endif			
 		}
 
@@ -530,7 +534,7 @@ ipr_put_mbuf(struct fifo_translator *__f, struct mbuf *m)
 #ifdef IPR_VJ_USEBUFFER
 			len = sl_uncompress_tcp(&cp,len,(u_int)c,&sc->sc_compr);
 #else
-			len = sl_uncompress_tcp((u_int8_t **)&m->m_data, len,
+			len = sl_uncompress_tcp((uint8_t **)&m->m_data, len,
 					(u_int)c, &sc->sc_compr);
 #endif			
 
@@ -548,7 +552,7 @@ ipr_put_mbuf(struct fifo_translator *__f, struct mbuf *m)
 #ifdef IPR_VJ_USEBUFFER
 			len = sl_uncompress_tcp(&cp,len,(u_int)c,&sc->sc_compr);
 #else
-			len = sl_uncompress_tcp((u_int8_t **)&m->m_data, len,
+			len = sl_uncompress_tcp((uint8_t **)&m->m_data, len,
 					(u_int)c, &sc->sc_compr);
 #endif
 
@@ -605,7 +609,7 @@ error:
 	        /* prepend the address family as a four byte field */
 
 	        m_prep->m_next = m;
-		((u_int32_t *)(m_prep->m_data))[0] = htole32(AF_INET);
+		((uint32_t *)(m_prep->m_data))[0] = htole32(AF_INET);
 		m_prep->m_pkthdr.rcvif = sc->sc_ifp;
 		BPF_MTAP(sc->sc_ifp, m_prep);
 	        m_prep->m_next = NULL;
@@ -697,7 +701,7 @@ ipr_get_mbuf(struct fifo_translator *f)
 		        /* prepend the address family as a four byte field */
 
 		        m_prep->m_next = m;
-			((u_int32_t *)(m_prep->m_data))[0] = htole32(AF_INET);
+			((uint32_t *)(m_prep->m_data))[0] = htole32(AF_INET);
 			BPF_MTAP(sc->sc_ifp, m_prep);
 			m_prep->m_next = NULL;
 			m_freem(m_prep);
@@ -713,7 +717,7 @@ ipr_get_mbuf(struct fifo_translator *f)
 		{
 			if(sc->sc_ifp->if_flags & IPR_COMPRESS)
 			{
-				*mtod(m, u_int8_t *) |= 
+				*mtod(m, uint8_t *) |= 
 				  sl_compress_tcp(m, ip, &sc->sc_compr, 1);
 			}
 		}
@@ -754,8 +758,8 @@ i4bipr_connect_startio(struct ipr_softc *sc)
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 ipr_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
-	     struct i4b_protocol *pp, u_int32_t driver_type, 
-	     u_int32_t driver_unit, call_desc_t *cd)
+	     struct i4b_protocol *pp, uint32_t driver_type, 
+	     uint32_t driver_unit, call_desc_t *cd)
 {
 	struct ipr_softc *sc = &ipr_softc[driver_unit];
 

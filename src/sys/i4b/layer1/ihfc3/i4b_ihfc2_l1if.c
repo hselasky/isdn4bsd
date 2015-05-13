@@ -47,9 +47,9 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	ihfc_fifo_t *f = cntl->L1_fifo;
 	struct sc_state *st = &(sc->sc_state[f->sub_unit]);
 	i4b_debug_t *dbg;
-	u_int32_t temp;
-	u_int16_t n;
-	u_int8_t error[IHFC_MAX_ERR];
+	uint32_t temp;
+	uint16_t n;
+	uint8_t error[IHFC_MAX_ERR];
 
 	error[0] = 0;
 
@@ -60,7 +60,7 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 	switch(command) {
 	case CMR_SETTRACE:	/* set new trace mask */
 
-	    temp = *((u_int32_t *)parm);
+	    temp = *((uint32_t *)parm);
 
 	    IHFC_MSG("CMR_SETTRACE: 0x%08x\n", temp);
 
@@ -119,7 +119,7 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 
 	    if(st->i4b_option_value != temp)
 	    {
-	        const u_int32_t global_options =
+	        const uint32_t global_options =
 		  (I4B_OPTION_PCM_SLAVE|
 		   I4B_OPTION_PCM_SPEED_32|
 		   I4B_OPTION_PCM_SPEED_64|
@@ -281,7 +281,7 @@ ihfc_mph_command_req(struct i4b_controller *cntl, int command, void *parm)
 
 	case CMR_SET_CHANNEL_MAPPING:
 	{
-	    u_int16_t *p_map = parm;
+	    uint16_t *p_map = parm;
 
 	    IHFC_MSG("CMR_SET_CHANNEL_MAPPING\n");
 
@@ -429,7 +429,7 @@ static void
 ihfc_trace(ihfc_sc_t *sc, ihfc_fifo_t *f, int type, struct mbuf *m)
 {
 	struct i4b_controller *cntl = sc->sc_state[f->sub_unit].i4b_controller;
-	u_int8_t from_te = (IS_NT_MODE(sc,f->sub_unit) != 0);
+	uint8_t from_te = (IS_NT_MODE(sc,f->sub_unit) != 0);
 	ihfc_fifo_t *f_start = cntl->L1_fifo;
 
 	if(type == TRC_CH_D) {
@@ -456,9 +456,9 @@ ihfc_trace(ihfc_sc_t *sc, ihfc_fifo_t *f, int type, struct mbuf *m)
  *	trace info routine
  *---------------------------------------------------------------------------*/
 void
-ihfc_trace_info(ihfc_sc_t *sc, ihfc_fifo_t *f, const u_int8_t *desc)
+ihfc_trace_info(ihfc_sc_t *sc, ihfc_fifo_t *f, const uint8_t *desc)
 {
-	u_int16_t len = strlen(desc);
+	uint16_t len = strlen(desc);
 	struct mbuf *m = i4b_getmbuf(len, M_NOWAIT);
 
 	if(m)
@@ -515,8 +515,8 @@ ihfc_i4b_getmbuf(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		 */
 	        struct mbuf *m2;
 		struct mbuf *m3;
-		u_int32_t total_len = 0;
-		u_int8_t *ptr;
+		uint32_t total_len = 0;
+		uint8_t *ptr;
 
 		m2 = m1;
 		do {
@@ -673,12 +673,12 @@ ihfc_init_i4b(ihfc_sc_t *sc, struct i4b_controller *cntl)
 /*---------------------------------------------------------------------------*
  *	default I4B interface setup
  *---------------------------------------------------------------------------*/
-u_int8_t
-ihfc_setup_i4b(ihfc_sc_t *sc, u_int8_t *error)
+uint8_t
+ihfc_setup_i4b(ihfc_sc_t *sc, uint8_t *error)
 {
 	i4b_controller_t *cntl = sc->sc_resources.i4b_controller;
-	u_int8_t sub_controllers = sc->sc_default.d_sub_controllers;
-	u_int8_t retval = 0;
+	uint8_t sub_controllers = sc->sc_default.d_sub_controllers;
+	uint8_t retval = 0;
 
 	while(sub_controllers--) {
 	    device_printf(sc->sc_device, "Attaching I4B "
@@ -699,7 +699,7 @@ void
 ihfc_unsetup_i4b(ihfc_sc_t *sc)
 {
 	i4b_controller_t *cntl = sc->sc_resources.i4b_controller;
-	u_int8_t sub_controllers = sc->sc_default.d_sub_controllers;
+	uint8_t sub_controllers = sc->sc_default.d_sub_controllers;
 
 	while(sub_controllers--) {
 	    i4b_controller_detach(cntl); 

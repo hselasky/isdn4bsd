@@ -192,7 +192,7 @@ static void
 dynalink_common_chip_reset CHIP_RESET_T(sc,error)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t a;
+	uint8_t a;
 
 	switch(sc->sc_cookie) {
 	case 1:
@@ -270,8 +270,8 @@ static int
 dynalink_chip_identify(device_t dev)
 {
 	struct resource * res;
-	u_int32_t rid;
-	u_int32_t base;
+	uint32_t rid;
+	uint32_t base;
 
 	rid = 0;
 

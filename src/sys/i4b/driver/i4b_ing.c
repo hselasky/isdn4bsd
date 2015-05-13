@@ -31,6 +31,9 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
@@ -38,8 +41,8 @@
 #include <sys/socket.h>
 #include <sys/errno.h>
 #include <sys/malloc.h>
-
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_debug.h>
@@ -71,7 +74,7 @@ struct ing_softc {
 	hook_p  	debughook;
 	hook_p  	hook;	
 
-	u_int32_t	flags;
+	uint32_t	flags;
 
 } ing_softc[NI4BING];
 
@@ -313,8 +316,8 @@ ing_get_mbuf(struct fifo_translator *__f)
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 ing_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
-	     struct i4b_protocol *pp, u_int32_t driver_type, 
-	     u_int32_t driver_unit, call_desc_t *cd)
+	     struct i4b_protocol *pp, uint32_t driver_type, 
+	     uint32_t driver_unit, call_desc_t *cd)
 {
 	struct ing_softc *sc = &ing_softc[driver_unit];
 
@@ -514,12 +517,12 @@ ng_ing_rcvmsg(node_p node, item_p item, hook_p lasthook)
 			}
 #endif
 			case NGM_ING_SET_FLAG:
-				if (msg->header.arglen != sizeof(u_int32_t))
+				if (msg->header.arglen != sizeof(uint32_t))
 				{
 					error = EINVAL;
 					break;
 				}
-				sc->flags = *((u_int32_t *) msg->data);
+				sc->flags = *((uint32_t *) msg->data);
 				break;
 
 			default:

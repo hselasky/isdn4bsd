@@ -75,28 +75,28 @@ struct i4b_dtmf_info_rx {
 	int32_t	w0[I4B_DTMF_N_FREQ];
 	int32_t	w1[I4B_DTMF_N_FREQ];
 
-	u_int8_t buffer[I4B_DTMF_N_SAMPLES];
-	u_int8_t count;
-	u_int8_t code;
-	u_int8_t code_count;
-	u_int8_t no_code_count;
-	u_int8_t bsubprot;
-	u_int8_t detected_fax_or_modem;
+	uint8_t buffer[I4B_DTMF_N_SAMPLES];
+	uint8_t count;
+	uint8_t code;
+	uint8_t code_count;
+	uint8_t no_code_count;
+	uint8_t bsubprot;
+	uint8_t detected_fax_or_modem;
 };
 
 struct i4b_dtmf_info_tx {
 
-	u_int16_t freq0[I4B_DTMF_N_DIGITS];
-	u_int16_t freq1[I4B_DTMF_N_DIGITS];
-	u_int16_t duration[I4B_DTMF_N_DIGITS];
+	uint16_t freq0[I4B_DTMF_N_DIGITS];
+	uint16_t freq1[I4B_DTMF_N_DIGITS];
+	uint16_t duration[I4B_DTMF_N_DIGITS];
 
-	u_int16_t omega0;
-	u_int16_t omega1;
+	uint16_t omega0;
+	uint16_t omega1;
 
-	u_int8_t input_pos;
-	u_int8_t output_pos;
-	u_int8_t bsubprot;
-	u_int8_t unused;
+	uint8_t input_pos;
+	uint8_t output_pos;
+	uint8_t bsubprot;
+	uint8_t unused;
 };
 
 /*---------------------------------------------------------------------------*
@@ -128,12 +128,12 @@ typedef struct fifo_translator {
    ((f)->L5_GET_MBUF)(f)
 
 	struct mbuf *
-	        (*L5_ALLOC_MBUF) (struct fifo_translator *, u_int16_t, u_int16_t);
+	        (*L5_ALLOC_MBUF) (struct fifo_translator *, uint16_t, uint16_t);
 #define	L5_ALLOC_MBUF(f,def_len,tr_len)	\
    ((f)->L5_ALLOC_MBUF(f,def_len,tr_len))
 
 	/* NOTE: Do not call if "ptr == NULL" */
-	void    (*L5_PUT_DTMF) (struct fifo_translator *, u_int8_t *, u_int16_t len);
+	void    (*L5_PUT_DTMF) (struct fifo_translator *, uint8_t *, uint16_t len);
 #define	L5_PUT_DTMF(f,p,l)			\
    ((f)->L5_PUT_DTMF)(f,p,l)
 
@@ -161,7 +161,7 @@ typedef struct fifo_translator {
 #define	L1_FIFO_STAT(f,bsp)			\
    ((f)->L1_FIFO_STAT)(f,bsp)
 
-	u_int32_t refcount;
+	uint32_t refcount;
 	struct mtx *mtx;
 
 	struct _ifqueue tx_queue;
@@ -316,8 +316,8 @@ f##unlock:					\
  * i4b_global_lock held: READ+WRITE
  *---------------------------------------------------------------------------*/
 struct i4b_pcm_cable {
-	u_int16_t slot_end;
-	u_int32_t slot_bitmap[(I4B_PCM_SLOT_MAX + ((4 * 8) - 1)) / (4 * 8)];
+	uint16_t slot_end;
+	uint32_t slot_bitmap[(I4B_PCM_SLOT_MAX + ((4 * 8) - 1)) / (4 * 8)];
 };
 
 extern struct i4b_pcm_cable i4b_pcm_cable[I4B_PCM_CABLE_MAX];
@@ -326,32 +326,32 @@ extern struct i4b_pcm_cable i4b_pcm_cable[I4B_PCM_CABLE_MAX];
  *	I4B-controller definition
  *---------------------------------------------------------------------------*/
 typedef struct i4b_controller {
-	u_int8_t unit;			/* controller unit number    */
+	uint8_t unit;			/* controller unit number    */
 
 	struct mtx L1_lock_data;
 	struct mtx *L1_lock_ptr;
 
-	u_int8_t dummy_zero_start[0];
+	uint8_t dummy_zero_start[0];
 
-	u_int8_t allocated:1;		/* set if controller is allocated */
-	u_int8_t no_layer1_dialtone:1;	/* set if dialtone is not wanted */
-	u_int8_t attached:1;		/* set if controller is attached */
-	u_int8_t no_power_save:1;	/* set to disable power saving */
-	u_int8_t no_layer3_status_enquiry:1;	/* set to disable L3 status enquiry */
-	u_int8_t N_nt_mode:1;		/* set if NT-mode is used */
+	uint8_t allocated:1;		/* set if controller is allocated */
+	uint8_t no_layer1_dialtone:1;	/* set if dialtone is not wanted */
+	uint8_t attached:1;		/* set if controller is attached */
+	uint8_t no_power_save:1;	/* set to disable power saving */
+	uint8_t no_layer3_status_enquiry:1;	/* set to disable L3 status enquiry */
+	uint8_t N_nt_mode:1;		/* set if NT-mode is used */
 
 	/* --> Layer 2 */
 	/* ============ */
 
-	u_int16_t N_serial_number;
-	u_int32_t N_protocol;		/* D-channel protocol        */
-	u_int32_t N_driver_type;	/* D-channel driver type     */
+	uint16_t N_serial_number;
+	uint32_t N_protocol;		/* D-channel protocol        */
+	uint32_t N_driver_type;	/* D-channel driver type     */
 #define	N_driver_unit unit		/* D-channel driver unit     */
 
 	/* D-channel fifo translator */
 	struct fifo_translator *N_fifo_translator;
-	u_int32_t N_cdid_count;
-	u_int32_t N_cdid_end;		/* exclusive */
+	uint32_t N_cdid_count;
+	uint32_t N_cdid_end;		/* exclusive */
 
 	struct lapdstat *N_lapdstat;
 
@@ -404,7 +404,7 @@ typedef struct i4b_controller {
          ((i4b_controller_by_cd(cd))->N_FREE_CD)(cd)
 
 	/* utilization of the channels */
-	u_int8_t N_channel_utilization[(MAX_CHANNELS + 7) / 8];
+	uint8_t N_channel_utilization[(MAX_CHANNELS + 7) / 8];
 
 #define	SET_CHANNEL_UTILIZATION(cntl,channel,value)	\
 SET_BIT((cntl)->N_channel_utilization,channel,value)	\
@@ -438,10 +438,10 @@ GET_BIT((cntl)->N_channel_utilization,channel)	\
 	void   *L1_sc;			/* layer 1 softc */
 	void   *L1_fifo;		/* layer 1 FIFO */
 
-	u_int16_t L1_channel_end;	/* number of channels */
-	u_int8_t L1_type;		/* layer 1 type	      */
-	u_int8_t L1_pcm_cable_end;	/* exclusive */
-	u_int8_t L1_pcm_cable_map[I4B_PCM_CABLE_MAX];
+	uint16_t L1_channel_end;	/* number of channels */
+	uint8_t L1_type;		/* layer 1 type	      */
+	uint8_t L1_pcm_cable_end;	/* exclusive */
+	uint8_t L1_pcm_cable_map[I4B_PCM_CABLE_MAX];
 
 	struct fifo_translator *(*L1_GET_FIFO_TRANSLATOR) (struct i4b_controller *, int channel);
 #define	L1_GET_FIFO_TRANSLATOR(cntl,channel)	\
@@ -451,7 +451,7 @@ GET_BIT((cntl)->N_channel_utilization,channel)	\
 #define	L1_COMMAND_REQ(cntl,cmd,arg) \
 	i4b_l1_command_req(cntl,cmd,arg)
 
-	u_int8_t dummy_zero_end[0];
+	uint8_t dummy_zero_end[0];
 
 } i4b_controller_t;
 
@@ -511,18 +511,18 @@ enum {
 	CMR_DISABLE_DTMF_DETECT,
 };
 
-typedef u_int32_t L1_auto_activate_t;
-typedef u_int8_t L1_activity_t;
+typedef uint32_t L1_auto_activate_t;
+typedef uint8_t L1_activity_t;
 
 /* prototypes from i4b_l1.c */
 
-extern struct i4b_controller *i4b_controller_allocate(u_int8_t portable, u_int8_t, u_int8_t, u_int8_t *);
+extern struct i4b_controller *i4b_controller_allocate(uint8_t portable, uint8_t, uint8_t, uint8_t *);
 extern int i4b_l1_command_req(struct i4b_controller *cntl, int cmd, void *parm);
-extern int i4b_l1_set_options(struct i4b_controller *cntl, u_int32_t mask, u_int32_t value);
+extern int i4b_l1_set_options(struct i4b_controller *cntl, uint32_t mask, uint32_t value);
 extern int i4b_l1_bchan_tel_silence(unsigned char *data, int len);
-extern int i4b_controller_attach(struct i4b_controller *cntl, u_int8_t *error);
+extern int i4b_controller_attach(struct i4b_controller *cntl, uint8_t *error);
 extern void i4b_controller_detach(struct i4b_controller *cntl);
-extern void i4b_controller_free(struct i4b_controller *cntl, u_int8_t sub_controllers);
+extern void i4b_controller_free(struct i4b_controller *cntl, uint8_t sub_controllers);
 
 /* prototypes from i4b_convert_xlaw.c */
 
@@ -530,25 +530,25 @@ extern const int16_t i4b_ulaw_to_signed[0x100];
 extern const int16_t i4b_alaw_to_signed[0x100];
 extern const int16_t i4b_sine_to_signed[8000];
 
-extern const u_int8_t i4b_reverse_bits[0x100];
+extern const uint8_t i4b_reverse_bits[0x100];
 
-typedef u_int8_t (i4b_convert_rev_t)(int32_t);
+typedef uint8_t (i4b_convert_rev_t)(int32_t);
 
 extern i4b_convert_rev_t i4b_signed_to_ulaw;
 extern i4b_convert_rev_t i4b_signed_to_alaw;
 
-extern void i4b_convert_bsubprot(u_int8_t *ptr, u_int32_t len, int32_t factor, int32_t divisor, u_int8_t in_bsubprot, u_int8_t out_bsubprot);
+extern void i4b_convert_bsubprot(uint8_t *ptr, uint32_t len, int32_t factor, int32_t divisor, uint8_t in_bsubprot, uint8_t out_bsubprot);
 
 /* prototypes from i4b_dtmf.c */
 
-extern void i4b_dtmf_init_rx(struct fifo_translator *ft, u_int8_t bsubprot);
-extern void i4b_dtmf_init_tx(struct fifo_translator *ft, u_int8_t bsubprot);
-extern void i4b_dtmf_queue_digit(struct fifo_translator *ft, u_int8_t digit, u_int16_t tone_duration, u_int16_t gap_duration);
+extern void i4b_dtmf_init_rx(struct fifo_translator *ft, uint8_t bsubprot);
+extern void i4b_dtmf_init_tx(struct fifo_translator *ft, uint8_t bsubprot);
+extern void i4b_dtmf_queue_digit(struct fifo_translator *ft, uint8_t digit, uint16_t tone_duration, uint16_t gap_duration);
 extern void i4b_dtmf_generate(struct fifo_translator *ft, struct mbuf **pp_m);
 
-extern u_int16_t i4b_sqrt_32(u_int32_t a);
+extern uint16_t i4b_sqrt_32(uint32_t a);
 
-extern void i4b_dtmf_detect(struct fifo_translator *ft, u_int8_t *data_ptr, u_int16_t data_len);
+extern void i4b_dtmf_detect(struct fifo_translator *ft, uint8_t *data_ptr, uint16_t data_len);
 
 /* prototypes from i4b_echo_cancel.c */
 
@@ -625,10 +625,10 @@ struct i4b_echo_cancel {
 	uint8_t	last_byte;
 };
 
-extern void i4b_echo_cancel_init(struct i4b_echo_cancel *ec, u_int16_t pre_delay, u_int8_t sub_bprot);
-extern void i4b_echo_cancel_update_feeder(struct i4b_echo_cancel *ec, u_int16_t tx_time);
-extern void i4b_echo_cancel_feed(struct i4b_echo_cancel *ec, u_int8_t *ptr, u_int16_t len);
-extern void i4b_echo_cancel_update_merger(struct i4b_echo_cancel *ec, u_int16_t rx_time);
-extern void i4b_echo_cancel_merge(struct i4b_echo_cancel *ec, u_int8_t *read_ptr, u_int16_t read_len);
+extern void i4b_echo_cancel_init(struct i4b_echo_cancel *ec, uint16_t pre_delay, uint8_t sub_bprot);
+extern void i4b_echo_cancel_update_feeder(struct i4b_echo_cancel *ec, uint16_t tx_time);
+extern void i4b_echo_cancel_feed(struct i4b_echo_cancel *ec, uint8_t *ptr, uint16_t len);
+extern void i4b_echo_cancel_update_merger(struct i4b_echo_cancel *ec, uint16_t rx_time);
+extern void i4b_echo_cancel_merge(struct i4b_echo_cancel *ec, uint8_t *read_ptr, uint16_t read_len);
 
 #endif					/* _I4B_CONTROLLER_H_ */

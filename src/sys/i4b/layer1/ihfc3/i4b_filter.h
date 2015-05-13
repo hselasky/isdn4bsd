@@ -427,15 +427,15 @@ I4B_FILTER_EXPORT()     = {
 static void
 rx_hdlc_emulation FIFO_FILTER_T(sc,f)
 {
-                 u_int8_t * src_end;
-		 u_int8_t * src;
-	register u_int8_t   blevel;
-	register u_int16_t  crc;
-	register u_int16_t  tmp;
-	register u_int16_t  ib;
-	register u_int8_t * dst;
-	         u_int16_t  len;
-	register u_int16_t  tmp2;
+                 uint8_t * src_end;
+		 uint8_t * src;
+	register uint8_t   blevel;
+	register uint16_t  crc;
+	register uint16_t  tmp;
+	register uint16_t  ib;
+	register uint8_t * dst;
+	         uint16_t  len;
+	register uint16_t  tmp2;
 
 	do {
 	    /* get buffer */
@@ -683,8 +683,8 @@ tx_transparent FIFO_FILTER_T(sc,f)
 	   (f->prot_curr.u.transp.echo_cancel_enable))
 	{
 	    struct i4b_echo_cancel *ec = &(sc->sc_echo_cancel[FIFO_NO(f)/2]);
-	    u_int8_t temp_buf[64];
-	    u_int16_t io_len;
+	    uint8_t temp_buf[64];
+	    uint16_t io_len;
 
 	    /*
 	     * fill FIFO with last byte:
@@ -873,15 +873,15 @@ I4B_FILTER_EXPORT()     = {
 static void
 tx_hdlc_emulation FIFO_FILTER_T(sc,f)
 {
-                 u_int8_t * dst_end;
-	         u_int8_t * dst;
-	register u_int16_t  blevel;
-	register u_int32_t  tmp;
-	register u_int16_t  crc;
-	register u_int16_t  ib;
-	register u_int8_t * src;
-	         u_int16_t  len;
-	register u_int32_t  tmp2;
+                 uint8_t * dst_end;
+	         uint8_t * dst;
+	register uint16_t  blevel;
+	register uint32_t  tmp;
+	register uint16_t  crc;
+	register uint16_t  ib;
+	register uint8_t * src;
+	         uint16_t  len;
+	register uint32_t  tmp2;
 
 	do {
 	  /* get buffer */
@@ -959,7 +959,7 @@ tx_hdlc_emulation FIFO_FILTER_T(sc,f)
 		{/* nmb */
 		},
 		{/* wrd */
-			*dst++ = (u_int8_t)(tmp);
+			*dst++ = (uint8_t)(tmp);
 		},
 		dd );
 	  }
@@ -1013,15 +1013,15 @@ I4B_FILTER_EXPORT()  = {
 static void
 tx_hdlc_emulation_dchan FIFO_FILTER_T(sc,f)
 {
-                 u_int8_t * dst_end;
-	         u_int8_t * dst;
-	register u_int16_t  blevel;
-	register u_int32_t  tmp;
-	register u_int16_t  crc;
-	register u_int16_t  ib;
-	register u_int8_t * src;
-	         u_int16_t  len;
-	register u_int32_t  tmp2;
+                 uint8_t * dst_end;
+	         uint8_t * dst;
+	register uint16_t  blevel;
+	register uint32_t  tmp;
+	register uint16_t  crc;
+	register uint16_t  ib;
+	register uint8_t * src;
+	         uint16_t  len;
+	register uint32_t  tmp2;
 
 	do {
 	  /* get buffer */
@@ -1099,7 +1099,7 @@ tx_hdlc_emulation_dchan FIFO_FILTER_T(sc,f)
 		{/* nmb */
 		},
 		{/* wrd */
-			*dst++ = (u_int8_t)(tmp);
+			*dst++ = (uint8_t)(tmp);
 		},
 		dd );
 	  }

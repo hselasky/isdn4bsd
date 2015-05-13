@@ -61,7 +61,7 @@ __ihfc_chip_interrupt(ihfc_sc_t *sc);
  * : reg_get_desc - ``provide human readable debugging support''
  *---------------------------------------------------------------------------*/
 static __inline const u_char *
-reg_get_desc(u_int8_t off)
+reg_get_desc(uint8_t off)
 {
     const u_char * desc [] = REGISTERS(REG_MACRO_1);
 
@@ -78,11 +78,11 @@ reg_get_desc(u_int8_t off)
 /*---------------------------------------------------------------------------*
  * : ihfc_fifos_active() - search for active FIFOs
  *---------------------------------------------------------------------------*/
-u_int8_t
+uint8_t
 ihfc_fifos_active(ihfc_sc_t *sc)
 {
     ihfc_fifo_t *f;
-    u_int8_t n;
+    uint8_t n;
 
     for(n = 0; 
 	n < sc->sc_default.d_sub_controllers;
@@ -124,8 +124,8 @@ ihfc_config_write_sub(ihfc_sc_t *sc, ihfc_fifo_t *f)
      * write new configuration
      */
     REGISTER_FOREACH(r,sc->sc_default.d_register_list) {
-	u_int8_t *data  = &OFF2REG(sc->sc_config, r->offset);
-	u_int8_t *data2 = &OFF2REG(sc->sc_config2, r->offset);
+	uint8_t *data  = &OFF2REG(sc->sc_config, r->offset);
+	uint8_t *data2 = &OFF2REG(sc->sc_config2, r->offset);
 
 	if ((f == IHFC_CONFIG_WRITE_RELOAD) || (*data != *data2)) {
 		IHFC_MSG("0x%02x->%s (0x%02x).\n",
@@ -266,10 +266,10 @@ ihfc_config_write(ihfc_sc_t *sc, ihfc_fifo_t *f)
  *
  *---------------------------------------------------------------------------*/
 void
-ihfc_reset(ihfc_sc_t *sc, u_int8_t *error)
+ihfc_reset(ihfc_sc_t *sc, uint8_t *error)
 {
 	ihfc_fifo_t *f;
-	u_int8_t sub_unit;
+	uint8_t sub_unit;
 
 	IHFC_ASSERT_LOCKED(sc);
 
@@ -360,7 +360,7 @@ ihfc_reset(ihfc_sc_t *sc, u_int8_t *error)
 static fsm_state_t *
 fsm_read(register ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
-	u_int8_t state = 0;
+	uint8_t state = 0;
 
 	FSM_READ(sc,f,&state);
 
@@ -371,7 +371,7 @@ fsm_read(register ihfc_sc_t *sc, ihfc_fifo_t *f)
  * : statemachine write hardware				(ALL CHIPS)
  *---------------------------------------------------------------------------*/
 static void
-fsm_write(register ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag)
+fsm_write(register ihfc_sc_t *sc, ihfc_fifo_t *f, uint8_t flag)
 {
 	fsm_command_t *fsm = &(sc->sc_default.d_fsm_table->cmd[flag & 0x7]);
 
@@ -449,7 +449,7 @@ fsm_T3_expire(void *arg)
  *            get the "sub_unit" in a convenient way.
  *---------------------------------------------------------------------------*/
 void
-ihfc_fsm_update(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag)
+ihfc_fsm_update(ihfc_sc_t *sc, ihfc_fifo_t *f, uint8_t flag)
 {
 	struct sc_state *st = &(sc->sc_state[f->sub_unit]);
 	struct fsm_state fsm_state;
@@ -620,10 +620,10 @@ ihfc_fsm_update(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag)
  * : global filter support macros and structure(s)
  *---------------------------------------------------------------------------*/
 struct filter_info {
-	u_int8_t  unused;
-	u_int8_t  direction;
-	u_int16_t buffersize; /* in bytes */
-	u_int16_t protocol[4];
+	uint8_t  unused;
+	uint8_t  direction;
+	uint16_t buffersize; /* in bytes */
+	uint16_t protocol[4];
   void (*rxtx_interrupt) RXTX_INTERRUPT_T(,);
   void (*filter) FIFO_FILTER_T(,);
 };
@@ -650,8 +650,8 @@ SET_DECLARE(ihfc_filter_info, const struct filter_info);
 /*---------------------------------------------------------------------------*
  * : setup/unsetup a temporary data buffer
  *---------------------------------------------------------------------------*/
-static u_int8_t
-ihfc_buffer_setup(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int16_t buffersize)
+static uint8_t
+ihfc_buffer_setup(ihfc_sc_t *sc, ihfc_fifo_t *f, uint16_t buffersize)
 {
 	/* free old buffer */
 	if(f->buf.Buf_start)
@@ -699,8 +699,8 @@ ihfc_fifo_link(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	const struct filter_info **ppfilt;
 	__typeof(((struct filter_info *)0)->rxtx_interrupt) *rxtx_interrupt;
 	__typeof(((struct filter_info *)0)->buffersize) buffersize = 0;
-	u_int16_t protocol;
-	u_int8_t direction;
+	uint16_t protocol;
+	uint8_t direction;
 
 	IHFC_ASSERT_LOCKED(sc);
 
@@ -846,7 +846,7 @@ __ihfc_chip_interrupt(ihfc_sc_t *sc)
 	      microtime(&sc->sc_stack.tv);
 	      IHFC_MSG("del=%08d ista=0x%04x, exir=0x%04x, "
 		       "h_ista=0x%04x, h_exir=0x%04x, s_int_s1=0x%02x\n",
-		       (u_int32_t)(sc->sc_stack.tv.tv_usec - 
+		       (uint32_t)(sc->sc_stack.tv.tv_usec - 
 				   sc->sc_stack.tv2.tv_usec),
 		       sc->sc_config.i_ista, sc->sc_config.i_exir,
 		       sc->sc_config.h_ista, sc->sc_config.h_exir,
@@ -1009,28 +1009,28 @@ ihfc_fifo_call(ihfc_sc_t *sc, ihfc_fifo_t *f)
 static void
 ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 {
-	u_int8_t aux_data_0_mask= 0;
+	uint8_t aux_data_0_mask= 0;
 
-	u_int8_t a_lmr1_mask    = 0;
-	u_int8_t b_tr_cr_mask   = 0;
+	uint8_t a_lmr1_mask    = 0;
+	uint8_t b_tr_cr_mask   = 0;
 
-	u_int8_t h_mode_mask[2] = { 0, 0 };
-	u_int8_t h_tsar_mask[2] = { 0, 0 };
-	u_int8_t h_tsax_mask[2] = { 0, 0 };
+	uint8_t h_mode_mask[2] = { 0, 0 };
+	uint8_t h_tsar_mask[2] = { 0, 0 };
+	uint8_t h_tsax_mask[2] = { 0, 0 };
 
-	u_int8_t i_spcr_mask    = 0;
+	uint8_t i_spcr_mask    = 0;
 
-	u_int8_t s_connect_mask = 0;
-	u_int8_t s_con_hdlc_mask= 0;
-	u_int8_t s_ctmt_mask    = 0;
-	u_int8_t s_sctrl_e_mask = 0;
-	u_int8_t s_fifo_en_mask = 0;
-	u_int8_t s_sctrl_mask   = 0;
+	uint8_t s_connect_mask = 0;
+	uint8_t s_con_hdlc_mask= 0;
+	uint8_t s_ctmt_mask    = 0;
+	uint8_t s_sctrl_e_mask = 0;
+	uint8_t s_fifo_en_mask = 0;
+	uint8_t s_sctrl_mask   = 0;
 
-	u_int8_t w_b1_mode_mask = 0;
-	u_int8_t w_b2_mode_mask = 0;
-	u_int8_t w_cmdr1_mask   = 0;
-	u_int8_t w_cmdr2_mask   = 0;
+	uint8_t w_b1_mode_mask = 0;
+	uint8_t w_b2_mode_mask = 0;
+	uint8_t w_cmdr1_mask   = 0;
+	uint8_t w_cmdr2_mask   = 0;
 
 	/*
 	 * reset last [transmit-] byte
@@ -1299,7 +1299,7 @@ ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 
 	if(1)
 	{
-	  u_int8_t tmp;
+	  uint8_t tmp;
 	  ihfc_fifo_t *f_rx;
 	  ihfc_fifo_t *f_tx;
 
@@ -1332,7 +1332,7 @@ ihfc_fifo_setup_soft(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
  	return;
 }
 
-u_int8_t
+uint8_t
 ihfc_fifo_setup(register ihfc_sc_t *sc, register ihfc_fifo_t *f)
 {
 	IHFC_ASSERT_LOCKED(sc);
@@ -1632,8 +1632,8 @@ static const struct sc_config ihfc_config_default =
 	.w_sqx             = 0x00 | 0x0f,  /* disable S/Q interrupt */
 };
 
-u_int8_t
-ihfc_setup_softc(register ihfc_sc_t *sc, u_int8_t *error)
+uint8_t
+ihfc_setup_softc(register ihfc_sc_t *sc, uint8_t *error)
 {
 	ihfc_fifo_t *f;
 

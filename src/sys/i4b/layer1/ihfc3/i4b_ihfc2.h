@@ -40,9 +40,12 @@
 
 #ifdef _KERNEL
 
-# include <sys/types.h>
-# include <sys/systm.h>
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
+# include <sys/stdint.h>
 # include <sys/param.h>
+# include <sys/systm.h>
 # include <sys/unistd.h>
 # include <sys/conf.h>		/* cdevsw stuff */
 # include <sys/kernel.h>	/* SYSINIT stuff */
@@ -56,10 +59,16 @@
 # include <sys/callout.h>
 # include <sys/bus.h>
 # include <sys/linker_set.h>
+# include <sys/filio.h>
+# include <sys/fcntl.h>
 
 # include <net/if.h>
+#endif
 
 # ifdef IHFC_USB_ENABLED
+#ifdef USB_GLOBAL_INCLUDE_FILE
+#include USB_GLOBAL_INCLUDE_FILE
+#else
 #  define usb2_config_td_cc ihfc_config_copy
 #  define usb2_config_td_softc ihfc_sc
 #  include <dev/usb/usb.h>
@@ -69,18 +78,10 @@
 #  include <dev/usb/usb_debug.h>
 #  include <dev/usb/usb_util.h>
 #  include <dev/usb/usb_busdma.h>
+#endif
 
 #  include <i4b/layer1/ihfc3/usb2_config_td.h>
 # endif
-
-# ifdef __FreeBSD__
-#  ifdef DEVFS
-#   include <sys/devfsext.h>
-#  endif
-#  include <sys/filio.h>
-# endif
-
-# include <sys/fcntl.h>
 
 # include <i4b/include/i4b_debug.h>
 # include <i4b/include/i4b_ioctl.h>
@@ -129,15 +130,15 @@ struct void_p {
 } __packed;
 
 struct u_int16_p {
-  u_int16_t data;
+  uint16_t data;
 } __packed;
 
 struct u_int32_p {
-  u_int32_t data;
+  uint32_t data;
 } __packed;
 
 struct u_int64_p {
-  u_int64_t data;
+  uint64_t data;
 } __packed;
 
 typedef struct void_p    void_p_t;
@@ -155,18 +156,18 @@ typedef struct u_int64_p u_int64_p_t;
 #endif
 
 static __inline void
-memset_1(void *dst, u_int32_t fill, u_int32_t len)
+memset_1(void *dst, uint32_t fill, uint32_t len)
 {
-    u_int8_t *ptr = (u_int8_t *)dst;
-    u_int8_t rem;
+    uint8_t *ptr = (uint8_t *)dst;
+    uint8_t rem;
 
     fill &= 0xff;
 
     while(len--)
     {
-        *ptr++ = (u_int8_t)fill;
+        *ptr++ = (uint8_t)fill;
 
-	if(!((ptr - ((u_int8_t *)0)) & 3))
+	if(!((ptr - ((uint8_t *)0)) & 3))
 	{
 	    /* alignment is right */
 
@@ -178,7 +179,7 @@ memset_1(void *dst, u_int32_t fill, u_int32_t len)
 
 	    while(len--)
 	    {
-	        *((u_int32_t *)ptr) = fill;
+	        *((uint32_t *)ptr) = fill;
 		ptr += 4;
 	    }
 	    len = rem;
@@ -283,7 +284,7 @@ for((f) = (sc)->sc_fifo_end ? &(sc)->sc_fifo[0] : NULL;	\
  *	S: commands to TE
  *	
  *---------------------------------------------------------------------------*
- * const struct ihfc_SQtable { u_int8_t *string; }
+ * const struct ihfc_SQtable { uint8_t *string; }
  *
  *	ihfc_Q_table[16] =
  *{
@@ -741,18 +742,18 @@ struct sc_fifo;
 
 struct resource_id {
 	struct resource *  res; /* resource            */
-	u_int32_t          rid; /* resource ID         */
-	u_int8_t       options; /* RF_XXX              */
-	u_int8_t          type; /* SYS_RES_XXX         */
-	u_int8_t        number; /* Eg. io_hdl[number]  */
+	uint32_t          rid; /* resource ID         */
+	uint8_t       options; /* RF_XXX              */
+	uint8_t          type; /* SYS_RES_XXX         */
+	uint8_t        number; /* Eg. io_hdl[number]  */
 };
 
 struct resource_tab {
 	void * const label_pre;  /* label ptr           */
 	void * const label;      /* label ptr           */
-	u_int8_t     type;       /* SYS_RES_XXX         */
-	u_int8_t     number;     /* Eg. io_hdl[number]  */
-  const u_int8_t   * description;
+	uint8_t     type;       /* SYS_RES_XXX         */
+	uint8_t     number;     /* Eg. io_hdl[number]  */
+  const uint8_t   * description;
 };
 
 #define RESOURCES(m)				\
@@ -811,10 +812,10 @@ struct sc_resources {
 	bus_space_tag_t    mem_tag[IHFC_NMEMORY];/* memory mapped I/O tag       */
 	bus_space_handle_t mem_hdl[IHFC_NMEMORY];/* memory mapped I/O handle    */
 	vm_paddr_t mwba_phys_start[IHFC_NMWBA];  /* pointer to MWBA (phys.addr) */
-	u_int8_t      * mwba_start[IHFC_NMWBA];  /* pointer to MWBA (virt.addr) */
-	u_int32_t        mwba_size[IHFC_NMWBA];  /* size of MWBA in bytes       */
-	u_int16_t              iio[IHFC_NIOPORT];/* internal IO                 */
-	u_int16_t             iirq[IHFC_NIRQ];   /* internal IRQ                */
+	uint8_t      * mwba_start[IHFC_NMWBA];  /* pointer to MWBA (virt.addr) */
+	uint32_t        mwba_size[IHFC_NMWBA];  /* size of MWBA in bytes       */
+	uint16_t              iio[IHFC_NIOPORT];/* internal IO                 */
+	uint16_t             iirq[IHFC_NIRQ];   /* internal IRQ                */
 
 	/*
 	 * NOTE: there should be
@@ -843,17 +844,17 @@ if(&reg_list[0]) /* check if reg_list present */\
 			 (&(((struct sc_config * const)0)->dummy)))
 
 struct register_list {
-  u_int8_t offset;
-  u_int8_t regval;
+  uint8_t offset;
+  uint8_t regval;
 };
 
 struct internal {
-  u_int16_t value, internal;
+  uint16_t value, internal;
 };
 
 /* definition of a FIFO processing program */
 
-typedef u_int8_t (ihfc_fifo_program_t)(struct ihfc_sc *, struct sc_fifo *);
+typedef uint8_t (ihfc_fifo_program_t)(struct ihfc_sc *, struct sc_fifo *);
 
 /* return values */
 
@@ -874,45 +875,45 @@ enum {
  * are listed in the file "i4b_default.h"
  */
 struct sc_default {
-  u_int32_t o_RES_start[0];
+  uint32_t o_RES_start[0];
   RESOURCES(RES_MACRO_2)	      /* o_RES_XXX (must be first) */
 
-  u_int32_t o_HFC_MWBA           : 1; /* 32kbyte memory aligned to 32K,
+  uint32_t o_HFC_MWBA           : 1; /* 32kbyte memory aligned to 32K,
 				       *  0xff filled, required  
 				       */
-  u_int32_t o_TIGER_MWBA         : 1; /* 16kbyte memory aligned to 4 bytes,
+  uint32_t o_TIGER_MWBA         : 1; /* 16kbyte memory aligned to 4 bytes,
 				       * 0x00 filled, required 
 				       */
-  u_int32_t o_BUS_TYPE_IOM2      : 1; /* set if ISAC IOM mode2 selected.
+  uint32_t o_BUS_TYPE_IOM2      : 1; /* set if ISAC IOM mode2 selected.
 				       * Else ISAC IOM mode1 selected.
 				       */
-  u_int32_t o_8KFIFO             : 1; /* set if HFC 8k FIFO mode selected.
+  uint32_t o_8KFIFO             : 1; /* set if HFC 8k FIFO mode selected.
 				       * Else HFC 32k FIFO mode selected.
 				       */
-  u_int32_t o_512KFIFO           : 1; /* set if HFC 512k FIFO mode selected.
+  uint32_t o_512KFIFO           : 1; /* set if HFC 512k FIFO mode selected.
 				       * Else HFC 128k FIFO mode selected.
 				       */
-  u_int32_t o_PCI_DEVICE         : 1; /* set if device uses PCI ctrl. */
-  u_int32_t o_POST_SETUP         : 1; /* set if post setup is done    */
-  u_int32_t o_PORTABLE           : 1; /* set if device is portable    */
-  u_int32_t o_EXTERNAL_RAM       : 1; /* set if the chip should use
+  uint32_t o_PCI_DEVICE         : 1; /* set if device uses PCI ctrl. */
+  uint32_t o_POST_SETUP         : 1; /* set if post setup is done    */
+  uint32_t o_PORTABLE           : 1; /* set if device is portable    */
+  uint32_t o_EXTERNAL_RAM       : 1; /* set if the chip should use
 				       * external RAM
 				       */
-  u_int32_t o_PRIVATE_FLAG_0     : 1; /* private driver flag */
-  u_int32_t o_PRIVATE_FLAG_1     : 1; /* private driver flag */
-  u_int32_t o_ISAC_NT            : 1; /* set if ISAC supports NT-mode */
-  u_int32_t o_IPAC               : 1; /* set if IPAC is present. 
+  uint32_t o_PRIVATE_FLAG_0     : 1; /* private driver flag */
+  uint32_t o_PRIVATE_FLAG_1     : 1; /* private driver flag */
+  uint32_t o_ISAC_NT            : 1; /* set if ISAC supports NT-mode */
+  uint32_t o_IPAC               : 1; /* set if IPAC is present. 
 				       * Else ISAC/HSCX is present.
 				       */
-  u_int32_t o_TRANSPARENT_BYTE_REPETITION : 1; /* set if bytes are repeated
+  uint32_t o_TRANSPARENT_BYTE_REPETITION : 1; /* set if bytes are repeated
 						* in [extended] transparent
 						* mode
 						*/
-  u_int32_t o_ECHO_CANCEL_ENABLED : 1; /* set if echo canceller is supported */
-  u_int32_t o_T125_WAIT          : 1; /* set if waiting for 125us timeout */
-  u_int32_t o_BULK_READ_STALL    : 1; /* used by USB */
-  u_int32_t o_BULK_WRITE_STALL   : 1; /* used by USB */
-  u_int32_t o_INTR_READ_STALL    : 1; /* used by USB */
+  uint32_t o_ECHO_CANCEL_ENABLED : 1; /* set if echo canceller is supported */
+  uint32_t o_T125_WAIT          : 1; /* set if waiting for 125us timeout */
+  uint32_t o_BULK_READ_STALL    : 1; /* used by USB */
+  uint32_t o_BULK_WRITE_STALL   : 1; /* used by USB */
+  uint32_t o_INTR_READ_STALL    : 1; /* used by USB */
 
 #define IS_NT_MODE(sc,su) \
   ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_NT_MODE)
@@ -935,43 +936,43 @@ struct sc_default {
 #define IS_REMOTE_LOOP(sc,su) \
   ((sc)->sc_state[su].i4b_option_value & I4B_OPTION_REMOTE_LOOP)
 
-  u_int32_t i4b_option_mask;
-  u_int32_t i4b_option_value;
+  uint32_t i4b_option_mask;
+  uint32_t i4b_option_value;
 
-  u_int8_t                      cookie;
-  u_int8_t                      stdel_nt;  /* S/T delay for NT-mode */
-  u_int8_t                      stdel_te;  /* S/T delay for TE-mode */
-  u_int8_t                      double_clock; /* crystal selection */
-  u_int8_t                      usb2_length;
-  u_int8_t                      usb2_conf_no;
-  u_int8_t                      usb2_iface_no;
-  u_int8_t                      usb2_alt_iface_no;
-  u_int8_t                      io_rid [IHFC_NIOPORT];
-  u_int8_t                      mem_rid [IHFC_NMEMORY];
+  uint8_t                      cookie;
+  uint8_t                      stdel_nt;  /* S/T delay for NT-mode */
+  uint8_t                      stdel_te;  /* S/T delay for TE-mode */
+  uint8_t                      double_clock; /* crystal selection */
+  uint8_t                      usb2_length;
+  uint8_t                      usb2_conf_no;
+  uint8_t                      usb2_iface_no;
+  uint8_t                      usb2_alt_iface_no;
+  uint8_t                      io_rid [IHFC_NIOPORT];
+  uint8_t                      mem_rid [IHFC_NMEMORY];
 
   /* masks can be applied to
    * different variables
    */
-  u_int8_t			led_masks[0];
+  uint8_t			led_masks[0];
 
-  u_int8_t			led_d1_mask;
-  u_int8_t			led_b1_mask;
-  u_int8_t			led_b2_mask;
-  u_int8_t			led_p1_mask;
-  u_int8_t			led_inverse_mask; /* inverse bits */
+  uint8_t			led_d1_mask;
+  uint8_t			led_b1_mask;
+  uint8_t			led_b2_mask;
+  uint8_t			led_p1_mask;
+  uint8_t			led_inverse_mask; /* inverse bits */
 
-  u_int8_t			led_time_count;
-  u_int8_t			led_time_count_sub;
+  uint8_t			led_time_count;
+  uint8_t			led_time_count_sub;
 
-  u_int8_t		      d_L1_type; 
+  uint8_t		      d_L1_type; 
 
-  u_int8_t		      d_sub_controllers;
+  uint8_t		      d_sub_controllers;
 
-  u_int16_t		      d_channels; /* RX + TX */
+  uint16_t		      d_channels; /* RX + TX */
 
-  u_int32_t		      d_interrupt_delay;
+  uint32_t		      d_interrupt_delay;
 
-  u_int32_t		      d_temp_size;
+  uint32_t		      d_temp_size;
 
   const union fifo_map *      d_fifo_map[IHFC_CHANNELS];
 
@@ -991,7 +992,7 @@ struct sc_default {
 #ifdef __NetBSD__
 #define IHFC_LEN_T size_t
 #else
-#define IHFC_LEN_T u_int16_t
+#define IHFC_LEN_T uint16_t
 #endif
 
 # define CHIP_IDENTIFY_T(dev)			\
@@ -1001,7 +1002,7 @@ struct sc_default {
 
 # define CHIP_RESET_T(sc,error)			\
 	(struct ihfc_sc         *sc,		\
-	 register u_int8_t   *error)
+	 register uint8_t   *error)
 
   void (*c_chip_reset) CHIP_RESET_T(, ) ;
 
@@ -1023,7 +1024,7 @@ struct sc_default {
 # define CHIP_READ_T(sc,reg,ptr,len)       	\
 	(struct ihfc_sc         *sc,		\
 	 register IHFC_LEN_T    reg,		\
-	 register u_int8_t     *ptr, /* dst */	\
+	 register uint8_t     *ptr, /* dst */	\
 	 register IHFC_LEN_T    len)
 
   void (*c_chip_read) CHIP_READ_T(,,, ) ;
@@ -1031,7 +1032,7 @@ struct sc_default {
 # define CHIP_WRITE_T(sc,reg,ptr,len)		\
 	(struct ihfc_sc         *sc,		\
 	 register IHFC_LEN_T    reg,		\
-	 register const u_int8_t*ptr, /* src */	\
+	 register const uint8_t*ptr, /* src */	\
 	 register IHFC_LEN_T    len)
 
   void (*c_chip_write) CHIP_WRITE_T(,,, ) ;
@@ -1048,14 +1049,14 @@ struct sc_default {
 # define FSM_READ_T(sc,f,ptr)			\
 	(struct ihfc_sc         *sc,		\
 	 struct sc_fifo          *f,		\
-	 register u_int8_t     *ptr) /* dst */
+	 register uint8_t     *ptr) /* dst */
 
   void (*c_fsm_read) FSM_READ_T(,, ) ;
 
 # define FSM_WRITE_T(sc,f,ptr)			\
 	(struct ihfc_sc         *sc,		\
 	 struct sc_fifo          *f,		\
-	 register const u_int8_t*ptr) /* src */
+	 register const uint8_t*ptr) /* src */
 
   void (*c_fsm_write) FSM_WRITE_T(,, ) ;
 
@@ -1069,7 +1070,7 @@ ihfc_fifo_program_t *
 # define FIFO_READ_T(sc,f,ptr,len)		\
 	(struct ihfc_sc		*sc,		\
 	 struct sc_fifo		 *f, /* rxf */	\
-	 register u_int8_t     *ptr, /* dst */	\
+	 register uint8_t     *ptr, /* dst */	\
 	 register IHFC_LEN_T    len)
 
   void (*c_fifo_read) FIFO_READ_T(,,, ) ;
@@ -1077,7 +1078,7 @@ ihfc_fifo_program_t *
 # define FIFO_WRITE_T(sc,f,ptr,len)		\
 	(struct ihfc_sc         *sc,		\
 	 struct sc_fifo          *f, /* txf */	\
-	 register const u_int8_t*ptr,/* src */	\
+	 register const uint8_t*ptr,/* src */	\
 	 register IHFC_LEN_T     len)
 
   void (*c_fifo_write) FIFO_WRITE_T(,,, ) ;
@@ -1091,9 +1092,9 @@ ihfc_fifo_program_t *
 # define FIFO_GET_MEMORY_T(sc,f,start,end,len)	\
 	(struct ihfc_sc         *sc,		\
 	 struct sc_fifo          *f,		\
-	 u_int8_t           **start,		\
-	 u_int8_t             **end,		\
-	 u_int16_t             *len) /* rx/tx */
+	 uint8_t           **start,		\
+	 uint8_t             **end,		\
+	 uint16_t             *len) /* rx/tx */
 
   void (*c_fifo_get_memory) FIFO_GET_MEMORY_T(,,,, ) ;
 
@@ -1126,7 +1127,7 @@ ihfc_fifo_program_t *
 	 struct sc_fifo *   f,			\
 	 struct mbuf *      m)       /* rx */
 
-  u_int8_t (*c_fifo_frame_check) FIFO_FRAME_CHECK_T(,,) ;
+  uint8_t (*c_fifo_frame_check) FIFO_FRAME_CHECK_T(,,) ;
 
 # define FIFO_SYNC_T(sc)		       	\
 	(struct ihfc_sc		*sc)
@@ -1177,13 +1178,13 @@ ihfc_fifo_program_t *
  * is hard-coded and cannot be changed
  */
 struct hfc_fifo_map {
-	u_int16_t Zbase;
-	u_int16_t Zsize;	/* data counter size */
-	u_int16_t Zdata;	/* data register or offset */
-	u_int16_t Fbase;
-	u_int16_t Fsize;	/* frame counter size */
-	u_int16_t Fibase;
-	u_int16_t Zend;		/* wrap value, excluding, for Z-counter */
+	uint16_t Zbase;
+	uint16_t Zsize;	/* data counter size */
+	uint16_t Zdata;	/* data register or offset */
+	uint16_t Fbase;
+	uint16_t Fsize;	/* frame counter size */
+	uint16_t Fibase;
+	uint16_t Zend;		/* wrap value, excluding, for Z-counter */
 
 	/* allow a ring-device and
 	 * a block-device at the
@@ -1192,10 +1193,10 @@ struct hfc_fifo_map {
 	 * ISAC and HSCX fifo-map *
 	 * ISAC only:
 	 */
-	u_int8_t  remove_stat:1;/* set if RSTA is present in RX fifo
+	uint8_t  remove_stat:1;/* set if RSTA is present in RX fifo
 				 * and should be removed.
 				 */
-	u_int8_t  block_size;	/* largest block that can be transferred.
+	uint8_t  block_size;	/* largest block that can be transferred.
 				 * In receive direction block_size must
 				 * be a power of two.
 				 */
@@ -1209,24 +1210,24 @@ union fifo_map {
 };
 
 struct hdlc {
-	u_int8_t  flag;
-	u_int16_t blevel;
-	u_int16_t crc;
-	u_int16_t ib;
-	u_int32_t tmp;
+	uint8_t  flag;
+	uint16_t blevel;
+	uint16_t crc;
+	uint16_t ib;
+	uint32_t tmp;
 };
 
 struct sc_fifo {
         union fifo_map	fm;		/* FIFO register map 	  */
-	u_int8_t	s_fifo_sel;    	/* HFC FIFO number(SP/USB)*/
-	u_int8_t	s_par_hdlc;	/* HFC FIFO config reg.   */
-	u_int8_t	s_con_hdlc;	/* HFC FIFO config reg.   */
-	u_int8_t	sub_unit;	/* HFC sub-unit */
-	u_int8_t	last_byte;	/* last byte transferred, if set  */
+	uint8_t	s_fifo_sel;    	/* HFC FIFO number(SP/USB)*/
+	uint8_t	s_par_hdlc;	/* HFC FIFO config reg.   */
+	uint8_t	s_con_hdlc;	/* HFC FIFO config reg.   */
+	uint8_t	sub_unit;	/* HFC sub-unit */
+	uint8_t	last_byte;	/* last byte transferred, if set  */
 
 #	define		i_rsta F_chip	/* reuse variables (no conflicts) */
 #	define		i_rbcl Z_chip	/* reuse variables (no conflicts) */
-	u_int8_t        i_ista;		/* ISAC ISTA */
+	uint8_t        i_ista;		/* ISAC ISTA */
 #	define		I_ISTA_ERR 0x01 /* any error RFO/RDO/XDU/XDO/XCOL */
 #	define		I_ISTA_XPR 0x10
 #	define		I_ISTA_WIP 0x20 /* Write In Progress (optional) */
@@ -1236,7 +1237,7 @@ struct sc_fifo {
   /* I_CMDR_XXX are hardcoded and cannot
    * be changed:
    */
-	u_int8_t	i_cmdr;		 /* ISAC CMDR (to be written) */
+	uint8_t	i_cmdr;		 /* ISAC CMDR (to be written) */
 #	define		I_CMDR_XRES 0x01 /* TX reset */
 #	define		I_CMDR_XME  0x02 /* TX frame end */
 #	define		I_CMDR_XTF  0x08 /* TX data end */
@@ -1246,11 +1247,11 @@ struct sc_fifo {
 	struct hdlc	hdlc;		/* HDLC emulation	  */
 
 	struct buffer   buf;		/* ring buffer pointers   */
-	u_int16_t	buf_size;	/* buffer size (at start) */
-	u_int16_t	buf_len;	/* buffer size (now)      */
-	u_int8_t      *	buf_ptr;	/* buffer ptr  (now)      */
+	uint16_t	buf_size;	/* buffer size (at start) */
+	uint16_t	buf_len;	/* buffer size (now)      */
+	uint8_t      *	buf_ptr;	/* buffer ptr  (now)      */
 
-	u_int16_t	state;
+	uint16_t	state;
 #define ST_OPEN		(1<<0)		/* fifo in use  	  */
 #define ST_TSLEEP	(1<<1)		/* fifo has called tsleep */
 #define ST_NOBLOCK	(1<<2)
@@ -1267,21 +1268,21 @@ struct sc_fifo {
 	struct i4b_protocol prot_curr;	/* HDLC, trans, fax  ...  */
 	struct i4b_protocol prot_last;	/* HDLC, trans, fax  ...  */
 
-	u_int8_t	program_state;
+	uint8_t	program_state;
 	ihfc_fifo_program_t *program;
 
         void	      (*filter) FIFO_FILTER_T(,);
 					/* data processing filter */
 
-	u_int8_t	default_prot;	/* default protocol for /dev/ihfcX.X */
+	uint8_t	default_prot;	/* default protocol for /dev/ihfcX.X */
 
 /* temporarily store FIFO_NO() here, hence
  * calculating FIFO_NO from ``f'' needs
  * division and multiplication, in other
  * words it is slow on most CPU's ...
  */
-	u_int8_t	__fn;
-	u_int8_t	__flogical;
+	uint8_t	__fn;
+	uint8_t	__flogical;
 
 /*
  * Save some I/O-reads by having counters
@@ -1294,20 +1295,20 @@ struct sc_fifo {
 	 * F-counters
 	 */
 	caddr_t		F_ptr;		/* pointer to F_drvr in MWBA */
-	u_int8_t	F_drvr;		/* driver incremented F-counter */
-	u_int8_t	F_chip;		/* chip incremented F-counter */
+	uint8_t	F_drvr;		/* driver incremented F-counter */
+	uint8_t	F_chip;		/* chip incremented F-counter */
 #	define		F_MSB 0x80	/* please update! */
 
 	/*
 	 * Z-counters
 	 */
-	u_int8_t *	Z_ptr;		/* pointer to Z_drvr in MWBA or data */
-	u_int16_t	Z_drvr; 	/* driver incremented Z-counter */
-	u_int16_t	Z_chip;		/* chip incremented Z-counter */
-	u_int16_t	Z_chip3;	/* replacement for a Z-list */
-	u_int16_t	Z_min_free;	/* minimum free FIFO space */
-	u_int16_t	Z_read_time;    /* time when Z-counters were read */
-	u_int16_t	Z_chip_written; /* number of bytes in transmit FIFO */
+	uint8_t *	Z_ptr;		/* pointer to Z_drvr in MWBA or data */
+	uint16_t	Z_drvr; 	/* driver incremented Z-counter */
+	uint16_t	Z_chip;		/* chip incremented Z-counter */
+	uint16_t	Z_chip3;	/* replacement for a Z-list */
+	uint16_t	Z_min_free;	/* minimum free FIFO space */
+	uint16_t	Z_read_time;    /* time when Z-counters were read */
+	uint16_t	Z_chip_written; /* number of bytes in transmit FIFO */
 #	define		Z_MSB 0x8000	/* please update! */
 
 #	define Z_transfer_length Z_chip	/* the Z_chip variable is also used
@@ -1316,16 +1317,16 @@ struct sc_fifo {
 					 * and should be updated !
 					 */
 	/* /dev/ihfcX.X interface */
-	u_int16_t	mbuf_rem_length; /* remaining data length */
+	uint16_t	mbuf_rem_length; /* remaining data length */
 	struct mbuf *	mbuf;
 	struct mbuf *	mbuf_dev;	/* used by /dev/ihfcX.X */
 	struct _ifqueue	ifqueue;	/* used by /dev/ihfcX.X */
 
-	u_int32_t	io_stat;
+	uint32_t	io_stat;
 };
 
 struct regdata {
-	u_int8_t unused,dir,reg,data;
+	uint8_t unused,dir,reg,data;
 };
 
 struct sc_config_buffer { /* used by USB */
@@ -1501,7 +1502,7 @@ struct sc_config {
         m(w_sqx,                ,NO ,YES)
 
 #define REG_MACRO_0(arg,indexes,first,last)				\
-    first(u_int8_t) arg IF_NUMBER(indexes)([indexes]) NOT(last)(,)
+    first(uint8_t) arg IF_NUMBER(indexes)([indexes]) NOT(last)(,)
 
 #define REG_MACRO_1(arg,indexes,first,last)				\
     first({) IF_NUMBER(indexes)(REP(indexes,REG_MACRO_2,arg))		\
@@ -1540,15 +1541,15 @@ struct sc_config {
 	 */
 
 	/* hfc (2b)  write only: */
-	u_int8_t s_cirm_0;
-	u_int8_t s_ctmt_0;
+	uint8_t s_cirm_0;
+	uint8_t s_ctmt_0;
 
 	/* psb3186 write only */
-	u_int8_t b_cir0;
+	uint8_t b_cir0;
 
 	/* hfc (...) read only: */
-	u_int8_t s_status;
-	u_int8_t s_int_s1;
+	uint8_t s_status;
+	uint8_t s_int_s1;
 #       define   s_states w_cir /* not compatible */
 
 	/* isac write only */
@@ -1562,23 +1563,23 @@ struct sc_config {
 	 * driver. Use high priority if you need to use other C/I
 	 * commands than these.
 	 */
-	u_int8_t i_cirq;
+	uint8_t i_cirq;
 
 	/* isac read only */
-	u_int8_t  i_ista;
-	u_int16_t h_ista;
+	uint8_t  i_ista;
+	uint16_t h_ista;
 
-	u_int8_t  i_exir;
-	u_int16_t h_exir;
+	uint8_t  i_exir;
+	uint16_t h_exir;
 
 	/* ipac read only */
-	u_int8_t  p_ista;
+	uint8_t  p_ista;
 
 	/* wib read only */
-	u_int8_t  w_cir;
+	uint8_t  w_cir;
 
 	/* generic fifo level/threshold register */
-	u_int8_t  fifo_level;
+	uint8_t  fifo_level;
 };
 
 struct sc_stack {
@@ -2468,17 +2469,17 @@ struct sc_stack {
  *===========================================================================*/
 
 struct fsm_state {
-  u_int8_t pending  : 1;
-  u_int8_t active   : 1;
-  u_int8_t can_up   : 1; /* can activate   */
-  u_int8_t can_down : 1; /* can deactivate */
-  u_int8_t command  : 1;
-  u_int8_t index    : 4;
+  uint8_t pending  : 1;
+  uint8_t active   : 1;
+  uint8_t can_up   : 1; /* can activate   */
+  uint8_t can_down : 1; /* can deactivate */
+  uint8_t command  : 1;
+  uint8_t index    : 4;
   const char * description;
 } __packed;
 
 struct fsm_command {
-  u_int8_t value;
+  uint8_t value;
   const char * description;
 } __packed;
 
@@ -2491,7 +2492,7 @@ struct fsm_table {
 
 struct sc_state {
 
-  u_int32_t i4b_option_value;
+  uint32_t i4b_option_value;
 
   L1_auto_activate_t *L1_auto_activate_ptr;
   L1_auto_activate_t L1_auto_activate_variable;
@@ -2519,7 +2520,7 @@ struct ihfc_config_copy {
  *---------------------------------------------------------------------------*/
 struct ihfc_sc {
 
-	u_int8_t		sc_nametmp[16];
+	uint8_t		sc_nametmp[16];
 
 	device_t		sc_device;
 
@@ -2531,7 +2532,7 @@ struct ihfc_sc {
 
 	struct sc_state		sc_state[IHFC_SUB_CONTROLLERS_MAX];
 
-	u_int8_t		sc_chip_interrupt_called; /* interrupt is called */
+	uint8_t		sc_chip_interrupt_called; /* interrupt is called */
 #	define			SC_T125_WAIT_DELAY     (hz / 1000)
 #	define			SC_T125_WAIT_SET(sc)   (sc)->sc_default.o_T125_WAIT = 1
 #	define			SC_T125_WAIT_CLEAR(sc) (sc)->sc_default.o_T125_WAIT = 0
@@ -2567,7 +2568,7 @@ struct ihfc_sc {
 
 	struct sc_stack		sc_stack;
 
-	u_int16_t               sc_channel_mapping;
+	uint16_t               sc_channel_mapping;
 
 #	define SC_INTR_BITS 8 /* bits per "sc_intr_status" */
 #	if (SC_INTR_BITS != 8)
@@ -2578,13 +2579,13 @@ struct ihfc_sc {
 	struct sc_fifo **	sc_intr_list_curr;
 	struct sc_fifo *	sc_intr_list[IHFC_CHANNELS];
 
-	u_int8_t		sc_intr_status[(IHFC_CHANNELS+SC_INTR_BITS-1)/SC_INTR_BITS];
-	u_int8_t		sc_intr_status_end[0];
+	uint8_t		sc_intr_status[(IHFC_CHANNELS+SC_INTR_BITS-1)/SC_INTR_BITS];
+	uint8_t		sc_intr_status_end[0];
 
 	struct usb_callout	sc_pollout_timr;      /* T50 ms  */
 	struct usb_callout	sc_pollout_timr_wait; /* T125 us */
 
-	u_int8_t		sc_buffer[1024] __aligned(4);
+	uint8_t		sc_buffer[1024] __aligned(4);
   
 	struct sc_fifo *	sc_fifo_select_last; /* used by 
 						      * FIFO_SELECT(,) 
@@ -2599,8 +2600,8 @@ struct ihfc_sc {
 
 	struct i4b_echo_cancel  sc_echo_cancel[IHFC_CHANNELS/2];
 
-	u_int16_t		sc_f0_counter_offset;
-	u_int32_t		sc_f0_counter_last;
+	uint16_t		sc_f0_counter_offset;
+	uint32_t		sc_f0_counter_last;
 };
 
 /*---------------------------------------------------------------------------*

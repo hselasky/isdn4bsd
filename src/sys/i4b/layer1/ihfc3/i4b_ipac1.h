@@ -227,7 +227,7 @@ static void
 ipac1_chip_status_read CHIP_STATUS_READ_T(sc)
 {
   IPAC_BUS_VAR(sc);
-  register u_int8_t p_tmp,tmp;
+  register uint8_t p_tmp,tmp;
 
   /*
    * generic IPAC code:

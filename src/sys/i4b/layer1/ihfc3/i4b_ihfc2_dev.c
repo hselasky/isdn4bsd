@@ -102,16 +102,16 @@ ihfc_find_channel(struct cdev *cdev)
 /*---------------------------------------------------------------------------*
  * :setup local devices, /dev/ihfcX.Y
  *---------------------------------------------------------------------------*/
-u_int8_t
-ihfc_setup_ldev(ihfc_sc_t *sc, u_int8_t *error)
+uint8_t
+ihfc_setup_ldev(ihfc_sc_t *sc, uint8_t *error)
 {
 	struct i4b_controller *cntl;
 	struct cdev *dev;
 	ihfc_fifo_t *f;
-	u_int32_t unit_curr;
-	u_int32_t unit_dev;
-	u_int32_t channel;
-	u_int32_t n;
+	uint32_t unit_curr;
+	uint32_t unit_dev;
+	uint32_t channel;
+	uint32_t n;
 
 	for(n = 0; 
 	    n < sc->sc_default.d_sub_controllers;
@@ -160,7 +160,7 @@ ihfc_setup_ldev(ihfc_sc_t *sc, u_int8_t *error)
 void
 ihfc_unsetup_ldev(ihfc_sc_t *sc)
 {
-	u_int32_t channel = IHFC_DEVICES;
+	uint32_t channel = IHFC_DEVICES;
 	ihfc_fifo_t *f;
 
 	FIFO_FOREACH(f,sc)
@@ -235,8 +235,8 @@ ihfc_dev_tx_interrupt RXTX_INTERRUPT_T(ft,buf)
 
 static fifo_translator_t *
 ihfc_dev_setup_ft(i4b_controller_t *cntl, fifo_translator_t *ft, 
-		  struct i4b_protocol *pp, u_int32_t driver_type,
-		  u_int32_t driver_unit, call_desc_t *cd)
+		  struct i4b_protocol *pp, uint32_t driver_type,
+		  uint32_t driver_unit, call_desc_t *cd)
 {
 	ihfc_sc_t *sc = cntl->L1_sc;
 	ihfc_fifo_t *f = cntl->L1_fifo;
@@ -288,7 +288,7 @@ ihfc_dioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 	int error = 0;
 
 	IHFC_MSG("cmd=0x%x data %s, flag=0x%x\n",
-		 (u_int32_t)cmd, (data) ? "!= 0" : "== 0", flag);
+		 (uint32_t)cmd, (data) ? "!= 0" : "== 0", flag);
 
 	FIFO_TRANSLATOR_ACCESS(ff_t,fifo_translator(dev),
 	{
@@ -379,7 +379,7 @@ ihfc_dioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread 
 
 		default:
 		  IHFC_MSG("Unknown command: 0x%08x.\n", 
-			   (u_int32_t)cmd);
+			   (uint32_t)cmd);
 		  error = EINVAL;
 		  break;
 	  }
@@ -399,7 +399,7 @@ ihfc_dopen(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
 	struct i4b_controller *cntl = i4b_controller(dev);
 	struct i4b_protocol p;
-	u_int32_t channel = channel(dev);
+	uint32_t channel = channel(dev);
 #if DO_I4B_DEBUG
 	ihfc_sc_t *sc = cntl->L1_sc;
 #endif
@@ -430,11 +430,11 @@ ihfc_dclose(struct cdev *dev, int fflag, int devtype, struct thread *td)
 {
 	struct i4b_controller *cntl = i4b_controller(dev);
 	struct i4b_protocol p;
-	u_int32_t channel = channel(dev);
+	uint32_t channel = channel(dev);
 #if DO_I4B_DEBUG
 	ihfc_sc_t *sc = cntl->L1_sc;
 #endif
-	IHFC_MSG("fflag = 0x%x\n", (u_int32_t)fflag);
+	IHFC_MSG("fflag = 0x%x\n", (uint32_t)fflag);
 
 	memset(&p, 0, sizeof(p));
 
@@ -454,7 +454,7 @@ __uiomove(fifo_translator_t *f, void *cp, int n, struct uio *uio)
 
 	struct mtx *mtx = f->mtx;
 
-	u_int8_t buffer[n];
+	uint8_t buffer[n];
 	int error;
 
 	if(uio->uio_rw == UIO_READ)

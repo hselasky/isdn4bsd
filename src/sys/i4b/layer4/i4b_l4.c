@@ -31,12 +31,16 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/mbuf.h>
 #include <sys/socket.h>
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -418,7 +422,7 @@ i4b_accounting_timeout(struct i4b_accounting *sc)
 #endif
 
 static void
-telno_copy(char *dst, const char *src, u_int16_t len)
+telno_copy(char *dst, const char *src, uint16_t len)
 {
     strlcpy(dst, src[0] ? src : TELNO_EMPTY, len);
     return;
@@ -518,7 +522,7 @@ i4b_l4_information_ind(call_desc_t *cd)
 	struct mbuf *m;
 	char buffer[TELNO_MAX];
 	int len;
-	u_int8_t temp;
+	uint8_t temp;
 
 	if (cd->dst_telno_part[0] == 0) {
 	    NDBGL4(L4_MSG, "cdid=%d: cd->dst_telno_part[0] == 0",
@@ -668,8 +672,8 @@ i4b_l4_alert_ind(call_desc_t *cd)
  *	send MSG_PROCEEDING_IND message to userland
  *---------------------------------------------------------------------------*/
 void
-i4b_l4_proceeding_ind(call_desc_t *cd, u_int8_t sending_complete, 
-		      u_int8_t progress)
+i4b_l4_proceeding_ind(call_desc_t *cd, uint8_t sending_complete, 
+		      uint8_t progress)
 {
 	struct mbuf *m;
 
@@ -688,7 +692,7 @@ i4b_l4_proceeding_ind(call_desc_t *cd, u_int8_t sending_complete,
 	}
 	if((cd->ai_type == I4B_AI_CAPI) || (cd->ai_type == I4B_AI_BROADCAST))
 	{
-	    static const u_int8_t progress_indicator[] = { 0x02, 0x80, 0x88 
+	    static const uint8_t progress_indicator[] = { 0x02, 0x80, 0x88 
 							   /* | 0x02 if analog */ };
 	    if(sending_complete)
 	    {
@@ -735,7 +739,7 @@ i4b_l4_retrieve_ind(call_desc_t *cd)
 	   (cd->ai_type == I4B_AI_BROADCAST))
 	{
 
-	    static const u_int8_t retrieve_indicator[] = { 0x01, 0xfa };
+	    static const uint8_t retrieve_indicator[] = { 0x01, 0xfa };
 
 	    capi_ai_info_ind(cd, 0, 0x0027 /* NOTIFY */, 
 			     &retrieve_indicator, sizeof(retrieve_indicator));
@@ -769,7 +773,7 @@ i4b_l4_hold_ind(call_desc_t *cd)
 	   (cd->ai_type == I4B_AI_BROADCAST))
 	{
 
-	    static const u_int8_t hold_indicator[] = { 0x01, 0xf9 };
+	    static const uint8_t hold_indicator[] = { 0x01, 0xf9 };
 
 	    capi_ai_info_ind(cd, 0, 0x0027 /* NOTIFY */, 
 			     &hold_indicator, sizeof(hold_indicator));
@@ -807,7 +811,7 @@ setup_ft_t *i4b_drivers_setup_ft[N_I4B_DRIVERS];
 response_to_user_t *i4b_drivers_response_to_user[N_I4B_DRIVERS];
 
 static struct mbuf *
-i4b_default_alloc_mbuf(struct fifo_translator *f, u_int16_t def_len, u_int16_t tr_len)
+i4b_default_alloc_mbuf(struct fifo_translator *f, uint16_t def_len, uint16_t tr_len)
 {
     return i4b_getmbuf(def_len, M_NOWAIT);
 }
@@ -838,13 +842,13 @@ i4b_unregister_driver(int type)
  * returns 1 when disconnected and 0 when connected
  *---------------------------------------------------------------------------*/
 int
-i4b_setup_driver(i4b_controller_t *cntl, u_int32_t channel, 
-		 struct i4b_protocol *pp, u_int32_t driver_type, 
-		 u_int32_t driver_unit, struct call_desc *cd)
+i4b_setup_driver(i4b_controller_t *cntl, uint32_t channel, 
+		 struct i4b_protocol *pp, uint32_t driver_type, 
+		 uint32_t driver_unit, struct call_desc *cd)
 {
 	setup_ft_t *setup_ft;
 
-	static const u_int8_t
+	static const uint8_t
 	  MAKE_TABLE(L1_TYPES,DEFAULT_DRIVER_TYPE,[]);
 
 	struct fifo_translator *f1;
@@ -882,7 +886,7 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int32_t channel,
 
 	  if(pp->protocol_1 != P_DISABLE)
 	  {
-	    u_int8_t l1_in_use =
+	    uint8_t l1_in_use =
 	      f1->L5_sc || 
 	      f1->L5_fifo ||
 	      f1->L5_PUT_MBUF || 
@@ -993,7 +997,7 @@ i4b_setup_driver(i4b_controller_t *cntl, u_int32_t channel,
 int
 i4b_link_bchandrvr(call_desc_t *cd, int activate)
 {
-	static const u_int8_t
+	static const uint8_t
 	  MAKE_TABLE(I4B_B_PROTOCOLS,PROTOCOL,[]);
 	struct i4b_protocol p;
 
@@ -1129,7 +1133,7 @@ i4b_l4_pre_disconnect_ind(call_desc_t *cd)
  *	send MSG_DISCONNECT_IND message to userland
  *---------------------------------------------------------------------------*/
 void
-i4b_l4_disconnect_ind(call_desc_t *cd, u_int8_t complement)
+i4b_l4_disconnect_ind(call_desc_t *cd, uint8_t complement)
 {
 	struct mbuf *m;
 
@@ -1300,7 +1304,7 @@ i4b_idle_check(call_desc_t *cd)
 void
 i4b_l4_setup_timeout(call_desc_t *cd)
 {
-	u_int16_t next_unitlen_time;
+	uint16_t next_unitlen_time;
 
 	next_unitlen_time = 0;
 
@@ -1430,10 +1434,10 @@ i4b_l4_setup_timeout(call_desc_t *cd)
 }
 
 void
-i4b_l3_information_req(struct call_desc *cd, u_int8_t *ptr, u_int16_t len)
+i4b_l3_information_req(struct call_desc *cd, uint8_t *ptr, uint16_t len)
 {
-	u_int8_t *dst = &(cd->dst_telno[0]);
-	u_int8_t *dst_end = &(cd->dst_telno[TELNO_MAX-1]);
+	uint8_t *dst = &(cd->dst_telno[0]);
+	uint8_t *dst_end = &(cd->dst_telno[TELNO_MAX-1]);
 
 	enum { max_telno = sizeof(cd->dst_telno_part)-1 };
 

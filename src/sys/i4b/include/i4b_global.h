@@ -134,19 +134,19 @@ struct mbuf *i4b_getmbuf( int, int );
  *---------------------------------------------------------------------------*/
 struct i4b_line_interconnect {
 	cdid_t	cdid;
-	u_int8_t pcm_cable;
-	u_int8_t pcm_unused;
-	u_int16_t pcm_slot_rx;
-	u_int16_t pcm_slot_tx;
+	uint8_t pcm_cable;
+	uint8_t pcm_unused;
+	uint16_t pcm_slot_rx;
+	uint16_t pcm_slot_tx;
 };
 
 /*---------------------------------------------------------------------------*
  *	definition of source telephone number
  *---------------------------------------------------------------------------*/
 struct i4b_src_telno {
-	u_int8_t ton;      /* source type of number */
-	u_int8_t scr_ind;  /* screening ind for incoming call */
-	u_int8_t prs_ind;  /* presentation ind for incoming call */
+	uint8_t ton;      /* source type of number */
+	uint8_t scr_ind;  /* screening ind for incoming call */
+	uint8_t prs_ind;  /* presentation ind for incoming call */
 
 	u_char	telno[TELNO_MAX];     /* source number */
 	u_char	subaddr[SUBADDR_MAX]; /* source subaddr */
@@ -164,19 +164,19 @@ typedef struct call_desc {
 
 	void *  pipe;			/* ISDN controller pipe */
 
-	u_int32_t cr;			/* call reference value	*/
+	uint32_t cr;			/* call reference value	*/
 
 	int	channel_id;		/* channel id value cannot be 
 					 * changed when channel is allocated
 					 */
-	u_int8_t channel_bprot;		/* channel B-protocol, BPROT_XXX */
-	u_int8_t channel_bsubprot;	/* channel B-sub-protocol, BSUBPROT_XXX */
+	uint8_t channel_bprot;		/* channel B-protocol, BPROT_XXX */
+	uint8_t channel_bsubprot;	/* channel B-sub-protocol, BSUBPROT_XXX */
 
-	u_int32_t driver_type;		/* driver-type to use for channel */
-	u_int32_t driver_unit;		/* driver-unit for above driver-type */
+	uint32_t driver_type;		/* driver-type to use for channel */
+	uint32_t driver_unit;		/* driver-unit for above driver-type */
 
-	u_int32_t driver_type_copy;	/* copy of "driver_type" */
-	u_int32_t driver_unit_copy;	/* copy of "driver_unit" */
+	uint32_t driver_type_copy;	/* copy of "driver_type" */
+	uint32_t driver_unit_copy;	/* copy of "driver_unit" */
 
 	uint16_t curr_max_packet_size;  /* used by CAPI */
 	uint16_t new_max_packet_size;   /* used by CAPI */
@@ -204,29 +204,29 @@ typedef struct call_desc {
 	struct fifo_translator * fifo_translator_capi_bridge; /* CAPI2.0 FIFO-translator */
 	struct fifo_translator * fifo_translator_tone_gen; /* tone gen. FIFO-translator */
 
-	u_int8_t ai_type; /* application interface type */
+	uint8_t ai_type; /* application interface type */
 	void *   ai_ptr; /* application interface private pointer */
 
-	u_int8_t not_end_to_end_digital : 1; /* set if audio is transferred non digitally */
-	u_int8_t is_sms : 1;		 /* set if message is an SMS */
-	u_int8_t aocd_flag : 1;		 /* set if AOCD is used for unitlength calc. */
-	u_int8_t channel_allocated : 1;  /* set if a B-channel is allocated */
-	u_int8_t dir_incoming : 1;	 /* set if incoming call */
-	u_int8_t need_release : 1;	 /* set if needs to send release */
-	u_int8_t peer_responded : 1;	 /* set if got a message from the other end */
-	u_int8_t want_late_inband : 1;	 /* set if user wants inband information
+	uint8_t not_end_to_end_digital : 1; /* set if audio is transferred non digitally */
+	uint8_t is_sms : 1;		 /* set if message is an SMS */
+	uint8_t aocd_flag : 1;		 /* set if AOCD is used for unitlength calc. */
+	uint8_t channel_allocated : 1;  /* set if a B-channel is allocated */
+	uint8_t dir_incoming : 1;	 /* set if incoming call */
+	uint8_t need_release : 1;	 /* set if needs to send release */
+	uint8_t peer_responded : 1;	 /* set if got a message from the other end */
+	uint8_t want_late_inband : 1;	 /* set if user wants inband information
 					  * after the disconnect signal
 					  */
-	u_int8_t sending_complete : 1;   /* set if sending of telephone number 
+	uint8_t sending_complete : 1;   /* set if sending of telephone number 
 					  * is complete 
 					  */
-	u_int8_t b_link_want_active : 1; /* set if B-channel should be connected */
-	u_int8_t call_is_on_hold : 1;    /* set if call descriptor is on hold */
-	u_int8_t call_is_retrieving : 1; /* set if retrieve is in progress */
-	u_int8_t received_src_telno_1 : 1; /* set if calling party number is received */
-	u_int8_t received_src_telno_2 : 1; /* set if second calling party number is received */
+	uint8_t b_link_want_active : 1; /* set if B-channel should be connected */
+	uint8_t call_is_on_hold : 1;    /* set if call descriptor is on hold */
+	uint8_t call_is_retrieving : 1; /* set if retrieve is in progress */
+	uint8_t received_src_telno_1 : 1; /* set if calling party number is received */
+	uint8_t received_src_telno_2 : 1; /* set if second calling party number is received */
 
-	u_int8_t  setup_interleave; /* a counter */
+	uint8_t  setup_interleave; /* a counter */
 
 	/* line interconnect fields */
 
@@ -234,9 +234,9 @@ typedef struct call_desc {
 	cdid_t li_cdid_last; /* cdid of peer */
 	struct i4b_line_interconnect *li_data_ptr;
 
-	const u_int8_t *tone_gen_ptr;
-	u_int8_t  tone_gen_state; /* current state of tone generator */
-	u_int16_t tone_gen_pos;   /* current sine table position */
+	const uint8_t *tone_gen_ptr;
+	uint8_t  tone_gen_state; /* current state of tone generator */
+	uint16_t tone_gen_pos;   /* current sine table position */
 
 	uint16_t  connect_ind_count; /* number of connect indication
 				      * messages sent to userland
@@ -273,7 +273,7 @@ typedef struct call_desc {
 
 extern struct mtx i4b_global_lock;
 
-extern u_int32_t i4b_open_refcount;
+extern uint32_t i4b_open_refcount;
 
 /*---------------------------------------------------------------------------*
  *	
@@ -294,9 +294,9 @@ extern void i4b_l1_trace_ind(struct i4b_trace_hdr *hdr, struct mbuf *m);
 
 /* prototypes from i4b_l4.c */
 
-extern int i4b_setup_driver(struct i4b_controller *cntl, u_int32_t channel,
-			    struct i4b_protocol *pp, u_int32_t driver_type,
-			    u_int32_t driver_unit,struct call_desc *cd);
+extern int i4b_setup_driver(struct i4b_controller *cntl, uint32_t channel,
+			    struct i4b_protocol *pp, uint32_t driver_type,
+			    uint32_t driver_unit,struct call_desc *cd);
 
 /* prototypes from i4b_l4mgmt.c */
 

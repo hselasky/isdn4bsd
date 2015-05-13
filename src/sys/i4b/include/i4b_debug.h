@@ -174,7 +174,7 @@ m(n, L4_UNKNOWN3,  1, "unknown")\
   case what##_ENUM: if((n)->what) goto one; break;
 
 #define I4B_DEBUG_MAKE_STRUCT(n, what, group, desc) \
-  u_int8_t what : 1;
+  uint8_t what : 1;
 
 #define I4B_DEBUG_MAKE_MAX(n, what, group, desc) \
   .what = ((group) ? 1 : 0),
@@ -269,10 +269,10 @@ typedef struct lapdstat {
  *	I4B debug IOCTL structure
  *---------------------------------------------------------------------------*/
 typedef struct {
-	u_int32_t unit;
-	u_int32_t chan;
-	u_int32_t value;
-	u_int32_t mask;
+	uint32_t unit;
+	uint32_t chan;
+	uint32_t value;
+	uint32_t mask;
 	u_char desc[64];
 
 	struct i4b_debug_mask debug;
@@ -281,12 +281,12 @@ typedef struct {
 } i4b_debug_t;
 
 typedef struct {
-	u_int32_t uid;
-	u_int32_t gid;
-	u_int16_t mode;
-	u_int16_t max_units;
-	u_int16_t unused0;
-	u_int16_t unused1;
+	uint32_t uid;
+	uint32_t gid;
+	uint16_t mode;
+	uint16_t max_units;
+	uint16_t unused0;
+	uint16_t unused1;
 } i4b_capi_delegate_t;
 
 #define I4B_CTL_GET_DEBUG           _IOR ('C', 0, i4b_debug_t)

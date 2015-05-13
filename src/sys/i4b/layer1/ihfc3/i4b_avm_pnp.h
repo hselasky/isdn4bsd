@@ -136,7 +136,7 @@
 
 #define IPAC_BUS_SETUP(reg)				\
   {							\
-    u_int8_t what;					\
+    uint8_t what;					\
 							\
     if((reg) & 0x80)					\
     {							\
@@ -226,12 +226,12 @@ avm_pnp_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 }
 
 static void
-avm_pnp_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
+avm_pnp_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, uint8_t addr)
 {
 	IPAC_BUS_VAR(sc);
 
-	u_int8_t buffer[0x40 + 0x10]; /* allocate a buffer on the stack */
-	u_int8_t temp;
+	uint8_t buffer[0x40 + 0x10]; /* allocate a buffer on the stack */
+	uint8_t temp;
 
 	/* select chip and read status */
 	bus_space_write_1(t, h, REG_INDEX_OFFSET, addr);
@@ -336,8 +336,8 @@ avm_pnp_chip_status_read CHIP_STATUS_READ_T(sc)
 {
 	IPAC_BUS_VAR(sc);
 
-	u_int8_t status;
-	u_int8_t tmp;
+	uint8_t status;
+	uint8_t tmp;
 
 	status = bus_space_read_1(t, h, STAT0_OFFSET);
 
@@ -403,7 +403,7 @@ avm_pnp_chip_status_read CHIP_STATUS_READ_T(sc)
 static void
 avm_pnp_chip_unselect CHIP_UNSELECT_T(sc)
 {
-	u_int8_t temp;
+	uint8_t temp;
 
   	temp = 0xFF;
 
@@ -439,7 +439,7 @@ avm_pnp_chip_unselect CHIP_UNSELECT_T(sc)
 }
 
 static void
-avm_pnp_fifo_reset(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t addr)
+avm_pnp_fifo_reset(ihfc_sc_t *sc, ihfc_fifo_t *f, uint8_t addr)
 {
 	IPAC_BUS_VAR(sc);
 	

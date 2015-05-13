@@ -31,8 +31,12 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/cdefs.h>
-#include <sys/types.h>
+#include <sys/stdint.h>
+#endif
 
 #include <i4b/layer1/i4b_hdlc.h>
 
@@ -40,11 +44,11 @@
  *	HDLC CRC table
  *
  * Usage:
- *	crc = (HDLC_FCS_TAB[(u_int8_t)(crc ^ byte of data)] ^ (u_int8_t)(crc >> 8));
+ *	crc = (HDLC_FCS_TAB[(uint8_t)(crc ^ byte of data)] ^ (uint8_t)(crc >> 8));
  *
  *	For more information see RFC 1662 (p. 10)
  *---------------------------------------------------------------------------*/
-const u_int16_t HDLC_FCS_TAB[256] = { 0x0000, 
+const uint16_t HDLC_FCS_TAB[256] = { 0x0000, 
         0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf, 0x8c48, 
         0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7, 0x1081, 
         0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e, 0x9cc9, 
@@ -119,7 +123,7 @@ const u_int16_t HDLC_FCS_TAB[256] = { 0x0000,
  *       upper layers verify that the address field is odd.
  *
  *---------------------------------------------------------------------------*/
-const u_int16_t HDLC_BIT_TAB[256] = { 0x0100, 
+const uint16_t HDLC_BIT_TAB[256] = { 0x0100, 
         0x0201, 0x0100, 0x0302, 0x0100, 0x0201, 0x0100, 0x0403, 0x0100, 
         0x0201, 0x0100, 0x0302, 0x0100, 0x0201, 0x0100, 0x0504, 0x0100, 
         0x0201, 0x0100, 0x0302, 0x0100, 0x0201, 0x0100, 0x0403, 0x0100, 

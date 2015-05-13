@@ -142,7 +142,7 @@ static void
 elsa_pcc16_clear_irq(ihfc_sc_t *sc)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	isac_hscx_generic_chip_unselect(sc);
 
@@ -195,7 +195,7 @@ static void
 elsa_pcc16_chip_reset CHIP_RESET_T(sc,error)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t temp = (ELSA_CTRL_SECRET & (~ELSA_CTRL_RESET));
+	uint8_t temp = (ELSA_CTRL_SECRET & (~ELSA_CTRL_RESET));
 
         bus_space_write_1(t, h, ELSA_OFF_CTRL, temp);
 
@@ -220,8 +220,8 @@ static int
 elsa_pcc16_chip_identify(device_t dev)
 {
 	struct resource * res;
-	u_int32_t rid;
-	u_int32_t base;
+	uint32_t rid;
+	uint32_t base;
 
 	rid = 0;
 

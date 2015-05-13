@@ -250,7 +250,7 @@ hfcsp_fifo_inc_fx FIFO_INC_FX_T(sc,f)
 static void
 hfcsp_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 {
-	u_int16_t Z_chip2;
+	uint16_t Z_chip2;
 	HFC1_BUS_VAR(sc);
 
 	/* read F- and Z-counters respectively

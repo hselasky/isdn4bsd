@@ -122,10 +122,10 @@ avm_pci_chip_read CHIP_READ_T(sc,reg,ptr,len)
 	    /* ISAC-SX REGISTER */
 	    bus_space_write_4(t, h, REG_ISACSX_INDEX, (reg & 0x7F));
 	    bus_space_read_multi_4(t, h, REG_ISACSX_DATA,
-		(u_int32_t *)sc->sc_buffer, len);
+		(uint32_t *)sc->sc_buffer, len);
 
 	    for (x = 0; x != len; x++)
-		ptr[x] = ((u_int32_t *)sc->sc_buffer)[x];
+		ptr[x] = ((uint32_t *)sc->sc_buffer)[x];
 	}
 	else
 	{
@@ -165,12 +165,12 @@ avm_pci_chip_write CHIP_WRITE_T(sc,reg,ptr,len)
 		len = (sizeof(sc->sc_buffer) / 4);
 
 	    for (x = 0; x != len; x++)
-		((u_int32_t *)sc->sc_buffer)[x] = ptr[x];
+		((uint32_t *)sc->sc_buffer)[x] = ptr[x];
 
 	    /* ISAC-SX REGISTER */
 	    bus_space_write_4(t, h, REG_ISACSX_INDEX, (reg & 0x7F));
 	    bus_space_write_multi_4(t, h, REG_ISACSX_DATA,
-		(u_int32_t *)sc->sc_buffer, len);
+		(uint32_t *)sc->sc_buffer, len);
 	}
 	else
 	{
@@ -205,7 +205,7 @@ avm_pci_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 static void
 avm_pci_fsm_read FSM_READ_T(sc,f,ptr)
 {
-	u_int8_t temp;
+	uint8_t temp;
 
 	/* read CIR0 */
 	avm_pci_chip_read(sc, REG_isacsx_cir0, &temp, 1);
@@ -218,7 +218,7 @@ avm_pci_fsm_read FSM_READ_T(sc,f,ptr)
 static void
 avm_pci_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
-	u_int8_t temp = ((*ptr) << 2) | 0x0E;
+	uint8_t temp = ((*ptr) << 2) | 0x0E;
 
 	if(IS_DLOWPRI(sc,0))
         {
@@ -231,12 +231,12 @@ avm_pci_fsm_write FSM_WRITE_T(sc,f,ptr)
 }
 
 static void
-avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
+avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, uint8_t offset)
 {
 	IPAC_BUS_VAR(sc);
 
-	u_int8_t temp;
-	u_int32_t status;
+	uint8_t temp;
+	uint32_t status;
 
 	/* read status */
 	status = bus_space_read_4(t, h, offset + HSCX_STAT);
@@ -278,9 +278,9 @@ avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
 
 	    /* read FIFO */
 	    bus_space_read_multi_4(t, h, offset + HSCX_FIFO, 
-		(u_int32_t *)sc->sc_buffer, (temp + 3) / 4);
+		(uint32_t *)sc->sc_buffer, (temp + 3) / 4);
 
-	    (f+receive)->Z_ptr = (u_int8_t *)sc->sc_buffer;
+	    (f+receive)->Z_ptr = (uint8_t *)sc->sc_buffer;
 	    (f+receive)->Z_chip = temp;
 
 	    /* call filter */
@@ -300,7 +300,7 @@ avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
 	    temp = 32;
 
 	    (f+transmit)->i_ista &= ~(I_ISTA_ERR|I_ISTA_XPR);
-	    (f+transmit)->Z_ptr = (u_int8_t *)sc->sc_buffer;
+	    (f+transmit)->Z_ptr = (uint8_t *)sc->sc_buffer;
 	    (f+transmit)->Z_chip = temp;
 
 	    /* call filter */
@@ -326,7 +326,7 @@ avm_pci_b_status_read(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
 
 	    /* write FIFO */
 	    bus_space_write_multi_4(t, h, offset + HSCX_FIFO, 
-		(u_int32_t *)sc->sc_buffer, (temp + 3) / 4);
+		(uint32_t *)sc->sc_buffer, (temp + 3) / 4);
 	}
 	return;
 }
@@ -336,10 +336,10 @@ avm_pci_chip_status_read CHIP_STATUS_READ_T(sc)
 {
 	IPAC_BUS_VAR(sc);
 
-	u_int8_t status;
-	u_int8_t ista_d;
-	u_int8_t ista;
-	u_int8_t temp;
+	uint8_t status;
+	uint8_t ista_d;
+	uint8_t ista;
+	uint8_t temp;
 
 	status = bus_space_read_1(t, h, REG_STAT0_OFFSET);
 
@@ -426,7 +426,7 @@ avm_pci_chip_status_read CHIP_STATUS_READ_T(sc)
 static void
 avm_pci_chip_unselect CHIP_UNSELECT_T(sc)
 {
-	u_int8_t temp;
+	uint8_t temp;
 
   	temp = 0xFF;
 
@@ -470,7 +470,7 @@ avm_pci_chip_unselect CHIP_UNSELECT_T(sc)
 }
 
 static void
-avm_pci_fifo_reset(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t offset)
+avm_pci_fifo_reset(ihfc_sc_t *sc, ihfc_fifo_t *f, uint8_t offset)
 {
 	IPAC_BUS_VAR(sc);
 
@@ -496,7 +496,7 @@ static void
 avm_pci_chip_reset CHIP_RESET_T(sc,error)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	/*
 	 * Reset the card

@@ -33,14 +33,14 @@
  *
  *---------------------------------------------------------------------------*/
 
-static const u_int8_t MAKE_TABLE(L3_STATES,Q931_CONV,[]);
+static const uint8_t MAKE_TABLE(L3_STATES,Q931_CONV,[]);
 
-static u_int8_t *
-IEI_channelid(struct call_desc *cd, u_int8_t *ptr)
+static uint8_t *
+IEI_channelid(struct call_desc *cd, uint8_t *ptr)
 {
     DSS1_TCP_pipe_t *pipe = cd->pipe;
     l2softc_t *sc = pipe->L5_sc;
-    u_int8_t *ptr_old = ptr;
+    uint8_t *ptr_old = ptr;
 
     /* only accept this channel */
     enum { ext_exclusive = 0x80 | 0x08 }; 
@@ -99,11 +99,11 @@ IEI_channelid(struct call_desc *cd, u_int8_t *ptr)
     return ptr;
 }
 
-static u_int32_t
-get_callreference(u_int8_t *ptr)
+static uint32_t
+get_callreference(uint8_t *ptr)
 {
-    u_int8_t len = ptr[0] & CRLENGTH_MASK;
-    u_int32_t cr = 0;
+    uint8_t len = ptr[0] & CRLENGTH_MASK;
+    uint32_t cr = 0;
 
     ptr++;
 
@@ -119,11 +119,11 @@ get_callreference(u_int8_t *ptr)
 /*---------------------------------------------------------------------------*
  *	make_callreference - generate the DSS1 call reference value
  *---------------------------------------------------------------------------*/
-static u_int8_t *
-make_callreference(DSS1_TCP_pipe_t *pipe, u_int32_t cr, u_int8_t *ptr)
+static uint8_t *
+make_callreference(DSS1_TCP_pipe_t *pipe, uint32_t cr, uint8_t *ptr)
 {
     l2softc_t *sc = pipe->L5_sc;
-    u_int8_t len = 
+    uint8_t len = 
       (cr & 0xFF000000) ? 4 :
       (cr & 0x00FF0000) ? 3 :
       (cr & 0x0000FF00) ? 2 : 1;
@@ -264,7 +264,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 		if ((p_src->prs_ind != PRS_NONE) ||
 		    (p_src->scr_ind != SCR_NONE))
 		{
-		    u_int8_t temp;
+		    uint8_t temp;
 
 		    /* clear extension bit */
 		    ptr[1] &= ~0x80;
@@ -559,13 +559,13 @@ dss1_l3_tx_setup(call_desc_t *cd)
  *	send message
  *---------------------------------------------------------------------------*/
 static void
-dss1_l3_tx_message(call_desc_t *cd, u_int8_t message_type, u_int16_t flag)
+dss1_l3_tx_message(call_desc_t *cd, uint8_t message_type, uint16_t flag)
 {
 	DSS1_TCP_pipe_t *pipe = cd->pipe;
 	l2softc_t *sc = pipe->L5_sc;
 	struct mbuf *m;
-	u_int8_t *ptr;
-	u_int8_t *str;
+	uint8_t *ptr;
+	uint8_t *str;
 	size_t len;
 
 	NDBGL3(L3_PRIM, "cdid=%d, cr=%d, cause=0x%02x, "
@@ -754,8 +754,8 @@ static void
 dss1_l3_tx_message_complement(struct call_desc *cd,
 			      DSS1_TCP_pipe_t *pipe_skip_1,
 			      DSS1_TCP_pipe_t *pipe_skip_2,
-			      u_int8_t message_type, 
-			      u_int8_t flag)
+			      uint8_t message_type, 
+			      uint8_t flag)
 {
 	DSS1_TCP_pipe_t *pipe_curr;
 	DSS1_TCP_pipe_t *pipe_old;
@@ -793,13 +793,13 @@ dss1_l3_tx_message_complement(struct call_desc *cd,
  *	send a message by pipe and call reference
  *---------------------------------------------------------------------------*/
 static void
-dss1_l3_tx_message_by_pipe_cr(DSS1_TCP_pipe_t *pipe, u_int32_t call_ref, 
-			      u_int8_t message_type, u_int8_t flag, 
-			      u_int8_t cause_out, u_int8_t restart_indication)
+dss1_l3_tx_message_by_pipe_cr(DSS1_TCP_pipe_t *pipe, uint32_t call_ref, 
+			      uint8_t message_type, uint8_t flag, 
+			      uint8_t cause_out, uint8_t restart_indication)
 {
 	l2softc_t *sc = pipe->L5_sc;
 	struct mbuf *m;
-	u_int8_t *ptr;
+	uint8_t *ptr;
 
 	NDBGL3(L3_PRIM, "call_ref=%d, cause=0x%02x, rst_ind=0x%02x",
 	       call_ref, cause_out, restart_indication);

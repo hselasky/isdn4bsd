@@ -33,12 +33,15 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/mbuf.h>
-
 #include <sys/socket.h>
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -56,7 +59,7 @@
 static u_int
 get_cdid(struct i4b_controller *cntl)
 {
-	u_int8_t timeout = 1;
+	uint8_t timeout = 1;
 	struct call_desc *cd;
 	u_int new_cdid;
 
@@ -285,7 +288,7 @@ cd_free_channel(struct call_desc *cd)
  *	set application interface for a call descriptor
  *---------------------------------------------------------------------------*/
 void
-cd_set_appl_interface(struct call_desc *cd, u_int8_t appl_interface_type,
+cd_set_appl_interface(struct call_desc *cd, uint8_t appl_interface_type,
 		      void *appl_interface_ptr)
 {
 	/* update application interface information */
@@ -375,7 +378,7 @@ cd_by_unitcr(struct i4b_controller *cntl, void *pipe, void *pipe_adapter, u_int 
  *      disconnect active calls by application interface
  *---------------------------------------------------------------------------*/
 void
-i4b_disconnect_by_appl_interface(u_int8_t ai_type, void *ai_ptr)
+i4b_disconnect_by_appl_interface(uint8_t ai_type, void *ai_ptr)
 {
 	struct i4b_controller *cntl;
 	struct call_desc *cd;
@@ -434,7 +437,7 @@ i4b_update_d_channel(struct i4b_controller *cntl)
 	return;
 }
 
-u_int32_t i4b_open_refcount = 0;
+uint32_t i4b_open_refcount = 0;
 
 /*---------------------------------------------------------------------------*
  *      update all D-channels
@@ -445,7 +448,7 @@ void
 i4b_update_all_d_channels(int open)
 {
 	struct i4b_controller *cntl;
-	static u_int8_t flag = 0;
+	static uint8_t flag;
 
 	mtx_lock(&i4b_global_lock);
 
@@ -498,15 +501,15 @@ i4b_update_all_d_channels(int open)
 	return;
 }
 
-static const u_int8_t MAKE_TABLE(I4B_CAUSES,Q850_CONV,[]);
+static const uint8_t MAKE_TABLE(I4B_CAUSES,Q850_CONV,[]);
 
 /*---------------------------------------------------------------------------*
  *	return a valid q.931/q.850 cause from any of the internal causes
  *---------------------------------------------------------------------------*/
-u_int8_t
+uint8_t
 i4b_make_q850_cause(cause_t cause)
 {
-	register u_int8_t ret = GET_CAUSE_VAL(cause);
+	register uint8_t ret = GET_CAUSE_VAL(cause);
 	
 	switch(GET_CAUSE_TYPE(cause)) {
 	case CAUSET_Q850:
@@ -602,12 +605,12 @@ i4b_li_free(struct i4b_line_interconnect *li)
 }
 
 static struct i4b_line_interconnect *
-__i4b_slot_li_alloc(cdid_t cdid, u_int8_t pcm_cable, u_int16_t pcm_slot_rx)
+__i4b_slot_li_alloc(cdid_t cdid, uint8_t pcm_cable, uint16_t pcm_slot_rx)
 {
     static struct i4b_line_interconnect *li;
     struct i4b_pcm_cable *cable;
-    u_int16_t pcm_end;
-    u_int16_t pcm_slot_tx;
+    uint16_t pcm_end;
+    uint16_t pcm_slot_tx;
 
     mtx_assert(&i4b_global_lock, MA_OWNED);
 
@@ -646,11 +649,11 @@ __i4b_slot_li_alloc(cdid_t cdid, u_int8_t pcm_cable, u_int16_t pcm_slot_rx)
     return li;
 }
 
-static u_int32_t
-get_dword(u_int32_t *ptr, u_int16_t bit_offset)
+static uint32_t
+get_dword(uint32_t *ptr, uint16_t bit_offset)
 {
-    u_int32_t temp;
-    u_int16_t dword_offset;
+    uint32_t temp;
+    uint16_t dword_offset;
 
     dword_offset = bit_offset / (4*8);
     bit_offset %= (4*8);
@@ -671,11 +674,11 @@ i4b_slot_li_alloc(cdid_t cdid_src, cdid_t cdid_dst)
     struct i4b_pcm_cable *cable;
     struct i4b_line_interconnect *li_src = NULL;
     struct i4b_line_interconnect *li_dst;
-    u_int32_t x;
-    u_int32_t y;
-    u_int32_t z;
-    u_int32_t t;
-    u_int16_t pcm_end;
+    uint32_t x;
+    uint32_t y;
+    uint32_t z;
+    uint32_t t;
+    uint16_t pcm_end;
 
     mtx_assert(&i4b_global_lock, MA_OWNED);
 

@@ -34,15 +34,15 @@
 #ifndef _I4B_HDLC_H_
 #define _I4B_HDLC_H_
 
-extern const u_int16_t HDLC_FCS_TAB[256];
-extern const u_int16_t HDLC_BIT_TAB[256];
+extern const uint16_t HDLC_FCS_TAB[256];
+extern const uint16_t HDLC_BIT_TAB[256];
 
 /*---------------------------------------------------------------------------*
  *      HDLC_DECODE
  *      ===========
  *
- *      u_int8_t : flag, blevel
- *      u_int16_t: crc, ib, tmp, tmp2, len
+ *      uint8_t : flag, blevel
+ *      uint16_t: crc, ib, tmp, tmp2, len
  *
  *      next: 'continue' or 'goto xxx'
  *
@@ -94,7 +94,7 @@ extern const u_int16_t HDLC_BIT_TAB[256];
  *                       - [rdo] -
  *---------------------------------------------------------------------------*/
 
-#define LO8(x) ((u_int8_t)(x))  /* least significant byte (lowest byte) */
+#define LO8(x) ((uint8_t)(x))  /* least significant byte (lowest byte) */
 
 #define HDLC_DECODE(dst, len, tmp, tmp2, blevel, ib, crc, flag, rddcmd, nfrcmd,	\
 		    cfrcmd, rabcmd, rdocmd, nextcmd, d)				\
@@ -233,9 +233,9 @@ extern const u_int16_t HDLC_BIT_TAB[256];
  *      HDLC_ENCODE
  *      ===========
  *
- *      u_int8_t : flag, src
- *      u_int16_t: tmp2, blevel, ib, crc, len
- *      u_int32_t: tmp
+ *      uint8_t : flag, src
+ *      uint16_t: tmp2, blevel, ib, crc, len
+ *      uint32_t: tmp
  *
  *      gfr: this is the place where you free the last [mbuf] chain, and get
  *           the next one. If a mbuf is available the code should setup 'len'
@@ -249,7 +249,7 @@ extern const u_int16_t HDLC_BIT_TAB[256];
  *           place where you free the mbuf. Leave the block empty if your
  *           implementation does not accept/use chained mbufs.
  *
- *      wrd: write data (output = (u_int8_t)tmp)
+ *      wrd: write data (output = (uint8_t)tmp)
  *
  *      d: dummy
  *
@@ -446,7 +446,7 @@ extern const u_int16_t HDLC_BIT_TAB[256];
 										\
 			if (LO8(ib) >= 5)	/* bit stuff (lsb) */		\
 			{							\
-				register u_int8_t _ib_tmp = ((ib - (ib >> 8)	\
+				register uint8_t _ib_tmp = ((ib - (ib >> 8)	\
 							      + 1) & 7);	\
 										\
 				tmp2 += (tmp2 & (~(0x1f >> _ib_tmp)));		\

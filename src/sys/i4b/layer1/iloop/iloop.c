@@ -31,9 +31,12 @@
  *
  *---------------------------------------------------------------------------*/
 
-#include <sys/types.h>
-#include <sys/systm.h>
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
+#include <sys/stdint.h>
 #include <sys/param.h>
+#include <sys/systm.h>
 #include <sys/unistd.h>
 #include <sys/conf.h>
 #include <sys/kernel.h>
@@ -46,6 +49,7 @@
 #include <sys/callout.h>
 #include <net/if.h>
 #include <sys/fcntl.h>
+#endif
 
 #include <i4b/include/i4b_compat.h>
 #include <i4b/include/i4b_controller.h>

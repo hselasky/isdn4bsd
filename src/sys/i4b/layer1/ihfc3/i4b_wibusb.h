@@ -269,7 +269,7 @@ wibusb2_callback_chip_read(struct usb_xfer *xfer, usb_error_t error)
 static void
 wibusb2_fifo_read FIFO_READ_T(sc,f,ptr,len)
 {
-	register u_int8_t *fifo_ptr = (f->Z_ptr);
+	register uint8_t *fifo_ptr = (f->Z_ptr);
 
 	/* pre increment Z-counter (before `len` is changed) */
 	(f->Z_ptr) += (len);
@@ -281,7 +281,7 @@ wibusb2_fifo_read FIFO_READ_T(sc,f,ptr,len)
 static void
 wibusb2_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 {
-	register u_int8_t *fifo_ptr = (f->Z_ptr);
+	register uint8_t *fifo_ptr = (f->Z_ptr);
 
 	if(len)
 	{
@@ -382,7 +382,7 @@ wibusb2_callback_isoc_rx(struct usb_xfer *xfer, usb_error_t error)
  	int i;
 	int frlen;
 
-	u_int8_t
+	uint8_t
 	  *fifo_ptr = sc->sc_temp_ptr,
 	  *d1_start, *d1_end, d1_stat = 0,
 	  *b1_start, *b1_end, b1_stat = 0,
@@ -668,7 +668,7 @@ wibusb2_callback_isoc_tx(struct usb_xfer *xfer, usb_error_t error)
 	ihfc_sc_t *sc = usbd_xfer_softc(xfer);
 	struct usb_page_cache *pc = usbd_xfer_get_frame(xfer, 0);
 
-	u_int8_t
+	uint8_t
 	  *d1_start, d_average,
 	  *b1_start, b_average,
 	  *b2_start, p_average, x, *tmp;
@@ -842,11 +842,11 @@ wibusb2_callback_isoc_tx(struct usb_xfer *xfer, usb_error_t error)
 }
 
 typedef struct {
-  u_int8_t w_ista;
-  u_int8_t w_cir;
-  u_int8_t w_pcir;
-  u_int8_t w_pdata;
-  u_int8_t w_moir;
+  uint8_t w_ista;
+  uint8_t w_cir;
+  uint8_t w_pcir;
+  uint8_t w_pdata;
+  uint8_t w_moir;
 } __packed wibusb2_error_t;
 
 static void
@@ -1118,7 +1118,7 @@ wibusb2_cfg_fsm_write(struct ihfc_sc *sc,
 static void
 wibusb2_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
-	u_int8_t tmp   = (*ptr) | sc->sc_config.i_cirq;
+	uint8_t tmp   = (*ptr) | sc->sc_config.i_cirq;
 		 tmp >>= 2;
 
 	usb2_config_td_queue_command

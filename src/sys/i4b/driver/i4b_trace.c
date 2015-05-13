@@ -29,6 +29,9 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/ioccom.h>
@@ -42,6 +45,7 @@
 #include <sys/poll.h>
 
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_trace.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -50,9 +54,9 @@
 __FBSDID("$FreeBSD: $");
 
 struct i4b_trace_softc {
-	u_int16_t	sc_unit;
+	uint16_t	sc_unit;
 	struct _ifqueue sc_queue;
-	u_int8_t	sc_flags;
+	uint8_t	sc_flags;
 #       define          ST_OPEN         0x01
 #       define          ST_WAIT_SLP     0x02
 #       define          ST_WAIT_WUP     0x04
@@ -96,7 +100,7 @@ i4btrcattach(void *dummy)
 	struct i4b_controller *cntl;
 	struct i4b_trace_softc *sc;
 	struct cdev *dev;
-	u_int16_t i;
+	uint16_t i;
 
 	for(i=0; i < MAX_CONTROLLERS; i++)
 	{
@@ -249,7 +253,7 @@ i4btrc_close(struct cdev *dev, int flag, int fmt, struct thread *td)
 
 	if(sc->sc_flags & ST_OPEN)
 	{
-	    u_int32_t temp = TRACE_OFF;
+	    uint32_t temp = TRACE_OFF;
 	    sc->sc_flags |= ST_CLOSING;
 
 	    L1_COMMAND_REQ(CNTL_FIND(sc->sc_unit), CMR_SETTRACE, &temp);

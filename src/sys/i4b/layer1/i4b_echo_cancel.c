@@ -30,11 +30,16 @@
  *
  * * The FFT part was inspired by code written by Jon Recker and Ken Cooke.
  */
+
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/socket.h>
 #include <sys/kernel.h>
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>

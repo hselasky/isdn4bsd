@@ -27,11 +27,15 @@
  *
  */
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/socket.h>
 #include <sys/kernel.h>
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -74,7 +78,7 @@ int16_t K[I4B_DTMF_N_FREQ] = {
 };
 
 static const
-u_int8_t code_to_ascii[16] = {
+uint8_t code_to_ascii[16] = {
     '1', '4', '7', '*',
     '2', '5', '8', '0',
     '3', '6', '9', '#',
@@ -82,9 +86,9 @@ u_int8_t code_to_ascii[16] = {
 };
 
 struct dtmf_to_freq {
-    u_int16_t f0; /* Hz */
-    u_int16_t f1; /* Hz */
-    u_int8_t key;
+    uint16_t f0; /* Hz */
+    uint16_t f1; /* Hz */
+    uint8_t key;
 };
 
 static const 
@@ -109,7 +113,7 @@ struct dtmf_to_freq dtmf_to_freq[] = {
 };
 
 void
-i4b_dtmf_init_rx(struct fifo_translator *ft, u_int8_t bsubprot)
+i4b_dtmf_init_rx(struct fifo_translator *ft, uint8_t bsubprot)
 {
     I4B_DBG(1, L1_DTMF_MSG, "init RX");
 
@@ -121,7 +125,7 @@ i4b_dtmf_init_rx(struct fifo_translator *ft, u_int8_t bsubprot)
 }
 
 void
-i4b_dtmf_init_tx(struct fifo_translator *ft, u_int8_t bsubprot)
+i4b_dtmf_init_tx(struct fifo_translator *ft, uint8_t bsubprot)
 {
     I4B_DBG(1, L1_DTMF_MSG, "init TX");
 
@@ -133,14 +137,14 @@ i4b_dtmf_init_tx(struct fifo_translator *ft, u_int8_t bsubprot)
 }
 
 void
-i4b_dtmf_queue_digit(struct fifo_translator *ft, u_int8_t digit,
-		     u_int16_t tone_duration,
-		     u_int16_t gap_duration)
+i4b_dtmf_queue_digit(struct fifo_translator *ft, uint8_t digit,
+		     uint16_t tone_duration,
+		     uint16_t gap_duration)
 {
-    u_int8_t next_pos0 = (ft->dtmf_tx.output_pos +1) % I4B_DTMF_N_DIGITS;
-    u_int8_t next_pos1 = (next_pos0 + 1) % I4B_DTMF_N_DIGITS;
-    u_int8_t n;
-    u_int8_t i;
+    uint8_t next_pos0 = (ft->dtmf_tx.output_pos +1) % I4B_DTMF_N_DIGITS;
+    uint8_t next_pos1 = (next_pos0 + 1) % I4B_DTMF_N_DIGITS;
+    uint8_t n;
+    uint8_t i;
 
     if ((next_pos0 == ft->dtmf_tx.input_pos) ||
 	(next_pos1 == ft->dtmf_tx.input_pos)) {
@@ -203,12 +207,12 @@ void
 i4b_dtmf_generate(struct fifo_translator *ft, struct mbuf **pp_m)
 {
     struct mbuf *m = *pp_m;
-    u_int8_t *ptr;
-    u_int32_t len;
-    u_int32_t i = ft->dtmf_tx.input_pos;
+    uint8_t *ptr;
+    uint32_t len;
+    uint32_t i = ft->dtmf_tx.input_pos;
     int32_t temp;
-    u_int8_t silence = 0;
-    u_int8_t allocated = 0;
+    uint8_t silence = 0;
+    uint8_t allocated = 0;
 
     if (i == ft->dtmf_tx.output_pos) {
         /* nothing to do */
@@ -293,10 +297,10 @@ i4b_dtmf_generate(struct fifo_translator *ft, struct mbuf **pp_m)
 
 /* routine to compute the square root */
 
-u_int16_t 
-i4b_sqrt_32(u_int32_t a) {
-    u_int32_t b = 0x40000000;
-    u_int32_t x = 0x40000000;
+uint16_t 
+i4b_sqrt_32(uint32_t a) {
+    uint32_t b = 0x40000000;
+    uint32_t x = 0x40000000;
 
     while(1) {
 
@@ -334,7 +338,7 @@ i4b_sqrt_32(u_int32_t a) {
 
 void
 i4b_dtmf_detect(struct fifo_translator *ft, 
-		u_int8_t *data_ptr, u_int16_t data_len)
+		uint8_t *data_ptr, uint16_t data_len)
 {
     int32_t w2[I4B_DTMF_N_FREQ];
     int32_t max_gain;
@@ -342,12 +346,12 @@ i4b_dtmf_detect(struct fifo_translator *ft,
     int32_t max0;
     int32_t max1;
     int32_t max2;
-    u_int16_t x;
-    u_int16_t delta;
-    u_int32_t found;
-    u_int32_t n;
-    u_int8_t temp;
-    u_int8_t code;
+    uint16_t x;
+    uint16_t delta;
+    uint32_t found;
+    uint32_t n;
+    uint8_t temp;
+    uint8_t code;
 
     /* sanity check */
     if (ft->L5_PUT_DTMF == NULL)

@@ -72,7 +72,7 @@
 
 
 #define IPAC_BUS_SETUP(sc,reg)			\
-	u_int16_t base;				\
+	uint16_t base;				\
 	if((reg) & 0x80)			\
 	{					\
 		base = USR_ISAC_OFF;		\
@@ -168,8 +168,8 @@ usrtai_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 static void
 usrtai_chip_reset CHIP_RESET_T(sc,error)
 {
-	static u_int8_t intr_no[] = { 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 3, 4, 5, 0, 6, 7 };
-	u_int8_t temp;
+	static uint8_t intr_no[] = { 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 3, 4, 5, 0, 6, 7 };
+	uint8_t temp;
 	IPAC_BUS_VAR(sc);
 
 	/* reset the HSCX and ISAC chips */
@@ -199,7 +199,7 @@ usrtai_chip_reset CHIP_RESET_T(sc,error)
 }
 
 static void
-usrtai_setup_io_ports(device_t dev, u_int16_t base)
+usrtai_setup_io_ports(device_t dev, uint16_t base)
 { 
 	int i, num = 0;
 
@@ -237,7 +237,7 @@ usrtai_setup_io_ports(device_t dev, u_int16_t base)
 static int
 usrtai_allocate_io_ports(device_t dev)
 {
-	u_int32_t rid[49];
+	uint32_t rid[49];
 	struct resource * res[49];
 	int i;
 
@@ -285,8 +285,8 @@ static int
 usrtai_chip_identify(device_t dev)
 {
 	struct resource * res;
-	u_int32_t rid;
-	u_int32_t base;
+	uint32_t rid;
+	uint32_t base;
 
 	rid = 0;
 

@@ -155,7 +155,7 @@ MAKE_ENUM(CNTLS);
 
 #define MAKE_SAPI(sapi,cr)	((((sapi) << 2) & 0xfc) | (((cr) & 0x01) << 1))
 
-#define PUT_TEI(var, tei)	(*(u_int8_t *)&(var)) = (tei)
+#define PUT_TEI(var, tei)	(*(uint8_t *)&(var)) = (tei)
 
 /* S-frame */
 #define S_FRAME_LEN	4	/* length of a S-frame */
@@ -200,21 +200,21 @@ MAKE_ENUM(L2_STATES,
 /* ------------------------------------------------------------------------ */
 
 typedef struct DSS1_TCP_pipe {
-  u_int8_t	__pn;	/* pipe number Quick Reference */
+  uint8_t	__pn;	/* pipe number Quick Reference */
 #define PIPE_NO(pipe) ((pipe)->__pn)
 
-  u_int32_t	refcount;
-  u_int8_t	state;  /* current state */
+  uint32_t	refcount;
+  uint8_t	state;  /* current state */
 
   struct usb_callout get_mbuf_callout;
   struct usb_callout set_state_callout;
 
   void		*L5_sc;
 
-  u_int8_t	tei;	/* TEI value in use */
+  uint8_t	tei;	/* TEI value in use */
 
 #define TEI_IS_AUTOMATIC(pipe) ((pipe)->serial_number >= 0x80)
-  u_int16_t	serial_number;
+  uint16_t	serial_number;
 
 # undef IFQ_MAXLEN
 # define IFQ_MAXLEN (N_CALL_DESC * 4)
@@ -225,27 +225,27 @@ typedef struct DSS1_TCP_pipe {
 
   /* local window counters */
 
-  u_int8_t	tx_window_size;
-  u_int8_t	tx_window_length;
+  uint8_t	tx_window_size;
+  uint8_t	tx_window_length;
 
   /* local frame counters */
 
-  u_int8_t	rx_nr;
-  u_int8_t	tx_nr;
+  uint8_t	rx_nr;
+  uint8_t	tx_nr;
 } DSS1_TCP_pipe_t;
 
 typedef struct {
-	u_int32_t	sc_unit;	/* unit number for this entry */
+	uint32_t	sc_unit;	/* unit number for this entry */
 
 	i4b_controller_t *
 			sc_cntl;
 
-	u_int8_t	sc_tei_last;	/* last TEI value assigned to 
+	uint8_t	sc_tei_last;	/* last TEI value assigned to 
 					 * a remote Terminal 
 					 */
-	u_int8_t	sc_received_frame;
+	uint8_t	sc_received_frame;
 
-	u_int8_t L1_deactivate_count;
+	uint8_t L1_deactivate_count;
 	L1_activity_t L1_activity;
 	L1_auto_activate_t L1_auto_activate;
 
@@ -253,11 +253,11 @@ typedef struct {
     (sc)->sc_cntl->no_layer3_status_enquiry != 0)
 #define NT_MODE(sc) ((sc)->sc_nt_mode)
 #define TE_MODE(sc) (!NT_MODE(sc))
-	u_int8_t	sc_nt_mode;
+	uint8_t	sc_nt_mode;
 #define IS_PRIMARY_RATE(sc) ((sc)->sc_primary_rate)
-	u_int8_t	sc_primary_rate;
+	uint8_t	sc_primary_rate;
 #define IS_POINT_TO_POINT(sc) ((sc)->sc_point_to_point)
-	u_int8_t	sc_point_to_point;
+	uint8_t	sc_point_to_point;
 
 	STRUCT_IFQUEUE; /* queue of outgoing frames */
 
@@ -272,8 +272,8 @@ typedef struct {
 
 	struct DSS1_TCP_pipe *sc_current_pipe;
 	struct mbuf          *sc_current_mbuf;
-	u_int8_t	      sc_current_length;
-	u_int8_t	      sc_current_tx_nr;
+	uint8_t	      sc_current_length;
+	uint8_t	      sc_current_tx_nr;
 
 #define PIPE_FOREACH(pipe,pipe_var)		\
   for((pipe) = (pipe_var);			\
@@ -286,17 +286,17 @@ typedef struct {
 } l2softc_t;
 
 struct dss1_buffer {
-  u_int8_t *start;      /* inclusive */
-  u_int16_t offset;     /* offset from start */
-  u_int16_t len;        /* length from start */
-  u_int8_t  state;      /* used by Facility Decode */
-  u_int8_t  op_value;   /* used by Facility Decode */
+  uint8_t *start;      /* inclusive */
+  uint16_t offset;     /* offset from start */
+  uint16_t len;        /* length from start */
+  uint8_t  state;      /* used by Facility Decode */
+  uint8_t  op_value;   /* used by Facility Decode */
   int32_t   units;      /* used by Facility Decode */
 };
 
-extern u_int8_t  dss1_get_1(struct dss1_buffer *src, u_int16_t offset);
-extern u_int8_t  dss1_get_valid(struct dss1_buffer *src, u_int16_t offset);
-extern u_int16_t dss1_set_length(struct dss1_buffer *src, u_int16_t new_len);
-extern void      dss1_buf_init(struct dss1_buffer *dst, void *start, u_int16_t len);
+extern uint8_t  dss1_get_1(struct dss1_buffer *src, uint16_t offset);
+extern uint8_t  dss1_get_valid(struct dss1_buffer *src, uint16_t offset);
+extern uint16_t dss1_set_length(struct dss1_buffer *src, uint16_t new_len);
+extern void      dss1_buf_init(struct dss1_buffer *dst, void *start, uint16_t len);
 
 #endif /* _DSS1_L2_H_ */

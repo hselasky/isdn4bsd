@@ -282,8 +282,8 @@ ihfc_fifo_program(ihfc_sc_t *sc)
 {
 	ihfc_fifo_t *f;
 
-	u_int8_t status;
-	u_int8_t fifo_max;
+	uint8_t status;
+	uint8_t fifo_max;
 
 	/*
 	 * overview:
@@ -372,7 +372,7 @@ ihfc_fifo_program(ihfc_sc_t *sc)
 /*---------------------------------------------------------------------------*
  * : generic IPAC receive program (HDLC & TRANS)
  *---------------------------------------------------------------------------*/
-u_int8_t
+uint8_t
 i4b_ipac_rx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
 	/* check for program reset */
@@ -514,7 +514,7 @@ i4b_ipac_rx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 /*---------------------------------------------------------------------------*
  * : generic IPAC transmit program (HDLC & TRANS)
  *---------------------------------------------------------------------------*/
-u_int8_t 
+uint8_t 
 i4b_ipac_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
 	/* check for program reset */
@@ -618,8 +618,8 @@ i4b_ipac_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		    /* allocate a temporary buffer 
 		     * on the stack :
 		     */
-		    u_int16_t len = (f->Z_chip + 3);
-		    u_int8_t buf[len];
+		    uint16_t len = (f->Z_chip + 3);
+		    uint8_t buf[len];
 
 		    /* to avoid extremely high
 		     * interrupt rates, fill the
@@ -633,7 +633,7 @@ i4b_ipac_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 		    len /= 4;
 		    while(len--)
 		    {
-		      ((u_int32_t *)&buf)[len] = 0xffffffff;
+		      ((uint32_t *)&buf)[len] = 0xffffffff;
 		    }
 
 		    FIFO_WRITE_MULTI_1(sc,f,&buf[0],f->Z_chip);
@@ -678,8 +678,8 @@ i4b_ipac_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 static void
 ihfc_fifo_fz_read(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
-	u_int16_t z_max;
-	u_int16_t z_min;
+	uint16_t z_max;
+	uint16_t z_min;
 
 	/* read fz counters */
 	FIFO_FZ_READ(sc,f);
@@ -752,11 +752,11 @@ ihfc_fifo_inc_fx(ihfc_sc_t *sc, ihfc_fifo_t *f)
 /*---------------------------------------------------------------------------*
  * : generic HFC-XXX receive program (HDLC & TRANS)
  *---------------------------------------------------------------------------*/
-u_int8_t
+uint8_t
 i4b_hfc_rx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
-	u_int8_t *start, *end;
-	u_int16_t len;
+	uint8_t *start, *end;
+	uint16_t len;
 
 	enum {
 	  /* wait states */
@@ -969,7 +969,7 @@ i4b_hfc_rx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 /*---------------------------------------------------------------------------*
  * : generic HFC-XXX transmit program (HDLC & TRANS)
  *---------------------------------------------------------------------------*/
-u_int8_t
+uint8_t
 i4b_hfc_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
 	enum {
@@ -1235,7 +1235,7 @@ i4b_hfc_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	    }
 	    else
 	    {
-	        static const u_int8_t temp = 0xFF;
+	        static const uint8_t temp = 0xFF;
 
 		/* in [extended] transparent mode, 
 		 * send one 0xFF byte in
@@ -1253,7 +1253,7 @@ i4b_hfc_tx_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 /*---------------------------------------------------------------------------*
  * : generic HFC-XXX transmit program (HDLC & TRANS)
  *---------------------------------------------------------------------------*/
-u_int8_t
+uint8_t
 i4b_hfc_tx_program_new(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
 	enum {
@@ -1368,7 +1368,7 @@ i4b_hfc_tx_program_new(ihfc_sc_t *sc, ihfc_fifo_t *f)
 	return PROGRAM_LOOP;
 }
 
-u_int8_t
+uint8_t
 i4b_unknown_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
 	/* this program is used when the driver calls

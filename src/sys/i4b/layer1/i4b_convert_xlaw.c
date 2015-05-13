@@ -26,18 +26,23 @@
  * i4b_convert_xlaw.c - A-law and u-law conversion tables
  *
  */
+
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/socket.h>
 #include <sys/kernel.h>
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_trace.h>
 #include <i4b/include/i4b_global.h>
 
-const u_int8_t i4b_reverse_bits[0x100] = {
+const uint8_t i4b_reverse_bits[0x100] = {
   0x00, 0x80, 0x40, 0xc0, 0x20, 0xa0, 0x60, 0xe0,
   0x10, 0x90, 0x50, 0xd0, 0x30, 0xb0, 0x70, 0xf0,
   0x08, 0x88, 0x48, 0xc8, 0x28, 0xa8, 0x68, 0xe8,
@@ -111,7 +116,7 @@ const int16_t i4b_ulaw_to_signed[0x100] = {
 
 /* NOTE: returns a bit-reversed value */
 
-static const u_int8_t __i4b_signed_to_ulaw[0x4000] = {
+static const uint8_t __i4b_signed_to_ulaw[0x4000] = {
   0xff, 0x7f, 0x7f, 0xbf, 0xbf, 0x3f, 0x3f, 0xdf, 0xdf, 0x5f, 0x5f, 0x9f, 
   0x9f, 0x1f, 0x1f, 0xef, 0xef, 0x6f, 0x6f, 0xaf, 0xaf, 0x2f, 0x2f, 0xcf, 
   0xcf, 0x4f, 0x4f, 0x8f, 0x8f, 0x0f, 0x0f, 0xf7, 0xf7, 0xf7, 0xf7, 0x77, 
@@ -1482,7 +1487,7 @@ static const u_int8_t __i4b_signed_to_ulaw[0x4000] = {
 
 /* NOTE: returns a bit-reversed value */
 
-u_int8_t
+uint8_t
 i4b_signed_to_ulaw(int32_t temp)
 {
     if (temp > 0x7FFF)
@@ -1535,7 +1540,7 @@ const int16_t i4b_alaw_to_signed[0x100] = {
 
 /* NOTE: returns a bit-reversed value */
 
-static const u_int8_t __i4b_signed_to_alaw[0x2000] = {
+static const uint8_t __i4b_signed_to_alaw[0x2000] = {
   0xab, 0xab, 0x2b, 0x2b, 0xeb, 0xeb, 0x6b, 0x6b, 0x8b, 0x8b, 0x0b, 0x0b, 
   0xcb, 0xcb, 0x4b, 0x4b, 0xbb, 0xbb, 0x3b, 0x3b, 0xfb, 0xfb, 0x7b, 0x7b, 
   0x9b, 0x9b, 0x1b, 0x1b, 0xdb, 0xdb, 0x5b, 0x5b, 0xa3, 0xa3, 0x23, 0x23, 
@@ -2223,7 +2228,7 @@ static const u_int8_t __i4b_signed_to_alaw[0x2000] = {
 
 /* NOTE: returns a bit-reversed value */
 
-u_int8_t
+uint8_t
 i4b_signed_to_alaw(int32_t temp)
 {
     if (temp > 0x7FFF)
@@ -3245,9 +3250,9 @@ i4b_sine_to_signed[8000] = {
 };
 
 void
-i4b_convert_bsubprot(u_int8_t *ptr, u_int32_t len, 
+i4b_convert_bsubprot(uint8_t *ptr, uint32_t len, 
 		     int32_t factor, int32_t divisor,
-		     u_int8_t in_bsubprot, u_int8_t out_bsubprot)
+		     uint8_t in_bsubprot, uint8_t out_bsubprot)
 {
     int32_t temp;
 

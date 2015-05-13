@@ -47,7 +47,7 @@
 /*---------------------------------------------------------------------------*
  * : ISAC EXIR table (unused)
  *
- *	const struct ihfc_EXIRtable { u_int8_t *desc; }
+ *	const struct ihfc_EXIRtable { uint8_t *desc; }
  *
  *	EXIRtable[8] =
  *	{
@@ -568,7 +568,7 @@ static void __used
 isac_hscx_generic_chip_reset_verify CHIP_RESET_T(sc,error)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	/* read SPCR(ISAC) */
 	IPAC_READ_MULTI_1(REG_isac_spcr, &temp, 1);
@@ -671,7 +671,7 @@ static void __used
 isac_hscx_generic_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	/* read CIRQ (ISAC) */
 	IPAC_READ_MULTI_1(REG_isac_cirq, &temp,1);
@@ -685,7 +685,7 @@ static void __used
 isac_hscx_generic_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t temp = (*ptr | sc->sc_config.i_cirq);
+	uint8_t temp = (*ptr | sc->sc_config.i_cirq);
 
 	/* write CIRQ (ISAC) */
 	IPAC_WRITE_MULTI_1(REG_isac_cirq, &temp, 1);
@@ -696,7 +696,7 @@ static void __used
 isac_hscx_generic_chip_unselect CHIP_UNSELECT_T(sc)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	/*
 	 * write CMDR (ISAC/HSCX)
@@ -786,7 +786,7 @@ static void __used
 isac_hscx_generic_chip_status_read CHIP_STATUS_READ_T(sc)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	/*
 	 * generic ISAC/HSCX code:

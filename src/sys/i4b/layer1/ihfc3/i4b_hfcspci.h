@@ -71,7 +71,7 @@ hfcspci_t125_sync FIFO_SYNC_T(sc)
 {
 #if 0
 	HFCSPCI_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	/* NOTE: t125_sync is used to prevent
 	 * infinity loops if memory becomes corrupted.
@@ -104,7 +104,7 @@ static void
 hfcspci_chip_reset CHIP_RESET_T(sc,error)
 {
 	HFCSPCI_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	/*
 	 * Setup MWBA by a PCI config
@@ -170,9 +170,9 @@ hfcspci_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	} else {
 
 	  /* reset FIFO */
-	  u_int8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
+	  uint8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
 			       (f->fm.h.Zdata)+(f->fm.h.Zend - f->fm.h.Zsize);
-	  u_int16_t fifo_len = (f->fm.h.Zsize);
+	  uint16_t fifo_len = (f->fm.h.Zsize);
 
 	  /* fill FIFO with 0xFF bytes */
 	  memset_1(fifo_ptr, 0xFF, fifo_len);
@@ -186,9 +186,9 @@ hfcspci_fifo_read FIFO_READ_T(sc,f,ptr,len)
 	/* HFC-SPCI 
 	 * external variables: len (destination), ptr (destination)
 	 */
-	register u_int8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
+	register uint8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
 	                              (f->fm.h.Zdata)+(f->Z_drvr);
-	register u_int16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
+	register uint16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
 
 	/* pre increment Z-counter (before `len` is changed) */
 	(f->Z_drvr) += (len);
@@ -215,7 +215,7 @@ hfcspci_fifo_read FIFO_READ_T(sc,f,ptr,len)
 	bcopy(fifo_ptr,ptr,len);
 
 	/* write Z_drvr (driver incremented) to MWBA */
-	*(__volatile__ u_int16_t *)(f->Z_ptr) = f->Z_drvr;
+	*(__volatile__ uint16_t *)(f->Z_ptr) = f->Z_drvr;
 
 	return;
 }
@@ -242,9 +242,9 @@ hfcspci_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 	/* HFC-SPCI
 	 * external variables: len (source), ptr (source)
 	 */
-	register u_int8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
+	register uint8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
 				      (f->fm.h.Zdata)+(f->Z_drvr);
-	register u_int16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
+	register uint16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
 
 	/* pre increment Z-counter (before `len` is changed) */
 	(f->Z_drvr) += (len);
@@ -271,7 +271,7 @@ hfcspci_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 	bcopy(ptr,fifo_ptr,len);
 
 	/* write Z_drvr (driver incremented) to MWBA */
-	*(__volatile__ u_int16_t *)(f->Z_ptr) = f->Z_drvr;
+	*(__volatile__ uint16_t *)(f->Z_ptr) = f->Z_drvr;
 
 	return;
 }
@@ -295,7 +295,7 @@ static void
 hfcspci_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	HFCSPCI_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	/* read STATES(reg=0xC0) */
 	HFCSPCI_READ_1(0xC0, temp);
@@ -340,10 +340,10 @@ hfcspci_fifo_inc_fx FIFO_INC_FX_T(sc,f)
 	(f->Z_ptr) += 4;
 
 	/* write Z_drvr counter to MWBA */
-	*(__volatile__ u_int16_t *)(f->Z_ptr) = (f->Z_drvr);
+	*(__volatile__ uint16_t *)(f->Z_ptr) = (f->Z_drvr);
 
 	/* write F_drvr counter to MWBA */
-	*(__volatile__ u_int8_t  *)(f->F_ptr) = (f->F_drvr);
+	*(__volatile__ uint8_t  *)(f->F_ptr) = (f->F_drvr);
 
 #if 0
 	/* NOTE: in some special cases the
@@ -362,7 +362,7 @@ hfcspci_fifo_inc_fx FIFO_INC_FX_T(sc,f)
 static void
 hfcspci_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 {
-	u_int16_t Z_chip2;
+	uint16_t Z_chip2;
 
 	/* read F- and Z-counters respectively
 	 *
@@ -397,17 +397,17 @@ hfcspci_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 	 */
 	   
 	/* get F_chip pointer */
-	(f->F_ptr) = (u_int8_t *)(sc->sc_resources.mwba_start[0]
+	(f->F_ptr) = (uint8_t *)(sc->sc_resources.mwba_start[0]
 				  +f->fm.h.Fbase);
 	/* read F_chip from MWBA */
-	(f->F_chip) = *(__volatile__ u_int8_t  *)(f->F_ptr);
+	(f->F_chip) = *(__volatile__ uint8_t  *)(f->F_ptr);
 
 	/* get F_drvr pointer */
-	(f->F_ptr) = (u_int8_t *)(sc->sc_resources.mwba_start[0]
+	(f->F_ptr) = (uint8_t *)(sc->sc_resources.mwba_start[0]
 				  +(f->fm.h.Fbase ^ 1));
 
 	/* read F_drvr from MWBA */
-	(f->F_drvr) = *(__volatile__ u_int8_t  *)(f->F_ptr);
+	(f->F_drvr) = *(__volatile__ uint8_t  *)(f->F_ptr);
 
 	/* mask F_drvr and F_chip */
 	(f->F_drvr)  &=  0x001f;
@@ -435,11 +435,11 @@ hfcspci_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 	 */
 
 	(   Z_chip2) =
-	(f->Z_chip ) = *(__volatile__ u_int16_t *)(f->Z_ptr);
+	(f->Z_chip ) = *(__volatile__ uint16_t *)(f->Z_ptr);
 #else
-	(   Z_chip2) = ((__volatile__ u_int8_t  *)(f->Z_ptr))[1] << 8; /* zx - high  */
-	(f->Z_chip ) = ((__volatile__ u_int8_t  *)(f->Z_ptr))[0];      /* zx - low   */
-	(f->Z_chip )|= ((__volatile__ u_int8_t  *)(f->Z_ptr))[1] << 8; /* zx - high  */
+	(   Z_chip2) = ((__volatile__ uint8_t  *)(f->Z_ptr))[1] << 8; /* zx - high  */
+	(f->Z_chip ) = ((__volatile__ uint8_t  *)(f->Z_ptr))[0];      /* zx - low   */
+	(f->Z_chip )|= ((__volatile__ uint8_t  *)(f->Z_ptr))[1] << 8; /* zx - high  */
 #endif
 
 	/* get Z_drvr pointer */
@@ -447,7 +447,7 @@ hfcspci_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 		      +(f->fm.h.Zbase^2) +(4*(f->F_drvr)));
 
 	/* read Z_drvr from MWBA */
-	(f->Z_drvr) = *(__volatile__ u_int16_t *)(f->Z_ptr);
+	(f->Z_drvr) = *(__volatile__ uint16_t *)(f->Z_ptr);
 
 #if 0
 	if(!(f->state &  ST_FZ_LOADED)) {
@@ -495,7 +495,7 @@ static void
 hfcspci_chip_status_read CHIP_STATUS_READ_T(sc)
 {
 	HFCSPCI_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	/* disable interrupts */
 	cli(sc);

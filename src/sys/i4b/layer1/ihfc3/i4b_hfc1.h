@@ -57,21 +57,21 @@
 #define bus_space_write_2 i4b_bus_space_write_2
 
 static __inline void 
-i4b_bus_space_write_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t off, u_int16_t val)
+i4b_bus_space_write_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t off, uint16_t val)
 {
-	bus_space_write_1(t, h, off, (u_int8_t)(val));
+	bus_space_write_1(t, h, off, (uint8_t)(val));
 	off++;
-	bus_space_write_1(t, h, off, (u_int8_t)(val >> 8));
+	bus_space_write_1(t, h, off, (uint8_t)(val >> 8));
 	return;
 }
 
 #undef bus_space_read_2
 #define bus_space_read_2 i4b_bus_space_read_2
 
-static __inline u_int16_t
+static __inline uint16_t
 i4b_bus_space_read_2(bus_space_tag_t t, bus_space_handle_t h, bus_size_t off)
 {
-	register u_int16_t temp;
+	register uint16_t temp;
 	temp = bus_space_read_1(t, h, off);
 	off++;
 	temp |= bus_space_read_1(t, h, off) << 8;
@@ -118,7 +118,7 @@ hfc1_t125_sync FIFO_SYNC_T(sc)
 {
 #if 0
 	HFC1_BUS_VAR(sc);
-	u_int8_t to = 255; /* ~255us max */
+	uint8_t to = 255; /* ~255us max */
 
 	/* disable interrupts */
 	cli(sc);
@@ -282,7 +282,7 @@ hfc1_reload_fz (ihfc_sc_t *sc)
 static void
 hfc1_chip_read CHIP_READ_T(sc,reg,ptr,len)
 {
-	register u_int16_t tmp;
+	register uint16_t tmp;
 	HFC1_BUS_VAR(sc);
 
 	bus_space_write_1(t,h,1,(reg));
@@ -338,7 +338,7 @@ hfc1_fifo_read FIFO_READ_T(sc,f,ptr,len)
 static void
 hfc1_chip_write CHIP_WRITE_T(sc,reg,ptr,len)
 {
-	register u_int16_t tmp;
+	register uint16_t tmp;
 	HFC1_BUS_VAR(sc);
 
 	bus_space_write_1(t,h,1, (reg));
@@ -389,7 +389,7 @@ hfc1_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 static void
 hfc1_fsm_read FSM_READ_T(sc,f,ptr)
 {
-	register u_int16_t tmp;
+	register uint16_t tmp;
 	HFC1_BUS_VAR(sc);
 
 	/* disable interrupts */
@@ -409,7 +409,7 @@ hfc1_fsm_read FSM_READ_T(sc,f,ptr)
 static void
 hfc1_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
-	register u_int16_t tmp;
+	register uint16_t tmp;
 	HFC1_BUS_VAR(sc);
 
 	/* disable interrupts */
@@ -464,7 +464,7 @@ hfc1_fifo_inc_fx_pre FIFO_INC_FX_PRE_T(sc,f)
 static void
 hfc1_fifo_inc_fx FIFO_INC_FX_T(sc,f)
 {
-	register u_int16_t tmp;
+	register uint16_t tmp;
 	HFC1_BUS_VAR(sc);
 
 	/* increment drvr's
@@ -504,7 +504,7 @@ hfc1_fifo_inc_fx FIFO_INC_FX_T(sc,f)
 static void
 hfc1_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 {
-	u_int16_t z0, Z_chip2;
+	uint16_t z0, Z_chip2;
 	HFC1_BUS_VAR(sc);
 
 	/* read F- and Z-counters respectively
@@ -614,7 +614,7 @@ hfc1_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 static void
 hfc1_chip_unselect CHIP_UNSELECT_T(sc)
 {
-	register u_int16_t tmp;
+	register uint16_t tmp;
 	HFC1_BUS_VAR(sc);
 
 	/* disable interrupts */
@@ -693,7 +693,7 @@ hfc1_chip_unselect CHIP_UNSELECT_T(sc)
 static void
 hfc1_chip_status_read CHIP_STATUS_READ_T(sc)
 {
-	register u_int16_t tmp;
+	register uint16_t tmp;
 	HFC1_BUS_VAR(sc);
 
 	/* disable interrupts */
@@ -757,7 +757,7 @@ hfc1_chip_status_read CHIP_STATUS_READ_T(sc)
 	return;
 }
 
-static u_int8_t
+static uint8_t
 hfc1_fifo_frame_check FIFO_FRAME_CHECK_T(sc,f,m)
 {
   if(FIFO_CMP(f,<,(b1t & b1r)))
@@ -802,10 +802,10 @@ static int
 hfc1_chip_identify(device_t dev)
 {
 	struct resource * res;
-	u_int32_t rid;
-	u_int32_t base;
-	u_int8_t irq_list[] = { 3, 4, 5, 7, 10, 11, 0 };
-	u_int8_t *irq = &irq_list[0];
+	uint32_t rid;
+	uint32_t base;
+	uint8_t irq_list[] = { 3, 4, 5, 7, 10, 11, 0 };
+	uint8_t *irq = &irq_list[0];
 
 	rid = 0;
 

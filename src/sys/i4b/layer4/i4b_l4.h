@@ -59,7 +59,7 @@ extern int i4b_controller_download(struct i4b_controller *cntl,
 				   struct isdn_download_request *req);
 
 extern void i4b_ai_putqueue(struct i4b_ai_softc *sc, 
-			    u_int8_t sc_complement, struct mbuf *m,
+			    uint8_t sc_complement, struct mbuf *m,
 			    uint16_t *p_copy_count);
 
 extern void i4b_ai_connect_ind(struct call_desc *cd, 
@@ -74,11 +74,11 @@ extern void i4b_l4_connect_active_ind(struct call_desc *cd);
 extern uint16_t i4b_l4_connect_ind(struct call_desc *cd);
 extern void i4b_l4_information_ind(call_desc_t *cd);
 extern void i4b_l4_pre_disconnect_ind(struct call_desc *cd);
-extern void i4b_l4_disconnect_ind(struct call_desc *cd, u_int8_t complement);
+extern void i4b_l4_disconnect_ind(struct call_desc *cd, uint8_t complement);
 extern void i4b_l4_idle_timeout_ind(struct call_desc *cd);
 extern void i4b_l4_proceeding_ind(struct call_desc *cd, 
-				  u_int8_t sending_complete,
-				  u_int8_t progress);
+				  uint8_t sending_complete,
+				  uint8_t progress);
 extern void i4b_l4_retrieve_ind(call_desc_t *cd);
 extern void i4b_l4_hold_ind(call_desc_t *cd);
 
@@ -87,7 +87,7 @@ extern void i4b_l4_negcomplete_ind(struct call_desc *cd);
 extern void i4b_l4_accounting(int, int, int, int, int, int, int, int, int);
 extern void i4b_l4_setup_timeout(struct call_desc *cd);
 
-extern void i4b_l3_information_req(struct call_desc *cd, u_int8_t *ptr, u_int16_t len);
+extern void i4b_l3_information_req(struct call_desc *cd, uint8_t *ptr, uint16_t len);
 
 extern void i4b_l4_dialout(int driver, int driver_unit );
 extern void i4b_l4_dialoutnumber(int driver, int driver_unit, int cmdlen, 
@@ -116,13 +116,13 @@ extern void cd_allocate_channel(struct call_desc *cd);
 extern void cd_free_channel(struct call_desc *cd);
 
 extern void cd_set_appl_interface(struct call_desc *cd, 
-				  u_int8_t appl_interface_type,
+				  uint8_t appl_interface_type,
 				  void *appl_interface_ptr);
 
-extern void i4b_disconnect_by_appl_interface(u_int8_t ai_type, void *ai_ptr);
+extern void i4b_disconnect_by_appl_interface(uint8_t ai_type, void *ai_ptr);
 extern void i4b_update_all_d_channels(int);
 
-extern u_int8_t i4b_make_q850_cause(cause_t cause);
+extern uint8_t i4b_make_q850_cause(cause_t cause);
 
 extern struct i4b_line_interconnect * 
 i4b_slot_li_alloc(cdid_t cdid_src, cdid_t cdid_dst);
@@ -134,18 +134,18 @@ i4b_slot_li_free(struct i4b_line_interconnect *li);
 
 struct capi_ai_softc;
 
-extern void capi_ai_info_ind(struct call_desc *cd, u_int8_t complement, 
-			     u_int16_t wInfoNumber, void *ptr, u_int16_t len);
+extern void capi_ai_info_ind(struct call_desc *cd, uint8_t complement, 
+			     uint16_t wInfoNumber, void *ptr, uint16_t len);
 extern void capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count);
 extern void capi_ai_connect_active_ind(struct call_desc *cd);
-extern void capi_ai_disconnect_ind(struct call_desc *cd, u_int8_t complement);
+extern void capi_ai_disconnect_ind(struct call_desc *cd, uint8_t complement);
 
 /* other prototypes */
 
 typedef void (response_to_user_t)(msg_response_to_user_t *);
 typedef struct fifo_translator * (setup_ft_t)(struct i4b_controller *cntl,
 	 struct fifo_translator *f, struct i4b_protocol *protocol, 
-	 u_int32_t driver_type, u_int32_t driver_unit, struct call_desc *cd);
+	 uint32_t driver_type, uint32_t driver_unit, struct call_desc *cd);
 
 extern setup_ft_t *i4b_drivers_setup_ft[N_I4B_DRIVERS];
 extern response_to_user_t *i4b_drivers_response_to_user[N_I4B_DRIVERS];

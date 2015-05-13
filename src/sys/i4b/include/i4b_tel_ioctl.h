@@ -66,9 +66,9 @@
 #define I4B_TEL_MAXTONES 32
 
 struct i4b_tel_tones {
-	u_int16_t frequency_1[I4B_TEL_MAXTONES]; /* Hz */
-	u_int16_t frequency_2[I4B_TEL_MAXTONES]; /* Hz */
-	u_int16_t duration[I4B_TEL_MAXTONES]; /* samples */
+	uint16_t frequency_1[I4B_TEL_MAXTONES]; /* Hz */
+	uint16_t frequency_2[I4B_TEL_MAXTONES]; /* Hz */
+	uint16_t duration[I4B_TEL_MAXTONES]; /* samples */
 };
 
 #define I4B_TEL_TONES		_IOW('A', 4, struct i4b_tel_tones)
@@ -79,8 +79,8 @@ struct i4b_tel_tones {
 #define I4B_TEL_SET_SOUNDBRIDGE		_IO('A', 5)
 #define I4B_TEL_ENABLE_MUTE		_IO('A', 6)
 #define I4B_TEL_DISABLE_MUTE		_IO('A', 7)
-#define I4B_TEL_SET_AUDIOAMP	       _IOW('A', 8, u_int8_t)
-#define I4B_TEL_GET_AUDIOAMP	       _IOR('A', 9, u_int8_t)
+#define I4B_TEL_SET_AUDIOAMP	       _IOW('A', 8, uint8_t)
+#define I4B_TEL_GET_AUDIOAMP	       _IOR('A', 9, uint8_t)
 #define             AUDIOAMP_MIN 0x00 /* inclusive */
 #define             AUDIOAMP_MAX 0xFF /* inclusive */
 #define             AUDIOAMP_DP  (1<<5)
@@ -90,9 +90,9 @@ struct i4b_tel_tones {
 /*---------------------------------------------------------------------------*
  *	other ioctl's
  *---------------------------------------------------------------------------*/
-#define I4B_TEL_GET_TELNO		_IOR('A',12, u_int8_t [TELNO_MAX])
-#define I4B_TEL_GET_DISPLAY		_IOR('A',13, u_int8_t [DISPLAY_MAX])
-#define I4B_TEL_GET_SMS			_IOR('A',14, u_int8_t [USER_USER_MAX])
+#define I4B_TEL_GET_TELNO		_IOR('A',12, uint8_t [TELNO_MAX])
+#define I4B_TEL_GET_DISPLAY		_IOR('A',13, uint8_t [DISPLAY_MAX])
+#define I4B_TEL_GET_SMS			_IOR('A',14, uint8_t [USER_USER_MAX])
 
 /*===========================================================================*
  *	/dev/i4bteld<n> devices (dialer interface)

@@ -45,11 +45,11 @@
 /*---------------------------------------------------------------------------*
  * : layer 1 F0 clock emulator
  *---------------------------------------------------------------------------*/
-static u_int16_t
+static uint16_t
 ihfc_get_f0_counter(ihfc_sc_t *sc)
 {
     struct timeval tv;
-    u_int32_t temp;
+    uint32_t temp;
 
     IHFC_ASSERT_LOCKED(sc);
 
@@ -168,11 +168,11 @@ NOT(led_turns_on /* when mask is ored */)(|(mask))	\
 
 struct drvr_id
 {
-  u_int32_t       vid;  /* for ISA cards this
+  uint32_t       vid;  /* for ISA cards this
                          * variable is used as
                          * card number.
                          */
-  u_int32_t       sub;  /* for PCI cards, 
+  uint32_t       sub;  /* for PCI cards, 
 			 * subdevice ID. Zero
 			 * means any.
 			 */
@@ -266,8 +266,8 @@ SET_DECLARE(ihfc_isa_id, const struct drvr_id);
 /*---------------------------------------------------------------------------*
  * : Get internal value for chip specific setup
  *---------------------------------------------------------------------------*/
-static u_int16_t
-ihfc_get_internal(const struct internal *list, u_int16_t value, u_int16_t override)
+static uint16_t
+ihfc_get_internal(const struct internal *list, uint16_t value, uint16_t override)
 {
 	if(override)
 	{
@@ -315,10 +315,10 @@ ihfc_get_internal(const struct internal *list, u_int16_t value, u_int16_t overri
  *       ISA and PnP devices usually use the
  *	 sequence 0,1,2,3,4 ... and so on.
  *---------------------------------------------------------------------------*/
-static u_int32_t
-ihfc_get_rid(const u_int8_t *rid, u_int8_t number)
+static uint32_t
+ihfc_get_rid(const uint8_t *rid, uint8_t number)
 {
-	u_int8_t start_number = number;
+	uint8_t start_number = number;
 
 	while(number--)
 	{
@@ -344,11 +344,11 @@ ihfc_get_rid(const u_int8_t *rid, u_int8_t number)
 /*---------------------------------------------------------------------------*
  * : Automatic bit-order detection
  *---------------------------------------------------------------------------*/
-static u_int32_t
-bit_reverse(u_int32_t x)
+static uint32_t
+bit_reverse(uint32_t x)
 {
-	u_int8_t n = 32;
-	u_int32_t y = 0;
+	uint8_t n = 32;
+	uint32_t y = 0;
 	while(n--) {
 	    y *= 2;
 	    if (x & 1) {
@@ -361,9 +361,9 @@ bit_reverse(u_int32_t x)
 
 const struct {
 
-	u_int32_t xxx [0];
-	u_int32_t xx1 : 1;
-	u_int32_t xx2 : 31; /* dummy */
+	uint32_t xxx [0];
+	uint32_t xx1 : 1;
+	uint32_t xx2 : 31; /* dummy */
 
 } __packed bit_test = { .xx1 = 1, };
 
@@ -372,7 +372,7 @@ const struct {
  *---------------------------------------------------------------------------*/
 static int
 ihfc_alloc_all_resources(register ihfc_sc_t *sc, device_t dev,
-			 u_int32_t flags, u_int8_t *error)
+			 uint32_t flags, uint8_t *error)
 {
 	__typeof(sc->sc_default.o_RES_start[0])
 	  o_RES = sc->sc_default.o_RES_start[0];
@@ -389,7 +389,7 @@ static const
 
 const   struct resource_tab *ptr;
 
-	u_int8_t number;
+	uint8_t number;
 
 	/* check bit order, for non-little endian processors */
 	if (bit_test.xxx[0] == 0x80000000)
@@ -687,7 +687,7 @@ const   struct resource_tab *ptr;
 }
 
 static int
-ihfc_post_setup(ihfc_sc_t *sc, device_t dev, u_int8_t *error)
+ihfc_post_setup(ihfc_sc_t *sc, device_t dev, uint8_t *error)
 {
 	struct resource_id *rid = &sc->sc_resources.rid[IHFC_RES_IRQ_0_OFFSET];
 	int err;
@@ -730,7 +730,7 @@ ihfc_unsetup_resource(device_t dev)
 {
 	ihfc_sc_t *sc = device_get_softc(dev);
 	struct resource_id *rid;
-	u_int8_t x;
+	uint8_t x;
 
 	IHFC_MSG("\n");
 
@@ -798,10 +798,10 @@ ihfc_unsetup_resource(device_t dev)
  * : unsetup/shutdown card
  *---------------------------------------------------------------------------*/
 static int
-ihfc_unsetup(device_t dev, const u_int8_t *error, u_int8_t level)
+ihfc_unsetup(device_t dev, const uint8_t *error, uint8_t level)
 {
 	ihfc_sc_t *sc = device_get_softc(dev);
-	u_int8_t n;
+	uint8_t n;
 
 	switch(level) {
 	case 4:
@@ -852,13 +852,13 @@ ihfc_unsetup(device_t dev, const u_int8_t *error, u_int8_t level)
 static int
 ihfc_pnp_probe_sub(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 {
-        u_int32_t flags =  device_get_flags(dev);
-        u_int8_t name = *device_get_name(device_get_parent(dev));
+        uint32_t flags =  device_get_flags(dev);
+        uint8_t name = *device_get_name(device_get_parent(dev));
 	uint8_t error_desc[IHFC_MAX_ERR];
 	uint8_t *error = error_desc;
 	ihfc_fifo_t *f;
-	u_int32_t n;
-	u_int8_t level = 0;
+	uint32_t n;
+	uint8_t level = 0;
 
 	error[0] = 0;
 
@@ -1119,13 +1119,13 @@ static int
 ihfc_pnp_probe(device_t dev)
 {
 	ihfc_sc_t *        sc =  device_get_softc(dev);
-        u_int32_t       flags =  device_get_flags(dev);
-        u_int8_t         name = *device_get_name(device_get_parent(dev));
+        uint32_t       flags =  device_get_flags(dev);
+        uint8_t         name = *device_get_name(device_get_parent(dev));
 
 	const struct drvr_id ** ppid = NULL;
 	const struct drvr_id ** ppid_end = NULL;
 
-        u_int32_t vid = 0, lid = 0, cid = 0, sub = 0;
+        uint32_t vid = 0, lid = 0, cid = 0, sub = 0;
 
 	if(!sc)
 	{
@@ -1236,7 +1236,7 @@ ihfc_pnp_attach(device_t dev)
 {
 	ihfc_sc_t  *sc = device_get_softc(dev);
 
-	u_int8_t error[IHFC_MAX_ERR];
+	uint8_t error[IHFC_MAX_ERR];
 
 	/* */
 	error[0] = 0;

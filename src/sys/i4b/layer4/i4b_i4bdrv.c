@@ -37,6 +37,9 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/ioccom.h>
 #include <sys/malloc.h>
@@ -50,6 +53,7 @@
 #include <sys/priv.h>
 #include <sys/queue.h>
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -68,7 +72,7 @@ struct i4b_ai_softc {
 
 	unsigned long sc_refs;
 
-	u_int16_t sc_flags;
+	uint16_t sc_flags;
 #define ST_CLOSING        0x0001 /* set if AI is closing */
 #define ST_SLEEP_WAKEUP   0x0004 /* set if AI needs wakeup */
 #define ST_SLEEP_ENTERED  0x0008 /* set if AI is sleeping */
@@ -177,7 +181,7 @@ SYSINIT(i4b_ai_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, i4b_ai_attach, NULL);
  *	i4b_ai_putqueue - put message into application interface queue(s)
  *---------------------------------------------------------------------------*/
 void
-i4b_ai_putqueue(struct i4b_ai_softc *sc, u_int8_t sc_complement,
+i4b_ai_putqueue(struct i4b_ai_softc *sc, uint8_t sc_complement,
 		struct mbuf *m1, uint16_t *p_copy_count)
 {
 	struct mbuf *m2;
@@ -416,7 +420,7 @@ i4b_controller_download(struct i4b_controller *cntl,
 	struct isdn_dr_prot *prot;
 	void *protocols_old;
 	void *microcode;
-	u_int32_t size;
+	uint32_t size;
 	int error = 0;
 	int i;
 

@@ -129,13 +129,13 @@
 	bus_space_write_1(t,h,(reg),(var));	\
 }
 
-static u_int8_t
+static uint8_t
 hfce1_stable_read_1(ihfc_sc_t *sc, bus_size_t offset)
 {
 	HFCE1_BUS_VAR(sc);
-	register u_int8_t temp1;
-	register u_int8_t temp2;
-	register u_int8_t to = 16;
+	register uint8_t temp1;
+	register uint8_t temp2;
+	register uint8_t to = 16;
 
 	temp2 = bus_space_read_1(t,h,offset);
 
@@ -156,7 +156,7 @@ hfce1_stable_read_1(ihfc_sc_t *sc, bus_size_t offset)
 
 	    IHFC_ERR("stable read timed out, "
 		     "offset=0x%02x!", 
-		     (u_int32_t)offset);
+		     (uint32_t)offset);
 	}
 	return temp1;
 }
@@ -165,8 +165,8 @@ static void
 hfce1_fifo_wait_disbusy(ihfc_sc_t *sc)
 {
 	HFCE1_BUS_VAR(sc);
-	u_int8_t temp = 1;
-	u_int16_t to = 500;
+	uint8_t temp = 1;
+	uint16_t to = 500;
 
 	/* wait 15us at 33MHz or
 	 * 7.5us at 66MHz
@@ -210,12 +210,12 @@ static void
 hfce1_chip_reset CHIP_RESET_T(sc,error)
 {
 	HFCE1_BUS_VAR(sc);
-	u_int16_t temp;
-	u_int16_t Z_min; /* inclusive */
-	u_int16_t Z_max; /* exclusive */
-	u_int8_t F_min; /* inclusive */
-	u_int8_t F_max; /* exclusive */
-	u_int8_t pcm_md0;
+	uint16_t temp;
+	uint16_t Z_min; /* inclusive */
+	uint16_t Z_max; /* exclusive */
+	uint8_t F_min; /* inclusive */
+	uint8_t F_max; /* exclusive */
+	uint8_t pcm_md0;
 	ihfc_fifo_t *f;
 
 #if 0
@@ -646,8 +646,8 @@ hfce1_chip_config_write CHIP_CONFIG_WRITE_T(sc,f)
 	HFCE1_BUS_VAR(sc);
 
 	struct sc_fifo *f_last;
-	u_int8_t temp;
-	u_int8_t cable;
+	uint8_t temp;
+	uint8_t cable;
 
 	if ((f == IHFC_CONFIG_WRITE_UPDATE) ||
 	    (f == IHFC_CONFIG_WRITE_RELOAD)) {
@@ -782,7 +782,7 @@ static void
 hfce1_fifo_read FIFO_READ_T(sc,f,ptr,len)
 {
 	HFCE1_BUS_VAR(sc);
-	u_int16_t temp;
+	uint16_t temp;
 
 	/* pre increment Z-counter (before "len" is changed) */
 	f->Z_drvr += len;
@@ -809,7 +809,7 @@ hfce1_fifo_read FIFO_READ_T(sc,f,ptr,len)
 
 	if(len)
 	{
-	    bus_space_read_multi_4(t,h,REG_hfce1_fifo_data,(u_int32_t *)ptr,len);
+	    bus_space_read_multi_4(t,h,REG_hfce1_fifo_data,(uint32_t *)ptr,len);
 	}
 	return;
 }
@@ -825,7 +825,7 @@ static void
 hfce1_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 {
 	HFCE1_BUS_VAR(sc);
-	u_int16_t temp;
+	uint16_t temp;
 
 	if(len)
 	{
@@ -850,7 +850,7 @@ hfce1_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 
 	    if(len)
 	    {
-	        bus_space_write_multi_4(t,h,REG_hfce1_fifo_data,(const u_int32_t *)ptr,len);
+	        bus_space_write_multi_4(t,h,REG_hfce1_fifo_data,(const uint32_t *)ptr,len);
 	    }
 	}
 	return;
@@ -859,8 +859,8 @@ hfce1_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 static void
 hfce1_fifo_write_filler FIFO_WRITE_FILLER_T(sc,f)
 {
-	u_int8_t fill[32];
-	u_int16_t len;
+	uint8_t fill[32];
+	uint16_t len;
 
 	/* XXX the byte repeating by the 
 	 * chip doesn't work properly,
@@ -893,7 +893,7 @@ static void
 hfce1_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	HFCE1_BUS_VAR(sc);
-	u_int8_t temp;
+	uint8_t temp;
 
 	/* read STATES */
 	HFCE1_READ_1(REG_hfce1_states, temp);
@@ -954,10 +954,10 @@ static void
 hfce1_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 {
 	HFCE1_BUS_VAR(sc);
-	u_int8_t  Z_base;
-	u_int8_t  F_base;
-	u_int8_t  temp;
-	u_int16_t Z_chip2;
+	uint8_t  Z_base;
+	uint8_t  F_base;
+	uint8_t  temp;
+	uint16_t Z_chip2;
 
 	if(FIFO_DIR(f) == transmit)
 	{
@@ -1038,7 +1038,7 @@ static void
 hfce1_chip_status_read CHIP_STATUS_READ_T(sc)
 {
 	HFCE1_BUS_VAR(sc);
-	register u_int8_t temp;
+	register uint8_t temp;
 
 	/* read status */
 	HFCE1_READ_1(REG_hfce1_irq_misc, temp);

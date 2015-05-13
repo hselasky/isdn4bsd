@@ -33,12 +33,12 @@
  *
  *---------------------------------------------------------------------------*/
 
-static u_int16_t
-get_multi_1(struct dss1_buffer *buf, u_int16_t offset, 
-	    u_int8_t *dst, u_int16_t len, u_int8_t filter)
+static uint16_t
+get_multi_1(struct dss1_buffer *buf, uint16_t offset, 
+	    uint8_t *dst, uint16_t len, uint8_t filter)
 {
-    u_int8_t *dst_end = (dst + len);
-    u_int8_t *dst_old = dst;
+    uint8_t *dst_end = (dst + len);
+    uint8_t *dst_old = dst;
 
     if(dst_end == dst)
     {
@@ -91,7 +91,7 @@ get_multi_1(struct dss1_buffer *buf, u_int16_t offset,
 static void
 dss1_decode_q931_cs0_ie_restart(void *arg, struct dss1_buffer *buf)
 {
-	u_int8_t *p_restart_ind = arg;
+	uint8_t *p_restart_ind = arg;
 
 	if(dss1_get_1(buf,0) == IEI_RESTARTI)
 	{
@@ -109,8 +109,8 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct dss1_buffer *buf)
 {
 	call_desc_t *cd = arg;
 	struct i4b_src_telno *p_src;
-	u_int8_t temp = dss1_get_1(buf,2);
-	u_int8_t msg_type = dss1_get_1(buf,0);
+	uint8_t temp = dss1_get_1(buf,2);
+	uint8_t msg_type = dss1_get_1(buf,0);
 
 	if(msg_type & 0x80)
 	{
@@ -207,13 +207,13 @@ dss1_decode_q931_cs0_ie_cd(void *arg, struct dss1_buffer *buf)
 	        /* exclusive is set if no other 
 		 * channel is acceptable
 		 */
-	        u_int8_t exclusive = (temp & 0x08) || TE_MODE(sc);
+	        uint8_t exclusive = (temp & 0x08) || TE_MODE(sc);
 
 		/* interface identifier is set
 		 * if there is an interface identifier
 		 * byte
 		 */
-		u_int8_t iid = (temp & 0x40);
+		uint8_t iid = (temp & 0x40);
 
 		if(temp & 0x20)
 		{
@@ -512,11 +512,11 @@ static void
 dss1_decode_ie(void *arg, struct dss1_buffer *buf,
 	       dss1_decode_ie_t *q931_func)
 {
-	u_int8_t codeset = CODESET_0;
-	u_int8_t codeset_next = CODESET_0;
-	u_int8_t msg_type;
-	u_int16_t old_len;
-	u_int16_t msg_len;
+	uint8_t codeset = CODESET_0;
+	uint8_t codeset_next = CODESET_0;
+	uint8_t msg_type;
+	uint16_t old_len;
+	uint16_t msg_len;
 
 	if(q931_func == NULL)
 	{
@@ -531,7 +531,7 @@ dss1_decode_ie(void *arg, struct dss1_buffer *buf,
 	    if(!(msg_type & 0x80))
 	    {
 	        /* multi byte IE */
-	        msg_len = ((u_int16_t)dss1_get_1(buf, 1)) + 2;
+	        msg_len = ((uint16_t)dss1_get_1(buf, 1)) + 2;
 	    }
 	    else
 	    {
@@ -585,18 +585,18 @@ dss1_pipe_reset_ind(DSS1_TCP_pipe_t *pipe);
  *---------------------------------------------------------------------------*/
 static void
 dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, struct dss1_buffer *buf,
-		   u_int8_t broadcast)
+		   uint8_t broadcast)
 {
-	static const u_int8_t
+	static const uint8_t
 	  MAKE_TABLE(Q931_MESSAGE_TYPES,EVENT,[0x80]);
 
         l2softc_t *sc = pipe->L5_sc;
 	call_desc_t *cd;
-	u_int32_t crval;
-	u_int8_t event;
-	u_int8_t pd;
-	u_int8_t mt;
-	u_int8_t cr_temp[5];
+	uint32_t crval;
+	uint8_t event;
+	uint8_t pd;
+	uint8_t mt;
+	uint8_t cr_temp[5];
 
 	if(dss1_get_valid(buf,0) == 0)
 	{
@@ -676,7 +676,7 @@ dss1_pipe_data_ind(DSS1_TCP_pipe_t *pipe, struct dss1_buffer *buf,
 		{
 			/* global callreference */
 
-			u_int8_t restart_ind;
+			uint8_t restart_ind;
 
 			dss1_decode_ie(&restart_ind,buf,
 				       &dss1_decode_q931_cs0_ie_restart);

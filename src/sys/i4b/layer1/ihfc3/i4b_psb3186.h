@@ -121,7 +121,7 @@ static void
 psb3186_chip_unselect CHIP_UNSELECT_T(sc)
 {
   IPAC_BUS_VAR(sc);
-  u_int8_t temp;
+  uint8_t temp;
 
   /*
    * write CMDR (ISAC/HSCX)
@@ -207,7 +207,7 @@ psb3186_chip_status_read CHIP_STATUS_READ_T(sc)
   /*
    * Generic ISAC/HSCX code:             
    */             
-  register u_int8_t tmp, p_tmp;
+  register uint8_t tmp, p_tmp;
 
   /* read ISTA (reg=0x60, PSB) */
   IPAC_READ_1(REG_psb3186_ista, p_tmp);
@@ -313,7 +313,7 @@ static void
 psb3186_fsm_read FSM_READ_T(sc,f,ptr)   
 {
   IPAC_BUS_VAR(sc);
-  register u_int8_t tmp;
+  register uint8_t tmp;
 
   /* CIRQ read (reg=0x2e, PSB3186) */
   IPAC_READ_1(REG_psb3186_cir0, tmp);

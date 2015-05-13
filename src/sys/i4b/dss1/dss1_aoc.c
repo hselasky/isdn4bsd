@@ -33,10 +33,14 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
-#include <sys/types.h>
+#include <sys/stdint.h>
 #include <sys/mbuf.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -46,23 +50,23 @@
 #include <i4b/dss1/dss1_l3.h>
 #include <i4b/dss1/dss1_aoc.h>
 
-static void do_component(struct dss1_buffer *sc, u_int8_t *end);
-static void next_state(struct dss1_buffer *sc, u_int8_t class, 
-		       u_int8_t form, u_int8_t code, int32_t val);
+static void do_component(struct dss1_buffer *sc, uint8_t *end);
+static void next_state(struct dss1_buffer *sc, uint8_t class, 
+		       uint8_t form, uint8_t code, int32_t val);
 
-static u_int8_t
+static uint8_t
 get_byte(struct dss1_buffer *buf)
 {
-    u_int8_t temp = dss1_get_1(buf,0);
+    uint8_t temp = dss1_get_1(buf,0);
     buf->offset++;
     return temp;
 }
 
-static u_int32_t
-get_value(struct dss1_buffer *buf, u_int32_t len, u_int32_t max)
+static uint32_t
+get_value(struct dss1_buffer *buf, uint32_t len, uint32_t max)
 {
-    u_int32_t temp = 0;
-    u_int8_t shift = 0;
+    uint32_t temp = 0;
+    uint8_t shift = 0;
 
     if(len > 255) {
        len = 255;
@@ -177,11 +181,11 @@ dss1_facility_decode(call_desc_t *cd, struct dss1_buffer *buf)
 static void
 do_component(struct call_desc *cd, struct dss1_buffer *buf)
 {
-	u_int8_t comp_tag_class; /* component tag class */
-	u_int8_t comp_tag_form;  /* component form: constructor or primitive */
-	u_int8_t comp_tag_code;  /* component code depending on class */
-	u_int8_t comp_length;    /* component length */
-	u_int8_t temp;
+	uint8_t comp_tag_class; /* component tag class */
+	uint8_t comp_tag_form;  /* component form: constructor or primitive */
+	uint8_t comp_tag_code;  /* component code depending on class */
+	uint8_t comp_length;    /* component length */
+	uint8_t temp;
 
 	while(dss1_get_valid(buf,0))
 	{
@@ -199,8 +203,8 @@ do_component(struct call_desc *cd, struct dss1_buffer *buf)
 	
 	    if(comp_tag_code == 0x1f)
 	    {
-		u_int32_t value = 0;
-		u_int8_t shift = 0;
+		uint32_t value = 0;
+		uint8_t shift = 0;
 
 		do {
 		  temp = get_byte(buf);
@@ -245,7 +249,7 @@ do_component(struct call_desc *cd, struct dss1_buffer *buf)
 	    if(comp_tag_form)
 	    {
 		/* constructor */
-	        u_int16_t old_len;
+	        uint16_t old_len;
 		old_len = set_length(buf, buf->offset + comp_length);
 
 		do_component(cd, buf);
@@ -255,7 +259,7 @@ do_component(struct call_desc *cd, struct dss1_buffer *buf)
 	    }
 	    else
 	    {
-		u_int32_t value = 0;
+		uint32_t value = 0;
 
 		if(comp_tag_class == FAC_TAGCLASS_UNI)
 		{
@@ -491,10 +495,10 @@ F_9(struct dss1_buffer *buf, int32_t val)
  *	AOC state table
  *---------------------------------------------------------------------------*/
 static const struct statetab {
-	u_int8_t currstate;	/* input: current state we are in */
-	u_int8_t form;		/* input: current tag form */
-	u_int8_t class;		/* input: current tag class */
-	u_int8_t code;		/* input: current tag code */
+	uint8_t currstate;	/* input: current state we are in */
+	uint8_t form;		/* input: current tag form */
+	uint8_t class;		/* input: current tag class */
+	uint8_t code;		/* input: current tag code */
 	void (*func)(struct dss1_buffer *, int32_t); /* output: func to exec */
 } statetab[] = {
 
@@ -520,7 +524,7 @@ static const struct statetab {
  *	state decode for do_component
  *---------------------------------------------------------------------------*/
 static void
-next_state(struct dss1_buffer *buf, u_int8_t class, u_int8_t form, u_int8_t code, int32_t val)
+next_state(struct dss1_buffer *buf, uint8_t class, uint8_t form, uint8_t code, int32_t val)
 {
 	const struct statetab *st = &statetab[0];
 	const struct statetab *st_end = &statetab[sizeof(statetab)/sizeof(statetab[0])];

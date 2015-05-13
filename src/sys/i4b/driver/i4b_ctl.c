@@ -29,6 +29,9 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/ioccom.h>
 #include <sys/kernel.h>
@@ -36,6 +39,7 @@
 #include <sys/conf.h>
 #include <sys/socket.h>
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -43,7 +47,7 @@
 
 __FBSDID("$FreeBSD: $");
 
-static u_int8_t openflag = 0;
+static uint8_t openflag;
 
 static	d_open_t	i4bctlopen;
 static	d_close_t	i4bctlclose;

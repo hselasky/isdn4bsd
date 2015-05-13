@@ -133,7 +133,7 @@ cd_set_pipe(call_desc_t *cd, DSS1_TCP_pipe_t *pipe)
 }
 
 static void
-cd_set_state(call_desc_t *cd, u_int8_t newstate);
+cd_set_state(call_desc_t *cd, uint8_t newstate);
 
 static void
 cd_set_state_timeout(call_desc_t *cd)
@@ -155,14 +155,14 @@ cd_set_state_timeout(call_desc_t *cd)
 
 static const char * const MAKE_TABLE(L3_STATES,DESC,[]);
 static const char * const MAKE_TABLE(L3_EVENTS,DESC,[]);
-static const u_int8_t MAKE_TABLE(L3_STATES,TIMEOUT_DELAY,[]);
+static const uint8_t MAKE_TABLE(L3_STATES,TIMEOUT_DELAY,[]);
 
 static void
-cd_set_state(call_desc_t *cd, u_int8_t newstate)
+cd_set_state(call_desc_t *cd, uint8_t newstate)
 {
   DSS1_TCP_pipe_t *pipe = cd->pipe;
   l2softc_t *sc = pipe->L5_sc;
-  u_int8_t send_status_enquiry;
+  uint8_t send_status_enquiry;
 
   /* stop timer */
   usb_callout_stop(&cd->set_state_callout);
@@ -759,7 +759,7 @@ cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 	  if((state == ST_L3_INCOMING) ||
 	     (state == ST_L3_IN_ACK))
 	  {
-	    u_int8_t want_dialtone =
+	    uint8_t want_dialtone =
 	      (NT_MODE(sc) && (!i4b_controller_by_cd(cd)->no_layer1_dialtone) && 
 	       ((cd->channel_bprot == BPROT_NONE) ||
 		(cd->channel_bprot == BPROT_NONE_3_1_KHZ)));

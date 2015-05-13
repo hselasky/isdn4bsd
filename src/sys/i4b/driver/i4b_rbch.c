@@ -29,6 +29,9 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/conf.h>
@@ -42,6 +45,7 @@
 #include <sys/poll.h>
 
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_rbch_ioctl.h>
@@ -619,8 +623,8 @@ rbch_get_mbuf(struct fifo_translator *f)
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 rbch_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
-	      struct i4b_protocol *pp, u_int32_t driver_type, 
-	      u_int32_t driver_unit, call_desc_t *cd)
+	      struct i4b_protocol *pp, uint32_t driver_type, 
+	      uint32_t driver_unit, call_desc_t *cd)
 {
 	struct rbch_softc *sc = &rbch_softc[driver_unit];
 

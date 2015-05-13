@@ -31,11 +31,13 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/stdint.h>
 #include <sys/stddef.h>
 #include <sys/param.h>
 #include <sys/queue.h>
-#include <sys/types.h>
 #include <sys/systm.h>
 #include <sys/kernel.h>
 #include <sys/bus.h>
@@ -50,7 +52,11 @@
 #include <sys/callout.h>
 #include <sys/malloc.h>
 #include <sys/priv.h>
+#endif
 
+#ifdef USB_GLOBAL_INCLUDE_FILE
+#include USB_GLOBAL_INCLUDE_FILE
+#else
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_ioctl.h>
 #include <dev/usb/usbdi.h>
@@ -70,6 +76,7 @@
 
 #include <dev/usb/usb_controller.h>
 #include <dev/usb/usb_bus.h>
+#endif
 
 #include <i4b/include/i4b_compat.h>
 #include <i4b/include/i4b_controller.h>

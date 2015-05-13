@@ -250,7 +250,7 @@ hfcsusb2_callback_chip_write(struct usb_xfer *xfer, usb_error_t error)
 static void
 hfcsusb2_fifo_read FIFO_READ_T(sc,f,ptr,len)
 {
-	register u_int8_t *fifo_ptr = (f->Z_ptr);
+	register uint8_t *fifo_ptr = (f->Z_ptr);
 
 	/* pre increment Z-counter (before `len` is changed) */
 	(f->Z_ptr) += (len);
@@ -262,7 +262,7 @@ hfcsusb2_fifo_read FIFO_READ_T(sc,f,ptr,len)
 static void
 hfcsusb2_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 {
-	register u_int8_t *fifo_ptr = (f->Z_ptr);
+	register uint8_t *fifo_ptr = (f->Z_ptr);
 
 	if(len)
 	{
@@ -425,7 +425,7 @@ hfcsusb2_callback_isoc_tx_d_hdlc(struct usb_xfer *xfer, usb_error_t error)
 #define FRAME_NUMBER    25 /* frames */
 #define FRAME_SIZE    0x08 /*bytes*/
 
-	u_int8_t 
+	uint8_t 
 	  *d1_start, *tmp, len, average = FRAME_SIZE,
 	  control_byte;
 
@@ -669,7 +669,7 @@ hfcsusb2_callback_isoc_tx(struct usb_xfer *xfer, usb_error_t error)
 	uint16_t
 	  Z_chip_written;
 
-	u_int8_t 
+	uint8_t 
 	  *d1_start, *d1_end, *tmp, fifo_level,
 	  average = 8; /* default */
 
@@ -846,8 +846,8 @@ hfcsusb2_callback_isoc_tx(struct usb_xfer *xfer, usb_error_t error)
 	for (i = 0; i != HFCSUSB_TX_FRAMES; i++)
 	{
 	  /* NOTE:
-	   * ``(u_int32_t *)tmp + 1'' is not the same as
-	   * ``(u_int32_t *)(tmp+1)''
+	   * ``(uint32_t *)tmp + 1'' is not the same as
+	   * ``(uint32_t *)(tmp+1)''
 	   */
 
 	  /* FIFO Control Byte */
@@ -928,7 +928,7 @@ hfcsusb2_callback_isoc_rx(struct usb_xfer *xfer, usb_error_t error)
 	ihfc_fifo_t *f = usbd_xfer_get_priv(xfer);
 	int i;
 
-	u_int8_t
+	uint8_t
 	  *d1_start, *d1_end, *tmp, *tmp_end, len;
 
   switch (USB_GET_STATE(xfer)) {
@@ -952,7 +952,7 @@ hfcsusb2_callback_isoc_rx(struct usb_xfer *xfer, usb_error_t error)
 #define break illegal
 #define goto illegal
 
-		u_int8_t adj;
+		uint8_t adj;
 
 #define ST_TRANSFER ST_FZ_LOADED
 
@@ -1162,8 +1162,8 @@ hfcsusb2_cfg_chip_config_write_r(struct ihfc_sc *sc,
 	 * write new configuration
 	 */
 	REGISTER_FOREACH(r,sc->sc_default.d_register_list) {
-	    u_int8_t *data  = &OFF2REG(sc->sc_config, r->offset);
-	    u_int8_t *data2 = &OFF2REG(sc->sc_config2, r->offset);
+	    uint8_t *data  = &OFF2REG(sc->sc_config, r->offset);
+	    uint8_t *data2 = &OFF2REG(sc->sc_config2, r->offset);
 
 	    if (refcount || (*data != *data2)) {
 
@@ -1460,7 +1460,7 @@ hfcsusb2_chip_status_read(ihfc_sc_t *sc)
 	return;
 }
 
-static u_int8_t
+static uint8_t
 hfcsusb2_d1t_program(ihfc_sc_t *sc, ihfc_fifo_t *f)
 {
 	/* re-start any stopped pipes,

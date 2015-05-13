@@ -187,7 +187,7 @@ wibpci_chip_reset CHIP_RESET_T(sc,error)
 static void
 wibpci_fsm_read FSM_READ_T(sc,f,ptr)
 {
-	register u_int8_t tmp;
+	register uint8_t tmp;
 	WIBPCI_BUS_VAR(sc);
 
 	/* read CIR(reg=0x58, WIBPCI) */
@@ -202,7 +202,7 @@ wibpci_fsm_write FSM_WRITE_T(sc,f,ptr)
 {
 	WIBPCI_BUS_VAR(sc);
 
-	u_int8_t tmp   = (*ptr) | sc->sc_config.i_cirq;
+	uint8_t tmp   = (*ptr) | sc->sc_config.i_cirq;
 		 tmp >>= 2;
 
 	/* write CIX(reg=0x5c, WIBPCI) */
@@ -213,7 +213,7 @@ wibpci_fsm_write FSM_WRITE_T(sc,f,ptr)
 static void
 wibpci_chip_status_read CHIP_STATUS_READ_T(sc) 
 {
-	register u_int8_t tmp, w_tmp;
+	register uint8_t tmp, w_tmp;
 	WIBPCI_BUS_VAR(sc);
 
 	/* read ISTA (reg=0x14, WIBPCI) */
@@ -313,13 +313,13 @@ wibpci_chip_status_read CHIP_STATUS_READ_T(sc)
 static void                                                  
 wibpci_chip_unselect CHIP_UNSELECT_T(sc)                              
 { 
-	u_int8_t d1_cmdr = (sc->sc_fifo[d1t].i_cmdr|
+	uint8_t d1_cmdr = (sc->sc_fifo[d1t].i_cmdr|
 			    sc->sc_fifo[d1r].i_cmdr) & WIBPCI_CMDS;
 
-	u_int8_t b1_cmdr = (sc->sc_fifo[b1t].i_cmdr|
+	uint8_t b1_cmdr = (sc->sc_fifo[b1t].i_cmdr|
 			    sc->sc_fifo[b1r].i_cmdr) & WIBPCI_CMDS;
 
-	u_int8_t b2_cmdr = (sc->sc_fifo[b2t].i_cmdr|
+	uint8_t b2_cmdr = (sc->sc_fifo[b2t].i_cmdr|
 			    sc->sc_fifo[b2r].i_cmdr) & WIBPCI_CMDS;
 
 	WIBPCI_BUS_VAR(sc);
@@ -330,7 +330,7 @@ wibpci_chip_unselect CHIP_UNSELECT_T(sc)
 		/* check XME or XTF first */
 		if(d1_cmdr & (I_CMDR_XME|I_CMDR_XTF))
 		{
-			u_int8_t tmp;
+			uint8_t tmp;
 
 			/* read D_XSTAR (reg=0x24, WIBPCI) */
 			WIBPCI_READ_1(0x24, tmp);

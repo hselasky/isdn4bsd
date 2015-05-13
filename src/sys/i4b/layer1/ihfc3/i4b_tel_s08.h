@@ -183,8 +183,8 @@ tel_s08_chip_identify(device_t dev)
 	}
 #endif
 	struct resource * res;
-	u_int32_t rid;
-	u_int32_t base;
+	uint32_t rid;
+	uint32_t base;
 
 	rid = 0;
 

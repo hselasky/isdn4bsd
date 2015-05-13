@@ -255,7 +255,7 @@ static void
 tiger300_amd_fsm_read FSM_READ_T(sc,f,ptr)
 {
 	AMD_BUS_VAR(sc);
-	u_int8_t tmp;
+	uint8_t tmp;
 
 	/* read LSR(indirect reg=0xA1) */
 	AMD_READ_1(0xA1,tmp);
@@ -348,7 +348,7 @@ tiger300_amd_chip_unselect CHIP_UNSELECT_T(sc)
 { 
 	AMD_BUS_VAR(sc);
 
-	u_int8_t d1_cmdr = (sc->sc_fifo[d1t].i_cmdr|
+	uint8_t d1_cmdr = (sc->sc_fifo[d1t].i_cmdr|
 			    sc->sc_fifo[d1r].i_cmdr);
 
 	/* check for D - channel commands */
@@ -400,7 +400,7 @@ tiger300_amd_chip_unselect CHIP_UNSELECT_T(sc)
 /* ISAC driver */
 
 #define IPAC_LATCH_REG(reg) do {				\
-   u_int8_t latch_tmp = sc->sc_config.t_aux_data;		\
+   uint8_t latch_tmp = sc->sc_config.t_aux_data;		\
 	    latch_tmp |= ((reg) >> 4) & 3;			\
    bus_space_write_1(t,h,0x03,latch_tmp); /* AUX WRITE */	\
 } while (0)							\
@@ -496,7 +496,7 @@ static void
 tiger300_isac_fsm_read FSM_READ_T(sc,f,ptr)
 {
   IPAC_BUS_VAR(sc);
-  register u_int8_t tmp;
+  register uint8_t tmp;
 
   /* read CIRQ (ISAC) */
   IPAC_READ_1(REG_isac_cirq, tmp);
@@ -564,7 +564,7 @@ static void
 tiger300_isac_chip_status_read CHIP_STATUS_READ_T(sc)
 {
   IPAC_BUS_VAR(sc);
-  register u_int8_t tmp;
+  register uint8_t tmp;
 
   /*
    * generic ISAC/HSCX code:
@@ -730,8 +730,8 @@ tiger300_chip_reset CHIP_RESET_T(sc,error)
 {
 	struct sc_default *def = &sc->sc_default;
 	const __typeof(tiger300_isac_amd_regdata[0]) *ptr = &tiger300_isac_amd_regdata[0];
-	u_int32_t mwba_phys_start = sc->sc_resources.mwba_phys_start[0];
-	u_int8_t tmp;
+	uint32_t mwba_phys_start = sc->sc_resources.mwba_phys_start[0];
+	uint8_t tmp;
 	IPAC_BUS_VAR(sc);
 
 	/*
@@ -830,8 +830,8 @@ static void
 tiger300_fifo_fz_read FIFO_FZ_READ_T(sc,f)
 {
 	IPAC_BUS_VAR(sc);
-	u_int16_t Z_chip2;
-	u_int16_t mwba_phys_start = sc->sc_resources.mwba_phys_start[0];
+	uint16_t Z_chip2;
+	uint16_t mwba_phys_start = sc->sc_resources.mwba_phys_start[0];
 
 	/* disable interrupts */
 	cli(sc);
@@ -896,9 +896,9 @@ tiger300_fifo_read FIFO_READ_T(sc,f,ptr,len)
 	if(FIFO_CMP(f,<,(b1t & b1r)))
 	{
 	  /* TIGER - D - channel */
-	  register u_int8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
+	  register uint8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
 					(f->fm.h.Zdata)+((4*4)*(f->Z_drvr));
-	  register u_int16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
+	  register uint16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
 
 	  /* pre increment Z-counter (before `len` is changed) */
 	  (f->Z_drvr) += (len);
@@ -948,9 +948,9 @@ tiger300_fifo_read FIFO_READ_T(sc,f,ptr,len)
 	else
 	{
 	  /* TIGER - B - channel */
-	  register u_int8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
+	  register uint8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
 					(f->fm.h.Zdata)+(4*(f->Z_drvr));
-	  register u_int16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
+	  register uint16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
 
 	  /* pre increment Z-counter (before `len` is changed) */
 	  (f->Z_drvr) += (len);
@@ -1057,9 +1057,9 @@ tiger300_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 	if(FIFO_CMP(f,<,(b1t & b1r)))
 	{
 	  /* TIGER - D - channel */
-	  register u_int8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
+	  register uint8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
 					(f->fm.h.Zdata)+((4*4)*(f->Z_drvr));
-	  register u_int16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
+	  register uint16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
 
 	  /* pre increment Z-counter (before `len` is changed) */
 	  (f->Z_drvr) += (len);
@@ -1105,9 +1105,9 @@ tiger300_fifo_write FIFO_WRITE_T(sc,f,ptr,len)
 	else
 	{
 	  /* TIGER - B - channel */
-	  register u_int8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
+	  register uint8_t *fifo_ptr = (sc->sc_resources.mwba_start[0])+
 					(f->fm.h.Zdata)+(4*(f->Z_drvr));
-	  register u_int16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
+	  register uint16_t fifo_len = (f->fm.h.Zend)-(f->Z_drvr);
 
 	  /* pre increment Z-counter (before `len` is changed) */
 	  (f->Z_drvr) += (len);
@@ -1153,10 +1153,10 @@ tiger300_fifo_write_filler FIFO_WRITE_FILLER_T(sc,f)
 	  /* TIGER - D - channel 
 	   * Fill buffer with 0xff [idle-] bytes
 	   */
-	  register u_int8_t *fifo_ptr  = (sc->sc_resources.mwba_start[0])+
+	  register uint8_t *fifo_ptr  = (sc->sc_resources.mwba_start[0])+
 					 (f->fm.h.Zdata)+((4*4)*(f->Z_drvr));
-	  register u_int16_t fifo_len  = (f->fm.h.Zend)-(f->Z_drvr);
-	  register u_int16_t len       = (f->Z_chip);
+	  register uint16_t fifo_len  = (f->fm.h.Zend)-(f->Z_drvr);
+	  register uint16_t len       = (f->Z_chip);
 
 	  /* pre increment Z-counter (before `len` is changed) */
 	  (f->Z_drvr) += (len);
@@ -1202,11 +1202,11 @@ tiger300_fifo_write_filler FIFO_WRITE_FILLER_T(sc,f)
 	   * the hardware is not capable of repeating
 	   * the last byte.
 	   */
-	  register u_int8_t  last_byte = f->last_byte;
-	  register u_int8_t *fifo_ptr  = (sc->sc_resources.mwba_start[0])+
+	  register uint8_t  last_byte = f->last_byte;
+	  register uint8_t *fifo_ptr  = (sc->sc_resources.mwba_start[0])+
 					 (f->fm.h.Zdata)+(4*(f->Z_drvr));
-	  register u_int16_t fifo_len  = (f->fm.h.Zend)-(f->Z_drvr);
-	  register u_int16_t len       = (f->Z_chip);
+	  register uint16_t fifo_len  = (f->fm.h.Zend)-(f->Z_drvr);
+	  register uint16_t len       = (f->Z_chip);
 
 	  /* pre increment Z-counter (before `len` is changed) */
 	  (f->Z_drvr) += (len);
@@ -1284,7 +1284,7 @@ static void
 tiger300_chip_status_read CHIP_STATUS_READ_T(sc)
 {
 	IPAC_BUS_VAR(sc);
-	u_int8_t tmp;
+	uint8_t tmp;
 
 	/* unstable POWER may reset the chip!
 	 */
@@ -1307,7 +1307,7 @@ tiger300_chip_status_read CHIP_STATUS_READ_T(sc)
 	  if(CHIP_IS_AMD(sc))
 	  {
 #define ir tmp
-	    u_int8_t der,dsr1,dsr2;
+	    uint8_t der,dsr1,dsr2;
 
 	    /* read IR(reg=0x00) */
 	    ir = bus_space_read_1(t,h,(ITJC_PIB(0x00)));

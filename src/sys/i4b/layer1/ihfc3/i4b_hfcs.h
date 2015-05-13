@@ -272,7 +272,7 @@ hfcs_fifo_inc_fx_pre FIFO_INC_FX_PRE_T(sc,f)
 static void
 hfcs_fifo_inc_fx FIFO_INC_FX_T(sc,f)
 {
-	register u_int16_t tmp;
+	register uint16_t tmp;
 	HFC1_BUS_VAR(sc);
 
 	/* increment drvr's F-counter by one.
@@ -528,8 +528,8 @@ static int
 hfcs_chip_identify(device_t dev)
 {
 	struct resource * res;
-	u_int32_t rid;
-	u_int32_t base;
+	uint32_t rid;
+	uint32_t base;
 
 	rid = 0;
 

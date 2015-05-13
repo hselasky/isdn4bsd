@@ -29,6 +29,9 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/ioccom.h>
@@ -38,8 +41,10 @@
 #include <sys/kernel.h>
 #include <sys/mbuf.h>
 #include <sys/socket.h>
-#include <net/if.h>
 #include <sys/lock.h>
+
+#include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_tel_ioctl.h>
@@ -51,18 +56,18 @@
 __FBSDID("$FreeBSD$");
 
 struct tel_parameters {
-	u_int8_t	audio_amp;	/* audio amplification */
-	u_int8_t	audio_flag;	/* conversion flag 
+	uint8_t	audio_amp;	/* audio amplification */
+	uint8_t	audio_flag;	/* conversion flag 
 					 * bit usage:
 					 *  0x10: mute
 					 *  0x20: large buffer
 					 *  0x40: see source code
 					 *  0x80: see source code
 					 */
- 	u_int8_t	audio_input_bsubprot;
- 	u_int8_t	audio_output_bsubprot;
-	u_int8_t	audio_last_byte;/* last byte sent or received */
-	u_int16_t	audio_total;	/* bytes */
+ 	uint8_t	audio_input_bsubprot;
+ 	uint8_t	audio_output_bsubprot;
+	uint8_t	audio_last_byte;/* last byte sent or received */
+	uint16_t	audio_total;	/* bytes */
 	struct cdev *	audio_dev;	/* audio device */
 };
 
@@ -75,30 +80,30 @@ typedef struct {
 	call_desc_t *		cdp;		/* call descriptor pointer */
 	struct tel_parameters   rd;  /* parameters for data read  from user-land */
 	struct tel_parameters   wr;  /* parameters for data written to user-land */
-	u_int8_t		use_sound_bridge;
+	uint8_t		use_sound_bridge;
 
 	struct mbuf *		rd_mbuf; /* used by sound-bridge */
 
 	struct i4b_tel_tones	tones;
-	u_int8_t		tone_index;
-	u_int16_t		tone_pos_1;
-	u_int16_t		tone_pos_2;
-	u_int16_t		tone_freq_1;
-	u_int16_t		tone_freq_2;
+	uint8_t		tone_index;
+	uint16_t		tone_pos_1;
+	uint16_t		tone_pos_2;
+	uint16_t		tone_freq_1;
+	uint16_t		tone_freq_2;
 
-	u_int16_t		unit;
+	uint16_t		unit;
 
-	u_int16_t		tone_duration;
+	uint16_t		tone_duration;
 	struct selinfo		selp1;		/* select / poll */
 
 	/* used by ``/dev/i4bteld'' device */
 
-	u_int8_t		last_status;	/* last status from dialresponse */
+	uint8_t		last_status;	/* last status from dialresponse */
 	struct selinfo		selp2;		/* select / poll */
 
 	/* shared */
 	
-	u_int8_t		state;	/* state of this unit */
+	uint8_t		state;	/* state of this unit */
 #define ST_IDLE		 0x00		/* idle */
 #define ST_ISOPEN1	 0x02		/* userland opened */
 #define ST_ISOPEN2	 0x04		/* userland opened */
@@ -107,9 +112,9 @@ typedef struct {
 #define ST_TONE		 0x20		/* tone generator */
 #define ST_RDWAIT_STATUS 0x40		/* userland read waiting */
 #define ST_NO_STATUS     0x80		/* userland can't read result */
-	u_int8_t		src_telno[TELNO_MAX];
-	u_int8_t		src_display[DISPLAY_MAX];
-	u_int8_t		src_user_user[USER_USER_MAX];
+	uint8_t		src_telno[TELNO_MAX];
+	uint8_t		src_display[DISPLAY_MAX];
+	uint8_t		src_user_user[USER_USER_MAX];
 } tel_sc_t;
 
 static tel_sc_t tel_sc[NI4BTEL];
@@ -118,8 +123,8 @@ static struct mbuf *
 i4b_tel_tone(tel_sc_t *sc)
 {
 	struct mbuf *m;
-	u_int32_t len;
-	u_int8_t *ptr;
+	uint32_t len;
+	uint8_t *ptr;
 
 	m = i4b_getmbuf(BCH_MAX_DATALEN, M_NOWAIT);
 
@@ -342,11 +347,11 @@ i4b_tel_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct threa
 		break;
 
 	  case I4B_TEL_SET_AUDIOAMP:
-		sc->wr.audio_amp = *(u_int8_t *)data;
+		sc->wr.audio_amp = *(uint8_t *)data;
 		break;
 
 	  case I4B_TEL_GET_AUDIOAMP:
-		*(u_int8_t *)data = sc->wr.audio_amp;
+		*(uint8_t *)data = sc->wr.audio_amp;
 		break;
 
 	  case I4B_TEL_ENABLE_MUTE:
@@ -478,7 +483,7 @@ i4b_tel_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct threa
 
 	if(error)
 	{
-		NDBGL4(L4_ERR,"ioctl(0x%08x) error!", (u_int32_t)cmd);
+		NDBGL4(L4_ERR,"ioctl(0x%08x) error!", (uint32_t)cmd);
 	}
 	return(error);
 }
@@ -898,8 +903,8 @@ tel_get_mbuf(struct fifo_translator *f)
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 tel_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
-	     struct i4b_protocol *pp, u_int32_t driver_type, 
-	     u_int32_t driver_unit, call_desc_t *cd)
+	     struct i4b_protocol *pp, uint32_t driver_type, 
+	     uint32_t driver_unit, call_desc_t *cd)
 {
 	tel_sc_t *sc = &tel_sc[driver_unit];
 
@@ -1063,10 +1068,10 @@ tel_dial_get_mbuf(struct fifo_translator *f)
 {
 	struct call_desc *cd = f->L5_sc;
 	struct mbuf *m;
-	u_int16_t pos;
-	u_int16_t len;
-	u_int16_t freq;
-	u_int8_t *ptr;
+	uint16_t pos;
+	uint16_t len;
+	uint16_t freq;
+	uint8_t *ptr;
 
 	m = i4b_getmbuf(880, M_NOWAIT);
 
@@ -1147,8 +1152,8 @@ tel_dial_get_mbuf(struct fifo_translator *f)
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 tel_dial_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
-		  struct i4b_protocol *pp, u_int32_t driver_type,
-		  u_int32_t driver_unit, call_desc_t *cd)
+		  struct i4b_protocol *pp, uint32_t driver_type,
+		  uint32_t driver_unit, call_desc_t *cd)
 {
 	if(!cd)
 	{

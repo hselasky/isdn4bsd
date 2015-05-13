@@ -38,6 +38,9 @@
  *
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/mbuf.h>
@@ -47,14 +50,14 @@
 #include <sys/sockio.h>
 #include <sys/kernel.h>
 #include <sys/module.h>
+#include <sys/time.h>
 
 #include <net/if.h>
 #include <net/if_var.h>
 #include <net/if_types.h>
 #include <net/if_sppp.h>
-
-#include <sys/time.h>
 #include <net/bpf.h>
+#endif
 
 #include <i4b/include/i4b_ioctl.h>
 #include <i4b/include/i4b_debug.h>
@@ -96,7 +99,7 @@ struct i4bisppp_softc {
 	struct i4b_accounting sc_accounting;
 #endif
 
-	u_int32_t sc_unit;
+	uint32_t sc_unit;
 
 } i4bisppp_softc[NI4BISPPP];
 
@@ -128,7 +131,7 @@ i4bispppattach(void *dummy)
 {
 	struct i4bisppp_softc *sc = i4bisppp_softc;
 	struct ifnet *ifp;
-	u_int32_t i;
+	uint32_t i;
 
 #ifdef SPPP_VJ
 	printf("i4bisppp: %d ISDN SyncPPP device(s) attached "
@@ -474,8 +477,8 @@ i4bisppp_get_mbuf(struct fifo_translator *__f)
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 i4bisppp_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
-		  struct i4b_protocol *pp, u_int32_t driver_type,
-		  u_int32_t driver_unit, call_desc_t *cd)
+		  struct i4b_protocol *pp, uint32_t driver_type,
+		  uint32_t driver_unit, call_desc_t *cd)
 {
 	struct i4bisppp_softc *sc = &i4bisppp_softc[driver_unit];
 	struct sppp *sp = IFP2SP(sc->sc_ifp);

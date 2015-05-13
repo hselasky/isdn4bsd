@@ -76,6 +76,9 @@
  * protocol
  *---------------------------------------------------------------------------*/
 
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#include I4B_GLOBAL_INCLUDE_FILE
+#else
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/ioccom.h>
@@ -84,6 +87,7 @@
 #include <sys/syslog.h>
 #include <sys/socket.h>
 #include <net/if.h>
+#endif
 
 #include <i4b/include/i4b_debug.h>
 #include <i4b/include/i4b_ioctl.h>
@@ -98,13 +102,13 @@
 #define L1_ACTIVATION_TIME (4*hz)
 
 static void
-dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate);
+dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, uint8_t newstate);
 
 /*---------------------------------------------------------------------------*
  *	a safe way to read a byte
  *---------------------------------------------------------------------------*/
-u_int8_t
-dss1_get_1(struct dss1_buffer *src, u_int16_t offset)
+uint8_t
+dss1_get_1(struct dss1_buffer *src, uint16_t offset)
 {
 	offset += src->offset;
 	return
@@ -117,8 +121,8 @@ dss1_get_1(struct dss1_buffer *src, u_int16_t offset)
  *
  * returns 1 if valid else 0
  *---------------------------------------------------------------------------*/
-u_int8_t
-dss1_get_valid(struct dss1_buffer *src, u_int16_t offset)
+uint8_t
+dss1_get_valid(struct dss1_buffer *src, uint16_t offset)
 {
 	offset += src->offset;
 	return ((offset >= src->offset) &&
@@ -130,10 +134,10 @@ dss1_get_valid(struct dss1_buffer *src, u_int16_t offset)
  *
  * returns the old length
  *---------------------------------------------------------------------------*/
-u_int16_t
-dss1_set_length(struct dss1_buffer *src, u_int16_t new_len)
+uint16_t
+dss1_set_length(struct dss1_buffer *src, uint16_t new_len)
 {
-	u_int16_t old_len = src->len;
+	uint16_t old_len = src->len;
 
 	if(new_len < old_len)
 	{
@@ -146,7 +150,7 @@ dss1_set_length(struct dss1_buffer *src, u_int16_t new_len)
  *	initialize a buffer
  *---------------------------------------------------------------------------*/
 void
-dss1_buf_init(struct dss1_buffer *dst, void *start, u_int16_t len)
+dss1_buf_init(struct dss1_buffer *dst, void *start, uint16_t len)
 {
 	bzero(dst, sizeof(*dst));
 
@@ -198,8 +202,8 @@ dss1_pipe_data_req(DSS1_TCP_pipe_t *pipe, struct mbuf *m)
 	return;
 }
 
-static u_int32_t
-get_callreference(u_int8_t *ptr);
+static uint32_t
+get_callreference(uint8_t *ptr);
 
 /*---------------------------------------------------------------------------*
  *	PIPE DATA ACKNOWLEDGE from Layer 3
@@ -212,7 +216,7 @@ dss1_pipe_data_acknowledge(DSS1_TCP_pipe_t *pipe, call_desc_t *cd)
 
 	while(m)
 	{
-	  u_int8_t *ptr;
+	  uint8_t *ptr;
 
 	  ptr = m->m_data + max(U_FRAME_LEN,I_HEADER_LEN);
 
@@ -277,11 +281,11 @@ dss1_l2_data_req(l2softc_t *sc, struct mbuf *m)
  *	 CNTL_RR, CNTL_RNR, CNTL_REJ, CNTL_DM, CNTL_UA
  *---------------------------------------------------------------------------*/
 static void
-dss1_cntl_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe, u_int8_t sapi, 
-		  u_int8_t cntl)
+dss1_cntl_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe, uint8_t sapi, 
+		  uint8_t cntl)
 {
 	struct mbuf *m;
-	u_int8_t *ptr;
+	uint8_t *ptr;
 
 	if(L2_STATE_IS_TEI_ASSIGNED(pipe->state))
 	{
@@ -361,12 +365,12 @@ dss1_get_unused_pipe(l2softc_t *sc)
 /*---------------------------------------------------------------------------*
  *	count unused pipes
  *---------------------------------------------------------------------------*/
-static u_int16_t
+static uint16_t
 dss1_count_unused_pipes(l2softc_t *sc)
 {
 	DSS1_TCP_pipe_t *pipe;
 	DSS1_TCP_pipe_t *pipe_adapter = &sc->sc_pipe[0];
-	u_int16_t unused = 0;
+	uint16_t unused = 0;
 
 	PIPE_FOREACH(pipe,&sc->sc_pipe[0])
 	{
@@ -383,7 +387,7 @@ dss1_count_unused_pipes(l2softc_t *sc)
  *	get unused, automatic, TEI-value
  * NOTE: this routine is only used in NT-mode
  *---------------------------------------------------------------------------*/
-static u_int8_t
+static uint8_t
 dss1_get_unused_TEI(l2softc_t *sc)
 {
 	DSS1_TCP_pipe_t *pipe;
@@ -414,10 +418,10 @@ dss1_get_unused_TEI(l2softc_t *sc)
  *---------------------------------------------------------------------------*/
 static void
 dss1_tei_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe,
-		 u_int8_t type)
+		 uint8_t type)
 {
 	struct mbuf *m;
-	u_int8_t *ptr;
+	uint8_t *ptr;
 
 	if(IS_POINT_TO_POINT(sc))
 	{
@@ -497,9 +501,9 @@ static void
 dss1_tei_rx_frame(l2softc_t *sc, struct dss1_buffer *buf)
 {
 	DSS1_TCP_pipe_t *pipe = &sc->sc_pipe[0];
-	u_int8_t mt;
-	u_int8_t ai;
-	u_int8_t ri[2];
+	uint8_t mt;
+	uint8_t ai;
+	uint8_t ri[2];
 
 	if(IS_POINT_TO_POINT(sc))
 	{
@@ -667,9 +671,9 @@ dss1_pipe_set_state_timeout(DSS1_TCP_pipe_t *pipe)
  *	set pipe state
  *---------------------------------------------------------------------------*/
 static void
-dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, u_int8_t newstate)
+dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, uint8_t newstate)
 {
-  static const u_int8_t MAKE_TABLE(L2_STATES,TIMEOUT_DELAY,[]);
+  static const uint8_t MAKE_TABLE(L2_STATES,TIMEOUT_DELAY,[]);
 #if DO_I4B_DEBUG
   static const char * const MAKE_TABLE(L2_STATES,DESC,[]);
 #endif
@@ -856,13 +860,13 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
   __typeof(pipe->tx_nr) __nr;
   l2softc_t *sc = f->L5_sc;
   struct dss1_buffer buf;
-  u_int8_t broadcast;
-  u_int8_t resp;
-  u_int8_t sapi;
-  u_int8_t crbit;
-  u_int8_t tei;
-  u_int8_t cntl;
-  u_int8_t mei;
+  uint8_t broadcast;
+  uint8_t resp;
+  uint8_t sapi;
+  uint8_t crbit;
+  uint8_t tei;
+  uint8_t cntl;
+  uint8_t mei;
 
   /* Frame structure:
    * (bits are transmitted from LSB to MSB)
@@ -1402,7 +1406,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 
       if(sc->sc_current_length)
       {
-		u_int8_t *ptr;
+		uint8_t *ptr;
 
 		/* update header(s), when TEI is valid */
 
@@ -1468,7 +1472,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 			       (I_HEADER_LEN) : 
 			       (I_HEADER_LEN+1)))
 		{
-		    u_int8_t len = m->m_len;
+		    uint8_t len = m->m_len;
 		    ptr = m->m_data;
 
 		    /*
@@ -1483,7 +1487,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 		    {
 		        bcopy(ptr,m->m_data,len);
 
-			ptr = ((u_int8_t *)(m->m_data)) + len;
+			ptr = ((uint8_t *)(m->m_data)) + len;
 
 			/* send a dummy STATUS_ENQUIRY 
 			 *
@@ -1563,7 +1567,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 	  /* NT must invert output C/R-bit */
 	  if(NT_MODE(sc))
 	  {
-	    ((u_int8_t *)m->m_data)[OFF_SAPI] ^= 0x02;
+	    ((uint8_t *)m->m_data)[OFF_SAPI] ^= 0x02;
 	  }
     )
   }
@@ -1577,12 +1581,12 @@ static l2softc_t l2_softc[MAX_CONTROLLERS];
  *---------------------------------------------------------------------------*/
 static fifo_translator_t *
 dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f, 
-	      struct i4b_protocol *pp, u_int32_t driver_type, 
-	      u_int32_t driver_unit, call_desc_t *cd)
+	      struct i4b_protocol *pp, uint32_t driver_type, 
+	      uint32_t driver_unit, call_desc_t *cd)
 {
 	DSS1_TCP_pipe_t *pipe;
 	l2softc_t *sc = &l2_softc[driver_unit];
-	u_int16_t max_channels;
+	uint16_t max_channels;
 
 	if(!pp)
 	{
@@ -1596,8 +1600,8 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	  /* clear all call-descriptors */
 	  bzero(cntl->N_call_desc_start, 
-		(((u_int8_t *)(cntl->N_call_desc_end)) -
-		 ((u_int8_t *)(cntl->N_call_desc_start))));
+		(((uint8_t *)(cntl->N_call_desc_end)) -
+		 ((uint8_t *)(cntl->N_call_desc_start))));
 
 	  /* set all channels free */
 	  BZERO(&cntl->N_channel_utilization);

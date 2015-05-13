@@ -40,26 +40,26 @@
 
 /* prototypes from "i4b_ihfc_l1if.c" */
 void		ihfc_init_i4b           (ihfc_sc_t *sc, struct i4b_controller *cntl);
-u_int8_t	ihfc_setup_i4b		(ihfc_sc_t *sc, u_int8_t *error);
+uint8_t	ihfc_setup_i4b		(ihfc_sc_t *sc, uint8_t *error);
 void		ihfc_unsetup_i4b	(ihfc_sc_t *sc);
 void		ihfc_i4b_putmbuf	(ihfc_sc_t *sc, ihfc_fifo_t *f, struct mbuf *m);
 struct mbuf *   ihfc_i4b_getmbuf	(ihfc_sc_t *sc, ihfc_fifo_t *f);
-void		ihfc_trace_info		(ihfc_sc_t *sc, ihfc_fifo_t *f, const u_int8_t *desc);
+void		ihfc_trace_info		(ihfc_sc_t *sc, ihfc_fifo_t *f, const uint8_t *desc);
 
 /* prototypes from "i4b_ihfc_drv.c" */
-u_int8_t	ihfc_setup_softc	(ihfc_sc_t *sc, u_int8_t *error);
+uint8_t	ihfc_setup_softc	(ihfc_sc_t *sc, uint8_t *error);
 void		ihfc_unsetup_softc	(ihfc_sc_t *sc);
 void		ihfc_chip_interrupt     (void *);
-u_int8_t	ihfc_fifos_active	(ihfc_sc_t *sc);
-u_int8_t	ihfc_fifo_setup		(ihfc_sc_t *sc, ihfc_fifo_t *f);
+uint8_t	ihfc_fifos_active	(ihfc_sc_t *sc);
+uint8_t	ihfc_fifo_setup		(ihfc_sc_t *sc, ihfc_fifo_t *f);
 void		ihfc_fifo_call		(ihfc_sc_t *sc, ihfc_fifo_t *f);
 void		ihfc_config_write_sub   (ihfc_sc_t *sc, ihfc_fifo_t *f);
-void		ihfc_reset		(ihfc_sc_t *sc, u_int8_t *error);
+void		ihfc_reset		(ihfc_sc_t *sc, uint8_t *error);
 
-void		ihfc_fsm_update		(ihfc_sc_t *sc, ihfc_fifo_t *f, u_int8_t flag);
+void		ihfc_fsm_update		(ihfc_sc_t *sc, ihfc_fifo_t *f, uint8_t flag);
 
 /* prototypes from "i4b_ihfc_dev.c" */
-u_int8_t	ihfc_setup_ldev		(ihfc_sc_t *sc, u_int8_t *);
+uint8_t	ihfc_setup_ldev		(ihfc_sc_t *sc, uint8_t *);
 void		ihfc_unsetup_ldev	(ihfc_sc_t *sc);
 
 /* prototypes from "i4b_program.h" */
