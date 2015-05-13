@@ -218,7 +218,7 @@ dss1_pipe_data_acknowledge(DSS1_TCP_pipe_t *pipe, call_desc_t *cd)
 	{
 	  uint8_t *ptr;
 
-	  ptr = m->m_data + max(U_FRAME_LEN,I_HEADER_LEN);
+	  ptr = mtod(m, uint8_t *) + max(U_FRAME_LEN,I_HEADER_LEN);
 
 	  if(m->m_flags & M_PROTO1)
 	  {
@@ -302,7 +302,7 @@ dss1_cntl_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe, uint8_t sapi,
 	  {
 	    /* S-frame(s) */
 
-	    ptr = m->m_data;
+	    ptr = mtod(m, uint8_t *);
 
 	    ptr[OFF_RX_NR] = (pipe->rx_nr << 1) & 0xFE;
 
@@ -449,7 +449,7 @@ dss1_tei_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe,
 	{
 	  /* build TEI frame */
 
-	  ptr = m->m_data;
+	  ptr = mtod(m, uint8_t *);
 
           ptr[OFF_SAPI] = MAKE_SAPI(SAPI_L2M,CR_COMMAND);    /* SAPI */
           ptr[OFF_TEI]  = TEI_BROADCAST;	/* TEI = 127, EA = 1 */
@@ -908,7 +908,7 @@ dss1_l2_put_mbuf(fifo_translator_t *f, struct mbuf *m)
    * and is not supported, because the software is too slow.
    */
 
-  dss1_buf_init(&buf, m->m_data, m->m_len);
+  dss1_buf_init(&buf, mtod(m, uint8_t *), m->m_len);
 
   sc->sc_received_frame = 1;
 
@@ -1424,7 +1424,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 		    m->m_len  -= 1;
 		  }
 
-		  ptr = m->m_data;
+		  ptr = mtod(m, uint8_t *);
 
 		  ptr[OFF_SAPI] = MAKE_SAPI(SAPI_CCP, CR_COMMAND);
 		  ptr[OFF_TEI ] = TEI_BROADCAST;
@@ -1437,7 +1437,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 		{
 		  /* I-frame(s) */
 
-		  ptr = m->m_data;
+		  ptr = mtod(m, uint8_t *);
 	
 		  ptr[OFF_SAPI]  = MAKE_SAPI(SAPI_CCP, CR_COMMAND);
 		  ptr[OFF_TEI]   = pipe->tei;
@@ -1473,7 +1473,8 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 			       (I_HEADER_LEN+1)))
 		{
 		    uint8_t len = m->m_len;
-		    ptr = m->m_data;
+
+		    ptr = mtod(m, uint8_t *);
 
 		    /*
 		     * NOTE: some PBXs lack a check for
@@ -1487,7 +1488,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 		    {
 		        bcopy(ptr,m->m_data,len);
 
-			ptr = ((uint8_t *)(m->m_data)) + len;
+			ptr = mtod(m, uint8_t *) + len;
 
 			/* send a dummy STATUS_ENQUIRY 
 			 *
@@ -1503,7 +1504,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 				 ptr   = make_callreference(pipe_adapter, 0x7f, ptr);
 				*ptr++ = STATUS_ENQUIRY;
 			}
-			m->m_len = ptr - ((__typeof(ptr))m->m_data);
+			m->m_len = ptr - mtod(m, uint8_t *);
 		    }
 		}
 		else

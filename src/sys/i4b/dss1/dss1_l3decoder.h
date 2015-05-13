@@ -35,8 +35,9 @@
 
 static uint16_t
 get_multi_1(struct dss1_buffer *buf, uint16_t offset, 
-	    uint8_t *dst, uint16_t len, uint8_t filter)
+	    void *_dst, uint16_t len, uint8_t filter)
 {
+    uint8_t *dst = _dst;
     uint8_t *dst_end = (dst + len);
     uint8_t *dst_old = dst;
 

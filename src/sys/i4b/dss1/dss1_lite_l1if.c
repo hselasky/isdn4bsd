@@ -298,7 +298,7 @@ dss1_lite_trace_info(struct dss1_lite *pdl,
 	struct mbuf *m = i4b_getmbuf(len, M_NOWAIT);
 
 	if (m) {
-		memcpy(m->m_data, desc, len);
+		memcpy(mtod(m, char *), desc, len);
 
 		dss1_lite_trace(pdl, f, TRC_CH_I, 1, m);
 
@@ -327,7 +327,7 @@ dss1_lite_l5_put_sample(struct dss1_lite *pdl,
 		f->m_tx_curr = dss1_lite_l5_get_new_mbuf(pdl, f);
 		if (f->m_tx_curr == NULL)
 			return;
-		f->m_tx_curr_ptr = f->m_tx_curr->m_data;
+		f->m_tx_curr_ptr = mtod(f->m_tx_curr, uint8_t *);
 		f->m_tx_curr_rem = f->m_tx_curr->m_len;
 	}
 
@@ -396,7 +396,7 @@ dss1_lite_l5_put_mbuf(struct dss1_lite *pdl,
 	/* DTMF detect */
 	if ((f->prot_curr.u.transp.dtmf_detect_enable) ||
 	    (ft->L5_PUT_DTMF == &dss1_lite_l5_put_dtmf)) {
-		i4b_dtmf_detect(ft, m->m_data, m->m_len);
+		i4b_dtmf_detect(ft, mtod(m, uint8_t *), m->m_len);
 	}
 	/* ISDN trace */
 	if (f->is_tracing) {
@@ -443,7 +443,7 @@ dss1_lite_l5_get_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f)
 			f->m_rx_curr = dss1_lite_l5_get_mbuf(pdl, f);
 		if (f->m_rx_curr == NULL)
 			return (f->m_rx_last_sample);
-		f->m_rx_curr_ptr = f->m_rx_curr->m_data;
+		f->m_rx_curr_ptr = mtod(f->m_rx_curr, uint8_t *);
 		f->m_rx_curr_rem = f->m_rx_curr->m_len;
 	}
 

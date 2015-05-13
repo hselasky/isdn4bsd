@@ -553,7 +553,7 @@ dss1_lite_send_ctrl(struct dss1_lite *pdl, uint8_t sapi, uint8_t cntl)
 	if (m == NULL)
 		return (0);
 
-	ptr = m->m_data;
+	ptr = mtod(m, uint8_t *);
 
 	ptr[0] = sapi;
 	ptr[1] = DL_TEI;
@@ -1611,13 +1611,8 @@ dss1_lite_process(struct dss1_lite *pdl)
 
 		m = pdl->dl_tx_mbuf[i];
 
-#ifdef __FreeBSD__
 		if (m != NULL)
 			m = m_dup(m, M_NOWAIT);
-#else
-		if (m != NULL)
-			m = m_dup(m, 0, m->m_len, M_NOWAIT);
-#endif
 
 		if (m != NULL) {
 
@@ -2155,7 +2150,7 @@ dss1_lite_send_message(struct dss1_lite_call_desc *cd, uint8_t msg_type, uint32_
 	if (m == NULL)
 		return (0);
 
-	ptr = m->m_data;
+	ptr = mtod(m, uint8_t *);
 
 	for (i = 0; dss1_lite_ie_tab[i].pfunc; i++) {
 		if (dss1_lite_ie_tab[i].mask & mask)

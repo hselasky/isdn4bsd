@@ -788,7 +788,7 @@ i4b_l4_packet_ind(int driver, int driver_unit, int dir_out, struct mbuf *pkt)
 {
 	struct mbuf *m;
 	int len = pkt->m_pkthdr.len;
-	unsigned char *ip = pkt->m_data;
+	void *ip = mtod(pkt, void *);
 
 	if((m = i4b_getmbuf(sizeof(msg_packet_ind_t), M_NOWAIT)) != NULL)
 	{
@@ -1435,8 +1435,8 @@ i4b_l4_setup_timeout(call_desc_t *cd)
 void
 i4b_l3_information_req(struct call_desc *cd, uint8_t *ptr, uint16_t len)
 {
-	uint8_t *dst = &(cd->dst_telno[0]);
-	uint8_t *dst_end = &(cd->dst_telno[TELNO_MAX-1]);
+	char *dst = &(cd->dst_telno[0]);
+	char *dst_end = &(cd->dst_telno[TELNO_MAX-1]);
 
 	enum { max_telno = sizeof(cd->dst_telno_part)-1 };
 

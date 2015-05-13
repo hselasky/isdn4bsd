@@ -150,8 +150,8 @@ struct i4b_src_telno {
 	uint8_t scr_ind;  /* screening ind for incoming call */
 	uint8_t prs_ind;  /* presentation ind for incoming call */
 
-	u_char	telno[TELNO_MAX];     /* source number */
-	u_char	subaddr[SUBADDR_MAX]; /* source subaddr */
+	char	telno[TELNO_MAX];     /* source number */
+	char	subaddr[SUBADDR_MAX]; /* source subaddr */
 };
 
 /*---------------------------------------------------------------------------*
@@ -188,12 +188,12 @@ typedef struct call_desc {
 
 	u_char	call_state;		/* from incoming SETUP */
 	
-	u_char	dst_telno[TELNO_MAX];	/* destination number (accumulated) */
-	u_char *dst_telno_ptr;		/* pointer to end of destination number */
-	u_char  dst_telno_part[TELNO_MAX]; /* destination number (last part received) */
-	u_char  dst_telno_early[TELNO_MAX]; /* destination number (early part received) */
+	char	dst_telno[TELNO_MAX];	/* destination number (accumulated) */
+	char *dst_telno_ptr;		/* pointer to end of destination number */
+	char  dst_telno_part[TELNO_MAX]; /* destination number (last part received) */
+	char  dst_telno_early[TELNO_MAX]; /* destination number (early part received) */
 
-	u_char	dst_subaddr[SUBADDR_MAX]; /* destination subaddr */
+	char	dst_subaddr[SUBADDR_MAX]; /* destination subaddr */
 
 	struct i4b_src_telno src[2];
 
@@ -264,13 +264,13 @@ typedef struct call_desc {
 
 	int	isdntxdelay;		/* isdn tx delay after connect	*/
 
-	u_char	display[DISPLAY_MAX];	/* display information element	*/
+	char	display[DISPLAY_MAX];	/* display information element	*/
 	u_char	idate_time_data[8];
 	u_char  idate_time_len;
 	u_char  odate_time_data[8];
 	u_char  odate_time_len;
-	u_char	keypad[KEYPAD_MAX];	/* keypad facility		*/
-	u_char  user_user[USER_USER_MAX]; /* user-user information element */
+	char	keypad[KEYPAD_MAX];	/* keypad facility		*/
+	char	user_user[USER_USER_MAX]; /* user-user information element */
 } call_desc_t;
 
 extern struct mtx i4b_global_lock;
@@ -283,12 +283,12 @@ extern uint32_t i4b_open_refcount;
  *---------------------------------------------------------------------------*/
 #define MAX_ERROR 256 /* bytes */
 
-#define IS_ERROR(ptr) (((ptr) != 0) && (*(ptr) != 0))
+#define IS_ERROR(ptr) (((ptr) != NULL) && (*(ptr) != 0))
 
-#define ADD_ERROR(ptr,fmt,args...)			\
-{ if((ptr) != 0) {					\
-   snprintf(ptr,MAX_ERROR,"%s " fmt, ptr ,## args); } }	\
-/**/
+#define ADD_ERROR(ptr,fmt,args...)	\
+do { if((ptr) != NULL) {		\
+   snprintf((char *)(ptr),MAX_ERROR,"%s " fmt, ptr ,## args); } \
+} while (0)
 
 /* prototypes from i4b_trace.c */
 

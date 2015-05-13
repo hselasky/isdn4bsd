@@ -451,10 +451,10 @@ typedef struct {
 #define  CHAN_ANY (-1)		/* outgoing, not possible for incoming	*/
 #define  CHAN_NOT_ANY  (-2)    	/* call waiting (CW) for incoming	*/
 	int		bprot;	/* channel b-protocol, see BPROT_XXX	*/
-	u_char		dst_telno[TELNO_MAX];	/* destination telno	*/
-	u_char		dst_subaddr[SUBADDR_MAX];	/* dest subaddr */
-	u_char		src_telno[TELNO_MAX];	/* source telno		*/
-	u_char		src_subaddr[SUBADDR_MAX];	/* src subaddr	*/
+	char		dst_telno[TELNO_MAX];	/* destination telno	*/
+	char		dst_subaddr[SUBADDR_MAX];	/* dest subaddr */
+	char		src_telno[TELNO_MAX];	/* source telno		*/
+	char		src_subaddr[SUBADDR_MAX];	/* src subaddr	*/
 	u_char		dst_ton;		/* dest. type of number */
 	u_char		src_ton;		/* src. type of number	*/
 #define  TON_OTHER    0		/* other type of number 		*/
@@ -472,8 +472,8 @@ typedef struct {
 #define  PRS_RESTRICT 2		/* presentation restricted		*/
 #define  PRS_NNINTERW 3		/* number not available due to interworking */
 #define  PRS_RESERVED 4		/* reserved				*/
-	u_char		display[DISPLAY_MAX];	/* content of display IE*/
-	u_char		user_user[USER_USER_MAX]; /* content of useruser IE*/
+	char		display[DISPLAY_MAX];	/* content of display IE*/
+	char		user_user[USER_USER_MAX]; /* content of useruser IE*/
 	u_char          sending_complete : 1;
 	u_char          unused : 7;
 } msg_connect_ind_t;
@@ -485,7 +485,7 @@ typedef struct {
  *---------------------------------------------------------------------------*/
 typedef struct {
 	msg_hdr_t	header;		/* common header		*/
-	u_char		dst_telno[TELNO_MAX];	/* dial digit string 	*/
+	char		dst_telno[TELNO_MAX];	/* dial digit string 	*/
 } msg_information_ind_t;
 
 /*---------------------------------------------------------------------------*
@@ -731,7 +731,7 @@ typedef struct {
  *---------------------------------------------------------------------------*/
 typedef struct {
 	cdid_t		cdid;		/* call descriptor id		     */
-	u_char		dst_telno[TELNO_MAX];	/* dial digit string to send */
+	char		dst_telno[TELNO_MAX];	/* dial digit string to send */
 } msg_information_req_t;
 
 #define	I4B_INFORMATION_REQ _IOW('4', 2, msg_information_req_t)
@@ -776,8 +776,8 @@ typedef struct {
         uint16_t l1_channels;  /* number of channels provided */
 	uint32_t l1_serial;    /* serial number used */
 	uint8_t  l1_type;  	/* controller type passive/active */
-	u_char    l1_desc[64];	/* controller description, zero terminated */
-	u_char    l1_state[64]; /* controller state, zero terminated */
+	char     l1_desc[64];	/* controller description, zero terminated */
+	char     l1_state[64]; /* controller state, zero terminated */
 	u_char    l1_active : 1;/* set if layer 1 is active */
 	u_char    l1_no_dialtone : 1; 
 	u_char    l1_no_power_save : 1;

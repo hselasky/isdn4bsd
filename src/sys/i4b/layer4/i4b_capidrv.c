@@ -422,9 +422,8 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
  *	extract CAPI telephone number and presentation
  *---------------------------------------------------------------------------*/
 static void
-capi_get_telno(struct call_desc *cd, uint8_t *src, uint16_t len, 
-	       uint8_t *dst, uint16_t max_length, 
-	       struct i4b_src_telno *p_src)
+capi_get_telno(struct call_desc *cd, char *src, uint16_t len, 
+    char *dst, uint16_t max_length, struct i4b_src_telno *p_src)
 {
 	uint8_t temp;
 
@@ -497,8 +496,8 @@ capi_get_telno(struct call_desc *cd, uint8_t *src, uint16_t len,
  *	extract CAPI facility telephone number
  *---------------------------------------------------------------------------*/
 static void
-capi_get_fac_telno(struct call_desc *cd, uint8_t *src, uint16_t len, 
-		   uint8_t *dst, uint16_t max_length)
+capi_get_fac_telno(struct call_desc *cd, char *src, uint16_t len, 
+    char *dst, uint16_t max_length)
 {
 	if(len)
 	{
@@ -540,10 +539,10 @@ capi_get_fac_telno(struct call_desc *cd, uint8_t *src, uint16_t len,
  *	compile CAPI telephone number and presentation
  *---------------------------------------------------------------------------*/
 static uint16_t
-capi_put_telno(struct call_desc *cd, const uint8_t *src, uint8_t *dst, 
+capi_put_telno(struct call_desc *cd, const char *src, char *dst, 
 	       uint16_t len, uint8_t type, struct i4b_src_telno *p_src)
 {
-	uint8_t *dst_end;
+	char *dst_end;
 
 	if(len < 2)
 	{
@@ -1136,11 +1135,11 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 	struct CAPI_CONNECT_IND_DECODED connect_ind;
 	struct CAPI_ADDITIONAL_INFO_DECODED add_info;
 
-	uint8_t dst_telno[TELNO_MAX];
-	uint8_t src_telno_1[TELNO_MAX];
-	uint8_t src_telno_2[TELNO_MAX];
-	uint8_t dst_subaddr[SUBADDR_MAX];
-	uint8_t src_subaddr[SUBADDR_MAX];
+	char dst_telno[TELNO_MAX];
+	char src_telno_1[TELNO_MAX];
+	char src_telno_2[TELNO_MAX];
+	char dst_subaddr[SUBADDR_MAX];
+	char src_subaddr[SUBADDR_MAX];
 
 	static const uint8_t bc_bprot_alaw[] = { 0x04, 0x03, 0x80, 0x90, 0xA3 };
 	static const uint8_t bc_bprot_ulaw[] = { 0x04, 0x03, 0x80, 0x90, 0xA2 };
@@ -3259,7 +3258,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 		/* set default */
 
-		snprintf(&req->name[0], sizeof(req->name), 
+		snprintf((char *)&req->name[0], sizeof(req->name), 
 			 "unknown controller %d", req->controller);
 
 		/*
@@ -3321,7 +3320,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 		CNTL_LOCK(cntl);
 
-		snprintf(&req->serial_number[0], sizeof(req->serial_number),
+		snprintf((char *)&req->serial_number[0], sizeof(req->serial_number),
 			 "%d", cntl->N_serial_number);
 
 		CNTL_UNLOCK(cntl);

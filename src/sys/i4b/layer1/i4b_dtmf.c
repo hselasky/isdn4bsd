@@ -237,7 +237,7 @@ i4b_dtmf_generate(struct fifo_translator *ft, struct mbuf **pp_m)
     }
 
     len = m->m_len;
-    ptr = m->m_data;
+    ptr = mtod(m, uint8_t *);
 
     while (len--) {
 

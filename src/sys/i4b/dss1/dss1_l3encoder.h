@@ -156,7 +156,8 @@ static void
 dss1_l3_tx_setup(call_desc_t *cd)
 {
 	struct mbuf *m;
-	u_char *ptr, *str;
+	uint8_t *ptr;
+	char *str;
 	struct i4b_src_telno *p_src;
 	int len;
 
@@ -167,7 +168,7 @@ dss1_l3_tx_setup(call_desc_t *cd)
 
 	if(m)
 	{
-	  ptr = m->m_data + I_HEADER_LEN;
+	  ptr = mtod(m, uint8_t *) + I_HEADER_LEN;
 	
 	  *ptr++ = PD_Q931;		/* protocol discriminator */
 	   ptr   = make_callreference(cd->pipe,cd->cr,ptr);
@@ -565,7 +566,7 @@ dss1_l3_tx_message(call_desc_t *cd, uint8_t message_type, uint16_t flag)
 	l2softc_t *sc = pipe->L5_sc;
 	struct mbuf *m;
 	uint8_t *ptr;
-	uint8_t *str;
+	char *str;
 	size_t len;
 
 	NDBGL3(L3_PRIM, "cdid=%d, cr=%d, cause=0x%02x, "
@@ -577,7 +578,7 @@ dss1_l3_tx_message(call_desc_t *cd, uint8_t message_type, uint16_t flag)
 
 	if(m)
 	{
-	  ptr = m->m_data + I_HEADER_LEN;
+	  ptr = mtod(m, uint8_t *) + I_HEADER_LEN;
 	
 	  *ptr++ = PD_Q931;               /* protocol discriminator */
 	   ptr   = make_callreference(cd->pipe,cd->cr,ptr);
@@ -808,7 +809,7 @@ dss1_l3_tx_message_by_pipe_cr(DSS1_TCP_pipe_t *pipe, uint32_t call_ref,
 
 	if(m)
 	{
-	  ptr = m->m_data + I_HEADER_LEN;
+	  ptr = mtod(m, uint8_t *) + I_HEADER_LEN;
 	
 	  *ptr++ = PD_Q931;               /* protocol discriminator */
 	   ptr   = make_callreference(pipe,call_ref,ptr);
