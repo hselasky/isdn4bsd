@@ -135,7 +135,7 @@ i4b_slot_li_free(struct i4b_line_interconnect *li);
 struct capi_ai_softc;
 
 extern void capi_ai_info_ind(struct call_desc *cd, uint8_t complement, 
-			     uint16_t wInfoNumber, void *ptr, uint16_t len);
+	uint16_t wInfoNumber, const void *ptr, uint16_t len);
 extern void capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count);
 extern void capi_ai_connect_active_ind(struct call_desc *cd);
 extern void capi_ai_disconnect_ind(struct call_desc *cd, uint8_t complement);
