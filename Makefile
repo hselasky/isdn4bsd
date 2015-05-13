@@ -28,6 +28,7 @@
 VERSION=2.0.12
 
 KMODNAME?=i4b
+INCLUDEDIR?=/usr/local/include
 
 .if defined(HAVE_KMOD) || defined(HAVE_ALL)
 SUBDIR+= module
