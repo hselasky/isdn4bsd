@@ -682,7 +682,7 @@ capi_make_conf(struct capi_message_encoded *msg, uint16_t wCmd,
  *---------------------------------------------------------------------------*/
 static void
 capi_ai_facility_ind(struct call_desc *cd, uint16_t wSelector, 
-		     uint8_t flags, void *param)
+    uint8_t flags, const void *param)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
@@ -697,7 +697,7 @@ capi_ai_facility_ind(struct call_desc *cd, uint16_t wSelector,
 
 	if(param)
 	{
-	    fac_ind.Param.ptr = param;
+	    fac_ind.Param.ptr = __DECONST(void *, param);
 	    fac_ind.Param_STRUCT = IE_STRUCT_DECODED;
 	}
 
@@ -725,7 +725,7 @@ capi_ai_facility_ind(struct call_desc *cd, uint16_t wSelector,
  *---------------------------------------------------------------------------*/
 static struct mbuf *
 capi_make_facility_conf(struct capi_message_encoded *pmsg, 
-			uint16_t wSelector, uint16_t wInfo, void *param)
+    uint16_t wSelector, uint16_t wInfo, const void *param)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
@@ -741,7 +741,7 @@ capi_make_facility_conf(struct capi_message_encoded *pmsg,
 
 	if(param)
 	{
-	    fac_conf.Param.ptr = param;
+	    fac_conf.Param.ptr = __DECONST(void *, param);
 	    fac_conf.Param_STRUCT = IE_STRUCT_DECODED;
 	}
 
@@ -768,7 +768,7 @@ capi_make_facility_conf(struct capi_message_encoded *pmsg,
  *---------------------------------------------------------------------------*/
 static struct mbuf *
 capi_make_fac_suppl_conf(struct capi_message_encoded *pmsg, 
-			 uint16_t wFunction, void *param)
+    uint16_t wFunction, const void *param)
 {
 	struct CAPI_SUPPL_PARAM_DECODED suppl;
 
@@ -780,7 +780,7 @@ capi_make_fac_suppl_conf(struct capi_message_encoded *pmsg,
 
 	if(param)
 	{
-	    suppl.Param.ptr = param;
+	    suppl.Param.ptr = __DECONST(void *, param);
 	    suppl.Param_STRUCT = IE_STRUCT_DECODED;
 	}
 	return capi_make_facility_conf(pmsg, 0x0003, 0x0000, &suppl);
@@ -1082,7 +1082,7 @@ capi_make_connect_b3_ind(struct call_desc *cd)
  *---------------------------------------------------------------------------*/
 void
 capi_ai_info_ind(struct call_desc *cd, uint8_t complement, 
-		 uint16_t wInfoNumber, void *ptr, uint16_t len)
+    uint16_t wInfoNumber, const void *ptr, uint16_t len)
 {
 	struct mbuf *m;
 	struct capi_message_encoded msg;
@@ -1097,7 +1097,7 @@ capi_ai_info_ind(struct call_desc *cd, uint8_t complement,
 	CAPI_INIT(CAPI_INFO_IND, &info_ind);
 
 	info_ind.wInfoNum = wInfoNumber;
-	info_ind.InfoElement.ptr = ptr;
+	info_ind.InfoElement.ptr = __DECONST(void *, ptr);
 	info_ind.InfoElement.len = len;
 
 	len = capi_encode(&msg.data, sizeof(msg.data), &info_ind);
@@ -1179,20 +1179,20 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 
 	  switch(cd->channel_bsubprot) {
 	  case BSUBPROT_G711_ALAW:
-	      connect_ind.BC.ptr = &bc_bprot_3_1_khz_alaw;
+	      connect_ind.BC.ptr = __DECONST(void *, &bc_bprot_3_1_khz_alaw);
 	      connect_ind.BC.len = sizeof(bc_bprot_3_1_khz_alaw);
 	      break;
 	  case BSUBPROT_G711_ULAW:
-	      connect_ind.BC.ptr = &bc_bprot_3_1_khz_ulaw;
+	      connect_ind.BC.ptr = __DECONST(void *, &bc_bprot_3_1_khz_ulaw);
 	      connect_ind.BC.len = sizeof(bc_bprot_3_1_khz_ulaw);
 	      break;
 	  default:
-	      connect_ind.BC.ptr = &bc_bprot_3_1_khz_reserved;
+	      connect_ind.BC.ptr = __DECONST(void *, &bc_bprot_3_1_khz_reserved);
 	      connect_ind.BC.len = sizeof(bc_bprot_3_1_khz_reserved);
 	      break;
 	  }
 
-	  connect_ind.HLC.ptr = &hlc_bprot_none;
+	  connect_ind.HLC.ptr = __DECONST(void *, &hlc_bprot_none);
 	  connect_ind.HLC.len = sizeof(hlc_bprot_none);
 	  break;
 
@@ -1202,20 +1202,20 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 
 	  switch(cd->channel_bsubprot) {
 	  case BSUBPROT_G711_ALAW:
-	      connect_ind.BC.ptr = &bc_bprot_alaw;
+	      connect_ind.BC.ptr = __DECONST(void *, &bc_bprot_alaw);
 	      connect_ind.BC.len = sizeof(bc_bprot_alaw);
 	      break;
 	  case BSUBPROT_G711_ULAW:
-	      connect_ind.BC.ptr = &bc_bprot_ulaw;
+	      connect_ind.BC.ptr = __DECONST(void *, &bc_bprot_ulaw);
 	      connect_ind.BC.len = sizeof(bc_bprot_ulaw);
 	      break;
 	  default:
-	      connect_ind.BC.ptr = &bc_bprot_reserved;
+	      connect_ind.BC.ptr = __DECONST(void *, &bc_bprot_reserved);
 	      connect_ind.BC.len = sizeof(bc_bprot_reserved);
 	      break;
 	  }
 
-	  connect_ind.HLC.ptr = &hlc_bprot_none;
+	  connect_ind.HLC.ptr = __DECONST(void *, &hlc_bprot_none);
 	  connect_ind.HLC.len = sizeof(hlc_bprot_none);
 	  break;
 
@@ -1226,7 +1226,7 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 	case BPROT_RHDLC:
 	case BPROT_NONE_VOD:
 	  connect_ind.wCIP = CAPI_CIP_UNRESTRICTED_DATA;
-	  connect_ind.BC.ptr = &bc_bprot_rhdlc;
+	  connect_ind.BC.ptr = __DECONST(void *, &bc_bprot_rhdlc);
 	  connect_ind.BC.len = sizeof(bc_bprot_rhdlc);
 	  break;
 	}
@@ -1288,7 +1288,7 @@ capi_ai_connect_ind(struct call_desc *cd, uint16_t *p_copy_count)
 
 	if(cd->sending_complete)
 	{
-	    add_info.sending_complete.ptr = &sending_complete;
+	    add_info.sending_complete.ptr = __DECONST(void *, &sending_complete);
 	    add_info.sending_complete.len = sizeof(sending_complete);
 	}
 
