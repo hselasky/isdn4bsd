@@ -64,7 +64,7 @@ dss1_L1_activity_timeout(l2softc_t *sc)
     }
 
     /* start timer - should run when not auto-activated */
-    usb_callout_reset(&sc->L1_activity_callout, 15*hz,
+    callout_reset(&sc->L1_activity_callout, 15*hz,
 		    (void *)(void *)&dss1_L1_activity_timeout, sc);
   },
   {
@@ -93,7 +93,7 @@ dss1_L1_activate_req(l2softc_t *sc)
   if(!sc->L1_auto_activate++)
   {
     /* stop timer */
-    usb_callout_stop(&sc->L1_activity_callout);
+    callout_stop(&sc->L1_activity_callout);
 
     sc->L1_deactivate_count = 0;
 
@@ -165,7 +165,7 @@ cd_set_state(call_desc_t *cd, uint8_t newstate)
   uint8_t send_status_enquiry;
 
   /* stop timer */
-  usb_callout_stop(&cd->set_state_callout);
+  callout_stop(&cd->set_state_callout);
 
   if(newstate == ST_L3_U0)
   {
@@ -315,7 +315,7 @@ cd_set_state(call_desc_t *cd, uint8_t newstate)
 	 * the timeout is increased when L1 is not activated
 	 * the timeout is always running while the CD is allocated
 	 */
-	usb_callout_reset(&cd->set_state_callout,
+	callout_reset(&cd->set_state_callout,
 			(L3_STATES_TIMEOUT_DELAY[newstate]*hz) +
 			(sc->L1_activity ? 0 : L1_ACTIVATION_TIME),
 			(void *)(void *)&cd_set_state_timeout, cd);

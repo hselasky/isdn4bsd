@@ -598,11 +598,11 @@ dss1_tei_rx_frame(l2softc_t *sc, struct dss1_buffer *buf)
 			   * allocated within eights of a second, to the
 			   * same device!
 			   */
-		          if(usb_callout_pending(&sc->ID_REQUEST_callout))
+		          if(callout_pending(&sc->ID_REQUEST_callout))
 			  {
 			      break;
 			  }
-			  usb_callout_reset(&sc->ID_REQUEST_callout, 1*hz, 
+			  callout_reset(&sc->ID_REQUEST_callout, 1*hz, 
 					  ID_REQUEST_timeout, sc);
 		      }
 
@@ -696,7 +696,7 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, uint8_t newstate)
   pipe->state = newstate;
 
   /* stop timer */
-  usb_callout_stop(&pipe->set_state_callout);
+  callout_stop(&pipe->set_state_callout);
 
   if(pipe->state == ST_L2_SINGLE_FRAME)
   {
@@ -819,7 +819,7 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, uint8_t newstate)
 	pipe->tx_nr = 0;
 
 	/* stop re-transmit timeout */
-	usb_callout_stop(&pipe->get_mbuf_callout);
+	callout_stop(&pipe->get_mbuf_callout);
 
 	goto done;
   }
@@ -840,7 +840,7 @@ dss1_pipe_set_state(DSS1_TCP_pipe_t *pipe, uint8_t newstate)
   /* re-start timeout */
   if(pipe->state != ST_L2_PAUSE)
   {
-	usb_callout_reset(&pipe->set_state_callout,
+	callout_reset(&pipe->set_state_callout,
 			(L2_STATES_TIMEOUT_DELAY[pipe->state]*hz),
 			(void *)(void *)&dss1_pipe_set_state_timeout, pipe);
   }
@@ -1388,7 +1388,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 
 		/* reset */
 
-		usb_callout_stop(&pipe->get_mbuf_callout);
+		callout_stop(&pipe->get_mbuf_callout);
 
 		pipe->tx_window_length = 
 		pipe->tx_window_size =
@@ -1532,10 +1532,10 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
       if(_IF_QLEN(pipe))
       {
 	/**/
-	if(!usb_callout_pending(&pipe->get_mbuf_callout))
+	if(!callout_pending(&pipe->get_mbuf_callout))
 	{
 	  /* re-start timeout */
-	  usb_callout_reset(&pipe->get_mbuf_callout, T200DEF,
+	  callout_reset(&pipe->get_mbuf_callout, T200DEF,
 			  (void *)(void *)&dss1_l2_get_mbuf_timeout, pipe);
 	}
       }
@@ -1697,10 +1697,10 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 #endif
 
 	  /* initialize the callout handles for timeout routines */
-	  usb_callout_init_mtx(&sc->ID_REQUEST_callout, 
+	  callout_init_mtx(&sc->ID_REQUEST_callout, 
 			     CNTL_GET_LOCK(cntl), 0);
 
-	  usb_callout_init_mtx(&sc->L1_activity_callout, 
+	  callout_init_mtx(&sc->L1_activity_callout, 
 			     CNTL_GET_LOCK(cntl), 0);
 
 	  sc->sc_cntl = cntl;
@@ -1729,10 +1729,10 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	      ((cntl->N_serial_number + PIPE_NO(pipe))
 	       DSS1_TEI_IS_ODD(*2)) DSS1_TEI_IS_ODD(|1);
 
-	    usb_callout_init_mtx(&pipe->set_state_callout, 
+	    callout_init_mtx(&pipe->set_state_callout, 
 			       CNTL_GET_LOCK(cntl), 0);
 
-	    usb_callout_init_mtx(&pipe->get_mbuf_callout, 
+	    callout_init_mtx(&pipe->get_mbuf_callout, 
 			       CNTL_GET_LOCK(cntl), 0);
 #if 0
 	    _IF_QUEUE_GET(pipe)->ifq_maxlen = IFQ_MAXLEN;
@@ -1758,8 +1758,8 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 	  cntl->N_lapdstat = NULL;
 
 	  /* untimeout */
-	  usb_callout_stop(&sc->ID_REQUEST_callout);
-	  usb_callout_stop(&sc->L1_activity_callout);
+	  callout_stop(&sc->ID_REQUEST_callout);
+	  callout_stop(&sc->L1_activity_callout);
 
 	  PIPE_FOREACH(pipe,&sc->sc_pipe[0])
 	  {
@@ -1773,8 +1773,8 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 		}
 
 		/* untimeout */
-		usb_callout_stop(&pipe->set_state_callout);
-		usb_callout_stop(&pipe->get_mbuf_callout);
+		callout_stop(&pipe->set_state_callout);
+		callout_stop(&pipe->get_mbuf_callout);
 	  }
 
 	  _IF_DRAIN(sc);

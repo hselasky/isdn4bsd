@@ -817,15 +817,15 @@ ihfc_unsetup(device_t dev, const uint8_t *error, uint8_t level)
 	   * Stop timeouts if running
 	   */
 
-	  usb_callout_stop(&sc->sc_pollout_timr);
-	  usb_callout_stop(&sc->sc_pollout_timr_wait);
+	  callout_stop(&sc->sc_pollout_timr);
+	  callout_stop(&sc->sc_pollout_timr_wait);
 
 	  for(n = 0; 
 	      n < sc->sc_default.d_sub_controllers;
 	      n++)
 	  {
 	      struct sc_state *st = &sc->sc_state[n];
-	      usb_callout_stop(&st->T3callout);
+	      callout_stop(&st->T3callout);
 	  }
 	  mtx_unlock(sc->sc_mtx_p);
 	case 0:
@@ -1039,8 +1039,8 @@ ihfc_pnp_probe_sub(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	/* initialize callouts after that 
 	 * one has got a mutex:
 	 */
-	usb_callout_init_mtx(&sc->sc_pollout_timr_wait, sc->sc_mtx_p, 0);
-	usb_callout_init_mtx(&sc->sc_pollout_timr, sc->sc_mtx_p, 0);
+	callout_init_mtx(&sc->sc_pollout_timr_wait, sc->sc_mtx_p, 0);
+	callout_init_mtx(&sc->sc_pollout_timr, sc->sc_mtx_p, 0);
 
 	for(n = 0; 
 	    n < sc->sc_default.d_sub_controllers;
@@ -1063,7 +1063,7 @@ ihfc_pnp_probe_sub(device_t dev, ihfc_sc_t *sc, const struct drvr_id *id)
 	     */
 	    st->i4b_controller = cntl;
 
-	    usb_callout_init_mtx(&st->T3callout, sc->sc_mtx_p, 0);
+	    callout_init_mtx(&st->T3callout, sc->sc_mtx_p, 0);
 
 	    st->i4b_option_value = sc->sc_default.i4b_option_value;
 

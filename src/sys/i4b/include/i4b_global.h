@@ -86,7 +86,7 @@ struct i4b_accounting {
     u_int           sc_driver_unit;
     u_int           sc_driver_type;
     struct fifo_translator *sc_fifo_translator;
-    struct usb_callout sc_callout;
+    struct callout sc_callout;
     u_int           sc_iinb;   /* number of ISDN incoming bytes from HSCX */
     u_int           sc_ioutb;  /* number of ISDN outgoing bytes to HSCX */
     u_int           sc_inb;    /* number of incoming bytes after 
@@ -116,7 +116,7 @@ extern void i4b_accounting_timeout(struct i4b_accounting *sc);
   if(fifo_translator)							\
   {									\
       /* connecting */							\
-      usb_callout_init_mtx(&(sc)->sc_callout, (fifo_translator)->mtx, 0);	\
+      callout_init_mtx(&(sc)->sc_callout, (fifo_translator)->mtx, 0);	\
   }									\
   (sc)->sc_fifo_translator = fifo_translator;				\
   (sc)->sc_driver_type = driver_type;					\
@@ -244,8 +244,8 @@ typedef struct call_desc {
 				      * messages sent to userland
 				      */
 
-	struct  usb_callout idle_callout;
-	struct  usb_callout set_state_callout;
+	struct  callout idle_callout;
+	struct  callout set_state_callout;
 
 	u_char  idle_state;	/* wait for idle_time begin	*/
 #define IST_NOT_STARTED 0	/* shorthold mode disabled 	*/

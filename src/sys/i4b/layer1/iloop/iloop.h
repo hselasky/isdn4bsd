@@ -43,7 +43,7 @@ struct iloop_softc {
 
 	uint8_t	sc_ringing;
 
-	struct usb_callout sc_callout;
+	struct callout sc_callout;
 };
 
 #endif					/* _ILOOP_H_ */

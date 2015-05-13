@@ -1,7 +1,33 @@
+/*-
+ * Copyright (c) 2015 Hans Petter Selasky. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
 #ifndef _I4B_COMPAT_H_
 #define	_I4B_COMPAT_H_
 
-#if defined(__FreeBSD__)
+#ifdef I4B_GLOBAL_INCLUDE_FILE
+#else
+#ifdef __FreeBSD__
 
 # include <sys/conf.h>
 
@@ -29,21 +55,11 @@
 #  include <sys/filio.h>
 #  include <sys/proc.h>
 #  include <fs/devfs/devfs.h>
-#  include <sys/callout.h> /* callout_xxx() */
+#  include <sys/callout.h>
 #  ifndef __KASSERT
     typedef struct cdevsw cdevsw_t;
 #   define __lockmgr lockmgr
 #   define __KASSERT KASSERT
-#  endif
-#  ifndef usb_callout_init_mtx
-#   define usb_callout_init_mtx(c,m,f) callout_init_mtx(&(c)->co,m,f)
-#   define usb_callout_reset(c,t,f,d) callout_reset(&(c)->co,t,f,d)
-#   define usb_callout_stop(c) callout_stop(&(c)->co)
-#   define usb_callout_drain(c) callout_drain(&(c)->co)
-#   define usb_callout_pending(c) callout_pending(&(c)->co)
-#   ifndef usb2_callout_init_mtx
-     struct usb_callout { struct callout co; };
-#   endif
 #  endif
 # else
 #  include <ncurses.h>
@@ -52,5 +68,6 @@
 
 #else
 #include <sys/freebsd_compat.h>
+#endif
 #endif
 #endif

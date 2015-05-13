@@ -93,7 +93,7 @@ iloop_timeout(void *arg)
 	uint16_t i;
 	uint16_t timestamp;
 
-	usb_callout_reset(&sc->sc_callout, hz / ILOOP_FPS,
+	callout_reset(&sc->sc_callout, hz / ILOOP_FPS,
 	    &iloop_timeout, sc);
 
 	/* make sure the DSS1 code gets a chance to run */
@@ -151,7 +151,7 @@ iloop_init(void *arg)
 
 	sc->sc_dl.dl_softc = sc;
 
-	usb_callout_init_mtx(&sc->sc_callout, sc->sc_pmtx, 0);
+	callout_init_mtx(&sc->sc_callout, sc->sc_pmtx, 0);
 
 	printf("iloop0: I4B Loopback device (attached)\n");
 
@@ -185,10 +185,10 @@ iloop_uninit(void *arg)
 	dss1_lite_detach(&sc->sc_dl);
 
 	mtx_lock(sc->sc_pmtx);
-	usb_callout_stop(&sc->sc_callout);
+	callout_stop(&sc->sc_callout);
 	mtx_unlock(sc->sc_pmtx);
 
-	usb_callout_drain(&sc->sc_callout);
+	callout_drain(&sc->sc_callout);
 
 	free(sc, M_TEMP);
 }

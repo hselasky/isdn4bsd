@@ -127,7 +127,7 @@ struct ipr_softc {
 	struct _ifqueue sc_fastq;	/* interactive traffic		*/
 	struct _ifqueue sc_sendq;	/* send queue			*/
 
-	struct usb_callout sc_callout;
+	struct callout sc_callout;
 
 	fifo_translator_t *sc_fifo_translator;	/* fifo translator      */
 
@@ -798,7 +798,7 @@ ipr_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	  sc->sc_ifp->if_drv_flags |= IFF_DRV_RUNNING;
 
-	  usb_callout_init_mtx(&sc->sc_callout, CNTL_GET_LOCK(cntl), 0);
+	  callout_init_mtx(&sc->sc_callout, CNTL_GET_LOCK(cntl), 0);
 
 	  /*
 	   * Sometimes ISDN B-channels are switched thru asymmetic. This
@@ -826,7 +826,7 @@ ipr_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 		f->L5_GET_MBUF = ipr_get_mbuf_wait;
 
-		usb_callout_reset(&sc->sc_callout, delay,
+		callout_reset(&sc->sc_callout, delay,
 				(void *)(void *)&i4bipr_connect_startio, (void *)sc);
 	    }
 
@@ -848,7 +848,7 @@ ipr_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	  sc->sc_ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
 
-	  usb_callout_stop(&sc->sc_callout);
+	  callout_stop(&sc->sc_callout);
 	}
 
 	return f;

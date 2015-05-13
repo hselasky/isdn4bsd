@@ -206,8 +206,8 @@ typedef struct DSS1_TCP_pipe {
   uint32_t	refcount;
   uint8_t	state;  /* current state */
 
-  struct usb_callout get_mbuf_callout;
-  struct usb_callout set_state_callout;
+  struct callout get_mbuf_callout;
+  struct callout set_state_callout;
 
   void		*L5_sc;
 
@@ -261,8 +261,8 @@ typedef struct {
 
 	STRUCT_IFQUEUE; /* queue of outgoing frames */
 
-	struct usb_callout ID_REQUEST_callout;
-	struct usb_callout L1_activity_callout;
+	struct callout ID_REQUEST_callout;
+	struct callout L1_activity_callout;
 
 	/* statistics */
 

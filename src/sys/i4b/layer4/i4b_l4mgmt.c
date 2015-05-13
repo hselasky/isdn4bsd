@@ -141,10 +141,10 @@ i4b_allocate_cd(struct i4b_controller *cntl)
 				goto error;
 			}
 
-			usb_callout_init_mtx(&cd->idle_callout, 
+			callout_init_mtx(&cd->idle_callout, 
 					   CNTL_GET_LOCK(cntl), 0);
 
-			usb_callout_init_mtx(&cd->set_state_callout, 
+			callout_init_mtx(&cd->set_state_callout, 
 					   CNTL_GET_LOCK(cntl), 0);
 
 			NDBGL4(L4_MSG, "found free cd - "
@@ -175,10 +175,8 @@ i4b_free_cd(struct call_desc *cd)
 
 	cd->cdid = CDID_UNUSED;
 
-	usb_callout_stop(&cd->idle_callout);
-	usb_callout_stop(&cd->set_state_callout);
-
-	return;
+	callout_stop(&cd->idle_callout);
+	callout_stop(&cd->set_state_callout);
 }
 
 /*---------------------------------------------------------------------------*

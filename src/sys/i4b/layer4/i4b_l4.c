@@ -391,7 +391,7 @@ i4b_accounting_timeout(struct i4b_accounting *sc)
 				  sc->sc_inb ? sc->sc_inb : sc->sc_iinb);
 	  }
 
-	  usb_callout_reset(&sc->sc_callout,
+	  callout_reset(&sc->sc_callout,
 			  I4B_ACCOUNTING_INTERVAL*hz,
 			  (void *)(void *)i4b_accounting_timeout, sc);
 	},
@@ -404,7 +404,7 @@ i4b_accounting_timeout(struct i4b_accounting *sc)
 			    0, 0, 
 			    sc->sc_outb, sc->sc_inb);
 
-	  usb_callout_stop(&sc->sc_callout);
+	  callout_stop(&sc->sc_callout);
 
 	  sc->sc_iinb = 0;
 	  sc->sc_ioutb = 0;
@@ -1264,7 +1264,7 @@ i4b_idle_check(call_desc_t *cd)
 			}
 
 			/* start timeout */
-			usb_callout_reset(&cd->idle_callout, time*hz,
+			callout_reset(&cd->idle_callout, time*hz,
 					(void *)(void *)i4b_idle_check, cd);
 			break;
 		}
