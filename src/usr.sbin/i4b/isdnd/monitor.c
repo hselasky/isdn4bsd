@@ -617,7 +617,7 @@ monitor_handle_connect(int sockfd, int is_local)
 	I4B_PREP_CMD(idata, I4B_MON_IDATA_CODE);
 	I4B_PUT_2B(idata, I4B_MON_IDATA_VERSMAJOR, MPROT_VERSION);
 	I4B_PUT_2B(idata, I4B_MON_IDATA_VERSMINOR, MPROT_REL);
-	I4B_PUT_2B(idata, I4B_MON_IDATA_NUMCTRL, MAX_CONTROLLERS);
+	I4B_PUT_2B(idata, I4B_MON_IDATA_NUMCTRL, I4B_MAX_CONTROLLERS);
 	I4B_PUT_2B(idata, I4B_MON_IDATA_NUMENTR, nentries);	
 	I4B_PUT_4B(idata, I4B_MON_IDATA_CLACCESS, r_mask);
 
@@ -626,7 +626,7 @@ monitor_handle_connect(int sockfd, int is_local)
 		log(LL_MER, "monitor_handle_connect: sock_write 1 error - %s", strerror(errno));
 	}
 		
-	for (i = 0; i < MAX_CONTROLLERS; i++)
+	for (i = 0; i < I4B_MAX_CONTROLLERS; i++)
 	{
 		u_int8_t ictrl[I4B_MON_ICTRL_SIZE];
 
@@ -669,7 +669,7 @@ monitor_handle_connect(int sockfd, int is_local)
 
 	/* current state of controller(s) */
 	
-	for(i=0; i < MAX_CONTROLLERS; i++)
+	for(i=0; i < I4B_MAX_CONTROLLERS; i++)
 	{
 		monitor_evnt_tei(i, isdn_ctrl_tab[i].tei);
 		monitor_evnt_l12stat(i, LAYER_ONE, isdn_ctrl_tab[i].l1stat);

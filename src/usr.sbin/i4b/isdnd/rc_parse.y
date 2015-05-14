@@ -489,8 +489,8 @@ controllersect:	CONTROLLER '\n'
 		{
 			controllercount++;
 
-			if (controllercount >= MAX_CONTROLLERS) {
-			    controllercount = (MAX_CONTROLLERS-1);
+			if (controllercount >= I4B_MAX_CONTROLLERS) {
+			    controllercount = (I4B_MAX_CONTROLLERS-1);
 			}
 		}
 		| CONTROLLER NUMBERSTR '\n'
@@ -501,8 +501,8 @@ controllersect:	CONTROLLER '\n'
 			    controllercount = 0;
 			}
 
-			if (controllercount >= MAX_CONTROLLERS) {
-			    controllercount = (MAX_CONTROLLERS-1);
+			if (controllercount >= I4B_MAX_CONTROLLERS) {
+			    controllercount = (I4B_MAX_CONTROLLERS-1);
 			}
 		}
 		controllers

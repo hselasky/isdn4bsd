@@ -53,7 +53,7 @@
 #include <i4b/include/i4b_global.h>
 
 struct i4b_debug_mask i4b_debug_mask;
-struct i4b_controller i4b_controller[MAX_CONTROLLERS]; /* controller description array */
+struct i4b_controller i4b_controller[I4B_MAX_CONTROLLERS]; /* controller description array */
 struct i4b_pcm_cable i4b_pcm_cable[I4B_PCM_CABLE_MAX]; /* PCM cable array */
 
 struct mtx i4b_global_lock;
@@ -82,7 +82,7 @@ i4b_controller_setup(void *arg)
   sx_init(&i4b_global_sx_lock, "i4b_global_sx_lock");
 
   for(cntl = &i4b_controller[0];
-      cntl != &i4b_controller[MAX_CONTROLLERS];
+      cntl != &i4b_controller[I4B_MAX_CONTROLLERS];
       cntl++)
   {
 	cntl->unit = unit;
@@ -90,16 +90,16 @@ i4b_controller_setup(void *arg)
 	mtx_init(&cntl->L1_lock_data, "i4b_controller_lock", 
 		 NULL, MTX_DEF|MTX_RECURSE);
 
-#if (MAX_CONTROLLERS <= 8)
+#if (I4B_MAX_CONTROLLERS <= 8)
 	mask = -1;
 #else
 	if((unit < 8) ||
-	   (unit >= (MAX_CONTROLLERS-8))) 
+	   (unit >= (I4B_MAX_CONTROLLERS-8))) 
 	{
 	    mask = -1;
 	}
 	else if((unit < 16) || 
-		(unit >= (MAX_CONTROLLERS-16)))
+		(unit >= (I4B_MAX_CONTROLLERS-16)))
 	{
 	    mask = -4;
 	}
@@ -123,7 +123,7 @@ i4b_controller_unsetup(void *arg)
 	struct i4b_controller *cntl;
 
 	for(cntl = &i4b_controller[0];
-	    cntl != &i4b_controller[MAX_CONTROLLERS];
+	    cntl != &i4b_controller[I4B_MAX_CONTROLLERS];
 	    cntl++) {
 		mtx_destroy(&cntl->L1_lock_data);
 	}
@@ -156,9 +156,9 @@ i4b_controller_reset(struct i4b_controller *cntl)
 
 #ifdef I4B_CDESC_POOL_MAX
 SYSPOOL_DECLARE(i4b_cd_pool);
-SYSPOOL_CREATE(i4b_cd_pool, I4B_CDESC_POOL_MAX * sizeof(struct call_desc), MAX_CONTROLLERS);
+SYSPOOL_CREATE(i4b_cd_pool, I4B_CDESC_POOL_MAX * sizeof(struct call_desc), I4B_MAX_CONTROLLERS);
 SYSPOOL_DECLARE(i4b_li_pool);
-SYSPOOL_CREATE(i4b_li_pool, I4B_CDESC_POOL_MAX * sizeof(struct i4b_line_interconnect), MAX_CONTROLLERS);
+SYSPOOL_CREATE(i4b_li_pool, I4B_CDESC_POOL_MAX * sizeof(struct i4b_line_interconnect), I4B_MAX_CONTROLLERS);
 #endif
 
 /*---------------------------------------------------------------------------*
@@ -179,7 +179,7 @@ i4b_controller_allocate(uint8_t portable, uint8_t sub_controllers,
   uint8_t x;
 
   if((sub_controllers == 0) ||
-     (sub_controllers > MAX_CONTROLLERS))
+     (sub_controllers > I4B_MAX_CONTROLLERS))
   {
       ADD_ERROR(error, "%s: number of sub-controllers, "
 		"%d, is invalid!\n", __FUNCTION__, 
@@ -189,7 +189,7 @@ i4b_controller_allocate(uint8_t portable, uint8_t sub_controllers,
   }
 
   if((call_descriptors == 0) ||
-     (call_descriptors > MAX_CHANNELS))
+     (call_descriptors > I4B_MAX_CHANNELS))
   {
       ADD_ERROR(error, "%s: number of call-descriptors, "
 		"%d, is invalid!\n", __FUNCTION__,
@@ -228,7 +228,7 @@ i4b_controller_allocate(uint8_t portable, uint8_t sub_controllers,
       goto done;
   }
 
-  cntl_end = &i4b_controller[MAX_CONTROLLERS-sub_controllers];
+  cntl_end = &i4b_controller[I4B_MAX_CONTROLLERS-sub_controllers];
 
   if(portable)
     cntl = cntl_end;
@@ -261,7 +261,7 @@ repeat:
 	  }
 
 	  ADD_ERROR(error, "%s: cannot handle more than %d devices!",
-		    __FUNCTION__, MAX_CONTROLLERS);
+		    __FUNCTION__, I4B_MAX_CONTROLLERS);
 
 	  cntl = NULL;
 	  goto done;

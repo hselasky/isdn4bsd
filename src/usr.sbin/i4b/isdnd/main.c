@@ -300,23 +300,23 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	if(mvr.max_controllers != MAX_CONTROLLERS)
+	if(mvr.max_controllers != I4B_MAX_CONTROLLERS)
 	{
 		log(LL_ERR, "max_controller mismatch, kernel %d, daemon %d",
-		    mvr.max_controllers, MAX_CONTROLLERS);
+		    mvr.max_controllers, I4B_MAX_CONTROLLERS);
 		exit(1);
 	}
 
-	if(MAX_CONTROLLERS == 0)
+	if(I4B_MAX_CONTROLLERS == 0)
 	{
 		log(LL_ERR, "no ISDN controller found!");
 		exit(1);
 	}
 
-	if(mvr.max_channels != MAX_CHANNELS)
+	if(mvr.max_channels != I4B_MAX_CHANNELS)
 	{
 		log(LL_ERR, "max_channels mismatch, kernel %d, daemon %d",
-		    mvr.max_channels, MAX_CHANNELS);
+		    mvr.max_channels, I4B_MAX_CHANNELS);
 		exit(1);
 	}
 

@@ -501,7 +501,7 @@ typedef struct isdn_ctrl_state {
 	u_int8_t   l1_desc[64];		/* controller description, zero terminated */
 	char* firmware;			/* loadable firmware file name 	*/
     
-        char ch_state[MAX_CHANNELS];    /* channel state		*/
+        char ch_state[I4B_MAX_CHANNELS];    /* channel state		*/
 #define  CHAN_IDLE	0		/* channel is free for usage	*/
 #define  CHAN_RUN	1		/* channel is occupied		*/
 	int tei;			/* tei or -1 if invalid		*/
@@ -571,7 +571,7 @@ int got_unitlen = 0;				/* flag, got length of a unit */
 time_t unit_length;				/* length of a unit */
 
 cfg_entry_t cfg_entry_tab[CFG_ENTRY_MAX];	/* configuration table */
-isdn_ctrl_state_t isdn_ctrl_tab[MAX_CONTROLLERS];	/* controller states table */
+isdn_ctrl_state_t isdn_ctrl_tab[I4B_MAX_CONTROLLERS];	/* controller states table */
 
 int nentries = 0;				/* # of entries in config tab */
 
@@ -668,7 +668,7 @@ int got_unitlen;
 time_t unit_length;
 
 cfg_entry_t cfg_entry_tab[CFG_ENTRY_MAX];	/* configuration table */
-isdn_ctrl_state_t isdn_ctrl_tab[MAX_CONTROLLERS];	/* controller states table */
+isdn_ctrl_state_t isdn_ctrl_tab[I4B_MAX_CONTROLLERS];	/* controller states table */
 
 int nentries;
 

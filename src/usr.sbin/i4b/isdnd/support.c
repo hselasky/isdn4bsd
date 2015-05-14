@@ -80,8 +80,8 @@ get_cep_by_cdid(int cdid)
 cfg_entry_t *
 get_cep_by_cc(int controller, int chan)
 {
-	if((controller >= 0) && (controller < MAX_CONTROLLERS) &&
-	   (chan >= 0) && (chan < MAX_CHANNELS))
+	if((controller >= 0) && (controller < I4B_MAX_CONTROLLERS) &&
+	   (chan >= 0) && (chan < I4B_MAX_CHANNELS))
 	{
 	  CEP_FOREACH(cep,&cfg_entry_tab[0])
 	  {
@@ -494,7 +494,7 @@ close_allactive(void)
 const u_char *
 name_of_controller(u_int16_t controller)
 {
-	if(controller < MAX_CONTROLLERS)
+	if(controller < I4B_MAX_CONTROLLERS)
 	  return &isdn_ctrl_tab[controller].l1_desc[0];
 	else
 	  return "not present";
@@ -511,7 +511,7 @@ init_active_controller(void)
 	int controller;
 	char cmdbuf[MAXPATHLEN+128];
 
-	for(controller = 0; controller < MAX_CONTROLLERS; controller++)
+	for(controller = 0; controller < I4B_MAX_CONTROLLERS; controller++)
 	{
 		if(isdn_ctrl_tab[controller].l1_type == L1_TYPE_TINADD)
 		{
@@ -583,13 +583,13 @@ init_active_controller(void)
 int
 set_channel_state(int controller, int channel, int state)
 {
-	if((controller < 0) || (controller >= MAX_CONTROLLERS))
+	if((controller < 0) || (controller >= I4B_MAX_CONTROLLERS))
 	{
 		log(LL_ERR, "invalid controller number [%d]!",
 		    controller);
 		return(ERROR);
 	}
-	if((channel < 0) || (channel >= MAX_CHANNELS))
+	if((channel < 0) || (channel >= I4B_MAX_CHANNELS))
 	{
 		log(LL_ERR, "controller [%d] "
 		    "invalid channel [%d]!", controller, channel);
@@ -618,13 +618,13 @@ set_channel_state(int controller, int channel, int state)
 int
 ret_channel_state(int controller, int channel)
 {
-	if((controller < 0) || (controller >= MAX_CONTROLLERS))
+	if((controller < 0) || (controller >= I4B_MAX_CONTROLLERS))
 	{
 		log(LL_ERR, "invalid "
 		    "controller number [%d]!", controller);
 		return(ERROR);
 	}
-	if((channel < 0) || (channel >= MAX_CHANNELS))
+	if((channel < 0) || (channel >= I4B_MAX_CHANNELS))
 	{
 		log(LL_ERR, "controller [%d] "
 		    "invalid channel [%d]!", controller, channel);

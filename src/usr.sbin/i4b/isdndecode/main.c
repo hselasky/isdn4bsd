@@ -229,7 +229,7 @@ main(int argc, char *argv[])
 	    case 'u':
 	        unit = atoi(optarg);
 #if 0
-		if(unit >= MAX_CONTROLLERS)
+		if(unit >= I4B_MAX_CONTROLLERS)
 		    usage();
 #endif
 		break;
@@ -253,7 +253,7 @@ main(int argc, char *argv[])
 	    case 'R':
 	        u_Rx = atoi(optarg);
 #if 0
-		if(u_Rx >= MAX_CONTROLLERS)
+		if(u_Rx >= I4B_MAX_CONTROLLERS)
 		    usage();
 #endif
 		break;
@@ -261,7 +261,7 @@ main(int argc, char *argv[])
 	    case 'T':
 	        u_Tx = atoi(optarg);
 #if 0
-		if(Tx >= MAX_CONTROLLERS)
+		if(Tx >= I4B_MAX_CONTROLLERS)
 		    usage();
 #endif
 		break;

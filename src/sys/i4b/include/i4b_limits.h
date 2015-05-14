@@ -39,14 +39,14 @@
  *
  * NOTE: should be power of two
  *---------------------------------------------------------------------------*/
-#define	MAX_CONTROLLERS 64		/* units */
+#define	I4B_MAX_CONTROLLERS 64		/* units */
 
 /*---------------------------------------------------------------------------*
  *	max number of channels
  *
  * NOTE: must be power of two
  *---------------------------------------------------------------------------*/
-#define	MAX_CHANNELS    64		/* units */
+#define	I4B_MAX_CHANNELS    64		/* units */
 
 /*---------------------------------------------------------------------------*
  *	max number of PCM cables
@@ -74,7 +74,7 @@
  *	call descriptor id (cdid) definitions
  *---------------------------------------------------------------------------*/
 #define	CDID_REF_MAX    0x100		/* exclusive */
-#define	CDID_MAX        (CDID_REF_MAX * MAX_CONTROLLERS)	/* exclusive */
+#define	CDID_MAX        (CDID_REF_MAX * I4B_MAX_CONTROLLERS)	/* exclusive */
 
 /*---------------------------------------------------------------------------*
  *	driver count definitions

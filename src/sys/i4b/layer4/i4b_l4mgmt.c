@@ -79,7 +79,7 @@ get_cdid(struct i4b_controller *cntl)
 
  again:
 	/* NOTE: "N_cdid_xxx" must be multiplied by
-	 * "MAX_CONTROLLERS" to get the real cdid value !
+	 * "I4B_MAX_CONTROLLERS" to get the real cdid value !
 	 */
 
 	/* get next ID */
@@ -386,7 +386,7 @@ i4b_disconnect_by_appl_interface(uint8_t ai_type, void *ai_ptr)
 	struct call_desc *cd;
 
 	for(cntl = &i4b_controller[0];
-	    cntl < &i4b_controller[MAX_CONTROLLERS];
+	    cntl < &i4b_controller[I4B_MAX_CONTROLLERS];
 	    cntl++)
 	{
 	    CNTL_LOCK(cntl);
@@ -465,7 +465,7 @@ i4b_update_all_d_channels(int open)
 
 	if (do_update) {
 		for(cntl = &i4b_controller[0];
-		    cntl < &i4b_controller[MAX_CONTROLLERS];
+		    cntl < &i4b_controller[I4B_MAX_CONTROLLERS];
 		    cntl++)
 		{
 			i4b_update_d_channel(cntl);

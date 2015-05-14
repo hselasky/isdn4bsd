@@ -581,8 +581,8 @@ i4b_active_diagnostic(struct i4b_controller *cntl,
 void
 i4b_version_request(msg_vr_req_t *mvr)
 {
-	mvr->max_controllers = MAX_CONTROLLERS;
-	mvr->max_channels = MAX_CHANNELS;
+	mvr->max_controllers = I4B_MAX_CONTROLLERS;
+	mvr->max_channels = I4B_MAX_CHANNELS;
 	mvr->version = I4B_VERSION;
 	mvr->release = I4B_REL;
 	mvr->step = I4B_STEP;

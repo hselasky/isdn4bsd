@@ -71,9 +71,9 @@
 
 struct capi_ai_softc {
 
-	uint32_t sc_info_mask[MAX_CONTROLLERS]; /* used to limit information */
-	uint32_t sc_CIP_mask_1[MAX_CONTROLLERS]; /* used to select incoming calls */
-	uint32_t sc_CIP_mask_2[MAX_CONTROLLERS]; /* used to select incoming calls */
+	uint32_t sc_info_mask[I4B_MAX_CONTROLLERS]; /* used to limit information */
+	uint32_t sc_CIP_mask_1[I4B_MAX_CONTROLLERS]; /* used to select incoming calls */
+	uint32_t sc_CIP_mask_2[I4B_MAX_CONTROLLERS]; /* used to select incoming calls */
 
 	uint16_t sc_max_b_data_len;
 #define MIN_B_DATA_LEN 128 /* bytes */
@@ -363,7 +363,7 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 		    else
 		      cip = 1;
 
-		    if(controller >= MAX_CONTROLLERS)
+		    if(controller >= I4B_MAX_CONTROLLERS)
 		    {
 		        /* application does not want this message */
 			goto done;
@@ -382,7 +382,7 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 		{
 		    uint8_t controller = le32toh(mp->head.dwCid) & 0xFF;
 
-		    if(controller >= MAX_CONTROLLERS)
+		    if(controller >= I4B_MAX_CONTROLLERS)
 		    {
 		        /* application does not want this message */
 			goto done;
@@ -434,13 +434,13 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 
 #define CAPI_ID_NCCI (1 << 16)
 #define CAPI_ID2CONTROLLER(cid) ((cid) & 0x7F)
-#define CAPI_ID2CDID(cid) (((cid) % MAX_CONTROLLERS) | \
-			   ((((cid) >> 8) & 0xFF) * MAX_CONTROLLERS))
-#define CDID2CAPI_ID(cdid) (((cdid) % MAX_CONTROLLERS) |  \
-			    ((cdid / MAX_CONTROLLERS) << 8))
+#define CAPI_ID2CDID(cid) (((cid) % I4B_MAX_CONTROLLERS) | \
+			   ((((cid) >> 8) & 0xFF) * I4B_MAX_CONTROLLERS))
+#define CDID2CAPI_ID(cdid) (((cdid) % I4B_MAX_CONTROLLERS) |  \
+			    ((cdid / I4B_MAX_CONTROLLERS) << 8))
 
-#if ((MAX_CONTROLLERS > 0x80) || \
-     (MAX_CONTROLLERS == 0) || \
+#if ((I4B_MAX_CONTROLLERS > 0x80) || \
+     (I4B_MAX_CONTROLLERS == 0) || \
      (CDID_REF_MAX > 0x100) || \
      (CDID_REF_MAX == 0))
 #error "cannot convert between CDID and CAPI_ID: overflow"
@@ -3055,7 +3055,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(m2)
 	      {
-		  uint8_t controller = (sc->sc_msg.head.dwCid & 0xFF) % MAX_CONTROLLERS;
+		  uint8_t controller = (sc->sc_msg.head.dwCid & 0xFF) % I4B_MAX_CONTROLLERS;
 
 		  CAPI_INIT(CAPI_LISTEN_REQ, &sc->sc_listen_req);
 
@@ -3395,8 +3395,8 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 		bzero(&req->profile, sizeof(req->profile));
 
-		req->profile.wNumCtlr = htole16(MAX_CONTROLLERS);
-		req->profile.wNumBChannels = htole16(MAX_CHANNELS);
+		req->profile.wNumCtlr = htole16(I4B_MAX_CONTROLLERS);
+		req->profile.wNumBChannels = htole16(I4B_MAX_CHANNELS);
 		req->profile.dwGlobalOptions = 
 		  htole32(CAPI_PROFILE_INTERNAL_CTLR_SUPPORT|
 			  CAPI_PROFILE_ECHO_CANCELLATION|

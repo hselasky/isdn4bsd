@@ -84,7 +84,7 @@ set_config_defaults(void)
 	 * controller table cleanup
 	 */
 	
-	for(i=0; i < MAX_CONTROLLERS; i++)
+	for(i=0; i < I4B_MAX_CONTROLLERS; i++)
 	{
 		msg_ctrl_info_req_t mcir;
 		bzero(&mcir, sizeof(mcir));
@@ -104,7 +104,7 @@ set_config_defaults(void)
 			mcir.l1_type = 0;
 		}
 
-		if(mcir.l1_channels > MAX_CHANNELS)
+		if(mcir.l1_channels > I4B_MAX_CHANNELS)
 		{
 			log(LL_ERR, "too many channels");
 			exit(1);
@@ -122,7 +122,7 @@ set_config_defaults(void)
 		isdn_ctrl_tab[i].firmware = NULL;
 
 		for (j = 0;
-		     j < MAX_CHANNELS;
+		     j < I4B_MAX_CHANNELS;
 		     j++)
 		{
 		    isdn_ctrl_tab[i].ch_state[j] = CHAN_IDLE;
@@ -1022,7 +1022,7 @@ cfg_setval(int keyword)
 							   cep->name, yylval.num)));
 
 					if((yylval.num < 0) ||
-					   (yylval.num >= MAX_CHANNELS))
+					   (yylval.num >= I4B_MAX_CHANNELS))
 					{
 					  log(LL_DBG, "%s: isdnchannel value out of range", cep->name);
 					  config_error_flag++;
@@ -1551,7 +1551,7 @@ check_config(void)
 		/* isdn controller number */
 
 		if((cep->isdncontroller < 0) || 
-		   (cep->isdncontroller >= MAX_CONTROLLERS))
+		   (cep->isdncontroller >= I4B_MAX_CONTROLLERS))
 		{
 			log(LL_ERR, "WARNING, %s: isdncontroller out "
 			    "of range in entry %d!", cep->name, i);

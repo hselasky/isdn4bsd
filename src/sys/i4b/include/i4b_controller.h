@@ -404,7 +404,7 @@ typedef struct i4b_controller {
          ((i4b_controller_by_cd(cd))->N_FREE_CD)(cd)
 
 	/* utilization of the channels */
-	uint8_t N_channel_utilization[(MAX_CHANNELS + 7) / 8];
+	uint8_t N_channel_utilization[(I4B_MAX_CHANNELS + 7) / 8];
 
 #define	SET_CHANNEL_UTILIZATION(cntl,channel,value)	\
 SET_BIT((cntl)->N_channel_utilization,channel,value)	\
@@ -455,9 +455,9 @@ GET_BIT((cntl)->N_channel_utilization,channel)	\
 
 } i4b_controller_t;
 
-extern struct i4b_controller i4b_controller[MAX_CONTROLLERS];
+extern struct i4b_controller i4b_controller[I4B_MAX_CONTROLLERS];
 
-#define	CNTL_FIND(unit) (&i4b_controller[((unsigned)(unit)) % MAX_CONTROLLERS])
+#define	CNTL_FIND(unit) (&i4b_controller[((unsigned)(unit)) % I4B_MAX_CONTROLLERS])
 #define	CNTL_LOCK(cntl)        mtx_lock((cntl)->L1_lock_ptr)
 #define	CNTL_LOCK_ASSERT(cntl) mtx_assert((cntl)->L1_lock_ptr, MA_OWNED)
 #define	CNTL_UNLOCK(cntl)      mtx_unlock((cntl)->L1_lock_ptr)

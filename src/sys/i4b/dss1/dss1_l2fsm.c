@@ -1575,7 +1575,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
   return m;
 }
 
-static l2softc_t l2_softc[MAX_CONTROLLERS];
+static l2softc_t l2_softc[I4B_MAX_CONTROLLERS];
 
 /*---------------------------------------------------------------------------*
  *	setup the FIFO-translator for this driver
@@ -1591,7 +1591,7 @@ dss1_setup_ft(i4b_controller_t *cntl, fifo_translator_t *f,
 
 	if(!pp)
 	{
-	  return (driver_unit < MAX_CONTROLLERS) ? 
+	  return (driver_unit < I4B_MAX_CONTROLLERS) ? 
 	    sc->sc_fifo_translator : FT_INVALID;
 	}
 

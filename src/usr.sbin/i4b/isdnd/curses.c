@@ -65,7 +65,7 @@ init_screen(void)
 	noecho();
 	raw();
 
-	uheight = MAX_CONTROLLERS * 2; /* (cards * channels) */
+	uheight = I4B_MAX_CONTROLLERS * 2; /* (cards * channels) */
 	lheight = LINES - uheight - 6 + 1; /* rest of display */
 	
 	if((upper_w = newwin(uheight, COLS, UPPER_B, 0)) == NULL)
@@ -122,7 +122,7 @@ init_screen(void)
 	
 	refresh();
 
-	for(i=0, j=0; i < MAX_CONTROLLERS; i++, j+=2)
+	for(i=0, j=0; i < I4B_MAX_CONTROLLERS; i++, j+=2)
 	{
 		if(isdn_ctrl_tab[i].tei == -1)
 			mvwprintw(upper_w, j,   H_CNTL, "%d --- 1 ", i);
@@ -326,7 +326,7 @@ mexit:
 static void
 menuexit(WINDOW *menu_w)
 {
-	int uheight = MAX_CONTROLLERS * 2; /* cards * b-channels */
+	int uheight = I4B_MAX_CONTROLLERS * 2; /* cards * b-channels */
 	char buffer[512];
 
 	/* delete the menu window */
@@ -492,7 +492,7 @@ display_updown(cfg_entry_t *cep, int updown)
 void
 display_l12stat(int controller, int layer, int state)
 {
-	if((controller < 0) || (controller >= MAX_CONTROLLERS))
+	if((controller < 0) || (controller >= I4B_MAX_CONTROLLERS))
 		return;
 	if(!(layer == 1 || layer == 2))
 		return;
@@ -525,7 +525,7 @@ display_l12stat(int controller, int layer, int state)
 void
 display_tei(int controller, int tei)
 {
-	if((controller < 0) || (controller >= MAX_CONTROLLERS))
+	if((controller < 0) || (controller >= I4B_MAX_CONTROLLERS))
 		return;
 
 	if(tei == -1)
@@ -567,7 +567,7 @@ display_chans(void)
 		int chn;
 	} *cc = NULL;
 
-	for (i = 0; i < MAX_CONTROLLERS; i++)
+	for (i = 0; i < I4B_MAX_CONTROLLERS; i++)
 	{
 		if((ret_channel_state(i, CHAN_B1)) == CHAN_RUN)
 			cnt++;
@@ -630,7 +630,7 @@ display_chans(void)
 	nlines = 2;
 	ncols = 1;
 
-	for (i = 0; i < MAX_CONTROLLERS; i++)
+	for (i = 0; i < I4B_MAX_CONTROLLERS; i++)
 	{
 		if((ret_channel_state(i, CHAN_B1)) == CHAN_RUN)
 		{
@@ -713,7 +713,7 @@ display_cards(void)
 	struct timeval timo;
 	int i;
 	
-	nlines = 6+MAX_CONTROLLERS;
+	nlines = 6+I4B_MAX_CONTROLLERS;
 	ncols = 60;
 	pos_y = WMENU_POSLN;
 	pos_x = WMENU_POSCO;
@@ -738,7 +738,7 @@ display_cards(void)
 
 	mvwprintw(chan_w, 2, 2, "ctrl description");
 	mvwprintw(chan_w, 3, 2, "---- ----------------------------------------------");
-	for (i = 0; i < MAX_CONTROLLERS; i++)
+	for (i = 0; i < I4B_MAX_CONTROLLERS; i++)
 	{
 		mvwprintw(chan_w, 4+i, 2, " #%d  %s", i,
 			  name_of_controller(i));

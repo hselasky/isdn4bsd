@@ -292,10 +292,10 @@ typedef	unsigned int cause_t;		/* 32 bit unsigned int	*/
 typedef unsigned int cdid_t;
 
 #define CDID_UNUSED	0	/* cdid is invalid and unused */
-#define CDID2CONTROLLER(cdid) ((cdid) % MAX_CONTROLLERS)
-#define CDID2CALLREFERENCE(cdid) ((cdid) / MAX_CONTROLLERS)
-#define MAKE_CDID(controller,callreference) (((controller) % MAX_CONTROLLERS)| \
-			((callreference) * MAX_CONTROLLERS))
+#define CDID2CONTROLLER(cdid) ((cdid) % I4B_MAX_CONTROLLERS)
+#define CDID2CALLREFERENCE(cdid) ((cdid) / I4B_MAX_CONTROLLERS)
+#define MAKE_CDID(controller,callreference) (((controller) % I4B_MAX_CONTROLLERS)| \
+			((callreference) * I4B_MAX_CONTROLLERS))
 
 /*---------------------------------------------------------------------------*
  *	The shorthold algorithm to use

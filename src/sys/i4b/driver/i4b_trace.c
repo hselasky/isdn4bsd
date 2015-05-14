@@ -68,7 +68,7 @@ struct i4b_trace_softc {
 	struct selinfo  sc_selp;
 };
 
-static struct i4b_trace_softc i4b_trace_softc[MAX_CONTROLLERS];
+static struct i4b_trace_softc i4b_trace_softc[I4B_MAX_CONTROLLERS];
 
 static d_open_t	  i4btrc_open;
 static d_close_t  i4btrc_close;
@@ -101,7 +101,7 @@ i4btrcattach(void *dummy)
 	struct cdev *dev;
 	uint16_t i;
 
-	for(i=0; i < MAX_CONTROLLERS; i++)
+	for(i=0; i < I4B_MAX_CONTROLLERS; i++)
 	{
 		cntl = CNTL_FIND(i);
 		if(cntl == NULL)
@@ -133,7 +133,7 @@ i4btrcattach(void *dummy)
 	}
 
 	printf("i4btrc: %d ISDN trace device(s) attached\n", 
-	       MAX_CONTROLLERS);
+	       I4B_MAX_CONTROLLERS);
 	return;
 }
 SYSINIT(i4btrcattach, SI_SUB_PSEUDO, SI_ORDER_ANY, i4btrcattach, NULL);
@@ -149,7 +149,7 @@ i4b_l1_trace_ind(i4b_trace_hdr_t *hdr, struct mbuf *m1)
 	struct mbuf *m3;
 
 	if((hdr->unit < 0) ||
-	   (hdr->unit >= MAX_CONTROLLERS))
+	   (hdr->unit >= I4B_MAX_CONTROLLERS))
 	{
 	    return;
 	}

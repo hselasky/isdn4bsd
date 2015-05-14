@@ -88,7 +88,7 @@ msg_l12stat_ind(msg_l12stat_ind_t *ml)
 {
 	int controller = CDID2CONTROLLER(ml->header.cdid);
 
-	if((controller < 0) || (controller >= MAX_CONTROLLERS))
+	if((controller < 0) || (controller >= I4B_MAX_CONTROLLERS))
 	{
 		log(LL_ERR, "invalid controller number [%d]!", controller);
 		return;
@@ -133,7 +133,7 @@ msg_teiasg_ind(msg_teiasg_ind_t *mt)
 {
 	int controller = CDID2CONTROLLER(mt->header.cdid);
 
-	if((controller < 0) || (controller >= MAX_CONTROLLERS))
+	if((controller < 0) || (controller >= I4B_MAX_CONTROLLERS))
 	{
 		log(LL_ERR, "invalid controller number [%d]!", controller);
 		return;

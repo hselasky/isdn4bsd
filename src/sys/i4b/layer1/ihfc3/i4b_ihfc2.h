@@ -383,7 +383,7 @@ enum
 #error "number of channels is odd"
 #endif
 
-#if ((IHFC_CHANNELS/2) > MAX_CHANNELS)
+#if ((IHFC_CHANNELS/2) > I4B_MAX_CHANNELS)
 #error "too many channels, please update I4B"
 #endif
 
