@@ -87,6 +87,9 @@ struct capi_ai_softc {
 #define	CAPI_AI_LOCK(sc) mtx_lock(&(sc)->sc_mtx)
 #define	CAPI_AI_UNLOCK(sc) mtx_unlock(&(sc)->sc_mtx)
 
+	struct cv sc_cv_ref;
+	struct cv sc_cv_rdqueue;
+
 	uint16_t sc_flags;
 #define ST_CLOSING           0x0001 /* set if AI is closing */
 #define ST_RD_SLEEP_WAKEUP   0x0004 /* set if AI needs wakeup */
@@ -185,6 +188,9 @@ capi_ai_new_softc(void)
 
 	mtx_init(&sc->sc_mtx, "CAPI AI", NULL, MTX_DEF | MTX_RECURSE);
 
+	cv_init(&sc->sc_cv_ref, "CAPI-REF");
+	cv_init(&sc->sc_cv_rdqueue, "CAPI-RDQ");
+
 	sc->sc_flags = ST_BLOCK;
 
 	/* set default receive length */
@@ -204,16 +210,17 @@ capi_ai_free_softc(void *arg)
 	struct capi_ai_softc *sc = (struct capi_ai_softc *)arg;
 
 	mtx_lock(&i4b_global_lock);
-	while (sc->sc_refs != 0) {
-		msleep(sc, &i4b_global_lock, PZERO,
-		       "CAPI AI free", hz / 16);
-	}
+	while (sc->sc_refs != 0)
+		cv_wait(&sc->sc_cv_ref, &i4b_global_lock);
 	TAILQ_REMOVE(&capi_head, sc, entry);
 	mtx_unlock(&i4b_global_lock);
 
 	CAPI_AI_LOCK(sc);
 	_IF_DRAIN(&sc->sc_rdqueue);
 	CAPI_AI_UNLOCK(sc);
+
+	cv_destroy(&sc->sc_cv_ref);
+	cv_destroy(&sc->sc_cv_rdqueue);
 
 	mtx_destroy(&sc->sc_mtx);
 
@@ -309,6 +316,8 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 			sc = TAILQ_NEXT(sc, entry);
 			if (sc != NULL)
 				sc->sc_refs++;
+			if (sc->sc_refs == 0)
+				cv_broadcast(&sc->sc_cv_ref);
 			mtx_unlock(&i4b_global_lock);
 		}
 	}
@@ -406,7 +415,7 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 		if(sc->sc_flags & ST_RD_SLEEP_WAKEUP)
 		{
 			sc->sc_flags &= ~ST_RD_SLEEP_WAKEUP;
-			wakeup(&sc->sc_rdqueue);
+			cv_broadcast(&sc->sc_cv_rdqueue);
 		}
 
 		if(sc->sc_flags & ST_SELECT)
@@ -1745,10 +1754,10 @@ capi_close(struct cdev *dev, int flag, int fmt, struct thread *td)
 
 		if (sc->sc_flags & ST_RD_SLEEP_WAKEUP) {
 			sc->sc_flags &= ~ST_RD_SLEEP_WAKEUP;
-			wakeup(&sc->sc_rdqueue);
+			cv_broadcast(&sc->sc_cv_rdqueue);
 		}
-		msleep(sc, &sc->sc_mtx, PZERO,
-		       "CAPI AI closing", 0);
+		/* wait for readqueue to ack back */
+		cv_wait(&sc->sc_cv_rdqueue, &sc->sc_mtx);
 	}
 
 	d_open = ((sc->sc_flags & ST_D_OPEN) != 0);
@@ -1825,14 +1834,13 @@ capi_read(struct cdev *dev, struct uio *uio, int flag)
 	    {
 		sc->sc_flags |= (ST_RD_SLEEP_WAKEUP|ST_RD_SLEEP_ENTERED);
 
-		error = msleep(&sc->sc_rdqueue, &sc->sc_mtx,
-			       (PZERO + 1) | PCATCH, "CAPI AI wait data", 0);
+		error = cv_wait_sig(&sc->sc_cv_rdqueue, &sc->sc_mtx);
 
 		sc->sc_flags &= ~(ST_RD_SLEEP_WAKEUP|ST_RD_SLEEP_ENTERED);
 
 		if(sc->sc_flags & ST_CLOSING)
 		{
-			wakeup(sc);
+			cv_broadcast(&sc->sc_cv_rdqueue);
 			error = EIO;
 		}
 	    }
@@ -3161,7 +3169,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	if(sc->sc_flags & ST_CLOSING)
 	{
-		wakeup(sc);
+		cv_broadcast(&sc->sc_cv_rdqueue);
 		error = EIO;
 	}
 	CAPI_AI_UNLOCK(sc);
@@ -3633,7 +3641,7 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 
 	if(sc->sc_flags & ST_CLOSING)
 	{
-		wakeup(sc);
+		cv_broadcast(&sc->sc_cv_rdqueue);
 		error = EIO;
 	}
 	CAPI_AI_UNLOCK(sc);
