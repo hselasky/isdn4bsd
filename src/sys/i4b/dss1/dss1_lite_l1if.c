@@ -1,3 +1,4 @@
+/* $FreeBSD$ */
 /*-
  * Copyright (c) 2000-2009 Hans Petter Selasky. All rights reserved.
  *
@@ -26,8 +27,6 @@
  *
  *	dss1_lite_l1if.c - layer 1 handler
  *	----------------------------------
- *
- * $FreeBSD: $
  *
  *      This file defines the functions that are used
  *      to interface with ISDN4BSD
@@ -69,7 +68,9 @@ dss1_lite_l1_ioctl(struct i4b_controller *cntl, int command, void *parm)
 {
 	struct dss1_lite *pdl = cntl->L1_sc;
 	struct dss1_lite_fifo *f = cntl->L1_fifo;
+#ifndef DSS1_LITE_NO_ECHO_CANCEL
 	struct i4b_echo_cancel *ec_p;
+#endif
 	union {
 		msg_ctrl_info_req_t *req;
 		struct fifo_translator *ft;
@@ -77,6 +78,7 @@ dss1_lite_l1_ioctl(struct i4b_controller *cntl, int command, void *parm)
 		i4b_debug_t *dbg;
 		void   *parm;
 	}     u;
+#ifndef DSS1_LITE_NO_ECHO_CANCEL
 	enum {
 		EC_POINTS = (sizeof(ec_p->buf_HR[0]) /
 		    sizeof(ec_p->buf_HR[0][0])),
@@ -85,6 +87,7 @@ dss1_lite_l1_ioctl(struct i4b_controller *cntl, int command, void *parm)
 	};
 	uint32_t points;
 	uint32_t x;
+#endif
 	uint32_t temp;
 	uint16_t n;
 
@@ -207,6 +210,7 @@ dss1_lite_l1_ioctl(struct i4b_controller *cntl, int command, void *parm)
 		}
 		break;
 
+#ifndef DSS1_LITE_NO_ECHO_CANCEL
 	case CMR_GET_EC_FIR_FILTER:
 
 		if ((u.ec_dbg->chan >= cntl->L1_channel_end) ||
@@ -231,7 +235,7 @@ dss1_lite_l1_ioctl(struct i4b_controller *cntl, int command, void *parm)
 			return (EINVAL);
 		}
 		break;
-
+#endif
 	case CMR_ENABLE_DTMF_DETECT:
 
 		f = u.ft->L1_fifo;
@@ -338,10 +342,10 @@ dss1_lite_l5_put_sample(struct dss1_lite *pdl,
 	} else {
 		temp = i4b_signed_to_ulaw(sample);
 	}
-	/* Echo Cancel */
-	if (f->prot_curr.u.transp.echo_cancel_enable) {
+#ifndef DSS1_LITE_NO_ECHO_CANCEL
+	if (f->prot_curr.u.transp.echo_cancel_enable)
 		i4b_echo_cancel_merge(f->echo_cancel, &temp, 1);
-	}
+#endif
 	*(f->m_tx_curr_ptr)++ = temp;
 	f->m_tx_curr_rem--;
 }
@@ -352,11 +356,10 @@ dss1_lite_l5_put_sample_complete(struct dss1_lite *pdl,
 {
 	if (f->prot_curr.protocol_1 == P_DISABLE)
 		return;
-
-	/* echo cancel */
-	if (f->prot_curr.u.transp.echo_cancel_enable) {
+#ifndef DSS1_LITE_NO_ECHO_CANCEL
+	if (f->prot_curr.u.transp.echo_cancel_enable)
 		i4b_echo_cancel_update_merger(f->echo_cancel, f->tx_timestamp);
-	}
+#endif
 }
 
 
@@ -451,11 +454,10 @@ dss1_lite_l5_get_sample(struct dss1_lite *pdl, struct dss1_lite_fifo *f)
 	f->m_rx_curr_rem--;
 
 	/* XXX optimise */
-
-	/* echo cancel */
-	if (f->prot_curr.u.transp.echo_cancel_enable) {
+#ifndef DSS1_LITE_NO_ECHO_CANCEL
+	if (f->prot_curr.u.transp.echo_cancel_enable)
 		i4b_echo_cancel_feed(f->echo_cancel, &temp, 1);
-	}
+#endif
 	if (f->prot_curr.protocol_4 == BSUBPROT_G711_ALAW) {
 		retval = i4b_alaw_to_signed[temp];
 	} else {
@@ -471,11 +473,10 @@ dss1_lite_l5_get_sample_complete(struct dss1_lite *pdl,
 {
 	if (f->prot_curr.protocol_1 == P_DISABLE)
 		return;
-
-	/* echo cancel */
-	if (f->prot_curr.u.transp.echo_cancel_enable) {
+#ifndef DSS1_LITE_NO_ECHO_CANCEL
+	if (f->prot_curr.u.transp.echo_cancel_enable)
 		i4b_echo_cancel_update_feeder(f->echo_cancel, f->rx_timestamp);
-	}
+#endif
 }
 
 /*---------------------------------------------------------------------------*
@@ -552,10 +553,9 @@ dss1_lite_l1_setup(fifo_translator_t *ft, struct i4b_protocol *p)
 		pdl->dl_tx_window = 0;
 
 	} else if (p->protocol_1 != P_DISABLE) {
-
-		/* init echo cancel */
+#ifndef DSS1_LITE_NO_ECHO_CANCEL
 		i4b_echo_cancel_init(f->echo_cancel, 0, f->prot_curr.protocol_4);
-
+#endif
 		/* init DTMF detector and generator */
 		i4b_dtmf_init_rx(ft, f->prot_curr.protocol_4);
 		i4b_dtmf_init_tx(ft, f->prot_curr.protocol_4);
