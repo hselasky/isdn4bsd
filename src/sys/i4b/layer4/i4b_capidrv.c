@@ -2932,7 +2932,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      cd->isdntxdelay = 0; /* seconds (disabled) */
 
-	      cd->odate_time_len = min(sc->sc_connect_resp.date_time.len,
+	      cd->odate_time_len = MIN(sc->sc_connect_resp.date_time.len,
 				       sizeof(cd->odate_time_data));
 
 	      bcopy(sc->sc_connect_resp.date_time.ptr,

@@ -611,7 +611,7 @@ i4b_tel_write(struct cdev *dev, struct uio * uio, int ioflag)
 
 	if(m)
 	{
-	  m->m_len = min(BCH_MAX_DATALEN, uio->uio_resid);
+	  m->m_len = MIN(BCH_MAX_DATALEN, uio->uio_resid);
 	
 	  error = uiomove(m->m_data, m->m_len, uio);
 
@@ -673,7 +673,7 @@ i4b_tel_dwrite(struct cdev *dev, struct uio * uio, int ioflag)
 
 #define CMDBUFSIZ 80 
 	char cmdbuf[CMDBUFSIZ];
-	int len = min(CMDBUFSIZ-1, uio->uio_resid);
+	int len = MIN(CMDBUFSIZ-1, uio->uio_resid);
 
 	error = uiomove(cmdbuf, len, uio);
 

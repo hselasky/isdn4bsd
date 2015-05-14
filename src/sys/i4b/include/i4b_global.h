@@ -37,14 +37,8 @@
 #define _I4B_GLOBAL_H_
 
 #include <i4b/include/i4b_compat.h>
-
 #include <i4b/include/i4b_controller.h>
-
 #include <i4b/include/i4b_limits.h>
-
-#ifndef min
-#define min MIN
-#endif
 
 struct i4b_line_interconnect;
 struct fifo_translator;

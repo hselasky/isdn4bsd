@@ -292,7 +292,7 @@ default_fifo_write_filler FIFO_WRITE_FILLER_T(sc,f)
 static void
 default_fifo_get_memory FIFO_GET_MEMORY_T(sc,f,p_start,p_end,p_len)
 {
-	*p_len = min(sizeof(sc->sc_buffer), f->Z_chip);
+	*p_len = MIN(sizeof(sc->sc_buffer), f->Z_chip);
 	*p_start = &sc->sc_buffer[0];
 	*p_end = &sc->sc_buffer[*p_len];
 

@@ -870,13 +870,13 @@ hfce1_fifo_write_filler FIFO_WRITE_FILLER_T(sc,f)
 
 	if(f->Z_chip)
 	{
-	    len = min(f->Z_chip, sizeof(fill));
+	    len = MIN(f->Z_chip, sizeof(fill));
 	    memset_1(&fill[0], f->last_byte, len);
 
 	    do {
 	        f->Z_chip -= len;
 		hfce1_fifo_write(sc,f,&fill[0],len);
-		len = min(f->Z_chip,sizeof(fill));
+		len = MIN(f->Z_chip,sizeof(fill));
 	    } while(len);
 	}
 	return;

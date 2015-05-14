@@ -529,7 +529,7 @@ ihfc_dread(struct cdev *dev, struct uio *uio, int ioflag)
 		    continue;
 		  }
 
-		  len = min(len, uio->uio_resid);
+		  len = MIN(len, uio->uio_resid);
 
 		  error = __uiomove(ft, f->buf.Dat_start, len, uio);
 
@@ -549,7 +549,7 @@ ihfc_dread(struct cdev *dev, struct uio *uio, int ioflag)
 
 		  if(f->mbuf_dev)
 		  {
-		    len = min(f->mbuf_dev->m_len,uio->uio_resid);
+		    len = MIN(f->mbuf_dev->m_len,uio->uio_resid);
 
 		    error = __uiomove(ft, f->mbuf_dev->m_data, len, uio);
 
@@ -637,7 +637,7 @@ ihfc_dwrite(struct cdev *dev, struct uio *uio, int ioflag)
 		    continue;
 		  }
 
-		  len = min(len, uio->uio_resid);
+		  len = MIN(len, uio->uio_resid);
 		  error = __uiomove(ft, f->buf.Dat_end, len, uio);
 
 		  if(error) break;
@@ -680,7 +680,7 @@ ihfc_dwrite(struct cdev *dev, struct uio *uio, int ioflag)
 
 		  if(f->mbuf_dev)
 		  {
-		    len = min(f->mbuf_dev->m_len,uio->uio_resid);
+		    len = MIN(f->mbuf_dev->m_len,uio->uio_resid);
 
 		    error = __uiomove(ft, f->mbuf_dev->m_data, len, uio);
 

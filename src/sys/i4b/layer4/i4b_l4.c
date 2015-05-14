@@ -148,11 +148,11 @@ i4b_l4_dialoutnumber(int driver, int driver_unit, int cmdlen, char *cmd)
 		/* XXX: TELNO_MAX is _with_ tailing '\0',
 		 * so max is actually TELNO_MAX - 1
 		 */
-		md->cmdlen = min(i,TELNO_MAX-1);
+		md->cmdlen = MIN(i,TELNO_MAX-1);
 		bcopy(cmd, md->cmd, md->cmdlen);
 		md->cmd[md->cmdlen] = '\0';
 
-		md->subaddrlen = min(cmdlen-i,SUBADDR_MAX-1);
+		md->subaddrlen = MIN(cmdlen-i,SUBADDR_MAX-1);
 		if(md->subaddrlen)
 		{
 		  /* skip the first '*' */
@@ -799,7 +799,7 @@ i4b_l4_packet_ind(int driver, int driver_unit, int dir_out, struct mbuf *pkt)
 		mp->driver = driver;
 		mp->driver_unit = driver_unit;
 		mp->direction_out = dir_out;
-		memcpy(mp->pktdata, ip, min(len,MAX_PACKET_LOG));
+		memcpy(mp->pktdata, ip, MIN(len,MAX_PACKET_LOG));
 
 		i4b_ai_putqueue(NULL,0,m,NULL);
 	}
@@ -1467,7 +1467,7 @@ i4b_l3_information_req(struct call_desc *cd, uint8_t *ptr, uint16_t len)
 		}
 	    }
 
-	    len = min(len, (dst_end - dst));
+	    len = MIN(len, (dst_end - dst));
 	    bcopy(ptr, dst, len);
 	    dst[len] = 0; /* zero terminate */
 	    cd->dst_telno_ptr = dst + len;

@@ -295,7 +295,7 @@ i4b_rbch_write(struct cdev *dev, struct uio * uio, int ioflag)
 
 	if(m)
 	{
-		m->m_len = min(BCH_MAX_DATALEN, uio->uio_resid);
+		m->m_len = MIN(BCH_MAX_DATALEN, uio->uio_resid);
 
 		NDBGL4(L4_RBCHDBG, "unit %d, write %d bytes", unit, m->m_len);
 		

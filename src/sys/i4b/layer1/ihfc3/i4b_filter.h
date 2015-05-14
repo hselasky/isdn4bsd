@@ -126,7 +126,7 @@ filter_rx FIFO_FILTER_T(sc,f)
 {
 	register int io_len;
         /* buf.curr |---> buf.end */
-        (io_len)          = min((f->Z_chip),(f->buf_len));
+        (io_len)          = MIN((f->Z_chip),(f->buf_len));
 
 	/* debugging */
         IHFC_MSG("RX: %d\n", (io_len));
@@ -598,7 +598,7 @@ filter_tx FIFO_FILTER_T(sc,f)
 	register int io_len;
 
         /* buf.curr |---> buf.end */
-        (io_len)          = min((f->Z_chip),(f->buf_len));
+        (io_len)          = MIN((f->Z_chip),(f->buf_len));
 
 	/* debugging */
         IHFC_MSG("TX: %d\n", (io_len));
