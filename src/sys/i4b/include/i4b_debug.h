@@ -273,7 +273,7 @@ typedef struct {
 	uint32_t chan;
 	uint32_t value;
 	uint32_t mask;
-	u_char desc[64];
+	uint8_t desc[64];
 
 	struct i4b_debug_mask debug;
 	lapdstat_t lapdstat;
