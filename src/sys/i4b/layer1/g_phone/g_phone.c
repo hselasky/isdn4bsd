@@ -117,10 +117,19 @@ static device_method_t g_phone_methods[] = {
 	DEVMETHOD_END
 };
 
+#ifdef I4B_GPHONE_UNIT_MAX
+SYSPOOL_DECLARE(g_phone_softc_pool);
+SYSPOOL_CREATE(g_phone_softc_pool, sizeof(struct g_phone_softc), I4B_GPHONE_UNIT_MAX);
+#endif
+
 static driver_t g_phone_driver = {
 	.name = "g_phone",
 	.methods = g_phone_methods,
+#ifdef I4B_GPHONE_UNIT_MAX
+	.softc_get = &g_phone_softc_pool,
+#else
 	.size = sizeof(struct g_phone_softc)
+#endif
 };
 
 DRIVER_MODULE(g_phone, uhub, g_phone_driver, g_phone_devclass, NULL, 0);
@@ -212,6 +221,13 @@ static const struct usb_config g_phone_config[G_PHONE_XFER_MAX] = {
 		.usb_mode = USB_MODE_DEVICE,
 	},
 };
+#ifdef I4B_GPHONE_UNIT_MAX
+USBD_TRANSFER_POOL(g_phone_xfer_pool,
+    G_PHONE_XFER_MAX,
+    G_PHONE_MINFRAMES * G_PHONE_XFER_MAX,
+    0,
+    I4B_GPHONE_UNIT_MAX);
+#endif
 
 static void
 g_phone_set_protocol(struct dss1_lite *pdl,
@@ -459,12 +475,20 @@ g_phone_attach(device_t dev)
 		if (idesc->bInterfaceClass == UICLASS_HID)
 			iface_index[0] = i;
 	}
-
+#ifdef I4B_GPHONE_UNIT_MAX
+	if (usbd_transfer_setup(&g_phone_xfer_pool,
+	    sc->sc_udev, iface_index, sc->sc_xfer,
+	    g_phone_config, G_PHONE_XFER_MAX, sc, sc->sc_pmtx)) {
+		DPRINTF("could not allocate USB transfers!\n");
+		goto error;
+	}
+#else
 	if (usbd_transfer_setup(sc->sc_udev, iface_index, sc->sc_xfer,
 	    g_phone_config, G_PHONE_XFER_MAX, sc, sc->sc_pmtx)) {
 		DPRINTF("could not allocate USB transfers!\n");
 		goto error;
 	}
+#endif
 	usbd_xfer_set_priv(sc->sc_xfer[G_PHONE_XFER_ISOC_IN_0],
 	    sc->sc_buffer + (G_PHONE_BUFSIZE * 0));
 	usbd_xfer_set_priv(sc->sc_xfer[G_PHONE_XFER_ISOC_IN_1],
