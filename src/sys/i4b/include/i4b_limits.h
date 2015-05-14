@@ -35,18 +35,26 @@
 #define	_I4B_LIMITS_H_
 
 /*---------------------------------------------------------------------------*
- *	max number of controllers under I4B
- *
- * NOTE: should be power of two
+ *	Maximum number of controllers under I4B
  *---------------------------------------------------------------------------*/
+#ifndef I4B_MAX_CONTROLLERS 
 #define	I4B_MAX_CONTROLLERS 64		/* units */
+#endif
+
+#if (I4B_MAX_CONTROLLERS & (I4B_MAX_CONTROLLERS - 1))
+#error "I4B_MAX_CONTROLLERS should be power of two"
+#endif
 
 /*---------------------------------------------------------------------------*
- *	max number of channels
- *
- * NOTE: must be power of two
+ *	Maximum number of channels
  *---------------------------------------------------------------------------*/
+#ifndef I4B_MAX_CHANNELS
 #define	I4B_MAX_CHANNELS    64		/* units */
+#endif
+
+#if (I4B_MAX_CHANNELS & (I4B_MAX_CHANNELS - 1))
+#error "I4B_MAX_CHANNELS should be power of two"
+#endif
 
 /*---------------------------------------------------------------------------*
  *	max number of PCM cables
