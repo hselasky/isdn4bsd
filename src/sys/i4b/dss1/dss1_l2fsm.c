@@ -218,7 +218,7 @@ dss1_pipe_data_acknowledge(DSS1_TCP_pipe_t *pipe, call_desc_t *cd)
 	{
 	  uint8_t *ptr;
 
-	  ptr = mtod(m, uint8_t *) + max(U_FRAME_LEN,I_HEADER_LEN);
+	  ptr = mtod(m, uint8_t *) + MAX(U_FRAME_LEN, I_HEADER_LEN);
 
 	  if(m->m_flags & M_PROTO1)
 	  {
@@ -291,7 +291,7 @@ dss1_cntl_tx_frame(l2softc_t *sc, DSS1_TCP_pipe_t *pipe, uint8_t sapi,
 	{
 	  NDBGL2(L2_S_MSG, "");
 
-	  m = i4b_getmbuf(max(S_FRAME_LEN,U_FRAME_LEN), M_NOWAIT);
+	  m = i4b_getmbuf(MAX(S_FRAME_LEN, U_FRAME_LEN), M_NOWAIT);
 
 	  if(m == NULL)
 	  {
@@ -1392,7 +1392,7 @@ dss1_l2_get_mbuf(fifo_translator_t *f)
 
 		pipe->tx_window_length = 
 		pipe->tx_window_size =
-		  min(nr_length_max, _IF_QLEN(pipe));
+		  MIN(nr_length_max, _IF_QLEN(pipe));
 
 		sc->sc_current_mbuf = 
 		  _IF_QUEUE_GET(pipe)->ifq_head;
