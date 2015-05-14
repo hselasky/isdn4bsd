@@ -157,15 +157,22 @@ static TAILQ_HEAD(,capi_ai_softc) capi_head = TAILQ_HEAD_INITIALIZER(capi_head);
 
 #define CAPINAME "capi20"
 
+#ifdef CAPI_AI_SOFTC_POOL_MAX
+SYSPOOL_DECLARE(capi_ai_softc_pool);
+SYSPOOL_CREATE(capi_ai_softc_pool, sizeof(struct capi_ai_softc), CAPI_AI_SOFTC_POOL_MAX);
+#endif
+
 static struct capi_ai_softc *
 capi_ai_new_softc(void)
 {
 	struct capi_ai_softc *sc;
 
 	/* try to create another unit */
-
+#ifdef CAPI_AI_SOFTC_POOL_MAX
+	sc = p_calloc(&capi_ai_softc_pool);
+#else
 	sc = malloc(sizeof(*sc), M_DEVBUF, M_WAITOK|M_ZERO);
-
+#endif
 	if (sc == NULL)
 		return (NULL);
 
@@ -210,7 +217,11 @@ capi_ai_free_softc(void *arg)
 
 	mtx_destroy(&sc->sc_mtx);
 
+#ifdef CAPI_AI_SOFTC_POOL_MAX
+	p_free(&capi_ai_softc_pool, sc);
+#else
 	free(sc, M_DEVBUF);
+#endif
 }
 
 /*---------------------------------------------------------------------------*
@@ -232,6 +243,14 @@ capi_ai_attach(void *dummy)
 	       (CAPI_STACK_VERSION / 100), (CAPI_STACK_VERSION % 100));
 }
 SYSINIT(capi_ai_attach, SI_SUB_PSEUDO, SI_ORDER_ANY, capi_ai_attach, NULL);
+
+static void
+capi_ai_detach(void *dummy)
+{
+	if (capi_dev != NULL)
+		destroy_dev(capi_dev);
+}
+SYSUNINIT(capi_ai_detach, SI_SUB_PSEUDO, SI_ORDER_ANY, capi_ai_detach, NULL);
 
 #define CAPI_PUTQUEUE_FLAG_SC_COMPLEMENT 0x01
 #define CAPI_PUTQUEUE_FLAG_DROP_OK       0x02
@@ -2883,8 +2902,6 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 	      if(sc->sc_connect_resp.b_protocol.len)
 	      {
-		  uint8_t berr;
-
 		  CAPI_INIT(CAPI_B_PROTOCOL, &sc->sc_b_protocol);
 
 		  capi_decode(sc->sc_connect_resp.b_protocol.ptr,
@@ -2892,7 +2909,7 @@ capi_write(struct cdev *dev, struct uio * uio, int flag)
 
 		  cd->channel_bprot = 0xff;
 
-		  berr = capi_decode_b_protocol(cd, &sc->sc_b_protocol);
+		  (void) capi_decode_b_protocol(cd, &sc->sc_b_protocol);
 	      }
 
 	      capi_disconnect_broadcast(cd, sc);

@@ -154,6 +154,13 @@ i4b_controller_reset(struct i4b_controller *cntl)
   return;
 }
 
+#ifdef I4B_CDESC_POOL_MAX
+SYSPOOL_DECLARE(i4b_cd_pool);
+SYSPOOL_CREATE(i4b_cd_pool, I4B_CDESC_POOL_MAX * sizeof(struct call_desc), MAX_CONTROLLERS);
+SYSPOOL_DECLARE(i4b_li_pool);
+SYSPOOL_CREATE(i4b_li_pool, I4B_CDESC_POOL_MAX * sizeof(struct i4b_line_interconnect), MAX_CONTROLLERS);
+#endif
+
 /*---------------------------------------------------------------------------*
  *	i4b_controller_allocate
  *
@@ -190,7 +197,17 @@ i4b_controller_allocate(uint8_t portable, uint8_t sub_controllers,
       cntl = NULL;
       goto done;
   }
+#ifdef I4B_CDESC_POOL_MAX
+  cd = p_calloc(&i4b_cd_pool);
+  li = p_calloc(&i4b_li_pool);
 
+  /* check limits */
+  if ((call_descriptors * sub_controllers) > I4B_CDESC_POOL_MAX) {
+      ADD_ERROR(error, "%s: out of memory\n", __FUNCTION__);
+      cntl = NULL;
+      goto done;
+  }
+#else
   /* try to allocate call descriptors 
    * and line interconnect structures:
    */
@@ -199,7 +216,7 @@ i4b_controller_allocate(uint8_t portable, uint8_t sub_controllers,
 
   li = malloc(call_descriptors * sub_controllers * sizeof(*li),
 	      M_DEVBUF, M_WAITOK|M_ZERO);
-
+#endif
   if((cd == NULL) ||
      (li == NULL))
   {
@@ -218,7 +235,7 @@ i4b_controller_allocate(uint8_t portable, uint8_t sub_controllers,
   else
     cntl = &i4b_controller[0];
 
- repeat:
+repeat:
 
   CNTL_LOCK(cntl);
   p_mtx = CNTL_GET_LOCK(cntl);
@@ -271,17 +288,16 @@ i4b_controller_allocate(uint8_t portable, uint8_t sub_controllers,
 
   CNTL_UNLOCK(cntl);
 
- done:
+done:
   if(cntl == NULL)
   {
-      if(cd)
-      {
-	  free(cd, M_DEVBUF);
-      }
-      if(li)
-      {
-	  free(li, M_DEVBUF);
-      }
+#ifdef I4B_CDESC_POOL_MAX
+      p_free(&i4b_cd_pool, cd);
+      p_free(&i4b_li_pool, li);
+#else
+      free(cd, M_DEVBUF);
+      free(li, M_DEVBUF);
+#endif
   }
   return cntl;
 }
@@ -376,17 +392,14 @@ i4b_controller_free(struct i4b_controller *cntl, uint8_t sub_controllers)
 
       CNTL_UNLOCK(cntl);
 
-      if(cd)
-      {
-	  free(cd, M_DEVBUF);
-      }
-
-      if(li)
-      {
-	  free(li, M_DEVBUF);
-      }
+#ifdef I4B_CDESC_POOL_MAX
+      p_free(&i4b_cd_pool, cd);
+      p_free(&i4b_li_pool, li);
+#else
+      free(cd, M_DEVBUF);
+      free(li, M_DEVBUF);
+#endif
   }
-  return;
 }
 
 /*---------------------------------------------------------------------------*
