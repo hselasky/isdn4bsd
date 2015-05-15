@@ -3505,10 +3505,11 @@ capi_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int flag, struct thread *
 		error = L1_COMMAND_REQ(cntl, CMR_SET_LAYER2_PROTOCOL, mpi);
 		break;
 	}
-
+#ifndef HAVE_NO_I4B_DRIVER
 	case I4B_VR_REQ:
 		i4b_version_request((void *)data);
 		break;
+#endif
 
 	case I4B_CTL_SET_PCM_SLOT_END:
 	{

@@ -285,9 +285,12 @@ do { if((ptr) != NULL) {		\
 } while (0)
 
 /* prototypes from i4b_trace.c */
-
+#ifndef HAVE_NO_I4B_TRACE
 struct i4b_trace_hdr;
 extern void i4b_l1_trace_ind(struct i4b_trace_hdr *hdr, struct mbuf *m);
+#else
+#define	i4b_l1_trace_ind(...) do { } while (0)
+#endif
 
 /* prototypes from i4b_l4.c */
 

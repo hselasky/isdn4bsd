@@ -251,7 +251,7 @@ struct dss1_lite_fifo {
 	struct i4b_protocol prot_curr;	/* HDLC, trans ...  */
 	struct i4b_protocol prot_last;	/* HDLC, trans ...  */
 	struct fifo_translator ft[1];
-#ifndef DSS1_LITE_NO_ECHO_CANCEL
+#ifndef HAVE_NO_ECHO_CANCEL
 	struct i4b_echo_cancel echo_cancel[1];
 #endif
 	struct mbuf *m_rx_curr;
