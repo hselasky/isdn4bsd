@@ -155,7 +155,8 @@ static cdevsw_t capi_cdevsw = {
       .d_flags    = D_TRACKCLOSE,
 };
 
-static struct cdev *capi_dev;
+extern struct cdev *capi_dev;
+struct cdev *capi_dev;
 static TAILQ_HEAD(,capi_ai_softc) capi_head = TAILQ_HEAD_INITIALIZER(capi_head);
 
 #define CAPINAME "capi20"
