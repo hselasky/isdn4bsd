@@ -56,10 +56,11 @@
 #define	SI_SUB_KLD	(SI_SUB_APPLICATIONS - 2)
 #define	SI_SUB_PSEUDO	(SI_SUB_APPLICATIONS - 1)
 #define	CAPI_AI_SOFTC_POOL_MAX	1	/* connection */
-#define	I4B_CDESC_POOL_MAX 8		/* calldescriptors */
+#define	I4B_CDESC_POOL_MAX 4		/* calldescriptors */
 #define	I4B_GPHONE_UNIT_MAX 1		/* unit */
 #define	I4B_MAX_CONTROLLERS 1
-#define	I4B_MAX_CHANNELS 2
+#define	I4B_MAX_CHANNELS 4
+#define	I4B_DEFAULT_DCH_DRIVER_TYPE DRVR_DSS1_P2P_TE
 #define	IFQ_MAXLEN 8
 #define	HAVE_NO_I4B_DRIVER
 #define	HAVE_NO_I4B_TRACE
