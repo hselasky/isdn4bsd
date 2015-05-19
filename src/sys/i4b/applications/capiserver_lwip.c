@@ -35,19 +35,22 @@
 #include <sys/syspool.h>
 #include <sys/syspublic.h>
 #include <sys/kernel.h>
+#include <sys/kern_sx.h>
 #include <sys/kern_thread.h>
 
 #include <lwip/api.h>
 
-SYSPOOL_GROW(LWIP_TCP_PCB_POOL, 2);
-SYSPOOL_GROW(LWIP_NETCONN_POOL, 2);
-SYSPOOL_GROW(LWIP_NETBUF_POOL, 8);
+#define	CAPI_WORKERS	4
+
+SYSPOOL_GROW(LWIP_TCP_PCB_POOL, CAPI_WORKERS);
+SYSPOOL_GROW(LWIP_NETCONN_POOL, CAPI_WORKERS);
+SYSPOOL_GROW(LWIP_NETBUF_POOL, 3 * CAPI_WORKERS);
 SYSPOOL_GROW(LWIP_TCP_PCB_LISTEN_POOL, 1);
-SYSPOOL_GROW(capi_ai_softc_pool, 1);
+SYSPOOL_GROW(capi_ai_softc_pool, CAPI_WORKERS);
 SYSPOOL_GROW(cdev_pool, 1);
-SYSPOOL_GROW(file_pool, 1);
-SYSPOOL_GROW(zone_mbuf, 32);
-SYSPOOL_GROW(zone_clust, 8);
+SYSPOOL_GROW(file_pool, CAPI_WORKERS);
+SYSPOOL_GROW(zone_mbuf, 64);
+SYSPOOL_GROW(zone_clust, 4);
 
 #define	CAPI_MAKE_IOCTL
 #include <i4b/include/capi20.h>
@@ -65,13 +68,12 @@ enum {
 	CAPISERVER_CMD_CAPI_START,
 };
 
-#define	CAPISERVER_BUF_MAX 2048
+#define	CAPISERVER_BUF_MAX (2048 + 256)
 
 extern struct cdev *capi_dev;
 
 struct capiconn {
 	struct file *file;
-	struct netconn *listen;
 	struct netconn *conn;
 	struct netbuf *rxbuf;
 	uint8_t *curr_recv_data;
@@ -79,7 +81,9 @@ struct capiconn {
 	uint8_t	buffer[CAPISERVER_BUF_MAX] __aligned(4);
 };
 
-static struct capiconn capiconn;
+static struct capiconn capiconn[CAPI_WORKERS];
+static struct netconn *capiconn_listen;
+static struct sx capiconn_sx;
 
 static void
 capiserver_close(struct capiconn *cc)
@@ -99,9 +103,9 @@ capiserver_close(struct capiconn *cc)
 }
 
 static int
-capiserver_write(struct capiconn *cc, void *buf, uint16_t len)
+capiserver_write(struct capiconn *cc, void *buf, uint16_t len, int flags)
 {
-	if (netconn_write(cc->conn, buf, len, NETCONN_COPY) != ERR_OK)
+	if (netconn_write(cc->conn, buf, len, flags) != ERR_OK)
 		return (-1);
 	return (len);
 }
@@ -163,20 +167,6 @@ capiserver_read(struct capiconn *cc, void *buf, uint16_t len)
 	return (retval);
 }
 
-static void
-capiserver_do_listen(struct capiconn *cc, uint16_t port)
-{
-	cc->listen = netconn_new(NETCONN_TCP);
-	if (cc->listen == NULL)
-		panic("Out of memory\n");
-
-	if (netconn_bind(cc->listen, NULL, port))
-		panic("Cannot bind\n");
-
-	if (netconn_listen(cc->listen))
-		panic("Cannot listen\n");
-}
-
 #define	CAPI_FWD(x) (x) = le32toh(x)
 #define	CAPI_REV(x) (x) = htole32(x)
 
@@ -231,9 +221,9 @@ capiserver_ioctl(struct capiconn *cc, uint32_t cmd, uint32_t ioctl_cmd,
 	header[2] = cmd;
 	header[3] = 0;
 
-	if (capiserver_write(cc, header, sizeof(header)) != sizeof(header))
+	if (capiserver_write(cc, header, sizeof(header), NETCONN_COPY | NETCONN_MORE) != sizeof(header))
 		return (-1);
-	if (capiserver_write(cc, buffer, length) != length)
+	if (capiserver_write(cc, buffer, length, NETCONN_COPY) != length)
 		return (-1);
 	return (0);
 
@@ -246,7 +236,7 @@ error:
 	else
 		header[3] = EINVAL;
 
-	if (capiserver_write(cc, header, sizeof(header)) != sizeof(header))
+	if (capiserver_write(cc, header, sizeof(header), NETCONN_COPY) != sizeof(header))
 		return (-1);
 	return (0);
 }
@@ -266,21 +256,22 @@ capiserver(struct capiconn *cc)
 			header[2] = CAPISERVER_CMD_CAPI_MSG;
 			header[3] = 0;
 
-			if (capiserver_write(cc, header, sizeof(header)) != sizeof(header))
+			if (capiserver_write(cc, header, sizeof(header), NETCONN_COPY | NETCONN_MORE) != sizeof(header))
 				goto done;
-			if (capiserver_write(cc, cc->buffer, length) != length)
+			if (capiserver_write(cc, cc->buffer, length, NETCONN_COPY) != length)
 				goto done;
 		}
 		netconn_set_recvtimeout(cc->conn, 1);
-		length = capiserver_read(cc, cc->buffer, CAPISERVER_HDR_SIZE);
+		length = capiserver_read(cc, header, CAPISERVER_HDR_SIZE);
 		if (length == -2)
 			continue;
 		if (length != CAPISERVER_HDR_SIZE)
 			goto done;
 
-		length = cc->buffer[0] | (cc->buffer[1] << 8);
-		cmd = cc->buffer[2];
+		length = header[0] | (header[1] << 8);
+		cmd = header[2];
 
+		netconn_set_recvtimeout(cc->conn, 0);
 		if (length > CAPISERVER_BUF_MAX) {
 			/* dump all data */
 			if (capiserver_read(cc, NULL, length) != length)
@@ -327,16 +318,33 @@ done:	;
 }
 
 static void
+capilisten(void *arg)
+{
+  	sx_init(&capiconn_sx, "CAPI");
+	capiconn_listen = netconn_new(NETCONN_TCP);
+	if (capiconn_listen == NULL)
+		panic("Out of memory\n");
+
+	if (netconn_bind(capiconn_listen, NULL, 2663))
+		panic("Cannot bind\n");
+
+	if (netconn_listen(capiconn_listen))
+		panic("Cannot listen\n");
+}
+SYSINIT(capilisten, SI_SUB_APPLICATIONS + 1, SI_ORDER_FIRST, &capilisten, NULL);
+
+static void
 capithread(void *arg)
 {
-	struct capiconn *cc = &capiconn;
-
-	capiserver_do_listen(cc, 2663);
+	struct capiconn *cc = arg;
 
 	while (1) {
 		/* Wait for connection */
-
-		if (netconn_accept(cc->listen, &cc->conn) == ERR_OK) {
+		sx_xlock(&capiconn_sx);
+		if (netconn_accept(capiconn_listen, &cc->conn) != ERR_OK)
+			cc->conn = NULL;
+		sx_xunlock(&capiconn_sx);
+		if (cc->conn != NULL) {
 			cc->file = cdev_open(capi_dev);
 			if (cc->file != NULL) {
 				int nb = 1;
@@ -350,4 +358,7 @@ capithread(void *arg)
 		}
 	}
 }
-CREATE_THREAD(capithread, 2048, TD_PRIO_MED, &capithread, NULL);
+CREATE_THREAD_ORDERED(capithread_0, SI_SUB_APPLICATIONS + 1, SI_ORDER_SECOND, 2048, TD_PRIO_MED, &capithread, capiconn + 0);
+CREATE_THREAD_ORDERED(capithread_1, SI_SUB_APPLICATIONS + 1, SI_ORDER_SECOND, 2048, TD_PRIO_MED, &capithread, capiconn + 1);
+CREATE_THREAD_ORDERED(capithread_2, SI_SUB_APPLICATIONS + 1, SI_ORDER_SECOND, 2048, TD_PRIO_MED, &capithread, capiconn + 2);
+CREATE_THREAD_ORDERED(capithread_3, SI_SUB_APPLICATIONS + 1, SI_ORDER_SECOND, 2048, TD_PRIO_MED, &capithread, capiconn + 3);
