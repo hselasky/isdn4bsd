@@ -847,9 +847,10 @@ i4b_setup_driver(i4b_controller_t *cntl, uint32_t channel,
 {
 	setup_ft_t *setup_ft;
 
+#ifndef I4B_DEFAULT_DCH_DRIVER_TYPE
 	static const uint8_t
 	  MAKE_TABLE(L1_TYPES,DEFAULT_DRIVER_TYPE,[]);
-
+#endif
 	struct fifo_translator *f1;
 	struct fifo_translator *f2;
 
@@ -860,7 +861,11 @@ i4b_setup_driver(i4b_controller_t *cntl, uint32_t channel,
 	
 	if(driver_type == DRVR_D_CHANNEL)
 	{
+#ifndef I4B_DEFAULT_DCH_DRIVER_TYPE
 	  driver_type = L1_TYPES_DEFAULT_DRIVER_TYPE[cntl->L1_type];
+#else
+	  driver_type = I4B_DEFAULT_DCH_DRIVER_TYPE;
+#endif
 	}
 
 	if(driver_type >= N_I4B_DRIVERS)
