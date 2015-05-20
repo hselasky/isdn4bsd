@@ -63,7 +63,7 @@ extern void i4b_ai_putqueue(struct i4b_ai_softc *sc,
 			    uint8_t sc_complement, struct mbuf *m,
 			    uint16_t *p_copy_count);
 #else
-#define	i4b_ai_putqueue(...) do { } while (0)
+#define	i4b_ai_putqueue(sc,c,m,p) do { m_freem(m); } while (0)
 #endif
 
 extern void i4b_ai_connect_ind(struct call_desc *cd, 
