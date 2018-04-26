@@ -356,9 +356,19 @@ cd_set_state(call_desc_t *cd, uint8_t newstate)
 static void
 cd_update(call_desc_t *cd, DSS1_TCP_pipe_t *pipe, int event)
 {
-	l2softc_t *sc = ((__typeof(pipe))(cd->pipe))->L5_sc;
-	__typeof(cd->state)
-	  state = cd->state;
+	__typeof(cd->state) state = cd->state;
+	l2softc_t *sc;
+
+	/*
+	 * Check if "cd->pipe" is non-NULL to avoid NULL dereference.
+	 * If the "cd->pipe" is NULL the "sc" value should not be used
+	 * by any of the switch cases below. Typically "cd->pipe" can
+	 * be NULL on the EV_L3_RELEASE event.
+	 */
+	if (cd->pipe != NULL)
+		sc = ((__typeof(pipe))(cd->pipe))->L5_sc;
+	else
+		sc = NULL;
 
 	/*
 	 * debugging
