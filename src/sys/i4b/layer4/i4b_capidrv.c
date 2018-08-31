@@ -314,11 +314,11 @@ capi_ai_putqueue(struct capi_ai_softc *sc,
 
 			mtx_lock(&i4b_global_lock);
 			sc->sc_refs--;
+			if (sc->sc_refs == 0)
+				cv_broadcast(&sc->sc_cv_ref);
 			sc = TAILQ_NEXT(sc, entry);
 			if (sc != NULL)
 				sc->sc_refs++;
-			if (sc->sc_refs == 0)
-				cv_broadcast(&sc->sc_cv_ref);
 			mtx_unlock(&i4b_global_lock);
 		}
 	}
