@@ -41,7 +41,7 @@
  *---------------------------------------------------------------------------*/
 #define I4B_VERSION    2                /* version number */
 #define I4B_REL        0                /* release number */
-#define I4B_STEP       12               /* release step   */
+#define I4B_STEP       13               /* release step   */
 
 /*---------------------------------------------------------------------------*
  * date/time format in I4B log messages

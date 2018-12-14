@@ -25,7 +25,7 @@
 # ISDN4BSD toplevel Makefile
 #
 
-VERSION=2.0.12
+VERSION=2.0.13
 
 KMODNAME?=i4b
 PREFIX?=/usr/local
