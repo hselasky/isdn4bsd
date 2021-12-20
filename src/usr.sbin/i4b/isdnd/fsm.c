@@ -924,7 +924,7 @@ ev_incoming_from_i4b(msg_connect_ind_t *mp)
 	case REACT_ANSWER:
 		if(cep->alert)
 		{
-				if(cep->display)
+				if(cep->display[0])
 				{
 					log(LL_CHD, "%05d %s is alerting incoming call from %s to %s (%s)",
 					        cep->cdid, cep->name, src_tel, dst_tel, cep->display);
@@ -943,7 +943,7 @@ ev_incoming_from_i4b(msg_connect_ind_t *mp)
 		}
 		else
 		{
-				if(cep->display)
+				if(cep->display[0])
 				{				
 					log(LL_CHD, "%05d %s is answering incoming call from %s to %s (%s)",
 						cep->cdid, cep->name, src_tel, dst_tel, cep->display);
