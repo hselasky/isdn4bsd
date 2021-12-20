@@ -58,12 +58,9 @@ configure: cleanconfig
 	echo "MANDIR=${MANDIR}" >> ${CONFIG}
 	echo "CFLAGS+= -I${.CURDIR}/src/sys" >> ${CONFIG}
 	echo "CFLAGS+= -D_GNU_SOURCE" >> ${CONFIG}
-	echo "CFLAGS+= -L${LIBDIR}" >> ${CONFIG}
+	echo "LDFLAGS+= -L${LIBDIR}" >> ${CONFIG}
 	echo "MKLINT=no" >> ${CONFIG}
 	echo "WARNS=3" >> ${CONFIG}
-	echo "NO_WERROR=" >> ${CONFIG}
-	echo "NOGCCERROR=" >> ${CONFIG}
-	echo "NO_PROFILE=" >> ${CONFIG}
 	echo "WERROR=" >> ${CONFIG}
 
 .if defined(HAVE_DEBUG) || defined(HAVE_ALL)
