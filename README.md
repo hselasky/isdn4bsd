@@ -1,5 +1,5 @@
-<IMG SRC="https://raw.githubusercontent.com/hselasky/isdn4bsd/master/www/isdn4bsd.jpg"></IMG>
-<IMG SRC="https://raw.githubusercontent.com/hselasky/isdn4bsd/master/www/isdn4bsd.gif"></IMG>
+<CENTER><IMG SRC="https://raw.githubusercontent.com/hselasky/isdn4bsd/master/www/isdn4bsd.jpg"></IMG></CENTER>
+<CENTER><IMG SRC="https://raw.githubusercontent.com/hselasky/isdn4bsd/master/www/isdn4bsd.gif"></IMG></CENTER>
 
 This file should give you some help on how to install this driver.
 
@@ -110,8 +110,7 @@ IPAC / ISAC / HSCX / HFC / WINBOND
 <P> ** NOTE: Some versions of the "AVM Fritz!Card PCI version 2" card do not work in voice mode!
 
 <A HREF="http://www.openvox.com.cn">
-<LI>OpenVox
-<P ALIGN=center><IMG SRC="https://raw.githubusercontent.com/hselasky/isdn4bsd/master/www/OpenVoxSmall.png" WIDTH="200" HEIGHT="60" ALT="OpenVox Logo"></P>
+<IMG SRC="https://raw.githubusercontent.com/hselasky/isdn4bsd/master/www/OpenVoxSmall.png" WIDTH="200" HEIGHT="60" ALT="OpenVox Logo">
 </A>
 
 # HOW TO INSTALL AS ROOT
