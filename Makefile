@@ -25,7 +25,7 @@
 # ISDN4BSD toplevel Makefile
 #
 
-VERSION=2.0.13
+VERSION=2.0.14
 
 KMODNAME?=i4b
 PREFIX?=/usr/local
@@ -160,25 +160,4 @@ configure: cleanconfig
 .if defined(HAVE_TRACE_DRIVER) || defined(HAVE_ALL)
 	echo "HAVE_TRACE_DRIVER=1" >> ${CONFIG}
 .endif
-
-package:
-
-	make configure HAVE_ALL=YES
-	make clean cleandepend HAVE_ALL=YES
-	make cleanconfig
-
-	tar -cvf temp.tar --exclude="*~" --exclude="*#" \
-		--exclude=".svn" --exclude="*.orig" --exclude="*.rej" \
-		--exclude="temp" \
-		Makefile README.TXT examples module/Makefile src
-
-	rm -rf isdn4bsd-${VERSION}
-
-	mkdir isdn4bsd-${VERSION}
-
-	tar -xvf temp.tar -C isdn4bsd-${VERSION}
-
-	rm -rf temp.tar
-
-	tar --uid 0 --gid 0 -jcvf isdn4bsd-${VERSION}.tar.bz2 isdn4bsd-${VERSION}
 
