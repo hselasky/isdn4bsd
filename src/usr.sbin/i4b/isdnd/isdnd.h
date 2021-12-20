@@ -638,88 +638,88 @@ monitor_next_rights(const struct monitor_rights *r);
 
 extern FILE *logfp;
 
-int isdnfd;
+extern int isdnfd;
 
-char mailto[MAXPATHLEN];
-char mailer[MAXPATHLEN];
+extern char mailto[MAXPATHLEN];
+extern char mailer[MAXPATHLEN];
 
-char *configfile;
-int config_error_flag;
+extern char *configfile;
+extern int config_error_flag;
 
 #ifdef DEBUG
-int do_debug;
-int debug_flags;
-int debug_noscreen;
+extern int do_debug;
+extern int debug_flags;
+extern int debug_noscreen;
 #endif
 
-int do_bell;
+extern int do_bell;
 
-int do_fork;
+extern int do_fork;
 
-int do_ttytype;
-char *ttype;
+extern int do_ttytype;
+extern char *ttype;
 
-int do_rdev;
-char *rdev;
+extern int do_rdev;
+extern char *rdev;
 
-int do_print;
+extern int do_print;
 
-int got_unitlen;
-time_t unit_length;
+extern int got_unitlen;
+extern time_t unit_length;
 
-cfg_entry_t cfg_entry_tab[CFG_ENTRY_MAX];	/* configuration table */
-isdn_ctrl_state_t isdn_ctrl_tab[I4B_MAX_CONTROLLERS];	/* controller states table */
+extern cfg_entry_t cfg_entry_tab[CFG_ENTRY_MAX];	/* configuration table */
+extern isdn_ctrl_state_t isdn_ctrl_tab[I4B_MAX_CONTROLLERS];	/* controller states table */
 
-int nentries;
+extern int nentries;
 
-int uselogfile;
-char logfile[MAXPATHLEN];
-int logfacility;
-int nregex;
-struct rarr rarr[MAX_RE];
+extern int uselogfile;
+extern char logfile[MAXPATHLEN];
+extern int logfacility;
+extern int nregex;
+extern struct rarr rarr[MAX_RE];
 
-char ratesfile[MAXPATHLEN];
-int got_rate;
-struct rates *rates[NRATES][NDAYS];
+extern char ratesfile[MAXPATHLEN];
+extern int got_rate;
+extern struct rates *rates[NRATES][NDAYS];
 
-int useacctfile;
-char acctfile[MAXPATHLEN];
-FILE *acctfp;
-int acct_all;
+extern int useacctfile;
+extern char acctfile[MAXPATHLEN];
+extern FILE *acctfp;
+extern int acct_all;
 
-int aliasing;
-char aliasfile[MAXPATHLEN];
+extern int aliasing;
+extern char aliasfile[MAXPATHLEN];
 
-int do_fullscreen;
-int curses_ready;
+extern int do_fullscreen;
+extern int curses_ready;
 
 #ifdef USE_CURSES
-WINDOW *upper_w;
-WINDOW *mid_w;
-WINDOW *lower_w;
+extern WINDOW *upper_w;
+extern WINDOW *mid_w;
+extern WINDOW *lower_w;
 #endif
 
-int rt_prio;
+extern int rt_prio;
 
-int do_monitor;
-int inhibit_monitor;
-int monitorport;
-int accepted;
+extern int do_monitor;
+extern int inhibit_monitor;
+extern int monitorport;
+extern int accepted;
 
-int isdntime;
-int extcallattr;
+extern int isdntime;
+extern int extcallattr;
 
-char tinainitprog[MAXPATHLEN];
+extern char tinainitprog[MAXPATHLEN];
 
-char rotatesuffix[MAXPATHLEN];
+extern char rotatesuffix[MAXPATHLEN];
 
-time_t starttime;
+extern time_t starttime;
 
-char holidayfile[MAXPATHLEN];
+extern char holidayfile[MAXPATHLEN];
 
-int addprefix;
-char prefixnational[TELNO_MAX];
-char prefixinternational[TELNO_MAX];
+extern int addprefix;
+extern char prefixnational[TELNO_MAX];
+extern char prefixinternational[TELNO_MAX];
 
 #endif /* MAIN */
 

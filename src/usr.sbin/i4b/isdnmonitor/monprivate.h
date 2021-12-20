@@ -171,24 +171,24 @@ int portno;
 
 #else /* !MAIN */
 
-remstate_t remstate[MAX_CTRL];
+extern remstate_t remstate[MAX_CTRL];
 
-int nctrl;
-int curses_ready;
-int do_bell;
-int nentries;
-int fullscreen;
-int debug_noscreen;
+extern int nctrl;
+extern int curses_ready;
+extern int do_bell;
+extern int nentries;
+extern int fullscreen;
+extern int debug_noscreen;
 
-WINDOW *upper_w;
-WINDOW *mid_w;
-WINDOW *lower_w;
+extern WINDOW *upper_w;
+extern WINDOW *mid_w;
+extern WINDOW *lower_w;
 
-char devbuf[256];
+extern char devbuf[256];
 
-const char *sockpath;
-const char *hostname;
-int portno;
+extern const char *sockpath;
+extern const char *hostname;
+extern int portno;
 
 #endif
 
