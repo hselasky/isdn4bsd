@@ -1,5 +1,5 @@
-<CENTER><IMG SRC="https://raw.githubusercontent.com/hselasky/isdn4bsd/master/www/isdn4bsd.jpg"></IMG></CENTER>
-<CENTER><IMG SRC="https://raw.githubusercontent.com/hselasky/isdn4bsd/master/www/isdn4bsd.gif"></IMG></CENTER>
+<IMG SRC="https://raw.githubusercontent.com/hselasky/isdn4bsd/master/www/isdn4bsd.jpg"></IMG>
+<IMG SRC="https://raw.githubusercontent.com/hselasky/isdn4bsd/master/www/isdn4bsd.gif"></IMG>
 
 This file should give you some help on how to install this driver.
 
