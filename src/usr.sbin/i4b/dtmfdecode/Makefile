@@ -11,7 +11,7 @@ PROG=	dtmfdecode
 CFLAGS+= -DDEBUG
 
 # libm is only necessary if USE_COS is defined in the source
-#LDADD=	-lm
+#LDFLAGS= -lm
 
 test:   ${PROG}
 	uudecode -p < dtmfsounds.al.uu | ./${PROG}

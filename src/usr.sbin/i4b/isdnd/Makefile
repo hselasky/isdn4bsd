@@ -21,8 +21,7 @@ CFLAGS+= -I. -I${.CURDIR}/../isdnmonitor -I${.CURDIR}/../isdntel -I${.CURDIR}
 
 .if !defined(I4B_WITHOUT_CURSES)
 CFLAGS+= -DUSE_CURSES
-DPADD=	${LIBCURSES}
-LDADD=	-lcurses
+LDFLAGS= -lcurses
 .endif
 
 .if defined(I4B_EXTERNAL_MONITOR)

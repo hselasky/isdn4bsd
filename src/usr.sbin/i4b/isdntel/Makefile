@@ -4,8 +4,7 @@ PROG=	isdntel
 MAN=	isdntel.8
 SRCS=	main.c display.c files.c alias.c
 
-DPADD=	${LIBCURSES}
-LDADD=	-lcurses
+LDFLAGS= -lcurses
 
 .include "../Makefile.sub"
 .include <bsd.prog.mk>

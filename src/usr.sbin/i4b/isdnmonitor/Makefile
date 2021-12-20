@@ -7,8 +7,7 @@ SRCS=	main.c curses.c
 # compile debug support
 CFLAGS+= -DDEBUG
 
-DPADD=	${LIBCURSES}
-LDADD=	-lcurses
+LDFLAGS= -lcurses
 
 .include "../Makefile.sub"
 .include <bsd.prog.mk>
